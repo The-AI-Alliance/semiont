@@ -3,13 +3,14 @@
 A package is a directory packages/<language>/<name> holding its language's manifest. Its
 signature is one line capturing everything its build reads:
 
-- the toolchain image that builds it (argv: the TypeScript, Rust, Python and Go images, in
-  that order);
+- the toolchain image that builds it (argv: the TypeScript, Rust, Python, Go and Kotlin
+  images, in that order);
 - every file under its directory;
 - what every package of the repository is built from: version.json, the spec, and the
   scripts that generate from the spec;
 - what its language's packages share: for TypeScript the files beside them and the root's
-  package.json and lockfile, for Rust the workspace's manifest, lockfile and toolchain;
+  package.json and lockfile, for Rust the workspace's manifest, lockfile and toolchain (a
+  Kotlin package's lockfile, wrapper and version catalog are its own files);
 - the signature of each package of the repository it depends on, and every file of each
   other directory it does: the closure, read from its manifest, so a change to a package
   it is built on changes it too.
@@ -28,16 +29,17 @@ import sys
 import tomllib
 from pathlib import Path
 
-MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go"}
+MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin"}
 EVERY_PACKAGE = ("version.json", "specs/src/", "scripts/spec/", "scripts/bus/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
     "rust": ("packages/rust/Cargo.toml", "packages/rust/Cargo.lock", "packages/rust/rust-toolchain.toml"),
     "python": (),
     "go": (),
+    "kotlin": (),
 }
 
-toolchains = dict(zip(("typescript", "rust", "python", "go"), sys.argv[1:5], strict=True))
+toolchains = dict(zip(("typescript", "rust", "python", "go", "kotlin"), sys.argv[1:6], strict=True))
 files = sorted(f for f in sys.stdin.buffer.read().decode().split("\0") if f)
 
 

@@ -58,26 +58,19 @@ describe('CollaborationPanel Component', () => {
     vi.useRealTimers();
   });
 
-  // The panel optionally renders the collaborator roster with each software
-  // agent's discovered ceilings. Absence is meaningful and must degrade
-  // quietly — the field is absent whenever discovery could not answer
-  // *right now*.
+  // The panel optionally renders the roster with each engine's discovered
+  // ceilings. Absence is meaningful and must degrade quietly — the field is
+  // absent whenever discovery could not answer *right now*.
   describe('Collaborators roster', () => {
-    const softwareEntry = (over: Partial<Collaborator> = {}): Collaborator => ({
-      agent: {
-        '@type': 'Software' as const,
-        '@id': 'did:web:localhost:agents:anthropic:claude-sonnet-5',
-        name: 'Claude Sonnet 5',
-        provider: 'anthropic',
-        model: 'claude-sonnet-5',
-      },
+    const engineEntry = (over: Partial<Collaborator> = {}): Collaborator => ({
+      engine: { provider: 'anthropic', model: 'claude-sonnet-5' },
       serves: [{ jobType: 'yield' }],
       limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
       ...over,
     });
 
-    it('renders one row per software agent with provider, model and ceilings', () => {
-      render(<CollaborationPanel {...defaultProps} collaborators={[softwareEntry()]} />);
+    it('renders one row per engine with provider, model and ceilings', () => {
+      render(<CollaborationPanel {...defaultProps} collaborators={[engineEntry()]} />);
 
       expect(screen.getByText('Collaborators')).toBeInTheDocument();
       const row = screen.getByTestId('semiont-collaborator-row');
@@ -91,13 +84,8 @@ describe('CollaborationPanel Component', () => {
     it('renders a single window figure when the provider shares one (Ollama shape)', () => {
       // `maxOutputTokens === contextTokens` is the shared-window sentinel the
       // schema documents; rendering "128K in / 128K out" would be noise.
-      const shared = softwareEntry({
-        agent: {
-          '@type': 'Software' as const,
-          name: 'Gemma',
-          provider: 'ollama',
-          model: 'gemma2:27b',
-        },
+      const shared = engineEntry({
+        engine: { provider: 'ollama', model: 'gemma2:27b' },
         limits: { contextTokens: 128_000, maxOutputTokens: 128_000 },
       });
       render(<CollaborationPanel {...defaultProps} collaborators={[shared]} />);
@@ -108,7 +96,7 @@ describe('CollaborationPanel Component', () => {
     });
 
     it('renders the row without ceilings when limits are absent', () => {
-      const noLimits = softwareEntry();
+      const noLimits = engineEntry();
       delete noLimits.limits;
       render(<CollaborationPanel {...defaultProps} collaborators={[noLimits]} />);
 
@@ -127,17 +115,15 @@ describe('CollaborationPanel Component', () => {
       expect(screen.getByText('Connection Status')).toBeInTheDocument();
     });
 
-    it('lists only software agents — Persons are not inference collaborators', () => {
-      const person: Collaborator = { agent: { '@type': 'Person', name: 'Ada' } };
-      render(
-        <CollaborationPanel
-          {...defaultProps}
-          collaborators={[softwareEntry(), person]}
-        />,
-      );
+    it('lists every engine on the roster, one row each', () => {
+      const llama = engineEntry({ engine: { provider: 'ollama', model: 'llama3' } });
+      delete llama.serves;
+      delete llama.limits;
+      render(<CollaborationPanel {...defaultProps} collaborators={[engineEntry(), llama]} />);
 
-      expect(screen.getAllByTestId('semiont-collaborator-row')).toHaveLength(1);
-      expect(screen.queryByText('Ada')).not.toBeInTheDocument();
+      const rows = screen.getAllByTestId('semiont-collaborator-row');
+      expect(rows).toHaveLength(2);
+      expect(rows[1]!.textContent).toContain('llama3');
     });
   });
 

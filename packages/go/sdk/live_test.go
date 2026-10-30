@@ -690,16 +690,12 @@ func TestAResourcesAnnotationsAreTheListAndAListOrASearchIsOneQueryPerSetOfFilte
 	}
 }
 
-// namesOf is each collaborator's name.
+// namesOf is each engine as "<provider> <model>".
 func namesOf(t *testing.T, collaborators []semiont.Collaborator) []string {
 	t.Helper()
 	var names []string
 	for _, each := range collaborators {
-		software, err := each.Entry.Agent.AsAgentSoftware()
-		if err != nil {
-			t.Fatal(err)
-		}
-		names = append(names, software.Name)
+		names = append(names, string(each.Entry.Engine.Provider)+" "+each.Entry.Engine.Model)
 	}
 	return names
 }
@@ -719,8 +715,8 @@ func limitsOf(collaborators []semiont.Collaborator) []string {
 }
 
 func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItReportsThem(t *testing.T) {
-	gemma := `{"@type":"Software","name":"gemma","provider":"ollama","model":"gemma2:27b"}`
-	claude := `{"@type":"Software","name":"claude","provider":"anthropic","model":"claude-opus-5-5"}`
+	gemma := `{"provider":"ollama","model":"gemma2:27b"}`
+	claude := `{"provider":"anthropic","model":"claude-opus-5-5"}`
 	w := newLiveWorld(t, liveSetup{silent: true})
 	live := watch(t, w.client.Browse.Agents())
 	isPending(t, live.now(t))
@@ -745,9 +741,9 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 	live.nothingMore(t)
 
 	// The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-	answerRequest(w.transport, directory, `{"agents":[{"agent":`+gemma+`},{"agent":`+claude+`}]}`)
+	answerRequest(w.transport, directory, `{"agents":[{"engine":`+gemma+`},{"engine":`+claude+`}]}`)
 	shown := valueIn[[]semiont.Collaborator](t, live.now(t))
-	if names, limits := namesOf(t, shown), limitsOf(shown); !slices.Equal(names, []string{"gemma", "claude"}) || !slices.Equal(limits, []string{"8192", "none"}) {
+	if names, limits := namesOf(t, shown), limitsOf(shown); !slices.Equal(names, []string{"ollama gemma2:27b", "anthropic claude-opus-5-5"}) || !slices.Equal(limits, []string{"8192", "none"}) {
 		t.Fatalf("shown %v with limits %v", names, limits)
 	}
 
@@ -774,9 +770,9 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 			redirectory = request
 		}
 	}
-	answerRequest(w.transport, redirectory, `{"agents":[{"agent":`+claude+`}]}`)
+	answerRequest(w.transport, redirectory, `{"agents":[{"engine":`+claude+`}]}`)
 	shown = valueIn[[]semiont.Collaborator](t, live.now(t))
-	if names, limits := namesOf(t, shown), limitsOf(shown); !slices.Equal(names, []string{"claude"}) || !slices.Equal(limits, []string{"9"}) {
+	if names, limits := namesOf(t, shown), limitsOf(shown); !slices.Equal(names, []string{"anthropic claude-opus-5-5"}) || !slices.Equal(limits, []string{"9"}) {
 		t.Fatalf("shown %v with limits %v", names, limits)
 	}
 }

@@ -1,6 +1,6 @@
 """One held job, from the claim that handed it over to its settle.
 
-The SDK's claiming is the agent's side of the queue: a held job says its own
+The SDK's claiming is the worker's side of the queue: a held job says its own
 lifecycle, commits its own annotations and settles once
 (`docs/protocol/WORKER-CONTRACT.md`). This module is the work. It reads what
 the job needs, runs the job through its processor
@@ -215,7 +215,7 @@ async def _work(
     held = {"jobType": job.job_type, "params": written(job.params)}
     if not any(job_matches_filter(written(accepted), held) for accepted in accepts):
         # The dispatcher hands out only what the claim accepts, so this is a job the two disagree about. No second
-        # attempt changes what this agent serves.
+        # attempt changes what this engine serves.
         raise DeterministicJobError(f"Worker not configured for job: {_what(job)}")
     if isinstance(job, HeldMarkJob):
         return await _mark(job, client, inference, generator, reports, stood)
@@ -264,7 +264,7 @@ async def _mark(
 
     description = held_mark(job.params)
     if description is None:
-        # A job this agent was handed and cannot run: a tagging job without the schema its `schemaId` names. A
+        # A job this engine was handed and cannot run: a tagging job without the schema its `schemaId` names. A
         # second attempt would be handed the same job.
         raise DeterministicJobError(f"No processor for job: {what}")
 

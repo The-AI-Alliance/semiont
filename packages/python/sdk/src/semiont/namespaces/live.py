@@ -42,7 +42,6 @@ from semiont.types import (
     BrowseResourceRequest,
     BrowseResourcesRequest,
     BrowseTagSchemasRequest,
-    CollaboratorEntry,
     GatherReferencedByRequest,
     GetAnnotationsResponse,
     GetReferencedByResponseReferencedByItem,
@@ -52,6 +51,7 @@ from semiont.types import (
     MatchResourcesRequest,
     MatchResourcesResponse,
     ResourceDescriptor,
+    RosterEntry,
     TagSchema,
 )
 
@@ -207,7 +207,7 @@ class Live:
     async def _tag_schemas(self, _: str) -> list[TagSchema]:
         return (await self._links.request(BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest())).response.tag_schemas
 
-    async def _agents(self, _: str) -> list[CollaboratorEntry]:
+    async def _agents(self, _: str) -> list[RosterEntry]:
         return (await self._links.request(BROWSE_AGENTS_REQUESTED, BrowseAgentsRequest())).response.agents
 
     async def _limits(self, holder: str) -> list[InferencePairLimits]:

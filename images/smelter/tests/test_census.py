@@ -320,6 +320,9 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
     texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
     read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
+    # The shared package reads the worker's key too: this service proves itself with its secret, and reads no key.
+    assert "SEMIONT_OIDC_CLIENT_KEY" in read_here
+    read_here -= {"SEMIONT_OIDC_CLIENT_KEY"}
     assert read_here == listed_there
     # Its service account, and what says where its telemetry goes and under what name. Its embedding provider's
     # key is in a variable its document names, and so is named by no code.

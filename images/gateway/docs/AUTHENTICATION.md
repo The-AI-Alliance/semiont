@@ -12,10 +12,10 @@ first; the `bearerAuth` and `mediaToken` schemes in
   the scheme matched in any case; another scheme, no header, or a cookie is no
   credential. `GET /api/resources/{id}` also takes that resource's media token
   in `?token=`, for the links that cannot send a header.
-- **Two kinds of token, told apart by `iss`.** A token from the trusted issuer
-  (`identity.issuer`) is a person or a service account, verified RS256 against
-  the keys the issuer publishes. Any other is one the gateway signed itself — an
-  agent token — verified HS256 against its key ring, `JWT_SECRET`.
+- **One kind of bearer: the issuer's.** A token from the trusted issuer
+  (`identity.issuer`), a person's or an agent's, verified RS256 against the keys
+  the issuer publishes. Any other is refused: the one token the gateway signs
+  itself is a media token, which is no bearer.
 - **No admission of its own.** A token the issuer signed, for this knowledge
   base, within its times, is admitted. Nothing reads a role to decide access and
   no route answers 403; a refusal is always a 401.
@@ -31,30 +31,28 @@ first; the `bearerAuth` and `mediaToken` schemes in
 | The `Authenticated` and `MediaOrBearer` extractors, the challenge, the 401 bodies | [src/http.rs](../src/http.rs) |
 | Which token it is, and the principal it names | [src/principal.rs](../src/principal.rs) |
 | The issuer's keys: discovery, the key set, when it is fetched | [issuer.rs](../../../packages/rust/http-service/src/issuer.rs), in the crate the Rust services that serve HTTP share |
-| The key ring, agent and media tokens | [src/tokens.rs](../src/tokens.rs) |
+| The key ring and media tokens | [src/tokens.rs](../src/tokens.rs) |
 | How a person and an agent are named | the `semiont` crate's [identity.rs](../../../packages/rust/sdk/src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
-| The role names | the `semiont` crate's [roles.rs](../../../packages/rust/sdk/src/roles.rs), held to the launcher's and core's by `npm run lint:service-role` |
+| The role names, and the claim that marks an agent's account | the `semiont` crate's [roles.rs](../../../packages/rust/sdk/src/roles.rs), held to the launcher's by `npm run lint:service-role` |
 
 A protected handler takes `Authenticated` (or `MediaOrBearer`), which runs
 before its body is read, so an unauthenticated request never reaches a parser.
-`POST /api/tokens/agent` checks its own caller: an issuer token carrying
-`semiont-service`.
 
 ## What a request goes through
 
 1. **The token** — from the `Authorization` header; none is a 401 with a
    `WWW-Authenticate: Bearer resource_metadata="…"` challenge and a `hint`
    naming the header.
-2. **Its issuer** — read, unverified, to choose the verifier.
-3. **Its signature and times** — an issuer token against the key its `kid`
-   names in the issuer's set (see *The issuer's keys*, below), with
-   `iss` equal to the issuer, `aud` carrying this knowledge base's resource
-   identifier, and `exp` and `nbf` held with no leeway. An agent token against
-   each key of the ring in turn; expired or not yet valid ends the walk.
-4. **The principal** — built from the claims, with no lookup: a person is
-   `did:web:<domain>:users:<the claim identity.subjectClaim names>`, and needs
-   `email`, with `email_verified` not `false`; an agent is the DID its token
-   carries. Either is a `UserId`
+2. **Its signature and times** — against the key its `kid` names in the
+   issuer's set (see *The issuer's keys*, below), with `iss` equal to the
+   issuer, `aud` carrying this knowledge base's resource identifier, and `exp`
+   and `nbf` held with no leeway.
+3. **The principal** — built from the claims, with no lookup, by the subject
+   the claim `identity.subjectClaim` names: an agent,
+   `did:web:<domain>:agents:<subject>`, when the token's `kind` claim is
+   `agent`, which the issuer stamps on every agent's account, and a person,
+   `did:web:<domain>:users:<subject>`, otherwise. An `email` is optional; when
+   present, `email_verified` must not be `false`. Either DID is a `UserId`
    ([specs/src/identifiers/kinds.json](../../../specs/src/identifiers/kinds.json)):
    a token whose claims do not make one names no principal.
 
@@ -90,15 +88,14 @@ than the one.
 A request answered 401 is read as far as its `Authorization` header and no
 further: no body, no call to the Archivist, nothing published. It is logged
 ([LOGGING.md](LOGGING.md#authentication-failures-warn)) and counted in
-`semiont.gateway.unauthenticated` by its `reason`. An issuer token costs a
-signature check against the keys held; a token the gateway signed, one HMAC
-per key of the ring.
+`semiont.gateway.unauthenticated` by its `reason`. A token costs a signature
+check against the keys held.
 
 A refused request is counted against the holder its token names, read without
-verifying it: the token's `iss`, and the claim the gateway names a holder by
-(`identity.subjectClaim` for the trusted issuer's tokens, `did` for its
-own). A request with no token, or with one that names no holder, is counted in
-one count shared by all such requests. Each holder may have
+verifying it: the claim the gateway names a holder by, `identity.subjectClaim`,
+of a token naming the trusted issuer. A request with no token, or with one that
+names another issuer or no holder, is counted in one count shared by all such
+requests. Each holder may have
 `refusalBurst` requests refused at once and `refusalsPerSecond` after, per
 process (the bearer scheme's `x-semiont-limits`); past that, a refused request
 is answered 429 `refusal-rate` with a `Retry-After`, in place of its 401, and
@@ -109,27 +106,7 @@ counting first. A caller that varies the holder its tokens name is bounded by
 the connection cap (GatewayConfig `capacity.connections`) alone; protection
 per address is an ingress's.
 
-## The tokens the gateway mints
-
-**Agent tokens** — `POST /api/tokens/agent`. A service account presents its
-issuer token and names a (provider, model); the gateway answers a token for
-that agent, signed with the first key of `JWT_SECRET`, for an hour:
-
-```json
-{
-  "did": "did:web:example.github.io:my-kb:agents:anthropic:claude-sonnet-5",
-  "email": "anthropic-claude-sonnet-5@agents.example.github.io",
-  "name": "anthropic claude-sonnet-5",
-  "domain": "example.github.io:my-kb",
-  "roles": ["semiont-worker"],
-  "iat": 1698765432,
-  "exp": 1698769032,
-  "iss": "example.github.io:my-kb"
-}
-```
-
-`roles` is there only when the service account carried `semiont-worker`. The
-hour is the revocation window: an agent has no account anywhere to disable.
+## The token the gateway mints
 
 **Media tokens** — `POST /api/tokens/media` with `{ "resourceId": … }`: a
 token naming that one resource (`purpose: "media"`, `sub`) for five minutes,

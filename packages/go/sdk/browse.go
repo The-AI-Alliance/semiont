@@ -11,31 +11,27 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-// Collaborator is one collaborator of the knowledge base: its entry in the
-// directory, and its model's limits when the service holding that model's
-// credentials reported them (nil when none did).
+// Collaborator is one engine on the knowledge base's roster: its entry, and
+// its model's limits when the service holding that model's credentials
+// reported them (nil when none did).
 type Collaborator struct {
-	Entry  api.CollaboratorEntry
+	Entry  api.RosterEntry
 	Limits *api.InferenceLimits
 }
 
-// joined is the directory, each software agent with the limits its model was
-// reported to have. The first report of a model is the one that stands.
-func joined(directory []api.CollaboratorEntry, reported []api.InferencePairLimits) []Collaborator {
+// joined is the roster, each engine with the limits its model was reported
+// to have. The first report of a model is the one that stands.
+func joined(roster []api.RosterEntry, reported []api.InferencePairLimits) []Collaborator {
 	type model struct{ provider, model string }
 	byModel := map[model]api.InferenceLimits{}
 	for i := len(reported) - 1; i >= 0; i-- {
 		byModel[model{reported[i].Provider, reported[i].Model}] = reported[i].Limits
 	}
-	collaborators := make([]Collaborator, 0, len(directory))
-	for _, entry := range directory {
+	collaborators := make([]Collaborator, 0, len(roster))
+	for _, entry := range roster {
 		collaborator := Collaborator{Entry: entry}
-		if kind, err := entry.Agent.Discriminator(); err == nil && kind == string(api.AgentSoftwareTypeSoftware) {
-			if software, err := entry.Agent.AsAgentSoftware(); err == nil && software.Provider != nil && software.Model != nil {
-				if limits, ok := byModel[model{*software.Provider, *software.Model}]; ok {
-					collaborator.Limits = &limits
-				}
-			}
+		if limits, ok := byModel[model{string(entry.Engine.Provider), entry.Engine.Model}]; ok {
+			collaborator.Limits = &limits
 		}
 		collaborators = append(collaborators, collaborator)
 	}

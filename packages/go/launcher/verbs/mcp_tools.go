@@ -26,7 +26,7 @@ type listedKnowledgeBase struct {
 	Did        string `json:"did,omitempty"`
 	Root       string `json:"root,omitempty"`
 	Repo       string `json:"repo,omitempty"`
-	SignedInAs string `json:"signedInAs"`
+	SignedInAs string `json:"signedInAs,omitempty"`
 	Renews     bool   `json:"renews"`
 	ForwardUp  *bool  `json:"forwardUp,omitempty"`
 }

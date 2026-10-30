@@ -25,7 +25,7 @@ Archivist's, reached over HTTP.
 
 | It owns | It does not |
 |---|---|
-| **Identity** — verifies every bearer against the issuer's published keys; mints the `did:web` agent tokens and the media tokens it signs itself | Host any actor (Stower, Browser, Gatherer, Matcher, CloneTokenManager) or any bus handler |
+| **Identity** — verifies every bearer against the issuer's published keys and names its holder, a person or an agent, by the subject the issuer asserted; mints the media tokens it signs itself | Host any actor (Stower, Browser, Gatherer, Matcher, CloneTokenManager) or any bus handler |
 | **The bus hub** — `POST /bus/emit` in, `POST /bus/subscribe` (SSE) out, behind a driver (in-process, or NATS core subjects) | Mount the knowledge base. No `/kb`, no working tree, no `.git` |
 | **The correlation ledger** — records who asked, decides who may see the reply, retains replies for reconnect recovery | Own the job queue or hold a database: the queue is the dispatcher's, accounts live at the issuer, and the PostgreSQL in a stack is Keycloak's |
 | **The content proxy** — forwards resource bytes to the Archivist | Connect to Neo4j, Qdrant, or an inference provider; read or write projections, views, or content directly; store bytes |
@@ -59,7 +59,7 @@ schema cannot hold.
 | `GET /api/openapi.json` | The OpenAPI document, stamped with this build's version and public URL |
 | `GET /.well-known/oauth-protected-resource` | Resource metadata naming this knowledge base's issuer (RFC 9728) |
 | `GET /api/users/me` | The principal the bearer token names |
-| `POST /api/tokens/agent`, `POST /api/tokens/media` | The tokens the gateway mints. People sign in at the issuer, not here |
+| `POST /api/tokens/media` | The one token the gateway mints. People and agents sign in at the issuer, not here |
 | `GET /api/status` | The gateway's status and version |
 | `POST /bus/emit`, `POST /bus/subscribe` | The bus hub, over the selected signal plane (`src/signal/`) |
 | `POST /resources` | Upload: streamed to the Archivist, which stores the bytes and records the resource |

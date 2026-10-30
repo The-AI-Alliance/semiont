@@ -16,15 +16,7 @@ import {
   trace,
 } from '@opentelemetry/api';
 
-interface WebModule {
-  initObservabilityWeb: (config: {
-    serviceName: string;
-    serviceVersion?: string;
-    otlpEndpoint?: string;
-    otlpHeaders?: Record<string, string>;
-    enabled?: boolean;
-  }) => boolean;
-}
+type WebModule = typeof import('../tracing');
 
 async function loadFresh(): Promise<WebModule> {
   vi.resetModules();
@@ -45,14 +37,14 @@ afterEach(() => {
 describe('initObservabilityWeb', () => {
   it('returns false when neither otlpEndpoint nor enabled is provided', async () => {
     const { initObservabilityWeb } = await loadFresh();
-    expect(initObservabilityWeb({ serviceName: 'semiont-browser' })).toBe(false);
+    expect(initObservabilityWeb({ serviceName: 'semiont-browser', serviceVersion: '1.2.3' })).toBe(false);
   });
 
   it('returns false when enabled=false (even with an endpoint)', async () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'semiont-browser',
+        serviceName: 'semiont-browser', serviceVersion: '1.2.3',
         otlpEndpoint: 'https://collector.example.com/v1/traces',
         enabled: false,
       }),
@@ -63,7 +55,7 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'semiont-browser',
+        serviceName: 'semiont-browser', serviceVersion: '1.2.3',
         otlpEndpoint: 'https://collector.example.com/v1/traces',
       }),
     ).toBe(true);
@@ -73,7 +65,7 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'semiont-browser',
+        serviceName: 'semiont-browser', serviceVersion: '1.2.3',
         enabled: true,
       }),
     ).toBe(true);
@@ -83,27 +75,16 @@ describe('initObservabilityWeb', () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
       initObservabilityWeb({
-        serviceName: 'semiont-browser',
+        serviceName: 'semiont-browser', serviceVersion: '1.2.3',
         otlpEndpoint: 'https://collector.example.com/v1/traces',
         otlpHeaders: { 'x-api-key': 'secret' },
       }),
     ).toBe(true);
   });
 
-  it('honors a serviceVersion override', async () => {
-    const { initObservabilityWeb } = await loadFresh();
-    expect(
-      initObservabilityWeb({
-        serviceName: 'semiont-browser',
-        serviceVersion: '2.3.4',
-        enabled: true,
-      }),
-    ).toBe(true);
-  });
-
   it('installs a recording tracer, a context manager and the W3C trace-context and baggage propagators', async () => {
     const { initObservabilityWeb } = await loadFresh();
-    expect(initObservabilityWeb({ serviceName: 'semiont-browser', enabled: true })).toBe(true);
+    expect(initObservabilityWeb({ serviceName: 'semiont-browser', serviceVersion: '1.2.3', enabled: true })).toBe(true);
 
     const span = trace.getTracer('probe').startSpan('probe');
     expect(span.isRecording()).toBe(true);
@@ -121,10 +102,10 @@ describe('initObservabilityWeb', () => {
   it('is idempotent — second call returns false', async () => {
     const { initObservabilityWeb } = await loadFresh();
     expect(
-      initObservabilityWeb({ serviceName: 'semiont-browser', enabled: true }),
+      initObservabilityWeb({ serviceName: 'semiont-browser', serviceVersion: '1.2.3', enabled: true }),
     ).toBe(true);
     expect(
-      initObservabilityWeb({ serviceName: 'semiont-browser', enabled: true }),
+      initObservabilityWeb({ serviceName: 'semiont-browser', serviceVersion: '1.2.3', enabled: true }),
     ).toBe(false);
   });
 });

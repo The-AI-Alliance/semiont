@@ -1,5 +1,5 @@
 {
-  "$comment": "What the graph holds of an annotation and of a resource, as every implementation of the graph's two codecs must say it. Semiont's codecs (semiont_graph: codec.py) run every case, and the reader the conformance suites read a graph with (tests/conformance/harness/graph-codec.ts) runs the parts a reader has; another implementation runs the same file. A store keeps its own dialect (a map set on a node, a chain of properties, a list kept as a JSON string); what is stored, what each stored thing is called, which are required and what is refused are stated here, once. Each case has one of six parts. `annotationStored`: an annotation as the record gives it; the `properties` of its row that are plain strings; the properties that are JSON, each given under `json` as the value the stored string must parse to (a serializer is free in its spacing and its key order); its `tags`, which are edges and not properties, as a set; the resource it `linksTo`, where the reference edge goes; and what the graph `holds`, which is what reading the row back answers. `annotationRead`: a row's `properties` (JSON ones as the strings a store holds) and its `tags` in whatever order a store answers them, and the `annotation` read. `annotationUpdated`: the `current` annotation as the graph holds it, the `updates`, and the `annotation` the update leaves; a store writes that annotation whole. `referenceResolved`: the `current` annotation, the `source` it is resolved to, and the `body` it then has. `resourceStored` and `resourceRead` say the same of a resource. Where an implementation must refuse, the part has `refused`: a word the refusal names (the missing field, or the resource an update tried to move to). An annotation a case gives is as a read answers it, with a person named; the graph's side of every case holds that person without the name. Text here is carried and never counted, so a character outside the basic plane is in the table to be carried as itself. Add a case here before changing an implementation.",
+  "$comment": "What the graph holds of an annotation and of a resource, as every implementation of the graph's two codecs must say it. Every implementation of the two codecs runs every case, and one that only reads a graph runs the parts a reader has; an implementation in another language runs the same file. A store keeps its own dialect (a map set on a node, a chain of properties, a list kept as a JSON string); what is stored, what each stored thing is called, which are required and what is refused are stated here, once. Each case has one of six parts. `annotationStored`: an annotation as the record gives it; the `properties` of its row that are plain strings; the properties that are JSON, each given under `json` as the value the stored string must parse to (a serializer is free in its spacing and its key order); its `tags`, which are edges and not properties, as a set; the resource it `linksTo`, where the reference edge goes; and what the graph `holds`, which is what reading the row back answers. `annotationRead`: a row's `properties` (JSON ones as the strings a store holds) and its `tags` in whatever order a store answers them, and the `annotation` read. `annotationUpdated`: the `current` annotation as the graph holds it, the `updates`, and the `annotation` the update leaves; a store writes that annotation whole. `referenceResolved`: the `current` annotation, the `source` it is resolved to, and the `body` it then has. `resourceStored` and `resourceRead` say the same of a resource. Where an implementation must refuse, the part has `refused`: a word the refusal names (the missing field, or the resource an update tried to move to). An annotation a case gives is as a read answers it, with a person named; the graph's side of every case holds that person without the name. Text here is carried and never counted, so a character outside the basic plane is in the table to be carried as itself. Add a case here before changing an implementation.",
   "runBy": {
     "conformance": ["tests/conformance/harness/graph-codec.test.ts"],
     "graph-python": ["packages/python/graph/tests/test_codec_cases.py"]
@@ -249,7 +249,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ],
@@ -317,7 +317,7 @@
           "modified": "2021-01-02T03:04:05.000Z",
           "generator": {
             "@type": "Software",
-            "@id": "did:web:example.org:agents:anthropic:model",
+            "@id": "did:web:example.org:agents:semiont-worker",
             "name": "model"
           }
         },
@@ -337,7 +337,7 @@
           },
           "generator": {
             "@type": "Software",
-            "@id": "did:web:example.org:agents:anthropic:model",
+            "@id": "did:web:example.org:agents:semiont-worker",
             "name": "model"
           }
         },
@@ -366,7 +366,7 @@
           "modified": "2021-01-02T03:04:05.000Z",
           "generator": {
             "@type": "Software",
-            "@id": "did:web:example.org:agents:anthropic:model",
+            "@id": "did:web:example.org:agents:semiont-worker",
             "name": "model"
           }
         }
@@ -1172,7 +1172,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1199,7 +1199,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1230,7 +1230,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1265,7 +1265,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1291,7 +1291,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1321,7 +1321,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1420,7 +1420,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ],
@@ -1450,7 +1450,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1481,7 +1481,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1517,7 +1517,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1553,7 +1553,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1608,7 +1608,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1644,7 +1644,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1667,7 +1667,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "resource": {
           "@context": "https://schema.org/",
@@ -1695,7 +1695,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1714,7 +1714,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "resource": {
           "@context": "https://schema.org/",
@@ -1739,7 +1739,7 @@
             },
             {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "model"
             }
           ]
@@ -1760,7 +1760,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "id"
       }
@@ -1779,7 +1779,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "name"
       }
@@ -1795,7 +1795,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "entityTypes"
       }
@@ -1814,7 +1814,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "format"
       }
@@ -1833,7 +1833,7 @@
           "created": "2020-03-04T05:06:07.000Z",
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "archived"
       }
@@ -1852,7 +1852,7 @@
           "archived": false,
           "contentChecksum": "sha256:abc",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "created"
       }
@@ -1890,7 +1890,7 @@
           "archived": false,
           "created": "2020-03-04T05:06:07.000Z",
           "storageUri": "file:///kb/cedar.md",
-          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:anthropic:model\", \"name\": \"model\"}]"
+          "creator": "[{\"@type\": \"Person\", \"@id\": \"did:web:example.org:users:ada\", \"name\": \"Ada\"}, {\"@type\": \"Software\", \"@id\": \"did:web:example.org:agents:semiont-worker\", \"name\": \"model\"}]"
         },
         "refused": "contentChecksum"
       }

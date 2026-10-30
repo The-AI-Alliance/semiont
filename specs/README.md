@@ -156,7 +156,6 @@ All 37 path definitions in [src/paths/](src/paths/):
 
 **Authentication:**
 - `well-known_oauth-protected-resource.json` - Which issuer this gateway trusts (RFC 9728)
-- `api_tokens_agent.json` - Software-agent token exchange
 - `api_tokens_media.json` - Resource-scoped media token
 - `api_users_me.json` - Current user profile
 

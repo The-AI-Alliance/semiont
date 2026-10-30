@@ -8,6 +8,9 @@ dynamic = ["version"]
 description = "The Python SDK for Semiont, an open platform for building trusted AI knowledge bases"
 readme = "README.md"
 requires-python = ">=3.12"
+# The licence's text is the repository's LICENSE, which
+# scripts/ci/build-python-sdk.sh copies beside this file before it builds:
+# hatchling takes a file of that name as the distributions' licence file.
 license = "Apache-2.0"
 keywords = ["semiont", "knowledge-base", "annotation", "agents", "sdk"]
 classifiers = [
@@ -20,6 +23,8 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    # RS256 for a service account that proves itself with a key (`semiont.http.KeyCredential`).
+    "cryptography>=50,<51",
     "httpx>=0.28,<1",
     # The API alone: it does nothing until the process it runs in installs a provider.
     "opentelemetry-api>=1.30,<2",
@@ -27,8 +32,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# What `semiont.testing.axioms` imports when its harness runs: a program holds its
-# own state units to the axioms this package's are held to. Nothing else in the
+# What `semiont.testing.axioms` and `semiont.testing.liveness` import when their
+# harnesses run: a program holds its own state units, and its own compositions
+# over the bus, to the axioms this package's are held to. Nothing else in the
 # package imports it, and every module imports without it.
 axioms = ["hypothesis>=6.130,<7"]
 
@@ -103,6 +109,7 @@ extend-exclude = [
     "src/semiont/operations.py",
     "src/semiont/refresh.py",
     "src/semiont/sign_in.py",
+    "src/semiont/stored.py",
     "src/semiont/telemetry_table.py",
     "src/semiont/timing.py",
     "src/semiont/types.py",

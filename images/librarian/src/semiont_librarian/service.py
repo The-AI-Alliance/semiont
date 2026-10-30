@@ -15,11 +15,11 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It starts in the order `docs/protocol/LIBRARIAN.md` § Boot states: it signs
-in as the agent `(semiont, librarian)`, reaches the graph database and the
-vector index, begins to take requests from the bus, and opens its health
-port last, so a Librarian whose health answers is answering. It loads
-nothing and makes nothing: it reads what other services write. Told to stop,
-it stops taking requests, closes what it holds open, and exits with status 0.
+in as its account, reaches the graph database and the vector index, begins to
+take requests from the bus, and opens its health port last, so a Librarian
+whose health answers is answering. It loads nothing and makes nothing: it
+reads what other services write. Told to stop, it stops taking requests,
+closes what it holds open, and exits with status 0.
 """
 
 import asyncio
@@ -88,10 +88,6 @@ CHANNELS: Final[tuple[str, ...]] = (
     *reply_channels_for(*READ),
 )
 """What the Librarian's stream names: the eight requests it answers, the two signals it follows, and the replies of what it asks."""
-
-_PROVIDER: Final = "semiont"
-_MODEL: Final = "librarian"
-"""Who the Librarian works as: one agent, `(semiont, librarian)`, whatever models its two actors ask."""
 
 
 def health() -> JsonValue:
@@ -191,7 +187,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
     account = ServiceToken(started.credential)
 
-    async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=account) as agent:
+    async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         try:
             await connected("graph database", started.graph.connect())

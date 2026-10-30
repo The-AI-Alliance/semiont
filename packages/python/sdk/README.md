@@ -42,28 +42,35 @@ A transport sends the token it is given. Where the token comes from is one of
 three things, and each keeps it renewed: half its lifetime before it expires,
 at most five minutes before, and at once when the gateway refuses it.
 
-**An agent** is a service account's token exchanged at the gateway for the
-token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on. The
-gateway answers the exchange with the agent's DID, which is who its work is
-attributed to: `agent.did`, once it is signed in, as the gateway minted it.
+**An agent** is an account, as a person is: it signs in at its issuer, and the
+token its issuer grants is its bearer at the gateway. It is what a service
+holds: a transport, its agent's token, and the channels it awaits replies on.
+The gateway names it by its account; that DID, which the gateway answers at
+`GET /api/users/me`, is who its work is attributed to: `agent.did`, once it is
+signed in. The engine it runs is no part of it: each write names that.
 
 ```python
 from semiont.bus import reply_channels_for
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.operations import JOB_CLAIM
 from semiont.watched import reached
 
 
 async def work(gateway: str, issuer: str, secret: str) -> None:
-    service = ServiceToken(Credential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
     async with (
-        AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
-        print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
+        print(f"working as {agent.did}")  # who its work is attributed to: its account, as the gateway names it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
+
+A service account proves itself to its issuer with its client secret
+(`SecretCredential`), or with a key (`KeyCredential`, whose `private_key` is an
+RSA key from `cryptography`): each grant then carries an assertion signed for it
+alone (RFC 7523, `private_key_jwt`), which the issuer checks with the public half
+registered on the client, and no secret is sent.
 
 **A person** is signed in at the issuer the knowledge base trusts, and the
 sign-in is kept. [`semiont login`][launcher] keeps one for each stack, and a
@@ -71,7 +78,9 @@ session here is built over it; a script on a machine with no launcher makes
 its own by the device grant, which shows a code to approve in any browser. No
 password passes through this process. Both are given the knowledge base's
 target (`semiont.types.KbTarget`: its id, its label and its endpoint), as the
-other SDKs' are, and reach the gateway its HTTP endpoint names.
+other SDKs' are, and reach the gateway its HTTP endpoint names. An
+application a person uses signs them in by a page redirect instead
+([Several knowledge bases](#several-knowledge-bases)).
 
 ```python
 from pathlib import Path
@@ -417,7 +426,7 @@ comes to hold, one at a time, and a held job says its own lifecycle.
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
 from semiont.identity import agent_name
 from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
@@ -448,11 +457,11 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
-    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+    # The process signs in at its issuer as its account: the agent its work is attributed to.
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
         HttpTransport(
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
@@ -462,7 +471,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent the gateway gave it.
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
         generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
@@ -486,19 +495,20 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
                             await job.complete(result)
 ```
 
-- **A worker is an agent.** Its process signs in with a service account, and
-  the gateway gives it the agent its work is attributed to. The account needs
-  two roles at the issuer: `semiont-service`, to be given an agent, and
-  `semiont-worker`, without which every claim is refused as
-  `bus.unauthorized`.
+- **A worker is an agent.** Its process signs in at its issuer as its account,
+  and the gateway names it by that account: the agent its work is attributed
+  to. The account needs two roles at the issuer: `semiont-service`, which marks
+  a service's account, and `semiont-worker`, without which every claim is
+  refused as `bus.unauthorized`.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is refused
   at its first claim, as `bus.unsubscribed`.
 - **It builds what it commits** with `reconcile` and `annotation_of_span`:
   [Building annotations](#building-annotations) says what each does. The
-  `generator` an annotation states is the agent the worker works as, whose
-  DID is what the gateway says its token is.
+  `generator` an annotation states is the agent the worker works as, by the
+  DID the gateway names its account by, and the engine it ran (`provider`,
+  `model`).
 - **A held job commits for itself**: `await job.commit(resource_id, annotations)`
   sends the batch as `mark:commit`, citing the job, and returns once the
   record has it. When no acknowledgement arrives it asks whether the batch's
@@ -656,6 +666,70 @@ The rules are case tables that every SDK runs:
 [`reconcile-cases.json`][reconcile-cases], [`builder-cases.json`][builder-cases]
 and [`id-cases.json`][id-cases].
 
+## Several knowledge bases
+
+`semiont.registry` is what an application a person uses holds beside its
+knowledge bases: the list it has registered, which one is active and that
+one's session, and what the person has open in each. It keeps all of it in a
+`SessionStorage`, under the keys every SDK's registry uses
+([`stored.json`][stored-keys]), so a registry made again over the same storage
+picks up where the last one was.
+
+```python
+from semiont.identifiers import ResourceId
+from semiont.registry import SemiontBrowser, SemiontBrowserConfig, SessionFactory
+from semiont.storage import SessionStorage
+from semiont.watched import reached
+
+
+async def pick_up_where_i_was(storage: SessionStorage, sessions: SessionFactory) -> None:
+    config = SemiontBrowserConfig(storage=storage, session_factory=sessions)
+    async with SemiontBrowser(config) as browser:
+        for kb in browser.kbs.value:
+            print(kb.label, kb.did, browser.kb_session_status(kb.id))
+        # Held, the registry brings up the active knowledge base's session.
+        await reached(browser.active_session, lambda session: session is not None)
+        browser.add_open_resource(ResourceId("res-1"), "Notes")
+        print([tab.name for tab in browser.open_resources.value])
+```
+
+- **One session is live at a time.** `set_active_kb` closes the active one's
+  session and brings up the next: its readers see no session, then the new
+  one. `session_activating` says a session is on its way. A session is built
+  by the `SessionFactory` the registry is given;
+  `semiont.http.session.HttpSessionFactory` builds one over a knowledge base's
+  gateway, renewing its token at the issuer its stored sign-in names, and
+  keeping its caches in the registry's storage.
+- **A sign-in lands on the knowledge base that answered.**
+  `semiont.http.session.begin_sign_in` remembers a pending sign-in and gives
+  the address to send the person to; `complete_sign_in`, given the address the
+  issuer sent them back to, exchanges the code, asks the knowledge base who it
+  is, and registers it under what it says. Its did is what an entry is matched
+  by, never the address a person typed or the row they clicked; what they
+  believed is said back (`SignInOutcome.expected`) for the application to set
+  against it. The grant itself is `semiont.http.oauth`'s:
+  `begin_authorization` and `complete_authorization`, the authorization-code
+  grant with PKCE, and `describe_connection`, the question a completed sign-in
+  asks.
+- **What a session's arrival checks.** When a session comes up, the knowledge
+  base is asked who it is, and each open resource is checked against it. A
+  different knowledge base answering voids what was open and raises
+  `kb_identity_conflict` on the session's signals; a resource the knowledge
+  base says is gone is closed; no answer changes nothing. A request the
+  gateway refuses for want of a valid token renews the session, and one
+  refused for lack of permission raises `permission_denied`.
+- **Another context's writes are heard.** Each change to what is open is made
+  against what the storage holds, as one step (`SessionStorage.update`), and
+  a storage that hears what another window or process writes
+  (`SessionStorage.subscribe`) has the registry show it.
+
+`semiont.discovery` reads the document a launcher publishes of the knowledge
+bases it manages: whole or not at all, a launcher that is not there told from
+one that manages nothing, and what changed since it was last read
+(`subscribe_discovery`). `text_discovery` reads it from wherever the text
+comes from, and `semiont.http.discovery.http_discovery` from a URL. It is a
+registry's list of what can be signed in to.
+
 ## Testing what is built on it
 
 `semiont.testing` gives a real client over doubles. Its namespaces, its cache
@@ -714,6 +788,22 @@ async def a_title_is_its_resources_name_in_title_case() -> None:
   making, so a test that forgot to say something fails where it forgot.
 - **`create_test_client`** takes the doubles a test built, or makes ones
   nothing is scripted on, and the client's own timing and persistence.
+- **`create_test_session`** gives a real `SemiontSession` over a test client,
+  ready as soon as it is held, holding a token only if its sign-in was kept.
+- **`semiont.testing.axioms`** holds a state unit, a program's own too, to the
+  rules every unit keeps. **`semiont.testing.liveness`** holds a composition
+  over the bus to the liveness rules: under generated fault schedules every
+  output says something and every awaited path settles, within a bound
+  (`assert_liveness_axioms`), and anything shaped like a connection delivers
+  each event exactly once, wherever a transition lands among the writes
+  (`assert_exactly_once_delivery`). This package's own transport and client
+  are held to them. Both draw their cases with Hypothesis, which the extra
+  `semiont[axioms]` installs.
+- **`ScriptedSessions`** is a `semiont.registry.SessionFactory` of real
+  sessions over scripted transports, one a knowledge base, for a test of a
+  registry: a test says what each knowledge base answers, who a token is and
+  what a renewal gives. **`SharedStorage`** is a storage several contexts
+  share, each hearing what the others write, as two windows do.
 
 ## The bus
 
@@ -900,7 +990,9 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.cache`, `semiont.refresh`, `semiont.resume` | The cache queries answer from and its three states, which queries each event asks again, and where a stream resumes after a restart |
 | `semiont.storage` | Where a client keeps what must outlive it: `SessionStorage`, and `MemoryStorage` |
 | `semiont.session` | `SemiontSession`, and `MemorySignIn` |
-| `semiont.http` | `HttpTransport`, and signing in: `ServiceToken`, `AgentToken`, `sign_in_device`, `session_from_kept`, `sign_out`; a gateway's origin from its endpoint, `gateway_url` |
+| `semiont.http` | `HttpTransport`, and signing in: `ServiceToken`, `AgentToken`, `sign_in_device`, `session_from_kept`, `sign_out`; a gateway's origin from its endpoint, `gateway_url`. And in `semiont.http.oauth`, the redirect sign-in (`begin_authorization`, `complete_authorization`); in `semiont.http.session`, a registry's sessions and sign-in over HTTP (`HttpSessionFactory`, `begin_sign_in`, `complete_sign_in`, `describe_connection`); in `semiont.http.discovery`, a launcher's document over HTTP |
+| `semiont.registry`, `semiont.stored` | A registry of knowledge bases, `SemiontBrowser`: the ones registered, the active one's session, what is open in each; and what it keeps in its storage, under which keys |
+| `semiont.discovery` | The knowledge bases a launcher manages, as it publishes them, and what changed since they were last read |
 | `semiont.sign_in_store` | The sign-ins `semiont login` keeps, and where each system keeps them |
 | `semiont.identifiers`, `semiont.types` | The kinds of id, and every request, response and event |
 | `semiont.channels`, `semiont.operations` | The bus's channels and its operations, each a constant that carries its payload's type |
@@ -913,11 +1005,11 @@ resource is cloned by, `password`, `apiKey` and the rest of the
 | `semiont.resources` | The readers of a resource, whether its representations are one or a list: `primary_representation`, `primary_media_type` and `resource_entity_types`. And `decode_representation`, which makes a text of the bytes of a resource whose bytes are its text, and refuses any other |
 | `semiont.identity` | How a knowledge base is named, and the principals who act in it |
 | `semiont.telemetry` | What the transports tell OpenTelemetry, and `continuing`, which holds the trace a frame or a held job brought |
-| `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client` |
+| `semiont.testing` | The doubles: `FaultyTransport`, `InMemoryContent`, `StubGateway`, `create_test_client`, `create_test_session`; a registry's, `ScriptedSessions` and `SharedStorage`; and, in `axioms` and `liveness`, the harnesses that hold a state unit and a composition to their axioms |
 
 Nothing here restates the protocol by hand. `identifiers`, `types`,
 `channels`, `operations`, `error_codes`, `timing`, `refresh`,
-`telemetry_table`, `oauth_clients`, `sign_in`, `media_types_table` and
+`telemetry_table`, `oauth_clients`, `sign_in`, `stored`, `media_types_table` and
 `_encodings` (the Encoding Standard's labels and single-byte encodings, by
 which a resource's text is read) are generated from the
 [specification][specs], and a gate in CI fails when one of them differs from
@@ -962,6 +1054,7 @@ Apache-2.0. See [LICENSE][license].
 [id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
 [resource-text]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
+[stored-keys]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/session/stored.json
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
 [bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk

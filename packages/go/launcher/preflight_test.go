@@ -1,6 +1,10 @@
 package launcher
 
 import (
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -8,6 +12,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -15,15 +20,18 @@ import (
 )
 
 // The identity preflight: before anything starts, each service account's
-// client-credentials grant is performed with the secret about to be injected,
-// and the token's flat roles and audience are checked. Every case here drives
+// client-credentials grant is performed with the secret about to be injected —
+// the worker's with an assertion signed by the machine's key — and the token's
+// flat roles and audience are checked. Every case here drives
 // a STUB issuer rather than a Keycloak: what these assert is the launcher's
 // reading of a token, and a real realm cannot be made to emit the broken
 // shapes on demand. The shapes themselves are not invented — they are what a
 // live Keycloak 26.7.4 realm emits.
 
 // stubIssuer: an OIDC discovery document plus a token endpoint, serving
-// whatever `grant` decides for each client.
+// whatever `grant` decides for each client. A client that proves itself with
+// an assertion is the one the assertion names, if it holds as Keycloak checks
+// it against the test worker key; refused as Keycloak refuses it otherwise.
 func stubIssuer(t *testing.T, grant func(clientID string) (int, string)) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -34,7 +42,14 @@ func stubIssuer(t *testing.T, grant func(clientID string) (int, string)) *httpte
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
-		code, body := grant(r.PostFormValue("client_id"))
+		clientID := r.PostFormValue("client_id")
+		if r.PostFormValue("client_assertion_type") == jwtBearer {
+			clientID = assertedClient(r.PostFormValue("client_assertion"), srv.URL+"/token", testWorkerKey())
+		}
+		code, body := 401, `{"error":"invalid_client"}`
+		if clientID != "" {
+			code, body = grant(clientID)
+		}
 		w.Header().Set("content-type", "application/json")
 		w.WriteHeader(code)
 		fmt.Fprint(w, body)
@@ -59,10 +74,80 @@ const testAudience = "https://the-ai-alliance.github.io/semiont-template-kb"
 
 func testSecrets() map[string]string {
 	m := map[string]string{}
-	for _, svc := range serviceClients {
+	for _, svc := range secretClients {
 		m[svc] = "secret-" + svc
 	}
 	return m
+}
+
+// testWorkerKey: the machine's worker key, as the tests hold it — one per test
+// binary, since generating one is the slow part.
+var testWorkerKey = sync.OnceValue(func() workerKey {
+	key, err := rsa.GenerateKey(rand.Reader, workerKeyBits)
+	if err != nil {
+		panic(err)
+	}
+	k, err := workerKeyOf(key)
+	if err != nil {
+		panic(err)
+	}
+	return k
+})
+
+func testAccounts() realmAccounts {
+	return realmAccounts{secrets: testSecrets(), worker: testWorkerKey()}
+}
+
+// assertedClient: the client a client assertion names, if it holds as an
+// issuer holding k checks it — signed with k and naming it, the client its
+// issuer and subject, the token endpoint its audience, good for the table's
+// lifetime and named by a jti; "" otherwise.
+func assertedClient(assertion, tokenEndpoint string, k workerKey) string {
+	parts := strings.Split(assertion, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(parts[0] + "." + parts[1]))
+	if rsa.VerifyPKCS1v15(&k.signer.PublicKey, crypto.SHA256, digest[:], signature) != nil {
+		return ""
+	}
+	var header struct {
+		Alg string `json:"alg"`
+		Kid string `json:"kid"`
+	}
+	var claims struct {
+		Iss string `json:"iss"`
+		Sub string `json:"sub"`
+		Aud string `json:"aud"`
+		Jti string `json:"jti"`
+		Iat int64  `json:"iat"`
+		Exp int64  `json:"exp"`
+	}
+	for i, into := range []any{&header, &claims} {
+		b, err := base64.RawURLEncoding.DecodeString(parts[i])
+		if err != nil || json.Unmarshal(b, into) != nil {
+			return ""
+		}
+	}
+	if header.Alg != "RS256" || header.Kid != k.thumbprint || claims.Iss != claims.Sub ||
+		claims.Aud != tokenEndpoint || claims.Jti == "" || claims.Exp != claims.Iat+assertionLifetimeSeconds {
+		return ""
+	}
+	return claims.Iss
+}
+
+// serviceOfClient: the service whose account a client id names.
+func serviceOfClient(clientID string) string {
+	for _, svc := range stackServices {
+		if serviceClientID(svc) == clientID {
+			return svc
+		}
+	}
+	return ""
 }
 
 // stampedRoles: the flat `roles` the realm document stamps on this client's
@@ -71,7 +156,7 @@ func testSecrets() map[string]string {
 // job:claim is authorized by; restating `[serviceRole]` here would be a second
 // copy of that fact, and the one that silently goes stale.
 func stampedRoles(clientID string) []string {
-	return serviceRoles(strings.TrimPrefix(clientID, "semiont-"))
+	return serviceRoles(serviceOfClient(clientID))
 }
 
 // (a) A refused grant names the client. The realm has no such account, or its
@@ -84,12 +169,13 @@ func TestPreflightRefusesWhenGrantIsRefused(t *testing.T) {
 			return 401, `{"error":"invalid_client"}`
 		}
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{testAudience, "account"},
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
 		})
 	})
 
-	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
 	if len(findings) != 1 {
 		t.Fatalf("want exactly one finding, got %d: %v", len(findings), findings)
@@ -111,9 +197,9 @@ func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 		})
 	})
 
-	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
-	if len(findings) != len(serviceClients) {
+	if len(findings) != len(stackServices) {
 		t.Fatalf("want a finding per client, got %d", len(findings))
 	}
 	if !strings.Contains(findings[0].String(), "roles") {
@@ -126,14 +212,15 @@ func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 func TestPreflightRefusesWrongAudience(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{"https://example.invalid/other-kb", "account"},
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{"https://example.invalid/other-kb", "account"},
 		})
 	})
 
-	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
-	if len(findings) != len(serviceClients) {
+	if len(findings) != len(stackServices) {
 		t.Fatalf("want a finding per client, got %d", len(findings))
 	}
 	if !strings.Contains(findings[0].String(), "aud") {
@@ -147,37 +234,38 @@ func TestPreflightRefusesWrongAudience(t *testing.T) {
 func TestPreflightPassesOnTheLiveShape(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{testAudience, "account"},
-			"azp":   clientID,
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
+			"azp":     clientID,
 		})
 	})
 
-	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets()); len(findings) != 0 {
+	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts()); len(findings) != 0 {
 		t.Fatalf("healthy realm produced findings: %v", findings)
 	}
 }
 
 // (e) The dispatcher admits a job:claim only from a token carrying the worker
-// role, and the worker's agent tokens are stamped with it only if the worker's
-// OWN service token carried it at the mint. A realm imported before the worker
-// role existed has a roles mapper on semiont-worker that renders just the
-// service role: every client authenticates, every other check passes, and the
-// worker can never claim a job. That is a broken deployment, not a realm that
-// is merely behind, so it refuses: the gateway mints the worker's agents with
-// `worker:false` and the dispatcher re-announces one job every 30s, forever,
-// with nothing in any log saying why.
+// role, which the worker's token carries only if the realm stamps it. A realm
+// imported before the worker role existed has a roles mapper on the worker's
+// client that renders just the service role: every client authenticates, every
+// other check passes, and the worker can never claim a job. That is a broken
+// deployment, not a realm that is merely behind, so it refuses: the dispatcher
+// would re-announce one job every 30s, forever, with nothing in any log saying
+// why.
 func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 	// A realm imported before the worker role existed: every token carries
 	// exactly the service role.
 	srv := stubIssuer(t, func(string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": []string{serviceRole},
-			"aud":   []string{testAudience, "account"},
+			"roles":   []string{serviceRole},
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
 		})
 	})
 
-	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
 	// One finding — the worker's. The other clients carry exactly what the
 	// realm document gives them; asking the worker role of them would refuse
@@ -190,8 +278,8 @@ func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 		t.Fatalf("finding names %q, want the worker", f.svc)
 	}
 	// The ROLE is asserted on the reason, not on String(): the worker's client
-	// id is also "semiont-worker", so String() would match the role string by
-	// coincidence and prove nothing.
+	// id, semiont-worker-local, carries the role's name, so String() would
+	// match the role string by coincidence and prove nothing.
 	if !strings.Contains(f.reason, workerRole) {
 		t.Errorf("reason does not name the missing role %q: %q", workerRole, f.reason)
 	}
@@ -203,17 +291,75 @@ func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 	}
 }
 
+// The worker proves itself with the machine's key: the preflight signs the
+// assertion the worker's own sign-in would, and an issuer checking it as
+// Keycloak does grants the worker's client a token. A realm holding another
+// machine's key refuses it, and the finding names the worker's client and
+// that cause.
+func TestPreflightSignsInAsTheWorkerWithTheMachinesKey(t *testing.T) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		return 200, grantBody(map[string]any{
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
+		})
+	})
+	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts()); len(findings) != 0 {
+		t.Fatalf("a realm holding the machine's key refused it: %v", findings)
+	}
+
+	another, err := rsa.GenerateKey(rand.Reader, workerKeyBits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k, err := workerKeyOf(another)
+	if err != nil {
+		t.Fatal(err)
+	}
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, realmAccounts{secrets: testSecrets(), worker: k})
+	if len(findings) != 1 || findings[0].svc != "worker" {
+		t.Fatalf("want the worker's finding alone, got %v", findings)
+	}
+	if !strings.Contains(findings[0].String(), serviceClientID("worker")) || !strings.Contains(findings[0].fix, "another key") {
+		t.Errorf("the finding does not name the worker's client and the key it holds: %q", findings[0])
+	}
+}
+
+// Every service's account is an agent's, and its token says so: a realm
+// imported before the claim mints tokens without it, which read as a person's.
+// A finding per client, naming the claim, with the realm's mapper as the fix.
+func TestPreflightRefusesATokenThatDoesNotSayItsAnAgents(t *testing.T) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		return 200, grantBody(map[string]any{
+			"roles": stampedRoles(clientID),
+			"aud":   []string{testAudience, "account"},
+		})
+	})
+
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
+
+	if len(findings) != len(stackServices) {
+		t.Fatalf("want a finding per client, got %d: %v", len(findings), findings)
+	}
+	for _, f := range findings {
+		if !strings.Contains(f.reason, "`"+kindClaim+"`") || !strings.Contains(f.reason, agentKind) || !strings.Contains(f.fix, "mapper") {
+			t.Errorf("the finding does not name the claim and the mapper: %q", f)
+		}
+	}
+}
+
 // A single-string aud is legal OIDC and some issuers emit it. An operator
 // federating their own issuer must not be refused for that.
 func TestPreflightAcceptsScalarAudience(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   testAudience,
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     testAudience,
 		})
 	})
 
-	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets()); len(findings) != 0 {
+	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts()); len(findings) != 0 {
 		t.Fatalf("scalar aud refused: %v", findings)
 	}
 }
@@ -226,7 +372,7 @@ func TestPreflightNeverPrintsASecret(t *testing.T) {
 		return 400, fmt.Sprintf(`{"error":"invalid_client","detail":"client_secret=%s rejected"}`, "secret-weaver")
 	})
 
-	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 	for _, f := range findings {
 		if strings.Contains(f.String(), "secret-") {
 			t.Fatalf("a finding leaked a client secret: %q", f)
@@ -237,7 +383,7 @@ func TestPreflightNeverPrintsASecret(t *testing.T) {
 // An unreachable issuer is a finding, not a panic or a silent pass: the realm
 // answered its health gate a moment ago, so this means something else.
 func TestPreflightRefusesWhenDiscoveryIsUnreachable(t *testing.T) {
-	findings, _ := verifyServiceAccounts("http://127.0.0.1:1", testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts("http://127.0.0.1:1", testAudience, testAccounts())
 	if len(findings) == 0 {
 		t.Fatal("a dead issuer produced no finding")
 	}
@@ -592,17 +738,18 @@ func TestFlagProbesSendNoCredential(t *testing.T) {
 func lifespanToken(t *testing.T, clientID string, seconds int) string {
 	t.Helper()
 	return grantBody(map[string]any{
-		"roles": stampedRoles(clientID),
-		"aud":   []string{testAudience, "account"},
-		"iat":   1700000000,
-		"exp":   1700000000 + seconds,
+		"roles":   stampedRoles(clientID),
+		kindClaim: agentKind,
+		"aud":     []string{testAudience, "account"},
+		"iat":     1700000000,
+		"exp":     1700000000 + seconds,
 	})
 }
 
 func TestPreflightReadsTheRealmsActualLifespan(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) { return 200, lifespanToken(t, clientID, 900) })
 
-	findings, observed := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, observed := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
 	if len(findings) != 0 {
 		t.Fatalf("healthy realm produced findings: %v", findings)
@@ -639,7 +786,7 @@ func TestPreflightLifespanMatchesWhenTheRealmAgrees(t *testing.T) {
 		return 200, lifespanToken(t, clientID, keycloakAccessTokenLifespan)
 	})
 
-	_, observed := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	_, observed := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
 	if observed != keycloakAccessTokenLifespan {
 		t.Fatalf("got %d, want %d", observed, keycloakAccessTokenLifespan)
@@ -726,15 +873,16 @@ func TestBrowserRedirectAcceptedOnAPortlessRealm(t *testing.T) {
 func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
 	const marker = "SECRET-THAT-MUST-NOT-APPEAR"
 	secrets := map[string]string{}
-	for _, svc := range serviceClients {
+	for _, svc := range secretClients {
 		secrets[svc] = marker + "-" + svc
 	}
+	accounts := realmAccounts{secrets: secrets, worker: testWorkerKey()}
 
 	// A realm that refuses every grant: the maximal-findings case.
 	srv := stubIssuer(t, func(string) (int, string) {
 		return 401, `{"error":"invalid_client"}`
 	})
-	findings, _ := verifyServiceAccounts(srv.URL, "semiont-gateway", secrets)
+	findings, _ := verifyServiceAccounts(srv.URL, "semiont-gateway", accounts)
 	if len(findings) == 0 {
 		t.Fatal("a realm refusing every grant produced no findings; this gate would prove nothing")
 	}
@@ -742,12 +890,14 @@ func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
 		if strings.Contains(f.String(), marker) {
 			t.Errorf("a refusal echoed a client secret: %q", f.String())
 		}
+		if strings.Contains(f.String(), "PRIVATE KEY") {
+			t.Errorf("a refusal echoed the worker's key: %q", f.String())
+		}
 	}
 
 	// The repair renders its own operator-facing lines from the same secrets.
 	admin := newStubAdmin(t, "semiont", nil)
-	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort,
-		func(svc string) string { return secrets[svc] })
+	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, accounts)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}

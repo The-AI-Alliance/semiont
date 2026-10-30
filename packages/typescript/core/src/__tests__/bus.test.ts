@@ -12,7 +12,7 @@ import { Bus } from '../bus';
 import { FaultyTransport } from '../faulty-transport';
 import type { EventMap } from '../bus-protocol';
 import type { BusFrame, TraceCarrier } from '../event-bus';
-import { annotationId, resourceId, userId } from '../identifiers';
+import { annotationId, jobId, resourceId, userId } from '../identifiers';
 import type { EventMetadata, EventOfType, StoredEvent } from '../index';
 
 const RID = resourceId('res-1');
@@ -56,6 +56,17 @@ describe('Bus.frames: a channel of no scope', () => {
     expect(seen.map((frame) => [frame.correlationId, frame.userId, frame.scope, frame.payload.annotationId])).toEqual([
       ['c-1', ALICE, undefined, 'ann-1'],
     ]);
+  });
+
+  it('leaves out of a payload a stamp its channel does not declare, and keeps one it does', () => {
+    const transport = new FaultyTransport();
+    const { seen } = collect(new Bus(transport).frames('job:fail'));
+
+    const failed = { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark', error: 'the model did not answer' } as const;
+    const stamped: EventMap['job:fail'] & { _roles: string[] } = { ...failed, _userId: ALICE, _roles: ['semiont-service'] };
+    void transport.emit('job:fail', stamped);
+
+    expect(seen.map((frame) => frame.payload)).toEqual([{ ...failed, _userId: ALICE }]);
   });
 
   it('gives the trace a frame was sent under, when the transport received one', () => {

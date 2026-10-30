@@ -8,14 +8,15 @@ takes a client runs over `semiont.testing`'s doubles.
 import asyncio
 import importlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
 from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
-from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
+from issuer import ALICE, ME, PENDING, SECRET, TOKEN, agent_named, issuer_of, minted, says, trusting
 from kb import answer, asked_for, knowing_content, recorded, silent
+from pydantic import JsonValue
 from readme import (
     a_first_program,
     a_person,
@@ -24,6 +25,7 @@ from readme import (
     building_annotations,
     content,
     live_queries,
+    several_knowledge_bases,
     state_units,
     testing,
     the_bus,
@@ -39,11 +41,14 @@ from semiont.http import HttpTransport
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.identity import agent_did
 from semiont.operations import JOB_CLAIM
+from semiont.registry import save_knowledge_bases, store_session
 from semiont.sign_in_store import FILE_NAME, SignInStore, state_dir, this_system
 from semiont.state import BeckonStateUnit
-from semiont.testing import InMemoryContent, PutBinary, create_test_client
+from semiont.storage import MemoryStorage
+from semiont.stored import StoredSession
+from semiont.testing import InMemoryContent, PutBinary, ScriptedSessions, create_test_client
 from semiont.transport import Content, Frame
-from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, PdfTextItem
+from semiont.types import AgentSoftware, AnchoredText, FragmentSelector, HttpEndpoint, KnowledgeBase, PdfTextItem, UserResponse
 from semiont.watched import Variable
 
 README = (PACKAGE / "README.md").read_text(encoding="utf-8")
@@ -350,22 +355,23 @@ def test_state_units_shows_what_is_hovered_as_it_changes_until_the_unit_is_dispo
     assert capsys.readouterr().out.splitlines() == ["nothing hovered", "hovering ann-1", "nothing hovered"]
 
 
-def test_an_agent_opens_its_stream_as_the_agent_its_service_account_was_exchanged_for(capsys: pytest.CaptureFixture[str]) -> None:
+def test_an_agent_opens_its_stream_as_its_account_with_the_token_its_issuer_granted(capsys: pytest.CaptureFixture[str]) -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
-            gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
-            gateway.scripted[("POST", AGENT)] = [agent_token(1)]
+            issued = token(3600, 1)
+            gateway.answers[TOKEN] = {"access_token": issued}
+            gateway.answers[ME] = agent_named("semiont-smelter")
             await soon(an_agent.work(gateway.origin, issuer_of(gateway), SECRET))
-            (exchanged,) = gateway.of("POST", AGENT)
-            assert exchanged.json() == {"provider": "ollama", "model": "gemma2:27b"}
+            # The issuer's token is its bearer: the gateway is asked who it is with it, and its stream is opened with it.
+            (named,) = gateway.of("GET", ME)
             (subscribed,) = gateway.of("POST", "/bus/subscribe")
-            assert subscribed.headers["authorization"] != exchanged.headers["authorization"]
+            assert named.headers["authorization"] == subscribed.headers["authorization"] == f"Bearer {issued}"
             assert subscribed.json()["global"] == list(reply_channels_for(JOB_CLAIM))
 
     run(scenario())
     # It says who it works as, as the gateway named it, and then that its stream is open.
-    assert capsys.readouterr().out.splitlines() == [f"working as {agent_did('example.org', 'ollama', 'gemma2:27b')}", "open"]
+    assert capsys.readouterr().out.splitlines() == [f"working as {agent_did('example.org', 'semiont-smelter')}", "open"]
 
 
 def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_s_lifecycle_and_claims_again(
@@ -376,7 +382,7 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
     assert (stated["resourceId"], stated["motivation"], stated["anchor"]) == ("res-1", "highlighting", "0:12:Ada Lovelace")
     assert "body" not in stated
     page = "Ada Lovelace\nwrote the first algorithm.\n"
-    did = agent_did("example.org", "ollama", "gemma3:4b")
+    did = agent_did("example.org", "my-worker")
     job: JsonObject = {
         "status": "running",
         "metadata": {
@@ -395,9 +401,10 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
-            gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
-            # The gateway's answer to the exchange: the agent's token, and who the agent is.
-            gateway.scripted[("POST", AGENT)] = [says({"token": token(3600, 1), "did": did})]
+            issued = token(3600, 1)
+            gateway.answers[TOKEN] = {"access_token": issued}
+            # Who the gateway says the bearer of the issuer's token is: the worker's account.
+            gateway.answers[ME] = agent_named("my-worker")
             gateway.stored["res-1"] = ("text/plain", page.encode())
             # The dispatcher: the first claim is handed a job, the second is refused, and no other is answered.
             answers: list[tuple[str, JsonObject]] = [
@@ -455,11 +462,10 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
             ]
             # And it reports what it proposed and what the record holds, established by the record's acknowledgement.
             assert complete["payload"] == {**identity, "result": {"found": 1, "persisted": 1}, "durability": "acknowledged"}
-            # It works as the agent, on a stream that names what claiming and committing read and nothing else.
-            (exchanged,) = gateway.of("POST", AGENT)
-            assert exchanged.json() == {"provider": "ollama", "model": "gemma3:4b"}
+            # It works as its account, on a stream that names what claiming and committing read and nothing else.
+            (named,) = gateway.of("GET", ME)
             (subscribed,) = gateway.of("POST", "/bus/subscribe")
-            assert subscribed.headers["authorization"] != exchanged.headers["authorization"]
+            assert named.headers["authorization"] == subscribed.headers["authorization"] == f"Bearer {issued}"
             assert subscribed.json()["global"] == [*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS]
 
             # Stopped while it holds nothing, it says nothing more.
@@ -503,6 +509,39 @@ def test_a_person_signs_in_by_the_device_grant_once_and_is_that_person_from_then
 
 def test_testing_runs_the_test_it_shows() -> None:
     run(testing.a_title_is_its_resources_name_in_title_case())
+
+
+def test_several_knowledge_bases_lists_what_is_registered_brings_up_the_active_one_and_opens_a_resource_in_it(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    storage = MemoryStorage()
+    kb = KnowledgeBase(
+        id="kb-a",
+        label="KB A",
+        did="did:web:kb-a.example",
+        endpoint=HttpEndpoint(kind="http", host="localhost", port=4000, protocol="http"),
+    )
+    save_knowledge_bases(storage, [kb])
+    store_session(
+        storage,
+        kb.id,
+        StoredSession(access=token(3600, 1), refresh="r-1", client_id="semiont-browser", token_endpoint="https://issuer.test/token"),
+    )
+
+    def answering(kb_id: str, operation: str, payload: Mapping[str, JsonValue]) -> JsonValue | None:
+        # The knowledge base says it is the one registered, and has the resource.
+        assert kb_id == "kb-a"
+        if operation == "browse:kb-requested":
+            return {"name": "KB A", "domain": "kb-a.example"}
+        assert operation == "browse:resource-requested"
+        return {"resource": {"@context": "https://schema.org", "@id": "res-1", "name": "Notes", "representations": []}, "lastSequence": 1}
+
+    sessions = ScriptedSessions(answer=answering)
+    sessions.says_who(UserResponse.model_validate(ALICE))
+    run(several_knowledge_bases.pick_up_where_i_was(storage, sessions))
+    assert capsys.readouterr().out.splitlines() == ["KB A did:web:kb-a.example authenticated", "['Notes']"]
+    # What was opened is kept, for the next registry over the same storage.
+    assert '"name":"Notes"' in (storage.get("semiont.openResourcesByKb") or "")
 
 
 def test_building_annotations_builds_a_highlight_of_a_text_and_of_a_pdf_and_a_link_and_reads_each() -> None:

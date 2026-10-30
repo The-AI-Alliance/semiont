@@ -17,8 +17,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
@@ -436,13 +440,14 @@ func (s *scenario) env() []string {
 	{
 		// Pinned so the boot goldens are deterministic: an unpinned run
 		// generates a fresh credential per service and every golden would
-		// differ from the last.
+		// differ from the last. The worker has none to pin: it proves itself
+		// with the machine's key, whose value never reaches argv.
 		//
-		// Tracks `serviceClients` in packages/go/launcher, which this external test
+		// Tracks `secretClients` in packages/go/launcher, which this external test
 		// package cannot see. Drift is loud rather than silent: a service missing
 		// from this list gets a generated credential and its boot golden differs
 		// on the very next run.
-		for _, svc := range []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"} {
+		for _, svc := range []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver"} {
 			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
 		}
 	}
@@ -3373,7 +3378,7 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	secrets := []string{"ANTHROPIC_API_KEY", "JWT_SECRET", "SEMIONT_OIDC_CLIENT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "POSTGRES_PASSWORD", "KC_DB_PASSWORD"}
+	secrets := []string{"ANTHROPIC_API_KEY", "JWT_SECRET", "SEMIONT_OIDC_CLIENT_SECRET", "SEMIONT_OIDC_CLIENT_KEY", "KC_BOOTSTRAP_ADMIN_PASSWORD", "POSTGRES_PASSWORD", "KC_DB_PASSWORD"}
 	for _, l := range strings.Split(s.argv(t), "\n") {
 		if !strings.HasPrefix(l, "container run") {
 			continue
@@ -3387,7 +3392,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	for _, c := range []struct{ container, name, want string }{
 		{"semiont-worker", "ANTHROPIC_API_KEY", "test-key"},
 		{"semiont-gateway", "JWT_SECRET", ""},
-		{"semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		{"semiont-weaver", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		// The PEM's first line: the record keeps a line per variable.
+		{"semiont-worker", "SEMIONT_OIDC_CLIENT_KEY", "-----BEGIN PRIVATE KEY-----"},
 		{"semiont-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
 		{"semiont-keycloak", "KC_DB_PASSWORD", ""},
 		{"semiont-postgres", "POSTGRES_PASSWORD", ""},
@@ -3396,6 +3403,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 		if got == "" || (c.want != "" && got != c.want) {
 			t.Errorf("%s did not receive %s through the runtime's environment (got %q)", c.container, c.name, got)
 		}
+	}
+	if _, handed := s.containerEnv(t, "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET"); handed {
+		t.Error("the worker was handed a secret; it proves itself with the machine's key")
 	}
 }
 
@@ -4927,9 +4937,8 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	mustContain(t, "delete stdout", stdout, "deleted", "destroyed")
 	log, _ = os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace delete -c fake-cs-1 --force")
-	// The codespace record is forgotten — but stack.json itself legitimately
-	// survives: codespace start ensured the local Browser, whose
-	// machine-level record lives there.
+	// The codespace record is forgotten. The bare stop took the Browser
+	// codespace start ensured, so its record is gone too.
 	b, _ = os.ReadFile(statePathFor(s.home))
 	if strings.Contains(string(b), "codespace:") {
 		t.Errorf("deleted codespace stack still recorded:\n%s", b)
@@ -6093,26 +6102,20 @@ func TestStackStateLifecycle(t *testing.T) {
 	mustContain(t, "full stop argv", fullArgv,
 		"container stop fid-semiont-gateway",
 		"docker stop semiont-gateway", "podman stop semiont-gateway")
-	// The Browser survives a full stop — never in the sweep.
-	if strings.Contains(fullArgv, "semiont-browser") {
-		t.Errorf("full stop touched the Browser:\n%s", fullArgv)
-	}
+	// The Browser goes with the stack, by its name under every runtime the
+	// stop swept.
+	mustContain(t, "full stop argv", fullArgv,
+		"container stop semiont-browser", "docker stop semiont-browser", "podman stop semiont-browser")
 	for _, bad := range []string{"docker stop fid-", "podman stop fid-"} {
 		if strings.Contains(fullArgv, bad) {
 			t.Errorf("stray sweep used the recorded runtime's IDs: %q", bad)
 		}
 	}
-	// stack.json legitimately survives a full stop: the browser record
-	// lives there and the Browser keeps running. The LOCAL STACK entry must
-	// be gone, the browser entry present.
-	b2, err := os.ReadFile(statePathFor(s.home))
-	if err != nil {
-		t.Fatalf("stack.json should survive (browser record): %v", err)
+	// Nothing is left running, so nothing is left recorded: the stack's
+	// record and the Browser's both go, and stack.json with them.
+	if b2, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("stack.json after a full stop: %v\n%s", err, b2)
 	}
-	if strings.Contains(string(b2), `"local"`) {
-		t.Errorf("local stack record survived its stop:\n%s", b2)
-	}
-	mustContain(t, "browser record survives", string(b2), `"browser"`)
 }
 
 func TestStopTwiceIsHonest(t *testing.T) {
@@ -6154,6 +6157,19 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 	if err := os.WriteFile(p, []byte(rec), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A grant reads its key before the record, so it is given one to read.
+	workerKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&workerKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "worker.pem")
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Every command that draws a conclusion from the record. A new one that
 	// reads stack.json belongs in this list.
@@ -6168,6 +6184,8 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 		{"clean", "--dry-run"},
 		{"roots"},
 		{"identity", "sync"},
+		{"identity", "grant", "alice", "--key", keyFile},
+		{"identity", "revoke", "alice"},
 		{"export", "--repo", "owner/kb"},
 		{"logout"},
 	} {
@@ -6556,8 +6574,8 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 		t.Error("JWT_SECRET leaked into stdout")
 	}
 
-	// Only the gateway gets it: the sidecars authenticate with their own
-	// client secrets + agent-token exchange and never sign anything.
+	// Only the gateway gets it: the sidecars authenticate as their own
+	// accounts at the issuer and never sign anything.
 	for _, svc := range []string{"worker", "smelter", "weaver", "browser"} {
 		for _, line := range strings.Split(argv, "\n") {
 			if strings.Contains(line, "--name semiont-"+svc) && strings.Contains(line, "JWT_SECRET") {
@@ -7313,12 +7331,11 @@ func findFile(t *testing.T, dir, name string) string {
 
 func TestStartServiceWorker(t *testing.T) {
 	// Gateway already running; Jaeger up on 16686. Restarting the worker must
-	// present its OWN persisted credential, auto-enable OTel, stage a fresh
-	// private config, and leave the rest of the stack untouched.
+	// present the machine's key, auto-enable OTel, stage a fresh private
+	// config, and leave the rest of the stack untouched.
 	//
-	// Each service holds its own credential, written per root, so a restart
-	// reads the same file the full start wrote and no container needs
-	// inspecting.
+	// The key is kept for the machine, so a restart reads the same file the
+	// full start wrote and no container needs inspecting.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_gateway=running",
@@ -7339,19 +7356,19 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting Worker Pool",
 		"OTel collector detected — export enabled",
-		"--env SEMIONT_OIDC_CLIENT_SECRET ",
+		"--env SEMIONT_OIDC_CLIENT_KEY ",
 		"🚀 worker is up",
 		"semiont status",
 	)
-	if strings.Contains(stdout, "test-worker-client-secret") {
-		t.Error("a service-account secret leaked into stdout")
+	if strings.Contains(stdout, "PRIVATE KEY") {
+		t.Error("the worker's key leaked into stdout")
 	}
 	argv := s.argv(t)
 	mustContain(t, "argv", argv,
 		"stop semiont-worker",
 		"rm semiont-worker",
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker",
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker-local",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.json:/etc/semiont/worker.json:ro",
 	)
@@ -8536,11 +8553,11 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 	}
 }
 
-func TestBrowserOutlivesTheStack(t *testing.T) {
-	// The Browser is a machine-level viewer, not a stack member. Start
-	// ensures it; a second start with a current image KEEPS it; bare stop
-	// leaves it running (announced); a stale image is restarted; --service
-	// browser is the explicit off-switch.
+func TestBrowserLifecycle(t *testing.T) {
+	// The Browser keeps a record of its own, apart from the stack's. Start
+	// ensures it; stop takes it down with the stack; a start that finds a
+	// current one running KEEPS it; a stale image is restarted; --service
+	// browser stops it alone.
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -8584,24 +8601,7 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 		}
 	}
 
-	// Bare stop: stack down, Browser untouched and announced. Slice the
-	// argv to THIS command — start's own restart branch legitimately
-	// stop/rm's a stale browser earlier in the log.
-	preStop := s.mustLog(t)
-	stdout, stderr, code := s.run(t, "stop", "--runtime", "container")
-	if code != 0 {
-		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
-	}
-	mustContain(t, "stop stdout", stdout, "Browser still running", "semiont stop --service browser")
-	if stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop)); strings.Contains(stopArgv, "semiont-browser") {
-		t.Errorf("bare stop touched the Browser:\n%s", stopArgv)
-	}
-	rec, _ = os.ReadFile(statePathFor(s.home))
-	mustContain(t, "browser record survives the stack record", string(rec), `"browser"`)
-
-	// Second start with the SAME image running: keep, don't churn. The fake
-	// runtime reports the reference the launcher ran, which is the verified
-	// image by its digest, as the first start recorded it.
+	// The first start ran the verified image, by its digest.
 	var ran struct {
 		Browser struct {
 			Image string `json:"image"`
@@ -8610,6 +8610,25 @@ func TestBrowserOutlivesTheStack(t *testing.T) {
 	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Browser.Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
 		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Browser.Image, err)
 	}
+
+	// Stop: the stack and the Browser both, and both records. Slice the
+	// argv to THIS command — start's own restart branch legitimately
+	// stop/rm's a stale browser earlier in the log.
+	preStop := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "stop", "--runtime", "container")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop stdout", stdout, "Browser stopped")
+	stopArgv := strings.TrimPrefix(string(s.mustLog(t)), string(preStop))
+	mustContain(t, "stop argv", stopArgv, "container stop semiont-browser", "container rm semiont-browser")
+	if left, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("stack.json after a stop: %v\n%s", err, left)
+	}
+
+	// A start that finds a current Browser running KEEPS it, whoever started
+	// it: no churn. The fake runtime reports the reference the first start
+	// ran.
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_browser=running",
 		"FAKERT_IMAGE_browser="+ran.Browser.Image)
@@ -10387,7 +10406,7 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 		// the six machine identities, against the CONFIGURED issuer rather
 		// than identityEndpoint's localhost form
 		"client-credentials grant at "+iss+" as semiont-gateway",
-		"client-credentials grant at "+iss+" as semiont-worker",
+		"client-credentials grant at "+iss+" as semiont-worker-local, by an assertion signed with the machine's worker key",
 		// and the two clients people sign in through
 		"device authorization at "+iss+" as semiont-cli",
 		"authorization request at "+iss+" as semiont-browser",

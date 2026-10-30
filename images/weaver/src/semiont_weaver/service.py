@@ -14,14 +14,14 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It starts in the order `docs/protocol/WEAVER.md` § Boot states: it signs in
-as the agent `(semiont, weaver)`, connects to the graph database, follows the
-record, opens its health port, and once its first sweep of the record is done
-runs reconcile. Following, it sweeps the record again each time its stream
-opens after a drop (`semiont_service.follower`). A reconcile that fails is
-said, in the log and at the health port, and does not end the service: ending
-it would make the graph no fresher, and would take away the one thing still
-applying what arrives. Told to stop, it stops applying, closes what it holds
-open, and exits with status 0.
+as its account, connects to the graph database, follows the record, opens its
+health port, and once its first sweep of the record is done runs reconcile.
+Following, it sweeps the record again each time its stream opens after a drop
+(`semiont_service.follower`). A reconcile that fails is said, in the log and
+at the health port, and does not end the service: ending it would make the
+graph no fresher, and would take away the one thing still applying what
+arrives. Told to stop, it stops applying, closes what it holds open, and
+exits with status 0.
 """
 
 import asyncio
@@ -55,10 +55,6 @@ from semiont_weaver.weaver import Reconciled, Weaver, words_of
 
 CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, WEAVE_REBUILD.name, *reply_channels_for(*READ))
 """What the Weaver's stream names: every event of the record, the command it answers, and the replies of what it asks."""
-
-_PROVIDER: Final = "semiont"
-_MODEL: Final = "weaver"
-"""Who the Weaver works as. It asks no model anything, so it is the same agent wherever it runs: `(semiont, weaver)`."""
 
 
 @final
@@ -118,7 +114,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     reconcile: _Pass = {"phase": "pending"}
     account = ServiceToken(started.credential)
 
-    async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=account) as agent:
+    async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         await connected("graph database", started.graph.connect())
         LOG.info("Graph database ready", extra={"type": config.graph.type})

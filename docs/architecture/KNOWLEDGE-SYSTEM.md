@@ -46,9 +46,8 @@ graph TB
 
     ARCH -->|rw| TREE
     ARCH --> VIEWS
-    LIB -->|ro| VIEWS
-    SMELT --> ANCH
-    ARCH -->|ro| ANCH
+    ARCH --> ANCH
+    SMELT -->|HTTP| ARCH
 
     WEAVE --> NEO
     LIB --> NEO
@@ -89,7 +88,7 @@ This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](../operator/CONTAINE
 | **Content Store** | Working-tree files addressed by `storageUri` (documents, images, PDFs); the Archivist's container is the only one that mounts the tree | Stower registers; all other byte reads ride the Archivist's HTTP surface (the gateway proxies for external clients) |
 | **Graph** | Eventually consistent relationship projection for traversal queries (backlinks, entity networks) | Weaver projects; Gatherer/Matcher traverse and search |
 | **Vectors** | Embedding vectors in Qdrant for semantic similarity search; eventually consistent | Smelter projects; Gatherer/Matcher search |
-| **Anchored text** | Per-representation geometry maps from PDF/OCR extraction, keyed by content checksum (see [ANCHORING.md](ANCHORING.md)) | Smelter writes (sole producer); Archivist serves it over HTTP (`GET /resources/:id/anchored-text`), which every client reaches through the gateway |
+| **Anchored text** | Per-representation geometry maps from PDF/OCR extraction, keyed by content checksum (see [ANCHORING.md](ANCHORING.md)) | Smelter produces it (sole producer) and stores each entry over the Archivist's HTTP surface; the Archivist, the only container that mounts it, serves it (`GET /resources/:id/anchored-text`), which every client reaches through the gateway |
 
 ## The seven KB actors
 
@@ -101,7 +100,7 @@ The single write gateway. Bus commands (`mark:create-request`, `mark:commit`, `y
 
 ### Browser (archivist)
 
-The read actor for the record — resources, annotations, events, history, entity-type and tag-schema listings, the collaborator directory, directory browse — answered from the event log, the materialized views and the working tree. Anything that needs the graph, the vector index or an embedding is retrieval, and the librarian's. Directory browse lists a directory of the working tree and marks the files that are a resource's content, under a path-confinement invariant: every resolved path stays within the knowledge base's root.
+The read actor for the record — resources, annotations, events, history, entity-type and tag-schema listings, the roster, directory browse — answered from the event log, the materialized views and the working tree. Anything that needs the graph, the vector index or an embedding is retrieval, and the librarian's. Directory browse lists a directory of the working tree and marks the files that are a resource's content, under a path-confinement invariant: every resolved path stays within the knowledge base's root.
 
 ### CloneTokenManager (archivist)
 
@@ -121,7 +120,7 @@ Follows the record and keeps the graph projection in sync; beyond the bus and th
 
 ### Smelter (projection pipeline)
 
-The vector pipeline. It reaches everything but one directory over the network: events arrive over SSE, content bytes are fetched from the archivist verbatim (the checksum stamped onto every upsert must hash exactly the stored bytes), chunks are embedded (Voyage AI or Ollama) and indexed into Qdrant. It is also the sole producer of the anchored-text store, the one directory it mounts, derived during the same ingest read. It is a follower of the record ([TRANSPORT-CONTRACT.md § What repairs a passing frame](../protocol/TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)): a cursor for each resource's log, kept on its container's own disk, and a sweep of the record at its start and each time its stream opens again, so what it missed while running is read from the record. A resource it starts with no cursor (every one, when its container is made again or its index made anew) it starts by reconciling Qdrant against the catalog — membership *and* content freshness via the checksum stamps — re-embedding what's missing or stale and purging orphans, so a wiped volume recovers by restart. The index states the embedding model and the chunking it was made by, and one made by another is cleared and filled again whole. One resource's events are taken a run at a time and in the order they were recorded, consecutive annotations embedded in one batch, and those of different resources in no fixed order. What it does, rule by rule, is [the Smelter's protocol](../protocol/SMELTER.md).
+The vector pipeline. It reaches everything over the network: events arrive over SSE, content bytes are fetched from the archivist verbatim (the checksum stamped onto every upsert must hash exactly the stored bytes), chunks are embedded (Voyage AI or Ollama) and indexed into Qdrant. It is also the sole producer of the anchored text, derived during the same ingest read and stored over the Archivist's HTTP surface: the Archivist is the only container that mounts the store. It is a follower of the record ([TRANSPORT-CONTRACT.md § What repairs a passing frame](../protocol/TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)): a cursor for each resource's log, kept on its container's own disk, and a sweep of the record at its start and each time its stream opens again, so what it missed while running is read from the record. A resource it starts with no cursor (every one, when its container is made again or its index made anew) it starts by reconciling Qdrant against the catalog — membership *and* content freshness via the checksum stamps — re-embedding what's missing or stale and purging orphans, so a wiped volume recovers by restart. The index states the embedding model and the chunking it was made by, and one made by another is cleared and filled again whole. One resource's events are taken a run at a time and in the order they were recorded, consecutive annotations embedded in one batch, and those of different resources in no fixed order. What it does, rule by rule, is [the Smelter's protocol](../protocol/SMELTER.md).
 
 ## See also
 

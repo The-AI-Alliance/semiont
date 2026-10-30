@@ -88,7 +88,7 @@ type live struct {
 	annotation   *Cache[api.AnnotationId, api.Annotation]
 	entityTypes  *Cache[whole, []string]
 	tagSchemas   *Cache[whole, []api.TagSchema]
-	agents       *Cache[whole, []api.CollaboratorEntry]
+	agents       *Cache[whole, []api.RosterEntry]
 	limits       *Cache[bus.Channel, []api.InferencePairLimits]
 	events       *Cache[api.ResourceId, []api.AttributedEvent]
 	referencedBy *Cache[api.ResourceId, []api.GetReferencedByResponseReferencedByItem]
@@ -137,7 +137,7 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 		answer, err := ask(ctx, l, bus.BrowseTagSchemasRequested, api.BrowseTagSchemasRequest{})
 		return answer.Response.TagSchemas, err
 	}, l.run, keptBy[whole, []api.TagSchema](persistence, "tag-schemas", most), save)
-	v.agents = NewCache(func(ctx context.Context, _ whole) ([]api.CollaboratorEntry, error) {
+	v.agents = NewCache(func(ctx context.Context, _ whole) ([]api.RosterEntry, error) {
 		answer, err := requestAsking(ctx, l.wire, bus.BrowseAgentsRequested, api.BrowseAgentsRequest{}, l.timing.BusRequestTimeout, v.askedTheDirectory)
 		return answer.Response.Agents, err
 	}, l.run, nil, 0)
@@ -237,10 +237,10 @@ func (v *live) collaborators() *Cached[[]Collaborator] {
 	return &Cached[[]Collaborator]{
 		fresh: func(ctx context.Context) ([]Collaborator, error) {
 			asked := v.nextDirectoryAsk()
-			directory := make(chan outcome[[]api.CollaboratorEntry], 1)
+			directory := make(chan outcome[[]api.RosterEntry], 1)
 			go func() {
 				entries, err := v.agents.Fetch(ctx, whole{})
-				directory <- outcome[[]api.CollaboratorEntry]{entries, err}
+				directory <- outcome[[]api.RosterEntry]{entries, err}
 			}()
 			reports := make(chan []api.InferencePairLimits, len(bus.LimitsOperations))
 			startHolders := func() {
@@ -252,7 +252,7 @@ func (v *live) collaborators() *Cached[[]Collaborator] {
 				}
 			}
 			// The key holders are asked after the directory is: when it is sent, or when it has been answered.
-			var answered *outcome[[]api.CollaboratorEntry]
+			var answered *outcome[[]api.RosterEntry]
 			select {
 			case <-asked:
 				startHolders()
@@ -325,7 +325,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 				directory = state
 				mu.Unlock()
 				// A directory already held is asked for no more: its holders need not wait for an ask.
-				if _, ready := state.(Ready[[]api.CollaboratorEntry]); ready && first {
+				if _, ready := state.(Ready[[]api.RosterEntry]); ready && first {
 					close(held)
 					first = false
 				}
@@ -374,7 +374,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 			if state == nil {
 				continue
 			}
-			now := shown(state, func(entries []api.CollaboratorEntry) []Collaborator { return joined(entries, limits) })
+			now := shown(state, func(entries []api.RosterEntry) []Collaborator { return joined(entries, limits) })
 			if reflect.DeepEqual(now, last) {
 				continue
 			}

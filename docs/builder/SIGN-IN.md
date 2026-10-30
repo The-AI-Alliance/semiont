@@ -11,7 +11,7 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 | A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` |
 | A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` |
 | A service or a worker | [A service account](#a-service-or-a-worker), exchanged for the token of the agent its work runs as | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` |
-| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | none | `begin_sign_in`, `complete_sign_in` | none |
+| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` |
 | A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README |
 
 Each SDK's README has its own forms in full: [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/rust/http-transport/README.md).
@@ -70,7 +70,7 @@ An agent whose renewal fails keeps the token it has and tries again. [`semiont-w
 
 ## An application
 
-A web or a desktop application sends the person to the identity provider and finishes the sign-in when the provider sends them back (the authorization code grant, with PKCE). In TypeScript and in Rust this is the `SemiontBrowser`'s, which also keeps the knowledge bases a person has registered and which one is active.
+A web or a desktop application sends the person to the identity provider and finishes the sign-in when the provider sends them back (the authorization code grant, with PKCE). In every SDK this is the registry's (`SemiontBrowser`), which also keeps the knowledge bases a person has registered and which one is active.
 
 ## Tokens you already hold
 

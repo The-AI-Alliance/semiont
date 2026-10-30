@@ -22,7 +22,7 @@
 //     table it is said to run: a table nothing runs holds nothing;
 //   - an SDK is named twice among `runBy`, `absent` and `notYetReached`, or
 //     `absent` or `notYetReached` names what is no SDK;
-//   - two of the four SDKs run a table, and another of them neither runs it,
+//   - two of the SDKs run a table, and another of them neither runs it,
 //     nor says why not (`absent`), nor is still to (`notYetReached`): what at
 //     least two SDKs have, every SDK has;
 //   - an SDK `notYetReached` names has a test that names the table: it runs
@@ -48,6 +48,7 @@ const IMPLEMENTATIONS = {
   rust: ['packages/rust/sdk', 'packages/rust/http-transport'],
   python: ['packages/python/sdk'],
   go: ['packages/go/sdk'],
+  kotlin: ['packages/kotlin/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],
@@ -61,8 +62,8 @@ const IMPLEMENTATIONS = {
   conformance: ['tests/conformance'],
 };
 
-/** The four SDKs, which are held to one another. */
-const SDKS = ['typescript', 'rust', 'python', 'go'];
+/** The SDKs, which are held to one another. */
+const SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin'];
 
 /** The tables whose rule counts or states an offset. */
 const COUNTS_CODE_POINTS = new Set([
@@ -88,7 +89,7 @@ function filesUnder(directory) {
   const out = [];
   const walk = (at) => {
     for (const name of readdirSync(resolve(REPO, at))) {
-      if (name === 'node_modules' || name === 'target' || name.startsWith('.')) continue;
+      if (name === 'node_modules' || name === 'target' || name === 'build' || name.startsWith('.')) continue;
       const path = join(at, name);
       if (statSync(resolve(REPO, path)).isDirectory()) walk(path);
       else out.push(path);
@@ -104,7 +105,7 @@ function names(text, table) {
   return text.includes(table) || text.includes(`"${directory}", "${name}"`);
 }
 
-const isTest = (path) => /(_test\.go|\.test\.tsx?|\/test_[^/]*\.py|_test\.py)$|\/tests?\/|__tests__\//.test(path);
+const isTest = (path) => /(_test\.go|\.test\.tsx?|\/test_[^/]*\.py|_test\.py)$|\/tests?\/|\/javaTest\/|__tests__\//.test(path);
 
 const tables = filesUnder(SPECS)
   .filter((path) => path.endsWith('cases.json'))
@@ -121,7 +122,7 @@ for (const table of tables) {
     continue;
   }
   if (typeof content.$comment !== 'string' || content.$comment.trim() === '') {
-    fail(`${table} states no $comment: what it holds, and who runs it`);
+    fail(`${table} states no $comment: what it holds`);
   }
   if ('cases' in content && (!Array.isArray(content.cases) || content.cases.length === 0)) {
     fail(`${table} has no cases`);

@@ -13,8 +13,6 @@ __all__ = [
     "AgentOrganization",
     "AgentPerson",
     "AgentSoftware",
-    "AgentTokenRequest",
-    "AgentTokenResponse",
     "AnchoredText",
     "AnchoredTextAbsent",
     "AnchoredTextAbsentKind",
@@ -126,7 +124,6 @@ __all__ = [
     "BusSubscribeRequestScopedItem",
     "BusSubscribeRequestScopedItemChannelsItem",
     "CloneResourceWithTokenResponse",
-    "CollaboratorEntry",
     "CommandError",
     "CommandErrorCode",
     "CommentingJobParams",
@@ -376,6 +373,7 @@ __all__ = [
     "ResourceUpdatedPayload",
     "ResourceUpload",
     "ResourceView",
+    "RosterEntry",
     "ScoredResource",
     "Selector",
     "SemanticMatch",
@@ -484,7 +482,7 @@ class AgentPerson(WireModel, frozen=True, extra="allow"):
 
 class AgentSoftware(WireModel, frozen=True, extra="allow"):
     """
-    A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
+    A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `name`, `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads none of them from its DID. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.
     """
 
     type: Annotated[Literal["Software"], Field(alias="@type")]
@@ -492,13 +490,13 @@ class AgentSoftware(WireModel, frozen=True, extra="allow"):
         str | None,
         Field(
             alias="@id",
-            description="DID-shaped identifier (e.g. did:web:host:agents:provider:model)",
+            description="The agent's DID: did:web:<domain>:agents:<subject>, its account at the knowledge base's issuer",
         ),
     ] = None
     name: Annotated[
-        str,
-        Field(description="Stable human-friendly label. Not parsed; UI composes display from structured fields."),
-    ]
+        str | None,
+        Field(description="What the agent calls itself. Not parsed. Absent when it said nothing."),
+    ] = None
     provider: Annotated[str | None, Field(description="Inference provider (e.g. ollama, anthropic)")] = None
     model: Annotated[
         str | None,
@@ -609,7 +607,7 @@ type BodyPurpose = Annotated[
 
 class BrowseAgentsRequest(WireModel, frozen=True):
     """
-    Request to browse the KB's collaborator directory (its declared Agents)
+    Request to browse the knowledge base's roster: the engines its Inference document names
     """
 
 
@@ -1999,17 +1997,18 @@ class UserResponse(WireModel, frozen=True):
     did: Annotated[
         UserId,
         Field(
-            description="The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent."
+            description="The authenticated principal's DID: `did:web:<domain>:agents:<subject>` for an agent, whose token's `kind` claim is `agent`, and `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its principals by (`identity.subjectClaim`)."
         ),
     ]
-    email: str
+    email: Annotated[
+        str | None,
+        Field(description="The address the token carries, when it carries one: an agent's account need not have one."),
+    ]
     name: Annotated[str | None, Field(...)]
     image: Annotated[str | None, Field(...)]
     domain: Annotated[
         str,
-        Field(
-            description="Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's."
-        ),
+        Field(description="The knowledge base's domain: the authority the principal is named under."),
     ]
 
 
@@ -2236,36 +2235,6 @@ type ReplyEventId = Annotated[
         pattern="^e-[^:]+:[^:]+:.+$",
     ),
 ]
-
-
-class AgentTokenRequest(WireModel, frozen=True):
-    """
-    The (provider, model) the agent token is issued for: together they name the agent.
-    """
-
-    provider: Annotated[
-        str,
-        Field(description="Inference provider (e.g. ollama, anthropic)", min_length=1),
-    ]
-    model: Annotated[
-        str,
-        Field(
-            description="Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)",
-            min_length=1,
-        ),
-    ]
-
-
-class AgentTokenResponse(WireModel, frozen=True):
-    """
-    The agent token and the DID it names.
-    """
-
-    token: Annotated[str, Field(description="Bearer JWT for subsequent authenticated requests")]
-    did: Annotated[
-        UserId,
-        Field(description="DID of the software-agent identity the token is acting as"),
-    ]
 
 
 class ResourceUpload(WireModel, frozen=True):
@@ -5247,7 +5216,7 @@ class AnchoredTextEntries(WireModel, frozen=True, extra="forbid"):
 
 class ArchivistRosterRole(WireModel, frozen=True, extra="forbid"):
     """
-    The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+    The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
     """
 
     provider: ArchivistRosterRoleProvider
@@ -6129,16 +6098,16 @@ class BrowseResourcesResult(WireModel, frozen=True):
     response: ListResourcesResponse
 
 
-class CollaboratorEntry(WireModel, frozen=True):
+class RosterEntry(WireModel, frozen=True, extra="forbid"):
     """
-    One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the jobs it serves. Actor-role-only agents (gatherer/matcher) and Persons omit `serves`. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+    One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
     """
 
-    agent: Agent
+    engine: ArchivistRosterRole
     serves: Annotated[
         list[JobFilter] | None,
         Field(
-            description="The jobs this agent is declared to serve (from the KB's workers.* config sections), as a claim would name them. Absent for Persons and for agents declared only under actor roles."
+            description="The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles."
         ),
     ] = None
 
@@ -6428,7 +6397,7 @@ class JobClaimedResult(WireModel, frozen=True, extra="forbid"):
 
 class WorkerConfig(WireModel, frozen=True, extra="forbid"):
     """
-    Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
+    Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its environment: its client id and the RSA key it signs in with. A document that does not validate is refused at boot, naming each failing field.
     """
 
     gateway_url: Annotated[
@@ -6577,7 +6546,7 @@ class ArchivistRoster(WireModel, frozen=True, extra="forbid"):
 
 
 class BrowseAgentsResultResponse(WireModel, frozen=True):
-    agents: list[CollaboratorEntry]
+    agents: list[RosterEntry]
 
 
 class GatheredContextFocusAnnotation(WireModel, frozen=True):
@@ -6614,7 +6583,7 @@ type KnowledgeGraphNodesItem = Annotated[GraphResourceNode | GraphAnnotationNode
 
 class BrowseAgentsResult(WireModel, frozen=True):
     """
-    Result of browsing the collaborator directory
+    Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves
     """
 
     response: BrowseAgentsResultResponse

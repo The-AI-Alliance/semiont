@@ -261,7 +261,10 @@ def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_t
         "SEMIONT_BUS_LOG",
     }
     assert not_read_here <= listed
-    assert named == listed - not_read_here
+    # The shared package reads a secret too, for the services that prove themselves with one: the worker proves
+    # itself with its key (B3), and reads no secret.
+    assert "SEMIONT_OIDC_CLIENT_SECRET" in named
+    assert named - {"SEMIONT_OIDC_CLIENT_SECRET"} == listed - not_read_here
 
 
 def test_a_providers_library_is_an_extra_and_the_image_asks_for_every_one() -> None:

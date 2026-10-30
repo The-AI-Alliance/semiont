@@ -56,8 +56,8 @@ import {
 export interface NodeObservabilityConfig {
   /** Service identity (e.g. `my-program`). Overridden by `OTEL_SERVICE_NAME`. */
   serviceName: string;
-  /** Service version. Defaults to `0.0.0` if omitted. */
-  serviceVersion?: string;
+  /** Service version: the program's own, as its package names it. */
+  serviceVersion: string;
 }
 
 let tracerProviderInstance: TracerProvider | undefined;
@@ -142,7 +142,7 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
 
   const resource = resourceFromAttributes({
     [ATTR_SERVICE_NAME]: process.env['OTEL_SERVICE_NAME'] ?? config.serviceName,
-    [ATTR_SERVICE_VERSION]: config.serviceVersion ?? '0.0.0',
+    [ATTR_SERVICE_VERSION]: config.serviceVersion,
   });
 
   // Trace SDK

@@ -22,7 +22,6 @@ from semiont.operations import BROWSE_ANNOTATION_HISTORY_REQUESTED, BROWSE_DIREC
 from semiont.resources import decode_representation
 from semiont.transport import Content, ContentStream, ContentTransport, ResourceHold
 from semiont.types import (
-    AgentSoftware,
     AnchoredTextAnswer,
     Annotation,
     AttributedEvent,
@@ -34,7 +33,6 @@ from semiont.types import (
     BrowseKbRequest,
     BrowseResourceOpenEvent,
     BrowseResourceViewedEvent,
-    CollaboratorEntry,
     GetAnnotationHistoryResponse,
     GetAnnotationsResponse,
     GetResourceResponse,
@@ -43,6 +41,7 @@ from semiont.types import (
     KbDescription,
     ListResourcesResponse,
     ResourceDescriptor,
+    RosterEntry,
     TagSchema,
 )
 
@@ -56,28 +55,20 @@ _LIST_LIMIT: Final = 100
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Collaborator:
-    """One of the knowledge base's collaborators.
+    """One engine on the knowledge base's roster.
 
-    Its entry in the directory, and its model's limits when the service
-    holding that model's credentials reported them.
+    Its entry, and its model's limits when the service holding that model's
+    credentials reported them.
     """
 
-    entry: CollaboratorEntry
+    entry: RosterEntry
     limits: InferenceLimits | None = None
 
 
-def _joined(directory: list[CollaboratorEntry], reported: list[InferencePairLimits]) -> list[Collaborator]:
-    """The directory with each reported model's limits on its entries."""
+def _joined(roster: list[RosterEntry], reported: list[InferencePairLimits]) -> list[Collaborator]:
+    """The roster with each reported model's limits on its entries."""
     by_model = {(pair.provider, pair.model): pair.limits for pair in reversed(reported)}
-    return [
-        Collaborator(
-            entry=entry,
-            limits=by_model.get((entry.agent.provider, entry.agent.model))
-            if isinstance(entry.agent, AgentSoftware) and entry.agent.provider is not None and entry.agent.model is not None
-            else None,
-        )
-        for entry in directory
-    ]
+    return [Collaborator(entry=entry, limits=by_model.get((entry.engine.provider, entry.engine.model))) for entry in roster]
 
 
 def _listed(answer: GetAnnotationsResponse) -> list[Annotation]:
@@ -98,12 +89,12 @@ class _Joined:
 
     def __init__(
         self,
-        directory: AsyncIterator[CacheState[list[CollaboratorEntry]]],
+        directory: AsyncIterator[CacheState[list[RosterEntry]]],
         reports: list[AsyncIterator[CacheState[list[InferencePairLimits]]]],
     ) -> None:
         self._directory: Final = directory
         self._reports: Final = reports
-        self._entries: CacheState[list[CollaboratorEntry]] | None = None
+        self._entries: CacheState[list[RosterEntry]] | None = None
         self._reported: Final[list[list[InferencePairLimits]]] = [[] for _ in reports]
         self._shown: CacheState[list[Collaborator]] | None = None
         """The state last given: a report that changes nothing a watcher is shown is not a state."""
@@ -143,13 +134,13 @@ class _Joined:
                     self._shown = joined
                     return joined
 
-    def _with_limits(self, entries: list[CollaboratorEntry]) -> list[Collaborator]:
+    def _with_limits(self, entries: list[RosterEntry]) -> list[Collaborator]:
         return _joined(entries, [pair for report in self._reported for pair in report])
 
 
 @final
 class _Collaborators(Source[list[Collaborator]]):
-    """The collaborator directory with each key holder's limits joined on."""
+    """The roster with each key holder's limits joined on."""
 
     def __init__(self, live: Live) -> None:
         self._live: Final = live

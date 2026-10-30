@@ -6,14 +6,13 @@
  */
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY } from '@semiont/core';
+import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY, SignInError } from '@semiont/core';
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import { InMemorySessionStorage } from '../session-storage';
 import {
   BROWSER_CLIENT_ID,
   PENDING_AUTHORIZATION_KEY,
   SCRIPT_CLIENT_ID,
-  SignInError,
   beginAuthorization,
   codeChallenge,
   completeAuthorization,

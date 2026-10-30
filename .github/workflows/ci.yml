@@ -101,6 +101,7 @@ jobs:
           npm run lint:rust-images || fail=1
           npm run lint:rust-toolchain || fail=1
           npm run lint:go-toolchain || fail=1
+          npm run lint:kotlin-toolchain || fail=1
           npm run lint:python-version || fail=1
           npm run lint:node-version || fail=1
           npm run lint:nats-version || fail=1
@@ -137,6 +138,7 @@ jobs:
       ui: ${{ steps.areas.outputs.ui }}
       conformance: ${{ steps.areas.outputs.conformance }}
       go: ${{ steps.areas.outputs.go }}
+      kotlin: ${{ steps.areas.outputs.kotlin }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
       python-inference: ${{ steps.areas.outputs.python-inference }}
       python-graph: ${{ steps.areas.outputs.python-graph }}
@@ -220,6 +222,10 @@ jobs:
               - 'images/*/Dockerfile'
               - 'scripts/container/supervise.sh'
               - 'tests/e2e/e2e-localhost-bridge.mjs'
+            # The Kotlin SDK. The JDK its builds run on is its .java-version,
+            # read by scripts/ci/jdk-version.sh, which is all's.
+            kotlin:
+              - 'packages/kotlin/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -915,6 +921,30 @@ jobs:
               done
           cargo publish --dry-run --workspace --locked --target-dir "$RUNNER_TEMP/packaged"
 
+      # Cargo packages only what is under a crate's directory, so each
+      # published crate's directory holds LICENSE, a link to the repository's,
+      # which cargo follows when it packages. A published crate without the
+      # link, or with a copy in its place that has drifted, fails here.
+      #
+      # The crates are packaged again, without building: `cargo publish
+      # --dry-run` leaves no .crate file behind, and `cargo package` writes
+      # each to package/ in its target directory.
+      - name: Check every published crate carries the repository's LICENSE
+        run: |
+          crates=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "\(.name)-\(.version)"')
+          cargo package --locked --no-verify --target-dir "$RUNNER_TEMP/licence" \
+            $(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[] | select(.publish == null) | "-p \(.name)"')
+          failed=0
+          for crate in $crates; do
+            if tar -xzOf "$RUNNER_TEMP/licence/package/$crate.crate" "$crate/LICENSE" > "$RUNNER_TEMP/carried-LICENSE" && cmp -s "$RUNNER_TEMP/carried-LICENSE" ../../LICENSE; then
+              echo "✓ $crate carries the repository's LICENSE"
+            else
+              echo "::error::$crate does not carry the repository's LICENSE: its directory needs LICENSE, a link to the repository's"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -948,7 +978,7 @@ jobs:
     name: Rust Binaries
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true'
     defaults:
       run:
         working-directory: packages/rust
@@ -1355,7 +1385,7 @@ jobs:
     name: SDK Conformance
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts, build-rust]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true'
     env:
       # Where every Rust binary this job starts writes what it ran, as it exits,
       # merged into one file per binary: kept below, for Rust Coverage.
@@ -1417,9 +1447,22 @@ jobs:
       - name: Build the Go drivers
         run: cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...
 
+      # The Kotlin drivers run on the JDK the SDK's .java-version names, from
+      # the start scripts its build lays out.
+      - name: Setup Java
+        uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version-file: packages/kotlin/sdk/.java-version
+
+      - name: Build the Kotlin drivers
+        working-directory: packages/kotlin/sdk
+        run: ./gradlew --no-daemon --console=plain installConformance
+
       # Each SDK's drivers, put through the corpus against the gateway; the
       # suite type-checks the TypeScript drivers and makes the Python SDK's
-      # environment before it starts.
+      # environment before it starts. The Kotlin drivers run with JaCoCo's
+      # agent, which their start scripts take from JAVA_OPTS.
       - name: Run the SDK conformance suite
         run: |
           cd tests/conformance
@@ -1427,6 +1470,25 @@ jobs:
           npm run test:sdk
         env:
           CI: true
+          JAVA_OPTS: -javaagent:${{ github.workspace }}/packages/kotlin/sdk/build/conformance/jacoco/jacocoagent.jar=destfile=${{ github.workspace }}/packages/kotlin/sdk/build/conformance-coverage/drivers.exec,append=true
+
+      # What the suite ran of the Kotlin SDK. A run that wrote no report
+      # measured nothing, and the upload below would pass it in silence.
+      - name: Report what the suite ran of the Kotlin SDK
+        working-directory: packages/kotlin/sdk
+        run: |
+          ./gradlew --no-daemon --console=plain conformanceCoverage
+          test -s build/reports/jacoco/conformanceCoverage/conformanceCoverage.xml
+
+      - name: Upload the Kotlin SDK's conformance coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/kotlin/sdk/build/reports/jacoco/conformanceCoverage/conformanceCoverage.xml
+          flags: kotlin-sdk
+          name: kotlin-sdk-conformance
+          verbose: true
+        continue-on-error: true
 
       # What the instrumented binaries ran, for Rust Coverage. A job that
       # started one and finds no profile fails: the measurement broke.
@@ -2107,9 +2169,103 @@ jobs:
         if: matrix.python-version == '3.12'
         run: ../../../scripts/ci/build-python-sdk.sh
 
+  # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
+  # it as a Java program does, its ABI against the committed dump, its census
+  # and the programs that must not compile. It runs in the JDK image
+  # .java-version names, as scripts/ci/local-build.sh builds it, as this
+  # runner's user, so what it leaves in the checkout and in Gradle's home is
+  # the runner's to cache.
+  test-sdk-kotlin:
+    name: Kotlin SDK
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.kotlin == 'true'
+
+    defaults:
+      run:
+        working-directory: packages/kotlin/sdk
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # Gradle's home holds the distribution the wrapper names, the Kotlin
+      # plugin's tools its catalog version fixes, and the dependencies the
+      # lockfiles pin, so it is keyed by those files.
+      - name: Cache Gradle's home
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('packages/kotlin/sdk/gradle/wrapper/gradle-wrapper.properties', 'packages/kotlin/sdk/gradle/libs.versions.toml', 'packages/kotlin/sdk/gradle.lockfile', 'packages/kotlin/sdk/settings-gradle.lockfile') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build, test and check
+        run: |
+          mkdir -p "$HOME/.gradle"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$HOME/.gradle":/gradle \
+            -w /workspace/packages/kotlin/sdk \
+            "eclipse-temurin:$(../../../scripts/ci/jdk-version.sh)-jdk" \
+            ./gradlew --no-daemon --console=plain --gradle-user-home /gradle check
+
+      # check writes JaCoCo's report when the tests ran; a run that wrote none
+      # measured nothing, and the upload below would pass it in silence.
+      - name: The coverage report was written
+        run: test -s build/reports/jacoco/test/jacocoTestReport.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/kotlin/sdk/build/reports/jacoco/test/jacocoTestReport.xml
+          flags: kotlin-sdk
+          name: kotlin-sdk
+          verbose: true
+        continue-on-error: true
+
   # The sign-in store on Windows: the launcher keeps its sign-ins there too,
   # in another directory and under another lock (specs/src/sign-in-store).
   # These are the tests of what differs by system.
+  # The Kotlin sign-in store's lock where it is taken otherwise than on
+  # Linux: flock(2) through the foreign-function API on macOS, and the JDK's
+  # lock on the launcher's one byte on Windows. The store's tests hold the
+  # lock from another process as the launcher takes it, with Python's own
+  # call, and the store must wait.
+  test-sdk-kotlin-store:
+    name: Kotlin SDK (sign-in store, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.kotlin == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: packages/kotlin/sdk
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version-file: packages/kotlin/sdk/.java-version
+
+      # The other process that holds the lock.
+      - name: Setup Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Test the sign-in store
+        run: ./gradlew --no-daemon --console=plain test --tests 'semiont.signin.*'
+
   test-sdk-python-windows:
     name: Python SDK (sign-in store, Windows)
     runs-on: windows-latest
@@ -2876,54 +3032,27 @@ jobs:
       # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
       # the gateway's channel classification (images/gateway/src), and Go
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
-      # about channels at runtime.
+      # about channels at runtime. Each language's generators are listed once,
+      # in package.json's generate:<list>:check; this step and the two below
+      # run those lists, as scripts/ci/local-build.sh does.
       - name: Bus registry vs generated code
-        run: |
-          node scripts/bus/generate-ts.mjs --check
-          node scripts/bus/generate-go.mjs --check
+        run: npm run generate:bus:check
 
       # Authority: specs/src → the Python SDK's committed modules
-      # (packages/python/sdk/src/semiont): the bus vocabulary, the kinds of id,
-      # the error codes, the client's timing, its refresh table, the telemetry
-      # it exports, the clients it signs in as, the entry of the sign-in store,
-      # the media types, and the Encoding Standard's labels and single-byte
-      # encodings. TypeScript and Rust build theirs from the same files at build
-      # time; Python has no build, so its are committed, and are what can go
-      # stale.
+      # (packages/python/sdk/src/semiont), the bus vocabulary among them.
+      # TypeScript and Rust build theirs from the same files at build time;
+      # Python has no build, so its are committed, and are what can go stale.
       - name: Spec tables vs the Python SDK's generated modules
-        run: |
-          node scripts/bus/generate-python.mjs --check
-          node scripts/spec/generate-identifiers-python.mjs --check
-          node scripts/spec/generate-error-codes-python.mjs --check
-          node scripts/spec/generate-client-timing-python.mjs --check
-          node scripts/spec/generate-cache-refresh-python.mjs --check
-          node scripts/spec/generate-sdk-telemetry-python.mjs --check
-          node scripts/spec/generate-oauth-clients-python.mjs --check
-          node scripts/spec/generate-sign-in-python.mjs --check
-          node scripts/spec/generate-media-types-python.mjs --check
-          node scripts/spec/generate-encodings-python.mjs --check
+        run: npm run generate:python:check
 
-      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk):
-      # the kinds of id (api/ids_gen.go, whose generator also holds
-      # oapi-codegen's exclude-schemas to the kinds), the error codes, the
-      # client's timing, the cache-refresh table, the SDK telemetry table, the sign-in store's entry,
-      # the OAuth clients and the sign-in scope, the media types
-      # (mediatypes), and the Encoding Standard's labels and single-byte
-      # encodings (encodings_gen.go). TypeScript and Rust build theirs from
-      # the same files at build time; a Go module has no build step, so its
-      # are committed, and are what can go stale. The bus vocabulary and the
-      # REST client have steps of their own.
+      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk).
+      # The generator of the kinds of id (api/ids_gen.go) also holds
+      # oapi-codegen's exclude-schemas to the kinds. TypeScript and Rust build
+      # theirs from the same files at build time; a Go module has no build
+      # step, so its are committed, and are what can go stale. The bus
+      # vocabulary and the REST client have steps of their own.
       - name: Spec tables vs the Go SDK's generated code
-        run: |
-          node scripts/spec/generate-identifiers-go.mjs --check
-          node scripts/spec/generate-error-codes-go.mjs --check
-          node scripts/spec/generate-client-timing-go.mjs --check
-          node scripts/spec/generate-cache-refresh-go.mjs --check
-          node scripts/spec/generate-sdk-telemetry-go.mjs --check
-          node scripts/spec/generate-sign-in-go.mjs --check
-          node scripts/spec/generate-oauth-clients-go.mjs --check
-          node scripts/spec/generate-media-types-go.mjs --check
-          node scripts/spec/generate-encodings-go.mjs --check
+        run: npm run generate:go:check
 
       # A knowledge base's documents (specs/src/stack, and the project file's
       # schema in specs/src/kb-identity) → the launcher's types for them and the
@@ -3226,6 +3355,71 @@ jobs:
           verbose: true
         continue-on-error: true
 
+  # The launcher against a real Keycloak: the one the launcher starts for an
+  # operator, whose image scripts/ci/keycloak-image.sh reads from the
+  # launcher's own descriptor. A stub admits whatever it is shown, so only
+  # Keycloak proves that the realm sync's clients and a granted worker's are
+  # ones it admits a sign-in at, that a token it mints carries the flat
+  # `roles` and the audience the gateway checks, and that a new key and a
+  # revoke do what they say. The live tests skip without a Keycloak to run
+  # against; here one that skips fails the job.
+  test-launcher-keycloak:
+    name: Launcher Tests (Go, Keycloak)
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.go == 'true'
+    env:
+      # Where the tests find the issuer, and the admin password it was started
+      # with below: a container this job makes and discards.
+      SEMIONT_LIVE_KEYCLOAK: http://localhost:8080
+      KC_BOOTSTRAP_ADMIN_PASSWORD: launcher-keycloak-ci
+    defaults:
+      run:
+        working-directory: packages/go/launcher
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
+
+      - name: Start Keycloak
+        working-directory: .
+        run: |
+          image=$(scripts/ci/keycloak-image.sh)
+          docker run -d --name keycloak -p 8080:8080 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD" \
+            "$image" start-dev
+          for attempt in $(seq 1 90); do
+            if curl -sf -o /dev/null "$SEMIONT_LIVE_KEYCLOAK/realms/master"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs keycloak
+          echo "Keycloak did not answer within three minutes"
+          exit 1
+
+      - name: Run the live tests against it
+        run: |
+          go test -count=1 -v -run 'Live$' . | tee live.out
+          if grep -q -- '--- SKIP' live.out; then
+            echo "::error::a live test skipped, so it was not run against Keycloak"
+            exit 1
+          fi
+          for test in TestIdentitySyncLive TestWorkerGrantLive; do
+            if ! grep -q -- "--- PASS: $test " live.out; then
+              echo "::error::$test did not run and pass"
+              exit 1
+            fi
+          done
+
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
     runs-on: windows-latest
@@ -3310,6 +3504,8 @@ jobs:
       - rust-coverage
       - test-sdk-python
       - test-sdk-python-windows
+      - test-sdk-kotlin
+      - test-sdk-kotlin-store
       - test-inference-python
       - test-service-python
       - test-worker-python
@@ -3325,6 +3521,7 @@ jobs:
       - generated-artifacts
       - check-launcher
       - test-launcher
+      - test-launcher-keycloak
       - test-launcher-windows
     steps:
       - name: What each job did

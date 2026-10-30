@@ -34,14 +34,13 @@ Two more channels go to the dispatcher: `job:checkpoint` records the units a job
 
 ## Who a worker is
 
-A worker does not sign in as a person. It has two identities, obtained in two steps:
+A worker does not sign in as a person. It is an agent, and an agent is an account, as a person is: a service account at the knowledge base's issuer, proved with the OAuth client-credentials grant. Its client id and secret are `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, the same variables Semiont's own services read.
 
-1. **The process**: a service account at the knowledge base's issuer, proved with the OAuth client-credentials grant. Its client id and secret are `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, the same variables Semiont's own services read.
-2. **The agent**: the process exchanges its issuer token at the gateway's `POST /api/tokens/agent` for an agent token, naming the model it works with. The agent's DID is what the work is attributed to. One process may hold several, one for each model.
+The token the issuer grants is the worker's bearer at the gateway, and the gateway names the worker by that account: `did:web:<domain>:agents:<subject>`, an agent's DID, because the realm marks every agent's account as one (its tokens carry the claim `kind`, holding `agent`). That DID is what the work is attributed to. The model a worker runs is no part of who it is: each annotation it commits names the engine that made it. A process signs in once, whatever models it runs.
 
-The service account needs two roles at the issuer: `semiont-service`, which lets it buy an agent token, and `semiont-worker`, which the gateway stamps on the agent token and without which the dispatcher refuses every claim. Granting those roles to its client is how an operator admits a worker that is not one of the stack's own.
+The account needs the `semiont-worker` role at the issuer. The gateway passes on the roles its token carries, and the dispatcher refuses every claim from an account without that one. Granting it to the worker's client is how an operator admits a worker that is not one of the stack's own.
 
-`startAgentSession` does both steps, and keeps the agent's token fresh for as long as the process runs. An agent token lives an hour and has no refresh token: the session renews it by signing in again. The client is built over what it holds.
+`startAgentSession` signs the worker in, asks the gateway its DID, and keeps its token fresh for as long as the process runs: it asks the issuer for a new one as each comes due, and at once when the gateway refuses one. The client is built over what it holds.
 
 ```typescript
 import {
@@ -57,14 +56,12 @@ async function signIn(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ age
     throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required');
   }
 
-  // The knowledge base names its issuer. The process proves who it is there,
-  // and is given the agent identity its work is attributed to.
+  // The knowledge base names its issuer. The worker signs in there as its
+  // account, and the gateway names it by that account.
   const { issuer } = await discoverIssuer(endpoint);
   const agent = await startAgentSession({
     baseUrl: gatewayUrl,
     credential: { issuer, clientId, clientSecret },
-    provider: 'ollama',
-    model: 'gemma3:4b',
     logger: console,
   });
 
@@ -80,7 +77,7 @@ async function signIn(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ age
 }
 ```
 
-`agent.did` is the agent's DID, as the gateway minted it.
+`agent.did` is the agent's DID, as the gateway names its account.
 
 **The stream must name `JOB_CLAIM_CHANNELS`.** `job:queued` and `job:cancel-requested` reach only a stream that names them, and a client made with no `channels` does not. `job.claim` refuses such a client at once, with `bus.unsubscribed`, where it would otherwise claim once and never be woken. A worker that commits annotations names `JOB_COMMIT_CHANNELS` as well. Beyond those it names the reply channels of each bus operation it awaits itself (`replyChannelsFor`, from `@semiont/core`), and nothing else: every other client's replies are traffic it would only parse and drop.
 
@@ -170,7 +167,7 @@ async function recordHighlights(
 }
 ```
 
-`generator` is the agent the worker signed in as: `didToAgent(agent.did)`, from `@semiont/core`.
+`generator` is the worker's own statement of what made the annotations: the agent it signed in as, by the DID the gateway named it with, and the engine it ran (`provider`, `model`). The record refuses a `generator` whose `@id` is not the writer's own.
 
 The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does.
 
@@ -184,7 +181,7 @@ import {
   annotationOfSpan, discoverIssuer, reconcile, startAgentSession,
   type Annotation, type HeldMarkJob, type HttpEndpoint, type QuotedText,
 } from '@semiont/sdk';
-import { baseUrl, didToAgent, type components } from '@semiont/core';
+import { baseUrl, type components } from '@semiont/core';
 
 const gatewayUrl = process.env.SEMIONT_API_URL ?? 'http://localhost:4000';
 const url = new URL(gatewayUrl);
@@ -235,13 +232,17 @@ async function main(): Promise<void> {
   const agent = await startAgentSession({
     baseUrl: gatewayUrl,
     credential: { issuer, clientId, clientSecret },
-    provider: 'ollama',
-    model: 'gemma3:4b',
     logger: console,
   });
   console.log(`working as ${agent.did}`);
-  // What its annotations say made them.
-  const generator = didToAgent(agent.did);
+  // What its annotations say made them: the agent, and the engine it ran.
+  const engine = { provider: 'ollama', model: 'gemma3:4b' };
+  const generator: components['schemas']['Agent'] = {
+    '@type': 'Software',
+    '@id': agent.did,
+    name: `${engine.provider} ${engine.model}`,
+    ...engine,
+  };
 
   // What this worker's stream names: what claiming reads, and what a commit
   // of annotations awaits. It awaits nothing else, so it names nothing else.
@@ -311,29 +312,27 @@ Let a job in hand finish before shutting down, or stop the claims, which fails i
 
 ## The same worker in Rust
 
-The Rust SDK is two crates: `semiont`, whose client has `job.claim`, and `semiont-http-transport`, which signs the worker in. `AgentToken::sign_in` does both steps of [who a worker is](#who-a-worker-is), and keeps the agent's token fresh for as long as the process holds it.
+The Rust SDK is two crates: `semiont`, whose client has `job.claim`, and `semiont-http-transport`, which signs the worker in. `AgentToken::sign_in` signs the worker in as [its account](#who-a-worker-is), learns the DID the gateway names it by, and keeps its token fresh for as long as the process holds it.
 
 ```rust
-// A worker signs in as a daemon does: with its service account, as the
-// agent its work is attributed to.
-let (provider, model) = ("ollama", "gemma3:4b");
+// A worker signs in as a daemon does: as itself, the agent its work is
+// attributed to.
 let agent = AgentToken::sign_in(
     gateway,
-    Agent {
-        provider: provider.to_owned(),
-        model: model.to_owned(),
-    },
     ServiceToken::new(credential, http.clone()),
     http.clone(),
 )
 .await?;
 println!("working as {}", agent.did());
-// What made the annotations it commits: the agent the gateway gave it.
+// What made the annotations it commits: the agent, as the gateway names
+// it, and the engine it ran.
+let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
+    name: Some(agent_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
-    ..AgentSoftware::new(agent_name(provider, model))
+    ..AgentSoftware::new()
 }
 .into();
 // Its stream names what claiming and committing read. This worker awaits
@@ -434,13 +433,13 @@ What differs from TypeScript is what the language gives:
 
 ## The same worker in Python
 
-The Python SDK is one package, `semiont`. `AgentToken`, held with `async with`, does both steps of [who a worker is](#who-a-worker-is), and keeps the agent's token fresh until its block is left.
+The Python SDK is one package, `semiont`. `AgentToken`, held with `async with`, signs the worker in as [its account](#who-a-worker-is), learns the DID the gateway names it by, and keeps its token fresh until its block is left.
 
 ```python
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
 from semiont.identity import agent_name
 from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
@@ -471,11 +470,11 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
-    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+    # The process signs in at its issuer as its account: the agent its work is attributed to.
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
         HttpTransport(
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
@@ -485,7 +484,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent the gateway gave it.
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
         generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
@@ -525,7 +524,7 @@ What differs from TypeScript is what the language gives:
 Set `SEMIONT_BUS_LOG=1` in the worker's environment. Every emit, reply and stream frame is then logged as one line, and the claim protocol can be read off the log:
 
 - **No `job:claim` at all**: the claims were never subscribed to, or the connection never opened. Watch the connection with `client.state$`.
-- **Every claim answered `job:claim-failed`, saying the caller is not a worker**: the service account lacks the `semiont-worker` role, so the agent token carries no worker capability. `refused$` reports it as `bus.unauthorized`. On a launcher stack, `semiont identity sync` repairs the roles of the stack's own clients.
+- **Every claim answered `job:claim-failed`, saying the caller is not a worker**: the account lacks the `semiont-worker` role, so its token carries none. `refused$` reports it as `bus.unauthorized`. On a launcher stack, `semiont identity sync` repairs the roles of the stack's own clients.
 - **Claims answered with nothing pending**: the worker is healthy and the queue has no job its claim matches.
 
 ```typescript

@@ -494,7 +494,7 @@ describe('BrowseNamespace', () => {
     it('the stream reopening after a drop → invalidates the KB-wide registries the cache knows', async () => {
       // Nothing replays what every client hears, so a drop is answered by
       // asking again, of each registry the cache knows (B20): here the two
-      // that were observed, and not the collaborator directory, which
+      // that were observed, and not the roster, which
       // nothing asked for.
       const fetches = (channel: string) =>
         emitSpy.mock.calls.filter((call: unknown[]) => call[0] === channel).length;

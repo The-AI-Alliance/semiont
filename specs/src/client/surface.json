@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made (a TypeScript class's constructor and its static factories among it). `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made (a TypeScript class's constructor and its static factories among it). `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -655,6 +655,7 @@
         },
         {
           "method": "claim",
+          "notYetReached": { "kotlin": "The Kotlin SDK's claims, with the worker surface." },
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [
@@ -714,6 +715,7 @@
     {
       "handed": "claims",
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust, ranged over in Go.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's worker surface: the claims `job.claim` returns." },
       "members": [
         {
           "member": "next",
@@ -747,6 +749,7 @@
     {
       "handed": "heldJob",
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's worker surface: a job its worker holds." },
       "members": [
         { "member": "jobId" },
         { "member": "jobType" },
@@ -780,6 +783,7 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's mark state unit." },
       "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit" },
       "members": [
         { "member": "pendingAnnotation" },
@@ -796,6 +800,7 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's yield state unit." },
       "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit" },
       "members": [
         { "member": "isGenerating" },
@@ -810,6 +815,7 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's gather state unit." },
       "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit" },
       "members": [
         { "member": "context" },
@@ -826,12 +832,14 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's match state unit." },
       "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit" },
       "members": []
     },
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's beckon state unit." },
       "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit" },
       "members": [
         { "member": "hoveredAnnotationId" },
@@ -841,6 +849,7 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's hoverDwell state unit." },
       "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell" },
       "members": [
         { "member": "enter" },
@@ -850,6 +859,7 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's search state unit." },
       "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline" },
       "members": [
         { "member": "query" },
@@ -860,6 +870,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's sessionSignals state unit." },
       "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals" },
       "members": [
         { "member": "sessionEnded" },
@@ -876,6 +887,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's cache state unit." },
       "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache" },
       "members": [
         { "member": "observe" },
@@ -893,6 +905,7 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's session state unit." },
       "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session" },
       "members": [
         { "member": "id" },
@@ -918,7 +931,7 @@
   ],
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
-    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire" },
+    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
       { "member": "emit" },
       { "member": "frames" },
@@ -926,7 +939,8 @@
         "member": "framesOf",
         "absent": {
           "typescript": "`frames` is overloaded: a channel of a resource's scope is read as `frames(channel, resourceId)`. Rust, which has no overloading, names that read apart.",
-          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
+          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart.",
+          "kotlin": "`frames` is overloaded: a channel of a resource's scope (`ScopedChannel`) is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
         }
       },
       { "member": "request" },
@@ -934,21 +948,24 @@
         "member": "emitOn",
         "absent": {
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
-          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
         }
       },
       {
         "member": "framesOn",
         "absent": {
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
-          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
         }
       },
       {
         "member": "requestOf",
         "absent": {
           "typescript": "A TypeScript operation is a value, checked against the registry's operations, so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
-          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
+          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
+          "kotlin": "A Kotlin operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
         }
       }
     ]
@@ -970,13 +987,17 @@
         ],
         "go": [
           "packages/go/sdk/annotations"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/annotations"
         ]
       },
       "whole": [
         "typescript",
         "rust",
         "python",
-        "go"
+        "go",
+        "kotlin"
       ],
       "members": [
         {
@@ -1057,7 +1078,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1066,7 +1088,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1075,7 +1098,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1117,7 +1141,8 @@
           "member": "SpanRefusedError",
           "kind": "type",
           "absent": {
-            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error."
+            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusedError: a SemiontError, and that family is sealed, so every member of it is in semiont.errors."
           }
         },
         {
@@ -1126,7 +1151,8 @@
           "absent": {
             "typescript": "TypeScript's is with @semiont/core's other error codes.",
             "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
-            "go": "Go's is semiont.SpanRefusal, generated with the other error codes."
+            "go": "Go's is semiont.SpanRefusal, generated with the other error codes.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusal, generated with the other error codes."
           }
         },
         {
@@ -1135,7 +1161,8 @@
           "absent": {
             "typescript": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
             "python": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
-            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text."
+            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "kotlin": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where Kotlin's annotationOfSpan is overloaded for each."
           }
         },
         {
@@ -1144,7 +1171,8 @@
           "absent": {
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
-            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         },
         {
@@ -1153,7 +1181,8 @@
           "absent": {
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
-            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         }
       ]
@@ -1161,6 +1190,7 @@
     {
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's jobFilter module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/job-filter.ts"
@@ -1201,6 +1231,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/retry"
         ]
       },
       "members": [
@@ -1225,6 +1258,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "members": [
@@ -1250,6 +1286,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/session"
         ]
       },
       "members": [
@@ -1305,6 +1344,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/storage"
         ]
       },
       "members": [
@@ -1337,6 +1379,10 @@
         "go": [
           "packages/go/sdk",
           "packages/go/sdk/bus"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/bus",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/transport"
         ]
       },
       "members": [
@@ -1363,6 +1409,7 @@
     {
       "module": "registry",
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's registry module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/semiont-browser.ts",
@@ -1381,7 +1428,9 @@
           "packages/rust/http-transport/src/session.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/stored.py",
+          "packages/python/sdk/src/semiont/registry.py",
+          "packages/python/sdk/src/semiont/http/session.py"
         ],
         "go": [
           "packages/go/sdk/registry"
@@ -1393,32 +1442,25 @@
       "members": [
         {
           "member": "SemiontBrowser",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "newSemiontBrowser",
           "kind": "function",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "python": "Python makes one with `SemiontBrowser(config)`, held with `async with`.",
             "typescript": "TypeScript makes one with `new SemiontBrowser(config)`.",
             "rust": "Rust makes one with `SemiontBrowser::new(config)`."
           }
         },
         {
           "member": "SemiontBrowserConfig",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "SignedIn",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's `completeSignIn` lands a sign-in itself, and names no type for what the registry is handed."
           }
         },
@@ -1426,151 +1468,99 @@
           "member": "Expected",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript states what a person believed inside `SignInOutcome`, and names no type for it."
           }
         },
         {
           "member": "SignInOutcome",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "KbReadVerdict",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "KbReadKind",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's verdict is a union told apart by its `kind`.",
             "rust": "Rust's verdict is an enum, whose variants are its kinds."
           }
         },
         {
           "member": "SessionFactory",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "SessionFactoryOptions",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "HttpSessionFactory",
           "kind": "type",
           "named": {
             "typescript": "createHttpSessionFactory"
-          },
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
           }
         },
         {
           "member": "KbSessionStatus",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "OpenResource",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "TabCheck",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "TabVerdict",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's check is a union told apart by its `kind`.",
             "rust": "Rust's check is an enum, whose variants are its verdicts."
           }
         },
         {
           "member": "applyTabChecks",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "sortOpenResources",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "StoredSession",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "type"
         },
         {
           "member": "knowledgeBasesKey",
           "kind": "constant",
           "named": {
             "typescript": "STORAGE_KEY"
-          },
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
           }
         },
         {
           "member": "activeKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "constant"
         },
         {
           "member": "openResourcesByKbKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "constant"
         },
         {
           "member": "lastViewedResourceByKbKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "constant"
         },
         {
           "member": "sessionKey",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "kbOfSessionKey",
           "kind": "function",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's registry hears another context's writes by key without reading a session's key back."
           }
         },
@@ -1580,9 +1570,6 @@
           "named": {
             "typescript": "getStoredSession",
             "go": "StoredSessionOf"
-          },
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
           }
         },
         {
@@ -1590,37 +1577,24 @@
           "kind": "function",
           "named": {
             "typescript": "setStoredSession"
-          },
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
           }
         },
         {
           "member": "clearStoredSession",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "loadKnowledgeBases",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "saveKnowledgeBases",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session."
-          }
+          "kind": "function"
         },
         {
           "member": "keptIn",
           "kind": "function",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
             "rust": "Rust's session reads and writes its tokens in the registry's storage itself."
           }
@@ -1629,7 +1603,6 @@
           "member": "beginSignIn",
           "kind": "function",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
         },
@@ -1637,7 +1610,6 @@
           "member": "completeSignIn",
           "kind": "function",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
         },
@@ -1645,7 +1617,7 @@
           "member": "CompleteSignInError",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK has no registry of knowledge bases: one an application a person uses holds, and Python's SDK serves a program that holds one session.",
+            "python": "Python's `complete_sign_in` raises the `SignInError` or the `IdentityUnverifiableError` itself.",
             "typescript": "TypeScript's `completeSignIn` rejects with the `SignInError` or the `IdentityUnverifiableError` itself.",
             "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`."
           }
@@ -1655,6 +1627,7 @@
     {
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's redirectSignIn module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/oauth.ts",
@@ -1666,7 +1639,10 @@
           "packages/rust/sdk/src/errors.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/stored.py",
+          "packages/python/sdk/src/semiont/http/oauth.py",
+          "packages/python/sdk/src/semiont/http/session.py",
+          "packages/python/sdk/src/semiont/errors.py"
         ],
         "go": [
           "packages/go/sdk"
@@ -1675,71 +1651,44 @@
       "members": [
         {
           "member": "codeChallenge",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "function"
         },
         {
           "member": "PendingAuthorization",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "type"
         },
         {
           "member": "pendingAuthorizationKey",
-          "kind": "constant",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "constant"
         },
         {
           "member": "BeginAuthorizationOptions",
           "kind": "type",
           "named": {
             "rust": "BeginAuthorization"
-          },
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
           }
         },
         {
           "member": "beginAuthorization",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "function"
         },
         {
           "member": "completeAuthorization",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "function"
         },
         {
           "member": "describeConnection",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "function"
         },
         {
           "member": "ConnectionIdentity",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
-          }
+          "kind": "type"
         },
         {
           "member": "IdentityUnverifiableError",
           "kind": "type",
           "named": {
             "rust": "IdentityUnverifiable"
-          },
-          "absent": {
-            "python": "Python's SDK signs a person in by the device grant alone: a page redirect is an application's, and Python's SDK serves a program with no browser of its own."
           }
         }
       ]
@@ -1747,6 +1696,7 @@
     {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's discovery module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/discovery.ts"
@@ -1756,53 +1706,44 @@
           "packages/rust/http-transport/src/discovery.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/session.py"
+          "packages/python/sdk/src/semiont/discovery.py",
+          "packages/python/sdk/src/semiont/http/discovery.py"
         ],
         "go": [
           "packages/go/sdk/discovery"
         ]
       },
       "whole": [
-        "go"
+        "go",
+        "python"
       ],
       "members": [
         {
           "member": "discoveryInterval",
           "kind": "constant",
           "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
             "typescript": "TypeScript's subscription is given its interval by its caller."
           }
         },
         {
           "member": "DiscoveryAbsentReason",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "type"
         },
         {
           "member": "DiscoveryRead",
           "kind": "type",
           "named": {
             "typescript": "DiscoveryReadResult"
-          },
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
           }
         },
         {
           "member": "DiscoveryState",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "type"
         },
         {
           "member": "Absent",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
             "rust": "Rust's state is an enum, whose variants are its kinds."
           }
@@ -1811,7 +1752,6 @@
           "member": "Managed",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
             "typescript": "TypeScript's state is a union told apart by its `kind`.",
             "rust": "Rust's state is an enum, whose variants are its kinds."
           }
@@ -1820,58 +1760,40 @@
           "member": "Unchanged",
           "kind": "type",
           "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of.",
             "typescript": "TypeScript's read is a union told apart by its `kind`.",
             "rust": "Rust's read is an enum, whose variants are its kinds."
           }
         },
         {
           "member": "DiscoveryTransport",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "type"
         },
         {
           "member": "parseDiscoveryDocument",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "function"
         },
         {
           "member": "textDiscovery",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "function"
         },
         {
           "member": "httpDiscovery",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "function"
         },
         {
           "member": "DiscoveryDiff",
-          "kind": "type",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "type"
         },
         {
           "member": "subscribeDiscovery",
-          "kind": "function",
-          "absent": {
-            "python": "Python's SDK reads no launcher's document of the knowledge bases it manages: that list is a registry's, which Python's SDK has none of."
-          }
+          "kind": "function"
         }
       ]
     },
     {
       "module": "testing",
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
+      "notYetReached": { "kotlin": "The Kotlin SDK's testing module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",
@@ -1884,7 +1806,8 @@
           "packages/rust/sdk/src/testing/storage.rs"
         ],
         "python": [
-          "packages/python/sdk/src/semiont/testing/__init__.py"
+          "packages/python/sdk/src/semiont/testing/__init__.py",
+          "packages/python/sdk/src/semiont/testing/liveness.py"
         ],
         "go": [
           "packages/go/sdk/semionttest"
@@ -1893,29 +1816,23 @@
       "members": [
         {
           "member": "LivenessScenario",
-          "kind": "type",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "type"
         },
         {
           "member": "LivenessSpec",
           "kind": "type",
           "named": {
             "typescript": "LivenessAxiomSpec"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "Respond",
           "kind": "type",
           "named": {
-            "go": "MakeResponse"
+            "go": "MakeResponse",
+            "python": "MakeResponse"
           },
           "absent": {
-            "python": "Python's testing module has no liveness harness and no test session.",
             "typescript": "TypeScript's spec states how the gateway answers as a function it names no type for."
           }
         },
@@ -1924,9 +1841,6 @@
           "kind": "function",
           "named": {
             "typescript": "arbFaultAction"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
@@ -1934,64 +1848,42 @@
           "kind": "function",
           "named": {
             "typescript": "arbFaultSchedule"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "assertLivenessAxioms",
-          "kind": "function",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "function"
         },
         {
           "member": "DeliverySubject",
-          "kind": "type",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "type"
         },
         {
           "member": "DeliveryOp",
-          "kind": "type",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "type"
         },
         {
           "member": "deliveryOps",
           "kind": "function",
           "named": {
             "typescript": "arbDeliveryOps"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "assertExactlyOnceDelivery",
-          "kind": "function",
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
-          }
+          "kind": "function"
         },
         {
           "member": "createTestSession",
           "kind": "function",
           "named": {
             "go": "NewTestSession"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "TestSession",
           "kind": "type",
           "absent": {
-            "python": "Python's testing module has no liveness harness and no test session.",
             "typescript": "TypeScript gives the session, and what it was built over, as an object it names no type for."
           }
         },
@@ -2000,16 +1892,12 @@
           "kind": "type",
           "named": {
             "go": "TestSessionConfig"
-          },
-          "absent": {
-            "python": "Python's testing module has no liveness harness and no test session."
           }
         },
         {
           "member": "ScriptedSessions",
           "kind": "type",
           "absent": {
-            "python": "Python's testing module has no liveness harness and no test session.",
             "typescript": "TypeScript's testing module has no factory of scripted sessions."
           }
         },
@@ -2017,7 +1905,6 @@
           "member": "SharedStorage",
           "kind": "type",
           "absent": {
-            "python": "Python's testing module has no liveness harness and no test session.",
             "typescript": "TypeScript's testing module has no storage several contexts share."
           }
         }

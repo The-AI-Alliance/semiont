@@ -50,7 +50,7 @@ from semiont_worker.processors import BuildAnnotation, OnChunkComplete, UnitChec
 RESOURCE: Final = ResourceId("res-test")
 JOB: Final = JobId("job-test")
 GENERATOR: Final[Agent] = AgentSoftware(
-    type="Software", id="did:web:test.local:agents:test:test", name="test test", provider="test", model="test"
+    type="Software", id="did:web:test.local:agents:semiont-worker", name="test test", provider="test", model="test"
 )
 
 

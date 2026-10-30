@@ -59,8 +59,7 @@ token, not a table; the PostgreSQL in a stack is Keycloak's — see
 
 | Token | TTL | Carried as | Purpose |
 |---|---|---|---|
-| **Access** | **5 minutes** | `Authorization: Bearer` | Per-request API auth for people; minted by the issuer, validated here on every protected route. This is the revocation window: a disabled account's token works until it expires. |
-| **Agent** | **1 hour** | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). No account exists at the issuer to disable, so this lifetime is the whole of the revocation window. |
+| **Access** | **5 minutes** | `Authorization: Bearer` | Per-request API auth for people and agents alike; minted by the issuer, validated here on every protected route. This is the revocation window: a disabled account's token works until it expires. |
 | **Media** | 5 minutes | `?token=` query param | Resource-scoped token for `GET /api/resources/:id` (images, PDFs) where a header can't be set. |
 
 This table is the only place these values are written down; everywhere else says
@@ -70,12 +69,11 @@ row against the literal, not against another document:
 | Token | Minted at | Literal |
 |---|---|---|
 | Access | the realm the launcher imports, [`packages/go/launcher/identity.go`](../../../packages/go/launcher/identity.go) | `keycloakAccessTokenLifespan`, which `semiont init` writes into the Issuer document as `spec.accessTokenLifespan`, and the launcher into the realm as `accessTokenLifespan`. A knowledge base changes it in its Issuer document. **Applied only on first boot** — import skips an existing realm, which keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the document. |
-| Agent | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `AGENT_TOKEN_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
 | Media | [`images/gateway/src/tokens.rs`](../../../images/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
 
 ### Revocation
 
-**Disable the account at the issuer.** It stops minting for that person immediately, which ends their access as soon as the token they are holding expires.
+**Disable the account at the issuer.** It stops minting for that person or agent immediately, which ends their access as soon as the token they are holding expires.
 
 That delay is the whole of the trade, and it is deliberate: one system answers who may act, so nothing can disagree with the issuer, and the access token lifetime above bounds how long a disabled person can still act.
 
@@ -83,15 +81,15 @@ Disabling also stops the refresh grant, so the person cannot mint a replacement 
 
 **Signing out is between the client and the issuer.** The client revokes its refresh token at the issuer (RFC 7009) and drops the access token it holds. The gateway is not told and keeps nothing to change; an access token already issued works until it expires.
 
-**Agent tokens are the exception with no issuer behind them.** An agent identity is synthetic — derived from a (provider, model) pair rather than registered anywhere — so there is no account to disable. Its lifetime is the whole of its revocation window. Disabling at the issuer the *service account* that asked for it stops further mints, but cannot touch a token already handed out.
+An agent is revoked the same way: its account is a client at the issuer, and disabling or deleting it ends the agent's access when the token it holds expires.
 
-## Who a person is, and who vouches for it
+## Who a principal is, and who vouches for it
 
 ### The subject claim
 
-`spec.issuer.subjectClaim`, in the knowledge base's `knowledge-base.yaml`, names the issuer claim a person's DID is built from: `sub`, as `semiont init` writes it, is the issuer's stable identifier, and `email` names people by address.
+`spec.issuer.subjectClaim`, in the knowledge base's `knowledge-base.yaml`, names the issuer claim a principal's DID is built from: `sub`, as `semiont init` writes it, is the issuer's stable identifier, and `email` names people by address.
 
-It is required — the KnowledgeBase schema refuses a document without it, and the gateway refuses a configuration without it, naming the key — and it has no default: which claim identifies a person is declared per deployment, never inferred. The DID is `did:web:<site domain>:users:<claim value>`, under the same `site.domain` the deployment mints its software agents beneath, so a person and the software working for them are peers under one authority. With `"sub"`, a changed email changes nothing about who authored what; with `"email"`, the address is the identity, and the operator has said so.
+It is required — the KnowledgeBase schema refuses a document without it, and the gateway refuses a configuration without it, naming the key — and it has no default: which claim identifies a principal is declared per deployment, never inferred. A person is `did:web:<site domain>:users:<claim value>` and an agent `did:web:<site domain>:agents:<claim value>`: an agent's account is told apart by the `kind` claim its issuer stamps on it ([At the issuer](#at-the-issuer)), so a person and the software working for them are peers under one authority, named the same way. With `"sub"`, a changed email changes nothing about who authored what; with `"email"`, the address is the identity, and the operator has said so — and an agent's account, which need have no address, cannot be named.
 
 ### The trust boundary
 
@@ -109,11 +107,9 @@ That is the complete list. The OpenAPI spec is the single source of truth for it
 
 There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
 
-### Service-account endpoint
+### Agents
 
-`POST /api/tokens/agent` is **not** public. A sidecar authenticates at the issuer as its own service account, presents that token here as a bearer, and receives a software-agent token naming a (provider, model) identity. The gateway verifies the bearer against the issuer's keys and requires a flat `roles` claim containing `semiont-service`; every refusal is a 401, checked *before* the body is parsed.
-
-Two identities, deliberately: the service account is the **process**, the agent DID is the **work**. One worker holds several agent identities at once when a deployment configures different models for different jobs, so the caller's credential cannot be the agent's identity.
+An agent signs in as a person does: at the issuer, as its own account, and the token the issuer grants is its bearer here. There is no exchange and no token of the gateway's own: the gateway names an agent from that token, by its subject, and the agent learns its DID by asking `GET /api/users/me`. The engine an agent runs — a provider and a model — is no part of who it is: each write it makes names the engine in its `generator`, under the agent's own DID.
 
 ### Protected endpoints
 
@@ -151,42 +147,17 @@ The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten he
 
 ### Validation layers (per request)
 
-The gateway dispatches on the token's `iss` claim, and the two paths verify differently.
-
-**A token from the trusted issuer** (every human):
+Every bearer is the issuer's — a person's or an agent's — and every one is verified the same way:
 
 1. **Signature** — verified against the issuer's published JWKS.
 2. **Issuer and audience** — must match the configured issuer and this knowledge base's derived resource identity.
 3. **Expiration** — enforced by the verifier.
-4. **Subject and email** — the claim `subjectClaim` names must be present and non-empty, an `email` is required, and an `email_verified` of false is refused.
-5. **Principal** — built from those claims. The DID is `did:web:<site domain>:users:<subject>`, the subject being the value of the configured claim — the email is carried for display and is not part of the identity; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
+4. **Subject and email** — the claim `subjectClaim` names must be present and non-empty; an `email` is optional, and when present an `email_verified` of false is refused.
+5. **Principal** — built from those claims. The DID is `did:web:<site domain>:agents:<subject>` when the token's `kind` claim is `agent`, and `did:web:<site domain>:users:<subject>` otherwise, the subject being the value of the configured claim; the email is carried for display and is not part of the identity; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
 
-**What the record keeps about a person, and what it does not.** The DID is the identity, and it is all any artifact carries. The `name` is recorded separately — one line on the knowledge base's system log per name a subject has had, written by the gateway when that person acts and only when the name differs from the last one recorded — so that a reader can resolve a DID to a person from the log alone, without asking the issuer. **The email is never recorded**: it is carried on the token for display during a request and is written nowhere, which is deliberate, because an append-only log is the wrong home for a piece of personal data the display does not need. Nothing about a person is written for merely reading.
+A token the gateway signed itself is never a bearer: the one token it signs is a media token, which opens one resource on one route.
 
-**A token the gateway itself signed** (software agents only):
-
-1. **Signature** — HMAC-SHA256 against the `JWT_SECRET` key ring.
-2. **Payload structure** — the claims must have the agent shape (`agent_claims` in `images/gateway/src/tokens.rs`); a token whose claims do not parse is rejected, not coerced.
-3. **Expiration** — enforced at verification.
-
-The claims are trusted on this path precisely because the gateway signed them: it is both the minter and the verifier, so a valid signature means this process asserted these facts itself.
-
-### Gateway-signed token payload
-
-Agents and media only — a person's token is the issuer's, and its claims are whatever that realm mints.
-
-```json
-{
-  "did": "did:web:example.com:agents:anthropic:claude-opus-5",
-  "email": "anthropic-claude-opus-5@agents.example.com",
-  "name": "anthropic claude-opus-5",
-  "domain": "example.com",
-  "iat": 1698765432,
-  "exp": 1698769032
-}
-```
-
-`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification (`agent_claims` in `images/gateway/src/tokens.rs`).
+**What the record keeps about a principal, and what it does not.** The DID is the identity, and it is all any artifact carries. The `name` is recorded separately — one line on the knowledge base's system log per name a subject has had, written by the gateway when that principal acts and only when the name differs from the last one recorded — so that a reader can resolve a DID to a person or an agent from the log alone, without asking the issuer. **The email is never recorded**: it is carried on the token for display during a request and is written nowhere, which is deliberate, because an append-only log is the wrong home for a piece of personal data the display does not need. Nothing about a principal is written for merely reading.
 
 ## Implementation Details
 
@@ -196,7 +167,7 @@ A protected route takes the `Authenticated` extractor, which runs before its bod
 
 ### Route protection (`images/gateway/src/routes/mod.rs`)
 
-Every route is one row of the route table, and its handler names the credential it needs: `Authenticated`, `MediaOrBearer`, or — for `POST /api/tokens/agent` — the issuer token carrying `semiont-service` it checks itself. A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that matches no declared operation is authenticated before it is answered 404.
+Every route is one row of the route table, and its handler names the credential it needs: `Authenticated`, or `MediaOrBearer`. A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that matches no declared operation is authenticated before it is answered 404.
 
 ## The gateway's own credentials
 
@@ -204,7 +175,7 @@ The gateway reads two credentials from its environment:
 
 | Variable | What it is |
 |---|---|
-| `JWT_SECRET` | The key ring that signs agent and media tokens, and nothing else |
+| `JWT_SECRET` | The key ring that signs media tokens, and nothing else |
 | `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the issuer, which it uses to reach the archivist |
 
 It holds no credential on a person's behalf: it never signs anyone in, and verifies people's tokens against the issuer's published keys. The issuer a deployment trusts is named in the knowledge base's `knowledge-base.yaml`, at `spec.issuer`.
@@ -219,35 +190,86 @@ Nothing generates the signing key at request time, and the gateway refuses to st
 
 The launcher says which key it used (`Token-signing key: generated and kept`, `reused`, or `from JWT_SECRET in the environment`) and never prints it. If tokens start failing, that line tells you whether the key changed. See [Secrets](../services/SECRETS.md).
 
-### Rotating `JWT_SECRET` without cutting off the sidecars
+### Rotating `JWT_SECRET`
 
 `JWT_SECRET` is an **ordered, comma-separated list**: the first key signs, *every* key verifies. A single value is the one-key case and behaves exactly as before.
 
-Replacing the key outright is what causes an outage: every agent and media token stops verifying at once. Sidecars recover on their own: a request, an emit or a stream refused 401 renews the sidecar's agent token at `/api/tokens/agent` once and is sent again with the new one ([TRANSPORT-CONTRACT.md § A refused credential](../../protocol/TRANSPORT-CONTRACT.md#a-refused-credential)). Rotating through the list avoids even that refusal. People are unaffected either way; their tokens are the issuer's and verify against its keys.
+Replacing the key outright stops every media token in hand from verifying at once: a link opened with one fails, and the client asks for another. Rotating through the list avoids even that. Nobody's sign-in is touched either way: people's and agents' tokens are the issuer's, and verify against its keys.
 
 ```bash
 # 1. Mint a new key and put it FIRST, keeping the old one behind it.
 export JWT_SECRET="$(openssl rand -hex 32),$OLD_SECRET"
 semiont start --service gateway        # or restart however you deploy
 
-# 2. Nothing breaks. New tokens are signed with the new key; tokens already
-#    issued still verify against the old one, and each re-mints under the new
-#    key when its holder next authenticates.
+# 2. Nothing breaks. New media tokens are signed with the new key; tokens
+#    already issued still verify against the old one.
 
-# 3. Once every outstanding agent token has had a chance to be re-minted
-#    (an hour, the agent TTL above), drop the tail:
+# 3. Once every outstanding media token has expired (five minutes, the media
+#    TTL above), drop the tail:
 export JWT_SECRET="$NEW_SECRET"
 semiont start --service gateway
 ```
-
-**The ring signs agent and media tokens only.** People's tokens come from the issuer and verify against its published keys, so a `JWT_SECRET` rotation does not touch them. Retiring the old key early cuts off any sidecar still holding a token minted under it; wait out the agent TTL, or accept that the stragglers re-authenticate, which they do on a 401 without operator involvement.
 
 Details worth knowing:
 
 - **Each key must be at least 32 characters.** The check is per key, not on the whole string — `<valid>,short` would otherwise pass trivially. `semiont start` refuses such a value up front rather than letting the gateway crash-loop.
 - **A comma cannot appear in a key**, so the delimiter is unambiguous: generated keys are hex, and the documented recipe is `openssl rand -hex 32`.
-- **Media tokens** (`?token=`) sign and verify through the same ring, so they rotate with everything else. Their 5-minute TTL makes the grace window academic, but they are not on a separate path.
 - **Two keys is the normal maximum.** The ring exists for a rotation window, not as a key store; trial verification costs one extra HMAC per key on the failing path.
+
+## Admitting a worker someone else runs
+
+A knowledge base admits a worker the way it admits a person: by an account its operator makes. A person's account holds a password or a passkey; a worker's holds the public half of the key that its owner's machine keeps. Nothing secret passes between the two people, either way.
+
+**The worker's owner** prints the public half on the machine that runs the worker, and sends it:
+
+```bash
+semiont worker key > alice.jwks
+```
+
+It is a JWK Set: the key, and the key id each of the worker's sign-ins names (the key's RFC 7638 thumbprint). `semiont worker key --pem` prints the key as a PEM instead, with the key id on stderr. The private half never leaves that machine.
+
+### At a knowledge base the launcher runs
+
+```bash
+semiont identity grant alice --key alice.jwks
+```
+
+This creates one client in the realm, `semiont-worker-alice`. It is the client the launcher makes for its own machine's worker, `semiont-worker-local`, with another key:
+
+- confidential, authenticating by signed JWT with that key;
+- its client-credentials grant enabled;
+- its token stamped with the flat `roles` `semiont-service` and `semiont-worker`, and with this knowledge base's audience.
+
+It prints the client id and the gateway's address, to send back. Before anything reaches the realm, it refuses a private key, a key that is not RSA, and the label `local`. If the knowledge base's documents state the gateway at a loopback address, it warns, since a worker on another machine cannot reach one.
+
+Granting the same key again changes nothing. A new key under the same label replaces the old one on the same client, so the worker keeps its account, and the subject the knowledge base knows it by.
+
+```bash
+semiont identity revoke alice
+```
+
+This deletes that client, and no other. The worker's next sign-in is refused. A token it already holds stays good until it expires, within the realm's access-token lifetime ([Token lifecycle](#token-lifecycle), [Revocation](#revocation)).
+
+Both need the realm's bootstrap admin password, as `semiont identity sync` does.
+
+### At an issuer you run
+
+Create the client yourself. It is the same client:
+
+- **Confidential**, authenticating by a **signed JWT**: RFC 7523's client assertion, RS256. Keycloak calls this authenticator "Signed JWT".
+- **The worker's public key registered on it**, under the key id each assertion names: the `kid` of the JWK Set that `semiont worker key` prints. An issuer given the PEM must be given that key id too; Keycloak refuses an assertion naming a key id its client does not hold.
+- **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
+- **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, a **`kind`** of `agent`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
+
+The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json).
+
+To revoke, delete the client.
+
+### What the worker's owner does with it
+
+The client id goes into the worker's environment as `SEMIONT_OIDC_CLIENT_ID`, beside its key as `SEMIONT_OIDC_CLIENT_KEY`. The gateway's address goes into its document, with the issuer the gateway names at `/.well-known/oauth-protected-resource` ([the worker's configuration](../../../images/worker/README.md#configuration)). The launcher configures its worker for the knowledge base it starts; a worker serving a knowledge base elsewhere is given its document by hand.
+
+The record names a worker's work by its account, `agents:<subject>`, and the engine it ran in each write's `generator`, so two people's workers running one model are two agents there.
 
 ## Security Best Practices
 
@@ -276,13 +298,15 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **A service account's token also needs** a flat `roles` array containing `semiont-service` — an array of strings at the top level, deliberately not Keycloak's nested `realm_access.roles`. An issuer with its own group model maps it into that claim.
 
-**A worker's token also needs `semiont-worker`** in that same array. The gateway stamps it onto the agent token a worker mints, and the dispatcher admits a `job:claim` only from a token carrying it — `semiont-service` is what every sidecar has, so it cannot be what distinguishes a worker. A worker that is not yours is admitted by granting its client this role; nothing else changes.
+**And a `kind` claim holding `agent`**, a string at the top level. It marks the account an agent's rather than a person's: every service's account and every worker's carries it, and a person's never does. It is a kind, not a role, because roles are capabilities that people and agents can both be granted.
+
+**A worker's token also needs `semiont-worker`** in that same array. The gateway stamps the token's roles onto everything the worker emits, and the dispatcher admits a `job:claim` only from a token carrying it — `semiont-service` is what every sidecar has, so it cannot be what distinguishes a worker. A worker that is not yours is admitted by its key: see [Admitting a worker someone else runs](#admitting-a-worker-someone-else-runs).
 
 **For people to sign in at all**, the issuer needs a public client that supports the device grant (for `semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
-**Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them mint any other's identity. For the Keycloak the launcher runs, named by `spec.issuer.ref`, the launcher creates all seven. For an issuer at `spec.issuer.external` you create them there and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — see [Maintenance](./MAINTENANCE.md) for rotation.
+**Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them act as any other. For the Keycloak the launcher runs, named by `spec.issuer.ref`, the launcher creates all seven. For an issuer at `spec.issuer.external` you create them there and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — but the worker's: the worker proves itself with a key, signing each sign-in (a JWT client assertion, RFC 7523), so its client, `semiont-worker-local`, authenticates by signed JWT and holds the public key `semiont worker key` prints. See [Maintenance](./MAINTENANCE.md) for rotation.
 
-`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm imported before the worker role existed), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the Issuer document. It reconciles configuration only and never touches accounts.
+`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm imported before the worker role existed) and its kind mapper (a realm imported before the `kind` claim), and the worker's client's key (this machine's), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the Issuer document. It reconciles configuration only and never touches accounts.
 
 ### API
 
@@ -299,6 +323,11 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 - The token may be for another audience. This deployment accepts only tokens whose audience is its own derived resource identity, published at `/.well-known/oauth-protected-resource`.
 - The token's email may not be marked verified by the issuer, which is refused.
 - The token may lack the claim `subjectClaim` names; the gateway refuses it, naming the claim.
+
+**A granted worker's sign-in is refused (`invalid_client`)**
+- It signs with another key than the one registered: its owner may have made a new one. `semiont worker key` on its machine prints the key it signs with; grant that one under the same label.
+- Its client was revoked.
+- At an issuer you run: the key id registered is not the key's thumbprint, or the issuer does not accept its token endpoint as an assertion's `aud`.
 
 **Sign-in fails at the issuer**
 - The account may be disabled there. That is where enable and disable live; `semiont useradd --active` re-enables one.

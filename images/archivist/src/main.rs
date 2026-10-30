@@ -25,7 +25,7 @@ use semiont_archivist_staging::{Bounds, staging_for};
 use semiont_core::config::{self, Document};
 use semiont_core::types::ArchivistConfig;
 use semiont_http_service::{IssuerVerifier, KeyTimings};
-use semiont_http_transport::agent::{Agent, AgentToken};
+use semiont_http_transport::agent::AgentToken;
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
@@ -107,10 +107,6 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
     let agent = AgentToken::sign_in(
         &document.gateway_url,
-        Agent {
-            provider: "semiont".to_owned(),
-            model: "archivist".to_owned(),
-        },
         ServiceToken::new(
             Credential {
                 issuer: document.identity.issuer.clone(),

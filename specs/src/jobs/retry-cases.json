@@ -1,11 +1,12 @@
 {
-  "$comment": "Whether a failed attempt is retried, as every implementation of the retry predicate must answer it: the dispatcher's queue acts on the answer, and a worker reports it on job:fail as willRetry, so the two must never disagree. A retry is allowed exactly when failureClass is neither \"deterministic\" nor \"withheld\" and retryCount < maxRetries, on the record before the failure is applied (docs/protocol/JOBS.md, Retries). TypeScript (packages/typescript/sdk: willRetryAfter), Rust (packages/rust/sdk: will_retry_after, which the dispatcher uses), Python (packages/python/sdk: will_retry_after) and Go (packages/go/sdk: WillRetryAfter) run every case and fail on any difference. `failureClass` absent means the failure was not classified. Add a case here before changing an implementation.",
+  "$comment": "Whether a failed attempt is retried, as every implementation of the retry predicate must answer it: the dispatcher's queue acts on the answer, and a worker reports it on job:fail as willRetry, so the two must never disagree. A retry is allowed exactly when failureClass is neither \"deterministic\" nor \"withheld\" and retryCount < maxRetries, on the record before the failure is applied (docs/protocol/JOBS.md, Retries). Every SDK's `willRetryAfter`, spelled in its own convention, runs every case and fails on any difference; the dispatcher decides with an SDK's, and has none of its own. `failureClass` absent means the failure was not classified. Add a case here before changing an implementation.",
   "runBy": {
     "typescript": ["packages/typescript/sdk/src/__tests__/job-claims.test.ts"],
     "rust": ["packages/rust/sdk/tests/job_retry_cases.rs"],
     "python": ["packages/python/sdk/tests/test_claims.py"],
     "go": ["packages/go/sdk/claims_test.go"]
   },
+  "notYetReached": {"kotlin": "The Kotlin SDK's worker surface: whether a failed job is retried, as a held job reports it on job:fail."},
   "cases": [
     { "why": "a transient failure with budget left", "retryCount": 0, "maxRetries": 1, "failureClass": "transient", "retries": true },
     { "why": "an unclassified failure is treated as transient", "retryCount": 0, "maxRetries": 1, "retries": true },

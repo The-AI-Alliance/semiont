@@ -58,7 +58,7 @@ semiont start --dry-run             # print what a start would run, and run noth
 
 ## The Browser
 
-Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base on the machine, local or forwarded from a codespace, and lists them under **Found on this machine**. So `semiont stop` leaves it running, and `semiont stop --service browser` closes it. `semiont start --service browser --port <n>` moves it to another port.
+Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base on the machine, local or forwarded from a codespace, and lists them under **Found on this machine**. `semiont stop` closes it with the stack, and `semiont stop --service browser` closes it alone. `semiont start --service browser --port <n>` moves it to another port.
 
 To use the Browser without running a stack, see [Get the Browser](../analyst/README.md#get-the-browser).
 

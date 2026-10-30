@@ -403,7 +403,7 @@ function changedAreas(jobs) {
   }
 
   // Rule 5: every package of the repository is under some filter.
-  const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod'];
+  const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts'];
   const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
     .filter((file) => /^(apps|images|packages)\//.test(file) && MANIFESTS.includes(basename(file)) && !file.split('/').includes('testdata'))

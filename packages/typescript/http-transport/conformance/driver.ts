@@ -26,6 +26,7 @@ import {
 } from '@semiont/core';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import { initObservabilityNode, shutdownObservabilityNode } from '@semiont/observability/node';
+import manifest from '../package.json' with { type: 'json' };
 
 type Arguments = Record<string, unknown>;
 
@@ -311,8 +312,9 @@ async function run(line: string): Promise<void> {
   }
 }
 
-// Exports only when the suite names an OTLP endpoint in the environment.
-initObservabilityNode({ serviceName: 'semiont-conformance-driver' });
+// Exports only when the suite names an OTLP endpoint in the environment. The
+// driver is the transport's, so it reports the transport's version.
+initObservabilityNode({ serviceName: 'semiont-conformance-driver', serviceVersion: manifest.version });
 
 const lines = createInterface({ input: process.stdin });
 lines.on('line', (line) => void run(line));

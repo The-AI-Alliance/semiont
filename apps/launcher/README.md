@@ -97,8 +97,9 @@ semiont stop
   ANY start ensures it — including a codespace start, when a local container
   runtime exists — and none churns it: a running Browser is KEPT when its
   image matches what the start would run (image identity, not tag order),
-  restarted when stale. A bare `semiont stop` leaves it running, announced;
-  `semiont stop --service browser` is the explicit off-switch. Its record
+  restarted when stale. `semiont stop` stops it with the stack, from its own
+  record and under its own runtime; `semiont stop --service browser` stops it
+  alone, and `semiont stop --repo` leaves it. Its record
   lives beside the stacks (machine-level, with its runtime and image), its
   port is never among a stack's claims, and `status` opens with a BROWSER
   section — first because it sits architecturally above everything it views

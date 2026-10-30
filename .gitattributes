@@ -3,3 +3,6 @@
 # checkout, and much here is compared or parsed byte for byte: test goldens
 # and fixtures, the spec's JSON, Dockerfiles, shell scripts.
 * text=auto eol=lf
+
+# A batch file is read by cmd.exe, which wants CRLF: the Kotlin SDK's gradlew.bat.
+*.bat text eol=crlf

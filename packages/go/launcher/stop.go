@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -11,7 +12,7 @@ import (
 var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
-and clean up the staged configs. Safe to run when nothing is up:
+and the Browser, and clean up the staged configs. Safe to run when nothing is up:
 every step is a no-op then. Persistent stack state (PostgreSQL, Qdrant,
 Neo4j data) is deliberately LEFT: the next start reuses it. Removing it is
 its own explicit command: semiont clean.
@@ -22,6 +23,8 @@ runtime is a silent no-op that leaves the real stack running.
 With --service <name>, stop just that one service:
 
 %s.
+
+--service browser stops the Browser alone.
 
 The staged configs are left in place — the rest of the stack is still
 mounting them.
@@ -35,19 +38,77 @@ disambiguates: from inside the clone whose LOCAL stack is running, a bare
 stop means that stack; from a clone whose git origin names a recorded
 codespace stack (and no local stack exists), it means that one. Anywhere
 less certain, stop refuses and lists the choices: --repo <owner/name>
-targets a codespace stack, --runtime targets the local one.
+targets a codespace stack, --runtime targets the local one. A stop named
+with --repo stops that codespace stack alone, and leaves the Browser.
 `, roleListWrapped(78, ""))
 
 // stopNames: every stack container `semiont stop` tears down, in teardown
 // order — the start walk reversed, so nothing spends teardown alive with its
 // upstream already gone.
 //
-// `browser` is the one exemption: the Browser is not a stack member, so a
-// bare stop leaves the viewer running (announced) and `stop --service
-// browser` is its explicit off-switch. That exemption, and the one name this
-// sweep has beyond the start preflight (semiont-ollama, which start handles
-// in its own section), are gated by descriptor_census_test.go.
+// `browser` is not among them: the Browser has a record of its own, and may
+// run under another runtime than the stack, so stopBrowser stops it after the
+// stack, from that record. The exemption, and the one name this sweep has
+// beyond the start preflight (semiont-ollama, which start handles in its own
+// section), are gated by descriptor_census_test.go.
 var stopNames = sweepNames("browser")
+
+// browserHandles: what names the Browser's container under rt: its name, and
+// its recorded ID where rt is the runtime its record names, an ID being that
+// runtime's own. Both are swept: a stale ID (the container recreated outside
+// the record) would no-op while the name still runs.
+func browserHandles(rt string, b *ServiceState) []string {
+	if b != nil && b.ID != "" && b.Runtime == rt {
+		return []string{b.ID, "semiont-browser"}
+	}
+	return []string{"semiont-browser"}
+}
+
+// stopBrowser stops and removes the Browser under each of runtimes, and
+// forgets its record b. True when there was a container to stop.
+func stopBrowser(runtimes []string, b *ServiceState) bool {
+	stopped := false
+	for _, rt := range runtimes {
+		for _, h := range browserHandles(rt, b) {
+			s1 := runSilent(rt, "stop", h) == nil
+			s2 := runSilent(rt, "rm", h) == nil
+			stopped = stopped || s1 || s2
+		}
+	}
+	clearBrowser()
+	return stopped
+}
+
+// printBrowserStop prints what stopBrowser would run, for a dry run.
+func printBrowserStop(runtimes []string, b *ServiceState) {
+	fmt.Println("# stop the Browser:")
+	for _, rt := range runtimes {
+		for _, h := range browserHandles(rt, b) {
+			fmt.Println(renderCmd(rt, "stop", h))
+			fmt.Println(renderCmd(rt, "rm", h))
+		}
+	}
+}
+
+// stopCodespaceAndBrowser: a bare stop that resolved to a codespace stack.
+// Bare, a stop stops everything, so the Browser goes too, as it does with a
+// local stack; a stop of one service leaves it.
+func stopCodespaceAndBrowser(u *UI, st *StackState, service string, del, dryRun bool) int {
+	code := stopCodespace(u, st, service, del, dryRun)
+	if code != 0 || service != "" {
+		return code
+	}
+	runtimes := installedRuntimes()
+	b := LoadStackSet().Browser
+	if dryRun {
+		printBrowserStop(runtimes, b)
+		return 0
+	}
+	if stopBrowser(runtimes, b) {
+		u.Ok("Browser stopped")
+	}
+	return 0
+}
 
 // Stop implements `semiont stop`.
 func Stop(args []string) int {
@@ -100,40 +161,18 @@ func Stop(args []string) int {
 		return 1
 	}
 
-	// --service browser targets the machine-level Browser, not a stack
-	// member: stop its container (record ID preferred), clear its record,
-	// and never touch stack state.
+	// --service browser stops the Browser alone, under every installed
+	// runtime, and never touches stack state.
 	if service == "browser" && repo == "" {
-		ssPre := LoadStackSet()
-		b := ssPre.Browser
+		b := LoadStackSet().Browser
 		if b == nil {
 			u.Log("No Browser is recorded — sweeping the container name to be sure.")
 		}
-		// Sweep BOTH the recorded ID and the stable name: a stale ID
-		// (container recreated outside this record) would no-op while the
-		// name still runs — an off-switch that doesn't switch off.
-		// Idempotent; the name pass is free when the ID already got it.
-		handles := []string{"semiont-browser"}
-		if b != nil && b.ID != "" {
-			handles = []string{b.ID, "semiont-browser"}
-		}
 		if dryRun {
-			fmt.Println("# stop the Browser (machine-level; stacks untouched):")
-			for _, h := range handles {
-				fmt.Printf("<rt> stop %s\n<rt> rm %s\n", h, h)
-			}
+			printBrowserStop(installedRuntimes(), b)
 			return 0
 		}
-		stopped := false
-		for _, rt := range installedRuntimes() {
-			for _, h := range handles {
-				s1 := runSilent(rt, "stop", h) == nil
-				s2 := runSilent(rt, "rm", h) == nil
-				stopped = stopped || s1 || s2
-			}
-		}
-		clearBrowser()
-		if stopped {
+		if stopBrowser(installedRuntimes(), b) {
 			u.Ok("Browser stopped %s", u.Dim("(stacks untouched; any start brings it back)"))
 		} else {
 			u.Log("Browser was not running.")
@@ -208,11 +247,11 @@ func Stop(args []string) int {
 		if !localHere {
 			if st == nil {
 				if len(cs) == 1 {
-					return stopCodespace(u, cs[0], service, del, dryRun)
+					return stopCodespaceAndBrowser(u, cs[0], service, del, dryRun)
 				}
 				if c := originCodespace(cs, root); c != nil {
 					u.Log("Stopping %s %s", u.Bold(c.Codespace.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
-					return stopCodespace(u, c, service, del, dryRun)
+					return stopCodespaceAndBrowser(u, c, service, del, dryRun)
 				}
 			}
 			// The menu repeats what was asked: a --delete menu that drops the
@@ -370,6 +409,7 @@ func Stop(args []string) int {
 			fmt.Println("# staged configs and stack.json left in place (recorded stack is under " + st.Runtime + ")")
 		default:
 			fmt.Println("# remove staged configs: " + stagingPattern())
+			printBrowserStop(slices.Concat(runtimes, strayRuntimes), ss.Browser)
 			fmt.Println("# wait until the stack's ports are released; report any still-held holder")
 		}
 		return 0
@@ -462,9 +502,16 @@ func Stop(args []string) int {
 	}
 	forgetStack("local")
 
+	// The Browser goes with the stack, wherever this stop swept.
+	browser := ss.Browser
+	browserStopped := stopBrowser(slices.Concat(runtimes, strayRuntimes), browser)
+	if browserStopped {
+		u.Ok("Browser stopped")
+	}
+
 	// Say what actually happened: a stop that found nothing anywhere (the
 	// second stop in a row) is a no-op, not a teardown.
-	if totalRemoved == 0 && len(staged) == 0 {
+	if totalRemoved == 0 && len(staged) == 0 && !browserStopped {
 		fmt.Println("No Semiont containers found — nothing to stop.")
 		return 0
 	}
@@ -472,14 +519,13 @@ func Stop(args []string) int {
 	if len(ports) == 0 {
 		ports = fiatPorts
 	}
+	if browserStopped && browser != nil {
+		if _, p := parseHostPort(browser.Endpoint); p != 0 {
+			ports = append(slices.Clone(ports), p)
+		}
+	}
 	verifyPortsReleased(u, ports)
 	fmt.Println("Semiont stack stopped.")
-	// The Browser deliberately survives a stack stop — it is the machine's
-	// viewer, not a stack member. Say so, with the off-switch: silence here
-	// would read as a leak.
-	if b := LoadStackSet().Browser; b != nil && b.Endpoint != "" && httpOK(b.Endpoint) {
-		fmt.Printf("Browser still running on %s %s\n", b.Endpoint, u.Dim("(not a stack member; stop it with: semiont stop --service browser)"))
-	}
 	return 0
 }
 

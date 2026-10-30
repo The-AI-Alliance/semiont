@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -70,7 +71,7 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 		"inference": "handled in the Ollama section, where a host instance may make the container unnecessary",
 	}
 	noStop := map[string]string{
-		"browser": "not a stack member — a bare stop leaves the viewer running; `stop --service browser` is its off-switch",
+		"browser": "stopped after the stack by stopBrowser, from the Browser's own record and under its own runtime",
 	}
 	for _, d := range serviceDescriptors {
 		if d.container == "" {
@@ -126,13 +127,16 @@ func TestStatusReportCoversEveryRole(t *testing.T) {
 	}
 }
 
-// serviceClients is the realm's account list: every Semiont service that
-// presents a token to another. The Browser presents none — it is a viewer,
-// and the only Semiont role without an account. The list is derived; the
-// literal pins it.
-func TestServiceClientsDeriveTheRealmAccountList(t *testing.T) {
-	assertNames(t, "serviceClients", serviceClients,
-		[]string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"})
+// The realm's accounts are every Semiont service that presents a token to
+// another: the secret clients, and the worker, which proves itself with the
+// machine's key. The Browser presents none — it is a viewer, and the only
+// Semiont role without an account. The list is derived; the literal pins it.
+func TestSecretClientsDeriveTheRealmAccountList(t *testing.T) {
+	assertNames(t, "secretClients", secretClients,
+		[]string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver"})
+	if !slices.Contains(stackServices, "worker") || slices.Contains(secretClients, "worker") {
+		t.Error("the worker is a stack service with an account, and proves itself with a key, not a secret")
+	}
 }
 
 // What keeping role and driver apart is FOR: a row asserting a container

@@ -1,5 +1,5 @@
 {
-  "$comment": "How the people a reply mentions are named, as every implementation must name them. No stored thing carries a person's name: a person is identified by an id, and what the knowledge base calls them is filled in when a reply is read. Semiont's Librarian (images/librarian: naming.py) runs every case and fails on a difference; an implementation in another language runs the same file. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `people` is what the knowledge base calls its people: each person's `name` and the moment they gave it (`since`), by their id, as the people projection holds them. `named` is the reply with its people named. THE RULE. A person is an object whose `@type` is `Person`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another person. A person whose `@id` is in `people` has its `name` set to the name stated there, in place of any name it carried. A person whose `@id` is not in `people` is left as it is, with the name it carried or with none. Nothing else of a person changes, and nothing else of the reply does: an object whose `@type` is anything else is no person, though its `@id` is in `people`, and `since` is put nowhere. Add a case here before changing an implementation.",
+  "$comment": "How the people a reply mentions are named, as every implementation must name them. No stored thing carries a person's name: a person is identified by an id, and what the knowledge base calls them is filled in when a reply is read. Every implementation runs every case and fails on a difference, in whatever language it is written. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `people` is what the knowledge base calls its people: each person's `name` and the moment they gave it (`since`), by their id, as the people projection holds them. `named` is the reply with its people named. THE RULE. A person is an object whose `@type` is `Person`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another person. A person whose `@id` is in `people` has its `name` set to the name stated there, in place of any name it carried. A person whose `@id` is not in `people` is left as it is, with the name it carried or with none. Nothing else of a person changes, and nothing else of the reply does: an object whose `@type` is anything else is no person, though its `@id` is in `people`, and `since` is put nowhere. Add a case here before changing an implementation.",
   "runBy": {
     "librarian": ["images/librarian/tests/test_naming_cases.py"]
   },
@@ -49,7 +49,7 @@
       "reply": {
         "wasAttributedTo": [
           { "@type": "Person", "@id": "did:web:example.org:users:ada" },
-          { "@type": "Software", "@id": "did:web:example.org:agents:anthropic:model", "name": "anthropic model", "provider": "anthropic", "model": "model" }
+          { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "anthropic model", "provider": "anthropic", "model": "model" }
         ]
       },
       "people": {
@@ -58,7 +58,7 @@
       "named": {
         "wasAttributedTo": [
           { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" },
-          { "@type": "Software", "@id": "did:web:example.org:agents:anthropic:model", "name": "anthropic model", "provider": "anthropic", "model": "model" }
+          { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "anthropic model", "provider": "anthropic", "model": "model" }
         ]
       }
     },

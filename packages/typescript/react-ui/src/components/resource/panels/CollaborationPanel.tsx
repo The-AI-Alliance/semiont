@@ -63,12 +63,9 @@ export function CollaborationPanel({
 }: Props) {
   const t = useTranslations('CollaborationPanel');
 
-  // Only Software agents have a provider/model and can carry inference
-  // ceilings; Persons and Organizations are collaborators in a different
-  // sense and have nothing to show in this section.
-  const softwareAgents = (collaborators ?? []).filter(
-    (entry) => entry.agent['@type'] === 'Software',
-  );
+  // The roster's engines: each a provider and a model, with the inference
+  // ceilings its key holder reported.
+  const engines = collaborators ?? [];
 
   // Healthy = live, or briefly flapping. Only genuinely sustained
   // disconnects surface as "Disconnected" in the UI.
@@ -157,15 +154,13 @@ export function CollaborationPanel({
       </div>
 
       {/* Collaborators roster — software agents and their discovered ceilings */}
-      {softwareAgents.length > 0 && (
+      {engines.length > 0 && (
         <div className="semiont-collaboration-panel__section semiont-collaboration-panel__section--bordered">
           <h3 className="semiont-collaboration-panel__heading">
             {t('collaborators')}
           </h3>
-          {softwareAgents.map((entry, i) => {
-            // `agent` is narrowed to the Software member by the filter above,
-            // but the generated union is structural, so read through a local.
-            const agent = entry.agent as Extract<Collaborator['agent'], { '@type': 'Software' }>;
+          {engines.map((entry) => {
+            const { provider, model } = entry.engine;
             const limits = entry.limits;
             // `maxOutputTokens === contextTokens` is the schema's documented
             // sentinel for a provider with ONE shared window (Ollama). Showing
@@ -182,18 +177,16 @@ export function CollaborationPanel({
 
             return (
               <div
-                key={agent['@id'] ?? `${agent.provider}:${agent.model}:${i}`}
+                key={`${provider}:${model}`}
                 className="semiont-collaboration-panel__collaborator"
                 data-testid="semiont-collaborator-row"
               >
                 <div className="semiont-collaboration-panel__collaborator-id">
-                  {agent.provider && (
-                    <span className="semiont-collaboration-panel__collaborator-provider">
-                      {agent.provider}
-                    </span>
-                  )}
+                  <span className="semiont-collaboration-panel__collaborator-provider">
+                    {provider}
+                  </span>
                   <span className="semiont-collaboration-panel__collaborator-model">
-                    {agent.model ?? agent.name}
+                    {model}
                   </span>
                 </div>
                 {entry.serves && entry.serves.length > 0 && (

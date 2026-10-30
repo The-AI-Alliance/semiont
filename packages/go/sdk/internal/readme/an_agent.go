@@ -16,7 +16,7 @@ func Work(ctx context.Context, gateway, issuer, secret string) error {
 		semiont.Issuer{HTTP: http.DefaultClient, Timing: timing},
 	)
 	agent, err := semiont.SignInAgent(ctx, semiont.AgentConfig{
-		Gateway: gateway, Provider: "ollama", Model: "gemma2:27b", Service: service, HTTP: http.DefaultClient, Timing: timing,
+		Gateway: gateway, Service: service, HTTP: http.DefaultClient, Timing: timing,
 	})
 	if err != nil {
 		return err
@@ -27,7 +27,7 @@ func Work(ctx context.Context, gateway, issuer, secret string) error {
 		HTTP: http.DefaultClient, Timing: timing,
 	})
 	defer transport.Close()
-	fmt.Println("working as", agent.DID()) // who its work is attributed to, as the gateway named it
+	fmt.Println("working as", agent.DID()) // who its work is attributed to: its account, as the gateway names it
 	for state := range transport.State().Changes(ctx) {
 		if state == semiont.ConnectionStateOpen {
 			fmt.Println("its stream is open, as the agent")

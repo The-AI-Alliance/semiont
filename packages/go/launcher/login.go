@@ -135,7 +135,11 @@ func Login(args []string) int {
 		u.Fail("Token could not be stored (%v) — NOT logged in.", err)
 		return 1
 	}
-	u.Ok("Logged in to %s as %s %s", key, me.Email, u.Dim("(token in "+tokensPath()+")"))
+	who := me.Did.String()
+	if me.Email != nil {
+		who = *me.Email
+	}
+	u.Ok("Logged in to %s as %s %s", key, who, u.Dim("(token in "+tokensPath()+")"))
 	return 0
 }
 

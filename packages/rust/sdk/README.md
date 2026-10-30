@@ -254,7 +254,8 @@ What a worker does with a job it holds is its own. One that marks a text
 asks a model what to mark, and the model quotes the text. `annotations` turns
 what it quoted into annotations, and the job commits them. Here `job` is a
 `mark` job the worker holds, `text` the text of its resource, `quoted` what a
-model quoted of it, and `generator` the agent the worker signed in as.
+model quoted of it, and `generator` the agent the worker signed in as, with
+the engine it ran.
 
 ```rust
 job.start().await?;

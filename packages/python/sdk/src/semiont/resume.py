@@ -55,6 +55,15 @@ class _Carrying(SessionStorage):
     def delete(self, key: str) -> None:
         self._storage.delete(key)
 
+    @override
+    def update(self, key: str, change: Callable[[str | None], str | None]) -> None:
+        self._storage.update(key, change)
+        self._flush()
+
+    @override
+    def subscribe(self, on_change: Callable[[str, str | None], None]) -> Callable[[], None] | None:
+        return self._storage.subscribe(on_change)
+
 
 @final
 class CoupledBookmarks:

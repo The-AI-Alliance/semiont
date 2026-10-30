@@ -263,7 +263,7 @@
           "why": "a person"
         },
         {
-          "id": "did:web:kb.example:agents:ollama:gemma4%3A26b",
+          "id": "did:web:kb.example:agents:semiont-worker",
           "why": "a software agent"
         },
         {

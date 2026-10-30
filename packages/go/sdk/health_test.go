@@ -79,7 +79,7 @@ func TestATransportThatCarriesNothingOpensNoStream(t *testing.T) {
 	user, err := asker.GetCurrentUser(context.Background())
 	time.Sleep(100 * time.Millisecond)
 	asker.Close()
-	if err != nil || user.Email != "a@example.com" {
+	if err != nil || user.Email == nil || *user.Email != "a@example.com" {
 		t.Fatalf("asked who the token is: %v", err)
 	}
 	if n := subscribed.Load(); n != 0 {

@@ -1,20 +1,25 @@
 // sign-in-schema.mjs — read and check specs/src/sign-in-store/SignIn.json: one
 // entry of the sign-in store, as every program that reads and writes
-// <stateDir>/tokens.json must hold it.
+// <stateDir>/tokens.json must hold it. And any schema of its form: the stored
+// session of specs/src/session/stored.json is one.
 //
-// One place for the checks, shared by every generator that reads the schema
-// (generate-sign-in-go.mjs for the launcher, generate-sign-in-python.mjs for
-// the Python SDK), so no generated entry comes from a schema the others would
-// refuse.
+// One place for the checks, shared by every generator that reads such a schema
+// (generate-sign-in-go.mjs for the launcher, generate-sign-in-python.mjs and
+// generate-stored-python.mjs for the Python SDK), so no generated shape comes
+// from a schema the others would refuse.
 //
 // The schema is flat: every property is a string, some of them a date-time.
 // Anything else is refused here, by name, rather than rendered as a guess.
 
 import { readFileSync } from 'node:fs';
 
-/** The schema's title, description, properties and what it requires; `refuse` says what is wrong with it. */
+/** The schema at `schemaPath`, as `readFlatSchema` reads it. */
 export function readSignInSchema(schemaPath, refuse) {
-  const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));
+  return readFlatSchema(JSON.parse(readFileSync(schemaPath, 'utf8')), refuse);
+}
+
+/** A flat schema's title, description, properties and what it requires; `refuse` says what is wrong with it. */
+export function readFlatSchema(schema, refuse) {
   const stated = (value) => typeof value === 'string' && value !== '';
 
   for (const keyword of Object.keys(schema)) {

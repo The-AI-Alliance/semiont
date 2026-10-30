@@ -56,7 +56,7 @@
     {
       "name": "agents",
       "asks": "browse:agents-requested",
-      "docs": "The collaborator directory, joined with the limits each inference key holder reports: asking again asks every `<flow>:limits-requested` operation of the registry again too."
+      "docs": "The roster, joined with the limits each inference key holder reports: asking again asks every `<flow>:limits-requested` operation of the registry again too."
     }
   ],
   "refresh": [

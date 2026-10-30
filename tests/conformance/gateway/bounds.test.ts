@@ -29,7 +29,7 @@ eachPlane('connection bounds', (world) => {
     const stalled = stalledSubscriber(world().origin, stalledToken, { clientId: randomUUID(), global: [CHANNEL] });
     const joined = await watcher.frame('session:joined', (f) => f.payload['participant'] === world().personDid('stalled'));
 
-    const emitter = await world().agent('conformance', 'flood');
+    const emitter = await world().agent('flood');
     const filler = 'x'.repeat(FRAME_BYTES);
     // Twice the bound, plus room for what the operating system buffers.
     const frames = Math.ceil((2 * limit) / FRAME_BYTES) + 16;
@@ -51,7 +51,7 @@ eachPlane('connection bounds', (world) => {
     const limit = spec().limits('post', '/bus/subscribe')['replayBufferEvents']!;
     // A worker's role makes its emits unlimited: the flood is the replay's
     // bound to meet, not this principal's emit bucket.
-    const emitter = await world().agent('conformance', 'outrunner', [SERVICE_ROLE, WORKER_ROLE]);
+    const emitter = await world().agent('outrunner', [SERVICE_ROLE, WORKER_ROLE]);
     const token = await world().person('resumer');
 
     const run = async (live: number) => {

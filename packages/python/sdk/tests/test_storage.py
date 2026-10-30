@@ -6,6 +6,7 @@ from pydantic import JsonValue, TypeAdapter
 
 from semiont.identifiers import ResourceId
 from semiont.storage import MemoryStorage, StoragePersister
+from semiont.testing import SharedStorage
 from semiont.timing import MAX_STORED_BYTES_COUNT
 from semiont.types import ResourceDescriptor
 
@@ -183,3 +184,52 @@ def test_a_document_too_large_loses_the_entries_that_have_gone_longest_without_a
     persister(tiny, max_bytes=10).save(values)
     assert kept(tiny) == []
     assert persister(tiny).load() == {}
+
+
+def test_an_update_is_given_what_is_stored_and_stores_what_it_says() -> None:
+    storage = MemoryStorage()
+    given: list[str | None] = []
+
+    def appended(stored: str | None) -> str:
+        given.append(stored)
+        return f"{stored or ''}+"
+
+    storage.update("a", appended)
+    storage.update("a", appended)
+    assert given == [None, "+"]
+    assert storage.get("a") == "++"
+
+    # Saying nothing removes the key.
+    storage.update("a", lambda stored: None)
+    assert storage.get("a") is None
+
+
+def test_storage_in_memory_has_no_other_context_to_hear() -> None:
+    assert MemoryStorage().subscribe(lambda key, value: None) is None
+
+
+def test_each_context_of_a_shared_storage_hears_what_the_others_write_and_never_what_it_writes() -> None:
+    here = SharedStorage()
+    there = here.context()
+    elsewhere = here.context()
+    heard_here: list[tuple[str, str | None]] = []
+    heard_there: list[tuple[str, str | None]] = []
+    here.subscribe(lambda key, value: heard_here.append((key, value)))
+    stop_there = there.subscribe(lambda key, value: heard_there.append((key, value)))
+    assert stop_there is not None
+
+    here.set("a", "one")
+    there.update("a", lambda stored: f"{stored}, two")
+    elsewhere.delete("a")
+
+    # Every context reads the same values.
+    assert (here.get("a"), there.get("a"), elsewhere.get("a")) == (None, None, None)
+    assert heard_here == [("a", "one, two"), ("a", None)]
+    assert heard_there == [("a", "one"), ("a", None)]
+
+    # A subscription that has ended hears nothing.
+    stop_there()
+    elsewhere.set("b", "three")
+    assert heard_there == [("a", "one"), ("a", None)]
+    assert heard_here[-1] == ("b", "three")
+    assert there.get("b") == "three"

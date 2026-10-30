@@ -6,7 +6,7 @@ What Semiont enforces, what it leaves to the issuer and to your platform, and wh
 
 **Every request is authenticated.** Authentication is bearer-only: an `Authorization: Bearer` token on every request, and no session cookies. Semiont is a resource server, not an authorization server. It runs no sign-in flow and holds no password. People and services obtain tokens from the knowledge base's trusted issuer, and the gateway verifies each one against that issuer's published keys. Four operations are public: `GET /`, `GET /api/health`, `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. [Authentication](./AUTHENTICATION.md) has the whole model.
 
-**There is one authorization decision: authenticated, or 401.** No gateway route returns 403, and none reads a human role. Every authenticated caller can read and write all content in the knowledge base. Two roles exist, and both mark services, not people: `semiont-service` admits a service account to `POST /api/tokens/agent` and to the archivist, and `semiont-worker` admits a worker's claim on a job. See [RBAC.md](../../protocol/RBAC.md).
+**There is one authorization decision: authenticated, or 401.** No gateway route returns 403, and none reads a human role. Every authenticated caller can read and write all content in the knowledge base. Two roles exist, and both mark services, not people: `semiont-service` admits a service's account to the archivist, and `semiont-worker` admits a worker's claim on a job. See [RBAC.md](../../protocol/RBAC.md).
 
 **Every body is validated.** Each JSON body is checked against its schema in `specs/` and bounded by its operation's size limit.
 
@@ -47,7 +47,7 @@ Who may sign in is decided at the issuer, and nowhere else. The gateway admits e
 
 ## Secrets
 
-The secrets a stack has, who generates each and which service receives it are in [Secrets](../services/SECRETS.md). Rotating them is in [Maintenance](./MAINTENANCE.md#secret-rotation) and, for the signing key, in [Authentication](./AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars).
+The secrets a stack has, who generates each and which service receives it are in [Secrets](../services/SECRETS.md). Rotating them is in [Maintenance](./MAINTENANCE.md#secret-rotation) and, for the signing key, in [Authentication](./AUTHENTICATION.md#rotating-jwt_secret).
 
 ## Supply chain
 

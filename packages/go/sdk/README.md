@@ -63,11 +63,12 @@ A transport sends the token it is given. Where the token comes from is one of
 three things, and each keeps it renewed: half its lifetime before it expires,
 at most five minutes before, and at once when the gateway refuses it.
 
-**An agent** is a service account's token exchanged at the gateway for the
-token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on. The
-gateway answers the exchange with the agent's DID, which is who its work is
-attributed to: `agent.DID()`, once it is signed in, as the gateway minted it.
+**An agent** is an account, as a person is: it signs in at its issuer, and the
+token its issuer grants is its bearer at the gateway. It is what a service
+holds: a transport, its agent's token, and the channels it awaits replies on.
+The gateway names it by its account; that DID, which the gateway answers at
+`GET /api/users/me`, is who its work is attributed to: `agent.DID()`, once it
+is signed in. The engine it runs is no part of it: each write names that.
 
 ```go
 import (
@@ -86,7 +87,7 @@ func Work(ctx context.Context, gateway, issuer, secret string) error {
 		semiont.Issuer{HTTP: http.DefaultClient, Timing: timing},
 	)
 	agent, err := semiont.SignInAgent(ctx, semiont.AgentConfig{
-		Gateway: gateway, Provider: "ollama", Model: "gemma2:27b", Service: service, HTTP: http.DefaultClient, Timing: timing,
+		Gateway: gateway, Service: service, HTTP: http.DefaultClient, Timing: timing,
 	})
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func Work(ctx context.Context, gateway, issuer, secret string) error {
 		HTTP: http.DefaultClient, Timing: timing,
 	})
 	defer transport.Close()
-	fmt.Println("working as", agent.DID()) // who its work is attributed to, as the gateway named it
+	fmt.Println("working as", agent.DID()) // who its work is attributed to: its account, as the gateway names it
 	for state := range transport.State().Changes(ctx) {
 		if state == semiont.ConnectionStateOpen {
 			fmt.Println("its stream is open, as the agent")
@@ -171,7 +172,7 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 		return err
 	}
 	if me := session.User().Value(); me != nil {
-		fmt.Println(me.Email, status.Version)
+		fmt.Println(me.Did, status.Version)
 	}
 	return nil
 }

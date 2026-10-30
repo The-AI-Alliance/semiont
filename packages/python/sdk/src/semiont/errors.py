@@ -15,6 +15,7 @@ from semiont.error_codes import (
     BUS_REQUEST_CODE_BY_WIRE_CODE,
     UNRECOGNIZED_FAILURE_CODE,
     BusRequestErrorCode,
+    IdentityUnverifiableReason,
     JobErrorCode,
     SemiontSessionErrorCode,
     SignInErrorCode,
@@ -25,7 +26,16 @@ from semiont.error_codes import (
 from semiont.identifiers import JobId
 from semiont.types import FailureClass
 
-__all__ = ["BusRequestError", "JobError", "SemiontError", "SessionError", "SignInError", "SpanRefusedError", "TransportError"]
+__all__ = [
+    "BusRequestError",
+    "IdentityUnverifiableError",
+    "JobError",
+    "SemiontError",
+    "SessionError",
+    "SignInError",
+    "SpanRefusedError",
+    "TransportError",
+]
 
 
 class SemiontError(Exception, ABC):
@@ -153,6 +163,23 @@ class SessionError(SemiontError):
     @property
     @override
     def code(self) -> SemiontSessionErrorCode:
+        return self._code
+
+
+@final
+class IdentityUnverifiableError(SemiontError):
+    """A knowledge base whose identity a sign-in could not learn: it was not reached, or it answered that it cannot say what it is.
+
+    Either way nothing is registered, and the sign-in stops there.
+    """
+
+    def __init__(self, code: IdentityUnverifiableReason, message: str) -> None:
+        super().__init__(message)
+        self._code: Final = code
+
+    @property
+    @override
+    def code(self) -> IdentityUnverifiableReason:
         return self._code
 
 

@@ -19,8 +19,10 @@
  *
  * Framework-agnostic on purpose — only `rxjs` + `fast-check`, no `vitest` — so
  * it ships through `@semiont/core/testing` and any package's test runner can
- * invoke it. Deterministic virtual time: properties pass a small explicit
- * `timeoutMs` to `Bus.request`; no `Date.now`, no 30 s real waits.
+ * invoke it. An L1/L2 case waits out its whole bound in real time before it
+ * judges, so a request sent again after every output has spoken is counted;
+ * properties keep the bound small by passing a small explicit `timeoutMs` to
+ * `Bus.request` — no `Date.now`, no 30 s real waits.
  */
 
 import * as fc from 'fast-check';
@@ -145,25 +147,20 @@ export async function assertLivenessAxioms(spec: LivenessAxiomSpec): Promise<voi
         // track notifications; track settlement of every awaited path.
         const notified: boolean[] = outputs.map(() => false);
         const settled: boolean[] = settlements.map(() => false);
-        let doneResolve: () => void = () => {};
-        const allDone = new Promise<void>((resolve) => { doneResolve = resolve; });
-        const check = (): void => {
-          if (notified.every(Boolean) && settled.every(Boolean)) doneResolve();
-        };
         const subs: Subscription[] = outputs.map((o, i) =>
           o.subscribe({
-            next: () => { notified[i] = true; check(); },
-            error: () => { notified[i] = true; check(); },
+            next: () => { notified[i] = true; },
+            error: () => { notified[i] = true; },
           }),
         );
         settlements.forEach((p, i) => {
-          p.then(() => { settled[i] = true; check(); },
-                 () => { settled[i] = true; check(); });
+          p.then(() => { settled[i] = true; },
+                 () => { settled[i] = true; });
         });
-        check();
 
-        // Wait for full liveness or the bound, whichever first.
-        await Promise.race([allDone, sleep(bound)]);
+        // The whole bound, even once everything has spoken: a request sent
+        // again after that still counts against the retry budget.
+        await sleep(bound);
 
         try {
           // L2 first: when it applies it names the mechanism (swallow, budget,

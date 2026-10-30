@@ -29,7 +29,7 @@ use semiont_dispatcher_handlers::admission::{Refusal, Vocabulary};
 use semiont_dispatcher_handlers::handlers::{COMMANDS, Handlers, Reply};
 use semiont_dispatcher_handlers::queue::{JobQueue, Stats};
 use semiont_dispatcher_jetstream::{JetStreamQueue, Settings};
-use semiont_http_transport::agent::{Agent, AgentToken};
+use semiont_http_transport::agent::AgentToken;
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
@@ -118,17 +118,9 @@ async fn serve(
         },
         http.clone(),
     );
-    let agent = AgentToken::sign_in(
-        &document.gateway_url,
-        Agent {
-            provider: "semiont".to_owned(),
-            model: "dispatcher".to_owned(),
-        },
-        service,
-        http.clone(),
-    )
-    .await
-    .map_err(|e| format!("cannot sign in: {e}"))?;
+    let agent = AgentToken::sign_in(&document.gateway_url, service, http.clone())
+        .await
+        .map_err(|e| format!("cannot sign in: {e}"))?;
     logging::info("Authenticated", json!({ "component": "dispatcher" }));
 
     let (announce, mut announcements) = tokio::sync::mpsc::unbounded_channel();

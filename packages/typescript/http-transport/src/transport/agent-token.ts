@@ -1,19 +1,20 @@
 /**
  * An agent's sign-in at a knowledge base's gateway.
  *
- * A process that works as an agent has two identities, obtained in two
- * steps. It proves who IT is at the knowledge base's issuer, with its own
- * service-account credential (`serviceAccountToken`), and exchanges that
- * token at `POST /api/tokens/agent` for the token of the software agent
- * `(provider, model)`: the identity its work is attributed to. One process
- * may hold several agents, one for each model it works with, which is why
- * the two are separate exchanges.
+ * An agent is an account, as a person is. It signs in at the knowledge
+ * base's issuer with its own service-account credential
+ * (`serviceAccountToken`), and the token its issuer grants is its bearer at
+ * the gateway. The gateway names it by that account: its DID, which the
+ * gateway answers at `GET /api/users/me`, is who its work is attributed to.
+ * The engine it runs is no part of it: each write names that itself.
  *
- * The DID is minted by the gateway, under the knowledge base's own domain,
- * and a caller carries it verbatim. Re-derived from the URL the process
- * happens to dial, one agent has two DIDs.
+ * The DID is the gateway's, under the knowledge base's own domain, and a
+ * caller carries it verbatim. Re-derived from the URL the process happens to
+ * dial, one agent has two DIDs.
  *
- * An agent token has no refresh token. It is renewed by signing in again.
+ * The token is renewed by a new grant at the issuer, as it expires and when
+ * the gateway refuses it. Its DID does not change, so nothing renewed asks
+ * the gateway again.
  */
 
 import {
@@ -23,31 +24,28 @@ import {
   isObject,
   isString,
   jsonOf,
+  retryAfterMs,
   retryWithBackoff,
   serviceAccountToken,
   userId,
   type RetryAttemptInfo,
   type ServiceAccountCredential,
-  type components,
+  type UserId,
 } from '@semiont/core';
 import { APIError, retryableUnlessRefused } from './api-error';
 
 export interface AgentSignIn {
   /** The gateway, e.g. `http://gateway:4000`: where the process dials, and nothing about who it is. */
   baseUrl: string;
-  /** The process's own account at the knowledge base's issuer. */
+  /** The agent's account at the knowledge base's issuer. */
   credential: ServiceAccountCredential;
-  /** The agent's inference provider, e.g. `ollama`. */
-  provider: string;
-  /** The agent's model, e.g. `gemma3:4b`. */
-  model: string;
   /** Told before each wait for a gateway or an issuer that could not be reached. */
   onRetry?: (info: RetryAttemptInfo) => void;
 }
 
 /**
- * Sign in as the agent `(provider, model)`: the agent's token, and the DID
- * the gateway minted for it.
+ * Sign the agent in as its account: the account's token, and the DID the
+ * gateway names it by.
  *
  * Each request is bounded by `httpRequestTimeoutMs`
  * (specs/src/client/timing.json). A sign-in is tried again with backoff
@@ -55,52 +53,54 @@ export interface AgentSignIn {
  * reached, did not answer by that deadline, or said "not now" (the statuses
  * of `RETRY_RULES.boot`): either may be starting when this process does, and
  * a process run with no restart policy that gave up on its first attempt
- * would never come back. Any other refusal is not asked again, and is thrown
- * as an `APIError` carrying its status: the far end is up and said no.
+ * would never come back. Any other refusal is not asked again: the far end is
+ * up and said no. The gateway's is thrown as an `APIError` carrying its
+ * status, the issuer's as a `SignInError`.
  */
-export async function agentToken(opts: AgentSignIn): Promise<components['schemas']['AgentTokenResponse']> {
-  const { baseUrl, credential, provider, model, onRetry } = opts;
-  const request: components['schemas']['AgentTokenRequest'] = { provider, model };
+export async function agentToken(opts: AgentSignIn): Promise<{ token: string; did: UserId }> {
+  const { baseUrl, credential, onRetry } = opts;
 
   return retryWithBackoff(
     async () => {
       // Both steps sit inside the retry: the issuer and the gateway come up
       // independently of this process, and of each other.
-      const caller = await serviceAccountToken(credential);
-
-      const url = `${baseUrl.replace(/\/$/, '')}/api/tokens/agent`;
-      const unanswered = (error: unknown) => new UnansweredError(url, error);
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${caller}` },
-        body: JSON.stringify(request),
-        signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
-      }).catch((error: unknown) => {
-        throw unanswered(error);
-      });
-      const answer = await jsonOf(response, unanswered);
-
-      if (!response.ok) {
-        const said = isObject(answer) && isString(answer['error']) ? answer['error'] : `HTTP ${response.status} ${response.statusText}`;
-        throw APIError.fromStatus(
-          `The gateway refused the agent token of ${provider}:${model}: ${said}`,
-          response.status,
-          response.statusText,
-          answer,
-          undefined,
-        );
-      }
-      if (!isObject(answer) || !isString(answer['token']) || !isString(answer['did'])) {
-        throw new Error(`The gateway answered the sign-in of ${provider}:${model} with no token or no DID`);
-      }
-      return { token: answer['token'], did: userId(answer['did']) };
+      const token = await serviceAccountToken(credential, { renewed: false });
+      return { token, did: await named(baseUrl, token) };
     },
     // A request that got no answer, its deadline passing among the ways it
     // gets none, and a status that says "not now": a sign-in against a
     // gateway that accepts a connection and never answers is tried again. A
-    // refused service-account token is not: the same token gets the same answer.
+    // refused token is not: the same token gets the same answer.
     retryableUnlessRefused,
     STARTUP_FETCH_RETRY,
     onRetry,
   );
+}
+
+/** The DID the gateway names the bearer of `token` by: `GET /api/users/me`. */
+async function named(baseUrl: string, token: string): Promise<UserId> {
+  const url = `${baseUrl.replace(/\/$/, '')}/api/users/me`;
+  const unanswered = (error: unknown) => new UnansweredError(url, error);
+  const response = await fetch(url, {
+    headers: { authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+  }).catch((error: unknown) => {
+    throw unanswered(error);
+  });
+  const answer = await jsonOf(response, unanswered);
+
+  if (!response.ok) {
+    const said = isObject(answer) && isString(answer['error']) ? answer['error'] : `HTTP ${response.status} ${response.statusText}`;
+    throw APIError.fromStatus(
+      `The gateway did not name the agent: ${said}`,
+      response.status,
+      response.statusText,
+      answer,
+      retryAfterMs(response.headers.get('retry-after')),
+    );
+  }
+  if (!isObject(answer) || !isString(answer['did'])) {
+    throw new Error(`${url} did not answer a DID`);
+  }
+  return userId(answer['did']);
 }

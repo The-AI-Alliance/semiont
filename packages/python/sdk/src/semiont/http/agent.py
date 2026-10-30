@@ -1,11 +1,11 @@
 """An agent's token at a knowledge base's gateway.
 
-A service account signs in at its issuer (OIDC discovery, then the
-client-credentials grant), and its token is exchanged at
-`POST /api/tokens/agent` for the token of the software agent
-`(provider, model)`, which names the work it does. The gateway answers with
-the agent's DID beside the token (`did`): who that work is attributed to. The
-gateway decides how long the agent token lives.
+An agent is an account, as a person is: it signs in at its issuer (OIDC
+discovery, then the client-credentials grant, proving itself with a secret or
+with a key), and the token its issuer grants is its bearer at the gateway. The
+gateway names it by that account: its DID (`did`), which the gateway answers
+at `GET /api/users/me`, is who its work is attributed to. The engine it runs is
+no part of it: each write names that itself.
 
 An `AgentToken` is a transport's token source, as a person's kept sign-in is:
 it gives the current token and each one after it (`token`), renews the token
@@ -17,23 +17,26 @@ and signs in again. An agent whose renewal fails keeps the token it has and
 tries again: a process holding a token that still works does not stop working
 over one bad round trip.
 
-A failure names the issuer and the client, and never the secret. Nor does one
+A failure names the issuer and the client, and never the secret or the key. Nor does one
 say any part of a token: an answer that is refused is said by what it lacks,
 in none of its own words.
 """
 
 import asyncio
 import time
+import uuid
 from dataclasses import dataclass, field
 from types import TracebackType
 from typing import Final, Self, final
 
 import httpx
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
 
 from semiont._lacks import lacks
 from semiont._reading import Reading
 from semiont.errors import SemiontError, SignInError, TransportError
+from semiont.http._client_assertion import JWT_BEARER, client_assertion
 from semiont.http._withheld import why_unanswered
 from semiont.http.exchange import refusal
 from semiont.http.oauth import issuer_client, object_in, post_form, seconds_in, text_in
@@ -41,20 +44,63 @@ from semiont.identifiers import UserId
 from semiont.retry import REFRESH, RetryFacts, retry_after_ms, retry_with_backoff
 from semiont.session import refresh_delay, renew_when_due, renewal_delay
 from semiont.timing import HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
-from semiont.types import AgentTokenRequest, AgentTokenResponse
+from semiont.types import UserResponse
 from semiont.watched import Variable, Watched
 
-__all__ = ["AgentToken", "Credential", "ServiceToken"]
+__all__ = ["AgentToken", "Credential", "KeyCredential", "SecretCredential", "ServiceToken"]
 
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Credential:
-    """A service account at an issuer."""
+class SecretCredential:
+    """A service account at an issuer, which proves itself with its client secret."""
 
     issuer: str
     client_id: str
     client_secret: str = field(repr=False)
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class KeyCredential:
+    """A service account at an issuer, which proves itself with a key.
+
+    Each grant carries an assertion signed with `private_key`, which the issuer
+    checks with the public half registered on the client. The key never leaves
+    the process.
+    """
+
+    issuer: str
+    client_id: str
+    private_key: RSAPrivateKey = field(repr=False)
+
+
+type Credential = SecretCredential | KeyCredential
+"""A service account at an issuer, by how it proves itself."""
+
+
+def _proof(credential: Credential, token_endpoint: str) -> list[tuple[str, str]]:
+    """The client-credentials grant's form: the secret itself, or an assertion signed for this grant alone."""
+    match credential:
+        case SecretCredential():
+            return [
+                ("grant_type", "client_credentials"),
+                ("client_id", credential.client_id),
+                ("client_secret", credential.client_secret),
+            ]
+        case KeyCredential():
+            assertion = client_assertion(
+                credential.private_key,
+                credential.client_id,
+                token_endpoint,
+                issued_at=int(time.time()),
+                jti=uuid.uuid4().hex,
+            )
+            return [
+                ("grant_type", "client_credentials"),
+                ("client_assertion_type", JWT_BEARER),
+                ("client_assertion", assertion),
+            ]
 
 
 def _within() -> asyncio.Timeout:
@@ -99,28 +145,28 @@ class ServiceToken:
         return endpoint
 
     async def authorization(self) -> str:
-        """The `Authorization` header's value: the account's token, renewed when it is due.
+        """The `Authorization` header's value: the account's token, renewed when it is due."""
+        return f"Bearer {await self.token()}"
+
+    async def token(self, *, renewed: bool = False) -> str:
+        """The account's token: the one held until it is due, and a new grant after, or at once when `renewed`.
 
         Its own `exp` and `iat` say how long it lives, or failing those the
         grant's `expires_in`; a token that says neither is not kept.
         """
         loop = asyncio.get_running_loop()
         async with self._asking:
-            if self._held is not None and loop.time() < self._held[1]:
-                return f"Bearer {self._held[0]}"
+            if not renewed and self._held is not None and loop.time() < self._held[1]:
+                return self._held[0]
             issuer, client_id = self._credential.issuer, self._credential.client_id
             async with issuer_client() as http:
                 endpoint = await self._endpoint(http)
                 try:
-                    status, answer = await post_form(
-                        http,
-                        endpoint,
-                        [("grant_type", "client_credentials"), ("client_id", client_id), ("client_secret", self._credential.client_secret)],
-                    )
+                    status, answer = await post_form(http, endpoint, _proof(self._credential, endpoint))
                 except SignInError as error:
                     raise SignInError("exchange", f"Client-credentials grant for {client_id} at {issuer} got no answer") from error
             if not 200 <= status < 300:
-                # The status, never the body: an error body can echo the secret.
+                # The status, never the body: an error body can echo the secret or the assertion.
                 raise SignInError("exchange", f"Client-credentials grant for {client_id} at {issuer} failed (HTTP {status})", status=status)
             token = text_in(answer, "access_token")
             if token is None:
@@ -136,33 +182,34 @@ class ServiceToken:
                 self._held = None
             else:
                 self._held = (token, loop.time() + (renew_in if lifetime is None else min(renew_in, lifetime)))
-            return f"Bearer {token}"
+            return token
 
 
 def _transient(error: SemiontError) -> bool:
     """Whether a renewal that failed this way is worth another attempt.
 
-    A refused credential is not, whatever its status: the same token gets the same answer.
+    A renewal is a grant at the issuer, whose answer is the verdict
+    (`semiont.retry.REFRESH`): no answer, or one saying "not now", is worth
+    another; a refused grant is not, because the same account gets the same answer.
     """
-    return error.code != "unauthorized" and REFRESH.retryable(RetryFacts(status=error.status, method="POST"))
+    return REFRESH.retryable(RetryFacts(status=error.status, method="POST"))
 
 
 @final
 class AgentToken:
-    """The token of the agent `(provider, model)` at the gateway at `gateway`.
+    """The token of the agent whose account `service` names, at the gateway at `gateway`.
 
     Held with `async with`: the agent is signed in on the way in, which raises
-    when it cannot be (`SignInError` when its service account could not sign
-    in, `TransportError` when the gateway did not make the exchange), and it
-    is kept signed in until the way out.
+    when it cannot be (`SignInError` when its account could not sign in at its
+    issuer, `TransportError` when the gateway did not name it), and it is kept
+    signed in until the way out.
 
     A transport is given `token` as its token and `refresh` as its refresher.
     Signed in, it says who the agent is (`did`).
     """
 
-    def __init__(self, gateway: str, *, provider: str, model: str, service: ServiceToken) -> None:
+    def __init__(self, gateway: str, *, service: ServiceToken) -> None:
         self._gateway: Final = gateway.rstrip("/")
-        self._agent: Final = AgentTokenRequest(provider=provider, model=model)
         self._service: Final = service
         self._token: Final[Variable[str | None]] = Variable(None)
         self._did: UserId | None = None
@@ -176,12 +223,12 @@ class AgentToken:
 
     @property
     def token(self) -> Watched[str | None]:
-        """The agent token: the current one, and each one after it."""
+        """The agent's token: the current one, and each one after it."""
         return Reading(self._token)
 
     @property
     def did(self) -> UserId:
-        """The agent's DID, as the gateway minted it under the knowledge base's own domain.
+        """The agent's DID, as the gateway names its account under the knowledge base's own domain.
 
         It is carried as it came: re-derived from the URL the process happens
         to dial, one agent has two DIDs. It is the sign-in's answer, so an
@@ -194,9 +241,9 @@ class AgentToken:
     async def __aenter__(self) -> Self:
         if self._keeping is not None or self._closing.is_set():
             raise RuntimeError("an agent is signed in once")
-        signed_in = await self._exchange()
-        self._did = signed_in.did
-        self._token.set(signed_in.token)
+        token = await self._service.token()
+        self._did = await self._named(token)
+        self._token.set(token)
         self._keeping = asyncio.create_task(renew_when_due(self._token, self._renew_within_budget))
         return self
 
@@ -211,15 +258,15 @@ class AgentToken:
                 await keeping
 
     async def refresh(self) -> str | None:
-        """The gateway refused the token: exchange again. The new token, or nothing when the exchange failed."""
+        """The gateway refused the token: ask the issuer for another. The new token, or nothing when it gave none."""
         try:
             return await self._renew()
         except SemiontError:
             return None
 
     async def _renew(self) -> str:
-        """Exchange again, and make the answer the token."""
-        token = (await self._exchange()).token
+        """Ask the issuer for another, and make it the token."""
+        token = await self._service.token(renewed=True)
         self._token.set(token)
         return token
 
@@ -236,30 +283,25 @@ class AgentToken:
         except SemiontError:
             return
 
-    async def _exchange(self) -> AgentTokenResponse:
-        """One exchange: the service account's token for the agent's, and the DID the gateway names the agent by."""
-        authorization = await self._service.authorization()
-        url = f"{self._gateway}/api/tokens/agent"
+    async def _named(self, token: str) -> UserId:
+        """The DID the gateway names the bearer of `token` by: `GET /api/users/me`."""
+        url = f"{self._gateway}/api/users/me"
         try:
             async with issuer_client() as http, _within():
-                response = await http.post(
-                    url,
-                    content=self._agent.model_dump_json(),
-                    headers={"Authorization": authorization, "Content-Type": "application/json"},
-                )
+                response = await http.get(url, headers={"Authorization": f"Bearer {token}"})
         except (TimeoutError, httpx.HTTPError) as error:
             raise TransportError.without_response(f"{url} got no answer: {why_unanswered(error)}") from None
         status = response.status_code
         if not response.is_success:
             raise refusal(
-                f"the gateway refused the agent token exchange (HTTP {status})",
+                f"the gateway did not name the agent (HTTP {status})",
                 status,
                 response.content,
                 retry_after_ms(response.headers.get("retry-after")),
             )
         try:
-            return AgentTokenResponse.model_validate_json(response.content)
+            return UserResponse.model_validate_json(response.content).did
         except ValidationError as error:
-            lacking = lacks((AgentTokenResponse,), error, "an agent token")
+            lacking = lacks((UserResponse,), error, "a principal")
         # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
-        raise TransportError("error", f"{url} did not answer an agent token: {lacking}", status=status)
+        raise TransportError("error", f"{url} did not answer who the agent is: {lacking}", status=status)

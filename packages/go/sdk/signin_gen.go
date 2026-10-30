@@ -22,9 +22,10 @@ type SignIn struct {
 	RefreshToken string `json:"refreshToken,omitempty"`
 
 	// Who signed in: the address the access token named when the sign-in was
-	// made, which is the one the gateway answers for it. For display. A writer
-	// that renews an entry keeps it.
-	Email string `json:"email"`
+	// made, which is the one the gateway answers for it. For display. Absent
+	// when the token named none. A writer that renews an entry keeps it as it
+	// was.
+	Email string `json:"email,omitempty"`
 
 	// When the access token was issued to this machine, RFC 3339 in UTC.
 	ObtainedAt time.Time `json:"obtainedAt"`
@@ -48,4 +49,4 @@ type SignIn struct {
 
 // signInRequired: the properties every SignIn states. A member of the
 // document that lacks one is not a SignIn.
-var signInRequired = []string{"token", "email", "obtainedAt", "issuer", "tokenEndpoint"}
+var signInRequired = []string{"token", "obtainedAt", "issuer", "tokenEndpoint"}

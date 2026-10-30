@@ -6,14 +6,15 @@ set -euo pipefail
 # The packages are the directories packages/<language>/<name>, and each is built
 # in its language's container: the npm packages with scripts/ci/build.sh, the
 # Rust crates with cargo, the Python packages' distributions with uv (the SDK's
-# with the script a release runs), and the Go modules with go build. The images
+# with the script a release runs), the Go modules with go build, and the Kotlin
+# packages with their Gradle wrapper. The images
 # are images/<name>/Dockerfile, built and tagged
 # ghcr.io/the-ai-alliance/semiont-<name>:local (run by `semiont start` where a
 # KB's stack documents name them; never pushed). Either kind is skipped when
 # nothing it is built from has changed since it was last built here, and
 # --package and --image name what to build. It also builds the semiont launcher
 # (apps/launcher/dist/semiont, a host binary), so one run yields everything a
-# fully-local stack needs. No npm, Go, Rust or Python is needed on the host.
+# fully-local stack needs. No npm, Go, Rust, Python or JDK is needed on the host.
 #
 # An image that installs @semiont/* packages from a registry (the Browser's)
 # installs them from a fresh Verdaccio this run starts and publishes the npm
@@ -113,6 +114,19 @@ if ! NODE_VERSION="$("$REPO_ROOT/scripts/ci/node-version.sh")"; then
 fi
 NODE_IMAGE="node:${NODE_VERSION}-alpine"
 
+# --- JDK (derived, not restated) ---
+#
+# The JDK the Kotlin SDK is built on is a fact packages/kotlin/sdk/.java-version
+# owns. CI's setup-java reads it (java-version-file), the SDK's Gradle build
+# takes it as its toolchain, and this script derives the image from it. No
+# fallback, as for Go. Gradle and Kotlin are the wrapper's and the version
+# catalog's, which the wrapper reads itself.
+if ! JDK_VERSION="$("$REPO_ROOT/scripts/ci/jdk-version.sh")"; then
+  fail "No JDK version in packages/kotlin/sdk/.java-version — cannot choose a JDK image."
+  exit 1
+fi
+JDK_IMAGE="eclipse-temurin:${JDK_VERSION}-jdk"
+
 # --- What is kept between runs ---
 #
 # In the user's cache directory: macOS deletes files in /tmp that go unread
@@ -123,6 +137,7 @@ GOCACHE_DIR="$CACHE_ROOT/local-build-gocache"
 GOMODCACHE_DIR="$CACHE_ROOT/local-build-gomodcache"
 UVCACHE_DIR="$CACHE_ROOT/local-build-uv"
 CARGO_REGISTRY_DIR="$CACHE_ROOT/local-build-cargo"
+GRADLE_HOME_DIR="$CACHE_ROOT/local-build-gradle"
 # What each package and image was last built from, keyed by its directory.
 STATE="$CACHE_ROOT/local-build-state.json"
 state_get() { python3 -c 'import json,sys
@@ -134,7 +149,7 @@ try: d=json.load(open(p))
 except Exception: d={}
 d[sys.argv[2]]=sys.argv[3]
 json.dump(d,open(p,"w"),indent=1,sort_keys=True)' "$STATE" "$1" "$2"; }
-mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR"
+mkdir -p "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR" "$GRADLE_HOME_DIR"
 
 # --- What a step says ---
 #
@@ -256,8 +271,8 @@ while [[ $# -gt 0 ]]; do
       echo "Build Semiont's packages, each in its language's container, and its"
       echo "container images, tagged ghcr.io/the-ai-alliance/semiont-<name>:local"
       echo "(local-only, never pushed), plus the semiont launcher binary"
-      echo "(apps/launcher/dist/semiont). No npm, Go, Rust or Python is needed on"
-      echo "the host: everything runs inside containers."
+      echo "(apps/launcher/dist/semiont). No npm, Go, Rust, Python or JDK is needed"
+      echo "on the host: everything runs inside containers."
       echo ""
       echo "A package or an image is skipped when nothing it is built from has changed"
       echo "since it was last built here. The packages are packages/<language>/<name>"
@@ -362,7 +377,7 @@ BUILD_PACKAGES=""
 if [[ "$IMAGES_ONLY" != true ]]; then
   if ! PACKAGE_PLAN=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
       | $RT run --rm -i -v "$REPO_ROOT":/workspace -w /workspace "$PYTHON_IMAGE" \
-          python3 scripts/ci/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE"); then
+          python3 scripts/ci/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE"); then
     fail "Could not read what the packages are built from (scripts/ci/package-signatures.py, above)."
     exit 1
   fi
@@ -425,19 +440,20 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 # (TypeScript) and packages/go/sdk/bus/*_gen.go — so an edit to one language's
 # generated file, or a registry change without regeneration, is drift that
 # would let the two sides disagree at runtime. Each generator's --check diffs
-# without writing.
+# without writing. The generators of this gate and of the Python and Go gates
+# below are listed once, in package.json's generate:<list>:check, which CI
+# runs too.
 
 banner "DRIFT AND LOCKFILE GATES"
 
 if ! run_logged "the bus registry and both generated languages agree" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-    sh -c 'node scripts/bus/generate-ts.mjs --check && node scripts/bus/generate-go.mjs --check'; then
+    npm run generate:bus:check; then
   fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
   echo ""
   echo -e "  Regenerate both languages and commit:"
   echo ""
-  echo -e "    ${BOLD}node scripts/bus/generate-ts.mjs${RESET}   (packages/typescript/core/src/bus-protocol.ts, bus-operations.ts)"
-  echo -e "    ${BOLD}node scripts/bus/generate-go.mjs${RESET}   (packages/go/sdk/bus/*_gen.go)"
+  echo -e "    ${BOLD}npm run generate:bus${RESET}   (packages/typescript/core/src/bus-protocol.ts, bus-operations.ts; packages/go/sdk/bus/*_gen.go)"
   echo ""
   echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
   echo ""
@@ -468,7 +484,7 @@ fi
 
 if ! run_logged "the Python SDK's generated tables match specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  sh -c 'node scripts/bus/generate-python.mjs --check && node scripts/spec/generate-identifiers-python.mjs --check && node scripts/spec/generate-error-codes-python.mjs --check && node scripts/spec/generate-client-timing-python.mjs --check && node scripts/spec/generate-cache-refresh-python.mjs --check && node scripts/spec/generate-sdk-telemetry-python.mjs --check && node scripts/spec/generate-oauth-clients-python.mjs --check && node scripts/spec/generate-sign-in-python.mjs --check && node scripts/spec/generate-media-types-python.mjs --check && node scripts/spec/generate-encodings-python.mjs --check'; then
+    npm run generate:python:check; then
   fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
@@ -611,7 +627,7 @@ ok "the lockfiles of the $(echo $PYTHON_PROJECTS | wc -w | tr -d ' ') Python pro
 
 if ! run_logged "the Go SDK's generated tables match specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
-  sh -c 'node scripts/spec/generate-identifiers-go.mjs --check && node scripts/spec/generate-error-codes-go.mjs --check && node scripts/spec/generate-client-timing-go.mjs --check && node scripts/spec/generate-sdk-telemetry-go.mjs --check && node scripts/spec/generate-sign-in-go.mjs --check && node scripts/spec/generate-oauth-clients-go.mjs --check && node scripts/spec/generate-media-types-go.mjs --check'; then
+    npm run generate:go:check; then
   fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
@@ -1091,6 +1107,27 @@ build_go() {
   built $packages
 }
 
+# The Kotlin packages, each with its Gradle wrapper, which fetches the Gradle
+# its wrapper properties name into a home this script keeps.
+build_kotlin() {
+  local packages
+  packages=$(packages_of kotlin)
+  [[ -z "$packages" ]] && return 0
+  step "Kotlin: $(shown "$(names_of $packages)") ${DIM}(in ${JDK_IMAGE})${RESET}"
+  if ! run_logged "Kotlin: built" \
+      $RT run --rm \
+      -m 8g \
+      -v "$REPO_ROOT":/workspace \
+      -v "$GRADLE_HOME_DIR":/root/.gradle \
+      -w /workspace \
+      "$JDK_IMAGE" \
+      sh -c 'for dir in "$@"; do (cd "$dir" && ./gradlew --no-daemon --console=plain assemble) || exit 1; done' sh $packages; then
+    fail "A Kotlin package did not build (Gradle says why, above)."
+    exit 1
+  fi
+  built $packages
+}
+
 if [[ "$IMAGES_ONLY" != true ]]; then
   banner "PACKAGES"
   [[ -z "$BUILD_PACKAGES" ]] && ok "Every selected package is unchanged since it was last built here"
@@ -1098,6 +1135,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
   build_rust
   build_python
   build_go
+  build_kotlin
 fi
 
 [[ -n "$REGISTRY_IMAGES" ]] && "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"
@@ -1627,13 +1665,13 @@ fi
 # --- What is kept between runs, kept bounded ---
 #
 # Each tool keeps what it downloads and compiles, and none of them forgets a
-# version it no longer needs: npm's and uv's caches, Go's module cache, and
-# cargo's registry each hold every version a run ever fetched, and Go trims its
-# build cache only as it runs. So each directory is held to one size: one over it is
+# version it no longer needs: npm's and uv's caches, Go's module cache, cargo's
+# registry and Gradle's home each hold every version a run ever fetched, and Go
+# trims its build cache only as it runs. So each directory is held to one size: one over it is
 # emptied, and the next run fetches or compiles what it needs again.
 CACHE_LIMIT_KB=$((8 * 1024 * 1024))
 banner "CACHES"
-for cache in "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR"; do
+for cache in "$NPM_CACHE_DIR" "$GOCACHE_DIR" "$GOMODCACHE_DIR" "$UVCACHE_DIR" "$CARGO_REGISTRY_DIR" "$GRADLE_HOME_DIR"; do
   used=$(du -sk "$cache" 2>/dev/null | cut -f1)
   if [[ "${used:-0}" -gt "$CACHE_LIMIT_KB" ]]; then
     # Go writes its module cache read-only.

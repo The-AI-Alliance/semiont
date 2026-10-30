@@ -2,7 +2,7 @@
 // generate-ts.mjs — regenerate the TypeScript bus authority from
 // specs/src/bus/registry.json.
 //
-//   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, and TRACE_FIELD)
+//   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, TRACE_FIELD and CHANNEL_STAMPS)
 //   packages/typescript/core/src/persisted-events.ts    (the persisted-event catalog)
 //   packages/typescript/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
 //   packages/typescript/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
@@ -127,6 +127,32 @@ const schemaLines = emitLines(
     (e.trailing ? ` ${e.trailing}` : ''),
 );
 
+/** A component schema, by the name the registry gives it or the `./<name>.json` a schema refers to it by. */
+const schemaNamed = (name) => JSON.parse(readFileSync(resolve(SCHEMAS, `${name}.json`), 'utf8'));
+function referred(ref) {
+  const name = /^\.\/([A-Za-z0-9]+)\.json$/.exec(ref)?.[1];
+  if (name === undefined) throw new Error(`registry: a payload schema refers to ${JSON.stringify(ref)}, which names no component schema`);
+  return schemaNamed(name);
+}
+
+/** The properties a schema declares whose names begin with `_`: the stamps a
+ *  gateway puts on a payload that this payload's type reads. */
+function stamps(schema) {
+  const read = schema.$ref === undefined ? schema : referred(schema.$ref);
+  const declared = Object.keys(read.properties ?? {}).filter((name) => name.startsWith('_'));
+  for (const keyword of ['allOf', 'oneOf', 'anyOf']) {
+    for (const member of read[keyword] ?? []) declared.push(...stamps(member));
+  }
+  return [...new Set(declared)].sort();
+}
+
+/** A channel's stamps: its schema's, and none on a payload of any other shape. */
+const stampLines = reg.channelOrder.eventMap.map((ch) => {
+  const c = channelOr(ch, 'eventMap');
+  const declared = c.shape === 'schema' ? stamps(schemaNamed(c.schema)) : [];
+  return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `[${declared.map((name) => `'${name}'`).join(', ')}],`;
+});
+
 // The sections between the two maps are TEMPLATE (derived types and the
 // `satisfies` tails the generator owns) plus DATA and PROSE from the registry
 // — never an opaque frozen blob, which would leave the generated file with
@@ -164,7 +190,15 @@ const protocol =
   '  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K\n' +
   '}[EventName];\n\n' +
   `/** ${reg.trace.meaning.replaceAll('*/', '*\\/')} */\n` +
-  `export const TRACE_FIELD = '${reg.trace.field}';\n`;
+  `export const TRACE_FIELD = '${reg.trace.field}';\n\n` +
+  '/**\n' +
+  " * The stamps a gateway puts on a payload (`_userId`, `_roles`) that each\n" +
+  " * channel's payload type declares, and so reads. Any other is the bus's, not\n" +
+  " * the payload's, and is left out of what the SDK delivers.\n" +
+  ' */\n' +
+  'export const CHANNEL_STAMPS = {\n' +
+  stampLines.join('\n') +
+  '\n} as const satisfies Record<EventName, readonly string[]>;\n';
 
 // ── persisted-events.ts ────────────────────────────────────────────────
 // The catalog is the registry's stored-event channels, in their order: the
@@ -241,7 +275,7 @@ const opsLines = emitLines(
 // What a reply states beside its response is READ from the component schema
 // the registry says it carries, never listed. The table is total: an operation
 // whose reply names nothing says so.
-const namedBy = replyNames(reg, (name) => JSON.parse(readFileSync(resolve(SCHEMAS, `${name}.json`), 'utf8')));
+const namedBy = replyNames(reg, schemaNamed);
 const replyNameLines = reg.operations.map(
   (o) => pad(`  '${o.request}':`, VALUE_COL_OPS) + `[${namedBy.get(o.request).map((name) => `'${name}'`).join(', ')}],`,
 );

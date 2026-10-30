@@ -14,7 +14,7 @@ A media token is a short-lived JWT with:
 | `sub` | `resourceId` (scoped to exactly one resource) |
 | `iat`, `exp` | issuance, and 5 minutes after it |
 
-Signed with the first key of the gateway's `JWT_SECRET` ring, as agent tokens are; a person's access token is the issuer's and is not. No gateway state — validation is pure crypto.
+Signed with the first key of the gateway's `JWT_SECRET` ring, which signs nothing else: every bearer token, a person's or an agent's, is the issuer's. No gateway state — validation is pure crypto.
 
 The token is appended as a query parameter: `?token=<media-token>`. The gateway validates it on `GET /api/resources/{id}` and accepts it there in place of a Bearer token (for elements that can't send a header).
 
