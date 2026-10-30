@@ -14,8 +14,8 @@ import semiont.Spec
 
 /**
  * How a knowledge base and its principals are named, held to the tables every
- * implementation runs: specs/src/principals/cases.json for a person and a
- * software agent, and specs/src/kb-identity/cases.json for the knowledge base,
+ * implementation runs: specs/src/principals/cases.json for a person, an agent
+ * and an engine, and specs/src/kb-identity/cases.json for the knowledge base,
  * each case of which that has a domain this SDK derives the DID and the
  * resource from. Reading the project file is its readers', not this SDK's.
  */
@@ -34,12 +34,16 @@ class IdentityTest {
     }
 
     @TestFactory
-    fun aSoftwareAgentIsNamedAsTheTableNamesOne(): List<DynamicTest> = principals.getValue("agents").jsonArray.map { it.jsonObject }.map { case ->
+    fun anAgentIsNamedAsTheTableNamesOne(): List<DynamicTest> = principals.getValue("agents").jsonArray.map { it.jsonObject }.map { case ->
         DynamicTest.dynamicTest(case.text("why")) {
-            val (domain, provider, model) = Triple(case.text("domain"), case.text("provider"), case.text("model"))
-            assertEquals(case.text("did"), agentDid(domain, provider, model).value)
-            assertEquals(case.text("email"), agentAddress(domain, provider, model))
-            assertEquals(case.text("name"), agentName(provider, model))
+            assertEquals(case.text("did"), agentDid(case.text("domain"), case.text("subject")).value)
+        }
+    }
+
+    @TestFactory
+    fun anEngineIsNamedAsTheTableNamesOne(): List<DynamicTest> = principals.getValue("engines").jsonArray.map { it.jsonObject }.map { case ->
+        DynamicTest.dynamicTest(case.text("why")) {
+            assertEquals(case.text("name"), agentName(case.text("provider"), case.text("model")))
         }
     }
 
@@ -53,7 +57,7 @@ class IdentityTest {
 
     @Test
     fun theTablesWereRead() {
-        assertTrue(principals.getValue("people").jsonArray.isNotEmpty() && principals.getValue("agents").jsonArray.isNotEmpty())
+        assertTrue(listOf("people", "agents", "engines").all { principals.getValue(it).jsonArray.isNotEmpty() })
         assertTrue(knowledgeBases.isNotEmpty())
     }
 }

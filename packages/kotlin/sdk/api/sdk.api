@@ -132,7 +132,7 @@ public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 }
 
 public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/http/TokenRefresher {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/http/ServiceToken;)V
+	public fun <init> (Ljava/lang/String;Lsemiont/http/ServiceToken;)V
 	public fun close ()V
 	public final fun getDid ()Lsemiont/identifiers/UserId;
 	public final fun getDid-lE7-m4I ()Ljava/lang/String;
@@ -280,8 +280,7 @@ public abstract interface class semiont/http/TokenRefresher {
 }
 
 public final class semiont/identity/IdentityKt {
-	public static final fun agentAddress (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun agentName (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun encodeUriComponent (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbDid (Ljava/lang/String;)Ljava/lang/String;
