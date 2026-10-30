@@ -33,9 +33,6 @@ type principals struct {
 	Agents []struct {
 		Why, Domain, Subject, Did string
 	} `json:"agents"`
-	Engines []struct {
-		Why, Provider, Model, Name string
-	} `json:"engines"`
 }
 
 func TestAPersonIsNamedAsTheTableNamesOne(t *testing.T) {
@@ -62,19 +59,6 @@ func TestAnAgentIsNamedAsTheTableNamesOne(t *testing.T) {
 		did, err := semiont.AgentDid(row.Domain, row.Subject)
 		if err != nil || did.String() != row.Did {
 			t.Errorf("%s: AgentDid(%q, %q) = %q, %v; want %q", row.Why, row.Domain, row.Subject, did, err, row.Did)
-		}
-	}
-}
-
-func TestAnEngineIsNamedAsTheTableNamesOne(t *testing.T) {
-	var table principals
-	readTable(t, &table, "principals", "cases.json")
-	if len(table.Engines) < 2 {
-		t.Fatalf("the table names %d engines: a runner that reads too few passes on silence", len(table.Engines))
-	}
-	for _, row := range table.Engines {
-		if name := semiont.EngineName(row.Provider, row.Model); name != row.Name {
-			t.Errorf("%s: EngineName = %q, want %q", row.Why, name, row.Name)
 		}
 	}
 }

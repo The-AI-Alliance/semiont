@@ -236,7 +236,7 @@ def test_an_engine_that_holds_nothing_is_never_stalled(monkeypatch: pytest.Monke
     run(scenario())
 
 
-def test_what_an_engine_makes_names_the_agent_by_its_did_and_the_engine_and_its_vitals_say_which_engine_it_is() -> None:
+def test_what_an_engine_makes_names_the_agent_by_its_did_and_the_engine_and_no_name_and_its_vitals_say_which_engine_it_is() -> None:
     highlighting = entry("ollama", "gemma2:27b", "highlighting")
 
     async def scenario() -> None:
@@ -250,7 +250,7 @@ def test_what_an_engine_makes_names_the_agent_by_its_did_and_the_engine_and_its_
                 await turns()
             ((_, annotations),) = parties.commits
             assert [annotation["generator"] for annotation in annotations if isinstance(annotation, dict)] == [
-                {"@type": "Software", "@id": AGENT, "name": "ollama gemma2:27b", "provider": "ollama", "model": "gemma2:27b"}
+                {"@type": "Software", "@id": AGENT, "provider": "ollama", "model": "gemma2:27b"}
             ]
             vitals = engine.vitals()
             assert (vitals["provider"], vitals["model"], vitals["jobs"], vitals["jobsCompleted"], vitals["activeJob"]) == (
@@ -298,6 +298,7 @@ def test_engines_on_one_stream_each_claim_with_their_own_filters_and_one_whose_c
 
 GATEWAY: Final = "http://gateway.test"
 SERVICE: Final = ServiceToken(SecretCredential(issuer="http://issuer.test", client_id="semiont-worker", client_secret="unused"))
+NAME: Final = "semiont-worker"
 
 
 @dataclass
@@ -341,13 +342,17 @@ def stood_in(monkeypatch: pytest.MonkeyPatch, parties: Parties) -> Dialled:
     return dialled
 
 
-def test_the_agent_signs_in_once_and_runs_every_engine_over_one_stream_until_it_is_stopped(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_agent_signs_in_once_says_what_it_is_called_and_runs_every_engine_over_one_stream_until_it_is_stopped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     highlighting, commenting = entry("ollama", "gemma2:27b", "highlighting"), entry("ollama", "llama3", "commenting")
 
     async def scenario() -> None:
         parties = Parties()
         dialled = stood_in(monkeypatch, parties)
-        worker = AgentWorker([(highlighting, answering("[]")), (commenting, answering("[]"))], gateway_url=GATEWAY, service=SERVICE)
+        worker = AgentWorker(
+            [(highlighting, answering("[]")), (commenting, answering("[]"))], gateway_url=GATEWAY, service=SERVICE, name=NAME
+        )
         async with worker:
             await worker.open()
             working = asyncio.ensure_future(worker.work())
@@ -357,6 +362,9 @@ def test_the_agent_signs_in_once_and_runs_every_engine_over_one_stream_until_it_
             assert dialled.signed_in == [GATEWAY]
             assert dialled.streams == [WORKER_CHANNELS]
             assert parties.claims == 2
+            # Once the stream is open, and before any engine claims, the agent says what it is called.
+            assert parties.sent("principal:profile") == [{"name": NAME}]
+            assert parties.frames()[0].channel == "principal:profile"
             vitals = worker.vitals()
             engines = vitals["engines"]
             assert vitals["did"] == AGENT
@@ -378,7 +386,9 @@ def test_an_engine_that_cannot_claim_ends_the_agent_s_work_as_itself(monkeypatch
         parties = Parties()
         parties.claim_refused = {"code": "unauthorized", "message": "This agent is not a worker"}
         stood_in(monkeypatch, parties)
-        worker = AgentWorker([(entry("ollama", "gemma2:27b", "highlighting"), answering("[]"))], gateway_url=GATEWAY, service=SERVICE)
+        worker = AgentWorker(
+            [(entry("ollama", "gemma2:27b", "highlighting"), answering("[]"))], gateway_url=GATEWAY, service=SERVICE, name=NAME
+        )
         async with worker:
             await worker.open()
             with pytest.raises(Left):
@@ -393,7 +403,9 @@ def test_an_agent_says_nothing_of_itself_before_it_is_signed_in_and_its_stream_i
     async def scenario() -> None:
         parties = Parties()
         stood_in(monkeypatch, parties)
-        worker = AgentWorker([(entry("ollama", "gemma2:27b", "highlighting"), answering("[]"))], gateway_url=GATEWAY, service=SERVICE)
+        worker = AgentWorker(
+            [(entry("ollama", "gemma2:27b", "highlighting"), answering("[]"))], gateway_url=GATEWAY, service=SERVICE, name=NAME
+        )
         with pytest.raises(RuntimeError, match="not signed in"):
             await worker.open()
         async with worker:

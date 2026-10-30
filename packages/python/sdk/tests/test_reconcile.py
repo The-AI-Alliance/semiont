@@ -66,7 +66,7 @@ def test_a_reconciled_span_is_one_the_builder_takes_as_it_is(case: Case) -> None
         span,
         resource_id=ResourceId("res-1"),
         motivation="highlighting",
-        generator=AgentSoftware(type="Software", name="ollama gemma3"),
+        generator=AgentSoftware(type="Software", provider="ollama", model="gemma3"),
     )
     assert isinstance(built.target, AnnotationTarget)
     assert built.target.selector is not None

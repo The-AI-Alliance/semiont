@@ -24,6 +24,3 @@ public fun personDid(domain: String, subject: String): UserId = UserId("did:web:
 
 /** An agent, named by the subject its issuer asserted for its account, as a person is (principals/cases.json). */
 public fun agentDid(domain: String, subject: String): UserId = UserId("did:web:$domain:agents:${encodeUriComponent(subject)}")
-
-/** An engine's name: a provider and a model, which is no principal, as a worker states it of itself unless it says otherwise. */
-public fun engineName(provider: String, model: String): String = "$provider $model"

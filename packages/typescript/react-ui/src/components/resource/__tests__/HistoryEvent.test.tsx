@@ -254,7 +254,7 @@ describe('HistoryEvent', () => {
   it("names a software peer's row by its provider and model", () => {
     const event = makeStoredEvent({
       userId: userId(WORKER),
-      agent: { '@type': 'Software', '@id': WORKER, name: 'anthropic claude-haiku-4-5', provider: 'anthropic', model: 'claude-haiku-4-5' },
+      agent: { '@type': 'Software', '@id': WORKER, name: 'semiont-worker', provider: 'anthropic', model: 'claude-haiku-4-5' },
     });
     renderWithProviders(
       <HistoryEvent

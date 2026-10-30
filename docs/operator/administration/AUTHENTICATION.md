@@ -269,7 +269,7 @@ To revoke, delete the client.
 
 The client id goes into the worker's environment as `SEMIONT_OIDC_CLIENT_ID`, beside its key as `SEMIONT_OIDC_CLIENT_KEY`. The gateway's address goes into its document, with the issuer the gateway names at `/.well-known/oauth-protected-resource` ([the worker's configuration](../../../images/worker/README.md#configuration)). The launcher configures its worker for the knowledge base it starts; a worker serving a knowledge base elsewhere is given its document by hand.
 
-The record names a worker's work by its account, `agents:<subject>`, and the engine it ran in each write's `generator`, so two people's workers running one model are two agents there.
+The record names a worker's work by its account, `agents:<subject>`, and the engine it ran in each write's `generator`, so two people's workers running one model are two agents there. What a worker is called is what it says of itself: Semiont's worker says its client id, and readers name it from that.
 
 ## Security Best Practices
 

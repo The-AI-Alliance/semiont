@@ -128,8 +128,13 @@ under the agent's one sign-in.
 - **G4.** A job is run by the engine whose claim it answered, on that engine's
   provider and model, and every message about it is sent under the agent's
   token. What the job makes states the agent and that engine as its
-  `generator`: `@type` `Software`, `@id` the agent's DID, `name` the engine's
-  provider and model with a space between, and `provider` and `model`.
+  `generator`: `@type` `Software`, `@id` the agent's DID, and `provider` and
+  `model`. It states no `name`: what the agent is called is its profile (G5).
+  *Held by `worker-service/started`.*
+- **G5.** When it opens its stream, and before any engine claims, the service
+  says what the agent is called: one `principal:profile` whose `name` is the
+  account's client id, emitted as the agent. Readers name the agent from its
+  profile, as they name a person.
   *Held by `worker-service/started`.*
 
 ## Health

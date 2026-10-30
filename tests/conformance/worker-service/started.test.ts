@@ -1,8 +1,8 @@
 /**
  * A worker that has started (WORKER-SERVICE.md § The agent, § Health): the
- * one sign-in it makes as its account, the one stream it opens, the filters
- * each engine claims with, the engine a job is run on and who it is
- * attributed to, and what `GET /health` answers.
+ * one sign-in it makes as its account, the one stream it opens, what it says
+ * it is called, the filters each engine claims with, the engine a job is run
+ * on and who it is attributed to, and what `GET /health` answers.
  */
 import { expect, it } from 'vitest';
 import { marks, YIELDS } from '../harness/dispatcher-world';
@@ -78,6 +78,16 @@ eachWorkerService('a started worker', (world) => {
         { by: w.did, accepts: jobs[1], payload: { accepts: jobs[1] }, scope: undefined },
       ]),
     );
+  });
+
+  it('says it is called by its client id, once, as itself, when it opens its stream and before it claims', async () => {
+    const w = world();
+    const { served } = await twoEngines(w);
+    expect(served.emits('principal:profile').map(({ by, payload, scope, status }) => ({ by, payload, scope, status }))).toEqual([
+      { by: w.did, payload: { name: WORKER_CLIENT }, scope: undefined, status: 202 },
+    ]);
+    const asked = served.sequence();
+    expect(asked.indexOf('emit principal:profile')).toBeLessThan(asked.indexOf('emit job:claim'));
   });
 
   it('answers GET /health, without a token, with who it is, its engines and what each can say of itself', async () => {

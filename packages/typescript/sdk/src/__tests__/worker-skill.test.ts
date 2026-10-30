@@ -191,7 +191,7 @@ describe('the complete worker of the semiont-worker skill', () => {
     await gateway?.close();
   });
 
-  it('claims as its agent, commits a highlight it built, says the job\'s lifecycle, claims again, and stops when it is told to', async () => {
+  it('says what it is called, claims as its agent, commits a highlight it built, says the job\'s lifecycle, claims again, and stops when it is told to', async () => {
     expect(PROGRAMS, 'the skill shows one TypeScript program').toHaveLength(1);
     const [program] = PROGRAMS;
     for (const imported of program.matchAll(/from '@semiont\/([a-z-]+)'/g)) {
@@ -243,8 +243,10 @@ describe('the complete worker of the semiont-worker skill', () => {
 
     // Settling the job is an idle moment, and so the next claim.
     await until('the worker\'s second claim', () => channels().filter((channel) => channel === 'job:claim').length === 2);
-    expect(channels()).toEqual(['job:claim', 'job:start', 'mark:commit', 'job:complete', 'job:claim']);
-    const [claim, start, commit, complete] = standing.emitted.map((emit) => emit.payload);
+    expect(channels()).toEqual(['principal:profile', 'job:claim', 'job:start', 'mark:commit', 'job:complete', 'job:claim']);
+    const [profiled, claim, start, commit, complete] = standing.emitted.map((emit) => emit.payload);
+    // Before it claims, it says it is called by its client id.
+    expect(profiled).toEqual({ name: 'my-worker' });
     expect(claim).toEqual({ accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }] });
     // Every message of the lifecycle names the job and the attempt it is.
     const identity = { resourceId: 'res-1', jobId: 'job-1', jobType: 'mark', attempt: 1 };
@@ -258,7 +260,7 @@ describe('the complete worker of the semiont-worker skill', () => {
     expect(member(highlight, 'id')).toBe(member(member(stated, 'annotation'), 'id'));
     expect(member(highlight, 'motivation')).toBe('highlighting');
     expect(member(highlight, 'target')).toEqual(member(member(stated, 'annotation'), 'target'));
-    expect(member(highlight, 'generator')).toEqual({ '@type': 'Software', '@id': DID, name: 'ollama gemma3:4b', provider: 'ollama', model: 'gemma3:4b' });
+    expect(member(highlight, 'generator')).toEqual({ '@type': 'Software', '@id': DID, provider: 'ollama', model: 'gemma3:4b' });
     // And it reports what it proposed and what the record holds, established by the record's acknowledgement.
     expect(complete).toEqual({ ...identity, result: { found: 1, persisted: 1 }, durability: 'acknowledged' });
 
