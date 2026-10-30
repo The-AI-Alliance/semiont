@@ -51,7 +51,7 @@ header {
 
 h1 {
     display: inline-block;
-    margin: 0 0 1rem;
+    margin: 0 0 0.4rem;
     font-family: Orbitron, var(--sans);
     font-size: 2.75rem;
     font-weight: 700;
@@ -100,7 +100,6 @@ li {
 }
 
 .summary {
-    margin: 0;
     text-align: left;
 }
 
