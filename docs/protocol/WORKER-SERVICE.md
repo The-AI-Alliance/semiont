@@ -3,7 +3,8 @@
 What the Worker service does: the process a worker image runs. It is a worker
 in the sense of [WORKER-CONTRACT.md](./WORKER-CONTRACT.md), and keeps that
 contract; this document is everything else it does. How it is configured and
-what it refuses to start on, the agent it is and the engines it runs, what it
+what it refuses to start on, the agent it is at each knowledge base it serves
+and the engines it runs there, what one knowledge base's trouble stops, what it
 reads for a job, what it asks its model and what it does with the answer, what
 it commits and reports, how it ends a job, and how it stops. What the
 dispatcher does with a worker's messages is [JOBS.md](./JOBS.md), and what the
@@ -26,7 +27,8 @@ and when a case of the suite is named by no rule.
 **What this document does not cover.** A `yield` job to PDF, and so the
 citations of a generated PDF; and the budget of an Anthropic model whose
 `contextTokens` leave 64 tokens or fewer to read once its `maxOutputTokens`
-and the prompt are taken from them.
+and the prompt are taken from them. Nor which knowledge base a span or a metric
+came from: the service's telemetry names none.
 
 **What an offset counts.** An offset into a text counts Unicode code points
 from the start of the text, exactly as it was decoded
@@ -58,14 +60,16 @@ holds the count.
   reason `Missing required property: <member>`. A reason names a member and
   what was expected of it, and never a value found in the document.
   *Held by `worker-service/boot`.*
-- **B3.** The document carries no secret. The service's own account at the
-  issuer is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its
-  environment: its client id, and the RSA private key it proves itself with,
-  PEM and unencrypted. Each sign-in carries an assertion signed with the key
-  (RFC 7523, `private_key_jwt`; `specs/src/session/client-assertion-cases.json`),
-  and no secret. With either unset or empty it writes `[fatal] <variable> is
-  not set in the worker's environment: a worker signs in as a service account`
-  and exits with status 1. With a key it cannot read it writes `[fatal]
+- **B3.** The document carries no secret. The key the service proves itself
+  with at every knowledge base is `SEMIONT_OIDC_CLIENT_KEY` in its environment:
+  an RSA private key, PEM and unencrypted. Each knowledge base names the client
+  its issuer holds the key's public half on (`knowledgeBases[<k>].identity`'s
+  `clientId`): the service's account there. Each sign-in carries an assertion
+  signed with the key (RFC 7523, `private_key_jwt`;
+  `specs/src/session/client-assertion-cases.json`), and no secret. With the key
+  unset or empty it writes `[fatal] SEMIONT_OIDC_CLIENT_KEY is not set in the
+  worker's environment: a worker signs in as a service account` and exits with
+  status 1. With a key it cannot read it writes `[fatal]
   SEMIONT_OIDC_CLIENT_KEY in the worker's environment is not an unencrypted PEM
   private key`, and with one that is not RSA `[fatal] SEMIONT_OIDC_CLIENT_KEY in
   the worker's environment is not an RSA key: a worker signs its assertions with
@@ -74,12 +78,12 @@ holds the count.
 - **B4.** A provider's key is named, not stated: an engine's `apiKeyEnv` is the
   name of the environment variable that holds it. When the variable an engine
   names is unset or empty, the service writes `[fatal]
-  engines[<index>].apiKeyEnv names a variable that is not set in the worker's
-  environment` and exits with status 1. The line says which member named the
+  knowledgeBases[<k>].engines[<index>].apiKeyEnv names a variable that is not
+  set in the worker's environment` and exits with status 1. The line says which member named the
   variable and never what it named: a key written where the name belongs is a
   value found in the document, and nothing the service writes carries it. An
   engine whose provider takes a key and names no variable for one is refused by
-  `engines[<index>].apiKeyEnv` too. An engine of `google`, `openai` or
+  `knowledgeBases[<k>].engines[<index>].apiKeyEnv` too. An engine of `google`, `openai` or
   `together` is made with what a model catalogue says of its model, which
   those providers' APIs do not: the document's `modelCatalogue` is the
   catalogue file's path, which every document states, and the service
@@ -92,34 +96,49 @@ holds the count.
   *Held by `worker-service/boot`.*
 - **B6.** Whatever ends a service with status 1 before its health answers is
   said as the refusals above are: one line on stderr that begins `[fatal] `
-  and says why. A service whose sign-in the issuer refuses ends so, and so
-  does one that cannot listen on its `port`; the health of neither ever
-  answers. Nothing either writes carries the secret.
+  and says why. A service every knowledge base of which refuses it before any
+  is confirmed ends so ([R5](#knowledge-bases)), and so does one that cannot
+  listen on its `port`; the health of neither ever answers. Nothing either
+  writes carries the key.
+  *Held by `worker-service/boot`.*
+- **B7.** No two of `knowledgeBases` name one `domain`: a worker is one agent
+  at a knowledge base. A document in which two do is refused, `[fatal]
+  knowledgeBases[<j>].domain is the domain of knowledgeBases[<i>]: a worker
+  serves a knowledge base once`, naming the later entry by `<j>` and the
+  earlier by `<i>`, and the service exits with status 1. The line names no
+  domain.
   *Held by `worker-service/boot`.*
 
 ## The agent
 
-A Worker service is one **agent**: its service account at the issuer, signed
-in once, holding the worker role. It runs one **engine** for each entry of its
-document's `engines`: a provider and a model, the jobs it does with that
-engine, and where the provider is reached. An engine is no part of who the
-agent is. The service claims for each engine on its own, as
-[WORKER-CONTRACT.md](./WORKER-CONTRACT.md) has a worker claim: each engine's
-claims hold one job at a time, and the engines of one service work at once,
-under the agent's one sign-in.
+A Worker service is an **agent** at each knowledge base its document's
+`knowledgeBases` names: the account that knowledge base's issuer holds the
+worker's key on, signed in, holding the worker role. At each it runs one
+**engine** for each entry of that knowledge base's `engines`: a provider and a
+model, the jobs it does with that engine, and where the provider is reached.
+An engine is no part of who the agent is. The service claims for each engine
+on its own, as [WORKER-CONTRACT.md](./WORKER-CONTRACT.md) has a worker claim:
+each engine's claims hold one job at a time, and the engines of one service
+work at once. The knowledge bases are apart: each has its own sign-in,
+stream, claims, profile and limits, and none waits on another
+([Knowledge bases](#knowledge-bases)). Two knowledge bases that name one
+engine share its provider's client.
 
-- **G1.** The service signs in once, as its account: it is granted a token
-  for its service account at the issuer the document names, and that token is
-  its bearer at the gateway. The agent's DID is the one the gateway answers
-  `GET /api/users/me` with. The service uses it as answered, and derives it
-  from nothing else. No engine signs in for itself.
-  *Held by `worker-service/started`.*
-- **G2.** The service opens one stream, and every engine claims and runs its
-  jobs over it. It names what a worker's stream names
+- **G1.** At each knowledge base the service signs in once, as its account
+  there: it is granted a token for the client `identity.clientId` names at the
+  issuer `identity.issuer` names, and that token is its bearer at that
+  knowledge base's gateway. The agent's DID there is the one that gateway
+  answers `GET /api/users/me` with. The service uses it as answered, and
+  derives it from nothing else. No engine signs in for itself.
+  *Held by `worker-service/started`, `worker-service/knowledge-bases`.*
+- **G2.** At each knowledge base the service opens one stream, and every
+  engine of that knowledge base claims and runs its jobs over it. It names
+  what a worker's stream names
   ([WORKER-CONTRACT S1](./WORKER-CONTRACT.md#the-stream)): the reply channels
   of `job:claim`, of `mark:commit` and `browse:annotation-requested`, and of
   `browse:resource-requested`; and the broadcasts `job:queued` and
-  `job:cancel-requested`. It also names `job:limits-requested`
+  `job:cancel-requested`. It also names the reply channels of
+  `browse:kb-requested` ([R1](#knowledge-bases)), and `job:limits-requested`
   ([Limits](#limits)). It names no scope.
   *Held by `worker-service/started`.*
 - **G3.** Each engine's claims name its entry's `jobs` as their `accepts`, as
@@ -128,23 +147,91 @@ under the agent's one sign-in.
 - **G4.** A job is run by the engine whose claim it answered, on that engine's
   provider and model, and every message about it is sent under the agent's
   token. What the job makes states the agent and that engine as its
-  `generator`: `@type` `Software`, `@id` the agent's DID, and `provider` and
+  `generator`: `@type` `Software`, `@id` the agent's DID at the knowledge
+  base the job came from, and `provider` and
   `model`. It states no `name`: what the agent is called is its profile (G5).
-  *Held by `worker-service/started`.*
-- **G5.** When it opens its stream, and before any engine claims, the service
-  says what the agent is called: one `principal:profile` whose `name` is the
-  account's client id, emitted as the agent. Readers name the agent from its
-  profile, as they name a person.
-  *Held by `worker-service/started`.*
+  *Held by `worker-service/started`, `worker-service/knowledge-bases`.*
+- **G5.** Once a knowledge base is confirmed ([R1](#knowledge-bases)), and
+  before any of its engines claims, the service says what the agent is called
+  there: one `principal:profile` on that knowledge base's stream, whose `name`
+  is that knowledge base's `identity.clientId`, emitted as the agent. Readers
+  name the agent from its profile, as they name a person.
+  *Held by `worker-service/started`, `worker-service/knowledge-bases`.*
+
+## Knowledge bases
+
+What happens at one knowledge base happens there alone. The service starts
+every knowledge base of its document at once, and each is, at any moment,
+`starting` (signing in, opening its stream, confirming it, or waiting to start
+again), `working` (confirmed, its engines claiming), or `refused`.
+
+- **R1.** Once it has opened a knowledge base's stream, and before it says what
+  the agent is called there, the service asks the knowledge base which it is:
+  one `browse:kb-requested`. A knowledge base whose answer's `domain` is the
+  entry's `domain` is confirmed, and is `working`; the service says so in its
+  log, at `info`, as `Knowledge base confirmed`, with `domain` and `did`, the
+  agent's DID there. One whose answer names
+  another domain, or that answers `browse:kb-failed`, is refused
+  ([R2](#knowledge-bases)): nothing more is said on its stream, and none of
+  its engines claims. One that gives no answer within the request's deadline
+  is trouble ([R3](#knowledge-bases)).
+  *Held by `worker-service/knowledge-bases`.*
+- **R2.** A refused knowledge base stays refused until the service is started
+  again: its stream is closed, its engines claim nothing there, and the
+  service does not sign in there again. A knowledge base is refused when its
+  issuer refuses the sign-in, and when its gateway refuses to name the agent,
+  in the answers the SDK's sign-in does not try again
+  ([`specs/src/retry/cases.json`](../../specs/src/retry/cases.json), the
+  `refresh` rule: the same account gets the same answer); when a claim there
+  is refused as `unauthorized` ([P3](#stopping)); and as R1 says. The service
+  says each refusal once in its log, at `error`, as `Knowledge base refused
+  the worker`, with `domain` and `reason`, why in words, and nothing that
+  carries the key or a token.
+  *Held by `worker-service/knowledge-bases`, `worker-service/stop`.*
+- **R3.** Any other trouble at a knowledge base ends that knowledge base's
+  work, and the service starts it again: a sign-in that gets no answer, or an
+  answer the `refresh` rule tries again; a confirmation not answered in time;
+  its stream closed, so that nothing more can be claimed there; and a held
+  job that stalls ([P4](#stopping)). A stream that drops is not trouble: it
+  is `reconnecting`, and the SDK opens it again by itself
+  ([TRANSPORT-CONTRACT § State](./TRANSPORT-CONTRACT.md#state)), on that same
+  backoff, while the knowledge base keeps its work and its jobs. Ending it
+  fails a job still held there while its stream carries messages
+  ([WORKER-CONTRACT L8](./WORKER-CONTRACT.md#the-lifecycle)), and closes its
+  stream; starting it again signs in afresh. The first start again waits the
+  SDK's `reconnectMs`, and each further one twice the one before, up to
+  `maxReconnectMs` ([`specs/src/client/timing.json`](../../specs/src/client/timing.json));
+  a knowledge base confirmed again starts its next trouble from `reconnectMs`.
+  The service says each in its log, at `warn`, as `Knowledge base in trouble —
+  starting it again`, with `domain`, `error`, why in words, and `waitMs`, how
+  long it waits. The other knowledge bases keep their
+  streams and their jobs throughout.
+  *Held by `worker-service/knowledge-bases`.*
+- **R4.** The service's health first answers once a knowledge base is
+  confirmed ([H1](#health)). Until then, every knowledge base that is not
+  refused is starting, or waiting to start again as R3 says.
+  *Held by `worker-service/knowledge-bases`.*
+- **R5.** A service every knowledge base of which is refused exits with
+  status 1, for whatever supervises it to start it again with a document or a
+  grant that has changed. When none was confirmed first, it ends as B6 says:
+  one line on stderr, `[fatal] No knowledge base admits this worker: each of
+  its knowledgeBases refused it`, after each refusal's own line in its log.
+  *Held by `worker-service/boot`, `worker-service/stop`.*
 
 ## Health
 
 - **H1.** The service answers `GET /health` on the document's `port`, with no
-  token asked, once the agent has signed in and opened its stream: `200`,
-  `application/json`, and `{"status": "ok", "did": <the agent's DID>,
-  "engines": [...]}`. `engines` has one entry for each engine, in the order of
-  the document: its `provider` and `model`, its `jobs`, and what a worker can
-  say of itself
+  token asked, once a knowledge base is confirmed ([R4](#knowledge-bases)):
+  `200`, `application/json`, and a
+  [`WorkerHealth`](../../specs/src/components/schemas/WorkerHealth.json):
+  `{"status": "ok", "knowledgeBases": [...]}`.
+  `knowledgeBases` has one entry for each of the document's, in its order:
+  its `domain` and its `state` ([Knowledge bases](#knowledge-bases)), and, for
+  one that is `working`, the agent's `did` there and its `engines`. A
+  knowledge base that is `starting` or `refused` has no `did` and no
+  `engines`. `engines` has one entry for each engine of that knowledge base,
+  in the order of the document: its `engine` (the entry's), its `jobs`, and
+  what a worker can say of itself
   ([WORKER-CONTRACT V1](./WORKER-CONTRACT.md#liveness)):
   `lastQueuedEventAt`, `lastClaimAt`, `lastFinishedAt` and `lastActivityAt`,
   each an instant or `null`; `activeJob`, `null` or the held job's `jobId`,
@@ -152,17 +239,18 @@ under the agent's one sign-in.
   query string: `GET /health?probe=1` is answered as `GET /health` is. A
   request of any other path, and a request of `/health` by any other method,
   is answered `404` with no body.
-  *Held by `worker-service/started`.*
+  *Held by `worker-service/started`, `worker-service/knowledge-bases`.*
 
 ## Limits
 
 A Worker service holds the keys to its providers, so it is what can say what
 each of its models can take.
 
-- **M1.** The service answers `job:limits-requested` with one
-  `job:limits-result`, carrying the request's correlation id: `limits`, an
-  entry for each distinct engine it runs, in the order of the document, each
-  its `engine` and its `limits`: `contextTokens`, `maxOutputTokens` and
+- **M1.** On each knowledge base's stream the service answers
+  `job:limits-requested` with one `job:limits-result`, carrying the request's
+  correlation id: `limits`, an entry for each distinct engine it runs for that
+  knowledge base, in the order of that knowledge base's `engines`, each its
+  `engine` and its `limits`: `contextTokens`, `maxOutputTokens` and
   `acceptsTemperature`.
   *Held by `worker-service/limits`.*
 - **M2.** An Ollama model's limits are asked of its provider: `POST
@@ -904,9 +992,9 @@ focused on a resource or on an annotation.
 
 ## Environment
 
-Beside its document, a Worker service reads its environment for its service
-account (`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY`,
-[B3](#configuration)), for the keys its document names
+Beside its document, a Worker service reads its environment for the key it
+signs in with (`SEMIONT_OIDC_CLIENT_KEY`, [B3](#configuration)), for the keys
+its document names
 ([B4](#configuration)), and for the variables of this section. Its own code
 reads no other. The libraries it is built on read some unasked. Its
 OpenTelemetry SDK and exporter read the standard variables they read on
@@ -982,12 +1070,14 @@ its own, such as a proxy and the certificates it trusts.
   and exits with status 0. A request to its provider that is under way ends
   with the process, unanswered.
   *Held by `worker-service/stop`, `worker-service/anthropic`.*
-- **P3.** A claim refused as `unauthorized` ends the service: it exits with
-  status 1, for whatever supervises it to restart. A claim refused for any
-  other reason does not: the service stays up and claims at its next idle
-  moment ([WORKER-CONTRACT C7](./WORKER-CONTRACT.md#claiming)).
+- **P3.** A claim refused as `unauthorized` refuses its knowledge base
+  ([R2](#knowledge-bases)): the grant is gone, and no later claim there
+  changes that. When it was the last knowledge base not refused, the service
+  exits with status 1 ([R5](#knowledge-bases)). A claim refused for any other
+  reason refuses nothing: the engine claims at its next idle moment
+  ([WORKER-CONTRACT C7](./WORKER-CONTRACT.md#claiming)).
   *Held by `worker-service/stop`.*
 - **P4.** A held job that stalls
-  ([WORKER-CONTRACT V2](./WORKER-CONTRACT.md#liveness)) ends the service: it
-  exits with status 1.
+  ([WORKER-CONTRACT V2](./WORKER-CONTRACT.md#liveness)) ends its knowledge
+  base's work, which the service starts again ([R3](#knowledge-bases)).
   *Held by no case.*

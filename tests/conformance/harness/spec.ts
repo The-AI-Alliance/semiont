@@ -458,26 +458,18 @@ export interface AgentCase {
   did: string;
 }
 
-interface Principals {
-  personDid(subject: string): string;
-  agentDid(subject: string): string;
-  people: PersonCase[];
-  agents: AgentCase[];
+interface PrincipalTable {
+  person(domain: string, subject: string): string;
+  agent(domain: string, subject: string): string;
+  people: Array<PersonCase & { domain: string }>;
+  agents: Array<AgentCase & { domain: string }>;
 }
 
-const principalsByDomain = new Map<string, Principals>();
+let principalTable: PrincipalTable | undefined;
 
-/**
- * How the gateway names its principals under `domain` (principals/cases.json):
- * a person's DID from the table's `person` form, each part after the domain
- * percent-encoded as the table states — encodeURIComponent's encoding — and
- * checked against every person case when loaded; and the table's cases for
- * this domain — people, and agents with the DID, address and name the gateway
- * must give each.
- */
-export function principals(domain: string): Principals {
-  const known = principalsByDomain.get(domain);
-  if (known) return known;
+/** principals/cases.json, read once: its two forms, and its cases, each checked against its form. */
+function principalsTable(): PrincipalTable {
+  if (principalTable) return principalTable;
   const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'principals/cases.json'), 'utf8'));
   if (!isObject(table) || typeof table['person'] !== 'string' || typeof table['agent'] !== 'string' || !Array.isArray(table['people']) || !Array.isArray(table['agents'])) {
     throw new Error('principals/cases.json has no person or agent form, people or agents');
@@ -485,38 +477,68 @@ export function principals(domain: string): Principals {
   const named = (form: string) => (d: string, subject: string) => form.replace('{domain}', d).replace('{subject}', encodeURIComponent(subject));
   const person = named(table['person']);
   const agent = named(table['agent']);
-  const people: PersonCase[] = [];
-  for (const c of table['people']) {
-    if (!isObject(c) || typeof c['why'] !== 'string' || typeof c['domain'] !== 'string' || typeof c['subject'] !== 'string' || typeof c['did'] !== 'string') {
-      throw new Error(`principals/cases.json: a person case is malformed: ${JSON.stringify(c)}`);
-    }
-    if (person(c['domain'], c['subject']) !== c['did']) {
-      throw new Error(`principals/cases.json: "${c['why']}" — the person form gives ${person(c['domain'], c['subject'])}, the case says ${c['did']}`);
-    }
-    if (c['domain'] === domain) people.push({ why: c['why'], subject: c['subject'], did: c['did'] });
-  }
-  const agents: AgentCase[] = [];
-  for (const c of table['agents']) {
-    if (!isObject(c) || typeof c['why'] !== 'string' || typeof c['domain'] !== 'string' || typeof c['subject'] !== 'string' || typeof c['did'] !== 'string') {
-      throw new Error(`principals/cases.json: an agent case is malformed: ${JSON.stringify(c)}`);
-    }
-    if (agent(c['domain'], c['subject']) !== c['did']) {
-      throw new Error(`principals/cases.json: "${c['why']}" — the agent form gives ${agent(c['domain'], c['subject'])}, the case says ${c['did']}`);
-    }
-    if (c['domain'] === domain) agents.push({ why: c['why'], subject: c['subject'], did: c['did'] });
-  }
-  if (people.length === 0 || agents.length === 0) throw new Error(`principals/cases.json needs person and agent cases under ${domain}, the suite's knowledge base`);
-  const loaded = { personDid: (subject: string) => person(domain, subject), agentDid: (subject: string) => agent(domain, subject), people, agents };
-  principalsByDomain.set(domain, loaded);
-  return loaded;
+  const read = (kind: 'person' | 'agent', form: (d: string, subject: string) => string, cases: unknown[]) =>
+    cases.map((c) => {
+      if (!isObject(c) || typeof c['why'] !== 'string' || typeof c['domain'] !== 'string' || typeof c['subject'] !== 'string' || typeof c['did'] !== 'string') {
+        throw new Error(`principals/cases.json: ${kind === 'person' ? 'a person' : 'an agent'} case is malformed: ${JSON.stringify(c)}`);
+      }
+      if (form(c['domain'], c['subject']) !== c['did']) {
+        throw new Error(`principals/cases.json: "${c['why']}" — the ${kind} form gives ${form(c['domain'], c['subject'])}, the case says ${c['did']}`);
+      }
+      return { why: c['why'], domain: c['domain'], subject: c['subject'], did: c['did'] };
+    });
+  principalTable = { person, agent, people: read('person', person, table['people']), agents: read('agent', agent, table['agents']) };
+  return principalTable;
 }
 
-/** The knowledge-base identity the suite runs under, from the shared case table. */
-export function kbIdentity(): { name: string; domain: string; did: string; resource: string } {
+/**
+ * How the gateway names its principals under `domain` (principals/cases.json):
+ * a person's DID and an agent's from the table's forms, each part after the
+ * domain percent-encoded as the table states — encodeURIComponent's encoding —
+ * and each form checked against every case of the table when it is read.
+ */
+export function principals(domain: string): { personDid(subject: string): string; agentDid(subject: string): string } {
+  const table = principalsTable();
+  return { personDid: (subject) => table.person(domain, subject), agentDid: (subject) => table.agent(domain, subject) };
+}
+
+/**
+ * The table's cases under `domain`: people, and agents, with the DID, address
+ * and name the gateway must give each. The suite's knowledge base has both.
+ */
+export function principalCases(domain: string): { people: PersonCase[]; agents: AgentCase[] } {
+  const table = principalsTable();
+  const under = <T extends { domain: string }>(cases: T[]) => cases.filter((c) => c.domain === domain).map(({ domain: _domain, ...c }) => c);
+  const people = under(table.people);
+  const agents = under(table.agents);
+  if (people.length === 0 || agents.length === 0) throw new Error(`principals/cases.json needs person and agent cases under ${domain}, the suite's knowledge base`);
+  return { people, agents };
+}
+
+/** The case of kb-identity/cases.json the suite's knowledge base is. */
+export const SUITE_KB = 'the shape semiont init writes';
+
+export interface KbIdentity {
+  name: string;
+  domain: string;
+  did: string;
+  resource: string;
+}
+
+/** A knowledge base's identity, from the shared case table (kb-identity/cases.json): the case `why` names, which must declare one. */
+export function kbIdentity(why: string): KbIdentity {
   const table = JSON.parse(readFileSync(join(SPEC_SOURCE, 'kb-identity/cases.json'), 'utf8')) as {
     cases: Array<{ why: string; name: string; domain: string | null; did: string | null; resource: string | null }>;
   };
-  const chosen = table.cases.find((c) => c.why === 'the shape semiont init writes');
-  if (!chosen?.domain || !chosen.did || !chosen.resource) throw new Error('kb-identity/cases.json has no "the shape semiont init writes" case');
+  const chosen = table.cases.find((c) => c.why === why);
+  if (!chosen?.domain || !chosen.did || !chosen.resource) throw new Error(`kb-identity/cases.json has no "${why}" case that declares an identity`);
   return { name: chosen.name, domain: chosen.domain, did: chosen.did, resource: chosen.resource };
+}
+
+/** A duration of the timing every Semiont client keeps (client/timing.json), by its name: milliseconds. */
+export function clientTiming(name: string): number {
+  const table = JSON.parse(readFileSync(join(SPEC_SOURCE, 'client/timing.json'), 'utf8')) as { timing: Array<{ name: string; value: unknown }> };
+  const value = table.timing.find((t) => t.name === name)?.value;
+  if (typeof value !== 'number' || !name.endsWith('Ms')) throw new Error(`client/timing.json states no duration ${name}`);
+  return value;
 }

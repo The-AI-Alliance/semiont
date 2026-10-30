@@ -60,6 +60,9 @@ function asserted(
   return clientId;
 }
 
+/** How the token endpoint fails a grant it is told to fail. */
+export type GrantFailure = 'unavailable' | 'unanswered';
+
 export interface IssuerServer {
   readonly origin: string;
   readonly fixture: FixtureIssuer;
@@ -71,6 +74,14 @@ export interface IssuerServer {
    * answer. Discovery and the token endpoint answer whichever it is.
    */
   readonly keys: { fetches: number; answer: 'published' | 'failing' | 'silent' };
+  /**
+   * The grants the token endpoint fails before it grants again, in the order
+   * they are asked for: each `unavailable` is answered 503, as an issuer not
+   * ready yet answers, and each `unanswered` has its connection ended with no
+   * answer. `met` is each it failed, and when, on `performance.now()`'s clock,
+   * which the client proxy keeps too.
+   */
+  readonly failing: { next: GrantFailure[]; met: Array<{ failure: GrantFailure; at: number }> };
   /** A person's token. `sub` names them; the claims default to a verified email and a name. */
   person(sub: string, claims?: Record<string, unknown>, options?: Omit<TokenOptions, 'claims'>): Promise<string>;
   /** A service account's token, as the token endpoint would issue it: an agent's account, which says so. */
@@ -84,6 +95,7 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
   let fixture: FixtureIssuer | undefined;
   const grants = new Map<string, number>();
   const keys: IssuerServer['keys'] = { fetches: 0, answer: 'published' };
+  const failing: IssuerServer['failing'] = { next: [], met: [] };
   /** Every assertion's `jti` the token endpoint has taken: one is never taken twice. */
   const seen = new Set<string>();
   /** The client a client-credentials grant proves, by its assertion or by its secret, or undefined. */
@@ -122,6 +134,12 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
       if (req.method === 'POST' && url.pathname === '/token') {
         const chunks: Buffer[] = [];
         for await (const chunk of req) chunks.push(chunk as Buffer);
+        const failure = failing.next.shift();
+        if (failure !== undefined) {
+          failing.met.push({ failure, at: performance.now() });
+          if (failure === 'unanswered') return void res.socket?.destroy();
+          return reply(503, { error: 'temporarily_unavailable' });
+        }
         const form = new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
         const clientId = clientOf(form);
         const account = clientId === undefined ? undefined : accounts[clientId];
@@ -148,6 +166,7 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
     },
     grants,
     keys,
+    failing,
     person(sub, claims = {}, options = {}) {
       return fixture!.token({
         ...options,

@@ -1,0 +1,52 @@
+{
+  "type": "object",
+  "description": "One knowledge base a worker does jobs for: which it is, where its gateway is, the account the worker signs in as there, and the engines it offers it. The worker signs in, confirms the knowledge base and claims at each knowledge base apart from every other.",
+  "properties": {
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The knowledge base's did:web domain, as it answers `browse:kb-requested`: which knowledge base this is. The worker confirms it there before it claims, and refuses a knowledge base that answers another domain, or none."
+    },
+    "gatewayUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL the worker reaches the knowledge base's gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds."
+    },
+    "identity": {
+      "type": "object",
+      "description": "Where the worker signs in for this knowledge base, and as which client.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        },
+        "clientId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The client the issuer holds the public half of the worker's key on: the worker's account at this knowledge base. It is also what the worker says it is called there (`principal:profile`)."
+        }
+      },
+      "required": [
+        "issuer",
+        "clientId"
+      ],
+      "additionalProperties": false
+    },
+    "engines": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The engines the worker offers this knowledge base, and the jobs it does with each: its own choice, on its own providers' keys. It claims each engine's jobs there for it, so a job no engine here is used for is not claimed at this knowledge base.",
+      "items": {
+        "$ref": "./WorkerEngineConfig.json"
+      }
+    }
+  },
+  "required": [
+    "domain",
+    "gatewayUrl",
+    "identity",
+    "engines"
+  ],
+  "additionalProperties": false
+}

@@ -7,7 +7,7 @@ it starts, and anyone else to the same schema. So it is read and refused
 here, and nothing is decided: no TOML is parsed, no `${VAR}` resolved, and no
 value supplied that the document left out. A secret or a key is never in the
 document. The document names the variable that holds it, or the variable is
-the account's own, and the service reads its environment for it.
+the service's own, and the service reads its environment for it.
 
 A refusal is worded as the gateway's, the Dispatcher's and the Archivist's
 are, so an operator reads one kind of message from every service: it names
@@ -24,10 +24,10 @@ from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
-from semiont.http import KeyCredential, SecretCredential
+from semiont.http import SecretCredential
 from semiont.model import WireModel
 
-__all__ = ["Refused", "config_path_of", "key_account_of", "read_config", "service_account_of", "set_in"]
+__all__ = ["Refused", "config_path_of", "read_config", "service_account_of", "set_in", "signing_key_of"]
 
 
 @final
@@ -78,7 +78,7 @@ and some of them repeat what the document held.
 
 
 def _member(location: Sequence[int | str]) -> str:
-    """A member of the document, as the document's own names reach it: `engines[0].jobs`. The document itself is `root`."""
+    """A member of the document, as the document's own names reach it: `knowledgeBases[0].engines[0].jobs`. The document is `root`."""
     path = ""
     for step in location:
         path += f"[{step}]" if isinstance(step, int) else f".{step}" if path else step
@@ -143,13 +143,13 @@ def service_account_of(service: str, issuer: str, environment: Mapping[str, str]
     )
 
 
-def key_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> KeyCredential:
-    """The service's own account at `issuer`, which its document names, proven by its key.
+def signing_key_of(service: str, environment: Mapping[str, str]) -> RSAPrivateKey:
+    """The key the service proves itself with, at every issuer it signs in at.
 
-    `SEMIONT_OIDC_CLIENT_KEY` holds the key: an RSA private key, PEM and
-    unencrypted. A refusal names the variable and never what it holds.
+    `SEMIONT_OIDC_CLIENT_KEY` holds it: an RSA private key, PEM and
+    unencrypted. Which client holds its public half at an issuer is the
+    document's to say. A refusal names the variable and never what it holds.
     """
-    client_id = _held(service, environment, "SEMIONT_OIDC_CLIENT_ID")
     pem = _held(service, environment, "SEMIONT_OIDC_CLIENT_KEY")
     try:
         key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
@@ -159,4 +159,4 @@ def key_account_of(service: str, issuer: str, environment: Mapping[str, str]) ->
         raise Refused(
             f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an RSA key: a {service} signs its assertions with RS256"
         )
-    return KeyCredential(issuer=issuer, client_id=client_id, private_key=key)
+    return key

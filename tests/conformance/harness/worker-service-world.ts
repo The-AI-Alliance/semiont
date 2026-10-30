@@ -1,18 +1,23 @@
 /**
  * A Worker service's world: the service as a process, and everything it meets.
- * That is the trusted issuer, which admits its service account; a real
- * gateway, with the harness's stand-in Archivist behind it for bytes, for
- * uploads and for the text the Smelter read out of a PDF; a stand-in Ollama
- * and a stand-in Anthropic, its providers; and the suite itself on the bus,
- * playing the two parties a worker asks things of there. As the dispatcher it
- * answers `job:claim` from the jobs a case queued. As the record it answers
- * `browse:resource-requested`, `mark:commit` and `browse:annotation-requested`.
+ * That is each knowledge base it serves, as the suite stands in for one: the
+ * trusted issuer, which holds the public half of the worker's key on a client
+ * of its own; a real gateway, with the harness's stand-in Archivist behind it
+ * for bytes, for uploads and for the text the Smelter read out of a PDF; and
+ * the suite itself on the gateway's bus, playing the two parties a worker asks
+ * things of there. As the dispatcher it answers `job:claim` from the jobs a
+ * case queued. As the record it answers `browse:kb-requested`,
+ * `browse:resource-requested`, `mark:commit` and
+ * `browse:annotation-requested`. Beside them are a stand-in Ollama and a
+ * stand-in Anthropic, the providers every knowledge base's engines share.
  *
- * The worker is pointed at a recording proxy in front of the gateway, so
- * everything it sends is read as a transcript: its sign-in, the stream it
- * opens, each emit, each read of bytes. Nothing reaches inside the process.
+ * A case's worker serves the world's own knowledge base, and, in a case about
+ * a worker of several, the world's second beside it. The worker is pointed at
+ * a recording proxy in front of each gateway, so everything it sends a
+ * knowledge base is read as a transcript: its sign-in, the stream it opens,
+ * each emit, each read of bytes. Nothing reaches inside the process.
  */
-import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, type KeyObject } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
 import type { components } from '@semiont/core';
 import { startAnthropic, type ModelFacts, type StandInAnthropic } from './anthropic';
@@ -22,15 +27,25 @@ import { freePort } from './net';
 import { startOllama, type StandInOllama } from './ollama';
 import { MODEL_CATALOGUE } from './paths';
 import { SERVICE_ROLE, WORKER_ROLE } from './roles';
-import { errorsOf, principals, spec } from './spec';
+import { errorsOf, kbIdentity, principals, spec, SUITE_KB, type KbIdentity } from './spec';
 import type { BusFrame, BusStream } from './stream';
-import { refusedWorkerBoot, startWorkerService, type WorkerEnvironment, type WorkerLaunch, type WorkerProcess, type WorkerSettings } from './worker-service-process';
+import { refusedWorkerBoot, spawnWorkerService, type WorkerEnvironment, type WorkerLaunch, type WorkerProcess, type WorkerSettings } from './worker-service-process';
 import { World } from './world';
 
-/** The worker's service account at the issuer. */
+/** The client the world's own knowledge base's issuer holds the worker's key on: the worker's account there. */
 export const WORKER_CLIENT = 'semiont-worker';
 
-/** The roles the worker's account holds at the issuer, in the order its token carries them. */
+/**
+ * The client the second knowledge base's issuer holds the worker's key on:
+ * another than the first's, so that what the worker says it is called at each
+ * is told apart.
+ */
+export const SECOND_WORKER_CLIENT = 'semiont-worker-second';
+
+/** The case of kb-identity/cases.json the second knowledge base is. */
+const SECOND_KB = 'plain scalars, and a version, which names nothing';
+
+/** The roles the worker's account holds at each issuer, in the order its token carries them. */
 export const WORKER_ROLES: readonly string[] = [SERVICE_ROLE, WORKER_ROLE];
 
 /**
@@ -53,6 +68,7 @@ export type FailureClass = components['schemas']['FailureClass'];
 export type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type WorkerEngineConfig = components['schemas']['WorkerEngineConfig'];
+type WorkerKnowledgeBaseConfig = components['schemas']['WorkerKnowledgeBaseConfig'];
 
 /** An engine a case's worker runs: a provider and a model. */
 export interface Engine {
@@ -94,6 +110,14 @@ export interface Emit {
   by: string | undefined;
   /** The status the gateway answered it with. */
   status: number | undefined;
+  /** When the proxy had it, on the clock its requests and the frames its streams carried share. */
+  arrived: number;
+}
+
+/** A frame one of the worker's streams carried, and when the proxy read it, on the clock its requests share. */
+export interface Carried {
+  frame: BusFrame;
+  at: number;
 }
 
 /** One sign-in a worker made at the gateway: the token it carried, and the DID the gateway answered `GET /api/users/me` with. */
@@ -104,6 +128,15 @@ export interface SignIn {
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** `text` as the JSON it holds, or undefined for text that holds none. */
+function parsed(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The token a request carried as its bearer. */
 const bearerOf = (request: ProxiedRequest): string | undefined => request.headers.authorization?.replace(/^Bearer /, '');
 
@@ -113,12 +146,24 @@ function takes(filter: JobFilter, job: RunningJob): boolean {
   return filter.jobType !== 'mark' || filter.params.motivation === job.params['motivation'];
 }
 
-/** A running worker, and the transcript of what it has sent the gateway. */
+/**
+ * A running worker, as one knowledge base it serves meets it: the transcript
+ * of what it has sent that knowledge base's gateway.
+ */
 export class Served {
   constructor(
     readonly process: WorkerProcess,
     readonly proxy: ClientProxy,
+    /** The proxy in front of the gateway of each knowledge base the worker serves. */
+    readonly proxies: ReadonlyMap<StandInKnowledgeBase, ClientProxy>,
   ) {}
+
+  /** The same worker, as `kb` meets it. */
+  at(kb: StandInKnowledgeBase): Served {
+    const proxy = this.proxies.get(kb);
+    if (!proxy) throw new Error(`the worker does not serve ${kb.domain}`);
+    return new Served(this.process, proxy, this.proxies);
+  }
 
   /** Each sign-in the gateway answered, in order. */
   signIns(): SignIn[] {
@@ -130,15 +175,32 @@ export class Served {
     });
   }
 
+  /** Every token the worker carried here as its bearer. */
+  tokens(): string[] {
+    return [...new Set(this.proxy.requests.flatMap((r) => bearerOf(r) ?? []))];
+  }
+
   /** The DID the gateway named the bearer of `request`'s token by, when it signed in with it. */
   private by(request: ProxiedRequest): string | undefined {
     const bearer = bearerOf(request);
     return this.signIns().find((s) => s.token === bearer)?.did;
   }
 
-  /** Every stream opened: who opened it, and what it names. */
-  streams(): Array<{ by: string | undefined; body: Record<string, unknown> }> {
-    return this.proxy.requests.flatMap((r) => (r.method === 'POST' && r.path === '/bus/subscribe' && isObject(r.json) ? [{ by: this.by(r), body: r.json }] : []));
+  /** Every stream opened: who opened it, what it names, and whether it has ended. */
+  streams(): Array<{ by: string | undefined; body: Record<string, unknown>; closed: boolean }> {
+    return this.proxy.requests.flatMap((r) => (r.method === 'POST' && r.path === '/bus/subscribe' && isObject(r.json) ? [{ by: this.by(r), body: r.json, closed: r.closed }] : []));
+  }
+
+  /** The frames on `channel` the worker's streams carried to it, in the order the proxy read them. */
+  carried(channel: string): Carried[] {
+    return this.proxy.requests.flatMap((r) =>
+      r.method === 'POST' && r.path === '/bus/subscribe'
+        ? r.events.flatMap((event) => {
+            const frame = event.event === 'bus-event' ? parsed(event.data) : undefined;
+            return isObject(frame) && frame['channel'] === channel ? [{ frame: frame as unknown as BusFrame, at: event.at }] : [];
+          })
+        : [],
+    );
   }
 
   private emitOf(r: ProxiedRequest): Emit | undefined {
@@ -152,6 +214,7 @@ export class Served {
       scope: typeof scope === 'string' ? scope : undefined,
       by: this.by(r),
       status: r.status,
+      arrived: r.arrived,
     };
   }
 
@@ -184,14 +247,15 @@ export class Served {
    * What the worker asked of the gateway, in order, by name: `emit <channel>`,
    * `GET <path>`, `POST <path>`. Progress reports are left out: a worker does
    * not wait for the gateway to take one before it goes on, so where they fall
-   * among the rest is not fixed. Sign-ins, streams and the agent's saying what
-   * it is called are left out too: what a worker says as it starts.
+   * among the rest is not fixed. Sign-ins, streams, the question of which
+   * knowledge base this is and the agent's saying what it is called are left
+   * out too: what a worker says as it starts.
    */
   sequence(): string[] {
     return this.proxy.requests.flatMap((r) => {
       if (r.path === '/api/users/me' || r.path === '/bus/subscribe') return [];
       const emit = this.emitOf(r);
-      if (emit) return emit.channel === 'job:report-progress' || emit.channel === 'principal:profile' ? [] : [`emit ${emit.channel}`];
+      if (emit) return STARTING.has(emit.channel) || emit.channel === 'job:report-progress' ? [] : [`emit ${emit.channel}`];
       return [`${r.method} ${r.path}`];
     });
   }
@@ -206,16 +270,18 @@ export class Served {
     return this.proxy.requests.flatMap((r) => (r.status !== undefined && r.status >= 400 ? [`${r.method} ${r.path} answered ${r.status}: ${JSON.stringify(r.json ?? null).slice(0, 300)} → ${JSON.stringify(r.answer ?? null).slice(0, 300)}`] : []));
   }
 
-  /** The whole transcript, for a failing case. */
-  account(): string {
-    const wire = this.proxy.requests.map((r) => {
+  /** What it asked of this knowledge base's gateway, for a failing case. */
+  account(): string[] {
+    return this.proxy.requests.map((r) => {
       const emit = this.emitOf(r);
       const what = emit ? `emit ${emit.channel} ${JSON.stringify(emit.payload)}` : r.path === '/bus/subscribe' ? `subscribe ${JSON.stringify(r.json)}` : `${r.method} ${r.path}`;
       return `    [${r.status ?? 'unanswered'}] ${what}`;
     });
-    return ['  the worker asked the gateway:', ...wire, '  the worker wrote:', ...this.process.output.slice(-80).map((line) => `    ${line}`)].join('\n');
   }
 }
+
+/** What a worker says on a knowledge base's bus as it starts there: which knowledge base this is, and what the agent is called. */
+const STARTING: ReadonlySet<string> = new Set(['browse:kb-requested', 'principal:profile']);
 
 /** Progress reports in a fixed order: by percentage, then by their text. */
 export function sortedProgress(reports: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
@@ -223,7 +289,27 @@ export function sortedProgress(reports: Array<Record<string, unknown>>): Array<R
   return [...reports].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
 }
 
-export class WorkerServiceWorld {
+/**
+ * How a knowledge base answers a worker that asks which it is
+ * (`browse:kb-requested`), when a case says otherwise than its plain answer:
+ * with another domain, with `browse:kb-failed`, or not at all.
+ */
+export type Confirmation = { domain: string } | { failure: string } | 'unanswered';
+
+/** The channels the suite answers on a knowledge base's bus, as the dispatcher and as the record. */
+const ANSWERED = ['job:claim', 'browse:kb-requested', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested'];
+
+/** The world of a knowledge base the suite stands in for, whose issuer holds the public half of the worker's key on `client`. */
+async function standInWorld(identity: KbIdentity, client: string, publicKey: KeyObject): Promise<World> {
+  return World.create('in-process', { kb: identity, accounts: { [client]: { publicKey, roles: [...WORKER_ROLES] } } });
+}
+
+/**
+ * A knowledge base a worker serves, as the suite stands in for it: its
+ * gateway, behind the issuer that holds the worker's key on `client`, and the
+ * suite on its bus as the dispatcher and the record.
+ */
+export class StandInKnowledgeBase {
   /** Jobs waiting to be claimed, in order. A claim is answered with the first its filters take. */
   readonly queue: RunningJob[] = [];
   /** Every `job:claim` the dispatcher received: who claimed, with what filters, and the job it was answered with. */
@@ -244,135 +330,62 @@ export class WorkerServiceWorld {
    * the next job whatever the claim's filters: what no dispatcher does.
    * `commit` runs when a batch arrives and before it is acknowledged, and may
    * refuse it with a reason. `described` runs when a resource's description
-   * is asked for and before it is answered.
+   * is asked for and before it is answered. `confirm` runs when the worker
+   * asks which knowledge base this is and before it is answered, and may
+   * answer otherwise than this knowledge base's domain.
    */
   hooks: {
     claim?: () => { code?: string; message: string } | undefined;
     handAnyJob?: boolean;
     commit?: (commit: Commit) => Promise<{ refuse: string } | undefined> | { refuse: string } | undefined;
     described?: (resourceId: string) => Promise<void>;
+    confirm?: () => Promise<Confirmation | undefined> | Confirmation | undefined;
   } = {};
 
-  private readonly served: Served[] = [];
   private peer!: { stream: BusStream; token: string; clientId: string };
 
-  private constructor(
-    readonly implementation: string,
-    private readonly command: readonly string[],
+  protected constructor(
     readonly world: World,
-    readonly ollama: StandInOllama,
-    readonly anthropic: StandInAnthropic,
-    /** The worker's service account, as the issuer knows it. */
-    readonly env: WorkerEnvironment,
+    /** The client its issuer holds the worker's key on: the worker's account here. */
+    readonly client: string,
   ) {}
 
-  static async create(implementation: string): Promise<WorkerServiceWorld> {
-    const command = inject('workerServices')[implementation];
-    if (!command) throw new Error(`harness/paths.ts names no Worker service ${implementation}`);
-    // The worker proves itself with a key: the issuer holds the public half, the worker's environment the private.
-    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-    const key = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
-    const world = await World.create('in-process', { accounts: { [WORKER_CLIENT]: { publicKey, roles: [...WORKER_ROLES] } } });
-    const ollama = await startOllama();
-    const anthropic = await startAnthropic(
-      `sk-ant-conformance-${randomBytes(24).toString('hex')}`,
-      ANTHROPIC_ENGINES.map((engine) => engine.model),
-      ANTHROPIC_MODEL,
-    );
-    const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_KEY: key });
-    made.peer = await world.responder(
-      ['job:claim', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested'],
-      (frame) => made.answer(frame),
-    );
-    return made;
+  /** Stand in for the knowledge base `identity` is. */
+  static async standIn(identity: KbIdentity, client: string, publicKey: KeyObject): Promise<StandInKnowledgeBase> {
+    const kb = new StandInKnowledgeBase(await standInWorld(identity, client, publicKey), client);
+    await kb.attend();
+    return kb;
   }
 
-  // ── who the worker is, and the engines it runs ──────────────────────────
+  /** Put the suite on this knowledge base's bus, as the parties a worker asks things of. */
+  protected async attend(): Promise<void> {
+    this.peer = await this.world.responder(ANSWERED, (frame) => this.answer(frame));
+  }
 
-  /** The DID the gateway names the worker by: its account's (principals/cases.json). */
+  // ── which knowledge base this is, and who the worker is here ─────────────
+
+  /** Its did:web domain, as it answers `browse:kb-requested`. */
+  get domain(): string {
+    return this.world.kb.domain;
+  }
+
+  /** The DID the gateway names the worker by here: its account's (principals/cases.json). */
   get did(): string {
-    return principals(this.world.kb.domain).agentDid(this.world.issuer.subjectOf(WORKER_CLIENT));
+    return principals(this.domain).agentDid(this.world.issuer.subjectOf(this.client));
   }
 
-  /** The engines a case's worker runs unless the case says otherwise: Ollama's. */
-  get engines(): readonly Engine[] {
-    return OLLAMA_ENGINES;
-  }
-
-  /** The engines of a case about a worker on Anthropic. */
-  get anthropicEngines(): readonly Engine[] {
-    return ANTHROPIC_ENGINES;
-  }
-
-  /** The `generator` the worker states on what `engine` makes: the worker, by its DID, and the engine. */
-  generator(engine: Engine = this.engines[0]!): Record<string, unknown> {
+  /** The `generator` the worker states on what `engine` makes here: the worker, by its DID here, and the engine. */
+  generator(engine: Engine = OLLAMA_ENGINES[0]!): Record<string, unknown> {
     return { '@type': 'Software', '@id': this.did, provider: engine.provider, model: engine.model };
   }
 
-  // ── the document a worker is started with ────────────────────────────────
-
   /**
-   * A worker's configuration document: one engine, the first, used for every
-   * job on the stand-in Ollama, unless `engines` says otherwise. It names
-   * `gatewayUrl`, which `start` points at its recording proxy.
+   * What a worker's document says of this knowledge base: its domain, its
+   * gateway at `gatewayUrl`, its issuer and the client the worker signs in as
+   * there, and the engines the worker offers it.
    */
-  async settings(gatewayUrl: string, engines?: WorkerEngineConfig[]): Promise<WorkerSettings> {
-    const first = this.engines[0]!;
-    return {
-      gatewayUrl,
-      identity: { issuer: this.world.issuer.origin },
-      engines: engines ?? [{ engine: { provider: first.provider, model: first.model }, jobs: everyJob(), baseUrl: this.ollama.origin }],
-      modelCatalogue: MODEL_CATALOGUE,
-      port: await freePort(),
-      logLevel: 'info',
-      logFormat: 'json',
-    };
-  }
-
-  /**
-   * An entry of the document's `engines`: `engine`, used for `jobs`, on the
-   * stand-in of its provider. An Anthropic engine's entry names the variable
-   * its key is in.
-   */
-  entry(engine: Engine, jobs: JobFilter[]): WorkerEngineConfig {
-    const used = { engine: { provider: engine.provider, model: engine.model }, jobs };
-    return engine.provider === 'anthropic' ? { ...used, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...used, baseUrl: this.ollama.origin };
-  }
-
-  /** A launch as `start` makes it, for a case that must change it: the gateway is dialled directly. */
-  async launch(change: Partial<Omit<WorkerLaunch, 'command'>> = {}): Promise<WorkerLaunch> {
-    return { command: this.command, settings: await this.settings(this.world.origin), env: this.env, ...change };
-  }
-
-  /** Start a worker that must refuse to start: its exit code and what it wrote. */
-  async refused(change: Partial<Omit<WorkerLaunch, 'command'>> = {}): Promise<{ code: number | null; output: string; stderr: string }> {
-    return refusedWorkerBoot(await this.launch(change));
-  }
-
-  /**
-   * Start a worker behind a recording proxy and wait for its health. It is
-   * stopped when the case ends. Each variable its document names for a key
-   * holds the stand-in Anthropic's.
-   */
-  async start(options: { engines?: WorkerEngineConfig[]; env?: WorkerEnvironment; unlisted?: Record<string, string>; settings?: Partial<WorkerSettings> } = {}): Promise<Served> {
-    const proxy = await startClientProxy(this.world.origin);
-    try {
-      const settings: WorkerSettings = { ...(await this.settings(proxy.origin, options.engines)), ...options.settings };
-      const keys: WorkerEnvironment = {};
-      for (const entry of settings.engines) if (entry.apiKeyEnv !== undefined) keys[entry.apiKeyEnv] = this.anthropic.apiKey;
-      const process = await startWorkerService({
-        command: this.command,
-        settings,
-        env: { ...this.env, ...keys, ...options.env },
-        ...(options.unlisted ? { unlisted: options.unlisted } : {}),
-      });
-      const served = new Served(process, proxy);
-      this.served.push(served);
-      return served;
-    } catch (error) {
-      await proxy.close();
-      throw error;
-    }
+  configuration(gatewayUrl: string, engines: WorkerEngineConfig[], client = this.client): WorkerKnowledgeBaseConfig {
+    return { domain: this.domain, gatewayUrl, identity: { issuer: this.world.issuer.origin, clientId: client }, engines };
   }
 
   // ── what a case gives the parties the suite plays ────────────────────────
@@ -463,6 +476,13 @@ export class WorkerServiceWorld {
         claim.answered = job!.metadata.id;
         return { channel: 'job:claimed', payload: { response: job } };
       }
+      case 'browse:kb-requested': {
+        const confirmation = await this.hooks.confirm?.();
+        if (confirmation === 'unanswered') return undefined;
+        if (confirmation !== undefined && 'failure' in confirmation) return { channel: 'browse:kb-failed', payload: { message: confirmation.failure } };
+        const domain = confirmation === undefined ? this.domain : confirmation.domain;
+        return { channel: 'browse:kb-result', payload: { response: { name: this.world.kb.name, domain } } };
+      }
       case 'browse:resource-requested': {
         this.descriptorReads.push(resourceId);
         await this.hooks.described?.(resourceId);
@@ -496,38 +516,29 @@ export class WorkerServiceWorld {
 
   // ── the end of a case ────────────────────────────────────────────────────
 
-  /** What a failing case shows: every worker's transcript, and what its providers were asked. */
-  account(): string {
+  /** What a failing case shows of this knowledge base: what its record was committed and its dispatcher claimed from, and what its gateway wrote. */
+  account(): string[] {
     return [
-      ...this.served.map((s) => s.account()),
-      '  the stand-in Ollama was asked:',
-      ...this.ollama.generations.map((g) => `    ${JSON.stringify(g.body)}${g.abandoned ? ' (abandoned)' : ''}`),
-      '  the stand-in Anthropic was asked:',
-      ...this.anthropic.requests.map((r) => `    ${r.method} ${r.path} ${JSON.stringify(r.body ?? null)}${r.abandoned ? ' (abandoned)' : ''}`),
-      '  the record was committed:',
+      `  ${this.domain}'s record was committed:`,
       ...this.commits.map((c) => `    ${JSON.stringify(c)}`),
-      '  the dispatcher was claimed from:',
+      `  ${this.domain}'s dispatcher was claimed from:`,
       ...this.claims.map((c) => `    ${JSON.stringify(c)}`),
-    ].join('\n');
+      `  ${this.domain}'s gateway wrote:`,
+      ...this.world.gateway.output.map((line) => `    ${line}`),
+    ];
   }
 
   /**
-   * Stop every worker the case started and forget what the case scripted.
-   * Returns what went wrong that no case may let pass: a request of the
-   * gateway that it refused, a request of a provider no case scripted, a
-   * frame outside the spec, an Archivist call or answer outside its own, and
-   * anything the suite itself handed a worker outside the spec.
+   * What went wrong here that no case may let pass, and forget what the case
+   * scripted: a frame outside the spec, an Archivist call or answer outside
+   * its own, anything the suite itself handed a worker outside the spec, and
+   * a grant the issuer was told to fail that no grant met.
    */
-  async settle(allowRefusedRequests = false): Promise<string[]> {
-    const violations: string[] = [];
-    for (const served of this.served.splice(0)) {
-      if (!allowRefusedRequests) violations.push(...served.refused());
-      await served.process.stop();
-      await served.proxy.close();
-    }
-    violations.push(...this.ollama.violations.splice(0), ...this.anthropic.violations.splice(0), ...this.violations.splice(0), ...this.world.drain());
-    this.ollama.reset();
-    this.anthropic.reset();
+  forget(): string[] {
+    const violations = [...this.violations.splice(0), ...this.world.drain()];
+    const unmet = this.world.issuer.failing.next.splice(0);
+    if (unmet.length > 0) violations.push(`${this.domain}'s issuer was told to fail grants no grant met: ${unmet.join(', ')}`);
+    this.world.issuer.failing.met.length = 0;
     this.queue.length = 0;
     this.claims.length = 0;
     this.descriptors.clear();
@@ -543,11 +554,204 @@ export class WorkerServiceWorld {
   }
 
   async close(): Promise<void> {
+    await this.world.close();
+  }
+}
+
+/**
+ * A case's world: its own knowledge base, which every case's worker serves,
+ * the second a case of a worker of two has it serve beside the first, the
+ * providers both share, and the workers the case started.
+ */
+export class WorkerServiceWorld extends StandInKnowledgeBase {
+  private readonly served: Served[] = [];
+  private secondKnowledgeBase: StandInKnowledgeBase | undefined;
+
+  private constructor(
+    readonly implementation: string,
+    private readonly command: readonly string[],
+    world: World,
+    readonly ollama: StandInOllama,
+    readonly anthropic: StandInAnthropic,
+    /** The key the worker signs in with at every knowledge base, as its environment holds it. */
+    readonly env: WorkerEnvironment,
+    /** The key's public half, which each knowledge base's issuer holds on the worker's client there. */
+    private readonly publicKey: KeyObject,
+  ) {
+    super(world, WORKER_CLIENT);
+  }
+
+  static async create(implementation: string): Promise<WorkerServiceWorld> {
+    const command = inject('workerServices')[implementation];
+    if (!command) throw new Error(`harness/paths.ts names no Worker service ${implementation}`);
+    // The worker proves itself with a key: each issuer holds the public half, the worker's environment the private.
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const key = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const world = await standInWorld(kbIdentity(SUITE_KB), WORKER_CLIENT, publicKey);
+    const ollama = await startOllama();
+    const anthropic = await startAnthropic(
+      `sk-ant-conformance-${randomBytes(24).toString('hex')}`,
+      ANTHROPIC_ENGINES.map((engine) => engine.model),
+      ANTHROPIC_MODEL,
+    );
+    const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_KEY: key }, publicKey);
+    await made.attend();
+    return made;
+  }
+
+  /**
+   * The second knowledge base: another domain, a gateway and an issuer of its
+   * own, the worker's key held there on `SECOND_WORKER_CLIENT`. Made when a
+   * case first asks for it, and kept for the file's other cases.
+   */
+  async second(): Promise<StandInKnowledgeBase> {
+    this.secondKnowledgeBase ??= await StandInKnowledgeBase.standIn(kbIdentity(SECOND_KB), SECOND_WORKER_CLIENT, this.publicKey);
+    return this.secondKnowledgeBase;
+  }
+
+  // ── the engines a worker runs ────────────────────────────────────────────
+
+  /** The engines a case's worker runs unless the case says otherwise: Ollama's. */
+  get engines(): readonly Engine[] {
+    return OLLAMA_ENGINES;
+  }
+
+  /** The engines of a case about a worker on Anthropic. */
+  get anthropicEngines(): readonly Engine[] {
+    return ANTHROPIC_ENGINES;
+  }
+
+  /**
+   * An entry of a knowledge base's `engines`: `engine`, used for `jobs`, on the
+   * stand-in of its provider. An Anthropic engine's entry names the variable
+   * its key is in.
+   */
+  entry(engine: Engine, jobs: JobFilter[]): WorkerEngineConfig {
+    const used = { engine: { provider: engine.provider, model: engine.model }, jobs };
+    return engine.provider === 'anthropic' ? { ...used, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...used, baseUrl: this.ollama.origin };
+  }
+
+  /** What a knowledge base's worker runs unless a case says otherwise: one engine, the first, used for every job. */
+  private everything(): WorkerEngineConfig[] {
+    return [this.entry(this.engines[0]!, everyJob())];
+  }
+
+  // ── the document a worker is started with ────────────────────────────────
+
+  /** A worker's configuration document, serving `knowledgeBases`. */
+  async settings(knowledgeBases: WorkerKnowledgeBaseConfig[]): Promise<WorkerSettings> {
+    return { knowledgeBases, modelCatalogue: MODEL_CATALOGUE, port: await freePort(), logLevel: 'info', logFormat: 'json' };
+  }
+
+  /** A launch of a worker of this world's knowledge base as `start` makes one, for a case that must change it: the gateway is dialled directly. */
+  async launch(change: Partial<Omit<WorkerLaunch, 'command'>> = {}): Promise<WorkerLaunch> {
+    return { command: this.command, settings: await this.settings([this.configuration(this.world.origin, this.everything())]), env: this.env, ...change };
+  }
+
+  /** Start a worker that must refuse to start: its exit code and what it wrote. */
+  async refused(change: Partial<Omit<WorkerLaunch, 'command'>> = {}): Promise<{ code: number | null; output: string; stdout: string[]; stderr: string }> {
+    return refusedWorkerBoot(await this.launch(change));
+  }
+
+  /**
+   * Start a worker serving this world's knowledge base, with `engines` there,
+   * and each of `serving` after it, behind a recording proxy in front of each
+   * gateway, and go on without waiting for its health. A knowledge base of
+   * `serving` is signed in at as its client unless `client` names another. It
+   * is stopped when the case ends. Each variable its document names for a key
+   * holds the stand-in Anthropic's.
+   */
+  async spawn(options: StartOptions = {}): Promise<Served> {
+    const own = await startClientProxy(this.world.origin);
+    const proxies = new Map<StandInKnowledgeBase, ClientProxy>([[this, own]]);
+    try {
+      const entries = [this.configuration(own.origin, options.engines ?? this.everything())];
+      for (const { kb, engines, client } of options.serving ?? []) {
+        const proxy = await startClientProxy(kb.world.origin);
+        proxies.set(kb, proxy);
+        entries.push(kb.configuration(proxy.origin, engines, client));
+      }
+      const settings: WorkerSettings = { ...(await this.settings(entries)), ...options.settings };
+      const keys: WorkerEnvironment = {};
+      for (const entry of settings.knowledgeBases.flatMap((kb) => kb.engines)) if (entry.apiKeyEnv !== undefined) keys[entry.apiKeyEnv] = this.anthropic.apiKey;
+      const process = spawnWorkerService({
+        command: this.command,
+        settings,
+        env: { ...this.env, ...keys, ...options.env },
+        ...(options.unlisted ? { unlisted: options.unlisted } : {}),
+      });
+      const served = new Served(process, own, proxies);
+      this.served.push(served);
+      return served;
+    } catch (error) {
+      for (const proxy of proxies.values()) await proxy.close();
+      throw error;
+    }
+  }
+
+  /** Start a worker as `spawn` does, and wait for its health. */
+  async start(options: StartOptions = {}): Promise<Served> {
+    const served = await this.spawn(options);
+    await served.process.healthy();
+    return served;
+  }
+
+  // ── the end of a case ────────────────────────────────────────────────────
+
+  /** What a failing case shows: every worker's transcript at each knowledge base, what it wrote, what its providers were asked, and each knowledge base's record, dispatcher and gateway. */
+  override account(): string[] {
+    return [
+      ...this.served.flatMap((served) => [
+        ...[...served.proxies.keys()].flatMap((kb) => [`  the worker asked ${kb.domain}'s gateway:`, ...served.at(kb).account()]),
+        '  the worker wrote:',
+        ...served.process.output.slice(-80).map((line) => `    ${line}`),
+      ]),
+      '  the stand-in Ollama was asked:',
+      ...this.ollama.generations.map((g) => `    ${JSON.stringify(g.body)}${g.abandoned ? ' (abandoned)' : ''}`),
+      '  the stand-in Anthropic was asked:',
+      ...this.anthropic.requests.map((r) => `    ${r.method} ${r.path} ${JSON.stringify(r.body ?? null)}${r.abandoned ? ' (abandoned)' : ''}`),
+      ...super.account(),
+      ...(this.secondKnowledgeBase?.account() ?? []),
+    ];
+  }
+
+  /**
+   * Stop every worker the case started and forget what the case scripted.
+   * Returns what went wrong that no case may let pass: a request of a gateway
+   * that it refused, a request of a provider no case scripted, and what each
+   * knowledge base's `forget` returns.
+   */
+  async settle(allowRefusedRequests = false): Promise<string[]> {
+    const violations: string[] = [];
+    for (const served of this.served.splice(0)) {
+      if (!allowRefusedRequests) for (const kb of served.proxies.keys()) violations.push(...served.at(kb).refused());
+      await served.process.stop();
+      for (const proxy of served.proxies.values()) await proxy.close();
+    }
+    violations.push(...this.ollama.violations.splice(0), ...this.anthropic.violations.splice(0), ...this.forget(), ...(this.secondKnowledgeBase?.forget() ?? []));
+    this.ollama.reset();
+    this.anthropic.reset();
+    return violations;
+  }
+
+  override async close(): Promise<void> {
     await this.settle(true);
     await this.ollama.close();
     await this.anthropic.close();
-    await this.world.close();
+    await this.secondKnowledgeBase?.close();
+    await super.close();
   }
+}
+
+/** How a case starts a worker: what `WorkerServiceWorld.spawn` takes. */
+export interface StartOptions {
+  /** The engines it offers the world's own knowledge base. */
+  engines?: WorkerEngineConfig[];
+  /** The knowledge bases it serves after the world's own, in order, each with the engines it offers there. */
+  serving?: Array<{ kb: StandInKnowledgeBase; engines: WorkerEngineConfig[]; client?: string }>;
+  env?: WorkerEnvironment;
+  unlisted?: Record<string, string>;
+  settings?: Partial<WorkerSettings>;
 }
 
 /**
@@ -568,7 +772,7 @@ export function eachWorkerService(title: string, body: (world: () => WorkerServi
     });
     afterEach(async (context) => {
       // A failing case shows what the worker sent and wrote while it ran.
-      if (context.task.result?.state === 'fail') console.error(`${context.task.name}\n${world?.account()}\ngateway output:\n${world?.world.gateway.output.join('\n')}`);
+      if (context.task.result?.state === 'fail') console.error(`${context.task.name}\n${world?.account().join('\n')}`);
       expect((await world?.settle(options.allowRefusedRequests)) ?? []).toEqual([]);
     });
     body(() => world!);

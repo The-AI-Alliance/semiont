@@ -380,10 +380,16 @@ var serviceDocuments = map[string]struct {
 	}},
 	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", func(p placement, _ kbRoot) ([]byte, error) { return dispatcherDocument(p) }},
 	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ kbRoot) ([]byte, error) { return archivistDocument(p) }},
-	"worker":     {workerDocumentFile, "the worker's", func(p placement, _ kbRoot) ([]byte, error) { return workerDocument(p) }},
-	"smelter":    {smelterDocumentFile, "the Smelter's", func(p placement, _ kbRoot) ([]byte, error) { return smelterDocument(p) }},
-	"weaver":     {weaverDocumentFile, "the Weaver's", func(p placement, _ kbRoot) ([]byte, error) { return weaverDocument(p) }},
-	"librarian":  {librarianDocumentFile, "the Librarian's", func(p placement, _ kbRoot) ([]byte, error) { return librarianDocument(p) }},
+	"worker": {workerDocumentFile, "the worker's", func(p placement, kb kbRoot) ([]byte, error) {
+		added, err := loadAddedKBs()
+		if err != nil {
+			return nil, err
+		}
+		return workerDocument(p, kb.ident.domain(), added)
+	}},
+	"smelter":   {smelterDocumentFile, "the Smelter's", func(p placement, _ kbRoot) ([]byte, error) { return smelterDocument(p) }},
+	"weaver":    {weaverDocumentFile, "the Weaver's", func(p placement, _ kbRoot) ([]byte, error) { return weaverDocument(p) }},
+	"librarian": {librarianDocumentFile, "the Librarian's", func(p placement, _ kbRoot) ([]byte, error) { return librarianDocument(p) }},
 }
 
 // stageService writes one service's configuration document into the stage:
