@@ -80,7 +80,7 @@ each way. Every error is an `ErrorResponse`. Handlers:
 | File | Routes |
 |---|---|
 | [routes/meta.rs](../src/routes/meta.rs) | `GET /api/health`, `GET /`, `GET /api/openapi.json`, `GET /.well-known/oauth-protected-resource`, `GET /api/status`, `GET /api/users/me` |
-| [routes/tokens.rs](../src/routes/tokens.rs) | `POST /api/tokens/agent`, `POST /api/tokens/media` |
+| [routes/tokens.rs](../src/routes/tokens.rs) | `POST /api/tokens/media` |
 | [routes/content.rs](../src/routes/content.rs) | `POST /resources`, `GET /resources/{id}`, `GET /api/resources/{id}`, `GET /resources/{id}/jsonld`, `GET /resources/{id}/annotations`, `GET /resources/{id}/anchored-text` |
 | [routes/bus.rs](../src/routes/bus.rs) | `POST /bus/emit` |
 | [routes/stream.rs](../src/routes/stream.rs) | `POST /bus/subscribe` |

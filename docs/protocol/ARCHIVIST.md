@@ -570,9 +570,9 @@ that follows the signal does not wait.
 The Archivist boots in this order, and a failure at any step ends the process with status 1:
 
 1. Read and validate the configuration document.
-2. Sign in: its service account's token at the issuer, exchanged at the gateway for the agent token
-   it reaches the bus with, as the software agent `semiont archivist`. The token is renewed before
-   it expires.
+2. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
+   names it by that account, as an agent, and answers its DID at `GET /api/users/me`. The token is
+   renewed before it expires.
 3. Read the project file ([Configuration](#configuration)).
 4. Ask staging whether it can work ([Staging](#staging)).
 5. Refuse to start without a `site.domain`.

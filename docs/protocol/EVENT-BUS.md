@@ -28,7 +28,7 @@ not an oversight.
 | `GET /resources/:id/jsonld` | a resource's linked-data description, for an HTTP client following a content response's `Link: rel="describedby"` | A client dereferencing a link speaks HTTP. `browse:resource-requested` remains the bus-side read for everyone else. |
 | `GET /resources/:id/anchored-text` | a resource's anchored text: the text read out of its content, with where each run of it is on a page | It is as large as the document it was read from, and an emit's body is limited in size. It is content, and content rides HTTP. |
 | `GET /events/:resourceId?fromSequence=N` | the `Last-Event-ID` replay behind `/bus/subscribe` | A bulk backlog read at connection setup, not an event. Bounded to one resource from one sequence, one customer. `browse:events-requested` remains the bus-side read for ordinary queries — the duplication is accepted and narrow. |
-| `POST /api/tokens/agent` | a sidecar or worker buying an agent token | Bootstrapping a credential must not depend on the thing the credential is for. |
+| `GET /api/users/me` | a principal asking who the gateway names it | Bootstrapping an identity must not depend on the thing the identity is for. |
 
 **Outside this rule by nature**, not exceptions to it: the trusted issuer (token endpoint, admin
 API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.

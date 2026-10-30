@@ -108,7 +108,7 @@ something that outlived the stack:
 **What you may set yourself.**
 - An exported `JWT_SECRET` wins. It is an ordered ring, `<new>,<old>`, which is how the key
   rotates without cutting off the sidecars. See
-  [Authentication](../administration/AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars).
+  [Authentication](../administration/AUTHENTICATION.md#rotating-jwt_secret).
 - An exported `KC_BOOTSTRAP_ADMIN_PASSWORD`, or `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`, wins:
   one variable per service, never one shared by all.
 - The daemons' names (`NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER`, `NATS_PASSWORD`) are

@@ -6574,8 +6574,8 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 		t.Error("JWT_SECRET leaked into stdout")
 	}
 
-	// Only the gateway gets it: the sidecars authenticate with their own
-	// client secrets + agent-token exchange and never sign anything.
+	// Only the gateway gets it: the sidecars authenticate as their own
+	// accounts at the issuer and never sign anything.
 	for _, svc := range []string{"worker", "smelter", "weaver", "browser"} {
 		for _, line := range strings.Split(argv, "\n") {
 			if strings.Contains(line, "--name semiont-"+svc) && strings.Contains(line, "JWT_SECRET") {

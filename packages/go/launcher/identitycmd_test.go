@@ -220,7 +220,7 @@ func TestIdentityRevokeDeletesTheGrant(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	harness.MustContainAll(t, "stdout", stdout, "revoked alice", "semiont-worker-alice")
-	harness.MustContainAll(t, "stderr", stderr, "stay good until they expire", "within 300s", "an agent token the gateway minted it")
+	harness.MustContainAll(t, "stderr", stderr, "stays good until it expires", "within 300s")
 	if len(admin.deleted) != 1 || admin.deleted[0] != "semiont-worker-alice" {
 		t.Errorf("deleted %v, want semiont-worker-alice alone", admin.deleted)
 	}
