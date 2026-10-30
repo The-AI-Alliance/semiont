@@ -2,13 +2,8 @@
 //! the attribution of something asked for by one and sent by another.
 
 use crate::Object;
-use percent_encoding::percent_decode_str;
 use semiont::identity::{Kind, kind_of};
 use serde_json::{Value, json};
-
-fn decoded(part: &str) -> String {
-    percent_decode_str(part).decode_utf8_lossy().into_owned()
-}
 
 /// Whether `value` reads as a URI: a scheme, a colon, and something after it.
 fn uri_shaped(value: &str) -> bool {
@@ -21,10 +16,11 @@ fn uri_shaped(value: &str) -> bool {
         && rest.chars().next().is_some_and(|c| !c.is_whitespace())
 }
 
-/// The agent a DID names, its kind by `kind_of` (held to
-/// specs/src/principals/kind-cases.json). Software is named by its DID alone:
-/// what an agent calls itself, and what it runs, are its own to say. A person's
-/// DID with no kind segment is named by its last part.
+/// The agent a DID names: its kind by `kind_of` (held to
+/// specs/src/principals/kind-cases.json), and the DID itself when it is a URI.
+/// Nothing else is read from a DID: a person's name is filled in when a record
+/// is read, and what an agent calls itself, and what it runs, are its own to
+/// say.
 pub fn did_to_agent(did: &str) -> Object {
     let mut agent = Object::new();
     if did.is_empty() {
@@ -32,23 +28,15 @@ pub fn did_to_agent(did: &str) -> Object {
         agent.insert("name".into(), json!("unknown"));
         return agent;
     }
-    let kind = kind_of(did);
     agent.insert(
         "@type".into(),
-        json!(match kind {
+        json!(match kind_of(did) {
             Kind::Software => "Software",
             Kind::Person => "Person",
         }),
     );
     if uri_shaped(did) {
         agent.insert("@id".into(), json!(did));
-    }
-    if matches!(kind, Kind::Person) {
-        let parts: Vec<&str> = did.split(':').collect();
-        let users = parts.iter().rposition(|part| *part == "users");
-        if users.filter(|at| *at + 2 == parts.len()).is_none() {
-            agent.insert("name".into(), json!(decoded(parts[parts.len() - 1])));
-        }
     }
     agent
 }
@@ -111,20 +99,27 @@ mod tests {
     use super::did_to_agent;
     use serde_json::{Value, json};
 
-    /// An agent's DID says who it is and nothing it runs: no name, provider or
-    /// model is read from it, whatever segments its subject holds.
+    /// A DID says who someone is and nothing else: no name, provider or model
+    /// is read from it, whatever its segments are.
     #[test]
-    fn software_is_named_by_its_did_alone() {
-        for did in [
-            "did:web:kb.example:agents:semiont-worker",
-            "did:web:kb.example:agents:ollama:gemma2",
+    fn a_did_names_who_and_nothing_else() {
+        for (did, kind) in [
+            ("did:web:kb.example:agents:semiont-worker", "Software"),
+            ("did:web:kb.example:agents:ollama:gemma2", "Software"),
+            ("did:web:kb.example:users:alice%40kb.example", "Person"),
+            ("did:web:kb.example:alice", "Person"),
         ] {
             assert_eq!(
                 Value::Object(did_to_agent(did)),
-                json!({ "@type": "Software", "@id": did }),
+                json!({ "@type": kind, "@id": did }),
                 "{did}"
             );
         }
+        assert_eq!(
+            Value::Object(did_to_agent("alice")),
+            json!({ "@type": "Person" }),
+            "a sender that is no URI has no @id, and is not named by itself"
+        );
     }
 
     /// The record reads a DID's kind as specs/src/principals/kind-cases.json
