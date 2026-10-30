@@ -1,8 +1,12 @@
+@file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
 package semiont.errors
 
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import semiont.identifiers.JobId
+import semiont.types.FailureClass
 
 /** A failure of the SDK's, under a code of specs/src/errors/codes.json. */
 public sealed class SemiontError(message: String) : Exception(message) {
@@ -76,6 +80,20 @@ public class SessionError(
     message: String,
     /** The knowledge base whose session it is. */
     public val kbId: String,
+) : SemiontError(message) {
+    override val code: String get() = reason.code
+}
+
+/** A followed job that ended without its result: it failed, was cancelled, or stalled. */
+public class JobError @JvmExposeBoxed constructor(
+    /** Why, as a code of the job vocabulary. */
+    public val reason: JobErrorCode,
+    message: String,
+    /** The job, when its creation was answered. */
+    @get:JvmExposeBoxed
+    public val jobId: JobId?,
+    /** What kind of failure its worker said it was, when it said: a provider that would not answer, or a job that broke. */
+    public val failureClass: FailureClass?,
 ) : SemiontError(message) {
     override val code: String get() = reason.code
 }

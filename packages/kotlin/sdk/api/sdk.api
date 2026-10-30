@@ -17,6 +17,65 @@ public final class semiont/ClientTiming {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/Delegation : kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public final fun await (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun awaitFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class semiont/JobAttemptFailed : semiont/JobEvent {
+	public fun <init> (Lsemiont/types/JobFailCommand;)V
+	public final fun component1 ()Lsemiont/types/JobFailCommand;
+	public final fun copy (Lsemiont/types/JobFailCommand;)Lsemiont/JobAttemptFailed;
+	public static synthetic fun copy$default (Lsemiont/JobAttemptFailed;Lsemiont/types/JobFailCommand;ILjava/lang/Object;)Lsemiont/JobAttemptFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Lsemiont/types/JobFailCommand;
+	public fun getKind ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/JobCompleted : semiont/JobEvent {
+	public fun <init> (Lsemiont/types/JobCompleteCommand;)V
+	public final fun component1 ()Lsemiont/types/JobCompleteCommand;
+	public final fun copy (Lsemiont/types/JobCompleteCommand;)Lsemiont/JobCompleted;
+	public static synthetic fun copy$default (Lsemiont/JobCompleted;Lsemiont/types/JobCompleteCommand;ILjava/lang/Object;)Lsemiont/JobCompleted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Lsemiont/types/JobCompleteCommand;
+	public fun getKind ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/JobCreated : semiont/JobEvent {
+	public fun <init> (Lsemiont/types/JobCreatedResultResponse;)V
+	public final fun component1 ()Lsemiont/types/JobCreatedResultResponse;
+	public final fun copy (Lsemiont/types/JobCreatedResultResponse;)Lsemiont/JobCreated;
+	public static synthetic fun copy$default (Lsemiont/JobCreated;Lsemiont/types/JobCreatedResultResponse;ILjava/lang/Object;)Lsemiont/JobCreated;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Lsemiont/types/JobCreatedResultResponse;
+	public fun getKind ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/JobEvent {
+	public abstract fun getKind ()Ljava/lang/String;
+}
+
+public final class semiont/JobProgressed : semiont/JobEvent {
+	public fun <init> (Lsemiont/types/JobProgress;)V
+	public final fun component1 ()Lsemiont/types/JobProgress;
+	public final fun copy (Lsemiont/types/JobProgress;)Lsemiont/JobProgressed;
+	public static synthetic fun copy$default (Lsemiont/JobProgressed;Lsemiont/types/JobProgress;ILjava/lang/Object;)Lsemiont/JobProgressed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getData ()Lsemiont/types/JobProgress;
+	public fun getKind ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/Running : kotlinx/coroutines/flow/Flow {
 	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
 	public final fun await (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -172,6 +231,16 @@ public final class semiont/errors/BusRequestError : semiont/errors/SemiontError 
 	public fun getCode ()Ljava/lang/String;
 	public final fun getFailure ()Lkotlinx/serialization/json/JsonObject;
 	public final fun getReason ()Lsemiont/errors/BusRequestErrorCode;
+}
+
+public final class semiont/errors/JobError : semiont/errors/SemiontError {
+	public synthetic fun <init> (Lsemiont/errors/JobErrorCode;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/FailureClass;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/errors/JobErrorCode;Ljava/lang/String;Lsemiont/identifiers/JobId;Lsemiont/types/FailureClass;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getFailureClass ()Lsemiont/types/FailureClass;
+	public final fun getJobId ()Lsemiont/identifiers/JobId;
+	public final fun getJobId-jnM91lI ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/JobErrorCode;
 }
 
 public abstract class semiont/errors/SemiontError : java/lang/Exception {
@@ -491,6 +560,8 @@ public final class semiont/namespaces/MarkNamespace {
 	public final fun archive-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun archiveFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun archiveFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun delegate (Lsemiont/identifiers/ResourceId;Lsemiont/types/MarkJobParams;)Lsemiont/Delegation;
+	public final fun delegate-k2J_C-I (Ljava/lang/String;Lsemiont/types/MarkJobParams;)Lsemiont/Delegation;
 	public final fun delete-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun deleteFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun deleteFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
@@ -529,6 +600,9 @@ public final class semiont/namespaces/YieldNamespace {
 	public final fun cloneToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun cloneTokenFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun cloneTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun delegate (Lsemiont/types/GenerationJobParams;)Lsemiont/Delegation;
+	public final fun delegate (Lsemiont/types/GenerationJobParams;Ljava/lang/Long;)Lsemiont/Delegation;
+	public static synthetic fun delegate$default (Lsemiont/namespaces/YieldNamespace;Lsemiont/types/GenerationJobParams;Ljava/lang/Long;ILjava/lang/Object;)Lsemiont/Delegation;
 	public final fun fromToken (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun fromTokenFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public final fun resource (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;

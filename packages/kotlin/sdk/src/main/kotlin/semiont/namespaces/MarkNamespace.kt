@@ -2,6 +2,7 @@
 
 package semiont.namespaces
 
+import semiont.Delegation
 import semiont.bus.Operations
 import semiont.channels.Channels
 import semiont.identifiers.AnnotationId
@@ -12,6 +13,9 @@ import semiont.types.MarkArchiveCommand
 import semiont.types.MarkCreateOkResponse
 import semiont.types.MarkCreateRequest
 import semiont.types.MarkDeleteCommand
+import semiont.types.MarkJobCompleteCommand
+import semiont.types.MarkJobCreateCommand
+import semiont.types.MarkJobParams
 import semiont.types.MarkRequestedEvent
 import semiont.types.MarkSubmitEvent
 import semiont.types.MarkUnarchiveCommand
@@ -68,6 +72,16 @@ public class MarkNamespace internal constructor(private val links: Links) {
     @JvmExposeBoxed
     public fun updateEntityTypesFuture(resourceId: ResourceId, current: List<String>, updated: List<String>): CompletableFuture<Unit> =
         links.future { updateEntityTypes(resourceId, current, updated) }
+
+    /**
+     * Delegate the annotating of a resource, as a `mark` job: its progress,
+     * any attempt that will be tried again, and its completion. `params` is
+     * the job's parameters, one shape for each motivation, and its
+     * `motivation` says which.
+     */
+    @JvmExposeBoxed
+    public fun delegate(resourceId: ResourceId, params: MarkJobParams): Delegation<MarkJobCompleteCommand> =
+        follow(links, MarkJobCreateCommand(resourceId = resourceId, params = params), MarkJobCompleteCommand::class.java, resourceId, null)
 
     /** Signal: an annotation of a span is asked for in this viewer. */
     @JvmExposeBoxed

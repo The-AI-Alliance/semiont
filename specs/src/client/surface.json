@@ -269,7 +269,6 @@
         },
         {
           "method": "delegate",
-          "notYetReached": { "kotlin": "The Kotlin SDK's Delegation, and the following of the job it creates." },
           "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
@@ -501,7 +500,6 @@
         },
         {
           "method": "delegate",
-          "notYetReached": { "kotlin": "The Kotlin SDK's Delegation, and the following of the job it creates." },
           "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
