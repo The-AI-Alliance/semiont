@@ -146,7 +146,6 @@
         },
         {
           "method": "resourceContent",
-          "notYetReached": { "kotlin": "The Kotlin SDK's reading of a resource's bytes as its text (text/decode-cases.json)." },
           "shape": "promise",
           "via": { "content": "getBinary" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]

@@ -11,8 +11,10 @@ import kotlinx.serialization.json.longOrNull
  * The code of the spec's tables beside its schemas: the bus registry's
  * channels, audiences, trace field and operations (bus/registry.json), the
  * timing a client keeps (client/timing.json), the codes its failures carry
- * (errors/codes.json), and the media types a knowledge base admits
- * (media-types/registry.json). Each refuses what it cannot render.
+ * (errors/codes.json), the media types a knowledge base admits
+ * (media-types/registry.json), and the Encoding Standard's labels and
+ * single-byte encodings (text/encoding-cases.json). Each refuses what it
+ * cannot render.
  */
 private fun JsonElement?.obj(what: String): JsonObject = this as? JsonObject ?: refuse("$what is no object")
 
@@ -303,4 +305,60 @@ internal fun mediaTypesFile(registry: JsonObject, supported: List<String>): Stri
         append("    MediaType(${literal(type)}, ${literal(extension)}, TextSource.${variantOf(source)}, ${flag("authorable")}, ${flag("generatable")}),\n")
     }
     append(")\n")
+}
+
+/** `text` as a Kotlin string literal with every character but printable ASCII escaped, so each can be seen. */
+private fun escaped(text: String): String = buildString {
+    append('"')
+    for (c in text) {
+        when {
+            c == '\\' -> append("\\\\")
+            c == '"' -> append("\\\"")
+            c == '$' -> append("\\$")
+            c in ' '..'~' -> append(c)
+            else -> append("\\u%04x".format(c.code))
+        }
+    }
+    append('"')
+}
+
+/**
+ * The Encoding Standard as a reader of a resource's text needs it: the
+ * encoding each label names, the text each single-byte encoding's 256 bytes
+ * are, and the encodings no text is read under. Each case of the table is one
+ * of three: a single-byte encoding (`everyByte`), one told apart by some bytes
+ * (`bytes` and `text`), or one whose labels are refused (`refused`).
+ */
+internal fun encodingsFile(table: JsonObject): String = buildString {
+    val cases = table["cases"].list("the encoding cases").map { it.obj("an encoding case") }
+    val labels = sortedMapOf<String, String>()
+    val singleByte = linkedMapOf<String, String>()
+    val refused = mutableListOf<String>()
+    for (case in cases) {
+        val encoding = case["encoding"].text("a case's encoding")
+        if (encoding !in case["labels"].list("$encoding's labels").map { it.text("a label") }) refuse("$encoding is not among its own labels")
+        for (label in case["labels"].list("$encoding's labels").map { it.text("a label of $encoding") }) {
+            if (labels.put(label, encoding) != null) refuse("the label $label names two encodings")
+        }
+        when {
+            "everyByte" in case -> {
+                val bytes = case["everyByte"].text("$encoding's bytes")
+                if (bytes.length != 256) refuse("$encoding gives ${bytes.length} characters for its 256 bytes")
+                singleByte[encoding] = bytes
+            }
+            (case["refused"] as? JsonPrimitive)?.booleanOrNull == true -> refused += encoding
+            "bytes" in case && "text" in case -> Unit
+            else -> refuse("$encoding is neither single-byte, nor told apart by its bytes, nor refused")
+        }
+    }
+    append("/** Every label of the Encoding Standard, with the encoding it names: ${labels.size} of them. */\n")
+    append("internal val ENCODING_OF_LABEL: Map<String, String> = mapOf(\n")
+    for ((label, encoding) in labels) append("    ${escaped(label)} to ${escaped(encoding)},\n")
+    append(")\n\n")
+    append("/** Each single-byte encoding: the text its 256 bytes are, in order, one character to a byte, and U+FFFD where it gives a byte none. */\n")
+    append("internal val SINGLE_BYTE: Map<String, String> = mapOf(\n")
+    for ((encoding, bytes) in singleByte) append("    ${escaped(encoding)} to ${escaped(bytes)},\n")
+    append(")\n\n")
+    append("/** The encodings the standard reads no text under: every label of each is refused. */\n")
+    append("internal val REFUSED: Set<String> = setOf(${refused.joinToString(", ") { escaped(it) }})\n")
 }

@@ -6,6 +6,7 @@ import semiont.bus.Operations
 import semiont.channels.Channels
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.resources.decodeRepresentation
 import semiont.transport.Content
 import semiont.transport.ContentStream
 import semiont.transport.ContentTransport
@@ -40,6 +41,21 @@ public class BrowseNamespace internal constructor(private val links: Links, priv
     /** `resourceAnchoredText`, for Java. */
     @JvmExposeBoxed
     public fun resourceAnchoredTextFuture(resourceId: ResourceId): CompletableFuture<AnchoredTextAnswer> = links.future { resourceAnchoredText(resourceId) }
+
+    /**
+     * A resource's bytes as the text they are: in the charset their content
+     * type states, UTF-8 when it states none, and in the encoding of a
+     * byte-order mark where they begin with one. A resource whose text is not
+     * its bytes is refused, as a charset that is not decoded is.
+     */
+    public suspend fun resourceContent(resourceId: ResourceId): String {
+        val read = content.getBinary(resourceId)
+        return decodeRepresentation(read.bytes, read.contentType)
+    }
+
+    /** `resourceContent`, for Java. */
+    @JvmExposeBoxed
+    public fun resourceContentFuture(resourceId: ResourceId): CompletableFuture<String> = links.future { resourceContent(resourceId) }
 
     /** A resource's bytes, unchanged, with their media type. */
     public suspend fun resourceRepresentation(resourceId: ResourceId): Content = content.getBinary(resourceId)

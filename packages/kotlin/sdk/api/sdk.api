@@ -496,6 +496,9 @@ public final class semiont/namespaces/BrowseNamespace {
 	public final fun resourceAnchoredText-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun resourceAnchoredTextFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun resourceAnchoredTextFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceContent-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resourceContentFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceContentFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public final fun resourceEvents-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun resourceEventsFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun resourceEventsFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
