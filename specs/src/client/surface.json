@@ -1795,7 +1795,6 @@
     {
       "module": "testing",
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's testing module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",
@@ -1813,6 +1812,9 @@
         ],
         "go": [
           "packages/go/sdk/semionttest"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/testing"
         ]
       },
       "members": [

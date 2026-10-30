@@ -1918,6 +1918,26 @@ public final class semiont/testing/Deliver : semiont/testing/FaultAction {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/testing/DeliveryOp : java/lang/Enum {
+	public static final field TRANSITION Lsemiont/testing/DeliveryOp;
+	public static final field WRITE Lsemiont/testing/DeliveryOp;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/testing/DeliveryOp;
+	public static fun values ()[Lsemiont/testing/DeliveryOp;
+}
+
+public abstract interface class semiont/testing/DeliverySubject : java/lang/AutoCloseable {
+	public fun close ()V
+	public abstract fun delivered ()Ljava/util/List;
+	public abstract fun transition ()V
+	public abstract fun write (Ljava/lang/String;)V
+}
+
+public final class semiont/testing/DeliverySubject$DefaultImpls {
+	public static fun close (Lsemiont/testing/DeliverySubject;)V
+}
+
 public final class semiont/testing/DropReply : semiont/testing/FaultAction {
 	public static final field INSTANCE Lsemiont/testing/DropReply;
 	public fun equals (Ljava/lang/Object;)Z
@@ -2055,6 +2075,36 @@ public final class semiont/testing/InMemoryContent : semiont/transport/ContentTr
 	public final fun seedAnnotations-k2J_C-I (Ljava/lang/String;Lsemiont/types/GetAnnotationsResponse;)V
 	public final fun seedGraph (Lsemiont/identifiers/ResourceId;Lsemiont/types/GetResourceResponse;)V
 	public final fun seedGraph-k2J_C-I (Ljava/lang/String;Lsemiont/types/GetResourceResponse;)V
+}
+
+public final class semiont/testing/LivenessKt {
+	public static final fun assertExactlyOnceDelivery (Lkotlin/jvm/functions/Function0;Ljava/util/List;)V
+	public static final fun assertLivenessAxioms (Lsemiont/testing/LivenessSpec;)V
+	public static final fun deliveryOps (IILjava/util/Random;)Ljava/util/List;
+	public static final fun faultActions (Ljava/util/Random;)Lsemiont/testing/FaultAction;
+	public static final fun faultSchedules (ILjava/util/Random;)Ljava/util/List;
+}
+
+public final class semiont/testing/LivenessScenario : java/lang/AutoCloseable {
+	public fun <init> ()V
+	public fun <init> (Ljava/util/List;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;)V
+	public fun <init> (Ljava/util/List;Ljava/util/List;Ljava/lang/AutoCloseable;)V
+	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/lang/AutoCloseable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun getOutputs ()Ljava/util/List;
+	public final fun getSettlements ()Ljava/util/List;
+}
+
+public final class semiont/testing/LivenessSpec {
+	public fun <init> (Lkotlin/jvm/functions/Function1;JILjava/util/List;)V
+	public fun <init> (Lkotlin/jvm/functions/Function1;JILjava/util/List;Lsemiont/testing/Respond;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function1;JILjava/util/List;Lsemiont/testing/Respond;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getRespond ()Lsemiont/testing/Respond;
+	public final fun getRetryBudget ()I
+	public final fun getSchedules ()Ljava/util/List;
+	public final fun getSetup ()Lkotlin/jvm/functions/Function1;
+	public final fun getTimeoutMs ()J
 }
 
 public final class semiont/testing/PutBinary : semiont/testing/ContentCall {
