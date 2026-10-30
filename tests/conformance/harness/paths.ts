@@ -7,13 +7,20 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..
 /**
  * What a process a suite starts is given of the suite's own environment,
  * beside what its service's table lists: the PATH it is found on, and, when
- * the run measures coverage, the LLVM_PROFILE_FILE an instrumented binary
- * writes what it ran to as it exits. ci.yml sets it in every job that starts
- * one of the Rust binaries.
+ * the run measures coverage, how each kind of program is measured: the
+ * LLVM_PROFILE_FILE an instrumented binary writes what it ran to as it exits,
+ * which ci.yml sets in every job that starts one of the Rust binaries, and
+ * the JAVA_OPTS a JVM driver's start script runs it with, which carry JaCoCo's
+ * agent where ci.yml measures the Kotlin drivers.
  */
 export function runEnvironment(): Record<string, string> {
-  const profile = process.env['LLVM_PROFILE_FILE'];
-  return { PATH: process.env['PATH'] ?? '', ...(profile === undefined ? {} : { LLVM_PROFILE_FILE: profile }) };
+  const measured = Object.fromEntries(
+    ['LLVM_PROFILE_FILE', 'JAVA_OPTS'].flatMap((name) => {
+      const value = process.env[name];
+      return value === undefined ? [] : [[name, value]];
+    }),
+  );
+  return { PATH: process.env['PATH'] ?? '', ...measured };
 }
 
 /**
