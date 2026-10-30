@@ -240,7 +240,7 @@ public enum class ConnectionState(
 public data class TraceContext(public val traceparent: String, public val tracestate: String? = null)
 
 /** A frame as a transport delivers it: a payload, and what is beside it, never inside it. */
-public data class Frame(
+public data class Frame @JvmExposeBoxed constructor(
     public val channel: String,
     public val payload: JsonObject,
     /** What pairs a reply with its request. */
