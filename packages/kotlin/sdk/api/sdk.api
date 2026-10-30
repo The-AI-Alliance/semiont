@@ -17,6 +17,13 @@ public final class semiont/ClientTiming {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/Running : kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public final fun await (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun awaitFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;)V
 	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;)V
@@ -160,8 +167,10 @@ public final class semiont/channels/ScopedChannel {
 }
 
 public final class semiont/errors/BusRequestError : semiont/errors/SemiontError {
-	public fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public synthetic fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun getCode ()Ljava/lang/String;
+	public final fun getFailure ()Lkotlinx/serialization/json/JsonObject;
 	public final fun getReason ()Lsemiont/errors/BusRequestErrorCode;
 }
 
@@ -444,6 +453,15 @@ public final class semiont/namespaces/FrameNamespace {
 }
 
 public final class semiont/namespaces/GatherNamespace {
+	public final fun annotation (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Lsemiont/Running;
+	public final fun annotation (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;J)Lsemiont/Running;
+	public final fun annotation (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;JLjava/lang/Boolean;)Lsemiont/Running;
+	public final fun annotation (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;JLjava/lang/Boolean;Ljava/lang/Boolean;)Lsemiont/Running;
+	public final fun annotation-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Lsemiont/Running;
+	public final fun annotation-SAPwhrY (Ljava/lang/String;Ljava/lang/String;JLjava/lang/Boolean;)Lsemiont/Running;
+	public final fun annotation-n0x_L0s (Ljava/lang/String;Ljava/lang/String;JLjava/lang/Boolean;Ljava/lang/Boolean;)Lsemiont/Running;
+	public static synthetic fun annotation-n0x_L0s$default (Lsemiont/namespaces/GatherNamespace;Ljava/lang/String;Ljava/lang/String;JLjava/lang/Boolean;Ljava/lang/Boolean;ILjava/lang/Object;)Lsemiont/Running;
+	public final fun annotation-rbRhPYE (Ljava/lang/String;Ljava/lang/String;J)Lsemiont/Running;
 	public final fun resource-Z9ojSc8 (Ljava/lang/String;JJZZLjava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun resource-Z9ojSc8$default (Lsemiont/namespaces/GatherNamespace;Ljava/lang/String;JJZZLjava/util/List;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun resourceFuture (Lsemiont/identifiers/ResourceId;JJZZLjava/util/List;)Ljava/util/concurrent/CompletableFuture;
@@ -490,6 +508,13 @@ public final class semiont/namespaces/MarkNamespace {
 
 public final class semiont/namespaces/MatchNamespace {
 	public final fun requestSearch (Lsemiont/types/MatchSearchRequest;Ljava/lang/String;)V
+	public final fun search (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Lsemiont/types/GatheredContext;)Lsemiont/Running;
+	public final fun search (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Lsemiont/types/GatheredContext;J)Lsemiont/Running;
+	public final fun search (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Lsemiont/types/GatheredContext;JZ)Lsemiont/Running;
+	public final fun search-SAPwhrY (Ljava/lang/String;Ljava/lang/String;Lsemiont/types/GatheredContext;J)Lsemiont/Running;
+	public final fun search-n0x_L0s (Ljava/lang/String;Ljava/lang/String;Lsemiont/types/GatheredContext;JZ)Lsemiont/Running;
+	public static synthetic fun search-n0x_L0s$default (Lsemiont/namespaces/MatchNamespace;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/GatheredContext;JZILjava/lang/Object;)Lsemiont/Running;
+	public final fun search-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lsemiont/types/GatheredContext;)Lsemiont/Running;
 }
 
 public final class semiont/namespaces/SystemNamespace {

@@ -378,7 +378,6 @@
       "methods": [
         {
           "method": "annotation",
-          "notYetReached": { "kotlin": "The Kotlin SDK's Running, the stream a request of it answers in." },
           "shape": "stream",
           "via": { "request": "gather:requested" },
           "cases": [
@@ -438,7 +437,6 @@
       "methods": [
         {
           "method": "search",
-          "notYetReached": { "kotlin": "The Kotlin SDK's Running, the stream a request of it answers in." },
           "shape": "stream",
           "via": { "request": "match:search-requested" },
           "cases": [

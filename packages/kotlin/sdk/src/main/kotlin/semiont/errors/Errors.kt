@@ -39,6 +39,8 @@ public class BusRequestError(
     /** Why, as a code of the bus request's vocabulary. */
     public val reason: BusRequestErrorCode,
     message: String,
+    /** The payload of the failure frame the request was answered with, when it was answered with one. */
+    public val failure: JsonObject? = null,
 ) : SemiontError(message) {
     override val code: String get() = reason.code
 
@@ -47,7 +49,7 @@ public class BusRequestError(
         fun answered(payload: JsonObject): BusRequestError {
             val wire = (payload["code"] as? JsonPrimitive)?.contentOrNull
             val said = (payload["message"] as? JsonPrimitive)?.contentOrNull ?: "the request failed"
-            return BusRequestError(BUS_REQUEST_CODE_BY_WIRE_CODE[wire] ?: UNRECOGNIZED_FAILURE, said)
+            return BusRequestError(BUS_REQUEST_CODE_BY_WIRE_CODE[wire] ?: UNRECOGNIZED_FAILURE, said, payload)
         }
     }
 }
