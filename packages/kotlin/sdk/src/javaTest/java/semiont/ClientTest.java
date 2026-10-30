@@ -218,10 +218,10 @@ final class ClientTest {
         ReconciledSpan found = AnnotationsKt.reconcile(text, new QuotedText("Lovelace"));
         assertNotNull(found);
         assertSame(AnchorMethod.UniqueMatch.INSTANCE, found.getAnchorMethod());
-        Annotation built = AnnotationsKt.annotationOfSpan(text, found.getSpan(), new ResourceId("res-1"), Motivation.Highlighting, AgentSoftware.builder("gemma3").build());
+        Annotation built = AnnotationsKt.annotationOfSpan(text, found.getSpan(), new ResourceId("res-1"), Motivation.Highlighting, AgentSoftware.builder().name("gemma3").build());
         assertEquals("Lovelace", AnnotationsKt.annotationExactText(built));
         SpanRefusedError refused = assertThrows(SpanRefusedError.class,
-                () -> AnnotationsKt.annotationOfSpan(text, new TextSpan(0, 99, "Ada"), new ResourceId("res-1"), Motivation.Highlighting, AgentSoftware.builder("gemma3").build()));
+                () -> AnnotationsKt.annotationOfSpan(text, new TextSpan(0, 99, "Ada"), new ResourceId("res-1"), Motivation.Highlighting, AgentSoftware.builder().name("gemma3").build()));
         assertEquals(SpanRefusal.SpanOutOfRange, refused.getReason());
     }
 }
