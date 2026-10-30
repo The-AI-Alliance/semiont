@@ -4,9 +4,9 @@
     "typescript": ["packages/typescript/core/src/__tests__/annotation-of-span.test.ts", "packages/typescript/core/src/__tests__/builder-cases.test.ts", "packages/typescript/sdk/src/__tests__/annotation-builders.test.ts", "packages/typescript/sdk/src/__tests__/worker-skill.test.ts"],
     "rust": ["packages/rust/sdk/tests/builder_cases.rs", "packages/rust/sdk/tests/readme.rs"],
     "python": ["packages/python/sdk/tests/test_annotation_builders.py"],
-    "go": ["packages/go/sdk/annotations/builders_test.go"]
+    "go": ["packages/go/sdk/annotations/builders_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationBuildersTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's annotations module: its builders of the annotation a worker commits."},
   "unstated": {
     "cases": ["created"],
     "resources": ["created"]

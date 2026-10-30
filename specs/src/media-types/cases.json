@@ -4,9 +4,9 @@
     "typescript": ["packages/typescript/core/src/__tests__/media-type-registry.test.ts"],
     "rust": ["packages/rust/sdk/tests/media_types.rs"],
     "python": ["packages/python/sdk/tests/test_media_types.py"],
-    "go": ["packages/go/sdk/mediatypes/mediatypes_test.go"]
+    "go": ["packages/go/sdk/mediatypes/mediatypes_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/mediatypes/MediaTypesTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's media types, generated from media-types/registry.json."},
   "cloneFormat": [
     {
       "why": "an authorable source keeps its type",

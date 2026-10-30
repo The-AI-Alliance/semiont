@@ -35,19 +35,19 @@ private fun seconds(claims: JsonObject, name: String): Double? {
 }
 
 /** A claim of a token that is text, when the token carries one. */
-internal fun textClaim(token: String, name: String): String? = (claims(token)?.get(name) as? JsonPrimitive)?.takeIf { it.isString }?.content
+public fun textClaim(token: String, name: String): String? = (claims(token)?.get(name) as? JsonPrimitive)?.takeIf { it.isString }?.content
 
 /** When a token expires, by its `exp` claim, in seconds since the epoch. Null when it names no time. */
-internal fun tokenExpiry(token: String): Double? = claims(token)?.let { seconds(it, "exp") }
+public fun tokenExpiry(token: String): Double? = claims(token)?.let { seconds(it, "exp") }
 
 /** Whether a token is past its expiry at `now`, in seconds since the epoch. One that names no expiry is read as expired: nothing says it is still good. */
-internal fun isTokenExpired(token: String, now: Double): Boolean {
+public fun isTokenExpired(token: String, now: Double): Boolean {
     val expiry = tokenExpiry(token)
     return expiry == null || expiry < now
 }
 
 /** How long to wait, in seconds, before renewing a token that lives `lifetime` in all and has `remaining` of it left. */
-internal fun renewalDelay(lifetime: Double, remaining: Double): Double {
+public fun renewalDelay(lifetime: Double, remaining: Double): Double {
     val margin = minOf(Timings.REFRESH_BEFORE_EXP_MS / 1000.0, lifetime / 2)
     return maxOf(remaining - margin, Timings.MIN_REFRESH_DELAY_MS / 1000.0)
 }
@@ -57,7 +57,7 @@ internal fun renewalDelay(lifetime: Double, remaining: Double): Double {
  * it has no readable `exp`: nothing is scheduled. The lifetime is the one the
  * issuer chose (`exp - iat`); with no `iat`, what remains of it.
  */
-internal fun refreshDelay(token: String, now: Double): Double? {
+public fun refreshDelay(token: String, now: Double): Double? {
     val read = claims(token) ?: return null
     val expiry = seconds(read, "exp") ?: return null
     val remaining = maxOf(expiry - now, 0.0)
