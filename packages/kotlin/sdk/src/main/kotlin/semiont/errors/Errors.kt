@@ -98,6 +98,19 @@ public class JobError @JvmExposeBoxed constructor(
     override val code: String get() = reason.code
 }
 
+/**
+ * A knowledge base whose identity a sign-in could not learn: it was not
+ * reached, or it answered that it cannot say what it is. Either way nothing
+ * is registered, and the sign-in stops there.
+ */
+public class IdentityUnverifiableError(
+    /** Why, as a code of the knowledge base identity vocabulary. */
+    public val reason: IdentityUnverifiableReason,
+    message: String,
+) : SemiontError(message) {
+    override val code: String get() = reason.code
+}
+
 /** A span no annotation was built of: it is not the text's, or, for a PDF, is nowhere on its pages. */
 public class SpanRefusedError(
     /** Which refusal it is, as a code of the span-refusal vocabulary. */

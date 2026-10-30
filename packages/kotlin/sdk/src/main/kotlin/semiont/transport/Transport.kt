@@ -6,8 +6,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.jdk9.asPublisher
@@ -16,6 +19,7 @@ import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
 import semiont.identifiers.ResourceId
+import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Flow.Publisher
@@ -48,23 +52,77 @@ public class Events<T : Any> internal constructor(private val source: Flow<T>, p
 
 /**
  * A value that changes: what it is now, and, collected, what it is and each
- * thing it becomes, ending once it has become what ends it. Java reads it as
- * a `java.util.concurrent.Flow.Publisher`.
+ * thing it becomes, until it ends. A value may be nothing (null). Java reads
+ * it as a `java.util.concurrent.Flow.Publisher` of `Optional`s, a publisher
+ * carrying no null.
  */
-public class Watched<T : Any> internal constructor(private val state: StateFlow<T>, private val ends: (T) -> Boolean) : Flow<T> {
-    /** What it is now. */
-    public val value: T get() = state.value
-
-    override suspend fun collect(collector: FlowCollector<T>): Unit =
+public class Watched<T> internal constructor(private val now: () -> T, private val changes: Flow<T>) : Flow<T> {
+    /** `state`, ending once it has become what `ends` says ends it. */
+    internal constructor(state: StateFlow<T>, ends: (T) -> Boolean) : this(
+        { state.value },
         state.transformWhile {
             emit(it)
             !ends(it)
-        }.collect(collector)
+        },
+    )
+
+    /** What it is now. */
+    public val value: T get() = now()
+
+    override suspend fun collect(collector: FlowCollector<T>): Unit = changes.collect(collector)
 
     /** The same values, for Java. */
-    public fun asPublisher(): Publisher<T> = asFlow().asPublisher()
+    public fun asPublisher(): Publisher<Optional<T & Any>> = changes.map { Optional.ofNullable<T & Any>(it) }.asPublisher()
+}
 
-    private fun asFlow(): Flow<T> = this
+/**
+ * A value something holds, and the `Watched` its readers are handed. `set`
+ * tells them of a change, and a value equal to what it holds is none;
+ * `raise` tells them of an occurrence, each one, equal to the last or not.
+ * `end` ends every reader, and nothing is told after it: a reader that comes
+ * after the end is given the value as it stands, and ends.
+ */
+internal class Variable<T>(initial: T) {
+    /** One telling: compared by identity, so each is new to a reader. `last` is the end. */
+    private class Told<T>(val value: T, val last: Boolean = false)
+
+    private val state = MutableStateFlow(Told(initial))
+
+    @Volatile
+    private var held: T = initial
+
+    val value: T get() = held
+
+    fun set(value: T): Unit = synchronized(this) {
+        if (!state.value.last && held != value) told(value)
+    }
+
+    fun raise(value: T): Unit = synchronized(this) {
+        if (!state.value.last) told(value)
+    }
+
+    private fun told(value: T) {
+        held = value
+        state.value = Told(value)
+    }
+
+    fun end(): Unit = synchronized(this) {
+        if (!state.value.last) state.value = Told(held, last = true)
+    }
+
+    /** What its readers are handed. */
+    fun reading(): Watched<T> = Watched(
+        { held },
+        flow {
+            // A reader that has been told something is not told the end again; one that has been told nothing is told the value it ends on.
+            var told = false
+            state.transformWhile { now ->
+                if (!now.last || !told) emit(now.value)
+                told = true
+                !now.last
+            }.collect(this)
+        },
+    )
 }
 
 /**
