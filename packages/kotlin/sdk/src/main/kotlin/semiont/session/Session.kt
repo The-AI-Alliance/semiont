@@ -133,11 +133,17 @@ public class SemiontSession internal constructor(
      * and one ask. A gateway that cannot be asked refuses nothing: the renewed
      * token is given.
      */
-    public suspend fun refresh(): String? {
-        val refusedWith = tokens.value
-        return answering.withLock {
+    public suspend fun refresh(): String? = refreshOf(tokens.value)
+
+    /**
+     * `refresh`, of a refusal of `refused`: the token the refused request
+     * carried. A token the session has already moved past is not renewed
+     * again; the one it holds now is given.
+     */
+    internal suspend fun refreshOf(refused: String?): String? =
+        answering.withLock {
             // The first of refusals that arrive together renews and asks; the rest find the token is no longer theirs.
-            if (tokens.value != refusedWith) return@withLock tokens.value
+            if (tokens.value != refused) return@withLock tokens.value
             val renewed = renewed()
             if (renewed == null || validate == null) return@withLock renewed
             // While the session is starting, its start is what asks: it takes the renewed token up as the just-issued one.
@@ -153,7 +159,6 @@ public class SemiontSession internal constructor(
             }
             if (closing) null else tokens.value
         }
-    }
 
     /** `refresh`, for Java. */
     public fun refreshFuture(): CompletableFuture<String?> = client.links.future { refresh() }
