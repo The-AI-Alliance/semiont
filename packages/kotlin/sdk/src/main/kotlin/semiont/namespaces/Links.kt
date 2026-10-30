@@ -15,13 +15,15 @@ import semiont.telemetry.futureOf
 import semiont.transport.Transport
 import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.TimeSource
 
 /**
  * What every namespace reaches the knowledge base through: the client's
- * transport, the bus over it, the client's own bus, the waits it keeps, and
- * the work it runs, on `context`'s dispatcher.
+ * transport, the bus over it, the client's own bus, the waits it keeps, the
+ * work it runs, on `context`'s dispatcher, and `clock`, the time that
+ * dispatcher's waits keep.
  */
-internal class Links(val transport: Transport, val wire: Bus, val own: EventBus, val timing: ClientTiming, context: CoroutineContext) {
+internal class Links(val transport: Transport, val wire: Bus, val own: EventBus, val timing: ClientTiming, context: CoroutineContext, val clock: TimeSource) {
     /** The client's work: what is running when the client closes ends with it. */
     val scope = CoroutineScope(SupervisorJob() + context)
 

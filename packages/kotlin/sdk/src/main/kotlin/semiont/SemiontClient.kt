@@ -22,6 +22,7 @@ import semiont.transport.ContentTransport
 import semiont.transport.GatewayOperations
 import semiont.transport.Transport
 import kotlin.coroutines.CoroutineContext
+import kotlin.time.TimeSource
 
 /**
  * A client of one knowledge base: its namespaces, each a verb of the protocol,
@@ -37,8 +38,10 @@ public class SemiontClient internal constructor(
     gateway: GatewayOperations,
     public val timing: ClientTiming,
     persistence: CachePersistence?,
-    /** Where the client's work runs, and the clock its waits keep. */
+    /** Where the client's work runs. */
     context: CoroutineContext,
+    /** The time `context`'s waits keep. */
+    clock: TimeSource,
 ) : AutoCloseable {
     @JvmOverloads
     public constructor(
@@ -48,7 +51,7 @@ public class SemiontClient internal constructor(
         timing: ClientTiming = ClientTiming(),
         /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
         persistence: CachePersistence? = null,
-    ) : this(transport, content, gateway, timing, persistence, Dispatchers.Default)
+    ) : this(transport, content, gateway, timing, persistence, Dispatchers.Default, TimeSource.Monotonic)
 
     /** The client's own bus: every frame the transport delivered, and every signal the client's parts gave each other. */
     public val bus: EventBus = EventBus()
@@ -64,7 +67,7 @@ public class SemiontClient internal constructor(
 
     init {
         wire = Bus(transport)
-        links = Links(transport, wire, bus, timing, context)
+        links = Links(transport, wire, bus, timing, context, clock)
         transport.bridgeInto(bus)
         live = Live(links, content, persistence)
         refresher = Refresher(links, live)
