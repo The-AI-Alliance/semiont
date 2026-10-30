@@ -148,9 +148,9 @@ final class WireTest {
         try (ServerSocket server = new ServerSocket(0, 0, InetAddress.getLoopbackAddress());
                 HttpTransport transport = new HttpTransport("http://127.0.0.1:" + server.getLocalPort(), StateFlowKt.<String>MutableStateFlow(null))) {
             CompletableFuture<StatusResponse> status = transport.getStatusFuture();
-            try (Socket asked = server.accept()) {
+            try (Socket asked = server.accept();
+                    BufferedReader request = new BufferedReader(new InputStreamReader(asked.getInputStream(), UTF_8))) {
                 asked.setSoTimeout(10_000);
-                BufferedReader request = new BufferedReader(new InputStreamReader(asked.getInputStream(), UTF_8));
                 for (String line = request.readLine(); line != null && !line.isEmpty(); line = request.readLine()) {
                     // The request's head, read whole before it is given up.
                 }
