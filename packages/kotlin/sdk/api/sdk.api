@@ -110,6 +110,10 @@ public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public final fun getYield ()Lsemiont/namespaces/YieldNamespace;
 }
 
+public abstract interface class semiont/StateUnit : java/lang/AutoCloseable {
+	public abstract fun close ()V
+}
+
 public abstract interface class semiont/annotations/AnchorMethod {
 	public abstract fun getValue ()Ljava/lang/String;
 }
@@ -964,6 +968,30 @@ public final class semiont/retry/RetryRule {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/session/KbIdentityConflict {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lsemiont/session/KbIdentityConflict;
+	public static synthetic fun copy$default (Lsemiont/session/KbIdentityConflict;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/session/KbIdentityConflict;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getObservedDid ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/session/PermissionDenied {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lsemiont/session/PermissionDenied;
+	public static synthetic fun copy$default (Lsemiont/session/PermissionDenied;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/session/PermissionDenied;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/session/SemiontSession : java/lang/AutoCloseable {
 	public fun close ()V
 	public final fun errors ()Lsemiont/transport/Events;
@@ -987,6 +1015,31 @@ public final class semiont/session/SessionEndReason : java/lang/Enum {
 	public final fun getWire ()Ljava/lang/String;
 	public static fun valueOf (Ljava/lang/String;)Lsemiont/session/SessionEndReason;
 	public static fun values ()[Lsemiont/session/SessionEndReason;
+}
+
+public final class semiont/session/SessionEnded {
+	public fun <init> (Lsemiont/session/SessionEndReason;)V
+	public final fun component1 ()Lsemiont/session/SessionEndReason;
+	public final fun copy (Lsemiont/session/SessionEndReason;)Lsemiont/session/SessionEnded;
+	public static synthetic fun copy$default (Lsemiont/session/SessionEnded;Lsemiont/session/SessionEndReason;ILjava/lang/Object;)Lsemiont/session/SessionEnded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lsemiont/session/SessionEndReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/session/SessionSignals : semiont/StateUnit {
+	public fun <init> ()V
+	public final fun acknowledgeKbIdentityConflict ()V
+	public final fun acknowledgePermissionDenied ()V
+	public final fun acknowledgeSessionEnded ()V
+	public fun close ()V
+	public final fun getKbIdentityConflict ()Lsemiont/transport/Watched;
+	public final fun getPermissionDenied ()Lsemiont/transport/Watched;
+	public final fun getSessionEnded ()Lsemiont/transport/Watched;
+	public final fun notifyKbIdentityConflict (Lsemiont/session/KbIdentityConflict;)V
+	public final fun notifyPermissionDenied (Ljava/lang/String;)V
+	public final fun notifySessionEnded (Lsemiont/session/SessionEndReason;)V
 }
 
 public final class semiont/session/TokensKt {

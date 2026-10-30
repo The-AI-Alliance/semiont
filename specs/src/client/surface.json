@@ -870,8 +870,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's sessionSignals state unit." },
-      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals" },
+      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
       "members": [
         { "member": "sessionEnded" },
         { "member": "permissionDenied" },
