@@ -32,11 +32,11 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
+    # The process signs in at its issuer as its account: the agent its work is attributed to.
     service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
         HttpTransport(
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
@@ -46,7 +46,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent the gateway gave it.
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
         generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:

@@ -74,19 +74,18 @@ interface StandIn {
   close(): Promise<void>;
 }
 
-/** What the stand-in is told: who it says an agent is, the tokens it gives, the jobs its queue holds, and each resource's text. */
+/** What the stand-in is told: who it says the account is, the token its issuer grants, the jobs its queue holds, and each resource's text. */
 interface Knows {
   did: string;
   serviceToken: string;
-  agentToken: string;
   queue: readonly unknown[];
   resources: Readonly<Record<string, string>>;
 }
 
 /**
  * A gateway and the issuer it trusts, on this machine. It names its issuer,
- * grants a service account its token, exchanges that for an agent's, holds a
- * stream open, serves a resource's bytes, and takes emits. Of what is emitted
+ * grants a service account its token, names the account that token is, holds
+ * a stream open, serves a resource's bytes, and takes emits. Of what is emitted
  * it answers a claim, as the dispatcher does: the next job of its queue, or
  * that none is pending. And it answers a commit, as the record does: every
  * annotation of the batch is held, by its id.
@@ -128,8 +127,8 @@ async function standIn(knows: Knows): Promise<StandIn> {
           return json(response, 200, { issuer, authorization_endpoint: `${issuer}/auth`, token_endpoint: `${issuer}/token` });
         case 'POST /realms/semiont/token':
           return json(response, 200, { access_token: knows.serviceToken, expires_in: 300 });
-        case 'POST /api/tokens/agent':
-          return json(response, 200, { token: knows.agentToken, did: knows.did });
+        case 'GET /api/users/me':
+          return json(response, 200, { did: knows.did, email: null, name: null, image: null, domain: 'example.org' });
         case 'POST /bus/subscribe':
           // The stream is the response: it lasts until one side ends it.
           response.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -171,7 +170,7 @@ async function standIn(knows: Knows): Promise<StandIn> {
 }
 
 const SECRET = 's3cr3t &=+/';
-const DID = 'did:web:example.org:agents:ollama:gemma3%3A4b';
+const DID = 'did:web:example.org:agents:service-account-my-worker';
 const JOB = {
   status: 'running',
   metadata: {
@@ -210,8 +209,7 @@ describe('the complete worker of the semiont-worker skill', () => {
 
     const issued = Math.floor(Date.now() / 1000);
     const serviceToken = jwt({ iat: issued, exp: issued + 300, n: 0 });
-    const agentToken = jwt({ iat: issued, exp: issued + 3600, n: 1 });
-    const standing = await standIn({ did: DID, serviceToken, agentToken, queue: [JOB], resources: { 'res-1': page } });
+    const standing = await standIn({ did: DID, serviceToken, queue: [JOB], resources: { 'res-1': page } });
     gateway = standing;
 
     const running = spawn(process.execPath, ['--input-type=module-typescript', '-'], {
@@ -264,13 +262,13 @@ describe('the complete worker of the semiont-worker skill', () => {
     // And it reports what it proposed and what the record holds, established by the record's acknowledgement.
     expect(complete).toEqual({ ...identity, result: { found: 1, persisted: 1 }, durability: 'acknowledged' });
 
-    // It signed in as its service account, and works as the agent that account was exchanged for.
+    // It signed in as its account: the issuer's token is its bearer, and the gateway named it. Nothing is exchanged.
     const [grant] = standing.asked.filter((request) => `${request.method} ${request.path}` === 'POST /realms/semiont/token');
     expect(Object.fromEntries(new URLSearchParams(grant.body))).toEqual({ grant_type: 'client_credentials', client_id: 'my-worker', client_secret: SECRET });
-    const [exchange] = standing.asked.filter((request) => request.path === '/api/tokens/agent');
-    const exchanged: unknown = JSON.parse(exchange.body);
-    expect([exchange.authorization, exchanged]).toEqual([`Bearer ${serviceToken}`, { provider: 'ollama', model: 'gemma3:4b' }]);
-    expect(new Set(standing.emitted.map((emit) => emit.authorization))).toEqual(new Set([`Bearer ${agentToken}`]));
+    const whoAmI = standing.asked.filter((request) => request.path === '/api/users/me');
+    expect(whoAmI.map((request) => `${request.method} ${request.authorization}`)).toEqual([`GET Bearer ${serviceToken}`]);
+    expect(standing.asked.filter((request) => request.path.startsWith('/api/tokens/'))).toEqual([]);
+    expect(new Set(standing.emitted.map((emit) => emit.authorization))).toEqual(new Set([`Bearer ${serviceToken}`]));
     expect(said.out.split('\n')).toContain(`working as ${DID}`);
     // Its stream names what claiming and committing read, and nothing else.
     const [subscription] = standing.asked.filter((request) => request.path === '/bus/subscribe');

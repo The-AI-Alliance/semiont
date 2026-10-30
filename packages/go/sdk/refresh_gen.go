@@ -44,9 +44,9 @@ const (
 	// The knowledge base's tag schemas.
 	CacheQueryTagSchemas CacheQuery = "tagSchemas"
 
-	// The collaborator directory, joined with the limits each inference key
-	// holder reports: asking again asks every `<flow>:limits-requested`
-	// operation of the registry again too.
+	// The roster, joined with the limits each inference key holder reports:
+	// asking again asks every `<flow>:limits-requested` operation of the
+	// registry again too.
 	CacheQueryAgents CacheQuery = "agents"
 )
 

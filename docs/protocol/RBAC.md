@@ -18,7 +18,7 @@ A role is a string in a flat `roles` array at the top level of a token. It is de
 
 | Role | Marks | What it permits |
 |---|---|---|
-| `semiont-service` | A service account: one of Semiont's own processes, not a person | Exchanging its issuer token for an agent token at `POST /api/tokens/agent`, and reading through the archivist |
+| `semiont-service` | A service's account: one of Semiont's own processes, not a person | Reading through the archivist |
 | `semiont-worker` | A principal that may run jobs | Claiming a job: the dispatcher admits a `job:claim` only from a token that carries it |
 
 Every one of Semiont's services carries `semiont-service`, so it proves a caller is a service and nothing finer. `semiont-worker` is a separate grant, made only to workers.

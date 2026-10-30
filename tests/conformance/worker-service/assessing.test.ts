@@ -10,7 +10,7 @@ import { expectGenerations, expectProgress, FORMATS, generation, identity, markJ
 eachWorkerService('an assessing job', (world) => {
   it('asks as its tone says, commits one annotation for a span and an assessment proposed twice, and takes a blank assessment for no proposal', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'assessing', { motivation: 'assessing', tone: 'critical' });
     const resourceId = String(job.params.resourceId);
     const proposed = { exact: 'nobody tested that claim for a century', assessment: 'The text gives no source for this.' };
@@ -28,7 +28,7 @@ eachWorkerService('an assessing job', (world) => {
       'emit job:complete',
       'emit job:claim',
     ]);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'assessing', { num_predict: 5219, num_ctx: 5838, temperature: 0 }, FORMATS.assessing)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'assessing', { num_predict: 5219, num_ctx: 5838, temperature: 0 }, FORMATS.assessing)]);
 
     // An assessment's body is one object, not a list: its text, in the language the job asked for, English when it asked for none.
     expect(served.payloads('mark:commit').map((p) => ({ ...p, annotations: withoutCreated(p['annotations']) }))).toEqual([

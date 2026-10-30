@@ -151,15 +151,12 @@ private class Entry(private val store: SignInStore, private val key: String) : S
         require(signIn.clientId == SCRIPT_CLIENT_ID) {
             "the sign-in store keeps what the client $SCRIPT_CLIENT_ID was issued, and this was issued to ${signIn.clientId}"
         }
-        // A gateway admits no token that names no address, and none from an issuer it does not trust: a token that lacks either is no sign-in.
-        val email = textClaim(signIn.access, "email")
+        // A gateway admits no token from an issuer it does not trust: a token that names no issuer is no sign-in.
         val issuer = textClaim(signIn.access, "iss")
-        if (email == null || issuer == null) {
-            throw SignInError(SignInErrorCode.Exchange, "The sign-in to $key was not kept: its access token names no ${if (email == null) "email" else "issuer"}")
-        }
+            ?: throw SignInError(SignInErrorCode.Exchange, "The sign-in to $key was not kept: its access token names no issuer")
         val learned = SignIn(
             token = signIn.access,
-            email = email,
+            email = textClaim(signIn.access, "email"),
             obtainedAt = rfc3339(now()),
             issuer = issuer,
             tokenEndpoint = signIn.tokenEndpoint,

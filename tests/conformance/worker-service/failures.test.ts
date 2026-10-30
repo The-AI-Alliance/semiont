@@ -119,7 +119,7 @@ eachWorkerService('a job that fails', (world) => {
     expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
     expect(String(error)).toContain('461');
     // It learned its model's window, and asked the model nothing.
-    expect(w.ollama.shows).toEqual([{ model: w.agents[0]!.model }]);
+    expect(w.ollama.shows).toEqual([{ model: w.engines[0]!.model }]);
     expect(w.ollama.generations).toEqual([]);
     expect(sequence).toEqual(['emit job:claim', 'emit job:start', 'emit browse:resource-requested', `GET /resources/${String(job.params.resourceId)}`, 'emit job:fail', 'emit job:claim']);
   });
@@ -130,21 +130,21 @@ eachWorkerService('a job that fails', (world) => {
     ['has nothing in it', ''],
   ])('fails, with no class, on an answer that %s, having asked about the text, its first half, and that half\'s first half', async (_what, response) => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const { job, failure } = await failed(w, 'unreadable', [{ response }, { response }, { response }]);
     unclassed(job, failure, true);
     // A text that fits one piece is still asked about in halves of its own size, two levels down: 98 tokens, its first paragraph of 30, and the first 15 of that.
     expectGenerations(w.ollama.generations, [
-      generation(agent.model, 'highlighting', HIGHLIGHT_REQUEST, FORMATS.highlighting),
-      generation(agent.model, 'unreadable-half', { ...HIGHLIGHT_REQUEST, num_ctx: 5704 }, FORMATS.highlighting),
-      generation(agent.model, 'unreadable-quarter', { ...HIGHLIGHT_REQUEST, num_ctx: 5687 }, FORMATS.highlighting),
+      generation(engine.model, 'highlighting', HIGHLIGHT_REQUEST, FORMATS.highlighting),
+      generation(engine.model, 'unreadable-half', { ...HIGHLIGHT_REQUEST, num_ctx: 5704 }, FORMATS.highlighting),
+      generation(engine.model, 'unreadable-quarter', { ...HIGHLIGHT_REQUEST, num_ctx: 5687 }, FORMATS.highlighting),
     ]);
     expect(w.commits).toEqual([]);
   });
 
   it('fails as deterministic, and says it will not be retried, when an answer over the smallest piece is cut off twice', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const cutOff: ScriptedGeneration = { response: JSON.stringify([{ exact: 'the first program' }]), doneReason: 'length' };
     const job = markJob(w, 'truncated', { motivation: 'highlighting' });
     w.ollama.script(cutOff, cutOff);
@@ -152,7 +152,7 @@ eachWorkerService('a job that fails', (world) => {
     const failure = await settled(served, job, 'job:fail');
 
     // Asked a second time, the same: once, and no more.
-    const request = generation(agent.model, 'highlighting', HIGHLIGHT_REQUEST, FORMATS.highlighting);
+    const request = generation(engine.model, 'highlighting', HIGHLIGHT_REQUEST, FORMATS.highlighting);
     expectGenerations(w.ollama.generations, [request, request]);
     const { error, ...rest } = failure;
     expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });

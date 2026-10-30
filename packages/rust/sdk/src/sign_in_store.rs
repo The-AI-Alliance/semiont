@@ -144,18 +144,21 @@ fn session_of(sign_in: &SignIn) -> Option<StoredSession> {
     })
 }
 
-/// Who signed in and at which issuer, as an access token names them. A token
-/// the gateway admits names both, so one that does not is no sign-in, and is
-/// refused with what it lacks.
-fn named_by(access: &str) -> Result<(String, String), &'static str> {
-    Ok((
-        text_claim(access, "email").ok_or("its access token names no email")?,
-        text_claim(access, "iss").ok_or("its access token names no issuer")?,
-    ))
+/// Who signed in, when an access token names an address, and at which
+/// issuer. A token the gateway admits names its issuer, so one that does not
+/// is no sign-in, and is refused.
+fn named_by(access: &str) -> Result<(Option<String>, String), &'static str> {
+    let issuer = text_claim(access, "iss").ok_or("its access token names no issuer")?;
+    Ok((text_claim(access, "email"), issuer))
 }
 
 /// A session as the sign-in the file keeps, of `email` at `issuer`.
-fn entry_of(session: &StoredSession, email: String, issuer: String, now: SystemTime) -> Value {
+fn entry_of(
+    session: &StoredSession,
+    email: Option<String>,
+    issuer: String,
+    now: SystemTime,
+) -> Value {
     // A struct of strings always serializes to an object.
     serde_json::to_value(SignIn {
         token: session.access.clone(),

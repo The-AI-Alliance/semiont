@@ -49,7 +49,7 @@ const mockFormatEventType = formatEventType as ReturnType<typeof vi.fn>;
 
 const KB = 'did:web:the-ai-alliance.github.io:semiont-template-kb';
 const PERSON = `${KB}:users:59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd`;
-const WORKER = `${KB}:agents:anthropic:claude-haiku-4-5`;
+const WORKER = `${KB}:agents:semiont-worker`;
 
 /** An event as a history reply carries it: the stored event and its actor's agent. */
 function makeStoredEvent(overrides: Partial<AttributedEvent> = {}): AttributedEvent {

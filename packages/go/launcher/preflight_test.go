@@ -247,14 +247,13 @@ func TestPreflightPassesOnTheLiveShape(t *testing.T) {
 }
 
 // (e) The dispatcher admits a job:claim only from a token carrying the worker
-// role, and the worker's agent tokens are stamped with it only if the worker's
-// OWN service token carried it at the mint. A realm imported before the worker
-// role existed has a roles mapper on the worker's client that renders just the
-// service role: every client authenticates, every other check passes, and the
-// worker can never claim a job. That is a broken deployment, not a realm that
-// is merely behind, so it refuses: the gateway mints the worker's agents with
-// `worker:false` and the dispatcher re-announces one job every 30s, forever,
-// with nothing in any log saying why.
+// role, which the worker's token carries only if the realm stamps it. A realm
+// imported before the worker role existed has a roles mapper on the worker's
+// client that renders just the service role: every client authenticates, every
+// other check passes, and the worker can never claim a job. That is a broken
+// deployment, not a realm that is merely behind, so it refuses: the dispatcher
+// would re-announce one job every 30s, forever, with nothing in any log saying
+// why.
 func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 	// A realm imported before the worker role existed: every token carries
 	// exactly the service role.

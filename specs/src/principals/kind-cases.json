@@ -1,5 +1,5 @@
 {
-  "$comment": "What kind of principal a DID names, read from the DID alone: a reader of the record does not know the knowledge base's domain, and a domain may hold colons. Split the DID on `:`. The last segment that is exactly `users` or `agents`, with at least one segment after it, is the kind segment: `agents` names software, `users` a person. A DID with no kind segment names a person, as it always has: the knowledge base's own DID, which seeds the vocabulary, is one. Everything after the kind segment is the principal's subject, which this rule does not read: an agent the gateway mints today has two segments there, its provider and its model, and a subject of one encoded segment reads the same way. Only the kind is read here.",
+  "$comment": "What kind of principal a DID names, read from the DID alone: a reader of the record does not know the knowledge base's domain, and a domain may hold colons. Split the DID on `:`. The last segment that is exactly `users` or `agents`, with at least one segment after it, is the kind segment: `agents` names software, `users` a person. A DID with no kind segment names a person, as it always has: the knowledge base's own DID, which seeds the vocabulary, is one. Everything after the kind segment is the principal's subject, its account's, which this rule does not read: only the kind is read here.",
   "runBy": {
     "rust": ["packages/rust/sdk/tests/tables.rs"],
     "archivist": ["images/archivist/record/src/agents.rs"]
@@ -16,12 +16,7 @@
       "kind": "person"
     },
     {
-      "why": "an agent named by its provider and model, as the gateway mints one today",
-      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:ollama:gemma2%3A27b",
-      "kind": "software"
-    },
-    {
-      "why": "an agent named by one encoded segment after `agents`, as an account's subject would be",
+      "why": "an agent: one encoded segment after `agents`, its account's subject",
       "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:8d2f7a10-4c3e-4b1a-9e5d-2f6c8b0a1d34",
       "kind": "software"
     },
@@ -32,7 +27,7 @@
     },
     {
       "why": "a domain with a raw port colon, as a host:port domain is sometimes written",
-      "did": "did:web:localhost:4000:agents:ollama:llama3",
+      "did": "did:web:localhost:4000:agents:semiont-worker",
       "kind": "software"
     },
     {

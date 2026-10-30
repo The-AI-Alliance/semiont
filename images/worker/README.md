@@ -48,16 +48,18 @@ without coordination.
 parked forever: the credential is not a worker's, and the launcher's preflight names the
 repair.
 
-## One service, an agent for each provider and model
+## One agent, an engine for each provider and model
 
-The worker works as **one agent for each entry of `agents`** in its
-[configuration document](#configuration): a provider and a model, and the jobs that pair
-serves. The agents of one service work at once, and each holds one job at a time.
+The worker is **one agent**: its service account at the knowledge base's issuer, signed in
+once. The token the issuer grants is its bearer at the gateway, and the DID the gateway names
+it by (`GET /api/users/me`) is what the bus stamps on every event it emits.
 
-Each agent signs in for **its own identity** via `/api/tokens/agent`, and that token is
-what the bus stamps on every event it emits. So `_userId` on the bus and the `generator` on
-every annotation it creates refer to the same software peer: attribution follows from the
-identity, and no field has to be set for it.
+It runs **one engine for each entry of `agents`** in its
+[configuration document](#configuration): a provider and a model, and the jobs that engine
+serves. The engines of one service work at once, over the agent's one stream, and each holds
+one job at a time. An engine is no part of who the agent is: the `generator` on everything a
+job makes names the agent by its DID and the engine that made it, so `_userId` on the bus and
+the `generator` on every annotation refer to the same agent.
 
 ## Nothing wedges, nothing restarts from zero
 
@@ -97,7 +99,7 @@ defaults nothing in it.
 | --- | --- |
 | `gatewayUrl` | the gateway's URL |
 | `identity.issuer` | the issuer its service account signs in at |
-| `agents` | each a provider and a model, the jobs it claims, the provider's address, and the variable holding its key |
+| `agents` | the engines: each a provider and a model, the jobs it claims, the provider's address, and the variable holding its key |
 | `modelCatalogue` | the path of the model catalogue |
 | `port` | the health port |
 | `logLevel`, `logFormat` | how it logs |
@@ -137,7 +139,7 @@ own library, which their package brings as an extra named for the provider
 image is built with every extra, so it is not rebuilt to be pointed at another provider.
 
 **The service can be configured for any of the seven providers the protocol names:**
-`anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An agent of its
+`anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An engine of its
 document ([`WorkerAgentConfig`](../../specs/src/components/schemas/WorkerAgentConfig.json))
 names one of them, and a document that names another is refused when the service starts. A
 model of `google`, `openai` or `together` is asked with what the model catalogue says of it,

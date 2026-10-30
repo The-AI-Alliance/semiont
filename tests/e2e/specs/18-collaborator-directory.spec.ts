@@ -1,45 +1,41 @@
 import { test, expect } from '@playwright/test';
-import { MARK_MOTIVATIONS, type CollaboratorEntry, type JobFilter } from '@semiont/core';
+import { MARK_MOTIVATIONS, type JobFilter, type RosterEntry } from '@semiont/core';
 import { signInSession } from '../fixtures/sdk-session';
 
 /**
- * Smoke test: the KB's software collaborator directory, `browse.agents()`,
- * against a live stack — plus the attribution loop (the directory and
- * work-stamped `generator` DIDs describe the same population).
+ * Smoke test: the KB's roster, `browse.agents()`, against a live stack — plus
+ * the attribution loop (the engine a worker's work names is on the roster).
  *
  * Pure **SDK round-trip** (no browser), per the spec-15 pattern: the consumer
  * is chat's delegation chooser, an SDK caller.
  *
- * What it pins (software half only — Persons in the directory are DEFERRED;
- * extend here when they land):
+ * What it pins:
  *
  * 1. **Stack freshness gate.** `browse.agents()` must answer AT ALL. A stack
  *    predating the `browse:agents-*` channels rejects the emit with "Unknown
  *    channel: browse:agents-requested" — an environment verdict, not a feature
  *    verdict; the distinctive error below says "rebuild the stack", not "the
  *    feature is broken".
- * 2. **Roster shape.** Every entry is a Software agent with structured
- *    `provider`/`model` and a DID minted as
- *    `did:web:<host>:agents:<provider>:<model>` (URI-encoded components,
- *    `did-utils.ts`) — self-consistent per entry, one host across the roster
- *    (one KB, one domain).
+ * 2. **Roster shape.** Every entry is an engine — a `provider` and a `model` —
+ *    and nothing more: an engine is not a principal, and carries no identity.
+ *    The roster names each engine once.
  * 3. **Capabilities are the routing function.** Each job a claim can name
  *    (a `mark` job of each motivation, and a `yield` job) appears in EXACTLY
  *    one entry's `serves` (the config maps each to one `(provider, model)`;
  *    the roster dedups by that pair), each named as a claim names it.
- *    Entries without `serves` (actors-only agents) are legal.
+ *    Entries without `serves` (actors-only engines) are legal.
  * 4. **No secret material.** The reply carries no `apiKey`/endpoint config.
- * 5. **The attribution loop.** After a real delegated job, the `generator` DID
- *    stamped on the created annotations is an element of the directory —
- *    declared roster ⊇ actual workers. A generator absent from the directory
- *    is the declared-vs-actual discrepancy this check exists to surface.
+ * 5. **The attribution loop.** After a real delegated job, each `generator`
+ *    stamped on the created annotations names an agent's DID — the worker that
+ *    did the work — and the engine it ran, which is on the roster: declared
+ *    roster ⊇ engines actually used. An engine absent from the roster is the
+ *    declared-vs-actual discrepancy this check exists to surface.
  *
  * Auth note: the e2e harness's only user is the seeded admin. The load-bearing
  * property is that the channel needs no ADMIN gate (the Browser's bus handlers
  * consult no roles — nothing admin-shaped exists on this path), so the admin
  * session exercises exactly what a non-admin one would. A true non-admin
- * session becomes worth wiring when the directory adds Persons (whose
- * assertion is "minimal subset, no admin-only fields").
+ * session becomes worth wiring when there is something admin-only to withhold.
  *
  * Self-seeding: creates its own resource for the delegated job. Slow: the
  * attribution leg waits on a real LLM highlight pass (spec-06/11 class).
@@ -52,14 +48,11 @@ const named = (filter: JobFilter): string =>
 /** Every job a claim can name: a `mark` job of each motivation, and a `yield` job. */
 const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yield'];
 
-// Host may be `host` or `host:port` (the KB's domain is embedded raw; the
-// record reads a DID's kind from the RIGHT so host:port colons don't fool it —
-// specs/src/principals/kind-cases.json). Anchor on `:agents:`; group 1 is the
-// whole host (incl. any port).
-const DID_RE = /^did:web:(.+):agents:([^:]+):([^:]+)$/;
+/** An engine, as a key: `<provider> <model>`. */
+const engineKey = (provider: string | undefined, model: string | undefined): string => `${provider} ${model}`;
 
-test.describe('collaborator directory (browse.agents)', () => {
-  test('directory lists the TOML software roster and attribution DIDs are members', { tag: ['@model'] }, async () => {
+test.describe('the roster (browse.agents)', () => {
+  test('the roster lists each engine once, and the engine a worker\'s work names is on it', { tag: ['@model'] }, async () => {
     test.setTimeout(120_000);
 
     const opened = await signInSession();
@@ -68,7 +61,7 @@ test.describe('collaborator directory (browse.agents)', () => {
 
     try {
       // ── 1. Freshness gate: the channel must exist on the running stack ──
-      let entries: CollaboratorEntry[];
+      let entries: RosterEntry[];
       try {
         // `.fresh()` is the explicit one-shot read: a CacheObservable is not awaitable.
         entries = await client.browse.agents().fresh();
@@ -84,28 +77,14 @@ test.describe('collaborator directory (browse.agents)', () => {
       // ── 2. Roster shape ──
       expect(entries.length, 'KB TOML declares workers/actors → roster is non-empty').toBeGreaterThan(0);
 
-      const didHosts = new Set<string>();
-      const didSet = new Set<string>();
+      const engines = new Set<string>();
       for (const entry of entries) {
-        const agent = entry.agent;
-        expect(agent['@type'], 'v1 roster is software-only (Persons deferred)').toBe('Software');
-        expect(agent.provider, 'structured provider').toBeTruthy();
-        expect(agent.model, 'structured model').toBeTruthy();
-
-        const did = agent['@id'];
-        expect(did, 'roster entries carry a DID').toBeTruthy();
-        const m = DID_RE.exec(did!);
-        expect(m, `DID shape did:web:<host>:agents:<provider>:<model> — got "${did}"`).toBeTruthy();
-        // Self-consistency: the DID's provider/model segments ARE the structured
-        // fields (the Archivist names a roster entry by `agent_did` of the same
-        // (provider, model)).
-        expect(decodeURIComponent(m![2]!)).toBe(agent.provider);
-        expect(decodeURIComponent(m![3]!)).toBe(agent.model);
-        didHosts.add(m![1]!);
-        didSet.add(did!);
+        expect(entry.engine.provider, 'an engine names its provider').toBeTruthy();
+        expect(entry.engine.model, 'an engine names its model').toBeTruthy();
+        expect(Object.keys(entry.engine).sort(), 'an engine is a provider and a model, with no identity').toEqual(['model', 'provider']);
+        engines.add(engineKey(entry.engine.provider, entry.engine.model));
       }
-      expect(didHosts.size, `one KB, one DID host — got ${[...didHosts].join(', ')}`).toBe(1);
-      expect(didSet.size, 'roster is deduplicated by (provider, model) → DIDs unique').toBe(entries.length);
+      expect(engines.size, 'the roster names each engine once').toBe(entries.length);
 
       // ── 3. Capabilities = the routing function ──
       const jobOwners = new Map<string, number>();
@@ -119,7 +98,7 @@ test.describe('collaborator directory (browse.agents)', () => {
       for (const job of JOBS) {
         expect(
           jobOwners.get(job) ?? 0,
-          `"${job}" routes to exactly one agent (the config's resolution is a function; roster dedups)`,
+          `"${job}" routes to exactly one engine (the config's resolution is a function; roster dedups)`,
         ).toBe(1);
       }
 
@@ -127,7 +106,7 @@ test.describe('collaborator directory (browse.agents)', () => {
       const raw = JSON.stringify(entries);
       expect(raw.includes('apiKey'), 'reply must not leak inference config secrets').toBe(false);
 
-      // ── 5. Attribution loop: a real worker's generator DID ∈ directory ──
+      // ── 5. Attribution loop: the engine a real worker's work names ∈ roster ──
       const rid = (
         await client.yield.resource({
           name: 'Directory Attribution',
@@ -149,7 +128,7 @@ test.describe('collaborator directory (browse.agents)', () => {
       expect(done.result !== undefined && 'found' in done.result, 'the highlighting job reports its counts').toBe(true);
 
       // The worker stamps `generator` (single or pipeline array) on what it
-      // created. Poll for projection delivery, then assert membership.
+      // created. Poll for projection delivery, then assert the engine's membership.
       await expect
         .poll(
           async () =>
@@ -164,10 +143,12 @@ test.describe('collaborator directory (browse.agents)', () => {
       for (const ann of generated) {
         const generators = Array.isArray(ann.generator) ? ann.generator : [ann.generator!];
         for (const gen of generators) {
-          expect(gen['@id'], 'generator carries a DID').toBeTruthy();
+          expect(gen['@type'], 'a worker\'s work is a software agent\'s').toBe('Software');
+          expect(gen['@id'], 'generator names the agent that did the work').toMatch(/:agents:/);
+          const software = gen as { provider?: string; model?: string };
           expect(
-            didSet.has(gen['@id']!),
-            `generator ${gen['@id']} is a member of browse.agents() — a miss is a ` +
+            engines.has(engineKey(software.provider, software.model)),
+            `the engine ${engineKey(software.provider, software.model)} is on the roster — a miss is a ` +
               `declared-vs-actual roster discrepancy`,
           ).toBe(true);
         }

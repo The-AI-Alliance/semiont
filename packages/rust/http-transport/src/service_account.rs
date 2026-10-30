@@ -124,14 +124,22 @@ impl ServiceToken {
     }
 
     /// The `authorization` header value: the account's token, renewed when it
-    /// is due. Its own `exp` and `iat` say how long it lives, or failing
-    /// those the grant's `expires_in`; a token that says neither is not kept.
+    /// is due.
     pub async fn authorization(&self) -> Result<String, SignInError> {
+        Ok(format!("Bearer {}", self.token(false).await?))
+    }
+
+    /// The account's token: the one held until it is due, and a new grant
+    /// after, or at once when `renewed`. Its own `exp` and `iat` say how long
+    /// it lives, or failing those the grant's `expires_in`; a token that says
+    /// neither is not kept.
+    pub async fn token(&self, renewed: bool) -> Result<String, SignInError> {
         let mut held = self.token.lock().await;
-        if let Some((token, until)) = held.as_ref()
+        if !renewed
+            && let Some((token, until)) = held.as_ref()
             && Instant::now() < *until
         {
-            return Ok(format!("Bearer {token}"));
+            return Ok(token.clone());
         }
         let endpoint = self.token_endpoint().await?;
         let Credential {
@@ -194,6 +202,6 @@ impl ServiceToken {
             let used_for = stated.map_or(renew_in, |lifetime| renew_in.min(lifetime));
             (token.clone(), Instant::now() + used_for)
         });
-        Ok(format!("Bearer {token}"))
+        Ok(token)
     }
 }

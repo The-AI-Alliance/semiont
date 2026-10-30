@@ -148,20 +148,20 @@ let opened = sign_in_device(
 
 ### A daemon
 
-A daemon signs in as a service, and its work runs as an agent. `credential`
-is its service account at the issuer: the issuer, a client id and a client
-secret. It is not a session: an agent whose renewal fails keeps the token it
-has and tries again, where a person would be signed out.
+A daemon signs in as itself. An agent is an account, as a person is:
+`credential` is its account at the issuer (the issuer, a client id and a
+client secret), and the token the issuer grants it is its bearer at the
+gateway. The gateway names it by that account: `agent.did()` is the DID the
+gateway answers at `GET /api/users/me`. The token is renewed when it is due,
+and at once, by a new grant, when the gateway refuses it. It is not a
+session: an agent whose renewal fails keeps the token it has and tries again,
+where a person would be signed out.
 
 ```rust
-// A service signs in with its account, as the agent its work runs as,
+// A service signs in as itself, an agent with an account at the issuer,
 // and stays signed in for as long as it holds the token.
 let agent = AgentToken::sign_in(
     gateway,
-    Agent {
-        provider: "example".to_owned(),
-        model: "indexer".to_owned(),
-    },
     ServiceToken::new(credential, http.clone()),
     http.clone(),
 )
@@ -205,26 +205,24 @@ queue. Its stream names `JOB_CLAIM_CHANNELS`, and the client's `job.claim`
 hands it each job it comes to hold.
 
 ```rust
-// A worker signs in as a daemon does: with its service account, as the
-// agent its work is attributed to.
-let (provider, model) = ("ollama", "gemma3:4b");
+// A worker signs in as a daemon does: as itself, the agent its work is
+// attributed to.
 let agent = AgentToken::sign_in(
     gateway,
-    Agent {
-        provider: provider.to_owned(),
-        model: model.to_owned(),
-    },
     ServiceToken::new(credential, http.clone()),
     http.clone(),
 )
 .await?;
 println!("working as {}", agent.did());
-// What made the annotations it commits: the agent the gateway gave it.
+// What made the annotations it commits: the agent, as the gateway names
+// it, and the engine it ran.
+let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
+    name: Some(agent_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
-    ..AgentSoftware::new(agent_name(provider, model))
+    ..AgentSoftware::new()
 }
 .into();
 // Its stream names what claiming and committing read. This worker awaits
@@ -315,8 +313,9 @@ claims.stop().await;
 `passages` stands for the worker's model: given the text, the passages it
 would highlight, each as the words it quoted (a `Vec<QuotedText>`).
 
-The service account needs two roles at the issuer: `semiont-service`, to be
-given an agent, and `semiont-worker`, without which every claim is refused.
+Its account at the issuer is an agent's: the realm stamps `"kind": "agent"`
+on its tokens, and the gateway names a token without it a person. It carries
+the role `semiont-worker`, without which every claim is refused.
 What claiming does, what a held job is, and what `reconcile` and
 `annotation_of_span` do with a model's words are in the SDK's
 [A worker](../sdk/README.md#a-worker).

@@ -17,8 +17,8 @@ import (
 const (
 	keycloakAdminUser = "admin"
 
-	// serviceRole: what a token must carry, in a FLAT `roles` array, for the
-	// gateway to mint a software-agent token for its bearer. Flat and
+	// serviceRole: what a service's token carries, in a FLAT `roles` array,
+	// for the archivist to admit it to its read path. Flat and
 	// vendor-neutral by design — the gateway's verification path names no
 	// Keycloak structure, so an operator federating another issuer maps their
 	// own groups into the same claim. Must equal SERVICE_ROLE in
@@ -149,9 +149,8 @@ func serviceClientID(svc string) string {
 }
 
 // serviceRoles: the flat `roles` a service client's token carries. Every
-// service client gets serviceRole; the worker ALSO gets workerRole, so a
-// token it presents to /api/tokens/agent is minted an agent token stamped
-// with the worker capability, and the dispatcher admits that agent's
+// service client gets serviceRole; the worker ALSO gets workerRole, which the
+// gateway stamps on what it emits, and by which the dispatcher admits its
 // job:claim. A deployment running foreign workers grants workerRole to their
 // clients the same way.
 //
@@ -188,10 +187,10 @@ const agentKindMapperName = "semiont agent kind"
 //
 // Three mappers ride on it. The audience mapper is the same one the public
 // clients carry, so the gateway's audience check passes. The roles mapper
-// hardcodes the agent role: an operator creating this client IS the assertion
-// that this process may mint agent identities, and a hardcoded claim says that
-// without needing a realm role created and assigned in the same import. The
-// kind mapper marks the account an agent's (kindClaim).
+// hardcodes the service's roles: an operator creating this client IS the
+// assertion that this process is one of the stack's services, and a hardcoded
+// claim says that without needing a realm role created and assigned in the
+// same import. The kind mapper marks the account an agent's (kindClaim).
 func serviceAccountClient(svc, secret, audience string) map[string]any {
 	return accountClient(serviceClientID(svc), "Semiont "+svc, map[string]any{"secret": secret}, audience, serviceRolesClaim(svc))
 }

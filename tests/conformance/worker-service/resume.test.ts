@@ -46,7 +46,7 @@ const SCHEMA = {
 eachWorkerService('a job resumed from a checkpoint', (world) => {
   it('takes a unit up at its cursor, with a smaller piece, and reports counts that include what the earlier attempt made', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     w.ollama.show = { contextLength: SMALL_CONTEXT_LENGTH };
     // The earlier attempt got through two pieces of 311 tokens: four proposed, three recorded.
     const job = markJob(
@@ -67,7 +67,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
     // Nothing before the cursor is asked for again, and the pieces are smaller than the attempt that died cut them: seven tenths the size.
     expectGenerations(
       w.ollama.generations,
-      ['resume-1', 'resume-2', 'resume-3', 'resume-4'].map((name) => generation(agent.model, name, { num_predict: 622, num_ctx: SMALL_CONTEXT_LENGTH, temperature: 0 }, FORMATS.highlighting)),
+      ['resume-1', 'resume-2', 'resume-3', 'resume-4'].map((name) => generation(engine.model, name, { num_predict: 622, num_ctx: SMALL_CONTEXT_LENGTH, temperature: 0 }, FORMATS.highlighting)),
     );
     for (const asked of w.ollama.generations) expect(String(asked.body['prompt'])).not.toContain('marker 205');
 
@@ -99,7 +99,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
 
   it('does not do again an entity type an earlier attempt finished, and counts nothing for one the record holds no cursor for', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'resume-units', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 2, completedUnits: ['Person'] });
     const resourceId = String(job.params.resourceId);
     w.ollama.script({ response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) }, counting(1));
@@ -108,7 +108,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
 
     expect(served.payloads('job:start')).toEqual([{ ...identity(job), attempt: 3 }]);
     // Only the unfinished type is asked for: its extraction, and its count.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(engine.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     const commits = served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']));
     expect(commits).toHaveLength(1);
     expect(commits[0]!.map((a) => (a['body'] as Array<{ value: string }>)[0]!.value)).toEqual(['Place']);
@@ -138,7 +138,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
 
   it('counts an entity type an earlier attempt finished by the cursor it ended at: the result and every report are of both types', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     // The earlier attempt finished Person: three proposed, two recorded, one that made nothing. Its cursor is where it ended.
     const person = { next: TEXT.length, size: LINKING_SIZE, found: 3, emitted: 2, errors: 1 };
     const job = markJob(w, 'resume-counts', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 1, completedUnits: ['Person'], unitCursors: { Person: person } });
@@ -158,7 +158,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
 
     expect(served.payloads('job:start')).toEqual([{ ...identity(job), attempt: 2 }]);
     // The finished type is not asked about again.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(engine.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
 
     const reference = [{ type: 'TextualBody', value: 'Place', purpose: 'tagging', format: 'text/plain', language: 'en' }];
     expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([
@@ -227,7 +227,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
 
   it('names finished, with its cursor and with nothing asked, an entity type whose cursor stands at the end of the text', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     // The earlier attempt established Person's last batch, and died before it named the type finished.
     const person = { next: TEXT.length, size: LINKING_SIZE, found: 2, emitted: 2, errors: 0 };
     const job = markJob(w, 'resume-ended', { motivation: 'linking', entityTypes: ['Person', 'Place'] }, { retryCount: 1, unitCursors: { Person: person } });
@@ -237,7 +237,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
     const completion = await settled(served, job);
 
     // Nothing is asked about the type that has no text left.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(engine.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([
       [
         textAnnotation(
@@ -287,7 +287,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
 
   it('counts a unit whose cursor stands at the end of the text by that cursor, and asks nothing about it', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     // The earlier attempt asked about Claim to the end of the text, and never began Evidence: three proposed, two recorded, one that made nothing.
     const claim = { next: TEXT.length, size: 2621, found: 3, emitted: 2, errors: 1 };
     const job = markJob(w, 'resume-tagging', { motivation: 'tagging', schemaId: SCHEMA.id, categories: ['Claim', 'Evidence'], schema: SCHEMA }, { retryCount: 1, unitCursors: { Claim: claim } });
@@ -297,7 +297,7 @@ eachWorkerService('a job resumed from a checkpoint', (world) => {
     const completion = await settled(served, job);
 
     // One generation: the category that was never begun.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'tagging-evidence', { num_predict: 5237, num_ctx: 5822, temperature: 0 }, FORMATS.tagging)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'tagging-evidence', { num_predict: 5237, num_ctx: 5822, temperature: 0 }, FORMATS.tagging)]);
     expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([
       [
         textAnnotation(

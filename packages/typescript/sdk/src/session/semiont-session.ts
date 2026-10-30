@@ -15,14 +15,14 @@
  *
  *   - `refresh()` — invoked on 401 / proactive re-auth. Returns the
  *     new access token, or null on failure. The frontend passes a
- *     closure that runs the refresh grant at the issuer; the worker
- *     passes one that mints a new agent token as its service account.
+ *     closure that runs the refresh grant at the issuer; a service
+ *     passes one that asks its issuer for a new grant to its account.
  *
  *   - `validate(token)` — optional. If provided, the session asks it
  *     who a token is: at startup, of the stored token, to populate
  *     `user$`; and of a token renewed because the gateway refused the
- *     one before. Frontend passes the gateway's answer; worker omits
- *     this (service principals have no user record).
+ *     one before. Frontend passes the gateway's answer; a service may
+ *     omit this.
  *
  *   - `onAuthFailed(reason)` — optional. Invoked when the session is
  *     over, with why: `expired`, its token could not be renewed, or

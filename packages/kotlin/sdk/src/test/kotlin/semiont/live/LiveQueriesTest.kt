@@ -141,8 +141,8 @@ class LiveQueriesTest {
 
     @Test
     fun theCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItReportsThem() = runBlocking {
-        val gemma = """{"@type":"Software","name":"gemma","provider":"ollama","model":"gemma2:27b"}"""
-        val claude = """{"@type":"Software","name":"claude","provider":"anthropic","model":"claude-opus-5-5"}"""
+        val gemma = """{"engine":{"provider":"ollama","model":"gemma2:27b"}}"""
+        val claude = """{"engine":{"provider":"anthropic","model":"claude-opus-5-5"}}"""
         val world = KbWorld(answered = false)
         val kb = world.kb
         fun limitsOf(collaborators: List<Collaborator>) = collaborators.map { it.limits?.contextTokens }
@@ -154,14 +154,24 @@ class LiveQueriesTest {
         assertEquals(listOf("browse:agents-requested") + LIMITS, kb.emitted.map { it.channel })
         val (directory, gather, job, match) = kb.emitted.toList()
 
-        // A holder that answers before the directory has nothing to be shown on yet.
-        kb.answer(job, json("""{"limits":[{"provider":"ollama","model":"gemma2:27b","limits":{"contextTokens":8192,"maxOutputTokens":1}}]}"""))
+        // A holder that answers before the directory has nothing to be shown on yet. A model is its provider's: one of
+        // the same name under another is another model. What is reported first stands, and a model not listed is shown nowhere.
+        kb.answer(
+            job,
+            json(
+                """{"limits":[
+                {"provider":"elsewhere","model":"claude-opus-5-5","limits":{"contextTokens":7,"maxOutputTokens":1}},
+                {"provider":"ollama","model":"gemma2:27b","limits":{"contextTokens":8192,"maxOutputTokens":1}},
+                {"provider":"ollama","model":"gemma2:27b","limits":{"contextTokens":9999,"maxOutputTokens":1}},
+                {"provider":"ollama","model":"unlisted","limits":{"contextTokens":1,"maxOutputTokens":1}}]}""",
+            ),
+        )
         live.nothingFor()
 
         // The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-        kb.answer(directory, json("""{"agents":[{"agent":$gemma},{"agent":$claude}]}"""))
+        kb.answer(directory, json("""{"agents":[$gemma,$claude]}"""))
         var shown = live.ready().value
-        assertEquals(listOf("gemma", "claude"), shown.map { (it.entry.agent as semiont.types.AgentSoftware).name })
+        assertEquals(listOf("gemma2:27b", "claude-opus-5-5"), shown.map { it.entry.engine.model })
         assertEquals(listOf(8192.0, null), limitsOf(shown))
 
         // A holder that reports later delays only its own models' limits.
@@ -179,9 +189,9 @@ class LiveQueriesTest {
         eventually { kb.emitted.size == 8 }
         assertEquals(listOf("browse:agents-requested") + LIMITS, kb.emitted.drop(4).map { it.channel })
         live.nothingFor()
-        kb.answer(kb.emitted[4], json("""{"agents":[{"agent":$claude}]}"""))
+        kb.answer(kb.emitted[4], json("""{"agents":[$claude]}"""))
         shown = live.ready().value
-        assertEquals(listOf("claude"), shown.map { (it.entry.agent as semiont.types.AgentSoftware).name })
+        assertEquals(listOf("claude-opus-5-5"), shown.map { it.entry.engine.model })
         assertEquals(listOf(9.0), limitsOf(shown))
         world.close()
     }
@@ -229,10 +239,12 @@ class LiveQueriesTest {
         assertFalse(client.persistenceSettled)
         assertNull(kept("resource"))
         eventually { client.persistenceSettled }
-        // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed.
+        // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed, and nothing is written.
+        val written = storage.get("semiont.cache.kb.annotation-detail")
         world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
-        delay(100)
+        delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
         assertTrue(client.persistenceSettled)
+        assertEquals(written, storage.get("semiont.cache.kb.annotation-detail"))
         world.close()
 
         // The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.

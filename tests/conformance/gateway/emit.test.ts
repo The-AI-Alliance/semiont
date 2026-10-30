@@ -45,7 +45,7 @@ eachPlane('emitting', (world, plane) => {
     const body = { channel: UNVALIDATED, payload: { marker, filler } };
     expect(JSON.stringify(body).length).toBe(limit);
 
-    const emitter = await world().agent('conformance', 'largest-emit');
+    const emitter = await world().agent('largest-emit');
     const reply = await world().emit(emitter.token, body);
     expect(reply.status, reply.text.slice(0, 200)).toBe(202);
     const frame = await reader.frame(UNVALIDATED, (f) => f.payload['marker'] === marker, 20_000);
@@ -55,7 +55,7 @@ eachPlane('emitting', (world, plane) => {
   it('the gateway stamps the verified emitter as _userId and its token\'s roles as _roles, whoever issued the token, over whatever the caller wrote', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] });
     const person = await world().person('stamped');
-    const worker = await world().agent('ollama', 'stamp-model', [SERVICE_ROLE, WORKER_ROLE]);
+    const worker = await world().agent('stamp-model', [SERVICE_ROLE, WORKER_ROLE]);
     const forged = { _userId: 'did:web:forged.example:users:mallory', _roles: ['semiont-admin'] };
 
     const marker1 = randomUUID();
@@ -68,7 +68,8 @@ eachPlane('emitting', (world, plane) => {
     await world().emit(worker.token, { channel: BROADCAST, payload: { annotationId: marker2, resourceId: 'res-1', ...forged } });
     const fromWorker = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker2);
     expect(fromWorker.payload['_userId']).toBe(worker.did);
-    expect(fromWorker.payload['_roles']).toEqual([WORKER_ROLE]);
+    // The roles its account holds, as its token carries them.
+    expect(fromWorker.payload['_roles']).toEqual([SERVICE_ROLE, WORKER_ROLE]);
 
     // A person may hold a role as an agent may; the issuer's token carries it.
     const roled = await world().person('stamped-roled', { roles: [WORKER_ROLE] });
@@ -186,7 +187,7 @@ eachPlane('emitting', (world, plane) => {
   it('a client may have as many unanswered requests as pendingReplies may name, and no more until one is answered', async () => {
     // Something must hear the requests and not answer them: a request that
     // reaches nobody is answered at once (below).
-    const silent = await world().agent('conformance', 'silent');
+    const silent = await world().agent('silent');
     await world().subscribe(silent.token, { clientId: randomUUID(), global: [REQUEST] });
     const token = await world().person('busy');
     const clientId = randomUUID();
@@ -214,7 +215,7 @@ eachPlane('emitting', (world, plane) => {
     expect(other.status).toBe(202);
 
     // An answer frees a slot.
-    const responder = await world().agent('conformance', 'answerer');
+    const responder = await world().agent('answerer');
     const { result } = operationFor(REQUEST);
     const answered = await world().emit(responder.token, {
       channel: result,
@@ -258,7 +259,7 @@ eachPlane('emitting', (world, plane) => {
 
     const reader = await world().person('only-reads', { name: 'Rita Reader' });
     await world().emit(reader, { channel: REQUEST, payload: { resourceId: 'r' } });
-    const agent = await world().agent('conformance', 'writer');
+    const agent = await world().agent('writer');
     expect((await world().emit(agent.token, { channel: WRITE, payload: { tag: 'Agent' } })).status).toBe(202);
     const nameless = await world().person('nameless', { name: undefined });
     expect((await world().emit(nameless, { channel: WRITE, payload: { tag: 'Nameless' } })).status).toBe(202);
@@ -299,7 +300,7 @@ eachPlane('emitting', (world, plane) => {
     const request = 'browse:annotation-requested';
     const { failure } = operationFor(request);
     const stream = await world().subscribe(token, { clientId, global: [failure] });
-    const participant = await world().agent('conformance', 'server');
+    const participant = await world().agent('server');
     const server = await world().subscribe(participant.token, { clientId: randomUUID(), global: [request] });
     const correlationId = randomUUID();
     const reply = await world().emit(token, { channel: request, payload: { resourceId: 'r-11', annotationId: 'a-11' }, correlationId, clientId });
@@ -313,7 +314,7 @@ eachPlane('emitting', (world, plane) => {
   it('a reply with no correlationId reaches no one', async () => {
     const { result } = operationFor(REQUEST);
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [result] });
-    const participant = await world().agent('conformance', 'uncorrelated');
+    const participant = await world().agent('uncorrelated');
     const reply = await world().emit(participant.token, {
       channel: result,
       payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },

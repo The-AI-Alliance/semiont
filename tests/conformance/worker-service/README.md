@@ -24,7 +24,10 @@ Each file runs its cases in a world of its own
 ([harness/worker-service-world.ts](../harness/worker-service-world.ts)):
 
 - the trusted issuer, which grants the service's account the service and
-  worker roles;
+  worker roles, and marks it an agent's: the gateway names the service by
+  that account, as one agent, whatever engines it runs. The engines a case's
+  service runs, two of Ollama and two of Anthropic, are the world's own
+  fixtures;
 - a real gateway, on the in-process plane, with the harness's stand-in
   Archivist behind it for a resource's bytes, for uploads, and for a
   resource's anchored text, the text the Smelter read out of a PDF: a case
@@ -32,15 +35,15 @@ Each file runs its cases in a world of its own
   nothing for is one the Archivist does not know;
 - a recording proxy in front of the gateway, which the service's `gatewayUrl`
   names: everything the service sends the gateway is read from it as a
-  transcript, in order (each sign-in, each stream it opens, each emit, each
+  transcript, in order (its sign-in, the stream it opens, each emit, each
   read of bytes or of anchored text, each upload);
 - a stand-in Ollama ([harness/ollama.ts](../harness/ollama.ts)), which the
-  `baseUrl` of an Ollama agent names. It answers `POST /api/show` with the
+  `baseUrl` of an Ollama engine names. It answers `POST /api/show` with the
   context length a case set, or refuses it, or ends the connection
   unanswered, and `POST /api/generate` with what the case scripted, and
   records every request as it was sent;
 - a stand-in Anthropic ([harness/anthropic.ts](../harness/anthropic.ts)),
-  which the `baseUrl` of an Anthropic agent names. It plays the provider
+  which the `baseUrl` of an Anthropic engine names. It plays the provider
   under version 2026-10-21 of its API: it takes a request only with the key
   as `Authorization: Bearer <key>`, and refuses with 400, on every model, a
   generation that carries `temperature`, `top_p` or `top_k`. It answers `GET
@@ -49,7 +52,7 @@ Each file runs its cases in a world of its own
   the stream of events the request asked for, a refusal, a held answer, or a
   connection ended unanswered. A refusal may carry headers, and so may one
   of the Models API. It records every request with its headers.
-  Its key reaches the service in the variable the agent's `apiKeyEnv` names,
+  Its key reaches the service in the variable the engine's `apiKeyEnv` names,
   which is none the provider's own library reads;
 - the suite itself on the bus, as the two parties a worker asks things of
   there. As the dispatcher it answers `job:claim` from the jobs a case queued,

@@ -41,9 +41,13 @@ private class Service {
     val asked = mutableListOf<String>()
     private val waiting = mutableListOf<CompletableDeferred<Int>>()
 
+    /** Requests not yet made that are answered as soon as they are, by their number. */
+    val answeredAtOnce = mutableMapOf<Int, Int>()
+
     suspend fun fetch(key: String): Int {
-        asked += key
         val answer = CompletableDeferred<Int>()
+        answeredAtOnce[asked.size]?.let(answer::complete)
+        asked += key
         waiting += answer
         return answer.await()
     }
@@ -308,6 +312,21 @@ class CacheTest {
         // A failure writes nothing: the key is as it was, and its first observer asks.
         assertNull(world.cache.get(KEY))
         assertEquals(PENDING, now(world.observe()))
+        assertEquals(listOf(KEY, KEY), world.service.asked)
+        world.close()
+    }
+
+    @Test
+    fun b14ObserversThatArriveWhileAFetchIsInFlightShareItsOneRetry() = runTest {
+        val world = World(this)
+        val one = world.observe()
+        val other = world.observe()
+        assertEquals(PENDING to PENDING, now(one) to now(other))
+        // The retry is answered as it is asked, so a second retry would find nothing in flight to join.
+        world.service.answeredAtOnce[1] = 7
+        world.service.fail(0)
+        assertEquals(ready(7) to ready(7), now(one) to now(other))
+        runCurrent()
         assertEquals(listOf(KEY, KEY), world.service.asked)
         world.close()
     }

@@ -9,7 +9,7 @@ describe('renderAgentLabel', () => {
     it('composes `${provider} ${model}` from structured fields', () => {
       const agent: Agent = {
         '@type': 'Software',
-        '@id': 'did:web:example.com:agents:ollama:gemma2%3A27b',
+        '@id': 'did:web:example.com:agents:semiont-worker',
         name: 'unused-display-name',
         provider: 'ollama',
         model: 'gemma2:27b',
@@ -41,6 +41,14 @@ describe('renderAgentLabel', () => {
         name: 'Some Software',
       };
       expect(renderAgentLabel(agent)).toBe('Some Software');
+    });
+
+    it('falls back to its DID when it says nothing of itself, as a generator the record supplies', () => {
+      const agent: Agent = {
+        '@type': 'Software',
+        '@id': 'did:web:example.com:agents:semiont-worker',
+      };
+      expect(renderAgentLabel(agent)).toBe('did:web:example.com:agents:semiont-worker');
     });
   });
 

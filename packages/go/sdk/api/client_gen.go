@@ -2254,17 +2254,17 @@ type AgentPerson struct {
 // AgentPersonType defines model for AgentPerson.Type.
 type AgentPersonType string
 
-// AgentSoftware A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
+// AgentSoftware A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `name`, `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads none of them from its DID. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.
 type AgentSoftware struct {
-	// Id DID-shaped identifier (e.g. did:web:host:agents:provider:model)
+	// Id The agent's DID: did:web:<domain>:agents:<subject>, its account at the knowledge base's issuer
 	Id   *string           `json:"@id,omitempty"`
 	Type AgentSoftwareType `json:"@type"`
 
 	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
 	Model *string `json:"model,omitempty"`
 
-	// Name Stable human-friendly label. Not parsed; UI composes display from structured fields.
-	Name string `json:"name"`
+	// Name What the agent calls itself. Not parsed. Absent when it said nothing.
+	Name *string `json:"name,omitempty"`
 
 	// Parameters Inference parameters (temperature, maxTokens, systemPrompt, etc.). Runtime metadata, not part of identity.
 	Parameters *map[string]interface{} `json:"parameters,omitempty"`
@@ -2276,24 +2276,6 @@ type AgentSoftware struct {
 
 // AgentSoftwareType defines model for AgentSoftware.Type.
 type AgentSoftwareType string
-
-// AgentTokenRequest The (provider, model) the agent token is issued for: together they name the agent.
-type AgentTokenRequest struct {
-	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
-	Model string `json:"model"`
-
-	// Provider Inference provider (e.g. ollama, anthropic)
-	Provider string `json:"provider"`
-}
-
-// AgentTokenResponse The agent token and the DID it names.
-type AgentTokenResponse struct {
-	// Did DID of the software-agent identity the token is acting as
-	Did UserId `json:"did"`
-
-	// Token Bearer JWT for subsequent authenticated requests
-	Token string `json:"token"`
-}
 
 // AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
 type AnchoredText struct {
@@ -2624,10 +2606,10 @@ type ArchivistHealthStatus string
 type ArchivistRoster struct {
 	// Actors The agent serving each actor that calls a model.
 	Actors struct {
-		// Gatherer The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		// Gatherer The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 		Gatherer *ArchivistRosterRole `json:"gatherer,omitempty"`
 
-		// Matcher The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		// Matcher The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 		Matcher *ArchivistRosterRole `json:"matcher,omitempty"`
 	} `json:"actors"`
 
@@ -2635,28 +2617,28 @@ type ArchivistRoster struct {
 	Workers struct {
 		// Mark The agent serving `mark` jobs of each motivation.
 		Mark *struct {
-			// Assessing The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Assessing The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Assessing *ArchivistRosterRole `json:"assessing,omitempty"`
 
-			// Commenting The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Commenting The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Commenting *ArchivistRosterRole `json:"commenting,omitempty"`
 
-			// Highlighting The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Highlighting The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Highlighting *ArchivistRosterRole `json:"highlighting,omitempty"`
 
-			// Linking The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Linking The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Linking *ArchivistRosterRole `json:"linking,omitempty"`
 
-			// Tagging The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Tagging The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Tagging *ArchivistRosterRole `json:"tagging,omitempty"`
 		} `json:"mark,omitempty"`
 
-		// Yield The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		// Yield The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 		Yield *ArchivistRosterRole `json:"yield,omitempty"`
 	} `json:"workers"`
 }
 
-// ArchivistRosterRole The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+// ArchivistRosterRole The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 type ArchivistRosterRole struct {
 	// Model The model identifier, as the provider names it.
 	Model string `json:"model"`
@@ -2859,13 +2841,13 @@ type BodyOperationReplaceOp string
 // BodyPurpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
 type BodyPurpose string
 
-// BrowseAgentsRequest Request to browse the KB's collaborator directory (its declared Agents)
+// BrowseAgentsRequest Request to browse the knowledge base's roster: the engines its Inference document names
 type BrowseAgentsRequest = map[string]interface{}
 
-// BrowseAgentsResult Result of browsing the collaborator directory
+// BrowseAgentsResult Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves
 type BrowseAgentsResult struct {
 	Response struct {
-		Agents []CollaboratorEntry `json:"agents"`
+		Agents []RosterEntry `json:"agents"`
 	} `json:"response"`
 }
 
@@ -2962,7 +2944,7 @@ type BrowseEventsRequest struct {
 	ResourceId ResourceId `json:"resourceId"`
 	Type       *string    `json:"type,omitempty"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<subject>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UserId *UserId `json:"userId,omitempty"`
 }
 
@@ -3220,15 +3202,6 @@ type CloneResourceWithTokenResponse struct {
 
 	// Token Generated clone token
 	Token string `json:"token"`
-}
-
-// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the jobs it serves. Actor-role-only agents (gatherer/matcher) and Persons omit `serves`. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
-type CollaboratorEntry struct {
-	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
-	Agent Agent `json:"agent"`
-
-	// Serves The jobs this agent is declared to serve (from the KB's workers.* config sections), as a claim would name them. Absent for Persons and for agents declared only under actor roles.
-	Serves *[]JobFilter `json:"serves,omitempty"`
 }
 
 // CommandError Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.
@@ -4902,7 +4875,7 @@ type JobStatusResponse struct {
 	// Type What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
 	Type JobType `json:"type"`
 
-	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
+	// UserId The identity of whoever did something, a person or a software agent alike: a DID (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<subject>`), with no whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves some punctuation as it is.
 	UserId UserId `json:"userId"`
 }
 
@@ -5071,7 +5044,7 @@ type LibrarianConfig struct {
 
 // LibrarianModelConfig One model a Librarian asks: who it is, and where its provider is reached.
 type LibrarianModelConfig struct {
-	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	// Agent The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 	Agent ArchivistRosterRole `json:"agent"`
 
 	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
@@ -6124,6 +6097,15 @@ type ResourceView struct {
 	Resource ResourceDescriptor `json:"resource"`
 }
 
+// RosterEntry One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+type RosterEntry struct {
+	// Engine The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
+	Engine ArchivistRosterRole `json:"engine"`
+
+	// Serves The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles.
+	Serves *[]JobFilter `json:"serves,omitempty"`
+}
+
 // ScoredResource defines model for ScoredResource.
 type ScoredResource struct {
 	// Context JSON-LD context; URI, object, or array of these.
@@ -6655,14 +6637,16 @@ type UpdateAnnotationBodyRequest_Operations_Item struct {
 //
 // The remaining fields exist to be displayed, and all of them come from the token's own claims.
 type UserResponse struct {
-	// Did The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent.
+	// Did The authenticated principal's DID: `did:web:<domain>:agents:<subject>` for an agent, whose token's `kind` claim is `agent`, and `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its principals by (`identity.subjectClaim`).
 	Did UserId `json:"did"`
 
-	// Domain Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's.
-	Domain string  `json:"domain"`
-	Email  string  `json:"email"`
-	Image  *string `json:"image"`
-	Name   *string `json:"name"`
+	// Domain The knowledge base's domain: the authority the principal is named under.
+	Domain string `json:"domain"`
+
+	// Email The address the token carries, when it carries one: an agent's account need not have one.
+	Email *string `json:"email"`
+	Image *string `json:"image"`
+	Name  *string `json:"name"`
 }
 
 // VectorsConfig The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
@@ -6742,7 +6726,7 @@ type WorkerAgentConfig struct {
 	// Accepts The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.
 	Accepts []JobFilter `json:"accepts"`
 
-	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	// Agent The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 	Agent ArchivistRosterRole `json:"agent"`
 
 	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
@@ -7032,9 +7016,6 @@ type TooManyRequests = LimitRefusal
 
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
-
-// ExchangeAgentTokenJSONRequestBody defines body for ExchangeAgentToken for application/json ContentType.
-type ExchangeAgentTokenJSONRequestBody = AgentTokenRequest
 
 // CreateMediaTokenJSONRequestBody defines body for CreateMediaToken for application/json ContentType.
 type CreateMediaTokenJSONRequestBody = MediaTokenRequest
@@ -7424,9 +7405,11 @@ func (a AgentSoftware) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	object["name"], err = json.Marshal(a.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	if a.Name != nil {
+		object["name"], err = json.Marshal(a.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
 	}
 
 	if a.Parameters != nil {
@@ -14374,11 +14357,6 @@ type ClientInterface interface {
 	// GetStatus request
 	GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ExchangeAgentTokenWithBody request with any body
-	ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// CreateMediaTokenWithBody request with any body
 	CreateMediaTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -14475,30 +14453,6 @@ func (c *Client) GetResourceRepresentationWithMediaToken(ctx context.Context, id
 
 func (c *Client) GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetStatusRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExchangeAgentTokenRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExchangeAgentTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14818,46 +14772,6 @@ func NewGetStatusRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewExchangeAgentTokenRequest calls the generic ExchangeAgentToken builder with application/json body
-func NewExchangeAgentTokenRequest(server string, body ExchangeAgentTokenJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewExchangeAgentTokenRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewExchangeAgentTokenRequestWithBody generates requests for ExchangeAgentToken with any type of body
-func NewExchangeAgentTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/agent")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -15235,11 +15149,6 @@ type ClientWithResponsesInterface interface {
 	// GetStatusWithResponse request
 	GetStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatusResponse, error)
 
-	// ExchangeAgentTokenWithBodyWithResponse request with any body
-	ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
-
-	ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
-
 	// CreateMediaTokenWithBodyWithResponse request with any body
 	CreateMediaTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error)
 
@@ -15415,33 +15324,6 @@ func (r GetStatusResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetStatusResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ExchangeAgentTokenResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AgentTokenResponse
-	JSON400      *ErrorResponse
-	JSON401      *Unauthorized
-	JSON413      *PayloadTooLarge
-	JSON429      *TooManyRequests
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ExchangeAgentTokenResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ExchangeAgentTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15742,23 +15624,6 @@ func (c *ClientWithResponses) GetStatusWithResponse(ctx context.Context, reqEdit
 		return nil, err
 	}
 	return ParseGetStatusResponse(rsp)
-}
-
-// ExchangeAgentTokenWithBodyWithResponse request with arbitrary body returning *ExchangeAgentTokenResponse
-func (c *ClientWithResponses) ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
-	rsp, err := c.ExchangeAgentTokenWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExchangeAgentTokenResponse(rsp)
-}
-
-func (c *ClientWithResponses) ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
-	rsp, err := c.ExchangeAgentToken(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExchangeAgentTokenResponse(rsp)
 }
 
 // CreateMediaTokenWithBodyWithResponse request with arbitrary body returning *CreateMediaTokenResponse
@@ -16083,67 +15948,6 @@ func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest TooManyRequests
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseExchangeAgentTokenResponse parses an HTTP response from a ExchangeAgentTokenWithResponse call
-func ParseExchangeAgentTokenResponse(rsp *http.Response) (*ExchangeAgentTokenResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ExchangeAgentTokenResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AgentTokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest PayloadTooLarge
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequests

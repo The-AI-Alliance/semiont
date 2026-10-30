@@ -3,11 +3,11 @@
 What the Worker service does: the process a worker image runs. It is a worker
 in the sense of [WORKER-CONTRACT.md](./WORKER-CONTRACT.md), and keeps that
 contract; this document is everything else it does. How it is configured and
-what it refuses to start on, the agents it works as, what it reads for a job,
-what it asks its model and what it does with the answer, what it commits and
-reports, how it ends a job, and how it stops. What the dispatcher does with a
-worker's messages is [JOBS.md](./JOBS.md), and what the record does with them
-is [ARCHIVIST.md](./ARCHIVIST.md).
+what it refuses to start on, the agent it is and the engines it runs, what it
+reads for a job, what it asks its model and what it does with the answer, what
+it commits and reports, how it ends a job, and how it stops. What the
+dispatcher does with a worker's messages is [JOBS.md](./JOBS.md), and what the
+record does with them is [ARCHIVIST.md](./ARCHIVIST.md).
 
 A Worker service written in another language does what is written here. If
 the code deviates from it, the code is wrong, or this document is wrong and is
@@ -71,20 +71,20 @@ holds the count.
   the worker's environment is not an RSA key: a worker signs its assertions with
   RS256`, each exiting with status 1. Nothing it writes carries the key.
   *Held by `worker-service/boot`.*
-- **B4.** A provider's key is named, not stated: an agent's `apiKeyEnv` is the
-  name of the environment variable that holds it. When the variable an agent
+- **B4.** A provider's key is named, not stated: an engine's `apiKeyEnv` is the
+  name of the environment variable that holds it. When the variable an engine
   names is unset or empty, the service writes `[fatal]
   agents[<index>].apiKeyEnv names a variable that is not set in the worker's
   environment` and exits with status 1. The line says which member named the
   variable and never what it named: a key written where the name belongs is a
   value found in the document, and nothing the service writes carries it. An
-  agent whose provider takes a key and names no variable for one is refused by
-  `agents[<index>].apiKeyEnv` too. An agent of `google`, `openai` or
+  engine whose provider takes a key and names no variable for one is refused by
+  `agents[<index>].apiKeyEnv` too. An engine of `google`, `openai` or
   `together` is made with what a model catalogue says of its model, which
   those providers' APIs do not: the document's `modelCatalogue` is the
   catalogue file's path, which every document states, and the service
   refuses to start, by that member, where the file cannot be read and where
-  it states nothing of the agent's model. No other agent has the file read.
+  it states nothing of the engine's model. No other engine has the file read.
   *Held by `worker-service/boot`, for a variable that is not set and for a document that states no catalogue, and by `images/worker/tests/test_service.py` and `packages/python/inference/tests/test_factory.py`, for the rest.*
 - **B5.** All of the above is settled before anything is dialled. A service
   that refuses to start has asked nothing of the issuer, the gateway or a
@@ -97,46 +97,49 @@ holds the count.
   answers. Nothing either writes carries the secret.
   *Held by `worker-service/boot`.*
 
-## Agents
+## The agent
 
-A Worker service works as one **agent** for each entry of its document's
-`agents`: a provider and a model, the jobs that pair serves, and where the
-provider is reached. Each agent is a worker of its own under
-[WORKER-CONTRACT.md](./WORKER-CONTRACT.md): it holds one job at a time, and the
-agents of one service work at once.
+A Worker service is one **agent**: its service account at the issuer, signed
+in once. It runs one **engine** for each entry of its document's `agents`: a
+provider and a model, the jobs that engine serves, and where the provider is
+reached. An engine is no part of who the agent is. Each engine is a worker of
+its own under [WORKER-CONTRACT.md](./WORKER-CONTRACT.md): it holds one job at
+a time, and the engines of one service work at once, under the agent's one
+sign-in.
 
-- **G1.** For each entry, the service signs in as that agent: it is granted a
-  token for its service account at the issuer the document names, and
-  exchanges it at the gateway, `POST /api/tokens/agent` with the entry's
-  `provider` and `model`, for the agent's token. The DID the gateway answers
-  is the agent's identity. The service uses it as answered, and derives it
-  from nothing else.
+- **G1.** The service signs in once, as its account: it is granted a token
+  for its service account at the issuer the document names, and that token is
+  its bearer at the gateway. The agent's DID is the one the gateway answers
+  `GET /api/users/me` with. The service uses it as answered, and derives it
+  from nothing else. No engine signs in for itself.
   *Held by `worker-service/started`.*
-- **G2.** Each agent opens one stream of its own. It names what a worker's
-  stream names ([WORKER-CONTRACT S1](./WORKER-CONTRACT.md#the-stream)): the
-  reply channels of `job:claim`, of `mark:commit` and
-  `browse:annotation-requested`, and of `browse:resource-requested`; and the
-  broadcasts `job:queued` and `job:cancel-requested`. The first agent's also
-  names `job:limits-requested` ([Limits](#limits)). No stream names a scope.
+- **G2.** The service opens one stream, and every engine claims and runs its
+  jobs over it. It names what a worker's stream names
+  ([WORKER-CONTRACT S1](./WORKER-CONTRACT.md#the-stream)): the reply channels
+  of `job:claim`, of `mark:commit` and `browse:annotation-requested`, and of
+  `browse:resource-requested`; and the broadcasts `job:queued` and
+  `job:cancel-requested`. It also names `job:limits-requested`
+  ([Limits](#limits)). It names no scope.
   *Held by `worker-service/started`.*
-- **G3.** Each agent claims with its own entry's `accepts`, as given, and with
-  no other filter.
+- **G3.** Each engine claims with its own entry's `accepts`, as given, and
+  with no other filter.
   *Held by `worker-service/started`.*
-- **G4.** A job is run by the agent that claimed it: on that agent's provider
-  and model, with every message about the job sent under that agent's token.
-  What the job makes states that agent as its `generator`: `@type`
-  `Software`, `@id` the agent's DID, `name` the provider and the model with a
-  space between, and `provider` and `model`.
+- **G4.** A job is run by the engine whose claim it answered, on that engine's
+  provider and model, and every message about it is sent under the agent's
+  token. What the job makes states the agent and that engine as its
+  `generator`: `@type` `Software`, `@id` the agent's DID, `name` the engine's
+  provider and model with a space between, and `provider` and `model`.
   *Held by `worker-service/started`.*
 
 ## Health
 
 - **H1.** The service answers `GET /health` on the document's `port`, with no
-  token asked, once every agent has signed in: `200`, `application/json`, and
-  `{"status": "ok", "agents": <count>, "workers": [...]}`. `workers` has one
-  entry for each agent, in the order of the document: its `provider`,
-  `model` and `did`, the filters it `serves`, and what a worker can say of
-  itself ([WORKER-CONTRACT V1](./WORKER-CONTRACT.md#liveness)):
+  token asked, once the agent has signed in and opened its stream: `200`,
+  `application/json`, and `{"status": "ok", "did": <the agent's DID>,
+  "workers": [...]}`. `workers` has one entry for each engine, in the order of
+  the document: its `provider` and `model`, the filters it `serves`, and what
+  a worker can say of itself
+  ([WORKER-CONTRACT V1](./WORKER-CONTRACT.md#liveness)):
   `lastQueuedEventAt`, `lastClaimAt`, `lastFinishedAt` and `lastActivityAt`,
   each an instant or `null`; `activeJob`, `null` or the held job's `jobId`,
   `type` and `since`; and `jobsCompleted`. The path is matched without its
@@ -150,11 +153,11 @@ agents of one service work at once.
 A Worker service holds the keys to its providers, so it is what can say what
 each of its models can take.
 
-- **M1.** The first agent answers `job:limits-requested` with one
+- **M1.** The service answers `job:limits-requested` with one
   `job:limits-result`, carrying the request's correlation id: `limits`, an
-  entry for each distinct provider and model among the agents, in the order
+  entry for each distinct provider and model among its engines, in the order
   of the document, each with `contextTokens`, `maxOutputTokens` and
-  `acceptsTemperature`. No other agent answers.
+  `acceptsTemperature`.
   *Held by `worker-service/limits`.*
 - **M2.** An Ollama model's limits are asked of its provider: `POST
   <baseUrl>/api/show` with `{"model": <model>}`. The context length is the
@@ -164,7 +167,7 @@ each of its models can take.
   `contextTokens` and `maxOutputTokens`: what goes in and what comes out share
   one window. `acceptsTemperature` is `true`.
   *Held by `worker-service/limits`.*
-- **M3.** An agent asks for its model's limits once, when they are first
+- **M3.** An engine asks for its model's limits once, when they are first
   needed, and keeps the answer. An answer it could not get is not kept: that
   model is left out of the reply, the request is still answered, and the
   provider is asked again the next time the limits are needed. A job that
@@ -174,9 +177,9 @@ each of its models can take.
   that reply.
   *Held by no case.*
 - **M5.** An Anthropic model's limits are asked of its provider in one
-  request, `GET <baseUrl>/v1/models/<model>`. It carries the agent's key
+  request, `GET <baseUrl>/v1/models/<model>`. It carries the engine's key
   ([B4](#configuration)) as `Authorization: Bearer <key>`, and
-  `anthropic-version: 2026-10-21`, as every request of an Anthropic agent
+  `anthropic-version: 2026-10-21`, as every request of an Anthropic engine
   does. Its `max_input_tokens` is stated as `contextTokens` and its
   `max_tokens` as `maxOutputTokens`, each a ceiling of its own.
   `acceptsTemperature` is `false`: under that version of its API, the
@@ -216,11 +219,11 @@ job is one unit for each of its `categories`.
 
 ### The request
 
-- **D1.** On an Ollama agent a generation is `POST <baseUrl>/api/generate`
+- **D1.** On an Ollama engine a generation is `POST <baseUrl>/api/generate`
   with `model`, `prompt`, `stream: false`, `think: false`, `options`
   (`num_predict`, `num_ctx` and `temperature`), and, when the answer is to be
   an array of objects, `format`: `{"type": "array", "items": <schema>}`.
-  Nothing else is sent. Before an agent's first generation it asks its
+  Nothing else is sent. Before an engine's first generation it asks its
   model's limits ([M2](#limits)).
   *Held by `worker-service/highlighting`.*
 - **D2.** A detection's `temperature` is `0`. Its prompt is the kind's
@@ -240,7 +243,7 @@ job is one unit for each of its `categories`.
   tokens of the whole prompt, `num_ctx` is the lesser of `C` and `P +
   num_predict + ceil(P × 0.2) + 64`.
   *Held by `worker-service/highlighting`, `worker-service/chunks`, `worker-service/prompts`, `worker-service/code-points`, `worker-service/failures`.*
-- **D20.** On an Anthropic agent a generation is `POST <baseUrl>/v1/messages`
+- **D20.** On an Anthropic engine a generation is `POST <baseUrl>/v1/messages`
   with `model`, `max_tokens`, `messages` (one message, of `role` `user`,
   whose `content` is the prompt), and, when the answer is to be an array of
   objects, `output_config`: `{"format": {"type": "json_schema", "schema":
@@ -248,13 +251,13 @@ job is one unit for each of its `categories`.
   `stream` by a long generation ([Y9](#generation)). No `temperature` is
   sent, whatever [D2](#the-request) or the job says ([M5](#limits)). The
   answer is the text of the message, and
-  why the model stopped is its `stop_reason`. Before an agent's first
+  why the model stopped is its `stop_reason`. Before an engine's first
   generation it asks its model's limits ([M5](#limits)). A model that does
   not report `capabilities.structured_outputs.supported` as `true` is not
   asked for an array of objects: a job that needs one fails as deterministic,
   with no generation asked for ([F13](#failures)).
   *Held by `worker-service/anthropic`.*
-- **D21.** On an Anthropic agent the budget of [D3](#the-request) is worked
+- **D21.** On an Anthropic engine the budget of [D3](#the-request) is worked
   out from the model's two ceilings. With `M` its `maxOutputTokens`: `output
   = M`, and `input = C − M − S`. When `output` is over 10666, `input` becomes
   `floor(input × 10666 / output)` and `output` becomes 10666. That is what a
@@ -347,7 +350,7 @@ job is one unit for each of its `categories`.
 
 - **D11.** An annotation a detection commits has `@context`
   `http://www.w3.org/ns/anno.jsonld`, `type` `Annotation`, its `id`, its
-  `motivation`, the agent as `generator` ([G4](#agents)), `created`, a
+  `motivation`, the `generator` of [G4](#the-agent), `created`, a
   `target` of `type` `SpecificResource` with the resource as `source` and the
   span's `selector`, and the `body` of its kind, when its kind has one. It
   states no `creator`: who asked for the job is the record's to say. It
@@ -522,7 +525,7 @@ A job's `sourceLanguage` is said in the prompt by its English name; so is the
   and the schema's `id` as `value`, `purpose` `classifying` and `format`
   `text/plain`.
   *Held by `worker-service/tagging`, `worker-service/prompts`.*
-- **K8.** On an Anthropic agent a linking job has up to four of its entity
+- **K8.** On an Anthropic engine a linking job has up to four of its entity
   types with the model at once: the job's first four, and each of the others
   when one before it is finished. Each type is done as
   [K4](#the-five-kinds-of-mark-job) says, its count a generation with the
@@ -556,7 +559,7 @@ deterministic, so that no attempt is spent on them again.
 - **N5.** A `mark` job on a PDF the Smelter has no map of (`no-map`) or does
   not know (`unknown`) fails as deterministic, the error naming which.
   *Held by `worker-service/pdf`.*
-- **N6.** A job its agent's filters do not take, handed over all the same, is
+- **N6.** A job its engine's filters do not take, handed over all the same, is
   started and then failed as deterministic, the error naming the job. Nothing
   is read for it.
   *Held by `worker-service/declines`.*
@@ -591,8 +594,8 @@ deterministic, so that no attempt is spent on them again.
   states it: transient for a status the job rule retries (408, 429, and every
   status from 500 up), and deterministic for any other status of 400 or more.
   The error says what the provider said: its status and its body. On an
-  Ollama agent the request is not made again within the attempt; on an
-  Anthropic agent it may be ([F10](#failures)), and the job fails by the last
+  Ollama engine the request is not made again within the attempt; on an
+  Anthropic engine it may be ([F10](#failures)), and the job fails by the last
   answer. A generation that fails with no status has no class: a connection
   that ends unanswered.
   *Held by `worker-service/failures`, `worker-service/anthropic`.*
@@ -638,10 +641,10 @@ deterministic, so that no attempt is spent on them again.
   ended, and when no smaller piece is to be asked for instead
   ([F6](#failures)) the job fails as transient. While a detection awaits a
   generation, it reports where it stands again every fifteen seconds. On an
-  Anthropic agent the ten minutes are of every asking of the one generation
+  Anthropic engine the ten minutes are of every asking of the one generation
   ([F10](#failures)) and of the waits between them.
   *Held by no case.*
-- **F10.** An Anthropic agent asks again, within the attempt, for a request
+- **F10.** An Anthropic engine asks again, within the attempt, for a request
   its provider refused with 408, 409, 429 or a status of 500 or more, and for
   one whose connection ended unanswered: the same request, twice more at
   most, three askings in all. This is so of every request it makes: a
@@ -653,7 +656,7 @@ deterministic, so that no attempt is spent on them again.
   refused with any other status is not made again, and neither is one whose
   refusal says to wait longer than two minutes ([F11](#failures)).
   *Held by `worker-service/anthropic`.*
-- **F11.** Before it asks again an Anthropic agent waits: as long as the
+- **F11.** Before it asks again an Anthropic engine waits: as long as the
   refusal says, when it says and that is two minutes or less; and otherwise
   at least three eighths of a second before the second asking and at least
   three quarters before the third. A refusal says how long by its
@@ -677,20 +680,20 @@ deterministic, so that no attempt is spent on them again.
   hold a reply to a schema fails as deterministic, with no generation asked
   for. No attempt changes what is known of the model, so the job says it
   will not be retried, whatever budget it has left. Its error names the
-  model. On an Anthropic agent that is a model that does not report
+  model. On an Anthropic engine that is a model that does not report
   `capabilities.structured_outputs.supported` as `true`
-  ([D20](#the-request)); an Ollama agent refuses no model. Every `mark` job
+  ([D20](#the-request)); an Ollama engine refuses no model. Every `mark` job
   needs such an array. A `yield` job needs none, and is done on such a model
   all the same.
   *Held by `worker-service/anthropic`.*
-- **F14.** A job whose agent cannot learn its model's limits
+- **F14.** A job whose engine cannot learn its model's limits
   ([M2 and M5](#limits)) fails with no generation asked for. When the
   provider refused a request that learns them with a status, the job fails in
   the class that status gives, as a refused generation does
   ([F3](#failures)): a wrong key, refused with 401, fails the job as
   deterministic, and a provider that is overloaded, refusing with 503, as
   transient. The error says what was being learned and the status, and on an
-  Anthropic agent a wait the refusal stated that was not waited
+  Anthropic engine a wait the refusal stated that was not waited
   ([F11](#failures)). When no status refused it the failure has no class: a
   connection that ends unanswered, and an answer that does not state the
   limits. What could not be learned is not kept ([M3](#limits)), and the
@@ -758,7 +761,7 @@ stopping place, and not at once.
   *Held by `worker-service/cancel`.*
 - **Q4.** A cancellation does not interrupt a generation that is under way:
   the request to the provider is not ended, and the job stops at the next of
-  the places above. So a cancelled job holds its agent, and its provider goes
+  the places above. So a cancelled job holds its engine, and its provider goes
   on working on an answer nobody will use, until the model answers or the
   ten-minute bound of [F9](#failures) ends the request. A cancellation can
   take that long to take effect.
@@ -785,7 +788,7 @@ focused on a resource or on an annotation.
   array of objects. Its temperature is the job's, or `0.7`, and its length
   the job's `maxTokens`, or `500`. The prompt is made of the job's `title`,
   `task`, `prompt`, `entityTypes`, languages, `structure` and `cite`, and of
-  its context. On an Ollama agent the request is [D1](#the-request)'s with no
+  its context. On an Ollama engine the request is [D1](#the-request)'s with no
   `format`: the length is `num_predict`, and `num_ctx` is as
   [D3](#the-request) works it out. There a job whose prompt and length are
   together over the model's `contextTokens`, in tokens as [D3](#the-request)
@@ -812,17 +815,18 @@ focused on a resource or on an annotation.
   *Held by `worker-service/yield`.*
 - **Y5.** The document is uploaded to the gateway, `POST /resources`, as the
   job's `title` in `name`, its media type in `format`, at the job's
-  `storageUri` as given, with the job's `jobId`, the agent as `generator`,
-  the job's `resourceId` as `sourceResourceId`, and, where the job has them,
-  its `prompt` as `generationPrompt`, its `language` and its `entityTypes`.
+  `storageUri` as given, with the job's `jobId`, the `generator` of
+  [G4](#the-agent), the job's `resourceId` as `sourceResourceId`, and, where
+  the job has them, its `prompt` as `generationPrompt`, its `language` and its
+  `entityTypes`.
   *Held by `worker-service/yield`.*
 - **Y6.** A job focused on a resource then commits, on that resource, one
   annotation that links it to what was made. It is an annotation of the
   resource as a whole, as
   [`builder-cases.json`](../../specs/src/annotations/builder-cases.json)
   states one and every SDK's `annotationOfResource` builds it: `@context`,
-  `type`, the agent as `generator` and `created` as [D11](#the-annotation)
-  states them, and no `modified`; `motivation` `linking`; a `target` that is
+  `type`, `generator` and `created` as [D11](#the-annotation) states them,
+  and no `modified`; `motivation` `linking`; a `target` that is
   the source as its `source` and nothing else; and a body of `type`
   `SpecificResource`, `source` the new resource and `purpose` `linking`. Its
   `id` is derived as [D12](#the-annotation) derives one, from the source, its
@@ -847,7 +851,7 @@ focused on a resource or on an annotation.
   new resource's `resourceId`, the job's `title` as `resourceName`, and
   `truncated`.
   *Held by `worker-service/yield`.*
-- **Y9.** On an Anthropic agent the request of [Y2](#generation) is
+- **Y9.** On an Anthropic engine the request of [Y2](#generation) is
   [D20](#the-request)'s with no `output_config`: the length is `max_tokens`.
   The generation is asked for whatever the model's ceilings are: a job whose
   prompt and length are together over what the model reads is asked for all
@@ -883,7 +887,7 @@ focused on a resource or on an annotation.
   *Held by `worker-service/telemetry`.*
 - **T3.** A generation is a span, `inference:structured` when it asks for an
   array of objects and `inference:text` when it does not, that names the
-  agent's provider and model and the tokens asked for. It is counted
+  engine's provider and model and the tokens asked for. It is counted
   (`semiont.inference.calls`) and timed once, by how it ended, however many
   times its request was made ([F10](#failures)). The tokens its provider
   reported for it are counted as reported (`semiont.inference.tokens`), what
@@ -915,7 +919,7 @@ its own, such as a proxy and the certificates it trusts.
   spans share the trace of the job's own span. Each job's trace is its own
   ([WORKER-CONTRACT T1](./WORKER-CONTRACT.md#traces)): the job's span
   continues the trace of the `job:claimed` that handed it over, the second
-  job an agent runs is not in the trace of its first, and the claim an agent
+  job an engine runs is not in the trace of its first, and the claim an engine
   makes when it settles a job is not in that job's trace.
   *Held by `worker-service/environment`.*
 - **E3.** `OTEL_SERVICE_NAME` is the `service.name` its spans and metrics

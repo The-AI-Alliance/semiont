@@ -5,12 +5,12 @@
 //! `GatewayOperations`; and the SDK's client over the three (`client`).
 //!
 //! And the sign-in that reaches it. For a service: its account's token at
-//! the issuer (`service_account`), exchanged at the gateway for the token of
-//! the software agent it acts as (`agent`). For a person, behind the
-//! `sign-in` feature: the issuer's grants (`oauth`), sessions over a gateway
-//! and a registry's sign-in (`session`), the address an application with no
-//! web page is sent back to (`loopback`), and a launcher's discovery
-//! document over HTTP (`discovery`). A service links none of those.
+//! the issuer (`service_account`), its bearer at the gateway as the agent it
+//! is (`agent`). For a person, behind the `sign-in` feature: the issuer's
+//! grants (`oauth`), sessions over a gateway and a registry's sign-in
+//! (`session`), the address an application with no web page is sent back to
+//! (`loopback`), and a launcher's discovery document over HTTP
+//! (`discovery`). A service links none of those.
 
 #![forbid(unsafe_code)]
 // What arrives off the wire is never assumed to be what was expected, and

@@ -62,12 +62,12 @@ eachWorkerService('a job a worker does not do', (world) => {
     didNoWork(w, served, job);
   });
 
-  it('fails as deterministic a job its agent does not serve, having started it and read nothing', async () => {
+  it('fails as deterministic a job its engine does not serve, having started it and read nothing', async () => {
     const w = world();
     const job = markJob(w, 'not-served', { motivation: 'assessing' });
     // No dispatcher does this: the claim asks for highlighting jobs, and is handed an assessing one.
     w.hooks.handAnyJob = true;
-    const served = await w.start({ agents: [w.entry(w.agents[0]!, [marks('highlighting')])] });
+    const served = await w.start({ agents: [w.entry(w.engines[0]!, [marks('highlighting')])] });
     const failure = await settled(served, job, 'job:fail');
 
     const { error, ...rest } = failure;

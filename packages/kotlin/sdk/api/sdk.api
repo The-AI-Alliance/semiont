@@ -572,7 +572,7 @@ public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 }
 
 public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/http/TokenRefresher {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/http/ServiceToken;)V
+	public fun <init> (Ljava/lang/String;Lsemiont/http/ServiceToken;)V
 	public fun close ()V
 	public final fun getDid ()Lsemiont/identifiers/UserId;
 	public final fun getDid-lE7-m4I ()Ljava/lang/String;
@@ -890,8 +890,7 @@ public abstract interface class semiont/http/TokenRefresher {
 }
 
 public final class semiont/identity/IdentityKt {
-	public static final fun agentAddress (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun agentName (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun encodeUriComponent (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbDid (Ljava/lang/String;)Ljava/lang/String;
@@ -989,13 +988,13 @@ public final class semiont/namespaces/BrowseNamespace {
 }
 
 public final class semiont/namespaces/Collaborator {
-	public fun <init> (Lsemiont/types/CollaboratorEntry;Lsemiont/types/InferenceLimits;)V
-	public final fun component1 ()Lsemiont/types/CollaboratorEntry;
+	public fun <init> (Lsemiont/types/RosterEntry;Lsemiont/types/InferenceLimits;)V
+	public final fun component1 ()Lsemiont/types/RosterEntry;
 	public final fun component2 ()Lsemiont/types/InferenceLimits;
-	public final fun copy (Lsemiont/types/CollaboratorEntry;Lsemiont/types/InferenceLimits;)Lsemiont/namespaces/Collaborator;
-	public static synthetic fun copy$default (Lsemiont/namespaces/Collaborator;Lsemiont/types/CollaboratorEntry;Lsemiont/types/InferenceLimits;ILjava/lang/Object;)Lsemiont/namespaces/Collaborator;
+	public final fun copy (Lsemiont/types/RosterEntry;Lsemiont/types/InferenceLimits;)Lsemiont/namespaces/Collaborator;
+	public static synthetic fun copy$default (Lsemiont/namespaces/Collaborator;Lsemiont/types/RosterEntry;Lsemiont/types/InferenceLimits;ILjava/lang/Object;)Lsemiont/namespaces/Collaborator;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getEntry ()Lsemiont/types/CollaboratorEntry;
+	public final fun getEntry ()Lsemiont/types/RosterEntry;
 	public final fun getLimits ()Lsemiont/types/InferenceLimits;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

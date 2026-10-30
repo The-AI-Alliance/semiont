@@ -32,7 +32,7 @@ eachPlane('content', (world) => {
   let requests: BusStream;
 
   beforeAll(async () => {
-    const listener = await world().agent('conformance', 'listener');
+    const listener = await world().agent('listener');
     requests = await world().subscribe(listener.token, { clientId: randomUUID(), global: REQUESTS }, world().origin, true);
   });
 
@@ -75,7 +75,7 @@ eachPlane('content', (world) => {
 
   it('a worker\'s upload carries its roles to the record, and names no person', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['person:profile'] });
-    const worker = await world().agent('ollama', 'uploading-model', [SERVICE_ROLE, WORKER_ROLE]);
+    const worker = await world().agent('uploading-model', [SERVICE_ROLE, WORKER_ROLE]);
     const reply = await call(world().origin, 'POST', '/resources', {
       token: worker.token,
       body: upload({ name: 'Generated', format: 'text/markdown', storageUri: `file://uploads/${randomUUID()}.md`, jobId: 'job-2' }, { bytes: Buffer.from('# generated'), type: 'text/markdown' }),
@@ -83,7 +83,8 @@ eachPlane('content', (world) => {
     expect(reply.status, reply.text).toBe(202);
     const recorded = world().archivist.uploads.at(-1)!;
     expect(recorded.principal).toBe(worker.did);
-    expect(recorded.roles).toBe(WORKER_ROLE);
+    // The roles its account holds, as its token carries them.
+    expect(recorded.roles).toBe([SERVICE_ROLE, WORKER_ROLE].join(','));
     await watcher.quiet('person:profile', 500);
   });
 
@@ -149,7 +150,7 @@ eachPlane('content', (world) => {
     const id = `res-${randomUUID()}`;
     world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/markdown' });
     world().archivist.content.set(`file://${id}`, EVERY_BYTE);
-    const worker = await world().agent('ollama', 'reading-model', [SERVICE_ROLE, WORKER_ROLE]);
+    const worker = await world().agent('reading-model', [SERVICE_ROLE, WORKER_ROLE]);
 
     const reply = await call(world().origin, 'GET', `/resources/${id}`, { token: worker.token });
     expect(reply.status, reply.text).toBe(200);

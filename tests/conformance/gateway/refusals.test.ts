@@ -16,6 +16,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
+import { AGENT_KIND, KIND_CLAIM } from '../harness/roles';
 import { spec } from '../harness/spec';
 import { eachPlane, type World } from '../harness/world';
 
@@ -27,11 +28,15 @@ const holders = () => spec().schemeLimit('bearerAuth', 'refusalHolders');
 const expired = (world: World, sub: string): Promise<string> =>
   world.issuer.fixture.token({ expiresIn: new Date(Date.now() - 60_000), claims: { sub, email: `${sub}@people.example`, jti: randomUUID() } });
 
-/** A token naming the agent `did`, signed with a key the gateway does not hold: refused, and naming its holder. */
-const forgedAgent = (world: World, did: string): Promise<string> =>
-  world.signed({ did, iss: 'kb.example', email: 'agent@agents.kb.example', jti: randomUUID() }, 'a key the gateway does not hold');
+/** An agent's issuer token for `sub` that has expired: refused, and naming its holder. */
+const expiredAgent = (world: World, sub: string): Promise<string> =>
+  world.issuer.fixture.token({ expiresIn: new Date(Date.now() - 60_000), claims: { sub, [KIND_CLAIM]: AGENT_KIND, jti: randomUUID() } });
 
-const agentDid = () => `did:web:kb.example:agents:refused:${randomUUID()}`;
+/** A token naming an issuer the gateway does not trust: refused, and naming no holder it counts. */
+const elsewhere = (world: World): Promise<string> =>
+  world.signed({ sub: `elsewhere-${randomUUID()}`, iss: 'http://elsewhere.example', jti: randomUUID() }, 'a key the gateway does not hold');
+
+const agentSub = () => `refused-agent-${randomUUID()}`;
 
 /** `count` tokens, made before any is sent, so sending them takes no longer than the sending. */
 const tokens = (count: number, make: () => Promise<string>): Promise<string[]> => Promise.all(Array.from({ length: count }, make));
@@ -75,22 +80,22 @@ eachPlane('what bounds a refused request', (world) => {
     expect(alsoServed!.status, 'another holder is served').toBe(200);
   });
 
-  it('refused agent tokens are counted by their did: two dids apart, and neither in the count of requests that name no holder', async () => {
-    const a = agentDid();
-    const draining = await tokens(burst() + 20, () => forgedAgent(world(), a));
-    const another = await forgedAgent(world(), agentDid());
+  it('refused agent tokens are counted by their subject, as a person\'s are: two apart, and neither in the count of requests that name no holder', async () => {
+    const a = agentSub();
+    const draining = await tokens(burst() + 20, () => expiredAgent(world(), a));
+    const another = await expiredAgent(world(), agentSub());
     expect(pastTheAllowance(await sendAll(world(), draining), 'one agent').length, 'the agent is past its allowance').toBeGreaterThan(0);
 
     const [b, unnamed] = await Promise.all([ask(world(), another), ask(world())]);
-    expect(b.status, 'another did is counted apart').toBe(401);
+    expect(b.status, 'another subject is counted apart').toBe(401);
     expect(unnamed.status, 'the agent\'s refusals are not in the count of requests that name no holder').toBe(401);
   });
 
   it('the gateway counts at most refusalHolders holders: a new one drops the oldest, which starts again with its whole allowance', async () => {
-    const oldest = agentDid();
-    const draining = await tokens(burst() + 20, () => forgedAgent(world(), oldest));
-    const newcomers = await tokens(holders(), () => forgedAgent(world(), agentDid()));
-    const again = await tokens(burst(), () => forgedAgent(world(), oldest));
+    const oldest = agentSub();
+    const draining = await tokens(burst() + 20, () => expiredAgent(world(), oldest));
+    const newcomers = await tokens(holders(), () => expiredAgent(world(), agentSub()));
+    const again = await tokens(burst(), () => expiredAgent(world(), oldest));
     expect(pastTheAllowance(await sendAll(world(), draining), 'the oldest').length, 'the oldest is past its allowance').toBeGreaterThan(0);
 
     // As many new holders as the gateway counts, each refused once: every holder it counted before is dropped.
@@ -106,13 +111,15 @@ eachPlane('what bounds a refused request', (world) => {
     expect(replies.map((r) => r.status).filter((s) => s !== 401), 'the oldest was dropped, and starts again').toEqual([]);
   });
 
-  it('a request with no token, and one whose bearer is not a token, share one count; filling it limits no request whose token names a holder', async () => {
-    const [named, agent] = [await expired(world(), `refused-${randomUUID()}`), await forgedAgent(world(), agentDid())];
-    const unnamed = await Promise.all(Array.from({ length: burst() + 20 }, (_, i) => (i % 2 === 0 ? ask(world()) : ask(world(), undefined, 'Bearer not-a-token'))));
+  it('a request with no token, one whose bearer is not a token, and one naming another issuer share one count; filling it limits no request whose token names a holder', async () => {
+    const [named, agent] = [await expired(world(), `refused-${randomUUID()}`), await expiredAgent(world(), agentSub())];
+    const foreign = await tokens(burst() + 20, () => elsewhere(world()));
+    const unnamed = await Promise.all(Array.from({ length: burst() + 20 }, (_, i) =>
+      i % 3 === 0 ? ask(world()) : i % 3 === 1 ? ask(world(), undefined, 'Bearer not-a-token') : ask(world(), foreign[i]!)));
     expect(pastTheAllowance(unnamed, 'no holder').length, 'the shared count is past its allowance').toBeGreaterThan(0);
 
     const [person, software] = await Promise.all([ask(world(), named), ask(world(), agent)]);
     expect(person.status, 'a refused token naming a person is its holder\'s to count').toBe(401);
-    expect(software.status, 'so is a refused agent token, named by its did').toBe(401);
+    expect(software.status, 'so is a refused agent token, named by its subject').toBe(401);
   });
 });

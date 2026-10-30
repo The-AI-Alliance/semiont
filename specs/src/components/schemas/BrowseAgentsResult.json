@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Result of browsing the collaborator directory",
+  "description": "Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves",
   "properties": {
     "response": {
       "type": "object",
@@ -8,7 +8,7 @@
         "agents": {
           "type": "array",
           "items": {
-            "$ref": "./CollaboratorEntry.json"
+            "$ref": "./RosterEntry.json"
           }
         }
       },

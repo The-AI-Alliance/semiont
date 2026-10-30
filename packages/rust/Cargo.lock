@@ -2215,7 +2215,6 @@ version = "0.0.0"
 dependencies = [
  "chrono",
  "jsonschema",
- "percent-encoding",
  "ring",
  "semiont",
  "serde",

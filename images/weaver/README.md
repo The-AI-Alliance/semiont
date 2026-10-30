@@ -110,8 +110,9 @@ names. The launcher writes it for the Weaver it starts, resolved, and mounts it 
 
 Its environment holds its service account, `SEMIONT_OIDC_CLIENT_ID` and
 `SEMIONT_OIDC_CLIENT_SECRET`, and the one variable its document names for the graph database's
-password (`NEO4J_PASSWORD`, for a Neo4j the launcher runs). It signs in as itself and works as
-the agent `(semiont, weaver)`: `did:web:<the knowledge base's domain>:agents:semiont:weaver`.
+password (`NEO4J_PASSWORD`, for a Neo4j the launcher runs). It signs in as itself, and the
+gateway names it by its account: `did:web:<the knowledge base's domain>:agents:<its subject at
+the issuer>`.
 
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-weaver`: what every
 service says of its own process, and a span for each frame it sends and receives on the bus

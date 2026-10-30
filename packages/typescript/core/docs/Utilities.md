@@ -148,7 +148,7 @@ const content = "The quick brown fox jumps over the lazy dog.";
 // The agent the worker signed in as, by the DID the gateway named it with, and the engine it ran.
 const generator: components['schemas']['Agent'] = {
   '@type': 'Software',
-  '@id': 'did:web:kb.example:agents:ollama:gemma3',
+  '@id': 'did:web:kb.example:agents:semiont-worker',
   name: 'ollama gemma3',
   provider: 'ollama',
   model: 'gemma3',

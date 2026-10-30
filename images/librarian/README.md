@@ -105,8 +105,8 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 Its environment is its service account, **`SEMIONT_OIDC_CLIENT_ID`** and
 **`SEMIONT_OIDC_CLIENT_SECRET`**, and each variable its document names: for the graph
 database's password, for the embedding provider's key, and for the key of each actor's
-model. It signs in as itself and works as the agent `(semiont, librarian)`:
-`did:web:<the knowledge base's domain>:agents:semiont:librarian`.
+model. It signs in as itself, and the gateway names it by its account:
+`did:web:<the knowledge base's domain>:agents:<its subject at the issuer>`.
 
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-librarian`: what
 every Python service says of its own process, a span for each frame it sends and receives on

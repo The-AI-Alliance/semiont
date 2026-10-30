@@ -96,7 +96,7 @@ eachWorkerService("the worker's environment", (world) => {
     );
   });
 
-  it('with OTEL_EXPORTER_OTLP_ENDPOINT, each job an agent runs has a trace of its own: its span continues the trace of the job:claimed that handed it over, the second job is not in the trace of the first, and the claim made when a job is settled is not in that job\'s trace', async () => {
+  it('with OTEL_EXPORTER_OTLP_ENDPOINT, each job an engine runs has a trace of its own: its span continues the trace of the job:claimed that handed it over, the second job is not in the trace of the first, and the claim made when a job is settled is not in that job\'s trace', async () => {
     const w = world();
     const jobs = [markJob(w, 'traced-first', { motivation: 'highlighting' }), markJob(w, 'traced-second', { motivation: 'highlighting' })];
     w.ollama.script({ response: JSON.stringify([{ exact: 'the first program' }]) }, { response: JSON.stringify([{ exact: 'Charles Babbage' }]) });
@@ -104,7 +104,7 @@ eachWorkerService("the worker's environment", (world) => {
       w,
       (otlp) => ({ OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint, OTEL_BSP_SCHEDULE_DELAY: '100' }),
       async (served, otlp) => {
-        // One agent runs both, one after the other.
+        // One engine runs both, one after the other.
         for (const job of jobs) await settled(served, job);
         const traces: string[] = [];
         for (const job of jobs) {
@@ -207,7 +207,7 @@ eachWorkerService("the worker's environment", (world) => {
         await w.announce(unclaimed);
         await eventually(`the ${QUEUED} it received, within 2 s`, 2_000, () => otlp.spans.find(got(QUEUED)));
       },
-      { agents: [w.entry(w.agents[0]!, [marks('highlighting')])] },
+      { agents: [w.entry(w.engines[0]!, [marks('highlighting')])] },
     );
   });
 

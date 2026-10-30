@@ -15,6 +15,11 @@
 # read and each with its own clientId, and the second table reports the
 # gateway's resident memory before and with them open, and the cost per stream.
 #
+# Every request but health carries one token, which issuer.mjs, standing in for
+# the knowledge base's issuer, signed for an agent's account: the gateway
+# verifies it RS256 against the key set the stand-in publishes, as it does any
+# bearer's.
+#
 #   health   GET /api/health: the accept loop and the router, nothing else
 #   emit     POST /bus/emit, a beckon:focus naming only its resource: a token
 #            checked, a body read and validated, a frame published
@@ -30,6 +35,7 @@ WARMUP=3s
 RUNS=3
 STREAMS="1000 10000"
 PORT=4000
+ISSUER_PORT=4001
 DOMAIN=bench.example
 
 [ "$#" -gt 0 ] || { echo "usage: load.sh <label>=<gateway binary>..." >&2; exit 2; }
@@ -38,27 +44,34 @@ apk add --no-cache wrk openssl util-linux-misc nodejs >/dev/null 2>&1
 BENCH=$(dirname "$0")
 
 WORK=$(mktemp -d)
-trap 'kill "$GATEWAY" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+trap 'kill $GATEWAY $ISSUER 2>/dev/null || true; rm -rf "$WORK"' EXIT
 GATEWAY=
+ISSUER=
 
+# The media tokens' key ring, without which the gateway does not start.
 JWT_SECRET=$(openssl rand -hex 32)
 cat > "$WORK/gateway.json" <<DOC
 {"kb":{"name":"Load","domain":"$DOMAIN"},"port":$PORT,"publicUrl":"http://127.0.0.1:$PORT",
- "identity":{"issuer":"http://127.0.0.1:1","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
+ "identity":{"issuer":"http://127.0.0.1:$ISSUER_PORT","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
  "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json",
  "capacity":{"queuedBytes":1073741824,"connections":52428}}
 DOC
 
-# An agent token the gateway signed, as far as it can tell: HS256 under its key.
-# It holds semiont-worker, whose coefficients are unlimited (x-semiont-limits),
-# so the benchmark measures the gateway rather than a principal's bucket.
-b64url() { base64 | tr -d '\n=' | tr '/+' '_-'; }
-now=$(date +%s)
-header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
-claims=$(printf '{"did":"did:web:%s:agents:bench:load","email":"load@agents.%s","name":"bench load","domain":"%s","iat":%s,"exp":%s,"iss":"%s","roles":["semiont-worker"]}' \
-  "$DOMAIN" "$DOMAIN" "$DOMAIN" "$now" "$((now + 36000))" "$DOMAIN" | b64url)
-signature=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
-TOKEN="$header.$claims.$signature"
+# On wrk's cores: the gateway asks the issuer for its keys once, and again only
+# when they are old. The audience is this knowledge base's resource identifier,
+# its did:web as an https URL.
+taskset -c "$WRK_CPUS" node "$BENCH/issuer.mjs" "$ISSUER_PORT" "https://$DOMAIN" "$WORK/token" >"$WORK/issuer.log" 2>&1 &
+ISSUER=$!
+tries=0
+until [ -s "$WORK/token" ]; do
+  tries=$((tries + 1))
+  if [ "$tries" -gt 200 ] || ! kill -0 "$ISSUER" 2>/dev/null; then
+    cat "$WORK/issuer.log" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+TOKEN=$(cat "$WORK/token")
 
 emit_script() { # <file> <body>
   cat > "$1" <<LUA

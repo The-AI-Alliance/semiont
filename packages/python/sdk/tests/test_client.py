@@ -214,20 +214,20 @@ def test_a_query_asks_when_its_fresh_is_called_and_gives_the_part_of_the_answer_
     run(scenario())
 
 
-def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_holders_report_them() -> None:
+def test_the_collaborators_are_the_roster_with_each_models_limits_as_its_key_holders_report_them() -> None:
     async def scenario() -> None:
         client, transport = world()
-        gemma: JsonObject = {"@type": "Software", "name": "ollama gemma2", "provider": "ollama", "model": "gemma2:27b"}
+        gemma: JsonObject = {"provider": "ollama", "model": "gemma2:27b"}
         same_model_elsewhere: JsonObject = {
             "provider": "elsewhere",
             "model": "claude",
             "limits": {"contextTokens": 7, "maxOutputTokens": 7},
         }
         said_again: JsonObject = {"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 9, "maxOutputTokens": 9}}
-        claude: JsonObject = {"@type": "Software", "name": "anthropic claude", "provider": "anthropic", "model": "claude"}
-        alice: JsonObject = {"@type": "Person", "name": "Alice"}
-        transport.queue_reply("browse:agents-requested", [{"agents": [{"agent": gemma}, {"agent": claude}, {"agent": alice}]}])
-        # One key holder answers, with a model of the directory and one that is not in it. The others are down.
+        claude: JsonObject = {"provider": "anthropic", "model": "claude"}
+        llama: JsonObject = {"provider": "ollama", "model": "llama3"}
+        transport.queue_reply("browse:agents-requested", [{"agents": [{"engine": gemma}, {"engine": claude}, {"engine": llama}]}])
+        # One key holder answers, with a model of the roster and one that is not in it. The others are down.
         # A model is its provider's: one of the same name under another is another model. And what is reported first stands.
         reported: JsonObject = {
             "limits": [
@@ -241,7 +241,11 @@ def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_
 
         collaborators = await soon(client.browse.agents().fresh())
         assert [type(collaborator) for collaborator in collaborators] == [Collaborator] * 3
-        assert [collaborator.entry.agent.name for collaborator in collaborators] == ["ollama gemma2", "anthropic claude", "Alice"]
+        assert [(c.entry.engine.provider, c.entry.engine.model) for c in collaborators] == [
+            ("ollama", "gemma2:27b"),
+            ("anthropic", "claude"),
+            ("ollama", "llama3"),
+        ]
         limits = collaborators[0].limits
         assert limits is not None
         assert (limits.context_tokens, limits.max_output_tokens) == (8192, 2048)

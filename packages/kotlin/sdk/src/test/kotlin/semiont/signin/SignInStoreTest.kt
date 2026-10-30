@@ -342,13 +342,28 @@ class SignInStoreTest {
             runBlocking { kept.keep(HeldSignIn(signedIn(1), "r", "semiont-browser", "$ISSUER/token", null)) }
         }
         assertTrue(wrongClient.message!!.contains("semiont-browser"))
-        // A gateway admits no token that names no address, and none from an issuer it does not trust.
-        for ((claims, lacking) in listOf(buildJsonObject { put("iss", ISSUER) } to "names no email", buildJsonObject { put("email", "alice@example.org") } to "names no issuer")) {
-            val refused = org.junit.jupiter.api.Assertions.assertThrows(semiont.errors.SignInError::class.java) { runBlocking { kept.keep(held(jwt(claims))) } }
-            assertEquals("exchange", refused.code)
-            assertTrue(refused.message!!.contains(lacking), refused.message)
+        // A gateway admits no token from an issuer it does not trust.
+        val refused = org.junit.jupiter.api.Assertions.assertThrows(semiont.errors.SignInError::class.java) {
+            runBlocking { kept.keep(held(jwt(buildJsonObject { put("email", "alice@example.org") }))) }
         }
+        assertEquals("exchange", refused.code)
+        assertTrue(refused.message!!.contains("names no issuer"), refused.message)
         assertFalse(Files.exists(path))
+    }
+
+    @Test
+    fun aTokenThatNamesNoAddressIsKeptWithoutOne(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        val kept = SignInStore(path).entry("local")
+        val unaddressed = held(jwt(buildJsonObject { put("iss", ISSUER); put("sub", "an-account") }))
+        kept.keep(unaddressed)
+        assertEquals(ISSUER, entryOf(path, "local").getValue("issuer").jsonPrimitive.content)
+        assertFalse("email" in entryOf(path, "local"))
+        assertEquals(unaddressed, kept.held())
+        // A renewal whose token names an address keeps none: the sign-in learned none.
+        val renewed = signedIn(2)
+        assertEquals(renewed, kept.renewed(unaddressed, renewed, "refresh-2"))
+        assertFalse("email" in entryOf(path, "local"))
     }
 
     @Test

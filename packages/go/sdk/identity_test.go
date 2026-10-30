@@ -31,8 +31,11 @@ type principals struct {
 		Why, Domain, Subject, Did string
 	} `json:"people"`
 	Agents []struct {
-		Why, Domain, Provider, Model, Did, Email, Name string
+		Why, Domain, Subject, Did string
 	} `json:"agents"`
+	Engines []struct {
+		Why, Provider, Model, Name string
+	} `json:"engines"`
 }
 
 func TestAPersonIsNamedAsTheTableNamesOne(t *testing.T) {
@@ -49,20 +52,27 @@ func TestAPersonIsNamedAsTheTableNamesOne(t *testing.T) {
 	}
 }
 
-func TestASoftwareAgentIsNamedAsTheTableNamesOne(t *testing.T) {
+func TestAnAgentIsNamedAsTheTableNamesOne(t *testing.T) {
 	var table principals
 	readTable(t, &table, "principals", "cases.json")
 	if len(table.Agents) < 5 {
 		t.Fatalf("the table names %d agents: a runner that reads too few passes on silence", len(table.Agents))
 	}
 	for _, row := range table.Agents {
-		did, err := semiont.AgentDid(row.Domain, row.Provider, row.Model)
+		did, err := semiont.AgentDid(row.Domain, row.Subject)
 		if err != nil || did.String() != row.Did {
-			t.Errorf("%s: AgentDid = %q, %v; want %q", row.Why, did, err, row.Did)
+			t.Errorf("%s: AgentDid(%q, %q) = %q, %v; want %q", row.Why, row.Domain, row.Subject, did, err, row.Did)
 		}
-		if address := semiont.AgentAddress(row.Domain, row.Provider, row.Model); address != row.Email {
-			t.Errorf("%s: AgentAddress = %q, want %q", row.Why, address, row.Email)
-		}
+	}
+}
+
+func TestAnEngineIsNamedAsTheTableNamesOne(t *testing.T) {
+	var table principals
+	readTable(t, &table, "principals", "cases.json")
+	if len(table.Engines) < 2 {
+		t.Fatalf("the table names %d engines: a runner that reads too few passes on silence", len(table.Engines))
+	}
+	for _, row := range table.Engines {
 		if name := semiont.AgentName(row.Provider, row.Model); name != row.Name {
 			t.Errorf("%s: AgentName = %q, want %q", row.Why, name, row.Name)
 		}

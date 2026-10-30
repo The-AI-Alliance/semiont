@@ -81,30 +81,27 @@ fn principal_cases() {
     }
     for case in agents {
         let (why, did) = (text(case, "why"), text(case, "did"));
-        let (domain, provider, model) = (
-            text(case, "domain"),
-            text(case, "provider"),
-            text(case, "model"),
-        );
         assert_eq!(
-            identity::agent_did(&domain, &provider, &model),
+            identity::agent_did(&text(case, "domain"), &text(case, "subject")),
             did,
-            "{why}"
-        );
-        assert_eq!(
-            identity::agent_address(&domain, &provider, &model),
-            text(case, "email"),
-            "{why}"
-        );
-        assert_eq!(
-            identity::agent_name(&provider, &model),
-            text(case, "name"),
             "{why}"
         );
         assert_eq!(
             identity::kind_of(&did),
             identity::Kind::Software,
             "{why}: an agent's DID read as a person"
+        );
+    }
+    let engines = cases["engines"]
+        .as_array()
+        .expect("principals/cases.json has engines");
+    assert!(!engines.is_empty(), "principals/cases.json has no engine");
+    for case in engines {
+        assert_eq!(
+            identity::agent_name(&text(case, "provider"), &text(case, "model")),
+            text(case, "name"),
+            "{}",
+            text(case, "why")
         );
     }
 }

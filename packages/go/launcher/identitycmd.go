@@ -54,9 +54,8 @@ grant
 
 revoke
   Delete the client granted under <label>, and no other. The worker's next
-  sign-in is refused. Tokens it already holds stay good until they expire: its
-  issuer token within the realm's access-token lifetime, and an agent token
-  the gateway minted it within that token's own.
+  sign-in is refused; a token it already holds stays good until it expires,
+  within the realm's access-token lifetime.
 
 Each needs Keycloak's bootstrap admin password, the same one ` + "`semiont start`" + `
 reports: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the value persisted for this root.
@@ -350,6 +349,6 @@ func identityRevoke(u *UI, args []string) int {
 		return 1
 	}
 	u.Ok("identity — revoked %s (deleted %s)", u.Bold(label), workerClientID(label))
-	fmt.Fprintf(os.Stderr, "  Tokens it already holds stay good until they expire: its issuer token within %ds, and an agent token the gateway minted it within that token's own lifetime.\n", r.rp.AccessTokenLifespan)
+	fmt.Fprintf(os.Stderr, "  A token it already holds stays good until it expires, within %ds.\n", r.rp.AccessTokenLifespan)
 	return 0
 }

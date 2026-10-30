@@ -18,7 +18,7 @@
  * silence must not be mistaken for agreement.
  *
  * `semiont-service` (SERVICE_ROLE): the floor every service client carries — the
- * gateway gates `/api/tokens/agent` on it and the Archivist gates its read path.
+ * Archivist gates its read path on it.
  * `semiont-worker` (WORKER_ROLE): the grant only the worker client carries — the
  * dispatcher authorizes a `job:claim` by it.
  *
@@ -27,8 +27,9 @@
  * would bind no one, silently, so every one must be an agreed role.
  *
  * The claim that marks an agent's account is held the same way, its name and
- * the value it holds: the launcher writes it into the realm, and its fake
- * runtime emits it. It is a kind, not a role, so a limit cannot name it.
+ * the value it holds: the launcher writes it into the realm, its fake runtime
+ * emits it, and the Rust SDK holds what the gateway names an agent by. It is a
+ * kind, not a role, so a limit cannot name it.
  */
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
@@ -49,7 +50,7 @@ const ROLES = [
       },
       {
         file: 'packages/rust/sdk/src/roles.rs',
-        what: 'the value the Rust SDK holds, which the gateway gates /api/tokens/agent on',
+        what: 'the value the Rust SDK holds, which the Archivist gates its read path on',
         pattern: /SERVICE_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },
     ],
@@ -88,6 +89,11 @@ const ROLES = [
         what: "the fake runtime's emitted kind claim",
         pattern: /kindClaim, agentKind := "([^"]+)"/,
       },
+      {
+        file: 'packages/rust/sdk/src/roles.rs',
+        what: 'the claim the gateway reads an account\'s kind from',
+        pattern: /KIND_CLAIM:\s*&str\s*=\s*"([^"]+)"/,
+      },
     ],
   },
   {
@@ -103,6 +109,11 @@ const ROLES = [
         file: 'packages/go/launcher/fakert/main.go',
         what: "the fake runtime's emitted agent kind",
         pattern: /kindClaim, agentKind := "[^"]+", "([^"]+)"/,
+      },
+      {
+        file: 'packages/rust/sdk/src/roles.rs',
+        what: 'the value the gateway names an agent by',
+        pattern: /AGENT_KIND:\s*&str\s*=\s*"([^"]+)"/,
       },
     ],
   },

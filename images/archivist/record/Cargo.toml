@@ -9,7 +9,6 @@ description = "The Archivist's record, as docs/protocol/ARCHIVIST.md states it: 
 [dependencies]
 chrono = { workspace = true, features = ["clock", "std"] }
 jsonschema.workspace = true
-percent-encoding.workspace = true
 ring.workspace = true
 semiont.workspace = true
 serde-saphyr.workspace = true
