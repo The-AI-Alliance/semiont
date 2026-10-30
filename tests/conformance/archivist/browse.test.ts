@@ -138,6 +138,23 @@ withArchivist('browsing', (world) => {
     expect(world().stored(id)[0]!.payload['wasAttributedTo']).toEqual([{ '@type': 'Person', '@id': lovelace.did }]);
   });
 
+  it('names each agent a reply mentions by what it said it is called, as a person is named', async () => {
+    const agent = await world().sidecar('names-itself');
+    const reader = await world().person('reader');
+    // An agent's token carries no name: it says what it is called itself.
+    await agent.emit('principal:profile', { name: 'The Indexer' });
+    await reader.fact('principal:profiled', (e) => e.userId === agent.did && e.payload['name'] === 'The Indexer');
+    const id = await world().created(agent.did, { name: 'Made by an agent', storageUri: 'file://listed/by-an-agent.md', content: 'by an agent\n' });
+
+    const named = { '@type': 'Software', '@id': agent.did, name: 'The Indexer' };
+    const described = await reader.ask('browse:resource-requested', { resourceId: id });
+    expect((described['resource'] as { wasAttributedTo: unknown[] }).wasAttributedTo).toEqual([named]);
+    const events = (await reader.ask('browse:events-requested', { resourceId: id }))['events'] as Array<{ agent: unknown }>;
+    expect(events[0]!.agent).toEqual(named);
+    // The log holds the event as recorded: no name in it.
+    expect(world().stored(id)[0]!.payload['wasAttributedTo']).toEqual([{ '@type': 'Software', '@id': agent.did }]);
+  });
+
   it('answers the profiles of the principals asked after, and leaves out one who has none', async () => {
     const lovelace = await world().person('lovelace-asked');
     const reader = await world().person('reader');

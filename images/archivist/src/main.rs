@@ -12,6 +12,7 @@ mod browse;
 mod bus;
 mod commands;
 mod content;
+mod naming;
 mod surface;
 
 use archivist::Archivist;

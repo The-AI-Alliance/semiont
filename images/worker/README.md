@@ -61,6 +61,10 @@ one job at a time. An engine is no part of who the agent is: the `generator` on 
 job makes names the agent by its DID and the engine that made it, so `_userId` on the bus and
 the `generator` on every annotation refer to the same agent.
 
+What the agent is called is its profile. When it opens its stream, before any engine claims, it
+says it is called by its client id (`SEMIONT_OIDC_CLIENT_ID`), on `principal:profile`, and
+readers name it from that, as they name a person. The `generator` carries no name.
+
 ## Nothing wedges, nothing restarts from zero
 
 Each call to the model is given **ten minutes**, and while one is under way the job reports

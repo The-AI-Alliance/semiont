@@ -432,13 +432,13 @@ export class LibrarianWorld {
     return who;
   }
 
-  /** A resource as the Archivist answers `browse:resource-requested` for it: its description, its people named. */
+  /** A resource as the Archivist answers `browse:resource-requested` for it: its description, its principals named. */
   async described(resourceId: string): Promise<ResourceDescriptor> {
     const reader = await this.person(PERSON);
     return (await reader.ask('browse:resource-requested', { resourceId }))['resource'] as ResourceDescriptor;
   }
 
-  /** An annotation as the Archivist answers `browse:annotation-requested` for it, its people named. */
+  /** An annotation as the Archivist answers `browse:annotation-requested` for it, its principals named. */
   async annotated(resourceId: string, annotationId: string): Promise<Annotation> {
     const reader = await this.person(PERSON);
     return (await reader.ask('browse:annotation-requested', { resourceId, annotationId }))['annotation'] as Annotation;

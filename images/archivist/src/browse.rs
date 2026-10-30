@@ -2,6 +2,7 @@
 //! tree and the knowledge base's engines.
 
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
+use crate::naming;
 use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated, MarkRemoved};
 use semiont::types::{JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter};
 use semiont_archivist_record::agents::did_to_agent;
@@ -30,8 +31,9 @@ fn annotations_of(view: &Object) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// Name the persons a reply mentions: every `Person` whose DID has a profile
-/// carries that profile's name. With no readable projection, no one is named.
+/// Name the principals a reply mentions: every person and every agent whose
+/// DID has a profile carries that profile's name. With no readable
+/// projection, no one is named.
 fn named(archivist: &Archivist, mut reply: Value) -> Value {
     let profiles = match tokio::task::block_in_place(|| archivist.record().projections.profiles()) {
         Ok(profiles) => profiles,
@@ -43,27 +45,8 @@ fn named(archivist: &Archivist, mut reply: Value) -> Value {
             return reply;
         }
     };
-    fn walk(value: &mut Value, profiles: &Object) {
-        match value {
-            Value::Array(items) => items.iter_mut().for_each(|item| walk(item, profiles)),
-            Value::Object(object) => {
-                if object.get("@type") == Some(&json!("Person"))
-                    && let Some(name) = object
-                        .get("@id")
-                        .and_then(Value::as_str)
-                        .and_then(|did| profiles.get(did))
-                        .and_then(|profile| profile.get("name"))
-                        .cloned()
-                {
-                    object.insert("name".into(), name);
-                }
-                object.values_mut().for_each(|inner| walk(inner, profiles));
-            }
-            _ => {}
-        }
-    }
     if !profiles.is_empty() {
-        walk(&mut reply, &profiles);
+        naming::name(&mut reply, &profiles);
     }
     reply
 }

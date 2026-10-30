@@ -1,5 +1,5 @@
 {
-  "$comment": "How the gateway names the principals it acts for, under the knowledge base's domain (its committed `site.domain`). Every principal is named by the subject its issuer asserted, under the kind its token says it is: an agent's account carries the claim `kind` holding `agent`, and any other is a person's. A person is `did:web:{domain}:users:{subject}` and an agent `did:web:{domain}:agents:{subject}`, where the subject is the value of the claim `identity.subjectClaim` names. Every part of a DID after the domain is percent-encoded as ECMAScript's encodeURIComponent does: each UTF-8 byte of a character other than A–Z a–z 0–9 - _ . ! ~ * ' ( ) becomes %XX in uppercase hex; the domain is written as it is. An engine — a provider and a model, which is no principal — is given the name `{provider} {model}`, which a worker states as its own unless it says otherwise. Every implementation that names these principals runs every case and fails on a difference, and a running gateway is held to every case too.",
+  "$comment": "How the gateway names the principals it acts for, under the knowledge base's domain (its committed `site.domain`). Every principal is named by the subject its issuer asserted, under the kind its token says it is: an agent's account carries the claim `kind` holding `agent`, and any other is a person's. A person is `did:web:{domain}:users:{subject}` and an agent `did:web:{domain}:agents:{subject}`, where the subject is the value of the claim `identity.subjectClaim` names. Every part of a DID after the domain is percent-encoded as ECMAScript's encodeURIComponent does: each UTF-8 byte of a character other than A–Z a–z 0–9 - _ . ! ~ * ' ( ) becomes %XX in uppercase hex; the domain is written as it is. Every implementation that names these principals runs every case and fails on a difference, and a running gateway is held to every case too.",
   "runBy": {
     "rust": [
       "packages/rust/sdk/tests/tables.rs"
@@ -102,20 +102,6 @@
       "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
       "subject": "tenant/worker",
       "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:tenant%2Fworker"
-    }
-  ],
-  "engines": [
-    {
-      "why": "a provider and a model are named together, a space between",
-      "provider": "anthropic",
-      "model": "claude-sonnet-5",
-      "name": "anthropic claude-sonnet-5"
-    },
-    {
-      "why": "a model's colon and slash are kept in the name",
-      "provider": "ollama",
-      "model": "library/gemma2:27b",
-      "name": "ollama library/gemma2:27b"
     }
   ]
 }

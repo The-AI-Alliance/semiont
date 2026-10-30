@@ -482,7 +482,7 @@ class AgentPerson(WireModel, frozen=True, extra="allow"):
 
 class AgentSoftware(WireModel, frozen=True, extra="allow"):
     """
-    A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `name`, `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads none of them from its DID. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.
+    A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads neither from its DID. Its `name` is no part of what it writes: what it last said it is called is its profile, and readers fill it in, as they do a person's. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.
     """
 
     type: Annotated[Literal["Software"], Field(alias="@type")]
@@ -495,7 +495,9 @@ class AgentSoftware(WireModel, frozen=True, extra="allow"):
     ] = None
     name: Annotated[
         str | None,
-        Field(description="What the agent calls itself. Not parsed. Absent when it said nothing."),
+        Field(
+            description="What the agent last said it is called. ABSENT until resolved: filled in from its profile when a record is read, as a Person's name is. Absent also where it has said nothing. Not parsed."
+        ),
     ] = None
     provider: Annotated[str | None, Field(description="Inference provider (e.g. ollama, anthropic)")] = None
     model: Annotated[
@@ -1406,7 +1408,7 @@ class MarkJobDone(WireModel, frozen=True, extra="forbid"):
 
 class PrincipalProfileCommand(WireModel, frozen=True):
     """
-    Bus command the gateway emits when a principal ACTS, carrying the display name it just verified on its token. The Stower persists it as principal:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a principal has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the profiles projection. Emitted for a person and for an agent alike; never for a request that merely reads.
+    Bus command saying what a principal is called. The gateway emits it when a principal ACTS, carrying the display name it just verified on its token; a principal may also emit it itself, for itself, which is how an agent, whose token carries no name, says what it is called. Either way the gateway stamps `_userId` with the sender's verified DID, so a principal names only itself. The Stower persists it as principal:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a principal has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the profiles projection. Emitted for a person and for an agent alike; never for a request that merely reads.
     """
 
     user_id: Annotated[
@@ -1419,19 +1421,21 @@ class PrincipalProfileCommand(WireModel, frozen=True):
     name: Annotated[
         str,
         Field(
-            description="The display name from the issuer's `name` claim, as verified on the token that carried this act. A token with no name produces no command at all — the issuer is where a name is set, and absence is recorded as absence."
+            description="The display name: from the issuer's `name` claim, as verified on the token that carried an act, or what the principal said of itself. A token with no name produces no command from the gateway — the issuer is where a person's name is set, and absence is recorded as absence."
         ),
     ]
 
 
 class PrincipalProfiledPayload(WireModel, frozen=True):
     """
-    Payload for principal:profiled — what the knowledge base's issuer said this principal is called, recorded once per change (system-level, no resourceId). The event's `userId` is the principal's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into profiles.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
+    Payload for principal:profiled — what this principal is called, as the issuer's verified `name` claim said or as the principal said of itself, recorded once per change (system-level, no resourceId). The event's `userId` is the principal's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into profiles.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
     """
 
     name: Annotated[
         str,
-        Field(description="The display name as of this event, from the issuer's verified `name` claim."),
+        Field(
+            description="The display name as of this event: from the issuer's verified `name` claim, or what the principal said of itself."
+        ),
     ]
 
 

@@ -424,12 +424,21 @@ comes to hold, one at a time, and a held job says its own lifecycle.
 
 ```python
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
+from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
-from semiont.identity import engine_name
-from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
+from semiont.types import (
+    Agent,
+    AgentSoftware,
+    Annotation,
+    JobProgress,
+    MarkJobDone,
+    MarkJobFilter,
+    MarkJobFilterParams,
+    PrincipalProfileCommand,
+)
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
 
@@ -467,32 +476,34 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
         ) as transport,
         SemiontClient(transport, transport.content, transport) as client,
-        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
-        client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
-        generator = AgentSoftware(type="Software", id=agent.did, name=engine_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
-        # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
-        async for handed in claims:
-            match handed:
-                case ClaimRefusal(code="bus.unauthorized"):
-                    # This credential can never claim. Stop, so that whoever runs the worker sees it.
-                    raise PermissionError(handed.message)
-                case ClaimRefusal():
-                    print(f"claim refused: {handed.message}")
-                case HeldYieldJob():
-                    await handed.fail("this worker runs no yield job", failure_class="deterministic")
-                case HeldMarkJob():
-                    # A job left unsettled at the end of this block is failed.
-                    async with handed as job:
-                        await job.start()
-                        try:
-                            result = await highlight(client, job, generator)
-                        except Exception as error:
-                            await job.fail(str(error))
-                        else:
-                            await job.complete(result)
+        # It says what it is called, as itself: here, its client id. Readers name it by the last name it said, as they name a person.
+        await client.wire.emit(PRINCIPAL_PROFILE, PrincipalProfileCommand(name=client_id))
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran. It carries no name.
+        generator = AgentSoftware(type="Software", id=agent.did, provider=PROVIDER, model=MODEL)
+        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
+        async with client.job.claim(accepts) as claims:
+            # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
+            async for handed in claims:
+                match handed:
+                    case ClaimRefusal(code="bus.unauthorized"):
+                        # This credential can never claim. Stop, so that whoever runs the worker sees it.
+                        raise PermissionError(handed.message)
+                    case ClaimRefusal():
+                        print(f"claim refused: {handed.message}")
+                    case HeldYieldJob():
+                        await handed.fail("this worker runs no yield job", failure_class="deterministic")
+                    case HeldMarkJob():
+                        # A job left unsettled at the end of this block is failed.
+                        async with handed as job:
+                            await job.start()
+                            try:
+                                result = await highlight(client, job, generator)
+                            except Exception as error:
+                                await job.fail(str(error))
+                            else:
+                                await job.complete(result)
 ```
 
 - **A worker is an agent.** Its process signs in at its issuer as its account,

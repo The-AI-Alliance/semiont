@@ -10,7 +10,9 @@ An engine is a provider and a model. Each entry of the document's `engines`
 names one, the jobs the agent does with it and where its provider is reached,
 and the agent claims those jobs for it, one at a time, under the agent's
 sign-in and over its one stream. What a job makes names the agent by its DID
-and the engine that made it.
+and the engine that made it, and no name: what the agent is called is its
+profile, which it states when it opens its stream, and readers name it from
+that, as they name a person.
 
 The agent's stream names what a worker reads and no more. The replies of
 every operation a client can ask reach every stream that names them, and a
@@ -28,15 +30,15 @@ from typing import Final, NoReturn, Self, final
 
 from pydantic import JsonValue
 from semiont.bus import reply_channels_for
+from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, Claims
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, HttpTransport, ServiceToken
 from semiont.identifiers import UserId
-from semiont.identity import engine_name
 from semiont.model import written
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
 from semiont.transport import Transport
-from semiont.types import Agent, AgentSoftware, JobFilter, WorkerEngineConfig
+from semiont.types import Agent, AgentSoftware, JobFilter, PrincipalProfileCommand, WorkerEngineConfig
 from semiont_inference.interface import InferenceClient
 from semiont_inference.limits_report import answer_limits_requests
 
@@ -167,9 +169,7 @@ class EngineAtWork:
         """
         engine = self._entry.engine
         # What everything the engine makes says made it: the agent, by the DID the gateway named it with, and the engine.
-        generator: Agent = AgentSoftware(
-            type="Software", id=agent, name=engine_name(engine.provider, engine.model), provider=engine.provider, model=engine.model
-        )
+        generator: Agent = AgentSoftware(type="Software", id=agent, provider=engine.provider, model=engine.model)
         try:
             async with asyncio.TaskGroup() as working:
                 watching = working.create_task(watch_for_a_stall(self._claims, agent))
@@ -193,15 +193,19 @@ class AgentWorker:
 
     `engines` are the entries of the configuration document, each with the
     client of its provider and model, in the document's order. `service` is
-    the service's account, which the agent signs in as.
+    the service's account, which the agent signs in as, and `name` what the
+    agent says it is called, which it states when it opens its stream.
 
     Signing in opens no stream. `open` does, once the service has everything
     else it needs to start: the stream, the client over it and each engine's
     claims are then the agent's until the way out.
     """
 
-    def __init__(self, engines: Sequence[tuple[WorkerEngineConfig, InferenceClient]], *, gateway_url: str, service: ServiceToken) -> None:
+    def __init__(
+        self, engines: Sequence[tuple[WorkerEngineConfig, InferenceClient]], *, gateway_url: str, service: ServiceToken, name: str
+    ) -> None:
         self._engines: Final = tuple(engines)
+        self._name: Final = name
         self._gateway_url: Final = gateway_url
         self._service: Final = service
         self._held: Final = AsyncExitStack()
@@ -222,12 +226,16 @@ class AgentWorker:
         return self._token
 
     async def open(self) -> None:
-        """Open the agent's stream, and its client over it. Each engine's claiming begins when the agent is put to work."""
+        """Open the agent's stream and its client over it, and say what the agent is called.
+
+        Each engine's claiming begins when the agent is put to work.
+        """
         token = self._signed_in()
         transport = await self._held.enter_async_context(
             HttpTransport(self._gateway_url, token=token.token, refresher=token.refresh, channels=WORKER_CHANNELS)
         )
         client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
+        await client.wire.emit(PRINCIPAL_PROFILE, PrincipalProfileCommand(name=self._name))
         self._opened = (client, tuple(EngineAtWork(entry, inference, client.job.claim(entry.jobs)) for entry, inference in self._engines))
 
     def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], tuple[EngineAtWork, ...]]:

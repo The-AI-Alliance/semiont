@@ -1,4 +1,4 @@
-"""How the persons a reply mentions are named, held to `specs/src/librarian/naming-cases.json`.
+"""How the principals a reply mentions are named, held to `specs/src/principals/naming-cases.json`.
 
 It is the table every implementation of the naming runs, so that one reply
 and one set of profiles give one named reply in any language. A case is run
@@ -8,8 +8,8 @@ A member of the table or of a case that nothing here reads fails.
 
 After the table's cases comes what no case of it rests on: ids that are the
 names of things every object of some language has, a person that states no
-id, and the one read of the profiles a reply is named over: of the persons it
-mentions, and of no one where it mentions no one.
+id, and the one read of the profiles a reply is named over: of the principals
+it mentions, and of no one where it mentions no one.
 """
 
 import copy
@@ -26,7 +26,7 @@ from spec import ROOT, JsonObject, objects, only, read, why
 from semiont_librarian.naming import name, named
 from semiont_librarian.reads import ProfilesUnread
 
-TABLE = read(ROOT / "specs/src/librarian/naming-cases.json")
+TABLE = read(ROOT / "specs/src/principals/naming-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 
 TABLE_MEMBERS = ("$comment", "runBy", "cases")
@@ -104,18 +104,21 @@ def test_a_name_is_put_where_the_person_carried_one_and_last_where_it_carried_no
     assert list(unnamed) == ["@type", "@id", "name"]
 
 
-def test_a_reply_asks_once_after_the_persons_it_mentions_each_once_in_the_order_they_first_appear() -> None:
+def test_a_reply_asks_once_after_the_principals_it_mentions_each_once_in_the_order_they_first_appear() -> None:
     profiles = FakeProfiles(LOVELACE)
     grace: JsonObject = {"@type": "Person", "@id": "did:web:example.org:users:grace"}
+    agent: JsonObject = {"@type": "Software", "@id": "did:web:example.org:agents:a"}
     reply: JsonObject = {
         "creator": ADA,
         "wasAttributedTo": [grace, ADA],
-        "agent": {"@type": "Software", "@id": "did:web:example.org:agents:a"},
+        "agent": agent,
+        "generator": agent,
+        "publisher": {"@type": "Organization", "@id": "did:web:example.org:users:org"},
     }
     ada_named: JsonObject = {**ADA, "name": "Ada Lovelace"}
     said = run(name(reply, profiles))
-    assert said == {"creator": ada_named, "wasAttributedTo": [grace, ada_named], "agent": reply["agent"]}
-    assert profiles.asked == [[ADA_ID, "did:web:example.org:users:grace"]]
+    assert said == {**reply, "creator": ada_named, "wasAttributedTo": [grace, ada_named]}
+    assert profiles.asked == [[ADA_ID, "did:web:example.org:users:grace", "did:web:example.org:agents:a"]]
 
 
 def test_a_reply_that_mentions_no_one_asks_after_no_one_and_nothing_is_logged(caplog: pytest.LogCaptureFixture) -> None:

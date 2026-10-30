@@ -277,6 +277,18 @@ eachPlane('emitting', (world, plane) => {
     await watcher.quiet('principal:profile', 500);
   });
 
+  it('a principal that says what it is called says it of itself: its principal:profile is stamped with its own DID, over whatever it wrote', async () => {
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
+    const agent = await world().agent('says-its-name');
+    const someoneElse = principals(world().kb.domain).agentDid(`someone-else-${randomUUID()}`);
+    const name = `says-its-name-${randomUUID()}`;
+    const reply = await world().emit(agent.token, { channel: 'principal:profile', payload: { _userId: someoneElse, name } });
+    expect(reply.status, reply.text).toBe(202);
+    const profile = await watcher.frame('principal:profile', (f) => f.payload['name'] === name);
+    expect(profile.payload['_userId']).toBe(agent.did);
+    expect(watcher.frames('principal:profile').filter((f) => f.payload['_userId'] === someoneElse)).toEqual([]);
+  });
+
   it('a request that reaches nobody is answered at once — to its requester only — with its operation\'s failure echoing the request, on either plane', async () => {
     const token = await world().person('lonely');
     const clientId = randomUUID();

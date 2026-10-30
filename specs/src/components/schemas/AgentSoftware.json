@@ -1,5 +1,5 @@
 {
-  "description": "A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `name`, `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads none of them from its DID. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.",
+  "description": "A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads neither from its DID. Its `name` is no part of what it writes: what it last said it is called is its profile, and readers fill it in, as they do a person's. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -16,7 +16,7 @@
     },
     "name": {
       "type": "string",
-      "description": "What the agent calls itself. Not parsed. Absent when it said nothing."
+      "description": "What the agent last said it is called. ABSENT until resolved: filled in from its profile when a record is read, as a Person's name is. Absent also where it has said nothing. Not parsed."
     },
     "provider": {
       "type": "string",

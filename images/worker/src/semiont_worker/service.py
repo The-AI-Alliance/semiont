@@ -14,7 +14,8 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It is one agent (`semiont_worker.agent`): it signs in once, as its account,
-and runs an engine for each entry of its document's `engines`. It answers
+says it is called by its client id, and runs an engine for each entry of its
+document's `engines`. It answers
 `GET /health` once the agent has signed in and opened its stream. Told to
 stop, each engine fails the job it holds, and the process exits with status 0.
 """
@@ -96,7 +97,10 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         loop.add_signal_handler(told, told_to_stop.set)
 
     agent = AgentWorker(
-        list(zip(config.engines, started.clients, strict=True)), gateway_url=config.gateway_url, service=ServiceToken(started.credential)
+        list(zip(config.engines, started.clients, strict=True)),
+        gateway_url=config.gateway_url,
+        service=ServiceToken(started.credential),
+        name=started.credential.client_id,
     )
     # The port is taken before anything is dialled, and answers nothing yet: a service that cannot listen on it has
     # signed in nowhere and opened no stream.

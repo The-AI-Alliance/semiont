@@ -183,9 +183,10 @@ import type { components } from '@semiont/core';
 /** Your model: the passages of a text worth a highlight, each as the words it quotes. */
 declare function passagesOf(text: string): Promise<QuotedText[]>;
 
+await client.wire.emit('principal:profile', { name: 'my-highlighter' });   // what it is called, said as itself
 const engine = { provider: 'ollama', model: 'gemma3' };      // the model this worker runs
 const generator: components['schemas']['Agent'] = {          // what its annotations say made them
-  '@type': 'Software', '@id': agent.did, name: `${engine.provider} ${engine.model}`, ...engine,
+  '@type': 'Software', '@id': agent.did, ...engine,
 };
 const claims = client.job.claim({
   accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
@@ -212,6 +213,8 @@ claims.subscribe(async (job) => {
   whose token is its bearer, and the gateway names it by that account: `startAgentSession`
   signs it in, learns its DID, and keeps the token fresh. The engine it runs is no part of
   who it is: what it commits names that in its `generator`.
+- **It says what it is called**, as itself, on `principal:profile`. Readers name an agent by
+  the last name it said, as they name a person, so a `generator` carries no name of its own.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
   awaits. A client whose stream does not is refused at once, as `bus.unsubscribed`.
 - **The SDK builds what a worker commits.** `reconcile(text, quoted)` finds the words a model

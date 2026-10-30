@@ -201,7 +201,9 @@ is its mechanism over HTTP.
 - **Profile.** When the channel is one whose registry `effect` writes and
   the principal's token carries `name`, a person's or an agent's, the
   gateway also publishes `principal:profile` `{_userId, name}` — how the
-  record learns what a principal is called.
+  record learns what a principal is called. A principal may emit
+  `principal:profile` itself, as an agent whose token carries no name does;
+  it is stamped as every emit is, so it names only the sender.
 - **An unanswerable request fails fast.** When the plane can count
   observers (the in-process plane) and a request with a `correlationId`
   reaches none, the gateway publishes the operation's own failure channel

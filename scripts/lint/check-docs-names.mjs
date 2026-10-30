@@ -323,7 +323,8 @@ for (const doc of DOCS) {
     for (const m of block.text.matchAll(/(?<![\w.$])(use[A-Z][\w]*)\s*[(<]/g)) {
       if (!known(m[1]) && !REACT_HOOKS.has(m[1])) report(doc, lineOf(block, m.index), 'hook', m[1]);
     }
-    for (const m of block.text.matchAll(/(?<![\w.$])<([A-Z][\w]*)(?=[\s/>])/g)) {
+    // After `::` it is a Rust turbofish's type, `emit::<Channel>`, and no component.
+    for (const m of block.text.matchAll(/(?<![\w.$:])<([A-Z][\w]*)(?=[\s/>])/g)) {
       if (!known(m[1]) && !REACT_COMPONENTS.has(m[1])) report(doc, lineOf(block, m.index), 'component', m[1]);
     }
     for (const m of block.text.matchAll(/\b(client|session\??\.client|semiont)\??\.([a-z]\w*)\??\.([a-z]\w*)\(/g)) {
