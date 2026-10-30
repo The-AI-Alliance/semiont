@@ -5,8 +5,10 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import semiont.bus.OPERATIONS
 import semiont.errors.SemiontError
 import semiont.identifiers.ResourceId
 import semiont.transport.Broadcast
@@ -34,6 +36,7 @@ import semiont.types.ProtectedResourceMetadata
 import semiont.types.StatusResponse
 import semiont.types.UserResponse
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** What a call did: on which route, to what, with what. */
@@ -43,17 +46,21 @@ internal fun obj(vararg pairs: Pair<String, JsonElement>) = JsonObject(mapOf(*pa
 
 /**
  * A transport, a content transport and a gateway in one, which keep what each
- * call did and answer none: a case holds what a call did first, not what it
- * was answered.
+ * call did and answer none but the requests a case answers: a case holds what
+ * a call did, step by step, and not what it was answered.
  */
 internal class Recording : Transport, GatewayOperations, ContentTransport {
     val did = CopyOnWriteArrayList<Did>()
-    val any = CompletableDeferred<Unit>()
     private val router = ReplyRouter()
+    private val answers = ConcurrentHashMap<String, JsonElement>()
 
     private fun saw(route: String, name: String, sends: JsonObject) {
         did += Did(route, name, sends)
-        any.complete(Unit)
+    }
+
+    /** Answer the next request on `channel` with `response` on its operation's result channel, once: a reply that carries none when it is `JsonNull`. */
+    fun answer(channel: String, response: JsonElement) {
+        answers[channel] = response
     }
 
     override val baseUrl: String = "http://kb.test"
@@ -61,6 +68,10 @@ internal class Recording : Transport, GatewayOperations, ContentTransport {
 
     override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
         saw("emit", channel, payload)
+        answers.remove(channel)?.let { response ->
+            val reply = if (response is JsonNull) obj() else obj("response" to response)
+            router.route(Frame(OPERATIONS.getValue(channel).result.name, reply, correlationId))
+        }
         return 1
     }
 
@@ -119,6 +130,7 @@ internal class Recording : Transport, GatewayOperations, ContentTransport {
                 "content" to JsonPrimitive(request.file.toString(Charsets.UTF_8)),
                 "format" to JsonPrimitive(request.format),
                 "storageUri" to JsonPrimitive(request.storageUri),
+                *listOfNotNull(request.cloneToken?.let { "cloneToken" to JsonPrimitive(it) }, request.archiveOriginal?.let { "archiveOriginal" to JsonPrimitive(it) }).toTypedArray(),
             ),
         )
         return Upload(CompletableDeferred(), Events(emptyFlow()) {})

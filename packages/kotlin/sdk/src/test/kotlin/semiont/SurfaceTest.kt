@@ -3,6 +3,7 @@ package semiont
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -180,6 +181,11 @@ private val calls: Map<String, Call> = mapOf(
         c.yield.resource(PutBinaryRequest(name = text("name"), file = text("content").toByteArray(), format = text("format"), storageUri = text("storageUri")))
     },
     "yield.delegate" to { c, a -> c.yield.delegate(a.read("params", GenerationJobParams.serializer()), a["stallDeadlineMs"]?.jsonPrimitive?.long).await() },
+    "yield.createFromToken" to { c, a ->
+        val options = a.getValue("options").jsonObject
+        fun text(name: String) = options.getValue(name).jsonPrimitive.content
+        c.yield.createFromToken(text("token"), text("name"), text("content"), options["archiveOriginal"]?.jsonPrimitive?.boolean)
+    },
     "yield.cloneToken" to { c, a -> c.yield.cloneToken(a.resource()) },
     "yield.fromToken" to { c, a -> c.yield.fromToken(a.text("token")) },
     "yield.clone" to { c, _ -> c.yield.clone() },
@@ -238,12 +244,22 @@ class SurfaceTest {
         val (route, name) = row.getValue("via").jsonObject.entries.single().let { it.key to it.value.jsonPrimitive.content }
         row.getValue("cases").jsonArray.map { it.jsonObject }.mapIndexed { index, case ->
             DynamicTest.dynamicTest("$method ${case["why"]?.jsonPrimitive?.content ?: "#${index + 1}"}") {
-                held(method, route, name, Args(case.getValue("args").jsonObject, fixtures), resolved(case.getValue("sends"), fixtures).jsonObject)
+                held(method, Step(route, name, resolved(case.getValue("sends"), fixtures).jsonObject), Args(case.getValue("args").jsonObject, fixtures), case)
             }
         }
     }
 
-    private fun held(method: String, route: String, name: String, args: Args, sends: JsonObject) = runBlocking {
+    /** One thing a call does: through which route, to what, with what. */
+    private data class Step(val route: String, val name: String, val sends: JsonObject)
+
+    /** The steps a case states after its first, each as its row's `via` is stated. */
+    private fun thenOf(case: JsonObject): List<Step> = case["then"]?.jsonArray.orEmpty().map { it.jsonObject }.map { step ->
+        val (route, name) = step.entries.single { it.key != "sends" }.let { it.key to it.value.jsonPrimitive.content }
+        Step(route, name, resolved(step.getValue("sends"), fixtures).jsonObject)
+    }
+
+    private fun held(method: String, first: Step, args: Args, case: JsonObject) = runBlocking {
+        val (route, name, sends) = first
         val recording = Recording()
         SemiontClient(recording, recording, recording).use { client ->
             val call = calls.getValue(method)
@@ -262,14 +278,17 @@ class SurfaceTest {
                     assertEquals(decoded(channelNamed(name), sends), delivered.payload)
                 }
                 else -> {
+                    case["answers"]?.let { recording.answer(name, resolved(it, fixtures)) }
                     val running = launch(Dispatchers.Default) { call(client, args) }
-                    withTimeout(5_000) { recording.any.await() }
+                    for ((at, step) in (listOf(first) + thenOf(case)).withIndex()) {
+                        withTimeout(5_000) { while (recording.did.size <= at) delay(5) }
+                        val did = recording.did[at]
+                        // A request is an emit on its operation's request channel, as a drive is on its own.
+                        val expected = if (step.route == "request" || step.route == "emit") "emit" else step.route
+                        assertEquals(expected to step.name, did.route to did.name)
+                        assertTrue(sameJson(step.sends, did.sends), "sent ${did.sends}, not ${step.sends}")
+                    }
                     running.cancel()
-                    val first = recording.did.first()
-                    // A request is an emit on its operation's request channel, as a drive is on its own.
-                    val expected = if (route == "request" || route == "emit") "emit" else route
-                    assertEquals(expected to name, first.route to first.name)
-                    assertTrue(sameJson(sends, first.sends), "sent ${first.sends}, not $sends")
                 }
             }
         }
