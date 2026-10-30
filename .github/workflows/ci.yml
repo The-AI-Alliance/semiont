@@ -2227,6 +2227,45 @@ jobs:
   # The sign-in store on Windows: the launcher keeps its sign-ins there too,
   # in another directory and under another lock (specs/src/sign-in-store).
   # These are the tests of what differs by system.
+  # The Kotlin sign-in store's lock where it is taken otherwise than on
+  # Linux: flock(2) through the foreign-function API on macOS, and the JDK's
+  # lock on the launcher's one byte on Windows. The store's tests hold the
+  # lock from another process as the launcher takes it, with Python's own
+  # call, and the store must wait.
+  test-sdk-kotlin-store:
+    name: Kotlin SDK (sign-in store, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.kotlin == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: packages/kotlin/sdk
+        shell: bash
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@v6.1.0
+        with:
+          distribution: temurin
+          java-version-file: packages/kotlin/sdk/.java-version
+
+      # The other process that holds the lock.
+      - name: Setup Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Test the sign-in store
+        run: ./gradlew --no-daemon --console=plain test --tests 'semiont.signin.*'
+
   test-sdk-python-windows:
     name: Python SDK (sign-in store, Windows)
     runs-on: windows-latest
@@ -3401,6 +3440,7 @@ jobs:
       - test-sdk-python
       - test-sdk-python-windows
       - test-sdk-kotlin
+      - test-sdk-kotlin-store
       - test-inference-python
       - test-service-python
       - test-worker-python

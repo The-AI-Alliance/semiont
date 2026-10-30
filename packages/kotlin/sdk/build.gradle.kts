@@ -88,7 +88,6 @@ dependencies {
     // OpenTelemetry's API alone: what is exported, and where, is the application's.
     implementation(platform(libs.opentelemetry.bom))
     implementation(libs.opentelemetry.api)
-    implementation(libs.opentelemetry.extension.kotlin)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.opentelemetry.sdk)
     "codegenImplementation"(libs.kotlinx.serialization.json)

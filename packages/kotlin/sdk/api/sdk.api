@@ -131,6 +131,40 @@ public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 	public final fun getStatus ()Ljava/lang/Integer;
 }
 
+public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/http/TokenRefresher {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/http/ServiceToken;)V
+	public fun close ()V
+	public final fun getDid ()Lsemiont/identifiers/UserId;
+	public final fun getDid-lE7-m4I ()Ljava/lang/String;
+	public final fun getGateway ()Ljava/lang/String;
+	public final fun getToken ()Lkotlinx/coroutines/flow/StateFlow;
+	public fun refresh (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun signIn (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun signInFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public abstract interface class semiont/http/Credential {
+	public abstract fun getClientId ()Ljava/lang/String;
+	public abstract fun getIssuer ()Ljava/lang/String;
+}
+
+public final class semiont/http/DeviceCode {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;D)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()D
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;D)Lsemiont/http/DeviceCode;
+	public static synthetic fun copy$default (Lsemiont/http/DeviceCode;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;DILjava/lang/Object;)Lsemiont/http/DeviceCode;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpiresIn ()D
+	public final fun getUserCode ()Ljava/lang/String;
+	public final fun getVerificationUri ()Ljava/lang/String;
+	public final fun getVerificationUriComplete ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/http/EndpointKt {
 	public static final fun gatewayUrl (Lsemiont/types/HttpEndpoint;)Ljava/lang/String;
 	public static final fun isValidHostname (Ljava/lang/String;)Z
@@ -193,6 +227,24 @@ public final class semiont/http/HttpTransport : semiont/transport/GatewayOperati
 public final class semiont/http/IssuerKt {
 	public static final fun renewKept (Lsemiont/signin/SignInKept;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun renewKeptFuture (Lsemiont/signin/SignInKept;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun signInDevice (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun signInDeviceFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun signOut (Lsemiont/signin/SignInKept;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun signOutFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/http/SecretCredential : semiont/http/Credential {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun getClientId ()Ljava/lang/String;
+	public final fun getClientSecret ()Ljava/lang/String;
+	public fun getIssuer ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/http/ServiceToken {
+	public fun <init> (Lsemiont/http/Credential;)V
+	public final fun authorization (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun authorizationFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/Timing {

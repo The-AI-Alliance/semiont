@@ -37,6 +37,18 @@ Every suspending member has a twin for Java that returns a `CompletableFuture` (
 - **Telemetry:** the SDK tells OpenTelemetry's API what specs/src/sdk-telemetry/telemetry.json lists, and nothing more. It installs no OpenTelemetry: until the application installs its own as the global one, every call does nothing, and one installed after the SDK has begun is still told.
 - **The bus log:** with `SEMIONT_BUS_LOG` set to anything but nothing, a line on standard output for each frame sent or received and each read and upload, in the form every Semiont SDK writes, with every credential's value withheld.
 
+## Signing in
+
+- **The sign-in store** (`semiont.signin`): `SignInStore` is the launcher's `tokens.json`, so a program and `semiont login` share their sign-ins. `stateDir` says where it is from the directories the application hands in; the SDK reads no environment variable for it. `MemorySignIn` keeps a sign-in for the life of the process. `renewKept` renews a kept sign-in at its issuer against what is kept then, so another program's renewal or sign-out in between stands.
+- **Its lock:** every writer of the store takes `flock` on `tokens.lock`, and on Windows `LockFileEx` on its one byte (specs/src/sign-in-store/README.md). The JDK's own file lock does not exclude `flock` on Linux, so the store calls `flock` through the foreign-function API. An application that uses the store enables native access for it, or the JVM warns when it is first taken:
+
+  ```bash
+  java --enable-native-access=ALL-UNNAMED -jar app.jar
+  ```
+
+- **A person** signs in from a process with no browser through the device grant: `signInDevice(kb, kept) { code -> ... }` shows the code, and keeps the sign-in once it is approved. `signOut(kept)` revokes it at the issuer and forgets it.
+- **A service** signs in as itself with `ServiceToken(SecretCredential(...))`, and as a software agent with `AgentToken`, which a transport takes as its token and its refresher. An agent whose renewal fails keeps the token it has and tries again.
+
 ## The JVM's settings
 
 The SDK reads no setting of its own but `SEMIONT_BUS_LOG`. Its HTTP client is the JDK's, with the JDK's default proxy selector and trust store, so it honours the system properties an application sets for them:
