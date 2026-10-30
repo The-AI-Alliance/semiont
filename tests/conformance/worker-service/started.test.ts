@@ -86,8 +86,9 @@ eachWorkerService('a started worker', (world) => {
     expect(served.emits('principal:profile').map(({ by, payload, scope, status }) => ({ by, payload, scope, status }))).toEqual([
       { by: w.did, payload: { name: WORKER_CLIENT }, scope: undefined, status: 202 },
     ]);
-    const asked = served.sequence();
-    expect(asked.indexOf('emit principal:profile')).toBeLessThan(asked.indexOf('emit job:claim'));
+    const said = served.emits().map(({ channel }) => channel);
+    expect(said).toContain('job:claim');
+    expect(said.indexOf('principal:profile')).toBeLessThan(said.indexOf('job:claim'));
   });
 
   it('answers GET /health, without a token, with who it is, its engines and what each can say of itself', async () => {

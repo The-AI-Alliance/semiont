@@ -184,13 +184,14 @@ export class Served {
    * What the worker asked of the gateway, in order, by name: `emit <channel>`,
    * `GET <path>`, `POST <path>`. Progress reports are left out: a worker does
    * not wait for the gateway to take one before it goes on, so where they fall
-   * among the rest is not fixed. Sign-ins and streams are left out too.
+   * among the rest is not fixed. Sign-ins, streams and the agent's saying what
+   * it is called are left out too: what a worker says as it starts.
    */
   sequence(): string[] {
     return this.proxy.requests.flatMap((r) => {
       if (r.path === '/api/users/me' || r.path === '/bus/subscribe') return [];
       const emit = this.emitOf(r);
-      if (emit) return emit.channel === 'job:report-progress' ? [] : [`emit ${emit.channel}`];
+      if (emit) return emit.channel === 'job:report-progress' || emit.channel === 'principal:profile' ? [] : [`emit ${emit.channel}`];
       return [`${r.method} ${r.path}`];
     });
   }
