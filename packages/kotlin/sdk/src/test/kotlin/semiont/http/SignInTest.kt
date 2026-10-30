@@ -52,6 +52,9 @@ internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = fal
     val scripted = mutableMapOf<String, ConcurrentLinkedDeque<Said>>()
     val emits = CopyOnWriteArrayList<JsonObject>()
 
+    /** What each stream a client opened asked for. */
+    val subscriptions = CopyOnWriteArrayList<JsonObject>()
+
     @Volatile
     var onEmit: (JsonObject) -> Unit = {}
 
@@ -62,11 +65,11 @@ internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = fal
         scripted.getOrPut(path) { ConcurrentLinkedDeque() }.addAll(said)
     }
 
-    /** Write a frame on the stream the client holds. */
-    fun send(frame: JsonObject) {
+    /** Write a frame on the stream the client holds, under the event id `id` when it has one. */
+    fun send(frame: JsonObject, id: String? = null) {
         val out = checkNotNull(stream) { "no client holds a stream" }
         synchronized(out) {
-            out.write("event: bus-event\ndata: $frame\n\n".toByteArray())
+            out.write("${id?.let { "id: $it\n" }.orEmpty()}event: bus-event\ndata: $frame\n\n".toByteArray())
             out.flush()
         }
     }
@@ -97,6 +100,7 @@ internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = fal
             }
             when {
                 path == "/bus/subscribe" && holdsStreams -> {
+                    subscriptions += Json.parseToJsonElement(text).jsonObject
                     exchange.responseHeaders.add("Content-Type", "text/event-stream")
                     exchange.sendResponseHeaders(200, 0)
                     val out = exchange.responseBody
