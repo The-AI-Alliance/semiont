@@ -189,10 +189,10 @@ export { SemiontSession, type OpenedSession, type SemiontSessionConfig, type Use
 // A software agent's sign-in: a worker's, or one of the knowledge base's own services'.
 export { startAgentSession, type AgentSession, type AgentSessionOptions } from './session/agent-session';
 export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome, type KbReadVerdict } from './session/semiont-browser';
+export { SignInError } from '@semiont/core';
 export {
   BROWSER_CLIENT_ID,
   SCRIPT_CLIENT_ID,
-  SignInError,
   type SignInErrorCode,
   type IssuerEndpoints,
   type DeviceCode,

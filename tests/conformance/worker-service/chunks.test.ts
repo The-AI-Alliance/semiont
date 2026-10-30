@@ -18,7 +18,7 @@ const found = (...markers: number[]) => ({ response: JSON.stringify(markers.map(
 eachWorkerService('a job over a long text', (world) => {
   it('cuts the text into overlapping pieces at paragraph ends, and asks, commits and checkpoints piece by piece', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     w.ollama.show = { contextLength: SMALL_CONTEXT_LENGTH };
     const job = markJob(w, 'chunks', { motivation: 'highlighting' }, {}, LONG_TEXT);
     const resourceId = String(job.params.resourceId);
@@ -35,9 +35,9 @@ eachWorkerService('a job over a long text', (world) => {
     expect(LONG_TEXT.length).toBe(3847);
     expectGenerations(
       w.ollama.generations,
-      ['chunks-1', 'chunks-2', 'chunks-3', 'chunks-4'].map((name) => generation(agent.model, name, REQUEST, FORMATS.highlighting)),
+      ['chunks-1', 'chunks-2', 'chunks-3', 'chunks-4'].map((name) => generation(engine.model, name, REQUEST, FORMATS.highlighting)),
     );
-    expect(w.ollama.shows).toEqual([{ model: agent.model }]);
+    expect(w.ollama.shows).toEqual([{ model: engine.model }]);
 
     // Each piece's spans are on the record, and its cursor said, before the next piece is asked for.
     expect(served.sequence()).toEqual([

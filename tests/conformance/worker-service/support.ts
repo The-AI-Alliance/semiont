@@ -211,10 +211,10 @@ export async function settled(served: Served, job: RunningJob, channel: 'job:com
 
 /**
  * Ask for `job` to be cancelled, as the gateway relays a cancellation to
- * every worker, and wait until the worker has had it. Its stream carries
+ * every worker, and wait until the worker has had it. Its one stream carries
  * frames in the order they were sent, so the worker's answer to a request
- * sent after the cancellation (its limits, which its first agent answers)
- * says the cancellation has arrived.
+ * sent after the cancellation (its limits) says the cancellation has
+ * arrived.
  */
 export async function cancelRequested(world: WorkerServiceWorld, job: RunningJob): Promise<void> {
   const listener = await world.listen(['job:limits-result', 'job:limits-failed']);

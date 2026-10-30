@@ -23,7 +23,7 @@ const SCHEMA = {
 eachWorkerService('a tagging job', (world) => {
   it('asks its model for each category in turn, and commits each tag with its category and the schema it is of', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'tagging', { motivation: 'tagging', schemaId: SCHEMA.id, categories: ['Claim', 'Evidence'], schema: SCHEMA });
     const resourceId = String(job.params.resourceId);
     w.ollama.script({ response: JSON.stringify([{ exact: 'London was wrong.' }]) }, { response: '[]' });
@@ -31,8 +31,8 @@ eachWorkerService('a tagging job', (world) => {
     const completion = await settled(served, job);
 
     expectGenerations(w.ollama.generations, [
-      generation(agent.model, 'tagging-claim', { num_predict: 5242, num_ctx: 5819, temperature: 0 }, FORMATS.tagging),
-      generation(agent.model, 'tagging-evidence', { num_predict: 5237, num_ctx: 5822, temperature: 0 }, FORMATS.tagging),
+      generation(engine.model, 'tagging-claim', { num_predict: 5242, num_ctx: 5819, temperature: 0 }, FORMATS.tagging),
+      generation(engine.model, 'tagging-evidence', { num_predict: 5237, num_ctx: 5822, temperature: 0 }, FORMATS.tagging),
     ]);
 
     // A category with nothing to commit commits nothing, and still says where it got to.

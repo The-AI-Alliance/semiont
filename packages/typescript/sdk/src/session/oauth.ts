@@ -15,6 +15,7 @@ import {
   RETRY_RULES,
   SCRIPT_CLIENT_ID,
   SIGN_IN_SCOPE,
+  SignInError,
   baseUrl,
   isObject,
   isString,
@@ -38,26 +39,6 @@ export { BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID };
 export type { SignInErrorCode };
 export const PENDING_AUTHORIZATION_KEY = 'semiont.pendingAuthorization';
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
-
-export class SignInError extends Error {
-  constructor(
-    readonly code: SignInErrorCode,
-    message: string,
-    /**
-     * The HTTP status the issuer answered with, when there was one.
-     *
-     * Absent means no response existed to read — `fetch` threw. That
-     * difference decides whether a session ends or its refresh is retried: an
-     * issuer refusing a grant and a network losing a packet are not the same
-     * event, and a status that went only into the message would leave the two
-     * indistinguishable one layer up.
-     */
-    readonly status?: number,
-  ) {
-    super(message);
-    this.name = 'SignInError';
-  }
-}
 
 export interface IssuerEndpoints {
   issuer: string;

@@ -3,7 +3,6 @@
 from gateway_server import Answer, GatewayServer
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
-from tokens import token
 
 from semiont.http import SecretCredential
 from semiont.identity import agent_did
@@ -14,7 +13,6 @@ REALM = "/realms/semiont"
 CONFIGURATION = f"{REALM}/.well-known/openid-configuration"
 TOKEN, DEVICE, REVOKE = f"{REALM}/token", f"{REALM}/device", f"{REALM}/revoke"
 METADATA = "/.well-known/oauth-protected-resource"
-AGENT = "/api/tokens/agent"
 ME = "/api/users/me"
 ALICE: JsonObject = {
     "did": "did:web:example.org:users:alice",
@@ -72,5 +70,6 @@ def account(gateway: GatewayServer) -> SecretCredential:
     return SecretCredential(issuer=issuer_of(gateway), client_id="semiont-smelter", client_secret=SECRET)
 
 
-def agent_token(n: int, lifetime: int = 3600) -> Answer:
-    return says({"token": token(lifetime, n), "did": agent_did("example.org", "ollama", "gemma2:27b")})
+def agent_named(subject: str) -> JsonObject:
+    """Who the gateway says the bearer of an agent's token is: the account its issuer names `subject`, which has no address."""
+    return {"did": agent_did("example.org", subject), "email": None, "name": None, "image": None, "domain": "example.org"}

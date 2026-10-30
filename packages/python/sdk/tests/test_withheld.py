@@ -23,7 +23,7 @@ import httpx
 import pytest
 from aio import run, soon
 from gateway_server import Answer, GatewayServer
-from issuer import AGENT, CONFIGURATION, TOKEN, account, issuer_of, says, trusting
+from issuer import CONFIGURATION, ME, TOKEN, account, issuer_of, says, trusting
 from pydantic import JsonValue, ValidationError
 from shown import CARRIED, parts_of, printed
 from tokens import token
@@ -117,13 +117,13 @@ async def account_grant(gateway: GatewayServer, said: Answer) -> SemiontError:
 
 
 async def signing_in(gateway: GatewayServer) -> None:
-    async with AgentToken(gateway.origin, provider="ollama", model="gemma2:27b", service=ServiceToken(account(gateway))):
+    async with AgentToken(gateway.origin, service=ServiceToken(account(gateway))):
         pass
 
 
-async def agent_exchange(gateway: GatewayServer, said: Answer) -> SemiontError:
+async def agent_naming(gateway: GatewayServer, said: Answer) -> SemiontError:
     gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
-    gateway.scripted[("POST", AGENT)] = [said]
+    gateway.scripted[("GET", ME)] = [said]
     return await raised(signing_in(gateway))
 
 
@@ -177,7 +177,7 @@ SITES: Final[dict[str, tuple[Site, Saying, tuple[str, ...]]]] = {
         lambda gateway: f"Client-credentials grant for semiont-smelter at {issuer_of(gateway)} got no answer",
         EVERY,
     ),
-    "an agent's exchange": (agent_exchange, lambda gateway: unsaid(f"{gateway.origin}{AGENT} got no answer"), EVERY),
+    "an agent's naming": (agent_naming, lambda gateway: unsaid(f"{gateway.origin}{ME} got no answer"), EVERY),
     "a gateway operation not answered": (media_token, lambda _: unsaid(f"POST {MEDIA} got no answer"), NEVER_BEGUN),
     "a gateway operation's answer": (media_token, lambda _: unsaid(f"POST {MEDIA} ended before its answer did"), CUT_OFF),
     "a resource's bytes": (resource_bytes, lambda _: unsaid(f"GET {BYTES} ended before its bytes did"), CUT_OFF),
@@ -221,20 +221,20 @@ def test_a_request_whose_token_is_no_header_value_is_said_in_none_of_the_tokens_
             trusting(gateway)
             operation = await media_token(gateway, Answer(), ILL_FORMED)
             emitted = await emit(gateway, Answer(), ILL_FORMED)
-            # A service account granted such a token asks for its agent's with it.
+            # An agent granted such a token by its issuer asks the gateway who it is with it.
             gateway.answers[TOKEN] = {"access_token": ILL_FORMED}
-            exchanged = await raised(signing_in(gateway))
+            named = await raised(signing_in(gateway))
 
-            assert [failure.message for failure in (operation, emitted, exchanged)] == [
+            assert [failure.message for failure in (operation, emitted, named)] == [
                 unsaid(f"POST {MEDIA} got no answer", "LocalProtocolError"),
                 unsaid("/bus/emit got no answer", "LocalProtocolError"),
-                unsaid(f"{gateway.origin}{AGENT} got no answer", "LocalProtocolError"),
+                unsaid(f"{gateway.origin}{ME} got no answer", "LocalProtocolError"),
             ]
-            for failure in (operation, emitted, exchanged):
+            for failure in (operation, emitted, named):
                 assert parts_of(CARRIED, printed(failure)) == []
                 assert failure.status is None
             # None of the three left this process.
-            assert [gateway.of("POST", path) for path in (MEDIA, "/bus/emit", AGENT)] == [[], [], []]
+            assert [gateway.of(method, path) for method, path in (("POST", MEDIA), ("POST", "/bus/emit"), ("GET", ME))] == [[], [], []]
 
     with caplog.at_level(logging.DEBUG, logger="semiont"):
         run(scenario())

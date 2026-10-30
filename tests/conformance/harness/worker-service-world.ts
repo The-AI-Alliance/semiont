@@ -9,7 +9,7 @@
  * `browse:resource-requested`, `mark:commit` and `browse:annotation-requested`.
  *
  * The worker is pointed at a recording proxy in front of the gateway, so
- * everything it sends is read as a transcript: each sign-in, each stream it
+ * everything it sends is read as a transcript: its sign-in, the stream it
  * opens, each emit, each read of bytes. Nothing reaches inside the process.
  */
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
@@ -30,8 +30,11 @@ import { World } from './world';
 /** The worker's service account at the issuer. */
 export const WORKER_CLIENT = 'semiont-worker';
 
+/** The roles the worker's account holds at the issuer, in the order its token carries them. */
+export const WORKER_ROLES: readonly string[] = [SERVICE_ROLE, WORKER_ROLE];
+
 /**
- * The variable an Anthropic agent's entry names for its key (`apiKeyEnv`). It
+ * The variable an Anthropic engine's entry names for its key (`apiKeyEnv`). It
  * is not one the provider's own library reads, so a worker that reaches the
  * stand-in read the variable its document names.
  */
@@ -51,13 +54,27 @@ export type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
 type AgentEntry = WorkerSettings['agents'][number];
 
-/** An agent a case's worker works as: a provider and a model, and the DID and name the gateway gives the pair. */
-export interface WorkerAgent {
+/** An engine a case's worker runs: a provider and a model, and the name its `generator` states for the pair. */
+export interface Engine {
   provider: AgentEntry['agent']['provider'];
   model: string;
-  did: string;
   name: string;
 }
+
+/**
+ * The engines the suite's workers run, two of each provider so that a case can
+ * start a worker of two. An engine is no principal: the gateway names a worker
+ * by its account, and what a worker states of an engine is its provider and
+ * model, and their name, a space between (principals/cases.json `engines`).
+ */
+const OLLAMA_ENGINES: readonly Engine[] = [
+  { provider: 'ollama', model: 'gemma2:27b', name: 'ollama gemma2:27b' },
+  { provider: 'ollama', model: 'library/llama3', name: 'ollama library/llama3' },
+];
+const ANTHROPIC_ENGINES: readonly Engine[] = [
+  { provider: 'anthropic', model: 'claude-sonnet-5', name: 'anthropic claude-sonnet-5' },
+  { provider: 'anthropic', model: 'claude-3.5-sonnet', name: 'anthropic claude-3.5-sonnet' },
+];
 
 /** A batch a worker committed, as the record received it. */
 export interface Commit {
@@ -74,21 +91,22 @@ export interface Emit {
   payload: Record<string, unknown>;
   correlationId: string | undefined;
   scope: string | undefined;
-  /** The DID of the agent whose token it carried. */
+  /** The DID the gateway named the bearer of its token by. */
   by: string | undefined;
   /** The status the gateway answered it with. */
   status: number | undefined;
 }
 
-/** One sign-in a worker made at the gateway. */
+/** One sign-in a worker made at the gateway: the token it carried, and the DID the gateway answered `GET /api/users/me` with. */
 export interface SignIn {
-  provider: unknown;
-  model: unknown;
   did: string;
   token: string;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** The token a request carried as its bearer. */
+const bearerOf = (request: ProxiedRequest): string | undefined => request.headers.authorization?.replace(/^Bearer /, '');
 
 /** Whether a claim's filter takes `job`: its type, and for a `mark` job its motivation. */
 function takes(filter: JobFilter, job: RunningJob): boolean {
@@ -106,15 +124,16 @@ export class Served {
   /** Each sign-in the gateway answered, in order. */
   signIns(): SignIn[] {
     return this.proxy.requests.flatMap((r) => {
-      if (r.method !== 'POST' || r.path !== '/api/tokens/agent' || !isObject(r.answer) || !isObject(r.json)) return [];
-      const { token, did } = r.answer;
-      return typeof token === 'string' && typeof did === 'string' ? [{ provider: r.json['provider'], model: r.json['model'], did, token }] : [];
+      if (r.method !== 'GET' || r.path !== '/api/users/me' || r.status !== 200 || !isObject(r.answer)) return [];
+      const { did } = r.answer;
+      const token = bearerOf(r);
+      return typeof did === 'string' && token !== undefined ? [{ did, token }] : [];
     });
   }
 
-  /** The DID of the agent whose token `request` carried. */
+  /** The DID the gateway named the bearer of `request`'s token by, when it signed in with it. */
   private by(request: ProxiedRequest): string | undefined {
-    const bearer = request.headers.authorization?.replace(/^Bearer /, '');
+    const bearer = bearerOf(request);
     return this.signIns().find((s) => s.token === bearer)?.did;
   }
 
@@ -170,7 +189,7 @@ export class Served {
    */
   sequence(): string[] {
     return this.proxy.requests.flatMap((r) => {
-      if (r.path === '/api/tokens/agent' || r.path === '/bus/subscribe') return [];
+      if (r.path === '/api/users/me' || r.path === '/bus/subscribe') return [];
       const emit = this.emitOf(r);
       if (emit) return emit.channel === 'job:report-progress' ? [] : [`emit ${emit.channel}`];
       return [`${r.method} ${r.path}`];
@@ -191,7 +210,7 @@ export class Served {
   account(): string {
     const wire = this.proxy.requests.map((r) => {
       const emit = this.emitOf(r);
-      const what = emit ? `emit ${emit.channel} ${JSON.stringify(emit.payload)}` : r.path === '/bus/subscribe' ? `subscribe ${JSON.stringify(r.json)}` : `${r.method} ${r.path} ${r.path === '/api/tokens/agent' ? JSON.stringify(r.json) : ''}`;
+      const what = emit ? `emit ${emit.channel} ${JSON.stringify(emit.payload)}` : r.path === '/bus/subscribe' ? `subscribe ${JSON.stringify(r.json)}` : `${r.method} ${r.path}`;
       return `    [${r.status ?? 'unanswered'}] ${what}`;
     });
     return ['  the worker asked the gateway:', ...wire, '  the worker wrote:', ...this.process.output.slice(-80).map((line) => `    ${line}`)].join('\n');
@@ -253,10 +272,13 @@ export class WorkerServiceWorld {
     // The worker proves itself with a key: the issuer holds the public half, the worker's environment the private.
     const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const key = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
-    const world = await World.create('in-process', { accounts: { [WORKER_CLIENT]: { publicKey, roles: [SERVICE_ROLE, WORKER_ROLE] } } });
+    const world = await World.create('in-process', { accounts: { [WORKER_CLIENT]: { publicKey, roles: [...WORKER_ROLES] } } });
     const ollama = await startOllama();
-    const claudes = principals(world.kb.domain).agents.flatMap((a) => (a.provider === 'anthropic' ? [a.model] : []));
-    const anthropic = await startAnthropic(`sk-ant-conformance-${randomBytes(24).toString('hex')}`, claudes, ANTHROPIC_MODEL);
+    const anthropic = await startAnthropic(
+      `sk-ant-conformance-${randomBytes(24).toString('hex')}`,
+      ANTHROPIC_ENGINES.map((engine) => engine.model),
+      ANTHROPIC_MODEL,
+    );
     const made = new WorkerServiceWorld(implementation, command, world, ollama, anthropic, { SEMIONT_OIDC_CLIENT_ID: WORKER_CLIENT, SEMIONT_OIDC_CLIENT_KEY: key });
     made.peer = await world.responder(
       ['job:claim', 'browse:resource-requested', 'mark:commit', 'browse:annotation-requested'],
@@ -265,39 +287,37 @@ export class WorkerServiceWorld {
     return made;
   }
 
-  // ── who the worker works as ──────────────────────────────────────────────
+  // ── who the worker is, and the engines it runs ──────────────────────────
 
-  /** The pairs of principals/cases.json under this knowledge base that are `provider`'s, each with the DID and name the gateway must give it. */
-  private agentsOn(provider: WorkerAgent['provider']): WorkerAgent[] {
-    const found = principals(this.world.kb.domain).agents.flatMap((a): WorkerAgent[] => (a.provider === provider ? [{ provider, model: a.model, did: a.did, name: a.name }] : []));
-    if (found.length < 2) throw new Error(`principals/cases.json needs two ${provider} agents under the suite's knowledge base`);
-    return found;
+  /** The DID the gateway names the worker by: its account's (principals/cases.json). */
+  get did(): string {
+    return principals(this.world.kb.domain).agentDid(this.world.issuer.subjectOf(WORKER_CLIENT));
   }
 
-  /** The agents a case's worker works as unless the case says otherwise: the Ollama pairs. */
-  get agents(): WorkerAgent[] {
-    return this.agentsOn('ollama');
+  /** The engines a case's worker runs unless the case says otherwise: Ollama's. */
+  get engines(): readonly Engine[] {
+    return OLLAMA_ENGINES;
   }
 
-  /** The agents of a case about a worker on Anthropic: the Anthropic pairs. */
-  get anthropicAgents(): WorkerAgent[] {
-    return this.agentsOn('anthropic');
+  /** The engines of a case about a worker on Anthropic. */
+  get anthropicEngines(): readonly Engine[] {
+    return ANTHROPIC_ENGINES;
   }
 
-  /** The `generator` a worker working as `agent` states on what it makes. */
-  generator(agent: WorkerAgent = this.agents[0]!): Record<string, unknown> {
-    return { '@type': 'Software', '@id': agent.did, name: agent.name, provider: agent.provider, model: agent.model };
+  /** The `generator` the worker states on what `engine` makes: the worker, by its DID, and the engine. */
+  generator(engine: Engine = this.engines[0]!): Record<string, unknown> {
+    return { '@type': 'Software', '@id': this.did, name: engine.name, provider: engine.provider, model: engine.model };
   }
 
   // ── the document a worker is started with ────────────────────────────────
 
   /**
-   * A worker's configuration document: one agent, the first, serving every
+   * A worker's configuration document: one engine, the first, serving every
    * job on the stand-in Ollama, unless `agents` says otherwise. It names
    * `gatewayUrl`, which `start` points at its recording proxy.
    */
   async settings(gatewayUrl: string, agents?: AgentEntry[]): Promise<WorkerSettings> {
-    const first = this.agents[0]!;
+    const first = this.engines[0]!;
     return {
       gatewayUrl,
       identity: { issuer: this.world.issuer.origin },
@@ -310,12 +330,13 @@ export class WorkerServiceWorld {
   }
 
   /**
-   * An entry of `agents`: `agent`, serving `accepts`, on the stand-in of its
-   * provider. An Anthropic agent's entry names the variable its key is in.
+   * An entry of the document's `agents`: `engine`, serving `accepts`, on the
+   * stand-in of its provider. An Anthropic engine's entry names the variable
+   * its key is in.
    */
-  entry(agent: WorkerAgent, accepts: JobFilter[]): AgentEntry {
-    const serving = { agent: { provider: agent.provider, model: agent.model }, accepts };
-    return agent.provider === 'anthropic' ? { ...serving, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...serving, baseUrl: this.ollama.origin };
+  entry(engine: Engine, accepts: JobFilter[]): AgentEntry {
+    const serving = { agent: { provider: engine.provider, model: engine.model }, accepts };
+    return engine.provider === 'anthropic' ? { ...serving, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...serving, baseUrl: this.ollama.origin };
   }
 
   /** A launch as `start` makes it, for a case that must change it: the gateway is dialled directly. */
@@ -338,7 +359,7 @@ export class WorkerServiceWorld {
     try {
       const settings: WorkerSettings = { ...(await this.settings(proxy.origin, options.agents)), ...options.settings };
       const keys: WorkerEnvironment = {};
-      for (const agent of settings.agents) if (agent.apiKeyEnv !== undefined) keys[agent.apiKeyEnv] = this.anthropic.apiKey;
+      for (const entry of settings.agents) if (entry.apiKeyEnv !== undefined) keys[entry.apiKeyEnv] = this.anthropic.apiKey;
       const process = await startWorkerService({
         command: this.command,
         settings,

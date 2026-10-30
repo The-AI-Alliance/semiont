@@ -110,7 +110,7 @@ def test_a_reply_asks_once_after_the_people_it_mentions_each_once_in_the_order_t
     reply: JsonObject = {
         "creator": ADA,
         "wasAttributedTo": [grace, ADA],
-        "agent": {"@type": "Software", "@id": "did:web:example.org:agents:a:b"},
+        "agent": {"@type": "Software", "@id": "did:web:example.org:agents:a"},
     }
     ada_named: JsonObject = {**ADA, "name": "Ada Lovelace"}
     said = run(name(reply, people))

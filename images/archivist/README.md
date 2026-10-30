@@ -92,9 +92,8 @@ credential.
 
 **Every caller holds `semiont-service`.** Everything but `/health` requires a bearer token from
 the knowledge base's identity provider carrying the `semiont-service` role. Each caller gets one
-with its own service account. The gateway requires the same role to issue a service its agent
-token. Every refusal is **401**, with the challenge `Bearer`, or `Bearer error="invalid_token"`
-when a token was presented and refused.
+with its own service account. Every refusal is **401**, with the challenge `Bearer`, or
+`Bearer error="invalid_token"` when a token was presented and refused.
 
 The principal headers on `POST /resources` are believed because the caller holds the
 `semiont-service` role: only the stack's own services call this surface, and the gateway is the one
@@ -125,9 +124,9 @@ layout.
 
 ## When it starts
 
-It starts **after the gateway** (it mints an agent token there) and **before the worker and the
-Smelter**, which read bytes from it. Its `/health` answers only once it has booted, which is what
-makes that ordering enforceable.
+It starts **after the gateway** (it asks the gateway who it is as it signs in) and **before the
+worker and the Smelter**, which read bytes from it. Its `/health` answers only once it has booted,
+which is what makes that ordering enforceable.
 
 ## Configuration
 
@@ -139,8 +138,8 @@ serves each role, the port, and the staging bounds. Mount the knowledge base, th
 the anchored-text store where the document says they are.
 
 **Its own service account.** Set `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` to its
-service account at the knowledge base's issuer. It exchanges them for a token to reach the gateway,
-and requires a token of the same kind on its own surface.
+service account at the knowledge base's issuer. The token the issuer grants it is its bearer at
+the gateway, and it requires a token of the same kind on its own surface.
 
 **`skipRebuild`** in the document skips the startup view rebuild, and with it the reap: views the
 log no longer justifies survive until a rebuild runs or `semiont clean --store state` clears them.

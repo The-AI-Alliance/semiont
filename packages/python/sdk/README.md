@@ -42,11 +42,12 @@ A transport sends the token it is given. Where the token comes from is one of
 three things, and each keeps it renewed: half its lifetime before it expires,
 at most five minutes before, and at once when the gateway refuses it.
 
-**An agent** is a service account's token exchanged at the gateway for the
-token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on. The
-gateway answers the exchange with the agent's DID, which is who its work is
-attributed to: `agent.did`, once it is signed in, as the gateway minted it.
+**An agent** is an account, as a person is: it signs in at its issuer, and the
+token its issuer grants is its bearer at the gateway. It is what a service
+holds: a transport, its agent's token, and the channels it awaits replies on.
+The gateway names it by its account; that DID, which the gateway answers at
+`GET /api/users/me`, is who its work is attributed to: `agent.did`, once it is
+signed in. The engine it runs is no part of it: each write names that.
 
 ```python
 from semiont.bus import reply_channels_for
@@ -58,10 +59,10 @@ from semiont.watched import reached
 async def work(gateway: str, issuer: str, secret: str) -> None:
     service = ServiceToken(SecretCredential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
     async with (
-        AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
-        print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
+        print(f"working as {agent.did}")  # who its work is attributed to: its account, as the gateway names it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
 
@@ -456,11 +457,11 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
 
 
 async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
+    # The process signs in at its issuer as its account: the agent its work is attributed to.
     service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
         HttpTransport(
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
@@ -470,7 +471,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
         client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent the gateway gave it.
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
         generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
@@ -494,19 +495,20 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
                             await job.complete(result)
 ```
 
-- **A worker is an agent.** Its process signs in with a service account, and
-  the gateway gives it the agent its work is attributed to. The account needs
-  two roles at the issuer: `semiont-service`, to be given an agent, and
-  `semiont-worker`, without which every claim is refused as
-  `bus.unauthorized`.
+- **A worker is an agent.** Its process signs in at its issuer as its account,
+  and the gateway names it by that account: the agent its work is attributed
+  to. The account needs two roles at the issuer: `semiont-service`, which marks
+  a service's account, and `semiont-worker`, without which every claim is
+  refused as `bus.unauthorized`.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is refused
   at its first claim, as `bus.unsubscribed`.
 - **It builds what it commits** with `reconcile` and `annotation_of_span`:
   [Building annotations](#building-annotations) says what each does. The
-  `generator` an annotation states is the agent the worker works as, whose
-  DID is what the gateway says its token is.
+  `generator` an annotation states is the agent the worker works as, by the
+  DID the gateway names its account by, and the engine it ran (`provider`,
+  `model`).
 - **A held job commits for itself**: `await job.commit(resource_id, annotations)`
   sends the batch as `mark:commit`, citing the job, and returns once the
   record has it. When no acknowledgement arrives it asks whether the batch's

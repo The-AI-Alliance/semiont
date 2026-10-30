@@ -343,6 +343,7 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 export * from './service-account';
+export { SignInError } from './sign-in-error';
 export { UnansweredError, jsonOf, whyUnanswered } from './unanswered';
 
 // Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,

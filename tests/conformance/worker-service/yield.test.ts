@@ -8,9 +8,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { SPEC_SOURCE } from '../harness/paths';
-import { WORKER_ROLE } from '../harness/roles';
 import { errorsOf, spec } from '../harness/spec';
-import { eachWorkerService, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { eachWorkerService, WORKER_ROLES, type RunningJob, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { annotationIdOf, expectGenerations, expectProgress, generation, identity, report, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
 const SOURCE = 'res-ws-yield-source';
@@ -56,7 +55,7 @@ it('works out the id of an annotation as specs/src/annotations/id-cases.json sta
 eachWorkerService('a yield job', (world) => {
   it('generates from the gathered context, uploads what the model wrote less its citation marks, links it from its source, and cites its sources on it', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = yieldJob(w, 'yield', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
     w.ollama.script({
       // Two claims whose words the mark wraps, one a sentence and one in the middle of its sentence; a bare mark, where its
@@ -68,8 +67,8 @@ eachWorkerService('a yield job', (world) => {
     const completion = await settled(served, job);
 
     // One generation, with the job's own temperature and length, and no format: the answer is the document.
-    expect(w.ollama.shows).toEqual([{ model: agent.model }]);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 837, temperature: 0.2 })]);
+    expect(w.ollama.shows).toEqual([{ model: engine.model }]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'yield-markdown', { num_predict: 300, num_ctx: 837, temperature: 0.2 })]);
 
     // It reads nothing of the source: what it knows of it is in the job.
     expect(served.sequence()).toEqual(['emit job:claim', 'emit job:start', 'POST /resources', 'emit mark:commit', 'emit mark:commit', 'emit job:complete', 'emit job:claim']);
@@ -93,8 +92,9 @@ eachWorkerService('a yield job', (world) => {
     });
     expect(JSON.parse(generator!)).toEqual(w.generator());
     expect(JSON.parse(entityTypes!)).toEqual(['Person']);
-    expect(upload.principal).toBe(agent.did);
-    expect(upload.roles).toBe(WORKER_ROLE);
+    expect(upload.principal).toBe(w.did);
+    // The roles of the worker's account, as its token carries them.
+    expect(upload.roles).toBe(WORKER_ROLES.join(','));
     const yielded = upload.resourceId;
 
     const commits = served.payloads('mark:commit');
@@ -144,7 +144,7 @@ eachWorkerService('a yield job', (world) => {
 
   it('names the annotation a job is anchored to on everything it says of the job, binds what it made to that annotation, and says when the model was cut off', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const annotationId = 'ann-ws-focus';
     const job = yieldJob(
       w,
@@ -171,7 +171,7 @@ eachWorkerService('a yield job', (world) => {
     const completion = await settled(served, job);
 
     // Asked with no temperature or length, the job takes 0.7 and 500 tokens.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-annotation', { num_predict: 500, num_ctx: 762, temperature: 0.7 })]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'yield-annotation', { num_predict: 500, num_ctx: 762, temperature: 0.7 })]);
 
     const anchored = { ...identity(job), annotationId };
     expect(served.payloads('job:start')).toEqual([anchored]);
@@ -217,7 +217,7 @@ eachWorkerService('a yield job', (world) => {
     const { error, ...rest } = failure;
     expect(rest).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
     expect(String(error)).toContain('693');
-    expect(w.ollama.shows).toEqual([{ model: w.agents[0]!.model }]);
+    expect(w.ollama.shows).toEqual([{ model: w.engines[0]!.model }]);
     expect(w.ollama.generations).toEqual([]);
     expect(w.world.archivist.uploads).toEqual([]);
     expect(served.sequence()).toEqual(['emit job:claim', 'emit job:start', 'emit job:fail', 'emit job:claim']);
@@ -225,12 +225,12 @@ eachWorkerService('a yield job', (world) => {
 
   it('asks for the generation of a job whose prompt and length exactly fill its model\'s window', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     w.ollama.show = { contextLength: 694 };
     const job = yieldJob(w, 'yield-fills-the-window', REQUEST, { kind: 'resource', resource: SOURCE_DESCRIPTOR, content: { main: TEXT, related: {} } });
     w.ollama.script({ response: 'It was never built.' });
     const served = await w.start();
     await settled(served, job);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'yield-markdown', { num_predict: 300, num_ctx: 694, temperature: 0.2 })]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'yield-markdown', { num_predict: 300, num_ctx: 694, temperature: 0.2 })]);
   });
 });

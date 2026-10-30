@@ -1,13 +1,13 @@
 /**
  * The limits a worker answers (WORKER-SERVICE.md § Limits): one reply to
- * `job:limits-requested`, from its first agent, with what each of its models
- * can take as its provider states it.
+ * `job:limits-requested`, with what each of its engines' models can take as
+ * its provider states it.
  */
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { marks, YIELDS } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
-import { ANTHROPIC_MODEL, eachWorkerService, type Served, type WorkerAgent, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { ANTHROPIC_MODEL, eachWorkerService, type Engine, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { CONTEXT_LENGTH } from './support';
 
 /** Ask for the limits as a client does, and read the one reply. */
@@ -25,19 +25,19 @@ async function limits(w: WorkerServiceWorld): Promise<{ payload: Record<string, 
 /** A window of `contextTokens`, as an Ollama model's is stated: one window, shared by what goes in and what comes out. */
 const shared = (contextTokens: number) => ({ contextTokens, maxOutputTokens: contextTokens, acceptsTemperature: true });
 
-/** A worker of two agents, the first two of `agents`: one that serves highlighting and one that serves generation. */
-async function started(w: WorkerServiceWorld, agents: WorkerAgent[]): Promise<Served> {
-  const [first, second] = agents;
+/** A worker of two engines, the first two of `engines`: one that serves highlighting and one that serves generation. */
+async function started(w: WorkerServiceWorld, engines: readonly Engine[]): Promise<Served> {
+  const [first, second] = engines;
   const served = await w.start({ agents: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [YIELDS])] });
-  await eventually('both agents to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
+  await eventually('both engines to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
   return served;
 }
 
 eachWorkerService('the limits a worker answers', (world) => {
-  it('answers a request once, from its first agent, with the limits of every provider and model it works as, in the order of its agents', async () => {
+  it('answers a request once, as the agent, with the limits of every engine\'s provider and model, in the order of its engines', async () => {
     const w = world();
-    const [first, second] = w.agents;
-    const served = await started(w, w.agents);
+    const [first, second] = w.engines;
+    const served = await started(w, w.engines);
     const answer = await limits(w);
     expect(answer.payload).toEqual({
       response: {
@@ -47,19 +47,19 @@ eachWorkerService('the limits a worker answers', (world) => {
         ],
       },
     });
-    expect(answer.by).toBe(first!.did);
+    expect(answer.by).toBe(w.did);
     // It asked its provider of each model once, by name.
     expect([...(w.ollama.shows as Array<{ model: string }>)].sort((a, b) => (a.model < b.model ? -1 : 1))).toEqual(
       [{ model: first!.model }, { model: second!.model }].sort((a, b) => (a.model < b.model ? -1 : 1)),
     );
-    expect(served.emits('job:limits-result').map((e) => e.by)).toEqual([first!.did]);
+    expect(served.emits('job:limits-result').map((e) => e.by)).toEqual([w.did]);
     expect(served.emits('job:limits-failed')).toEqual([]);
   });
 
   it('remembers what a provider said, and asks it again only for a model it could not learn of', async () => {
     const w = world();
-    const [first, second] = w.agents;
-    await started(w, w.agents);
+    const [first, second] = w.engines;
+    await started(w, w.engines);
 
     // A provider that cannot be asked: its models are left out, and the request is still answered.
     w.ollama.show = { status: 500 };
@@ -86,10 +86,10 @@ eachWorkerService('the limits a worker answers', (world) => {
 
   it('answers, of an Anthropic model, what its provider says it reads and writes, and that it takes no temperature, having asked of each model once and in one request', async () => {
     const w = world();
-    const [first, second] = w.anthropicAgents;
+    const [first, second] = w.anthropicEngines;
     // The second reads and writes less.
     w.anthropic.models.set(second!.model, { maxInputTokens: 180_000, maxOutputTokens: 8192, structuredOutputs: true });
-    await started(w, w.anthropicAgents);
+    await started(w, w.anthropicEngines);
     const stated = {
       response: {
         limits: [
@@ -100,9 +100,9 @@ eachWorkerService('the limits a worker answers', (world) => {
     };
     const answer = await limits(w);
     expect(answer.payload).toEqual(stated);
-    expect(answer.by).toBe(first!.did);
+    expect(answer.by).toBe(w.did);
 
-    // Of each model, its ceilings, and nothing else. The two agents ask at once, so the two requests come in no fixed order.
+    // Of each model, its ceilings, and nothing else. The two engines ask at once, so the two requests come in no fixed order.
     expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`).sort()).toEqual([`GET /v1/models/${first!.model}`, `GET /v1/models/${second!.model}`].sort());
 
     // What it learned it keeps: the provider is asked nothing more.

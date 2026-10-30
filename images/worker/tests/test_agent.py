@@ -1,6 +1,6 @@
-"""One agent at work: what its stream names, what it does with a claim that is refused, and what it does when its job stalls.
+"""The agent at work: what its stream names, what an engine does with a claim that is refused, and what it does when its job stalls.
 
-`docs/protocol/WORKER-SERVICE.md` § Agents and § Stopping state it, and the
+`docs/protocol/WORKER-SERVICE.md` § The agent and § Stopping state it, and the
 worker service's conformance suite holds a started service to both. Here is
 what that suite cannot make happen, a held job that stalls, and the claiming
 itself over the SDK's doubles (`holding.py`).
@@ -16,12 +16,24 @@ from aio import pass_time, run, turns
 from holding import EVERY_JOB, SOURCE, Parties, answering, job
 from semiont.identifiers import UserId
 from semiont.operations import OPERATIONS
+from semiont.types import WorkerAgentConfig
 from standing_in import GENERATOR
 
 from semiont_worker import agent
-from semiont_worker.agent import WORKER_CHANNELS, exit_for_restart, run_what_is_claimed, watch_for_a_stall
+from semiont_worker.agent import WORKER_CHANNELS, Engine, exit_for_restart, run_what_is_claimed, watch_for_a_stall
 
-AGENT: Final = UserId("did:web:test.local:agents:test:test")
+AGENT: Final = UserId("did:web:test.local:agents:semiont-worker")
+
+
+def entry(provider: str, model: str, motivation: str) -> WorkerAgentConfig:
+    """An entry of the document's `agents`: an engine serving one motivation of `mark` jobs."""
+    return WorkerAgentConfig.model_validate(
+        {
+            "agent": {"provider": provider, "model": model},
+            "accepts": [{"jobType": "mark", "params": {"motivation": motivation}}],
+            "baseUrl": "http://127.0.0.1:1",
+        }
+    )
 
 
 class Left(Exception):
@@ -41,11 +53,11 @@ def logged(caplog: pytest.LogCaptureFixture, message: str) -> list[logging.LogRe
     return [record for record in caplog.records if record.name == "semiont_worker" and record.getMessage().startswith(message)]
 
 
-def test_a_worker_s_stream_names_the_replies_of_what_a_worker_awaits_and_the_two_broadcasts_it_reads_and_nothing_else() -> None:
+def test_the_agent_s_stream_names_the_replies_of_what_a_worker_awaits_the_two_broadcasts_it_reads_and_the_request_it_answers() -> None:
     # The reply channels of every operation a client can ask reach every stream that names them: a worker names its own.
     awaited = ("job:claim", "mark:commit", "browse:annotation-requested", "browse:resource-requested")
     replies = [channel.name for operation in awaited for channel in (OPERATIONS[operation].result, OPERATIONS[operation].failure)]
-    assert sorted(WORKER_CHANNELS) == sorted([*replies, "job:queued", "job:cancel-requested"])
+    assert sorted(WORKER_CHANNELS) == sorted([*replies, "job:queued", "job:cancel-requested", "job:limits-requested"])
     assert len(set(WORKER_CHANNELS)) == len(WORKER_CHANNELS)
 
 
@@ -108,7 +120,7 @@ def test_a_claim_refused_as_unauthorized_ends_the_process_and_says_why(
     assert len(vars(refused)["accepts"]) == len(EVERY_JOB)
 
 
-def test_a_claim_refused_for_any_other_reason_is_said_in_the_log_and_the_agent_claims_again_when_it_is_woken(
+def test_a_claim_refused_for_any_other_reason_is_said_in_the_log_and_the_engine_claims_again_when_it_is_woken(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     async def scenario() -> None:
@@ -198,7 +210,7 @@ def test_a_held_job_that_stalls_ends_the_process_and_says_which_job_and_how_long
         assert said[instant].endswith("Z")
 
 
-def test_an_agent_that_holds_nothing_is_never_stalled(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_an_engine_that_holds_nothing_is_never_stalled(monkeypatch: pytest.MonkeyPatch) -> None:
     async def scenario() -> None:
         parties = Parties()
         async with parties.client as client:
@@ -216,4 +228,62 @@ def test_an_agent_that_holds_nothing_is_never_stalled(monkeypatch: pytest.Monkey
         await parties.transport.close()
 
     leaving(monkeypatch)
+    run(scenario())
+
+
+def test_what_an_engine_makes_names_the_agent_by_its_did_and_the_engine_and_its_vitals_say_which_engine_it_is() -> None:
+    highlighting = entry("ollama", "gemma2:27b", "highlighting")
+
+    async def scenario() -> None:
+        parties = Parties()
+        parties.text_resource()
+        parties.queue.append(job("job-1", "mark", {"motivation": "highlighting"}))
+        async with parties.client as client:
+            engine = Engine(highlighting, answering('[{"exact": "the first program"}]'), client.job.claim(highlighting.accepts))
+            working = asyncio.ensure_future(engine.work(client, AGENT))
+            for _ in range(20):
+                await turns()
+            ((_, annotations),) = parties.commits
+            assert [annotation["generator"] for annotation in annotations if isinstance(annotation, dict)] == [
+                {"@type": "Software", "@id": AGENT, "name": "ollama gemma2:27b", "provider": "ollama", "model": "gemma2:27b"}
+            ]
+            vitals = engine.vitals()
+            assert (vitals["provider"], vitals["model"], vitals["serves"], vitals["jobsCompleted"], vitals["activeJob"]) == (
+                "ollama",
+                "gemma2:27b",
+                [{"jobType": "mark", "params": {"motivation": "highlighting"}}],
+                1,
+                None,
+            )
+            # Stopped, its work returns.
+            await engine.stop()
+            await asyncio.wait_for(working, 5)
+        await parties.transport.close()
+
+    run(scenario())
+
+
+def test_engines_on_one_stream_each_claim_with_their_own_filters_and_one_whose_claiming_ends_unstopped_raises() -> None:
+    highlighting, commenting = entry("ollama", "gemma2:27b", "highlighting"), entry("ollama", "llama3", "commenting")
+
+    async def scenario() -> None:
+        parties = Parties()
+        async with parties.client as client:
+            claims = [client.job.claim(each.accepts) for each in (highlighting, commenting)]
+            engines = [Engine(each, answering("[]"), claimed) for each, claimed in zip((highlighting, commenting), claims, strict=True)]
+            working = [asyncio.ensure_future(engine.work(client, AGENT)) for engine in engines]
+            for _ in range(5):
+                await turns()
+            # Each claimed once its claims were first read, and was told nothing is pending.
+            assert parties.claims == 2
+
+            # The first's claiming ends with nothing having stopped it: its work raises. The second's goes on.
+            await claims[0].aclose()
+            with pytest.raises(RuntimeError, match="nothing more can be claimed"):
+                await asyncio.wait_for(working[0], 5)
+            assert not working[1].done()
+            await engines[1].stop()
+            await asyncio.wait_for(working[1], 5)
+        await parties.transport.close()
+
     run(scenario())

@@ -35,7 +35,7 @@ from semiont_worker.detection.prepare_detection import DetectionDecline, Detecti
 
 RESOURCE: Final = ResourceId("res-prep")
 GENERATOR: Final[Agent] = AgentSoftware(
-    type="Software", id="did:web:test.local:agents:test:test", name="test", provider="test", model="test"
+    type="Software", id="did:web:test.local:agents:semiont-worker", name="test", provider="test", model="test"
 )
 
 PDF_TEXT: Final = "alpha beta\ngamma delta"

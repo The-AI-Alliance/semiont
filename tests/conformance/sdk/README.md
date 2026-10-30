@@ -287,6 +287,7 @@ The suite binds these before a case begins:
 | `token`, `token2` | two credentials of the case's own principal, a person no other case uses |
 | `client` | that principal's DID |
 | `participant` | the DID of the participant the suite plays |
+| `participantRoles` | the roles its token carries, which the gateway stamps on what it emits (`_roles`) |
 | `r1`, `r2`, `r3` | three resource ids no other case uses, in name order |
 | `a1`, `a2` | two annotation ids no other case uses |
 | `resourceScopedChannels` | the channels a resource's scope carries, from the registry |

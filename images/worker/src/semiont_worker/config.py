@@ -1,9 +1,9 @@
-"""What of the worker's configuration is the Worker's own: what the service is called, and each agent's key.
+"""What of the worker's configuration is the Worker's own: what the service is called, and each engine's key.
 
 The document is the protocol's `WorkerConfig`. It is found, read and refused
 as every Python service's is (`semiont_service.config`), and so is the
 service's account. A secret is never in the document. The document names the
-variable that holds an agent's key, and the environment is read for it here.
+variable that holds an engine's key, and the environment is read for it here.
 `docs/protocol/WORKER-SERVICE.md` § Configuration states each refusal.
 """
 
@@ -18,9 +18,9 @@ SERVICE: Final = "worker"
 
 
 def api_key_of(config: WorkerConfig, index: int, environment: Mapping[str, str]) -> str | None:
-    """The key of the agent at `index`, read from the variable the document names for it.
+    """The key of the engine at `index`, read from the variable the document names for it.
 
-    An agent whose provider takes no key names no variable and has none. The
+    An engine whose provider takes no key names no variable and has none. The
     refusal says which member named the variable and never what it named.
     """
     name = config.agents[index].api_key_env

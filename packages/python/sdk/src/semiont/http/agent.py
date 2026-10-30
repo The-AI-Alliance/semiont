@@ -188,9 +188,11 @@ class ServiceToken:
 def _transient(error: SemiontError) -> bool:
     """Whether a renewal that failed this way is worth another attempt.
 
-    A refused credential is not, whatever its status: the same token gets the same answer.
+    A renewal is a grant at the issuer, whose answer is the verdict
+    (`semiont.retry.REFRESH`): no answer, or one saying "not now", is worth
+    another; a refused grant is not, because the same account gets the same answer.
     """
-    return error.code != "unauthorized" and REFRESH.retryable(RetryFacts(status=error.status, method="POST"))
+    return REFRESH.retryable(RetryFacts(status=error.status, method="POST"))
 
 
 @final
@@ -300,6 +302,6 @@ class AgentToken:
         try:
             return UserResponse.model_validate_json(response.content).did
         except ValidationError as error:
-            lacking = lacks((UserResponse,), error, "who the agent is")
+            lacking = lacks((UserResponse,), error, "a principal")
         # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
         raise TransportError("error", f"{url} did not answer who the agent is: {lacking}", status=status)

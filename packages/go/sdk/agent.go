@@ -20,7 +20,6 @@ package semiont
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -228,29 +227,10 @@ func (a *AgentToken) renew(ctx context.Context) (string, error) {
 // renewWithinBudget is a due renewal. One that fails is tried again inside the
 // renewal budget when the failure is transient; spent or refused, the token is
 // left as it is and the next is due an interval later, by the schedule's
-// floor. A refused credential is not transient, whatever its status: the same
-// account gets the same answer.
+// floor.
 func (a *AgentToken) renewWithinBudget() {
-	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.renew,
-		func(err error) bool {
-			var failed Error
-			if !errors.As(err, &failed) || failed.ErrorCode() == string(TransportErrorCodeUnauthorized) {
-				return false
-			}
-			post := http.MethodPost
-			facts := RetryFacts{Method: &post}
-			if status, ok := failed.Status(); ok {
-				facts.Status = &status
-			}
-			return RetryRuleRefresh.Retryable(facts)
-		},
-		func(err error) (time.Duration, bool) {
-			var refused *TransportError
-			if errors.As(err, &refused) {
-				return refused.RetryAfter()
-			}
-			return 0, false
-		})
+	_, _ = RetryWithBackoff(a.alive, a.config.Timing.RefreshRetry, a.renew, transientRenewal,
+		func(error) (time.Duration, bool) { return 0, false })
 }
 
 // named is the DID the gateway names the bearer of token by: GET /api/users/me.
