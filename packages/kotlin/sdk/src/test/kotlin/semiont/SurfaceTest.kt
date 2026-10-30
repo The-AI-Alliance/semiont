@@ -56,6 +56,7 @@ import semiont.types.BindBodyOperation
 import semiont.types.BindInitiateCommand
 import semiont.types.BrowseDirectoryRequestSort
 import semiont.types.CreateAnnotationRequest
+import semiont.types.GatheredContext
 import semiont.types.GetAnnotationsResponse
 import semiont.types.GetResourceResponse
 import semiont.types.HealthResponse
@@ -148,6 +149,26 @@ private val calls: Map<String, Call> = mapOf(
                 excludeEntityTypes = options["excludeEntityTypes"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList(),
             )
         }
+    },
+    "gather.annotation" to { c, a ->
+        val options = a["options"]?.jsonObject ?: JsonObject(emptyMap())
+        c.gather.annotation(
+            a.resource(),
+            a.annotation(),
+            contextWindow = options["contextWindow"]?.jsonPrimitive?.long ?: 2000,
+            includeSourceContext = options["includeSourceContext"]?.jsonPrimitive?.boolean,
+            includeTargetContext = options["includeTargetContext"]?.jsonPrimitive?.boolean,
+        ).await()
+    },
+    "match.search" to { c, a ->
+        val options = a["options"]?.jsonObject ?: JsonObject(emptyMap())
+        c.match.search(
+            a.resource(),
+            a.annotation("referenceId"),
+            a.read("context", GatheredContext.serializer()),
+            limit = options["limit"]?.jsonPrimitive?.long ?: 10,
+            useSemanticScoring = options["useSemanticScoring"]?.jsonPrimitive?.boolean ?: true,
+        ).await()
     },
     "match.requestSearch" to { c, a -> c.match.requestSearch(a.read("input", MatchSearchRequest.serializer()), a.text("correlationId")) },
     "yield.resource" to { c, a ->
