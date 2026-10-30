@@ -2,97 +2,23 @@
 
 package semiont.session
 
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
-import semiont.Recording
-import semiont.SemiontClient
 import semiont.Spec
-import semiont.errors.SemiontError
-import semiont.errors.SessionError
-import semiont.errors.SignInError
-import semiont.errors.SignInErrorCode
 import semiont.errors.TransportError
-import semiont.signin.HeldSignIn
-import semiont.signin.MemorySignIn
-import semiont.signin.SCRIPT_CLIENT_ID
-import semiont.types.HttpEndpoint
-import semiont.types.HttpEndpointProtocol
-import semiont.types.KbTarget
-import semiont.types.UserResponse
-import semiont.types.wireJson
-import java.util.Base64
-
-private fun jwt(claims: JsonObject): String {
-    val encoded = Base64.getUrlEncoder().withoutPadding()
-    return listOf("""{"alg":"RS256","typ":"JWT"}""", claims.toString()).joinToString(".") { encoded.encodeToString(it.toByteArray()) } + ".c2lnbmF0dXJl"
-}
-
-/** A token that lives `lifetime` seconds from now, the `n`th of its kind. */
-private fun token(lifetime: Long, n: Int): String {
-    val now = System.currentTimeMillis() / 1000
-    return jwt(buildJsonObject {
-        put("iat", now)
-        put("exp", now + lifetime)
-        put("jti", "token-$n")
-    })
-}
-
-private fun expired(): String = token(-3600, 99)
-
-private val alice: UserResponse = wireJson.decodeFromString(
-    UserResponse.serializer(),
-    """{"did":"did:web:example.org:users:alice","email":"alice@example.org","name":"Alice","image":null,"domain":"example.org","isAdmin":false,"isModerator":false,"termsAcceptedAt":null}""",
-)
-
-private fun unauthorized() = TransportError.ofStatus("HTTP 401", 401, null)
-
-private val target = KbTarget(id = "kb-alpha", label = "Alpha", endpoint = HttpEndpoint(host = "localhost", port = 4000, protocol = HttpEndpointProtocol.Http))
-
-/** A session's surroundings, and a record of what the session did to them. */
-private class World(kept: String?, renewals: List<String?>, validations: List<Any>) {
-    val kept = MemorySignIn(kept?.let { HeldSignIn(it, "a-refresh-token", SCRIPT_CLIENT_ID, "https://issuer.test/token", null) })
-    val token = MutableStateFlow<String?>(null)
-    private val renewalsLeft = ArrayDeque(renewals)
-    var renewed = 0
-    private val validationsLeft = ArrayDeque(validations)
-    val validated = mutableListOf<String>()
-    val told = mutableListOf<SessionEndReason>()
-    val errors = mutableListOf<SessionError>()
-
-    suspend fun refresh(): String? {
-        renewed += 1
-        return renewalsLeft.removeFirstOrNull() ?: throw SignInError(SignInErrorCode.Exchange, "the issuer refused")
-    }
-
-    suspend fun validate(asked: String): UserResponse {
-        validated += asked
-        return when (val answer = validationsLeft.removeFirstOrNull() ?: alice) {
-            is SemiontError -> throw answer
-            else -> answer as UserResponse
-        }
-    }
-
-    fun session(): SemiontSession {
-        val recording = Recording()
-        return SemiontSession(target, SemiontClient(recording, recording, recording), token, kept, { refresh() }, { validate(it) }, { told += it }, { errors += it })
-    }
-}
 
 /**
  * How a client holds a session, held to the cases every SDK runs
@@ -155,7 +81,7 @@ class SessionCasesTest {
     private fun count(row: JsonObject, name: String) = row.getValue(name).jsonPrimitive.int
 
     /** The session ended as the row states, and one that ended signed out asks nobody anything afterwards, however long it is held. */
-    private suspend fun kotlinx.coroutines.test.TestScope.isAsStated(row: JsonObject, world: World, session: SemiontSession, askedBefore: Int) {
+    private suspend fun kotlinx.coroutines.test.TestScope.isAsStated(row: JsonObject, world: SessionWorld, session: SemiontSession, askedBefore: Int) {
         val asks = count(row, "asks")
         val renewals = count(row, "renewals")
         assertEquals(asks to renewals, (world.validated.size - askedBefore) to world.renewed, "how often the gateway and the issuer were asked")
@@ -181,7 +107,7 @@ class SessionCasesTest {
                     "unexpired" -> token(3600, 0)
                     else -> expired()
                 }
-                val world = World(kept, (0 until renewals).map { issuerSays(row, it, token(3600, it + 1)) }, (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
+                val world = SessionWorld(kept, (0 until renewals).map { issuerSays(row, it, token(3600, it + 1)) }, (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
                 world.session().use { session ->
                     session.start()
                     session.ready()
@@ -198,7 +124,7 @@ class SessionCasesTest {
                 val asks = count(row, "asks")
                 val renewals = count(row, "renewals")
                 // The session starts signed in: the gateway accepts the kept token. Then the row's answers.
-                val world = World(token(3600, 0), (0 until renewals).map { issuerSays(row, it, token(3600, 1)) }, listOf<Any>(alice) + (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
+                val world = SessionWorld(token(3600, 0), (0 until renewals).map { issuerSays(row, it, token(3600, 1)) }, listOf<Any>(alice) + (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
                 world.session().use { session ->
                     session.start()
                     session.ready()

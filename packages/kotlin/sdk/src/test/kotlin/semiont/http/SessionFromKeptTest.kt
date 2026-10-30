@@ -1,6 +1,8 @@
 package semiont.http
 
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -44,6 +46,24 @@ class SessionFromKeptTest {
                 assertEquals("alice@example.org", opened.session.user.value?.email)
                 assertEquals(listOf("refresh-1"), realm.of("/token").map { it.form["refresh_token"] })
                 assertEquals(renewed, kept.held()?.access)
+            }
+        }
+    }
+
+    @Test
+    fun aRefusalOfTheStreamBeforeTheSessionExistsIsRenewedByTheSession() = runBlocking {
+        Realm().use { realm ->
+            val stored = tokenFor("access-1")
+            val renewed = tokenFor("access-2")
+            // The gateway knows who the kept token is, and its stream refuses it: only the transport's refresher, which
+            // the stream asks before the session it refreshes through exists, renews it.
+            realm.script("/bus/subscribe", Said(401, refused))
+            realm.script("/api/users/me", Said(200, alice), Said(200, alice))
+            realm.script("/token", issued(renewed, "refresh-2"))
+            val kept = MemorySignIn(HeldSignIn(stored, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+            sessionFromKept(kb(realm), kept).use { opened ->
+                withTimeout(10_000) { opened.session.token.first { it == renewed } }
+                assertEquals(listOf("refresh-1"), realm.of("/token").map { it.form["refresh_token"] })
             }
         }
     }
