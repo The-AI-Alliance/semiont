@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import semiont.errors.JobError
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import java.io.FileDescriptor
@@ -36,10 +37,11 @@ internal object Say {
     fun of(vararg pairs: Pair<String, JsonElement>): JsonObject = JsonObject(mapOf(*pairs))
 }
 
-/** A failure as the suite reads one: its code, the status a server stated, and the SDK's words. */
+/** A failure as the suite reads one: its code, the status a server stated, what kind of failure a job's worker said it was, and the SDK's words. */
 internal fun failure(error: SemiontError): JsonObject {
     val fields = mutableMapOf<String, JsonElement>("code" to JsonPrimitive(error.code), "detail" to JsonPrimitive(error.message ?: ""))
     if (error is TransportError) error.status?.let { fields["status"] = JsonPrimitive(it) }
+    if (error is JobError) error.failureClass?.let { fields["failureClass"] = JsonPrimitive(it.value) }
     return JsonObject(fields)
 }
 
@@ -58,9 +60,12 @@ internal fun JsonObject.count(name: String): Long =
 
 internal fun JsonObject.obj(name: String): JsonObject = this[name] as? JsonObject ?: throw Misuse("$name must be an object")
 
-/** A driver: its operations, by name, and what it does when its input ends. */
+/** A driver: its operations, by name, those it answers before it reads the next line, and what it does when its input ends. */
 internal interface Driver {
     val operations: Set<String>
+
+    /** The operations answered in turn: each settles before the next line is read. The rest run beside what follows them. */
+    val inTurn: Set<String>
 
     suspend fun run(id: Long, op: String, args: JsonObject): JsonElement
 
@@ -69,10 +74,11 @@ internal interface Driver {
 
 /**
  * Serve the driver protocol (tests/conformance/sdk/README.md, The driver
- * protocol): say ready, run each operation as it comes, concurrently, and
- * answer each once. An operation the driver does not have is answered at once,
- * before the next is read. `abandon` ends the operation it names, which then
- * settles as abandoned.
+ * protocol): say ready, run each operation as it comes, and answer each once:
+ * one the driver answers in turn before the next line is read, any other
+ * beside what follows it. An operation the driver does not have is answered
+ * at once, before the next is read. `abandon` ends the operation it names,
+ * which then settles as abandoned.
  */
 internal fun serve(make: (abandon: (Long) -> Boolean) -> Driver) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -108,21 +114,13 @@ internal fun serve(make: (abandon: (Long) -> Boolean) -> Driver) {
             Say.line(Say.of("id" to idValue, "unsupported" to JsonPrimitive(true)))
             continue
         }
+        if (op in driver.inTurn) {
+            Say.line(runBlocking { answered(idValue, op) { driver.run(id, op, request) } })
+            continue
+        }
         synchronized(running) {
             running[id] = scope.launch {
-                val answer = try {
-                    Say.of("id" to idValue, "ok" to driver.run(id, op, request))
-                } catch (_: CancellationException) {
-                    Say.of("id" to idValue, "abandoned" to JsonPrimitive(true))
-                } catch (misuse: Misuse) {
-                    Say.of("id" to idValue, "misuse" to JsonPrimitive(misuse.message ?: "misuse"))
-                } catch (error: SemiontError) {
-                    Say.of("id" to idValue, "error" to failure(error))
-                } catch (error: Exception) {
-                    System.err.println("$op failed: $error")
-                    error.printStackTrace()
-                    Say.of("id" to idValue, "error" to Say.of("code" to JsonPrimitive("error"), "detail" to JsonPrimitive(error.toString())))
-                }
+                val answer = answered(idValue, op) { driver.run(id, op, request) }
                 synchronized(running) {
                     running.remove(id)
                     if (answer.containsKey("abandoned") && id !in abandoned) return@launch
@@ -135,4 +133,19 @@ internal fun serve(make: (abandon: (Long) -> Boolean) -> Driver) {
         synchronized(running) { running.values.toList() }.forEach { it.cancel() }
     }
     driver.finish()
+}
+
+/** What settles an operation: its value, or why it has none. */
+private suspend fun answered(id: JsonElement, op: String, run: suspend () -> JsonElement): JsonObject = try {
+    Say.of("id" to id, "ok" to run())
+} catch (_: CancellationException) {
+    Say.of("id" to id, "abandoned" to JsonPrimitive(true))
+} catch (misuse: Misuse) {
+    Say.of("id" to id, "misuse" to JsonPrimitive(misuse.message ?: "misuse"))
+} catch (error: SemiontError) {
+    Say.of("id" to id, "error" to failure(error))
+} catch (error: Exception) {
+    System.err.println("$op failed: $error")
+    error.printStackTrace()
+    Say.of("id" to id, "error" to Say.of("code" to JsonPrimitive("error"), "detail" to JsonPrimitive(error.toString())))
 }

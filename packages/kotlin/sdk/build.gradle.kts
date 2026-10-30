@@ -287,6 +287,12 @@ val wireDriverScripts = tasks.register<CreateStartScripts>("wireDriverScripts") 
     outputDir = layout.buildDirectory.dir("conformance-scripts").get().asFile
     classpath = files(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
 }
+val liveDriverScripts = tasks.register<CreateStartScripts>("liveDriverScripts") {
+    applicationName = "semiont-kotlin-live-driver"
+    mainClass = "semiont.conformance.LiveDriverKt"
+    outputDir = layout.buildDirectory.dir("conformance-scripts").get().asFile
+    classpath = files(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
+}
 tasks.register<Sync>("installConformance") {
     description = "Lays out the conformance drivers where the suites find them."
     group = LifecycleBasePlugin.BUILD_GROUP
@@ -295,7 +301,7 @@ tasks.register<Sync>("installConformance") {
         from(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
     }
     into("bin") {
-        from(wireDriverScripts)
+        from(wireDriverScripts, liveDriverScripts)
     }
     // JaCoCo's agent, for a run of the suites that measures the drivers (JAVA_OPTS).
     into("jacoco") {
