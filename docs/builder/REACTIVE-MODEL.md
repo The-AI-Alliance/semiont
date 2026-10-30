@@ -2,7 +2,7 @@
 
 The Semiont SDKs are for collaborative **knowledge work** — humans and AI agents working as peers on a shared corpus across one or many machines. That collaboration shapes their design: live queries, progress streams, and cross-participant attention signals are all first-class, not data-API afterthoughts.
 
-So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same nine shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python; iterators and contexts in Go. This doc states the shapes first, then each language's form of them.
+So a client's methods do not all return the same kind of thing. Some are asked once and answered once. Others have values over time. Every SDK sorts its methods into the same nine shapes, and differs only in how its language says "later": Promises and RxJS Observables in TypeScript; futures, streams and `watch` receivers in Rust; coroutines, async iterators and `async with` in Python; iterators and contexts in Go; `suspend` functions and `Flow`s in Kotlin, and futures and publishers where Java calls the same client. This doc states the shapes first, then each language's form of them.
 
 If you only want to *use* the SDK, [Usage.md](./Usage.md) is the per-namespace tour. Read this if you're curious about the design, deciding whether to await a call or watch it, picking a return shape for a new namespace method, or trying to figure out which path to the bus is right for your use case.
 
@@ -16,22 +16,22 @@ Each SDK makes the same choice: the form that can be read over time is the primi
 
 Every namespace method returns exactly one of these. Which one is the method's row in [`specs/src/client/surface.json`](../../specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
 
-| Shape | What it is | TypeScript | Rust | Python | Go |
-|---|---|---|---|---|---|
-| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` | a method given a `context.Context`, returning `(T, error)` |
-| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` | `*Running[T]` |
-| `delegation` | A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` | `*Delegation[C]` |
-| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` | `*Upload` |
-| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` | `*Cached[T]` |
-| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` | `*Claims` |
-| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` | a method with no result |
-| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` | `(subscribers int, counted bool, err error)` |
-| `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` | `iter.Seq2[Delivered[P], error]`, given a context |
+| Shape | What it is | TypeScript | Rust | Python | Go | Kotlin |
+|---|---|---|---|---|---|---|
+| `promise` | Asked once, answered once: the value, or a failure with a code. | `Promise<T>` | `async fn … -> Result<T, SemiontError>` | `async def … -> T`, raising a `SemiontError` | a method given a `context.Context`, returning `(T, error)` | `suspend fun … : T`, throwing a `SemiontError`; for Java, its twin returning a `CompletableFuture<T>` |
+| `stream` | A long-running operation: what it reports as it goes, then its final value. | `StreamObservable<T>` | `Running<T>` | `Running[T]` | `*Running[T]` | `Running<T>` |
+| `delegation` | A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. The completion is its verb's. | `DelegationObservable<C>` | `Delegation<C>` | `Delegation[C]` | `*Delegation[C]` | `Delegation<C>` |
+| `upload` | An upload in flight: its progress, then the id of the resource created. | `UploadObservable` | `Upload` | `Upload` | `*Upload` | `Upload` |
+| `cache` | A live query. Building it touches nothing; its one-shot read asks the service now. | `CacheObservable<T>` | `Cached<T>` | `Cached[T]` | `*Cached[T]` | `Cached<T>` |
+| `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` | `*Claims` | `Claims` |
+| `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` | a method with no result | a plain `fun` returning `Unit` |
+| `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` | `(subscribers int, counted bool, err error)` | `suspend fun … : Long?` |
+| `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Delivered<P>` |
 
 Three rules hold in every SDK:
 
 1. **A live query is never read by accident.** Building one touches nothing. Watching it gives its state: pending, ready or failed. A one-shot read is asked for by name, with `.fresh()`, so a cache read never silently becomes a round trip.
-2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. A delegated job is held to the same rule: awaiting it gives its completion, and reading it gives each of its events. The completion is typed by the verb that delegated the job, so a `mark` job's result is its counts or a decline, and a `yield` job's is the resource it made or a decline. Rust enforces this, since the operation is consumed by value. Python and Go refuse a second consumer when it runs, and have no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
+2. **A long-running operation runs once.** Awaiting it gives the final value, reading it gives each report, and `.run()` gives both from one run. A delegated job is held to the same rule: awaiting it gives its completion, and reading it gives each of its events. The completion is typed by the verb that delegated the job, so a `mark` job's result is its counts or a decline, and a `yield` job's is the resource it made or a decline. Rust enforces this, since the operation is consumed by value. Python, Go and Kotlin refuse a second consumer when it runs, and have no `.run()`: reading gives each report and then the final value. TypeScript does not enforce it: awaiting and subscribing to the same instance starts it twice.
 3. **A signal is not a request, and a drive is not a signal.** A signal returns nothing. A drive says how many participants it reached, which is information and not an acknowledgement.
 
 ## In TypeScript
@@ -301,7 +301,7 @@ const added = client.wire
 // later: added.unsubscribe();
 ```
 
-Each frame comes with its envelope, who emitted it (`userId`, as the gateway stamped it) and the trace it was sent under. Rust, Python and Go read such a channel the same way. In Rust it is `client.wire().frames_of::<MarkAdded>(&resource)`, where `client.wire().frames::<MarkAdded>()` does not compile. In Python it is `client.wire.frames(MARK_ADDED, resource)`, and a type checker refuses `client.wire.frames(MARK_ADDED)`. In Go it is `semiont.FramesOf(ctx, wire, bus.MarkAdded, resource)`, where `semiont.Frames(ctx, wire, bus.MarkAdded)` does not compile.
+Each frame comes with its envelope, who emitted it (`userId`, as the gateway stamped it) and the trace it was sent under. Rust, Python, Go and Kotlin read such a channel the same way. In Rust it is `client.wire().frames_of::<MarkAdded>(&resource)`, where `client.wire().frames::<MarkAdded>()` does not compile. In Python it is `client.wire.frames(MARK_ADDED, resource)`, and a type checker refuses `client.wire.frames(MARK_ADDED)`. In Go it is `semiont.FramesOf(ctx, wire, bus.MarkAdded, resource)`, where `semiont.Frames(ctx, wire, bus.MarkAdded)` does not compile. In Kotlin it is `client.wire.frames(Channels.MARK_ADDED, resource)`, where `client.wire.frames(Channels.MARK_ADDED)` does not compile.
 
 `on(channel)` is the payload view. When you need the **envelope** — the `correlationId` that pairs a reply with its request, or the `scope` a frame was emitted into — read `frames(channel)` instead. `on` is derived from `frames`, so the two cannot disagree:
 
@@ -395,6 +395,20 @@ The Go client has the same nine shapes, with no reactive library under them. Wha
 
 The Go README shows [each shape at the call site](../../packages/go/sdk/README.md#the-client), and [a watched query](../../packages/go/sdk/README.md#live-queries).
 
+## In Kotlin
+
+The Kotlin client has the same nine shapes, on coroutines, with no reactive library under them but `kotlinx.coroutines`' `Flow`. A Java program calls the same client: each suspending member has a twin that returns a `CompletableFuture`, and each `Flow` reads as a `java.util.concurrent.Flow.Publisher` through `asPublisher()`.
+
+- **A long-running operation** is a `Running<T>`, a `Flow`: `await()` it for the final value, or collect it for each report and then the final value. It is consumed once: a second consumer is refused.
+- **A delegated job** is a `Delegation<C>`: `await()` it for the job's completion, or collect it for each of the job's events (`JobCreated`, `JobProgressed`, `JobAttemptFailed`, `JobCompleted<C>`), read with `when`, the completion last. `C` is the completion of the job's verb: `MarkJobCompleteCommand` from `mark.delegate`, `YieldJobCompleteCommand` from `yield.delegate`.
+- **A live query** is a `Cached<T>`, a `Flow` of its states: collected, it gives its state as it changes, and holds its resource's scope meanwhile; `fresh()` is one read. It is not read by building it. A state is `Pending`, `Ready` or `Failed`, and a `when` that leaves one out does not compile.
+- **A worker's claims** are a `Claims`: `next()` gives the next job the worker comes to hold, and `refused()` each claim it was refused. A held job settles once, by `complete`, `fail` or `cancel`; closing one nobody settled fails it, and `stop()` ends the claiming and fails a job still held.
+- **State** that TypeScript reads from a `BehaviorSubject` is a `Watched<T>`, a `Flow`: `value` now, and collected, that value and then each change. A reader that falls behind is given the latest.
+- **Events** are a `Flow` with a queue per reader, so a reader that falls behind loses nothing. Closing one stops its listening.
+- **Composition** is `kotlinx.coroutines`': `Flow`'s operators, structured concurrency, and `withTimeout` for deadlines. The SDK brings no operator library of its own.
+
+The Kotlin README shows [a delegation followed in both languages](../../packages/kotlin/sdk/README.md#gathering-then-delegating), and [a watched query](../../packages/kotlin/sdk/README.md#watching-live).
+
 ## See also
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
@@ -407,3 +421,4 @@ The Go README shows [each shape at the call site](../../packages/go/sdk/README.m
 - [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust form of each shape
 - [The Python SDK's README](../../packages/python/sdk/README.md) — the Python form of each shape
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape
+- [The Kotlin SDK's README](../../packages/kotlin/sdk/README.md) — the Kotlin and Java forms of each shape

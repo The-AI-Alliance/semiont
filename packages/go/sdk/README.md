@@ -14,7 +14,7 @@ A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
 It has the same namespaces, methods, live queries and state units as the
-[TypeScript][sdk-typescript], [Rust][sdk-rust] and [Python][sdk-python] SDKs,
+[TypeScript][sdk-typescript], [Rust][sdk-rust], [Python][sdk-python] and [Kotlin][sdk-kotlin] SDKs,
 and is held to the same [conformance suite][conformance]: its wire, its live
 queries and its worker, case by case. The [`semiont` launcher][launcher] is
 built on it. New to Semiont? The [Introduction][introduction] explains the
@@ -1141,6 +1141,7 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [sdk-typescript]: ../../typescript/sdk/README.md
 [sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
+[sdk-kotlin]: ../../kotlin/sdk/README.md
 [launcher]: ../../../apps/launcher/README.md
 [surface]: ../../../specs/src/client/surface.json
 [refresh]: ../../../specs/src/client/refresh.json

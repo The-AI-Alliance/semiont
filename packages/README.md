@@ -10,7 +10,7 @@ The libraries Semiont is built from, in five languages. The services are in [ima
 | [Rust](./rust/README.md) | The SDK and its transport, and what the gateway, the dispatcher and the Archivist share | crates.io: the SDK, its transport, and the codegen and telemetry crates they are built on |
 | [Python](./python/README.md) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI: the SDK alone |
 | [Go](./go/README.md) | The SDK, and the launcher's libraries | The Go module proxy, by a tag at each release: the SDK alone |
-| [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs; its client is not yet written | Not published |
+| [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs | Not published |
 
 Each language's README lists its packages, with what each is and its coverage, and says how the language's packages are built and measured.
 
@@ -26,6 +26,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 | Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [rust/sdk](./rust/sdk/README.md), [rust/http-transport](./rust/http-transport/README.md) |
 | Python | `pip install semiont` | [python/sdk](./python/sdk/README.md) |
 | Go | `go get github.com/The-AI-Alliance/semiont/packages/go/sdk` | [go/sdk](./go/sdk/README.md) |
+| Kotlin or Java | Not published: [build its jar](./kotlin/sdk/README.md#installing) | [kotlin/sdk](./kotlin/sdk/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [typescript/react-ui](./typescript/react-ui/README.md) |
 
 The rest is what those are built on, and what Semiont's own services are built on.

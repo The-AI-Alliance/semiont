@@ -6,7 +6,7 @@ be a person or an AI agent: nothing here is written for one and not the other.
 | You are | You want to | Start here |
 |---|---|---|
 | An **analyst** | Work in a knowledge base: read, annotate, link, and review what agents propose | [analyst/](analyst/README.md) |
-| A **builder** | Build an application, a script or an agent on the SDK, in TypeScript, Rust, Python or Go, and customize annotation and generation, down to a worker running your own logic or model | [builder/](builder/README.md) |
+| A **builder** | Build an application, a script or an agent on the SDK, in TypeScript, Rust, Python, Go, Kotlin or Java, and customize annotation and generation, down to a worker running your own logic or model | [builder/](builder/README.md) |
 | An **operator** | Run a knowledge base: install, configure, deploy, secure, observe, back up | [operator/](operator/README.md) |
 | A **contributor** | Change Semiont itself | [contributor/](contributor/README.md) |
 
@@ -31,7 +31,7 @@ You work in a knowledge base through the Semiont Browser.
 
 ## Builder
 
-You write code against a knowledge base, in TypeScript, Rust, Python or Go.
+You write code against a knowledge base, in TypeScript, Rust, Python, Go, Kotlin or Java.
 
 - [Quick Start](builder/QUICK-START.md): a knowledge base running on your machine, to build against
 - [Building with the Semiont SDK](builder/README.md): install, where the SDK goes, the guides, the reference

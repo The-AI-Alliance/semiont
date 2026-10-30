@@ -1,11 +1,6 @@
 package semiont.jobs
 
 import io.opentelemetry.api.trace.Span
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -15,21 +10,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import semiont.bus.OPERATIONS
-import semiont.errors.SemiontError
-import semiont.identifiers.ResourceId
-import semiont.transport.Broadcast
-import semiont.transport.ConnectionState
-import semiont.transport.Events
+import semiont.testing.FaultAction
+import semiont.testing.FaultyTransport
 import semiont.transport.Frame
-import semiont.transport.FrameSink
-import semiont.transport.PendingReply
-import semiont.transport.ReplyRouter
-import semiont.transport.ResourceHold
-import semiont.transport.TraceContext
-import semiont.transport.Transport
-import semiont.transport.Watched
-import semiont.transport.unsubscribed
-import java.util.concurrent.CompletableFuture
 import kotlin.coroutines.CoroutineContext
 
 internal fun obj(vararg pairs: Pair<String, Any?>): JsonObject = JsonObject(
@@ -70,20 +53,16 @@ internal fun annotation(id: String): JsonObject = obj(
     "created" to "2026-01-01T00:00:00.000Z",
 )
 
-/** What the wire does to one request: its reply delivered, or lost. */
-internal enum class Fault { DELIVER, DROP }
-
 /**
  * A stand-in for the dispatcher, which answers claims, and for the record,
  * which acknowledges every commit and answers every question about an
- * annotation with it, unless a test has it do otherwise. `wire` is what
- * happens to each request's reply in turn, every reply delivered when it
- * says nothing; a dropped reply is an answer nobody receives. Its stream
- * names `channels`, every channel when none are given, and a frame sent on a
- * channel it names comes back to it. The dispatcher answers a claim in the
- * claim's trace. Replies come a turn after the request, on `clock`.
+ * annotation with it, unless a test has it do otherwise: the answers of a
+ * `FaultyTransport` (`transport`) whose `wire` says what happens to each
+ * request's reply in turn, every reply delivered when it says nothing. Its
+ * stream names `channels`, every channel when none are given. Replies come a
+ * turn after the request, on `clock`.
  */
-internal class Desk(clock: CoroutineContext, private val wire: List<Fault> = emptyList(), private val channels: Collection<String>? = null) : Transport {
+internal class Desk(clock: CoroutineContext, wire: List<FaultAction> = emptyList(), channels: Collection<String>? = null) {
     /** The jobs the dispatcher hands out, in order: none pending once they are spent. */
     val offered = ArrayDeque<JsonObject>()
 
@@ -99,99 +78,35 @@ internal class Desk(clock: CoroutineContext, private val wire: List<Fault> = emp
     /** The trace each claim was made in, in order: its id, or none. */
     val claimedIn = mutableListOf<String?>()
 
-    /** Every frame emitted, in order: requests and what was only said. */
-    val emitted = mutableListOf<Frame>()
-    private var requests = 0
-
-    val connection = MutableStateFlow(ConnectionState.Open)
-    private val router = ReplyRouter()
-    private val heard = mutableMapOf<String, Broadcast<Frame>>()
-    private val arriving = CoroutineScope(SupervisorJob() + clock)
-    private var bus: FrameSink? = null
+    val transport = FaultyTransport(wire, ::answer, channels, clock).also { it.refuseWhen(::refusal) }
 
     /** A broadcast the gateway relays to this worker. */
-    fun relay(channel: String, payload: JsonObject): Unit = deliver(Frame(channel, payload))
-
-    fun deliver(frame: Frame) {
-        router.route(frame)
-        synchronized(heard) { heard[frame.channel] }?.deliver(frame)
-        bus?.deliver(frame)
-    }
+    fun relay(channel: String, payload: JsonObject): Unit = transport.deliver(Frame(channel, payload))
 
     /** What was said on `channel`, in order. */
-    fun sent(channel: String): List<JsonObject> = emitted.filter { it.channel == channel }.map { it.payload }
+    fun sent(channel: String): List<JsonObject> = transport.emitted.filter { it.channel == channel }.map { it.payload }
 
     /** Everything said that is not a request: the lifecycle, in order. */
-    fun said(): List<Pair<String, JsonObject>> = emitted.filter { it.channel !in OPERATIONS }.map { it.channel to it.payload }
+    fun said(): List<Pair<String, JsonObject>> = transport.emitted.filter { it.channel !in OPERATIONS }.map { it.channel to it.payload }
 
-    private fun answer(channel: String, payload: JsonObject): Pair<Boolean, JsonObject> = when (channel) {
-        "job:claim" -> refusals.removeFirstOrNull()?.let { false to it }
-            ?: offered.removeFirstOrNull()?.let { true to obj("response" to it) }
-            ?: (false to obj("message" to "No pending job matches", "code" to "none-pending"))
-        "mark:commit" -> if (refusingCommits) {
-            false to obj("message" to "the record could not append")
-        } else {
+    /** Asked first of every request, as it is sent: so where a claim is made is where this runs. */
+    private fun refusal(operation: String, payload: JsonObject): JsonObject? = when (operation) {
+        "job:claim" -> {
+            claimedIn += Span.current().spanContext.takeIf { it.isValid }?.traceId
+            refusals.removeFirstOrNull() ?: if (offered.isEmpty()) obj("message" to "No pending job matches", "code" to "none-pending") else null
+        }
+        "mark:commit" -> if (refusingCommits) obj("message" to "the record could not append") else null
+        "browse:annotation-requested" -> askedOf[payload.getValue("annotationId").jsonPrimitive.content]
+        else -> null
+    }
+
+    private fun answer(operation: String, payload: JsonObject): JsonElement = when (operation) {
+        "job:claim" -> offered.removeFirst()
+        "mark:commit" -> {
             val ids = payload.getValue("annotations").jsonArray.map { it.jsonObject.getValue("id") }
-            true to obj("response" to obj("persisted" to ids.size, "annotationIds" to JsonArray(ids)))
+            obj("persisted" to ids.size, "annotationIds" to JsonArray(ids))
         }
-        "browse:annotation-requested" -> {
-            val id = payload.getValue("annotationId").jsonPrimitive.content
-            askedOf[id]?.let { false to it } ?: (true to obj("response" to obj("annotation" to annotation(id), "resource" to null, "resolvedResource" to null)))
-        }
-        else -> error("nothing is scripted to answer $channel")
-    }
-
-    override val baseUrl: String = "desk://dispatcher"
-    override val state: Watched<ConnectionState> = Watched(connection) { it == ConnectionState.Closed }
-
-    override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
-        val request = Frame(channel, payload, correlationId, scope)
-        emitted += request
-        val operation = OPERATIONS[channel]
-        if (operation == null) {
-            echo(request)
-            return 1
-        }
-        val fault = if (wire.isEmpty()) Fault.DELIVER else wire[requests % wire.size]
-        requests++
-        val made = Span.current().spanContext
-        val trace = made.takeIf { it.isValid }?.let { TraceContext("00-${it.traceId}-${it.spanId}-01") }
-        if (channel == "job:claim") claimedIn += trace?.traceparent?.split('-')?.get(1)
-        val (answered, said) = answer(channel, payload)
-        val reply = Frame(if (answered) operation.result.name else operation.failure.name, said, correlationId, null, trace)
-        echo(request)
-        if (fault == Fault.DELIVER) arriving.launch { deliver(reply) }
-        return 1
-    }
-
-    private fun echo(sent: Frame) {
-        if (isSubscribed(sent.channel)) deliver(sent)
-    }
-
-    override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
-        throw UnsupportedOperationException("the client emits by its own future")
-
-    override fun frames(channel: String): Events<Frame> {
-        if (!isSubscribed(channel)) throw unsubscribed(channel)
-        return synchronized(heard) { heard.getOrPut(channel) { Broadcast() } }.listen()
-    }
-
-    override fun isSubscribed(channel: String): Boolean = channels == null || channel in channels
-
-    override fun subscribeToResource(resourceId: ResourceId): ResourceHold = ResourceHold {}
-
-    override fun failures(): Events<SemiontError> = Broadcast<SemiontError>().listen()
-
-    override fun bridgeInto(bus: FrameSink) {
-        this.bus = bus
-    }
-
-    override fun trackReply(correlationId: String, replyChannels: Collection<String>): PendingReply = router.track(correlationId, replyChannels)
-
-    override fun close() {
-        arriving.cancel()
-        router.close()
-        connection.value = ConnectionState.Closed
-        synchronized(heard) { heard.values.toList() }.forEach { it.close() }
+        "browse:annotation-requested" -> obj("annotation" to annotation(payload.getValue("annotationId").jsonPrimitive.content), "resource" to null, "resolvedResource" to null)
+        else -> error("nothing is scripted to answer $operation")
     }
 }

@@ -55,10 +55,11 @@ No language's types of the protocol are written by hand. The spec is bundled fir
 | Go | `go generate ./...` in `packages/go/sdk` | [`api/client_gen.go`](../../packages/go/sdk/api/client_gen.go), which is committed |
 | Python | `uv run --project packages/python/sdk --locked python packages/python/sdk/scripts/generate_models.py` | [`types.py`](../../packages/python/sdk/src/semiont/types.py), which is committed |
 | Rust | nothing to run | `semiont::types`, made from `specs/src` by the SDK's build script when the crate is built |
+| Kotlin | nothing to run | `semiont.types`, made from `specs/src` by the SDK's Gradle build before every compile |
 
 CI's `generated-artifacts` job fails on a committed file that is not what the spec generates ([Testing](TESTING.md#continuous-integration)).
 
-In the TypeScript, the Rust and the Python SDK, `mark.delegate` takes a `MarkJobParams`, so a caller can ask for the new job as soon as the types have it. No SDK method is written for a motivation.
+In the TypeScript, the Rust, the Python and the Kotlin SDK, `mark.delegate` takes a `MarkJobParams`, so a caller can ask for the new job as soon as the types have it. No SDK method is written for a motivation.
 
 ## 3. Admit it: the dispatcher
 
@@ -163,7 +164,7 @@ A job of a verb that has none today is a new value of [`JobType.json`](../../spe
 
 `npm run lint:spec-archivist` holds the engines' job types to `JobType`, so `ArchivistEngines` gains the verb under `jobs`. The dispatcher's admission says what resource the job is recorded under and what its retry budget is.
 
-A verb's job is also written into each SDK, where a motivation's is not. The claiming of the TypeScript, the Rust and the Python SDK hands a worker a held job of its verb, which completes with that verb's result (`claims.ts`, `claims.rs`, `claims.py`), and the verb's namespace has the `delegate` that asks for the job and follows it. [`specs/src/client/surface.json`](../../specs/src/client/surface.json) states the method, and `npm run lint:client-surface` holds each SDK to it.
+A verb's job is also written into each SDK, where a motivation's is not. The claiming of the TypeScript, the Rust, the Python and the Kotlin SDK hands a worker a held job of its verb, which completes with that verb's result (`claims.ts`, `claims.rs`, `claims.py`, `Claims.kt`), and the verb's namespace has the `delegate` that asks for the job and follows it. [`specs/src/client/surface.json`](../../specs/src/client/surface.json) states the method, and `npm run lint:client-surface` holds each SDK to it.
 
 The rest is the path above: the worker's processor and its branch, the suite's file, the rules, the job's engine (`spec.engines.jobs.<jobType>` in an Inference document) and each client's words.
 

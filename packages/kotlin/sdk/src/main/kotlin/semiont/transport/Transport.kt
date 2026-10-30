@@ -3,6 +3,8 @@
 package semiont.transport
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -20,6 +22,7 @@ import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
 import semiont.identifiers.ResourceId
+import semiont.telemetry.futureOf
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
@@ -132,11 +135,13 @@ internal class Variable<T>(initial: T) {
     fun reading(): Watched<T> = Watched(
         { held },
         flow {
-            // A reader that has been told something is not told the end again; one that has been told nothing is told the value it ends on.
-            var told = false
+            // A reader is told the value it ends on unless it was told that value last: the end is no new occurrence, and a
+            // value set just before the end, which the reader had not caught up with, is not lost to it.
+            var told: Told<T>? = null
             state.transformWhile { now ->
-                if (!now.last || !told) emit(now.value)
-                told = true
+                val before = told
+                if (!now.last || before == null || before.value != now.value) emit(now.value)
+                told = now
                 !now.last
             }.collect(this)
         },
@@ -238,7 +243,7 @@ public enum class ConnectionState(
 public data class TraceContext(public val traceparent: String, public val tracestate: String? = null)
 
 /** A frame as a transport delivers it: a payload, and what is beside it, never inside it. */
-public data class Frame(
+public data class Frame @JvmExposeBoxed constructor(
     public val channel: String,
     public val payload: JsonObject,
     /** What pairs a reply with its request. */
@@ -270,6 +275,9 @@ public class ResourceHold internal constructor(release: () -> Unit) : AutoClosea
 public class PendingReply internal constructor(private val reply: CompletableDeferred<Frame?>, private val forget: () -> Unit) : AutoCloseable {
     /** The reply. Null when the transport closed before one came. */
     public suspend fun frame(): Frame? = reply.await()
+
+    /** `frame`, for Java. */
+    public fun frameFuture(): CompletableFuture<Frame?> = CoroutineScope(Dispatchers.Default).futureOf { frame() }
 
     override fun close(): Unit = forget()
 }

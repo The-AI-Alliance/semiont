@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Timings
 import semiont.identifiers.ResourceId
+import semiont.testing.SharedStorage
 import semiont.types.ResourceDescriptor
 import semiont.types.wireJson
 

@@ -227,7 +227,7 @@ class OpenResourcesTest {
         world.opened(KB_A, "gone")
         world.factory.behind.gone += "gone"
         // The session takes a moment to come up, so the other context writes before it is up.
-        world.factory.sessions.answersAfterMs = 300
+        world.factory.sessions.answersAfter(300)
         val elsewhere = world.storage.context()
         world.browser().use { browser ->
             delay(50)

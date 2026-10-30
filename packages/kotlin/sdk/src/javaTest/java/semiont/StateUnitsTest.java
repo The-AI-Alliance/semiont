@@ -3,6 +3,7 @@ package semiont;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -15,11 +16,17 @@ import java.util.concurrent.LinkedBlockingQueue;
 import kotlin.Unit;
 import kotlinx.coroutines.flow.FlowKt;
 import kotlinx.coroutines.flow.StateFlowKt;
+import kotlinx.serialization.json.Json;
+import kotlinx.serialization.json.JsonElementKt;
 import org.junit.jupiter.api.Test;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
 import semiont.identifiers.AnnotationId;
 import semiont.identifiers.ResourceId;
+import semiont.errors.SemiontError;
+import semiont.session.KbIdentityConflict;
+import semiont.session.PermissionDenied;
+import semiont.session.SemiontSession;
 import semiont.session.SessionEndReason;
 import semiont.session.SessionSignals;
 import semiont.state.BeckonStateUnit;
@@ -30,7 +37,14 @@ import semiont.state.MatchStateUnit;
 import semiont.state.SearchPipeline;
 import semiont.state.SearchState;
 import semiont.state.YieldStateUnit;
+import semiont.testing.FaultyTransport;
+import semiont.testing.TestClient;
+import semiont.testing.TestSession;
+import semiont.testing.TestSessionKt;
+import semiont.testing.TestSessionOptions;
+import semiont.transport.Events;
 import semiont.types.GatheredContext;
+import semiont.types.GenerationJobParams;
 import semiont.types.HighlightingJobParams;
 
 /**
@@ -161,7 +175,9 @@ final class StateUnitsTest {
             unit.gatherAnnotation(new AnnotationId("ann-1"));
             assertTrue(context.next().isPresent());
             assertEquals(new AnnotationId("ann-1"), unit.getAnnotationId().getValue());
-            assertFalse(unit.getLoading().getValue());
+            // The context is held before the gather is said to be over, so a reader told of it may still find it loading.
+            Reading<Optional<Boolean>> loading = new Reading<>(unit.getLoading().asPublisher());
+            while (loading.next().orElseThrow()) {}
             assertNull(unit.getError().getValue());
         }
     }
@@ -187,5 +203,81 @@ final class StateUnitsTest {
             }
             delegating.ended.get(10, SECONDS);
         }
+    }
+
+    @Test
+    void whatAUnitHoldsIsReadFromJavaAndAFailedRunIsHeld() throws Exception {
+        FaultyTransport transport = new FaultyTransport();
+        SemiontClient client = new TestClient(transport).getClient();
+        ResourceId resource = new ResourceId("res-1");
+        transport.queueReply("gather:requested", List.of(JsonElementKt.getJsonObject(Json.Default.parseToJsonElement(CONTEXT))));
+        GatheredContext context = client.getGather().annotation(resource, new AnnotationId("ann-1")).awaitFuture().get(10, SECONDS).getResponse();
+        try (GatherStateUnit gather = new GatherStateUnit(client, resource);
+                MarkStateUnit mark = new MarkStateUnit(client, resource);
+                YieldStateUnit yielding = new YieldStateUnit(client, "en")) {
+            // Nobody scripted these requests, so each is refused, and the unit holds why.
+            Reading<Optional<SemiontError>> gatherFailed = new Reading<>(gather.getResourceError().asPublisher());
+            assertEquals(Optional.empty(), gatherFailed.next());
+            assertNull(gather.getResourceContext().getValue());
+            gather.gatherResource(resource);
+            while (gatherFailed.next().isEmpty()) {}
+            // The failure is held before the gather is said to be over.
+            Reading<Optional<Boolean>> resourceLoading = new Reading<>(gather.getResourceLoading().asPublisher());
+            while (resourceLoading.next().orElseThrow()) {}
+
+            assertNull(mark.getPendingAnnotation().getValue());
+            assertNull(mark.getProgress().getValue());
+            assertNull(mark.getProgressMotivation().getValue());
+            assertNull(mark.getFailure().getValue());
+            assertNull(mark.getJobId().getValue());
+
+            Reading<Optional<SemiontError>> yieldFailed = new Reading<>(yielding.getFailure().asPublisher());
+            assertEquals(Optional.empty(), yieldFailed.next());
+            yielding.generate(GenerationJobParams.builder("A summary", "file://summary.md", context).build());
+            assertTrue(yieldFailed.next().isPresent());
+            assertNull(yielding.getProgress().getValue());
+            assertNull(yielding.getOutcome().getValue());
+            assertNull(yielding.getJobId().getValue());
+        }
+        client.close();
+        transport.close();
+    }
+
+    @Test
+    void theSessionsOtherSignalsAreRaisedAndAcknowledgedFromJava() throws Exception {
+        try (SessionSignals signals = new SessionSignals()) {
+            Reading<Optional<PermissionDenied>> denied = new Reading<>(signals.getPermissionDenied().asPublisher());
+            assertEquals(Optional.empty(), denied.next());
+            signals.notifyPermissionDenied("You may not delete this");
+            assertEquals(Optional.of(new PermissionDenied("You may not delete this")), denied.next());
+            signals.acknowledgePermissionDenied();
+            assertEquals(Optional.empty(), denied.next());
+
+            signals.notifyKbIdentityConflict(new KbIdentityConflict("did:web:kb.example", "did:web:other.example"));
+            assertEquals("did:web:other.example", signals.getKbIdentityConflict().getValue().getObservedDid());
+            signals.acknowledgeKbIdentityConflict();
+            assertNull(signals.getKbIdentityConflict().getValue());
+        }
+    }
+
+    @Test
+    void aSessionIsReadFromJava() throws Exception {
+        TestSession made = TestSessionKt.createTestSessionFuture(new TestSessionOptions()).get(10, SECONDS);
+        SemiontSession session = made.getSession();
+        session.readyFuture().get(10, SECONDS);
+        assertNotNull(session.getId());
+        assertNotNull(session.getKb());
+        assertEquals(made.getClient(), session.getClient());
+        assertNull(session.getUser().getValue());
+        assertNotNull(session.getStreamState().getValue());
+        assertNull(session.expiresAt());
+        try (Events<SemiontError> errors = session.errors()) {
+            assertNotNull(errors.asPublisher());
+        }
+        // Nothing is kept to renew, so a refresh gives no token.
+        assertNull(session.refreshFuture().get(10, SECONDS));
+        session.close();
+        made.getClient().close();
+        made.getTransport().close();
     }
 }

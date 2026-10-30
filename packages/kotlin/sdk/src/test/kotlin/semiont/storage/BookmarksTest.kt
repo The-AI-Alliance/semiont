@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test
 import semiont.http.HttpTransport
 import semiont.http.Timing
 import semiont.identifiers.ResourceId
+import semiont.testing.SharedStorage
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
