@@ -57,9 +57,11 @@ import semiont.types.BindInitiateCommand
 import semiont.types.BrowseDirectoryRequestSort
 import semiont.types.CreateAnnotationRequest
 import semiont.types.GatheredContext
+import semiont.types.GenerationJobParams
 import semiont.types.GetAnnotationsResponse
 import semiont.types.GetResourceResponse
 import semiont.types.HealthResponse
+import semiont.types.MarkJobParams
 import semiont.types.MarkSubmitEvent
 import semiont.types.MatchSearchRequest
 import semiont.types.MediaTokenResponse
@@ -127,6 +129,7 @@ private val calls: Map<String, Call> = mapOf(
     "mark.archive" to { c, a -> c.mark.archive(a.resource()) },
     "mark.unarchive" to { c, a -> c.mark.unarchive(a.resource()) },
     "mark.updateEntityTypes" to { c, a -> c.mark.updateEntityTypes(a.resource(), a.texts("current"), a.texts("updated")) },
+    "mark.delegate" to { c, a -> c.mark.delegate(a.resource(), a.read("params", MarkJobParams.serializer())).await() },
     "mark.request" to { c, a ->
         c.mark.request(a.resource("source"), a.read("selector", AnnotationSelector.serializer()), a.read("motivation", Motivation.serializer()))
     },
@@ -176,6 +179,7 @@ private val calls: Map<String, Call> = mapOf(
         fun text(name: String) = data.getValue(name).jsonPrimitive.content
         c.yield.resource(PutBinaryRequest(name = text("name"), file = text("content").toByteArray(), format = text("format"), storageUri = text("storageUri")))
     },
+    "yield.delegate" to { c, a -> c.yield.delegate(a.read("params", GenerationJobParams.serializer()), a["stallDeadlineMs"]?.jsonPrimitive?.long).await() },
     "yield.cloneToken" to { c, a -> c.yield.cloneToken(a.resource()) },
     "yield.fromToken" to { c, a -> c.yield.fromToken(a.text("token")) },
     "yield.clone" to { c, _ -> c.yield.clone() },
