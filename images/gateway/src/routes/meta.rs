@@ -66,7 +66,7 @@ pub async fn status(Authenticated(principal): Authenticated) -> Response {
                 collaboration: "planned".to_owned(),
             },
             message: "Ready to build the future of knowledge management!".to_owned(),
-            authenticated_as: Some(principal.email),
+            authenticated_as: principal.email,
         },
     )
 }

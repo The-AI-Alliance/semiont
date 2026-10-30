@@ -1,7 +1,9 @@
-//! An agent's token at a knowledge base's gateway: its service account's
-//! token (`service_account`) exchanged at `POST /api/tokens/agent` for the
-//! token of the software agent `(provider, model)`, which names the work it
-//! does. The gateway decides how long the agent token lives.
+//! An agent's token at a knowledge base's gateway. An agent is an account, as
+//! a person is: it signs in at its issuer (`service_account`), and the token
+//! its issuer grants is its bearer at the gateway. The gateway names it by
+//! that account: its DID, which the gateway answers at `GET /api/users/me`,
+//! is who its work is attributed to. The engine it runs is no part of it:
+//! each write names that itself.
 //!
 //! It is a transport's token source, as a person's stored sign-in is: it
 //! gives the current token and each one after it, renews the token by the
@@ -19,7 +21,7 @@ use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::renew_when_due;
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::BoxFuture;
-use semiont::types::{AgentTokenRequest, AgentTokenResponse, UserId};
+use semiont::types::{UserId, UserResponse};
 use serde_json::Value;
 use std::fmt;
 use std::sync::{Arc, Weak};
@@ -32,14 +34,13 @@ pub enum AgentSignInError {
     SignIn(SignInError),
     /// The gateway could not be reached.
     Unreachable(String),
-    /// The gateway refused the exchange.
+    /// The gateway did not name the agent.
     Refused { status: u16 },
-    /// The gateway refused the service account's token: a 401, or a 429
-    /// `refusal-rate` (docs/protocol/TRANSPORT-CONTRACT.md § A refused
-    /// credential). The same token gets the same answer, so it is not tried
-    /// again.
+    /// The gateway refused the agent's token: a 401, or a 429 `refusal-rate`
+    /// (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). The same
+    /// token gets the same answer, so it is not tried again.
     CredentialRefused { status: u16 },
-    /// The gateway answered something that is not an agent token.
+    /// The gateway answered something that names no agent.
     Malformed(String),
 }
 
@@ -54,7 +55,7 @@ impl AgentSignInError {
                 | AgentSignInError::CredentialRefused { status } => Some(*status),
                 AgentSignInError::Malformed(_) => Some(200),
             },
-            method: Some("POST"),
+            method: Some("GET"),
         }
     }
 }
@@ -67,16 +68,10 @@ impl fmt::Display for AgentSignInError {
                 f.write_str(message)
             }
             AgentSignInError::Refused { status } => {
-                write!(
-                    f,
-                    "the gateway refused the agent token exchange (HTTP {status})"
-                )
+                write!(f, "the gateway did not name the agent (HTTP {status})")
             }
             AgentSignInError::CredentialRefused { status } => {
-                write!(
-                    f,
-                    "the gateway refused the service account's token for the agent token exchange (HTTP {status})"
-                )
+                write!(f, "the gateway refused the agent's token (HTTP {status})")
             }
         }
     }
@@ -84,47 +79,40 @@ impl fmt::Display for AgentSignInError {
 
 impl std::error::Error for AgentSignInError {}
 
-/// The agent a token is for.
-pub struct Agent {
-    pub provider: String,
-    pub model: String,
-}
-
 pub struct AgentToken {
     gateway: String,
-    agent: Agent,
     service: ServiceToken,
-    http: reqwest::Client,
     did: UserId,
     token: watch::Sender<Option<String>>,
 }
 
 impl AgentToken {
-    /// Sign the agent in at `gateway`, and keep it signed in for as long as
-    /// this is held.
+    /// Sign the agent in at `gateway` as the account `service` names, and
+    /// keep it signed in for as long as this is held.
     pub async fn sign_in(
         gateway: &str,
-        agent: Agent,
         service: ServiceToken,
         http: reqwest::Client,
     ) -> Result<Arc<AgentToken>, AgentSignInError> {
         let gateway = gateway.trim_end_matches('/').to_owned();
-        let signed_in = exchange(&gateway, &agent, &service, &http).await?;
+        let token = service
+            .token(false)
+            .await
+            .map_err(AgentSignInError::SignIn)?;
+        let did = named(&gateway, &token, &http).await?;
         let agent = Arc::new(AgentToken {
             gateway,
-            agent,
             service,
-            http,
-            did: signed_in.did,
-            token: watch::channel(Some(signed_in.token)).0,
+            did,
+            token: watch::channel(Some(token)).0,
         });
         tokio::spawn(keep_renewed(Arc::downgrade(&agent), agent.token()));
         Ok(agent)
     }
 
-    /// The agent's DID, as the gateway minted it under the knowledge base's
-    /// own domain. It is carried as it came: re-derived from the URL the
-    /// process happens to dial, one agent has two DIDs.
+    /// The agent's DID, as the gateway names its account under the knowledge
+    /// base's own domain. It is carried as it came: re-derived from the URL
+    /// the process happens to dial, one agent has two DIDs.
     pub fn did(&self) -> &UserId {
         &self.did
     }
@@ -139,37 +127,28 @@ impl AgentToken {
         self.token.subscribe()
     }
 
-    /// Exchange again, and make the answer the token.
+    /// Ask the issuer for another, and make it the token.
     async fn renew(&self) -> Result<String, AgentSignInError> {
-        let token = exchange(&self.gateway, &self.agent, &self.service, &self.http)
-            .await?
-            .token;
+        let token = self
+            .service
+            .token(true)
+            .await
+            .map_err(AgentSignInError::SignIn)?;
         self.token.send_replace(Some(token.clone()));
         Ok(token)
     }
 }
 
-/// One sign-in: the service account's token, exchanged at the gateway for
-/// the agent's, and the DID the gateway names the agent by.
-async fn exchange(
+/// The DID the gateway names the bearer of `token` by: `GET /api/users/me`.
+async fn named(
     gateway: &str,
-    agent: &Agent,
-    service: &ServiceToken,
+    token: &str,
     http: &reqwest::Client,
-) -> Result<AgentTokenResponse, AgentSignInError> {
-    let authorization = service
-        .authorization()
-        .await
-        .map_err(AgentSignInError::SignIn)?;
-    let body = AgentTokenRequest {
-        provider: agent.provider.clone(),
-        model: agent.model.clone(),
-    };
-    let url = format!("{gateway}/api/tokens/agent");
+) -> Result<UserId, AgentSignInError> {
+    let url = format!("{gateway}/api/users/me");
     let response = http
-        .post(&url)
-        .header("authorization", authorization)
-        .json(&body)
+        .get(&url)
+        .header("authorization", format!("Bearer {token}"))
         .timeout(HTTP_REQUEST_TIMEOUT)
         .send()
         .await
@@ -185,9 +164,10 @@ async fn exchange(
             AgentSignInError::Refused { status }
         });
     }
-    response.json().await.map_err(|e| {
-        AgentSignInError::Malformed(format!("{url} did not answer an agent token: {e}"))
-    })
+    let user: UserResponse = response.json().await.map_err(|e| {
+        AgentSignInError::Malformed(format!("{url} did not answer who the agent is: {e}"))
+    })?;
+    Ok(user.did)
 }
 
 impl TokenRefresher for AgentToken {
@@ -215,8 +195,8 @@ async fn keep_renewed(agent: Weak<AgentToken>, token: watch::Receiver<Option<Str
 }
 
 /// Whether a renewal that failed this way is tried again inside the budget:
-/// when `retry::REFRESH` calls it transient, and never when the gateway
-/// refused the service account's token, which the same token cannot change.
+/// when `retry::REFRESH` calls it transient, and never when the agent's token
+/// was refused, which the same token cannot change.
 fn worth_another(error: &AgentSignInError) -> bool {
     !matches!(error, AgentSignInError::CredentialRefused { .. })
         && retry::REFRESH.retryable(&error.retry_facts())

@@ -309,13 +309,13 @@ export class ArchivistWorld {
 
   /** A worker: a software agent holding the worker role. */
   async worker(model: string, options: { channels?: string[]; scopes?: string[] } = {}): Promise<BusClient> {
-    const { token, did } = await this.world.agent('conformance', model, [SERVICE_ROLE, WORKER_ROLE]);
+    const { token, did } = await this.world.agent(model, [SERVICE_ROLE, WORKER_ROLE]);
     return this.client(token, did, options.channels ?? [], options.scopes ?? []);
   }
 
   /** A sidecar: a software agent holding the service role and not the worker role. */
   async sidecar(model: string, options: { channels?: string[]; scopes?: string[] } = {}): Promise<BusClient> {
-    const { token, did } = await this.world.agent('conformance', model, [SERVICE_ROLE]);
+    const { token, did } = await this.world.agent(model, [SERVICE_ROLE]);
     return this.client(token, did, options.channels ?? [], options.scopes ?? []);
   }
 

@@ -292,7 +292,7 @@ export class DispatcherWorld {
       logLevel: 'info',
       logFormat: 'json',
     };
-    const { token } = await world.agent('conformance', 'observer');
+    const { token } = await world.agent('observer');
     const observer = await world.subscribe(token, { clientId: randomUUID(), global: ['job:queued', 'job:assign'] }, world.origin, true);
     holdToRegistry(observer);
     const dispatcher = await startDispatcher({ settings, env });
@@ -349,13 +349,13 @@ export class DispatcherWorld {
 
   /** A worker: a software agent holding the worker role. */
   async worker(model: string, channels: string[] = []): Promise<BusClient> {
-    const { token, did } = await this.world.agent('conformance', model, [SERVICE_ROLE, WORKER_ROLE]);
+    const { token, did } = await this.world.agent(model, [SERVICE_ROLE, WORKER_ROLE]);
     return this.client(token, did, channels);
   }
 
   /** A sidecar: a software agent holding the service role and not the worker role. */
   async sidecar(model: string, channels: string[] = []): Promise<BusClient> {
-    const { token, did } = await this.world.agent('conformance', model, [SERVICE_ROLE]);
+    const { token, did } = await this.world.agent(model, [SERVICE_ROLE]);
     return this.client(token, did, channels);
   }
 

@@ -224,9 +224,9 @@ func (e *signInEntry) Held(context.Context) (HeldSignIn, bool, error) {
 	}, true, nil
 }
 
-// Keep keeps a sign-in the script client was issued. A gateway admits no token
-// that names no address, and none from an issuer it does not trust: a token
-// that lacks either is no sign-in, and is not kept.
+// Keep keeps a sign-in the script client was issued. The store names each
+// sign-in by its address and its issuer: a token that lacks either is not
+// kept.
 func (e *signInEntry) Keep(_ context.Context, signIn HeldSignIn) error {
 	if signIn.ClientID != ScriptClientID {
 		return fmt.Errorf("the sign-in store keeps what the client %s was issued, and this was issued to %s", ScriptClientID, signIn.ClientID)

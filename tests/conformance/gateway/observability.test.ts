@@ -152,7 +152,7 @@ eachPlane(
       const owner = await world().subscribe(token, { clientId, global: [result] });
       await world().subscribe(await world().person('not-the-owner'), { clientId: randomUUID(), global: [result] });
       await world().emit(token, { channel: request, payload: { resourceId: 'r' }, correlationId, clientId });
-      const participant = await world().agent('conformance', 'metered');
+      const participant = await world().agent('metered');
       await world().emit(participant.token, {
         channel: result,
         payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },

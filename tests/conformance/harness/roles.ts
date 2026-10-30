@@ -1,7 +1,8 @@
 /**
- * The two role names the `bearerAuth` scheme declares, read out of the spec's
- * own text so the suite does not restate them: `semiont-service` and
- * `semiont-worker` appear there, and a rename there fails here.
+ * The two role names the `bearerAuth` scheme declares, and the claim that
+ * marks an agent's account with what it holds there, read out of the spec's
+ * own text so the suite does not restate them: each appears there, and a
+ * rename there fails here.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,3 +20,5 @@ function declared(role: string): string {
 
 export const SERVICE_ROLE = declared('semiont-service');
 export const WORKER_ROLE = declared('semiont-worker');
+export const KIND_CLAIM = declared('kind');
+export const AGENT_KIND = declared('agent');

@@ -906,11 +906,11 @@ export async function runCase(world: World, command: readonly string[], kase: Ca
   const otlp = kase.telemetry ? await startOtlp() : undefined;
   const driver = await Driver.start(command, otlp ? { OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint } : {});
   const subject = `client-${randomUUID()}`;
-  const participant = await world.agent('conformance', `participant-${randomUUID()}`);
+  const participant = await world.agent(`conformance-participant-${randomUUID()}`);
   const run = new Run(layer, world, proxy, driver, { token: participant.token, clientId: randomUUID() }, world.personDid(subject));
 
   // A worker signs in as an agent whose token carries the worker role beside the service's; every other client is a person.
-  run.bind('token', layer === 'worker' ? (await world.agent('conformance', `worker-${randomUUID()}`, [SERVICE_ROLE, WORKER_ROLE])).token : await world.person(subject, { jti: randomUUID() }));
+  run.bind('token', layer === 'worker' ? (await world.agent(`conformance-worker-${randomUUID()}`, [SERVICE_ROLE, WORKER_ROLE])).token : await world.person(subject, { jti: randomUUID() }));
   run.bind('token2', await world.person(subject, { jti: randomUUID() }));
   run.bind('client', world.personDid(subject));
   run.bind('participant', participant.did);

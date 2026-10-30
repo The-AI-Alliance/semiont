@@ -2277,24 +2277,6 @@ type AgentSoftware struct {
 // AgentSoftwareType defines model for AgentSoftware.Type.
 type AgentSoftwareType string
 
-// AgentTokenRequest The (provider, model) the agent token is issued for: together they name the agent.
-type AgentTokenRequest struct {
-	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
-	Model string `json:"model"`
-
-	// Provider Inference provider (e.g. ollama, anthropic)
-	Provider string `json:"provider"`
-}
-
-// AgentTokenResponse The agent token and the DID it names.
-type AgentTokenResponse struct {
-	// Did DID of the software-agent identity the token is acting as
-	Did UserId `json:"did"`
-
-	// Token Bearer JWT for subsequent authenticated requests
-	Token string `json:"token"`
-}
-
 // AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a range of the text, two offsets counted in Unicode code points, into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
 type AnchoredText struct {
 	// Items Positioned runs indexing `text`, roughly one per word.
@@ -6655,14 +6637,16 @@ type UpdateAnnotationBodyRequest_Operations_Item struct {
 //
 // The remaining fields exist to be displayed, and all of them come from the token's own claims.
 type UserResponse struct {
-	// Did The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent.
+	// Did The authenticated principal's DID: `did:web:<domain>:agents:<subject>` for an agent, whose token's `kind` claim is `agent`, and `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its principals by (`identity.subjectClaim`).
 	Did UserId `json:"did"`
 
-	// Domain Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's.
-	Domain string  `json:"domain"`
-	Email  string  `json:"email"`
-	Image  *string `json:"image"`
-	Name   *string `json:"name"`
+	// Domain The knowledge base's domain: the authority the principal is named under.
+	Domain string `json:"domain"`
+
+	// Email The address the token carries, when it carries one: an agent's account need not have one.
+	Email *string `json:"email"`
+	Image *string `json:"image"`
+	Name  *string `json:"name"`
 }
 
 // VectorsConfig The vector index a service writes or searches, and what that kind of index needs to be reached: one of the kinds `semiont-vectors` has a store for, told apart by `type`.
@@ -7032,9 +7016,6 @@ type TooManyRequests = LimitRefusal
 
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
-
-// ExchangeAgentTokenJSONRequestBody defines body for ExchangeAgentToken for application/json ContentType.
-type ExchangeAgentTokenJSONRequestBody = AgentTokenRequest
 
 // CreateMediaTokenJSONRequestBody defines body for CreateMediaToken for application/json ContentType.
 type CreateMediaTokenJSONRequestBody = MediaTokenRequest
@@ -14374,11 +14355,6 @@ type ClientInterface interface {
 	// GetStatus request
 	GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ExchangeAgentTokenWithBody request with any body
-	ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// CreateMediaTokenWithBody request with any body
 	CreateMediaTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -14475,30 +14451,6 @@ func (c *Client) GetResourceRepresentationWithMediaToken(ctx context.Context, id
 
 func (c *Client) GetStatus(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetStatusRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ExchangeAgentTokenWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExchangeAgentTokenRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) ExchangeAgentToken(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewExchangeAgentTokenRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -14818,46 +14770,6 @@ func NewGetStatusRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewExchangeAgentTokenRequest calls the generic ExchangeAgentToken builder with application/json body
-func NewExchangeAgentTokenRequest(server string, body ExchangeAgentTokenJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewExchangeAgentTokenRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewExchangeAgentTokenRequestWithBody generates requests for ExchangeAgentToken with any type of body
-func NewExchangeAgentTokenRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/agent")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -15235,11 +15147,6 @@ type ClientWithResponsesInterface interface {
 	// GetStatusWithResponse request
 	GetStatusWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetStatusResponse, error)
 
-	// ExchangeAgentTokenWithBodyWithResponse request with any body
-	ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
-
-	ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error)
-
 	// CreateMediaTokenWithBodyWithResponse request with any body
 	CreateMediaTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateMediaTokenResponse, error)
 
@@ -15415,33 +15322,6 @@ func (r GetStatusResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetStatusResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type ExchangeAgentTokenResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AgentTokenResponse
-	JSON400      *ErrorResponse
-	JSON401      *Unauthorized
-	JSON413      *PayloadTooLarge
-	JSON429      *TooManyRequests
-	JSON500      *InternalError
-}
-
-// Status returns HTTPResponse.Status
-func (r ExchangeAgentTokenResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r ExchangeAgentTokenResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -15742,23 +15622,6 @@ func (c *ClientWithResponses) GetStatusWithResponse(ctx context.Context, reqEdit
 		return nil, err
 	}
 	return ParseGetStatusResponse(rsp)
-}
-
-// ExchangeAgentTokenWithBodyWithResponse request with arbitrary body returning *ExchangeAgentTokenResponse
-func (c *ClientWithResponses) ExchangeAgentTokenWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
-	rsp, err := c.ExchangeAgentTokenWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExchangeAgentTokenResponse(rsp)
-}
-
-func (c *ClientWithResponses) ExchangeAgentTokenWithResponse(ctx context.Context, body ExchangeAgentTokenJSONRequestBody, reqEditors ...RequestEditorFn) (*ExchangeAgentTokenResponse, error) {
-	rsp, err := c.ExchangeAgentToken(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseExchangeAgentTokenResponse(rsp)
 }
 
 // CreateMediaTokenWithBodyWithResponse request with arbitrary body returning *CreateMediaTokenResponse
@@ -16083,67 +15946,6 @@ func ParseGetStatusResponse(rsp *http.Response) (*GetStatusResponse, error) {
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest TooManyRequests
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON429 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest InternalError
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON500 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseExchangeAgentTokenResponse parses an HTTP response from a ExchangeAgentTokenWithResponse call
-func ParseExchangeAgentTokenResponse(rsp *http.Response) (*ExchangeAgentTokenResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &ExchangeAgentTokenResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AgentTokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest Unauthorized
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
-		var dest PayloadTooLarge
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest TooManyRequests

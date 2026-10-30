@@ -13,8 +13,6 @@ __all__ = [
     "AgentOrganization",
     "AgentPerson",
     "AgentSoftware",
-    "AgentTokenRequest",
-    "AgentTokenResponse",
     "AnchoredText",
     "AnchoredTextAbsent",
     "AnchoredTextAbsentKind",
@@ -1999,17 +1997,18 @@ class UserResponse(WireModel, frozen=True):
     did: Annotated[
         UserId,
         Field(
-            description="The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent."
+            description="The authenticated principal's DID: `did:web:<domain>:agents:<subject>` for an agent, whose token's `kind` claim is `agent`, and `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its principals by (`identity.subjectClaim`)."
         ),
     ]
-    email: str
+    email: Annotated[
+        str | None,
+        Field(description="The address the token carries, when it carries one: an agent's account need not have one."),
+    ]
     name: Annotated[str | None, Field(...)]
     image: Annotated[str | None, Field(...)]
     domain: Annotated[
         str,
-        Field(
-            description="Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's."
-        ),
+        Field(description="The knowledge base's domain: the authority the principal is named under."),
     ]
 
 
@@ -2236,36 +2235,6 @@ type ReplyEventId = Annotated[
         pattern="^e-[^:]+:[^:]+:.+$",
     ),
 ]
-
-
-class AgentTokenRequest(WireModel, frozen=True):
-    """
-    The (provider, model) the agent token is issued for: together they name the agent.
-    """
-
-    provider: Annotated[
-        str,
-        Field(description="Inference provider (e.g. ollama, anthropic)", min_length=1),
-    ]
-    model: Annotated[
-        str,
-        Field(
-            description="Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)",
-            min_length=1,
-        ),
-    ]
-
-
-class AgentTokenResponse(WireModel, frozen=True):
-    """
-    The agent token and the DID it names.
-    """
-
-    token: Annotated[str, Field(description="Bearer JWT for subsequent authenticated requests")]
-    did: Annotated[
-        UserId,
-        Field(description="DID of the software-agent identity the token is acting as"),
-    ]
 
 
 class ResourceUpload(WireModel, frozen=True):

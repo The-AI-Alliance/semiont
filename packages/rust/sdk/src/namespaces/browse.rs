@@ -34,9 +34,9 @@ use crate::types::{
     BrowseDirectoryRequest, BrowseDirectoryRequestSort, BrowseDirectoryResultResponse,
     BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest, BrowseResourceOpenEvent,
     BrowseResourceRequest, BrowseResourceViewedEvent, BrowseResourcesRequest,
-    BrowseTagSchemasRequest, RosterEntry, GetAnnotationHistoryResponse,
-    GetAnnotationsResponse, GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse,
-    InferencePairLimits, KbDescription, ListResourcesResponse, ResourceDescriptor, TagSchema,
+    BrowseTagSchemasRequest, GetAnnotationHistoryResponse, GetAnnotationsResponse,
+    GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse, InferencePairLimits,
+    KbDescription, ListResourcesResponse, ResourceDescriptor, RosterEntry, TagSchema,
 };
 use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
@@ -104,7 +104,7 @@ fn joined(roster: Vec<RosterEntry>, reported: &[InferencePairLimits]) -> Vec<Col
         .into_iter()
         .map(|entry| {
             // The provider as the wire names it, which is how a report names it.
-            let provider = serde_json::to_value(&entry.engine.provider).ok();
+            let provider = serde_json::to_value(entry.engine.provider).ok();
             let limits = reported
                 .iter()
                 .find(|pair| {

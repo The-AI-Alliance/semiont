@@ -128,12 +128,14 @@ export class World {
     return principals(this.kb.domain).personDid(sub);
   }
 
-  /** A software agent's token, minted by the gateway for a service account with `roles`. */
-  async agent(provider: string, model: string, roles: string[] = [SERVICE_ROLE], origin = this.origin): Promise<{ token: string; did: string }> {
-    const service = await this.issuer.service(PARTICIPANT_CLIENT, roles);
-    const reply = await call(origin, 'POST', '/api/tokens/agent', { token: service, json: { provider, model } });
-    if (reply.status !== 200) throw new Error(`agent token refused: ${reply.status} ${reply.text}`);
-    return reply.json as { token: string; did: string };
+  /**
+   * An agent's token: its own account's, from the issuer, for an account the
+   * suite names `name`, holding `roles`; and the DID the gateway names it by
+   * (principals/cases.json).
+   */
+  async agent(name: string, roles: string[] = [SERVICE_ROLE]): Promise<{ token: string; did: string }> {
+    const client = `conformance-agent-${name}`;
+    return { token: await this.issuer.service(client, roles), did: principals(this.kb.domain).agentDid(this.issuer.subjectOf(client)) };
   }
 
   /** Open a stream; fails unless the gateway answers 200. Checked for violations after the case. */
@@ -169,8 +171,8 @@ export class World {
     answer: (frame: BusFrame) => { channel: string; payload: Record<string, unknown> } | undefined | Promise<{ channel: string; payload: Record<string, unknown> } | undefined>,
     origin = this.origin,
   ): Promise<{ stream: BusStream; token: string; clientId: string }> {
-    // A sidecar reaches the bus as a software agent, with a token the gateway minted.
-    const { token } = await this.agent('conformance', 'participant', [SERVICE_ROLE], origin);
+    // A sidecar reaches the bus as an agent, with its own account's token.
+    const { token } = await this.agent('participant', [SERVICE_ROLE]);
     const clientId = randomUUID();
     const stream = await this.subscribe(token, { clientId, global: channels }, origin, true);
     stream.on((message) => {

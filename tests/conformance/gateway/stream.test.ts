@@ -312,7 +312,7 @@ eachPlane('subscribing', (world) => {
       const token = await world().person('resumer');
       const stream = await world().open(token, { clientId: randomUUID(), scoped: [{ scope, channels: [PERSISTED], lastEventId: `p-${scope}-2` }] });
       await new Promise((r) => setTimeout(r, 300));
-      const emitter = await world().agent('conformance', 'recorder');
+      const emitter = await world().agent('recorder');
       for (const n of [4, 6]) {
         const reply = await world().emit(emitter.token, { channel: PERSISTED, payload: storedEvent(PERSISTED, scope, n), scope });
         expect(reply.status, reply.text).toBe(202);

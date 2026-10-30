@@ -75,7 +75,7 @@ pub fn main() -> i32 {
 fn boot() -> Result<i32, String> {
     let (config, signal) =
         read_gateway_config(std::env::args().skip(1)).map_err(|e| e.to_string())?;
-    let keys = KeyRing::new(require_jwt_secret()?, config.kb.domain.clone());
+    let keys = KeyRing::new(require_jwt_secret()?);
     let (client_id, client_secret) =
         config::service_account(&crate::config::DOCUMENT).map_err(|e| e.to_string())?;
     logging::initialize(config.log_level, config.log_format);

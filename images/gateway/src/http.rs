@@ -384,7 +384,7 @@ pub async fn authenticate(
     match principal_from_token(
         &token,
         &app.issuer,
-        &app.keys,
+        &app.config.kb.domain,
         &app.config.identity.subject_claim,
     )
     .await
