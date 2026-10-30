@@ -249,6 +249,61 @@ Details worth knowing:
 - **Media tokens** (`?token=`) sign and verify through the same ring, so they rotate with everything else. Their 5-minute TTL makes the grace window academic, but they are not on a separate path.
 - **Two keys is the normal maximum.** The ring exists for a rotation window, not as a key store; trial verification costs one extra HMAC per key on the failing path.
 
+## Admitting a worker someone else runs
+
+A knowledge base admits a worker the way it admits a person: by an account its operator makes. A person's account holds a password or a passkey; a worker's holds the public half of the key that its owner's machine keeps. Nothing secret passes between the two people, either way.
+
+**The worker's owner** prints the public half on the machine that runs the worker, and sends it:
+
+```bash
+semiont worker key > alice.jwks
+```
+
+It is a JWK Set: the key, and the key id each of the worker's sign-ins names (the key's RFC 7638 thumbprint). `semiont worker key --pem` prints the key as a PEM instead, with the key id on stderr. The private half never leaves that machine.
+
+### At a knowledge base the launcher runs
+
+```bash
+semiont identity grant alice --key alice.jwks
+```
+
+This creates one client in the realm, `semiont-worker-alice`. It is the client the launcher makes for its own machine's worker, `semiont-worker-local`, with another key:
+
+- confidential, authenticating by signed JWT with that key;
+- its client-credentials grant enabled;
+- its token stamped with the flat `roles` `semiont-service` and `semiont-worker`, and with this knowledge base's audience.
+
+It prints the client id and the gateway's address, to send back. Before anything reaches the realm, it refuses a private key, a key that is not RSA, and the label `local`. If the knowledge base's documents state the gateway at a loopback address, it warns, since a worker on another machine cannot reach one.
+
+Granting the same key again changes nothing. A new key under the same label replaces the old one on the same client, so the worker keeps its account, and the subject the knowledge base knows it by.
+
+```bash
+semiont identity revoke alice
+```
+
+This deletes that client, and no other. The worker's next sign-in is refused. Tokens it already holds stay good until they expire: its issuer token within the realm's access-token lifetime, and an agent token the gateway minted it within that token's own ([Token lifecycle](#token-lifecycle), [Revocation](#revocation)).
+
+Both need the realm's bootstrap admin password, as `semiont identity sync` does.
+
+### At an issuer you run
+
+Create the client yourself. It is the same client:
+
+- **Confidential**, authenticating by a **signed JWT**: RFC 7523's client assertion, RS256. Keycloak calls this authenticator "Signed JWT".
+- **The worker's public key registered on it**, under the key id each assertion names: the `kid` of the JWK Set that `semiont worker key` prints. An issuer given the PEM must be given that key id too; Keycloak refuses an assertion naming a key id its client does not hold.
+- **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
+- **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
+
+The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json).
+
+To revoke, delete the client.
+
+### What the worker's owner does with it
+
+The client id goes into the worker's environment as `SEMIONT_OIDC_CLIENT_ID`, beside its key as `SEMIONT_OIDC_CLIENT_KEY`. The gateway's address goes into its document, with the issuer the gateway names at `/.well-known/oauth-protected-resource` ([the worker's configuration](../../../images/worker/README.md#configuration)). The launcher configures its worker for the knowledge base it starts; a worker serving a knowledge base elsewhere is given its document by hand.
+
+The record names a worker's work by the engine it ran, `agents:<provider>:<model>`, so two people's workers running one model are one agent there.
+
 ## Security Best Practices
 
 ### Token handling
@@ -276,7 +331,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **A service account's token also needs** a flat `roles` array containing `semiont-service` — an array of strings at the top level, deliberately not Keycloak's nested `realm_access.roles`. An issuer with its own group model maps it into that claim.
 
-**A worker's token also needs `semiont-worker`** in that same array. The gateway stamps it onto the agent token a worker mints, and the dispatcher admits a `job:claim` only from a token carrying it — `semiont-service` is what every sidecar has, so it cannot be what distinguishes a worker. A worker that is not yours is admitted by granting its client this role; nothing else changes.
+**A worker's token also needs `semiont-worker`** in that same array. The gateway stamps it onto the agent token a worker mints, and the dispatcher admits a `job:claim` only from a token carrying it — `semiont-service` is what every sidecar has, so it cannot be what distinguishes a worker. A worker that is not yours is admitted by its key: see [Admitting a worker someone else runs](#admitting-a-worker-someone-else-runs).
 
 **For people to sign in at all**, the issuer needs a public client that supports the device grant (for `semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
@@ -299,6 +354,11 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 - The token may be for another audience. This deployment accepts only tokens whose audience is its own derived resource identity, published at `/.well-known/oauth-protected-resource`.
 - The token's email may not be marked verified by the issuer, which is refused.
 - The token may lack the claim `subjectClaim` names; the gateway refuses it, naming the claim.
+
+**A granted worker's sign-in is refused (`invalid_client`)**
+- It signs with another key than the one registered: its owner may have made a new one. `semiont worker key` on its machine prints the key it signs with; grant that one under the same label.
+- Its client was revoked.
+- At an issuer you run: the key id registered is not the key's thumbprint, or the issuer does not accept its token endpoint as an assertion's `aud`.
 
 **Sign-in fails at the issuer**
 - The account may be disabled there. That is where enable and disable live; `semiont useradd --active` re-enables one.
