@@ -259,7 +259,7 @@ class AuthorizationTest {
 
     @Test
     fun askedWithATokenTheKnowledgeBaseSaysWhoItIs() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             realm.describing(DESCRIBED)
             val asking = tokenFor("asking")
             val identity = withTimeout(10_000) { describeConnection(endpointOf(realm), asking) }
@@ -273,7 +273,7 @@ class AuthorizationTest {
 
     @Test
     fun aKnowledgeBaseThatAnswersItCannotSayWhatItIsIsNotReported() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             realm.describing(null)
             val refused = assertThrows(IdentityUnverifiableError::class.java) { runBlocking { withTimeout(10_000) { describeConnection(endpointOf(realm), tokenFor("asking")) } } }
             assertEquals(IdentityUnverifiableReason.NotReported, refused.reason)
