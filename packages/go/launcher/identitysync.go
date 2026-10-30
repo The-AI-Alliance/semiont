@@ -294,63 +294,69 @@ func reconcileServiceClients(base, realm, token, audience string, accounts realm
 		return syncReport{}, err
 	}
 	var rep syncReport
-	// Present — but the client the import WOULD render may carry a role this
-	// one was created without (the worker's job-claim role), and the preflight
-	// refuses a realm whose mapper lacks it. A secret is never reconciled: sync
-	// cannot know it. The worker's key it does.
-	reconcile := func(svc string, client map[string]any, alsoKey bool) error {
-		id := serviceClientID(svc)
-		c, ok := have[id]
-		if !ok {
-			if err := createClient(base, realm, token, client); err != nil {
-				return fmt.Errorf("creating %s: %w", id, err)
-			}
-			rep.created = append(rep.created, id)
-			return nil
+	for _, svc := range secretClients {
+		if err := reconcileAccount(base, realm, token, have, svc, serviceAccountClient(svc, accounts.secrets[svc], audience), nil, &rep); err != nil {
+			return rep, err
 		}
-		var changes []string
-		change, err := reconcileRolesMapper(base, realm, token, svc, c)
+	}
+	worker := accounts.worker.registeredKey
+	if err := reconcileAccount(base, realm, token, have, "worker", workerClient(localWorkerLabel, worker, audience), &worker, &rep); err != nil {
+		return rep, err
+	}
+	return rep, nil
+}
+
+// reconcileAccount brings one account's client to client, the client the
+// realm document renders for it, with the roles serviceRoles(rolesOf) states:
+// created when the realm lacks it. Present, it may still carry a role it was
+// created without (the worker's job-claim role), which the preflight refuses,
+// so its roles mapper is reconciled. A secret is never reconciled: sync cannot
+// know it. A key it does know, and reconciles when key is given.
+func reconcileAccount(base, realm, token string, have map[string]existingClient, rolesOf string, client map[string]any, key *registeredKey, rep *syncReport) error {
+	id := client["clientId"].(string)
+	c, ok := have[id]
+	if !ok {
+		if err := createClient(base, realm, token, client); err != nil {
+			return fmt.Errorf("creating %s: %w", id, err)
+		}
+		rep.created = append(rep.created, id)
+		return nil
+	}
+	var changes []string
+	change, err := reconcileRolesMapper(base, realm, token, rolesOf, c)
+	if err != nil {
+		return fmt.Errorf("updating %s: %w", id, err)
+	}
+	if change != "" {
+		changes = append(changes, change)
+	}
+	if key != nil {
+		change, err := reconcileWorkerKey(base, realm, token, c, *key)
 		if err != nil {
 			return fmt.Errorf("updating %s: %w", id, err)
 		}
 		if change != "" {
 			changes = append(changes, change)
 		}
-		if alsoKey {
-			change, err := reconcileWorkerKey(base, realm, token, c, accounts.worker)
-			if err != nil {
-				return fmt.Errorf("updating %s: %w", id, err)
-			}
-			if change != "" {
-				changes = append(changes, change)
-			}
-		}
-		if len(changes) == 0 {
-			rep.present = append(rep.present, id)
-		} else {
-			rep.updated = append(rep.updated, id+": "+strings.Join(changes, "; "))
-		}
-		return nil
 	}
-	for _, svc := range secretClients {
-		if err := reconcile(svc, serviceAccountClient(svc, accounts.secrets[svc], audience), false); err != nil {
-			return rep, err
-		}
+	if len(changes) == 0 {
+		rep.present = append(rep.present, id)
+	} else {
+		rep.updated = append(rep.updated, id+": "+strings.Join(changes, "; "))
 	}
-	if err := reconcile("worker", workerClient(accounts.worker, audience), true); err != nil {
-		return rep, err
-	}
-	return rep, nil
+	return nil
 }
 
-// reconcileWorkerKey brings the worker's client to this machine's key: its
-// public half is no secret, so sync knows what the realm should hold. Another
-// machine's launcher syncing the same realm takes the client over, so the
-// change names both keys, and the machine that lost it is refused at its next
-// start rather than left to fail at a sign-in.
+// reconcileWorkerKey brings a worker's client to k: its public half is no
+// secret, so the launcher knows what the realm should hold — this machine's
+// key for its own worker, the key a grant names for another. A new key
+// replaces the old on the same client, so the worker keeps its account. For
+// this machine's worker, another machine's launcher syncing the same realm
+// takes the client over, so the change names both keys, and the machine that
+// lost it is refused at its next start rather than left to fail at a sign-in.
 //
 // Returns what changed, for the report; "" when the client already holds it.
-func reconcileWorkerKey(base, realm, token string, c existingClient, k workerKey) (string, error) {
+func reconcileWorkerKey(base, realm, token string, c existingClient, k registeredKey) (string, error) {
 	want := workerKeyAttributes(k)
 	attributes, _ := c.rep["attributes"].(map[string]any)
 	authenticator, _ := c.rep["clientAuthenticatorType"].(string)

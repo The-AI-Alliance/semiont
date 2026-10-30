@@ -6,11 +6,16 @@ package launcher
 // these hold the verb around it.
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"net/url"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // syncFixture readies `identity sync` against admin for the fixture knowledge
@@ -43,12 +48,12 @@ func syncFixture(t *testing.T, admin *stubAdmin) string {
 	return root
 }
 
-// syncOutput runs the verb and returns its exit code and what it printed.
-func syncOutput(t *testing.T, args ...string) (int, string, string) {
+// identityOutput runs the verb and returns its exit code and what it printed.
+func identityOutput(t *testing.T, args ...string) (int, string, string) {
 	t.Helper()
 	var code int
 	stdout, stderr := harness.CaptureOutput(t, func() {
-		code = Identity(append([]string{"sync"}, args...))
+		code = Identity(args)
 	})
 	return code, stdout, stderr
 }
@@ -57,7 +62,7 @@ func TestIdentitySyncCreatesWhatTheRealmLacks(t *testing.T) {
 	admin := newStubAdmin(t, "semiont", nil)
 	root := syncFixture(t, admin)
 
-	code, stdout, stderr := syncOutput(t, "--root", root, "--config", "anthropic")
+	code, stdout, stderr := identityOutput(t, "sync", "--root", root, "--config", "anthropic")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -76,7 +81,7 @@ func TestIdentitySyncSaysARealmThatMatchesMatches(t *testing.T) {
 	admin.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 	root := syncFixture(t, admin)
 
-	code, stdout, stderr := syncOutput(t, "--root", root, "--config", "anthropic")
+	code, stdout, stderr := identityOutput(t, "sync", "--root", root, "--config", "anthropic")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -91,7 +96,7 @@ func TestIdentitySyncReportsARefusedAdminLogin(t *testing.T) {
 	admin.badLogin = true
 	root := syncFixture(t, admin)
 
-	code, _, stderr := syncOutput(t, "--root", root, "--config", "anthropic")
+	code, _, stderr := identityOutput(t, "sync", "--root", root, "--config", "anthropic")
 	if code != 1 {
 		t.Fatalf("exit %d, want 1\nstderr:\n%s", code, stderr)
 	}
@@ -108,7 +113,7 @@ func TestIdentitySyncNeedsAConfigWhenNoneIsKnown(t *testing.T) {
 	admin := newStubAdmin(t, "semiont", nil)
 	root := syncFixture(t, admin)
 
-	code, _, stderr := syncOutput(t, "--root", root)
+	code, _, stderr := identityOutput(t, "sync", "--root", root)
 	if code != 1 {
 		t.Fatalf("exit %d, want 1\nstderr:\n%s", code, stderr)
 	}
@@ -123,9 +128,114 @@ func TestIdentitySyncUsesTheConfigAStartRecorded(t *testing.T) {
 	root := syncFixture(t, admin)
 	registerRootUse(kbRoot{dir: root}, false, "anthropic")
 
-	code, stdout, stderr := syncOutput(t, "--root", root)
+	code, stdout, stderr := identityOutput(t, "sync", "--root", root)
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	harness.MustContainAll(t, "stdout", stdout, "Config: anthropic", "created "+serviceClientID(secretClients[0]))
+}
+
+// keyFile: what `semiont worker key` printed on the worker's machine, saved
+// where the operator keeps it.
+func keyFile(t *testing.T, k workerKey) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "alice.jwks")
+	if err := os.WriteFile(p, []byte(workerKeySet(k)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// A grant prints what the worker's owner needs to sign in and serve this
+// knowledge base: the client id, and where the gateway is, as the knowledge
+// base's documents state it — the gateway names its issuer itself. Neither is
+// secret. The fixture's gateway is on loopback, which no other machine
+// reaches, and the grant says so.
+func TestIdentityGrantPrintsWhatTheWorkersOwnerNeeds(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", correctRealm())
+	root := syncFixture(t, admin)
+	st, err := stack.Load(root, "anthropic")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := rsa.GenerateKey(rand.Reader, workerKeyBits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := workerKeyOf(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := identityOutput(t, "grant", "alice", "--key", keyFile(t, theirs), "--root", root, "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	harness.MustContainAll(t, "stdout", stdout,
+		"granted alice",
+		"Client id:  semiont-worker-alice",
+		"Gateway:    "+st.KnowledgeBase.Spec.Gateway.PublicURL+"\n")
+	if strings.Contains(stdout, "Issuer") {
+		t.Errorf("the grant states an issuer; the gateway names the one it trusts:\n%s", stdout)
+	}
+	harness.MustContainAll(t, "stderr", stderr, "Neither is secret")
+	harness.MustContainAll(t, "stdout", stdout, "a worker on another machine cannot reach")
+	if len(admin.created) != 1 || admin.created[0]["clientId"] != "semiont-worker-alice" {
+		t.Errorf("created %v, want semiont-worker-alice alone", admin.created)
+	}
+}
+
+// What a grant must not do is refused before the realm is reached: a label
+// that is this machine's own worker's, a key file holding a private key, or no
+// key at all.
+func TestIdentityGrantRefusesBeforeReachingTheRealm(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", correctRealm())
+	root := syncFixture(t, admin)
+	private := filepath.Join(t.TempDir(), "private.pem")
+	if err := os.WriteFile(private, []byte(testWorkerKey().private), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"grant", localWorkerLabel, "--key", keyFile(t, testWorkerKey()), "--root", root, "--config", "anthropic"},
+		{"grant", "alice", "--key", private, "--root", root, "--config", "anthropic"},
+		{"grant", "alice", "--root", root, "--config", "anthropic"},
+		{"grant", "--key", keyFile(t, testWorkerKey()), "--root", root, "--config", "anthropic"},
+		{"revoke", localWorkerLabel, "--root", root, "--config", "anthropic"},
+	} {
+		if code, _, _ := identityOutput(t, args...); code != 1 {
+			t.Errorf("%v: exit %d, want 1", args, code)
+		}
+	}
+	if len(admin.paths) != 0 {
+		t.Errorf("a refused grant reached the realm: %v", admin.paths)
+	}
+}
+
+func TestIdentityRevokeDeletesTheGrant(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", append(correctRealm(), grantedRep("alice", anotherWorkerKey(t))))
+	root := syncFixture(t, admin)
+
+	code, stdout, stderr := identityOutput(t, "revoke", "alice", "--root", root, "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	harness.MustContainAll(t, "stdout", stdout, "revoked alice", "semiont-worker-alice")
+	harness.MustContainAll(t, "stderr", stderr, "stays good until it expires")
+	if len(admin.deleted) != 1 || admin.deleted[0] != "semiont-worker-alice" {
+		t.Errorf("deleted %v, want semiont-worker-alice alone", admin.deleted)
+	}
+}
+
+func TestIdentityRevokeOfAnUnknownLabelFails(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", append(correctRealm(), grantedRep("bob", anotherWorkerKey(t))))
+	root := syncFixture(t, admin)
+
+	code, _, stderr := identityOutput(t, "revoke", "alice", "--root", root, "--config", "anthropic")
+	if code != 1 {
+		t.Fatalf("exit %d, want 1\nstderr:\n%s", code, stderr)
+	}
+	harness.MustContainAll(t, "stderr", stderr, "No worker is granted as alice", "Granted: bob")
+	if len(admin.deleted) != 0 {
+		t.Errorf("deleted %v for a label nothing was granted under", admin.deleted)
+	}
 }
