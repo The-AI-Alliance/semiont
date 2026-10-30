@@ -49,6 +49,7 @@ public fun main(args: Array<String>) {
             .map { (it as? JsonPrimitive)?.content ?: refuse("SupportedMediaType states a member that is no text: $it") }
         table("semiont.mediatypes", "MediaTypesTable.kt", emptyList(), mediaTypesFile(readJson(specs.resolve("media-types/registry.json")) as? JsonObject ?: refuse("media-types/registry.json is no object"), supported))
         table("semiont.resources", "Encodings.kt", emptyList(), encodingsFile(readJson(specs.resolve("text/encoding-cases.json")) as? JsonObject ?: refuse("text/encoding-cases.json is no object")))
+        table("semiont.cache", "CacheRefresh.kt", emptyList(), cacheRefreshFile(readJson(specs.resolve("client/refresh.json")) as? JsonObject ?: refuse("client/refresh.json is no object"), registry))
         table("semiont.errors", "ErrorCodes.kt", listOf("semiont.Generated"), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
         println("generated ${generated.types.size} types and ${kinds.size} kinds of id")
     } catch (refused: Refused) {
