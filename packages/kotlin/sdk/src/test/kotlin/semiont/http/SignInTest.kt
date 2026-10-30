@@ -65,6 +65,12 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
             }
             val path = exchange.requestURI.path
             asked += Asked(exchange.requestMethod, path, exchange.requestHeaders.getFirst("Authorization"), form)
+            // What a test scripts for a path is answered before what the realm says of itself.
+            val scriptedFirst = scripted[path]?.pollFirst()
+            if (scriptedFirst != null) {
+                answer(exchange, scriptedFirst)
+                return@createContext
+            }
             when {
                 path == "/.well-known/oauth-protected-resource" && !trustsAnIssuer -> answer(exchange, Said(404, buildJsonObject { put("error", "not found") }))
                 path == "/.well-known/oauth-protected-resource" -> answer(exchange, Said(200, buildJsonObject {
@@ -79,7 +85,7 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
                     put("device_authorization_endpoint", "$origin/device")
                     put("revocation_endpoint", "$origin/revoke")
                 }))
-                else -> answer(exchange, scripted[path]?.pollFirst() ?: Said(500, buildJsonObject { put("error", "nothing scripted for $path") }))
+                else -> answer(exchange, Said(500, buildJsonObject { put("error", "nothing scripted for $path") }))
             }
         }
         server.start()
@@ -224,5 +230,174 @@ class SignInTest {
             assertEquals("agent-2", agent.token.value)
             assertEquals(listOf("Bearer $service", "Bearer $service"), realm.of("/api/tokens/agent").map { it.authorization })
         }
+    }
+
+    // ── What fails, and how it is said ───────────────────────────────────
+
+    private fun refusal(status: Int, error: String) = Said(status, buildJsonObject { put("error", error) })
+
+    private suspend fun signInFails(realm: Realm): SignInError =
+        assertThrows(SignInError::class.java) { runBlocking { signInDevice(kb(realm), MemorySignIn()) {} } }
+
+    @Test
+    fun anIssuerThatDescribesAnotherIsNoIssuerToSignInAt() = runBlocking {
+        val realm = realm()
+        realm.script("/.well-known/openid-configuration", Said(200, buildJsonObject { put("issuer", "https://elsewhere.example"); put("token_endpoint", "x"); put("authorization_endpoint", "y") }))
+        assertEquals(SignInErrorCode.Discovery, signInFails(realm).reason)
+    }
+
+    @Test
+    fun anIssuerWhoseDiscoveryFailsIsNoIssuerToSignInAt() = runBlocking {
+        val realm = realm()
+        realm.script("/.well-known/openid-configuration", refusal(503, "unavailable"))
+        val failed = signInFails(realm)
+        assertEquals(SignInErrorCode.Discovery to 503, failed.reason to failed.status)
+    }
+
+    @Test
+    fun aKnowledgeBaseWhoseMetadataFailsSaysNothingOfItsIssuer() = runBlocking {
+        val realm = realm()
+        // A request the gateway answers 500 is made once more, as the transport rule says: both are refused.
+        realm.script("/.well-known/oauth-protected-resource", refusal(500, "broken"), refusal(500, "broken"))
+        assertEquals(SignInErrorCode.Discovery, signInFails(realm).reason)
+    }
+
+    @Test
+    fun anIssuerWithNoDeviceEndpointHasNoDeviceGrant() = runBlocking {
+        val realm = realm()
+        realm.script("/.well-known/openid-configuration", Said(200, buildJsonObject { put("issuer", realm.origin); put("token_endpoint", "${realm.origin}/token"); put("authorization_endpoint", "${realm.origin}/authorize") }))
+        val failed = signInFails(realm)
+        assertEquals(SignInErrorCode.Discovery, failed.reason)
+        assertTrue(failed.message!!.contains("device"), failed.message)
+    }
+
+    @Test
+    fun aRefusedDeviceAuthorizationIsTheSignInsFailure() = runBlocking {
+        val realm = realm()
+        realm.script("/device", refusal(400, "invalid_client"))
+        val failed = signInFails(realm)
+        assertEquals(SignInErrorCode.Exchange to 400, failed.reason to failed.status)
+        assertTrue(failed.message!!.contains("invalid_client"), failed.message)
+    }
+
+    @Test
+    fun aCodeThatExpiresEndsTheSignIn() = runBlocking {
+        val realm = realm()
+        realm.script("/device", devicesCode)
+        realm.script("/token", error("expired_token"))
+        assertEquals(SignInErrorCode.Expired, signInFails(realm).reason)
+    }
+
+    @Test
+    fun anAnswerTheGrantDoesNotKnowEndsTheSignIn() = runBlocking {
+        val realm = realm()
+        realm.script("/device", devicesCode)
+        realm.script("/token", error("invalid_grant"))
+        assertEquals(SignInErrorCode.Exchange, signInFails(realm).reason)
+    }
+
+    @Test
+    fun tokensWithNoRefreshTokenAreNoSignInToKeep() = runBlocking {
+        val realm = realm()
+        realm.script("/device", devicesCode)
+        realm.script("/token", issued(tokenFor("access-1")))
+        val failed = signInFails(realm)
+        assertEquals(SignInErrorCode.Exchange, failed.reason)
+        assertTrue(failed.message!!.contains("no refresh token"), failed.message)
+    }
+
+    private fun kept(realm: Realm, access: String) = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+
+    @Test
+    fun aRenewalTheIssuerRefusesOutrightSaysSoInItsWords() = runBlocking {
+        val realm = realm()
+        realm.script("/token", Said(400, buildJsonObject { put("error", "invalid_grant"); put("error_description", "the refresh token was revoked") }))
+        val failed = assertThrows(SignInError::class.java) { runBlocking { renewKept(kept(realm, tokenFor("access-1")), tokenFor("access-1")) } }
+        assertEquals(400, failed.status)
+        assertTrue(failed.message!!.contains("invalid_grant: the refresh token was revoked"), failed.message)
+    }
+
+    @Test
+    fun aRenewalTheIssuerNeverAnswersIsTriedWithinItsBudgetAndSaysHowOften() = runBlocking {
+        val realm = realm()
+        repeat(4) { realm.script("/token", refusal(503, "unavailable")) }
+        val access = tokenFor("access-1")
+        val failed = assertThrows(SignInError::class.java) { runBlocking { renewKept(kept(realm, access), access) } }
+        assertEquals(4, realm.of("/token").size)
+        assertTrue(failed.message!!.contains("after 4 attempts"), failed.message)
+    }
+
+    @Test
+    fun aServiceWhoseIssuerFailsDiscoveryIsNotSignedIn() = runBlocking {
+        val realm = realm()
+        realm.script("/.well-known/openid-configuration", refusal(502, "bad gateway"))
+        val failed = assertThrows(SignInError::class.java) { runBlocking { ServiceToken(SecretCredential(realm.origin, "worker", "s")).authorization() } }
+        assertEquals(SignInErrorCode.Discovery to 502, failed.reason to failed.status)
+    }
+
+    @Test
+    fun aGrantThatIssuesNoTokenIsNoSignIn() = runBlocking {
+        val realm = realm()
+        realm.script("/token", Said(200, buildJsonObject { put("token_type", "Bearer") }))
+        val failed = assertThrows(SignInError::class.java) { runBlocking { ServiceToken(SecretCredential(realm.origin, "worker", "s")).authorization() } }
+        assertEquals(SignInErrorCode.Exchange, failed.reason)
+    }
+
+    @Test
+    fun aTokenThatSaysNoExpiryIsKeptForTheLifetimeItsGrantStated() = runBlocking {
+        val realm = realm()
+        realm.script("/token", Said(200, buildJsonObject { put("access_token", "opaque-1"); put("expires_in", 3600) }))
+        val token = ServiceToken(SecretCredential(realm.origin, "worker", "s"))
+        assertEquals("Bearer opaque-1", token.authorization())
+        assertEquals("Bearer opaque-1", token.authorizationFuture().get())
+        assertEquals(1, realm.of("/token").size)
+    }
+
+    private fun agent(realm: Realm): AgentToken {
+        realm.script("/token", issued(tokenFor("service-1")))
+        return AgentToken(realm.origin, "anthropic", "claude", ServiceToken(SecretCredential(realm.origin, "worker", "s")))
+    }
+
+    @Test
+    fun anExchangeTheGatewayRefusesIsTheAgentsFailure() = runBlocking {
+        val realm = realm()
+        realm.script("/api/tokens/agent", Said(403, buildJsonObject { put("error", "forbidden") }))
+        agent(realm).use { agent ->
+            val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
+            assertEquals(403, failed.status)
+        }
+    }
+
+    @Test
+    fun anExchangeAnsweredWithNoAgentTokenSaysSoAndNothingOfTheAnswer() = runBlocking {
+        val realm = realm()
+        realm.script("/api/tokens/agent", Said(200, buildJsonObject { put("secret", "not-a-token") }))
+        agent(realm).use { agent ->
+            val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
+            assertTrue(!failed.message!!.contains("not-a-token"), failed.message)
+        }
+    }
+
+    @Test
+    fun anAgentWhoseRefreshFailsKeepsItsTokenAndSaysNone() = runBlocking {
+        val realm = realm()
+        val did = "did:web:kb.example:agents:anthropic:claude"
+        realm.script("/api/tokens/agent", Said(200, buildJsonObject { put("token", "agent-1"); put("did", did) }), Said(503, buildJsonObject { put("error", "down") }))
+        agent(realm).use { agent ->
+            agent.signInFuture().get()
+            assertNull(agent.refresh("agent-1"))
+            assertEquals("agent-1", agent.token.value)
+        }
+    }
+
+    @Test
+    fun aKeptSignInIsReachedFromJavaThroughFutures() {
+        val kept = MemorySignIn()
+        val held = HeldSignIn("access-1", "refresh-1", SCRIPT_CLIENT_ID, "https://issuer.example/token", null)
+        kept.keepFuture(held).get()
+        assertEquals(held, kept.heldFuture().get())
+        assertEquals("access-2", kept.renewedFuture(held, "access-2", "refresh-2").get())
+        kept.forgetFuture().get()
+        assertNull(kept.heldFuture().get())
     }
 }
