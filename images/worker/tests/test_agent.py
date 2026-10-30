@@ -9,18 +9,23 @@ itself over the SDK's doubles (`holding.py`).
 import asyncio
 import logging
 import os
-from typing import Final, NoReturn
+from collections.abc import Sequence
+from contextlib import AbstractAsyncContextManager, nullcontext
+from dataclasses import dataclass, field
+from types import SimpleNamespace
+from typing import Final, NoReturn, Self
 
 import pytest
 from aio import pass_time, run, turns
 from holding import EVERY_JOB, SOURCE, Parties, answering, job
+from semiont.http import SecretCredential, ServiceToken
 from semiont.identifiers import UserId
 from semiont.operations import OPERATIONS
 from semiont.types import WorkerAgentConfig
 from standing_in import GENERATOR
 
 from semiont_worker import agent
-from semiont_worker.agent import WORKER_CHANNELS, Engine, exit_for_restart, run_what_is_claimed, watch_for_a_stall
+from semiont_worker.agent import WORKER_CHANNELS, AgentWorker, Engine, exit_for_restart, run_what_is_claimed, watch_for_a_stall
 
 AGENT: Final = UserId("did:web:test.local:agents:semiont-worker")
 
@@ -284,6 +289,114 @@ def test_engines_on_one_stream_each_claim_with_their_own_filters_and_one_whose_c
             assert not working[1].done()
             await engines[1].stop()
             await asyncio.wait_for(working[1], 5)
+        await parties.transport.close()
+
+    run(scenario())
+
+
+GATEWAY: Final = "http://gateway.test"
+SERVICE: Final = ServiceToken(SecretCredential(issuer="http://issuer.test", client_id="semiont-worker", client_secret="unused"))
+
+
+@dataclass
+class Dialled:
+    """What the agent dialled: the gateway of each sign-in, and the channels of each stream it opened."""
+
+    signed_in: list[str] = field(default_factory=list[str])
+    streams: list[Sequence[str]] = field(default_factory=list[Sequence[str]])
+
+
+def stood_in(monkeypatch: pytest.MonkeyPatch, parties: Parties) -> Dialled:
+    """Stand in for the agent's sign-in and its stream: it is signed in as `AGENT`, and its client is `parties`'s."""
+    dialled = Dialled()
+
+    class SignedIn:
+        did: Final = AGENT
+        token: Final = "issued"
+
+        def __init__(self, gateway: str, *, service: ServiceToken) -> None:
+            dialled.signed_in.append(gateway)
+
+        async def refresh(self) -> str | None:
+            return None
+
+        async def __aenter__(self) -> Self:
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+    def stream(gateway: str, *, token: object, refresher: object, channels: Sequence[str]) -> AbstractAsyncContextManager[SimpleNamespace]:
+        dialled.streams.append(channels)
+        return nullcontext(SimpleNamespace(content=parties.content))
+
+    def client(*_: object) -> object:
+        return parties.client
+
+    monkeypatch.setattr(agent, "AgentToken", SignedIn)
+    monkeypatch.setattr(agent, "HttpTransport", stream)
+    monkeypatch.setattr(agent, "SemiontClient", client)
+    return dialled
+
+
+def test_the_agent_signs_in_once_and_runs_every_engine_over_one_stream_until_it_is_stopped(monkeypatch: pytest.MonkeyPatch) -> None:
+    highlighting, commenting = entry("ollama", "gemma2:27b", "highlighting"), entry("ollama", "llama3", "commenting")
+
+    async def scenario() -> None:
+        parties = Parties()
+        dialled = stood_in(monkeypatch, parties)
+        worker = AgentWorker([(highlighting, answering("[]")), (commenting, answering("[]"))], gateway_url=GATEWAY, service=SERVICE)
+        async with worker:
+            await worker.open()
+            working = asyncio.ensure_future(worker.work())
+            for _ in range(5):
+                await turns()
+            # One sign-in and one stream, whatever the engines; each engine claims with its own filters.
+            assert dialled.signed_in == [GATEWAY]
+            assert dialled.streams == [WORKER_CHANNELS]
+            assert parties.claims == 2
+            vitals = worker.vitals()
+            workers = vitals["workers"]
+            assert vitals["did"] == AGENT
+            assert isinstance(workers, list)
+            assert [(each["provider"], each["model"]) for each in workers if isinstance(each, dict)] == [
+                ("ollama", "gemma2:27b"),
+                ("ollama", "llama3"),
+            ]
+            # Stopped, its work returns.
+            await worker.stop()
+            await asyncio.wait_for(working, 5)
+        await parties.transport.close()
+
+    run(scenario())
+
+
+def test_an_engine_that_cannot_claim_ends_the_agent_s_work_as_itself(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        parties = Parties()
+        parties.claim_refused = {"code": "unauthorized", "message": "This agent is not a worker"}
+        stood_in(monkeypatch, parties)
+        worker = AgentWorker([(entry("ollama", "gemma2:27b", "highlighting"), answering("[]"))], gateway_url=GATEWAY, service=SERVICE)
+        async with worker:
+            await worker.open()
+            with pytest.raises(Left):
+                await asyncio.wait_for(worker.work(), 5)
+        await parties.transport.close()
+
+    leaving(monkeypatch)
+    run(scenario())
+
+
+def test_an_agent_says_nothing_of_itself_before_it_is_signed_in_and_its_stream_is_open(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        parties = Parties()
+        stood_in(monkeypatch, parties)
+        worker = AgentWorker([(entry("ollama", "gemma2:27b", "highlighting"), answering("[]"))], gateway_url=GATEWAY, service=SERVICE)
+        with pytest.raises(RuntimeError, match="not signed in"):
+            await worker.open()
+        async with worker:
+            with pytest.raises(RuntimeError, match="stream is not open"):
+                worker.vitals()
         await parties.transport.close()
 
     run(scenario())
