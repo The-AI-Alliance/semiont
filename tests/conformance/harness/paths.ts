@@ -76,6 +76,8 @@ export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin
 /** The Kotlin SDK's wire driver, laid out by `./gradlew installConformance` in packages/kotlin/sdk. */
 export const KOTLIN_WIRE_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-wire-driver');
 export const KOTLIN_LIVE_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-live-driver');
+/** The Kotlin SDK's worker driver, written in Java over the SDK's Java surface. */
+export const KOTLIN_WORKER_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-worker-driver');
 
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
@@ -109,6 +111,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   kotlin: {
     wire: [KOTLIN_WIRE_DRIVER],
     live: { command: [KOTLIN_LIVE_DRIVER], tier: 'parity' },
+    worker: [KOTLIN_WORKER_DRIVER],
   },
 };
 

@@ -20,7 +20,7 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor
  * (tests/conformance/sdk/README.md): the global OpenTelemetry the SDK tells,
  * with W3C's propagators. Closing it sends the last of it.
  */
-internal fun exporting(): OpenTelemetrySdk? {
+public fun exporting(): OpenTelemetrySdk? {
     val endpoint = System.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")?.trimEnd('/') ?: return null
     val resource = Resource.getDefault().merge(Resource.create(Attributes.of(AttributeKey.stringKey("service.name"), "semiont-conformance-driver")))
     val spans = SdkTracerProvider.builder()
