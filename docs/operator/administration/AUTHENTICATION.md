@@ -240,7 +240,7 @@ This creates one client in the realm, `semiont-worker-alice`. It is the client t
 - its client-credentials grant enabled;
 - its token stamped with the flat `roles` `semiont-service` and `semiont-worker`, and with this knowledge base's audience.
 
-It prints the client id and the gateway's address, to send back. Before anything reaches the realm, it refuses a private key, a key that is not RSA, and the label `local`. If the knowledge base's documents state the gateway at a loopback address, it warns, since a worker on another machine cannot reach one.
+It prints the knowledge base's domain, the client id, the gateway's address, and the `semiont worker kb add` line that adds this knowledge base on the worker's machine, to send back. None of it is secret. Before anything reaches the realm, it refuses a private key, a key that is not RSA, and the label `local`. If the knowledge base's documents state the gateway at a loopback address, it warns, since a worker on another machine cannot reach one.
 
 Granting the same key again changes nothing. A new key under the same label replaces the old one on the same client, so the worker keeps its account, and the subject the knowledge base knows it by.
 
@@ -248,7 +248,7 @@ Granting the same key again changes nothing. A new key under the same label repl
 semiont identity revoke alice
 ```
 
-This deletes that client, and no other. The worker's next sign-in is refused. A token it already holds stays good until it expires, within the realm's access-token lifetime ([Token lifecycle](#token-lifecycle), [Revocation](#revocation)).
+This deletes that client, and no other. The worker's next sign-in is refused, and it stops working for this knowledge base alone. A token it already holds stays good until it expires, within the realm's access-token lifetime ([Token lifecycle](#token-lifecycle), [Revocation](#revocation)).
 
 Both need the realm's bootstrap admin password, as `semiont identity sync` does.
 
@@ -267,7 +267,17 @@ To revoke, delete the client.
 
 ### What the worker's owner does with it
 
-The client id goes into the worker's environment as `SEMIONT_OIDC_CLIENT_ID`, beside its key as `SEMIONT_OIDC_CLIENT_KEY`. The gateway's address goes into its document, with the issuer the gateway names at `/.well-known/oauth-protected-resource` ([the worker's configuration](../../../images/worker/README.md#configuration)). The launcher configures its worker for the knowledge base it starts; a worker serving a knowledge base elsewhere is given its document by hand.
+`semiont identity grant` prints the knowledge base's domain, its gateway's address and the client id, and the line that adds the knowledge base to the worker, to run on the worker's machine:
+
+```bash
+semiont worker kb add kb.example.org --gateway https://kb.example.org --client-id semiont-worker-alice
+```
+
+The launcher takes the issuer from the gateway, which names it at `/.well-known/oauth-protected-resource`, and keeps the knowledge base for the machine, beside the worker's key. Its next `semiont start` runs one worker serving the knowledge base it starts and every one added: at each it signs in as the client that knowledge base's realm holds the key on, with the one key. `semiont worker kb list` shows what is added, and `semiont worker kb remove <domain>` takes one away. The worker offers each the engines the started knowledge base's Inference document gives it, on this machine's provider keys.
+
+A worker started another way is given the same in its document: one `knowledgeBases` entry for each knowledge base, with its domain, its gateway, its issuer and client id, and the engines it offers it ([the worker's configuration](../../../images/worker/README.md#configuration)). Its key is `SEMIONT_OIDC_CLIENT_KEY` in its environment, the same for every knowledge base.
+
+At each knowledge base the worker asks which knowledge base it reached before it claims, and refuses one that answers another domain. A knowledge base that revokes the grant, or that cannot be reached, stops only its own work: the worker keeps working for the others ([Worker Service § Knowledge bases](../../protocol/WORKER-SERVICE.md#knowledge-bases)).
 
 The record names a worker's work by its account, `agents:<subject>`, and the engine it ran in each write's `generator`, so two people's workers running one model are two agents there. What a worker is called is what it says of itself: Semiont's worker says its client id, and readers name it from that.
 

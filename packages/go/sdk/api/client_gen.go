@@ -2159,6 +2159,42 @@ func (e VoyageEmbeddingConfigType) Valid() bool {
 	}
 }
 
+// Defines values for WorkerHealthStatus.
+const (
+	WorkerHealthStatusOk WorkerHealthStatus = "ok"
+)
+
+// Valid indicates whether the value is a known member of the WorkerHealthStatus enum.
+func (e WorkerHealthStatus) Valid() bool {
+	switch e {
+	case WorkerHealthStatusOk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkerKnowledgeBaseHealthState.
+const (
+	WorkerKnowledgeBaseHealthStateRefused  WorkerKnowledgeBaseHealthState = "refused"
+	WorkerKnowledgeBaseHealthStateStarting WorkerKnowledgeBaseHealthState = "starting"
+	WorkerKnowledgeBaseHealthStateWorking  WorkerKnowledgeBaseHealthState = "working"
+)
+
+// Valid indicates whether the value is a known member of the WorkerKnowledgeBaseHealthState enum.
+func (e WorkerKnowledgeBaseHealthState) Valid() bool {
+	switch e {
+	case WorkerKnowledgeBaseHealthStateRefused:
+		return true
+	case WorkerKnowledgeBaseHealthStateStarting:
+		return true
+	case WorkerKnowledgeBaseHealthStateWorking:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for YieldJobCompleteCommandJobType.
 const (
 	YieldJobCompleteCommandJobTypeYield YieldJobCompleteCommandJobType = "yield"
@@ -6718,19 +6754,10 @@ type WeaverConfig struct {
 	Port int `json:"port"`
 }
 
-// WorkerConfig Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its environment: its client id and the RSA key it signs in with. A document that does not validate is refused at boot, naming each failing field.
+// WorkerConfig Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents and the knowledge bases added to this machine's worker (`semiont worker kb add`), and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the key the worker signs in with at every knowledge base is `SEMIONT_OIDC_CLIENT_KEY` in its environment, an RSA private key; each knowledge base names the client that holds its public half there. A document that does not validate is refused at boot, naming each failing field.
 type WorkerConfig struct {
-	// Engines The engines this worker runs, and the jobs it does with each. The worker signs in once, as its own account, and claims each engine's jobs for it. They are the knowledge base's Inference document's engines as they stand, with no fallback, so a job no engine here is used for is not claimed by this worker.
-	Engines []WorkerEngineConfig `json:"engines"`
-
-	// GatewayUrl The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.
-	GatewayUrl string `json:"gatewayUrl"`
-
-	// Identity The issuer the worker's service account signs in at.
-	Identity struct {
-		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
-		Issuer string `json:"issuer"`
-	} `json:"identity"`
+	// KnowledgeBases The knowledge bases this worker does jobs for. At each it signs in, confirms which knowledge base it reached and claims for its engines, apart from every other: one knowledge base's trouble stops that knowledge base's work alone (`docs/protocol/WORKER-SERVICE.md` § Knowledge bases). No two name one `domain`, which the worker refuses at boot.
+	KnowledgeBases []WorkerKnowledgeBaseConfig `json:"knowledgeBases"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`
@@ -6759,6 +6786,91 @@ type WorkerEngineConfig struct {
 	// Jobs The jobs the worker claims to do with this engine, as a claim names them (`job:claim`'s `accepts`): it claims with these filters and no other.
 	Jobs []JobFilter `json:"jobs"`
 }
+
+// WorkerEngineHealth One engine at one knowledge base: which it is, the jobs it claims, and what its claims can say of themselves (WORKER-CONTRACT V1).
+type WorkerEngineHealth struct {
+	// ActiveJob The job it holds, or null.
+	ActiveJob *struct {
+		// JobId A job's id. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
+		JobId JobId `json:"jobId"`
+
+		// Since When it was handed the job.
+		Since string `json:"since"`
+
+		// Type What a job does, as the verb that asks for it: `mark` annotates a resource, `yield` makes one. A job description is its `jobType` and the parameters that verb takes; a `mark` job's parameters state its motivation.
+		Type JobType `json:"type"`
+	} `json:"activeJob"`
+
+	// Engine An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+	Engine Engine `json:"engine"`
+
+	// Jobs The jobs it claims, as its claims state them.
+	Jobs []JobFilter `json:"jobs"`
+
+	// JobsCompleted How many jobs it has completed since the service started.
+	JobsCompleted int `json:"jobsCompleted"`
+
+	// LastActivityAt When it was last active, or null.
+	LastActivityAt *string `json:"lastActivityAt"`
+
+	// LastClaimAt When it was last handed a job, or null. A claim answered with none pending is not one.
+	LastClaimAt *string `json:"lastClaimAt"`
+
+	// LastFinishedAt When a job it held last settled, or null.
+	LastFinishedAt *string `json:"lastFinishedAt"`
+
+	// LastQueuedEventAt When a `job:queued` last reached it, or null.
+	LastQueuedEventAt *string `json:"lastQueuedEventAt"`
+}
+
+// WorkerHealth The Worker service's health answer (WORKER-SERVICE H1). It answers only once a knowledge base of its document is confirmed, so a 200 means it is working somewhere.
+type WorkerHealth struct {
+	// KnowledgeBases One entry for each of the document's `knowledgeBases`, in its order.
+	KnowledgeBases []WorkerKnowledgeBaseHealth `json:"knowledgeBases"`
+	Status         WorkerHealthStatus          `json:"status"`
+}
+
+// WorkerHealthStatus defines model for WorkerHealth.Status.
+type WorkerHealthStatus string
+
+// WorkerKnowledgeBaseConfig One knowledge base a worker does jobs for: which it is, where its gateway is, the account the worker signs in as there, and the engines it offers it. The worker signs in, confirms the knowledge base and claims at each knowledge base apart from every other.
+type WorkerKnowledgeBaseConfig struct {
+	// Domain The knowledge base's did:web domain, as it answers `browse:kb-requested`: which knowledge base this is. The worker confirms it there before it claims, and refuses a knowledge base that answers another domain, or none.
+	Domain string `json:"domain"`
+
+	// Engines The engines the worker offers this knowledge base, and the jobs it does with each: its own choice, on its own providers' keys. It claims each engine's jobs there for it, so a job no engine here is used for is not claimed at this knowledge base.
+	Engines []WorkerEngineConfig `json:"engines"`
+
+	// GatewayUrl The URL the worker reaches the knowledge base's gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Identity Where the worker signs in for this knowledge base, and as which client.
+	Identity struct {
+		// ClientId The client the issuer holds the public half of the worker's key on: the worker's account at this knowledge base. It is also what the worker says it is called there (`principal:profile`).
+		ClientId string `json:"clientId"`
+
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+}
+
+// WorkerKnowledgeBaseHealth One knowledge base the worker serves, as its health says it. `did` and `engines` are there while it is `working`, and only then.
+type WorkerKnowledgeBaseHealth struct {
+	// Did The agent's DID at this knowledge base, as its gateway named it.
+	Did *string `json:"did,omitempty"`
+
+	// Domain The entry's `domain`.
+	Domain string `json:"domain"`
+
+	// Engines One entry for each of the entry's engines, in its order.
+	Engines *[]WorkerEngineHealth `json:"engines,omitempty"`
+
+	// State `starting`: signing in, opening its stream, confirming it, or waiting to start again. `working`: confirmed, its engines claiming. `refused`: refused, until the service is started again.
+	State WorkerKnowledgeBaseHealthState `json:"state"`
+}
+
+// WorkerKnowledgeBaseHealthState `starting`: signing in, opening its stream, confirming it, or waiting to start again. `working`: confirmed, its engines claiming. `refused`: refused, until the service is started again.
+type WorkerKnowledgeBaseHealthState string
 
 // YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored by the upload path BEFORE this command is emitted, because bytes travel over HTTP and never over the bus — the command carries the storage coordinates, never content.
 type YieldCloneCreateCommand struct {

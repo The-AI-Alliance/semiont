@@ -1,30 +1,29 @@
 /**
- * A worker that has started (WORKER-SERVICE.md § The agent, § Health): the
- * one sign-in it makes as its account, the one stream it opens, what it says
- * it is called, the filters each engine claims with, the engine a job is run
- * on and who it is attributed to, and what `GET /health` answers.
+ * A worker that has started at the one knowledge base it serves
+ * (WORKER-SERVICE.md § The agent, § Health): the one sign-in it makes as its
+ * account there, the one stream it opens, what it says it is called once the
+ * knowledge base is confirmed, the filters each engine claims with, the
+ * engine a job is run on and who it is attributed to, and what `GET /health`
+ * answers.
  */
 import { expect, it } from 'vitest';
 import { marks, YIELDS } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
 import { operationFor } from '../harness/spec';
 import { eachWorkerService, WORKER_CLIENT, WORKER_ROLES, type Engine, type JobFilter, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
-import { expectGenerations, FORMATS, generation, identity, markJob, settled, TEXT, textAnnotation, withoutCreated } from './support';
+import { expectGenerations, FORMATS, generation, health, identity, IDLE, markJob, settled, TEXT, textAnnotation, withoutCreated } from './support';
 
-/** The reply channels of the operations a worker awaits, and the two broadcasts it reads. */
+/** The reply channels of the operations a worker awaits, among them the question of which knowledge base it reached, and the two broadcasts it reads. */
 const replies = (operation: string): string[] => {
   const { result, failure } = operationFor(operation);
   return [result, failure];
 };
 const namedByAWorker = (): string[] =>
   [
-    ...['job:claim', 'mark:commit', 'browse:annotation-requested', 'browse:resource-requested'].flatMap(replies),
+    ...['job:claim', 'mark:commit', 'browse:annotation-requested', 'browse:resource-requested', 'browse:kb-requested'].flatMap(replies),
     'job:queued',
     'job:cancel-requested',
   ].sort();
-
-/** What an idle engine that has done nothing says of itself. */
-const IDLE = { lastQueuedEventAt: null, lastClaimAt: null, lastFinishedAt: null, lastActivityAt: null, activeJob: null, jobsCompleted: 0 };
 
 const instant = (value: unknown): boolean => typeof value === 'string' && new Date(value).toISOString() === value;
 
@@ -43,11 +42,20 @@ const byModel = <T extends { model: unknown }>(entries: T[]): T[] => [...entries
 const byFilters = <T extends { accepts: unknown }>(entries: T[]): T[] => [...entries].sort((a, b) => (JSON.stringify(a.accepts) < JSON.stringify(b.accepts) ? -1 : 1));
 
 eachWorkerService('a started worker', (world) => {
-  it('signs in once, as its account, and is named by the gateway as that account', async () => {
+  it('signs in once, as the client its document names, and is named by the gateway as that account', async () => {
     const w = world();
     const grants = w.world.issuer.grants.get(WORKER_CLIENT) ?? 0;
     const { served } = await twoEngines(w);
     // One grant of its account, and one question of the gateway, whatever the engines it runs.
+    expect(served.signIns().map(({ did }) => did)).toEqual([w.did]);
+    expect(w.world.issuer.grants.get(WORKER_CLIENT) ?? 0).toBe(grants + 1);
+  });
+
+  it('reads the client it signs in as from its document alone, whatever its environment says', async () => {
+    const w = world();
+    const grants = w.world.issuer.grants.get(WORKER_CLIENT) ?? 0;
+    // A client the issuer does not hold: a worker that signed in as it would be refused.
+    const served = await w.start({ unlisted: { SEMIONT_OIDC_CLIENT_ID: 'semiont-worker-of-the-environment' } });
     expect(served.signIns().map(({ did }) => did)).toEqual([w.did]);
     expect(w.world.issuer.grants.get(WORKER_CLIENT) ?? 0).toBe(grants + 1);
   });
@@ -80,29 +88,36 @@ eachWorkerService('a started worker', (world) => {
     );
   });
 
-  it('says it is called by its client id, once, as itself, when it opens its stream and before it claims', async () => {
+  it('says it is called by the client its document names, once, as itself, once the knowledge base is confirmed and before it claims', async () => {
     const w = world();
     const { served } = await twoEngines(w);
     expect(served.emits('principal:profile').map(({ by, payload, scope, status }) => ({ by, payload, scope, status }))).toEqual([
       { by: w.did, payload: { name: WORKER_CLIENT }, scope: undefined, status: 202 },
     ]);
-    const said = served.emits().map(({ channel }) => channel);
-    expect(said).toContain('job:claim');
-    expect(said.indexOf('principal:profile')).toBeLessThan(said.indexOf('job:claim'));
+    // It asked which knowledge base this is, had the answer on its stream, and only then said what it is called, and then claimed.
+    const [asked] = served.emits('browse:kb-requested');
+    const answer = served.carried('browse:kb-result').find((c) => c.frame.correlationId === asked!.correlationId);
+    const [profile] = served.emits('principal:profile');
+    const [claim] = served.emits('job:claim');
+    expect(answer?.frame.payload['response']).toEqual({ name: w.world.kb.name, domain: w.domain });
+    expect([asked!.arrived < answer!.at, answer!.at < profile!.arrived, profile!.arrived < claim!.arrived]).toEqual([true, true, true]);
   });
 
-  it('answers GET /health, without a token, with who it is, its engines and what each can say of itself', async () => {
+  it('answers GET /health, without a token, with its knowledge base, working there, who it is there, its engines and what each can say of itself', async () => {
     const w = world();
     const { served, first, second, jobs } = await twoEngines(w);
-    const health = await served.process.http('GET', '/health');
-    expect(health.status).toBe(200);
-    expect(health.headers.get('content-type')).toMatch(/^application\/json/);
-    expect(health.json).toEqual({
+    expect(await health(served.process)).toEqual({
       status: 'ok',
-      did: w.did,
-      engines: [
-        { provider: first.provider, model: first.model, jobs: jobs[0], ...IDLE },
-        { provider: second.provider, model: second.model, jobs: jobs[1], ...IDLE },
+      knowledgeBases: [
+        {
+          domain: w.domain,
+          state: 'working',
+          did: w.did,
+          engines: [
+            { engine: { provider: first.provider, model: first.model }, jobs: jobs[0], ...IDLE },
+            { engine: { provider: second.provider, model: second.model }, jobs: jobs[1], ...IDLE },
+          ],
+        },
       ],
     });
   });
@@ -120,11 +135,11 @@ eachWorkerService('a started worker', (world) => {
   it('matches /health without its query string, and answers it by GET alone', async () => {
     const w = world();
     const { served } = await twoEngines(w);
-    const plain = await served.process.http('GET', '/health');
+    const plain = await health(served.process);
     for (const path of ['/health?probe=1', '/health?']) {
       const reply = await served.process.http('GET', path);
       expect(reply.status, path).toBe(200);
-      expect(reply.json, path).toEqual(plain.json);
+      expect(reply.json, path).toEqual(plain);
     }
     // A query string is no part of another path either.
     expect((await served.process.http('GET', '/healthz?probe=1')).status).toBe(404);
@@ -140,8 +155,8 @@ eachWorkerService('a started worker', (world) => {
     const engine = w.engines[0]!;
     const served = await w.start();
     await eventually('the engine to have claimed', 15_000, () => (w.claims.length >= 1 ? true : undefined));
-    const vitals = async () => ((await served.process.http('GET', '/health')).json as { engines: Array<Record<string, unknown>> }).engines[0]!;
-    expect(await vitals()).toEqual({ provider: engine.provider, model: engine.model, jobs: served.process.settings.engines[0]!.jobs, ...IDLE });
+    const vitals = async () => (await health(served.process)).knowledgeBases[0]!.engines![0]!;
+    expect(await vitals()).toEqual({ engine: { provider: engine.provider, model: engine.model }, jobs: served.process.settings.knowledgeBases[0]!.engines[0]!.jobs, ...IDLE });
 
     // A job is announced: the engine claims it, and holds it while its model is silent.
     const job = markJob(w, 'held', { motivation: 'highlighting' });
@@ -149,18 +164,18 @@ eachWorkerService('a started worker', (world) => {
     await w.announce(job);
     await w.ollama.asked(1);
     const holding = await vitals();
-    expect(holding['activeJob']).toEqual({ jobId: job.metadata.id, type: 'mark', since: expect.any(String) });
-    expect(instant((holding['activeJob'] as { since: unknown }).since)).toBe(true);
-    for (const stamp of ['lastQueuedEventAt', 'lastClaimAt', 'lastActivityAt']) expect(instant(holding[stamp]), stamp).toBe(true);
-    expect(holding['lastFinishedAt']).toBeNull();
-    expect(holding['jobsCompleted']).toBe(0);
+    expect(holding.activeJob).toEqual({ jobId: job.metadata.id, type: 'mark', since: expect.any(String) });
+    expect(instant(holding.activeJob!.since)).toBe(true);
+    for (const stamp of ['lastQueuedEventAt', 'lastClaimAt', 'lastActivityAt'] as const) expect(instant(holding[stamp]), stamp).toBe(true);
+    expect(holding.lastFinishedAt).toBeNull();
+    expect(holding.jobsCompleted).toBe(0);
 
     w.ollama.release({ response: '[]' });
     await settled(served, job);
     const after = await vitals();
-    expect(after['activeJob']).toBeNull();
-    expect(after['jobsCompleted']).toBe(1);
-    expect(instant(after['lastFinishedAt'])).toBe(true);
+    expect(after.activeJob).toBeNull();
+    expect(after.jobsCompleted).toBe(1);
+    expect(instant(after.lastFinishedAt)).toBe(true);
   });
 
   it('runs each job on the engine whose claim took it, and attributes what it makes to the agent and that engine', async () => {

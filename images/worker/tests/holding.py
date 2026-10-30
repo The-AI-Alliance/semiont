@@ -5,9 +5,10 @@ stream names and no others (`WORKER_CHANNELS`): a request whose reply those
 channels could not carry is refused where it is made, so every test that
 runs a job here also holds that the worker's stream names what the worker
 awaits. The test plays the dispatcher and the record by what it gives
-`Parties`, and the gateway by what it seeds on `Parties.content`: a
-resource's bytes, and the Smelter's text of a PDF. It reads back everything
-the worker sent, and every read the worker made of the gateway.
+`Parties`, the Archivist by the domain it says the knowledge base is, and the
+gateway by what it seeds on `Parties.content`: a resource's bytes, and the
+Smelter's text of a PDF. It reads back everything the worker sent, and every
+read the worker made of the gateway.
 """
 
 import asyncio
@@ -37,6 +38,9 @@ EVERY_JOB: Final[list[JobFilter]] = [
     MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="tagging")),
     YieldJobFilter(job_type="yield"),
 ]
+
+DOMAIN: Final = "test.local"
+"""The domain the knowledge base says it is, unless a test says another."""
 
 TEXT: Final = "Ada Lovelace published the first program in 1843. Charles Babbage designed the engine in London.\n"
 
@@ -72,9 +76,11 @@ def job(job_id: str, job_type: str, params: Mapping[str, JsonValue], **metadata:
 
 @final
 class Parties:
-    """The dispatcher and the record as a test scripts them, the gateway's content as it seeds it, and everything the worker sent."""
+    """The dispatcher, the record and the Archivist as a test scripts them, the gateway's content as seeded, and all the worker sent."""
 
     def __init__(self) -> None:
+        self.domain: str | None = DOMAIN
+        """The domain the knowledge base answers `browse:kb-requested` with: `None` where it answers `browse:kb-failed`."""
         self.queue: Final[deque[dict[str, JsonValue]]] = deque()
         """Jobs waiting to be claimed. A claim with none waiting is answered that nothing is pending."""
         self.descriptors: Final[dict[str, JsonValue]] = {}
@@ -115,6 +121,8 @@ class Parties:
                 return self.claim_refused
             case "job:claim" if not self.queue:
                 return {"code": "none-pending", "message": "No pending job matches"}
+            case "browse:kb-requested" if self.domain is None:
+                return {"message": "This knowledge base declares no domain"}
             case "browse:resource-requested" if payload.get("resourceId") not in self.descriptors:
                 return {"code": "not-found", "message": f"Resource not found: {payload.get('resourceId')}"}
             case "mark:commit" if self.commit_refused is not None:
@@ -127,6 +135,8 @@ class Parties:
         match operation:
             case "job:claim":
                 return self.queue.popleft()
+            case "browse:kb-requested":
+                return {"name": "A knowledge base", "domain": self.domain}
             case "browse:resource-requested":
                 assert isinstance(resource_id, str)
                 return {"resource": self.descriptors[resource_id], "lastSequence": 1}

@@ -21,9 +21,10 @@ from semiont.types import WeaverConfig, WorkerConfig
 
 from semiont_service.config import Refused, config_path_of, key_account_of, read_config, service_account_of, set_in
 
-DOCUMENT: Final[dict[str, JsonValue]] = {
+KNOWLEDGE_BASE: Final[dict[str, JsonValue]] = {
+    "domain": "kb.example",
     "gatewayUrl": "http://gateway:4000",
-    "identity": {"issuer": "http://issuer:8080/realms/semiont"},
+    "identity": {"issuer": "http://issuer:8080/realms/semiont", "clientId": "semiont-worker"},
     "engines": [
         {
             "engine": {"provider": "anthropic", "model": "claude-test"},
@@ -33,6 +34,10 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
         },
         {"engine": {"provider": "ollama", "model": "gemma2:27b"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama:11434"},
     ],
+}
+
+DOCUMENT: Final[dict[str, JsonValue]] = {
+    "knowledgeBases": [KNOWLEDGE_BASE],
     "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "port": 24100,
     "logLevel": "info",
@@ -56,6 +61,16 @@ def written(tmp_path: Path, document: object) -> str:
 
 def changed(**members: JsonValue) -> dict[str, JsonValue]:
     return {**DOCUMENT, **members}
+
+
+def changed_at_the_knowledge_base(**members: JsonValue) -> dict[str, JsonValue]:
+    """The document, with these members of its one knowledge base changed."""
+    return changed(knowledgeBases=[{**KNOWLEDGE_BASE, **members}])
+
+
+def without_at_the_knowledge_base(member: str) -> dict[str, JsonValue]:
+    """The document, with its one knowledge base lacking `member`."""
+    return changed(knowledgeBases=[{name: value for name, value in KNOWLEDGE_BASE.items() if name != member}])
 
 
 def read(path: str) -> WorkerConfig:
@@ -94,8 +109,11 @@ def test_a_flag_with_no_path_does_not_hide_one_named_after_it() -> None:
 def test_the_document_is_read_as_the_protocol_s_shape(tmp_path: Path) -> None:
     config = read(written(tmp_path, DOCUMENT))
     assert config == WorkerConfig.model_validate(DOCUMENT)
-    assert (config.gateway_url, config.port, config.log_level, config.log_format) == ("http://gateway:4000", 24100, "info", "json")
-    assert [(entry.engine.provider, entry.engine.model, entry.api_key_env) for entry in config.engines] == [
+    assert (config.port, config.log_level, config.log_format) == (24100, "info", "json")
+    (knowledge_base,) = config.knowledge_bases
+    assert (knowledge_base.domain, knowledge_base.gateway_url) == ("kb.example", "http://gateway:4000")
+    assert (knowledge_base.identity.issuer, knowledge_base.identity.client_id) == ("http://issuer:8080/realms/semiont", "semiont-worker")
+    assert [(entry.engine.provider, entry.engine.model, entry.api_key_env) for entry in knowledge_base.engines] == [
         ("anthropic", "claude-test", "ANTHROPIC_API_KEY"),
         ("ollama", "gemma2:27b", None),
     ]
@@ -130,11 +148,19 @@ def test_bytes_that_are_no_text_are_refused_as_not_json(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("member", "document"),
     [
-        ("gatewayUrl", {name: value for name, value in DOCUMENT.items() if name != "gatewayUrl"}),
+        ("knowledgeBases", {name: value for name, value in DOCUMENT.items() if name != "knowledgeBases"}),
         ("port", {name: value for name, value in DOCUMENT.items() if name != "port"}),
-        ("issuer", changed(identity={})),
-        ("jobs", changed(engines=[{"engine": {"provider": "ollama", "model": "m"}, "baseUrl": "http://ollama"}])),
-        ("model", changed(engines=[{"engine": {"provider": "ollama"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama"}])),
+        ("domain", without_at_the_knowledge_base("domain")),
+        ("gatewayUrl", without_at_the_knowledge_base("gatewayUrl")),
+        ("issuer", changed_at_the_knowledge_base(identity={"clientId": "semiont-worker"})),
+        ("clientId", changed_at_the_knowledge_base(identity={"issuer": "http://issuer:8080/realms/semiont"})),
+        ("jobs", changed_at_the_knowledge_base(engines=[{"engine": {"provider": "ollama", "model": "m"}, "baseUrl": "http://ollama"}])),
+        (
+            "model",
+            changed_at_the_knowledge_base(
+                engines=[{"engine": {"provider": "ollama"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama"}]
+            ),
+        ),
     ],
 )
 def test_a_member_the_document_lacks_is_named_on_a_line_of_its_own(tmp_path: Path, member: str, document: dict[str, JsonValue]) -> None:
@@ -156,9 +182,9 @@ def test_every_reason_is_said_and_not_the_first_alone(tmp_path: Path) -> None:
 
 def test_a_member_is_known_by_the_name_the_document_gives_it_and_by_no_other(tmp_path: Path) -> None:
     # The SDK's shapes are built in Python by Python's names. A document is held to the wire's.
-    renamed = {("gateway_url" if name == "gatewayUrl" else name): value for name, value in DOCUMENT.items()}
+    renamed = {("knowledge_bases" if name == "knowledgeBases" else name): value for name, value in DOCUMENT.items()}
     reasons = refusal_of(tmp_path, renamed).split("\n")[1:]
-    assert reasons == ["  Missing required property: gatewayUrl"]
+    assert reasons == ["  Missing required property: knowledgeBases"]
 
 
 @pytest.mark.parametrize(
@@ -169,13 +195,17 @@ def test_a_member_is_known_by_the_name_the_document_gives_it_and_by_no_other(tmp
         (changed(port=True), "port"),
         (changed(port=0), "port"),
         (changed(port=70000), "port"),
-        (changed(gatewayUrl=""), "gatewayUrl"),
-        (changed(gatewayUrl=4000), "gatewayUrl"),
         (changed(logLevel="verbose"), "logLevel"),
         (changed(logFormat="pretty"), "logFormat"),
-        (changed(engines=[]), "engines"),
-        (changed(engines={}), "engines"),
-        (changed(identity="http://issuer"), "identity"),
+        (changed(knowledgeBases=[]), "knowledgeBases"),
+        (changed(knowledgeBases={}), "knowledgeBases"),
+        (changed_at_the_knowledge_base(domain=""), "knowledgeBases[0].domain"),
+        (changed_at_the_knowledge_base(gatewayUrl=""), "knowledgeBases[0].gatewayUrl"),
+        (changed_at_the_knowledge_base(gatewayUrl=4000), "knowledgeBases[0].gatewayUrl"),
+        (changed_at_the_knowledge_base(engines=[]), "knowledgeBases[0].engines"),
+        (changed_at_the_knowledge_base(engines={}), "knowledgeBases[0].engines"),
+        (changed_at_the_knowledge_base(identity="http://issuer"), "knowledgeBases[0].identity"),
+        (changed_at_the_knowledge_base(identity={"issuer": "http://issuer", "clientId": ""}), "knowledgeBases[0].identity.clientId"),
     ],
 )
 def test_a_value_that_is_not_the_kind_the_schema_states_is_refused_naming_its_member(
@@ -188,9 +218,13 @@ def test_a_value_that_is_not_the_kind_the_schema_states_is_refused_naming_its_me
 
 def test_a_member_inside_an_engine_is_named_by_its_place_in_the_document(tmp_path: Path) -> None:
     second: dict[str, JsonValue] = {**DOCUMENT_ENGINE, "jobs": [], "apiKey": "hunter2-not-a-name"}
-    reasons = refusal_of(tmp_path, changed(engines=[DOCUMENT_ENGINE, second])).split("\n")[1:]
-    assert sorted(reason.split(": ", 1)[0] for reason in reasons) == ["  engines[1]", "  engines[1].jobs"]
-    assert "  engines[1]: unknown property apiKey" in reasons
+    document = changed(knowledgeBases=[KNOWLEDGE_BASE, {**KNOWLEDGE_BASE, "domain": "other.example", "engines": [DOCUMENT_ENGINE, second]}])
+    reasons = refusal_of(tmp_path, document).split("\n")[1:]
+    assert sorted(reason.split(": ", 1)[0] for reason in reasons) == [
+        "  knowledgeBases[1].engines[1]",
+        "  knowledgeBases[1].engines[1].jobs",
+    ]
+    assert "  knowledgeBases[1].engines[1]: unknown property apiKey" in reasons
 
 
 SECRET: Final = "sk-conformance-0123456789abcdef"
@@ -200,17 +234,25 @@ SECRET: Final = "sk-conformance-0123456789abcdef"
     "document",
     [
         # A key written where a member the schema does not have was invented for it.
-        changed(engines=[{**DOCUMENT_ENGINE, "apiKey": SECRET}]),
+        changed_at_the_knowledge_base(engines=[{**DOCUMENT_ENGINE, "apiKey": SECRET}]),
+        changed_at_the_knowledge_base(apiKey=SECRET),
         # A value of every wrong kind, each of them the secret.
         changed(port=SECRET),
         changed(logLevel=SECRET),
         changed(logFormat=SECRET),
-        changed(identity=SECRET),
-        changed(engines=SECRET),
-        changed(engines=[SECRET]),
-        changed(engines=[{"engine": {"provider": SECRET, "model": "m"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama"}]),
-        changed(engines=[{"engine": {"provider": "ollama", "model": "m"}, "jobs": [{"jobType": SECRET}], "baseUrl": "http://ollama"}]),
-        changed(
+        changed(knowledgeBases=SECRET),
+        changed(knowledgeBases=[SECRET]),
+        changed_at_the_knowledge_base(identity=SECRET),
+        changed_at_the_knowledge_base(identity={"issuer": SECRET, "clientId": 7}),
+        changed_at_the_knowledge_base(engines=SECRET),
+        changed_at_the_knowledge_base(engines=[SECRET]),
+        changed_at_the_knowledge_base(
+            engines=[{"engine": {"provider": SECRET, "model": "m"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama"}]
+        ),
+        changed_at_the_knowledge_base(
+            engines=[{"engine": {"provider": "ollama", "model": "m"}, "jobs": [{"jobType": SECRET}], "baseUrl": "http://ollama"}]
+        ),
+        changed_at_the_knowledge_base(
             engines=[
                 {
                     "engine": {"provider": "ollama", "model": "m"},
@@ -230,8 +272,8 @@ def test_no_refusal_repeats_a_value_the_document_held(tmp_path: Path, document: 
 
 def test_a_filter_that_states_no_job_type_the_protocol_has_is_refused_by_what_was_expected(tmp_path: Path) -> None:
     engine: dict[str, JsonValue] = {**DOCUMENT_ENGINE, "jobs": [{"jobType": "smelt"}]}
-    (reason,) = refusal_of(tmp_path, changed(engines=[engine])).split("\n")[1:]
-    assert reason.startswith("  engines[0].jobs[0]: ")
+    (reason,) = refusal_of(tmp_path, changed_at_the_knowledge_base(engines=[engine])).split("\n")[1:]
+    assert reason.startswith("  knowledgeBases[0].engines[0].jobs[0]: ")
     assert "smelt" not in reason
 
 
@@ -294,30 +336,28 @@ _PKCS1: Final = _KEY.private_bytes(
 ).decode()
 
 
-def test_a_key_account_is_the_client_id_and_the_rsa_key_its_variable_holds() -> None:
-    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)}
-    credential = key_account_of("worker", ISSUER, environment)
-    assert (credential.issuer, credential.client_id) == (ISSUER, "semiont-worker")
-    assert credential.private_key.private_numbers() == _KEY.private_numbers()
-    assert _pem(_KEY) not in repr(credential)
+def test_a_key_account_is_the_documents_client_proven_by_the_rsa_key_its_variable_holds_and_no_client_id_is_read() -> None:
+    # Which client holds the key's public half is each knowledge base's to say, in the document.
+    account = key_account_of(
+        "worker", "https://auth.example.org/realms/kb", "semiont-worker-alice", {"SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)}
+    )
+    assert (account.issuer, account.client_id) == ("https://auth.example.org/realms/kb", "semiont-worker-alice")
+    assert account.private_key.private_numbers() == _KEY.private_numbers()
 
 
-@pytest.mark.parametrize("variable", ["SEMIONT_OIDC_CLIENT_ID", "SEMIONT_OIDC_CLIENT_KEY"])
 @pytest.mark.parametrize("left", ["unset", "empty"])
-def test_either_variable_of_a_key_account_unset_or_empty_is_refused_by_name(variable: str, left: str) -> None:
-    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)}
-    if left == "unset":
-        del environment[variable]
-    else:
-        environment[variable] = ""
+def test_the_key_unset_or_empty_is_refused_by_name(left: str) -> None:
+    environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker"} if left == "unset" else {"SEMIONT_OIDC_CLIENT_KEY": ""}
     with pytest.raises(Refused) as refused:
-        key_account_of("worker", ISSUER, environment)
-    assert str(refused.value) == f"{variable} is not set in the worker's environment: a worker signs in as a service account"
+        key_account_of("worker", ISSUER, "semiont-worker", environment)
+    assert str(refused.value) == "SEMIONT_OIDC_CLIENT_KEY is not set in the worker's environment: a worker signs in as a service account"
 
 
-def test_a_secret_is_no_key_account() -> None:
+def test_a_secret_is_no_key() -> None:
     with pytest.raises(Refused, match=r"^SEMIONT_OIDC_CLIENT_KEY is not set in the worker's environment"):
-        key_account_of("worker", ISSUER, {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"})
+        key_account_of(
+            "worker", ISSUER, "semiont-worker", {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+        )
 
 
 @pytest.mark.parametrize(
@@ -332,7 +372,7 @@ def test_a_secret_is_no_key_account() -> None:
 )
 def test_a_key_that_is_not_an_unencrypted_rsa_key_is_refused_and_never_said(held: str, saying: str) -> None:
     with pytest.raises(Refused) as refused:
-        key_account_of("worker", ISSUER, {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_KEY": held})
+        key_account_of("worker", ISSUER, "semiont-worker", {"SEMIONT_OIDC_CLIENT_KEY": held})
     assert str(refused.value) == f"SEMIONT_OIDC_CLIENT_KEY in the worker's environment {saying}"
     assert held not in str(refused.value)
     assert refused.value.__cause__ is None

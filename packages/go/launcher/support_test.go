@@ -96,7 +96,7 @@ func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
 	const pemValue = "-----BEGIN PRIVATE KEY-----\nMIIEvQ==\n-----END PRIVATE KEY-----\n"
 	argv, env := offCommandLine([]string{"run",
 		"--env", "OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318",
-		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-worker-local",
+		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-smelter",
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET=s3cret",
 		"--env", "SEMIONT_OIDC_CLIENT_KEY=" + pemValue,
 		"--env", "JWT_SECRET=jwt-value",
@@ -104,7 +104,7 @@ func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
 		"-e", "POSTGRES_PASSWORD=pg-value",
 	})
 	got := strings.Join(argv, " ")
-	for _, shown := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318", "SEMIONT_OIDC_CLIENT_ID=semiont-worker-local"} {
+	for _, shown := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318", "SEMIONT_OIDC_CLIENT_ID=semiont-smelter"} {
 		if !strings.Contains(got, shown) {
 			t.Errorf("%s was hidden:\n%s", shown, got)
 		}

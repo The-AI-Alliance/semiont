@@ -206,31 +206,35 @@ func (f fileBackend) get(u *UI, name string) (string, bool) {
 	return strings.TrimSpace(string(b)), true
 }
 
-// put writes one value to its own 0600 file, atomically. Not best-effort,
-// unlike saveRootMeta: a value we failed to keep would be a DIFFERENT value
-// next start, and the resulting failures are far harder to diagnose than this
-// error.
+// put writes one value to its own file, kept to its owner (writeOwnerOnly).
+// Not best-effort, unlike saveRootMeta: a value we failed to keep would be a
+// DIFFERENT value next start, and the resulting failures are far harder to
+// diagnose than this error.
 func (f fileBackend) put(u *UI, name, value string) bool {
-	p := f.where(name)
-	if err := os.MkdirAll(f.dir, 0o755); err != nil {
-		u.Fail("Creating %s: %v", f.dir, err)
-		return false
-	}
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, []byte(value+"\n"), 0o600); err != nil {
-		u.Fail("Writing %s: %v", p, err)
-		return false
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		u.Fail("Writing %s: %v", p, err)
-		return false
-	}
-	if err := ownerOnlyFile(p); err != nil {
-		u.Fail("Keeping %s to its owner: %v", p, err)
+	if err := writeOwnerOnly(f.where(name), []byte(value+"\n")); err != nil {
+		u.Fail("Keeping %s: %v", f.where(name), err)
 		return false
 	}
 	return true
+}
+
+// writeOwnerOnly writes b to path atomically, a temporary file renamed over
+// it, and keeps the file to its owner: mode 0600, and on Windows its access
+// list (ownerOnlyFile). What the launcher keeps this way no reader ever sees
+// half of.
+func writeOwnerOnly(path string, b []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return ownerOnlyFile(path)
 }
 
 func (f fileBackend) remove(u *UI, name string) bool {
