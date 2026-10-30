@@ -15,6 +15,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
@@ -258,5 +259,152 @@ class SignInStoreTest {
             changed.get(10, TimeUnit.SECONDS)
         }
         assertEquals(1, SignInStore(path).read().getValue("n").jsonPrimitive.int)
+    }
+
+    // ── What the store keeps, as the launcher keeps it ───────────────────
+
+    private fun signedIn(n: Int, email: String = "alice@example.org"): String {
+        val now = System.currentTimeMillis() / 1000
+        return jwt(buildJsonObject {
+            put("email", email)
+            put("iss", ISSUER)
+            put("exp", now + 3600)
+            put("jti", "access-$n")
+        })
+    }
+
+    private fun held(access: String, refresh: String = "refresh-1", revocation: String? = "$ISSUER/revoke") =
+        HeldSignIn(access, refresh, SCRIPT_CLIENT_ID, "$ISSUER/token", revocation)
+
+    private fun entryOf(path: Path, key: String): JsonObject = SignInStore(path).read().getValue(key).jsonObject
+
+    @Test
+    fun theEntryThisSdkWritesIsTheSchemas() {
+        val schema = Spec.read("sign-in-store/SignIn.json").jsonObject
+        val descriptor = semiont.types.SignIn.serializer().descriptor
+        val written = (0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet()
+        assertEquals(schema.getValue("properties").jsonObject.keys, written)
+        val required = (0 until descriptor.elementsCount).filter { !descriptor.isElementOptional(it) }.map { descriptor.getElementName(it) }.toSet()
+        assertEquals(schema.getValue("required").jsonArray.map { it.jsonPrimitive.content }.toSet(), required)
+    }
+
+    @Test
+    fun aStoreWhoseFileIsNotThereHoldsNothingAndReadingItMakesNothing(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve("state").resolve(FILE_NAME)
+        assertEquals(JsonObject(emptyMap()), SignInStore(path).read())
+        assertEquals(null, SignInStore(path).entry("local").held())
+        assertFalse(Files.exists(path.parent), "a reader that only reads writes nothing, and takes no lock")
+    }
+
+    @Test
+    fun aSignInIsKeptAsTheLauncherKeepsOne(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve("state").resolve(FILE_NAME)
+        val access = signedIn(1)
+        SignInStore(path).entry("local").keep(held(access))
+        val kept = entryOf(path, "local")
+        assertEquals(access, kept.getValue("token").jsonPrimitive.content)
+        assertEquals("refresh-1", kept.getValue("refreshToken").jsonPrimitive.content)
+        // Who signed in, and at which issuer, as the access token names them.
+        assertEquals("alice@example.org" to ISSUER, kept.getValue("email").jsonPrimitive.content to kept.getValue("issuer").jsonPrimitive.content)
+        assertEquals("$ISSUER/token" to "$ISSUER/revoke", kept.getValue("tokenEndpoint").jsonPrimitive.content to kept.getValue("revocationEndpoint").jsonPrimitive.content)
+        // RFC 3339 in UTC, to the second.
+        for (name in listOf("obtainedAt", "expiresAt")) {
+            val stated = kept.getValue(name).jsonPrimitive.content
+            assertTrue(Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z""").matches(stated), "$name is $stated")
+        }
+        assertEquals(held(access), SignInStore(path).entry("local").held())
+        // The file holds bearer credentials: its owner's alone, and so is its lock. Nothing else is left beside it.
+        if ("posix" in path.fileSystem.supportedFileAttributeViews()) {
+            assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path)))
+            assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path.resolveSibling("tokens.lock"))))
+        }
+        assertEquals(listOf("tokens.json", "tokens.lock"), Files.list(path.parent).use { files -> files.map { it.fileName.toString() }.sorted().toList() })
+        assertTrue(Files.readString(path).endsWith("}\n"))
+    }
+
+    @Test
+    fun anIssuerWithNoRevocationEndpointAndATokenWithNoExpiryLeaveThoseOut(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        SignInStore(path).entry("local").keep(held(jwt(buildJsonObject { put("email", "alice@example.org"); put("iss", ISSUER) }), revocation = null))
+        assertFalse("revocationEndpoint" in entryOf(path, "local"))
+        assertFalse("expiresAt" in entryOf(path, "local"))
+    }
+
+    @Test
+    fun whatIsNoSignInIsNotKept(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        val kept = SignInStore(path).entry("local")
+        // What another client was issued would be renewed here as the wrong client.
+        val wrongClient = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { kept.keep(HeldSignIn(signedIn(1), "r", "semiont-browser", "$ISSUER/token", null)) }
+        }
+        assertTrue(wrongClient.message!!.contains("semiont-browser"))
+        // A gateway admits no token that names no address, and none from an issuer it does not trust.
+        for ((claims, lacking) in listOf(buildJsonObject { put("iss", ISSUER) } to "names no email", buildJsonObject { put("email", "alice@example.org") } to "names no issuer")) {
+            val refused = org.junit.jupiter.api.Assertions.assertThrows(semiont.errors.SignInError::class.java) { runBlocking { kept.keep(held(jwt(claims))) } }
+            assertEquals("exchange", refused.code)
+            assertTrue(refused.message!!.contains(lacking), refused.message)
+        }
+        assertFalse(Files.exists(path))
+    }
+
+    @Test
+    fun aRenewalKeepsWhoSignedInAndWhereAndChangesTheTokens(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        val kept = SignInStore(path).entry("local")
+        val first = held(signedIn(1))
+        kept.keep(first)
+        val before = entryOf(path, "local")
+        // The renewed token names another address: the entry keeps the one the sign-in learned.
+        val renewed = signedIn(2, email = "alice@elsewhere.example")
+        assertEquals(renewed, kept.renewed(first, renewed, "refresh-2"))
+        val after = entryOf(path, "local")
+        assertEquals(renewed to "refresh-2", after.getValue("token").jsonPrimitive.content to after.getValue("refreshToken").jsonPrimitive.content)
+        for (name in listOf("email", "issuer", "tokenEndpoint", "revocationEndpoint")) assertEquals(before[name], after[name], name)
+        assertEquals(held(renewed, "refresh-2"), kept.held())
+    }
+
+    @Test
+    fun forgettingWhatIsNotKeptChangesNothing(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        val kept = SignInStore(path).entry("local")
+        kept.keep(held(signedIn(1)))
+        kept.forget()
+        assertEquals(JsonObject(emptyMap()), SignInStore(path).read())
+        val wrote = Files.getLastModifiedTime(path)
+        Thread.sleep(20)
+        kept.forget()
+        assertEquals(wrote, Files.getLastModifiedTime(path))
+    }
+
+    @Test
+    fun anEntryWithNoRefreshTokenIsNoSignInToHold(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        Files.writeString(path, """{"local": {"token": "${signedIn(1)}", "email": "a@example.org", "obtainedAt": "x", "issuer": "$ISSUER", "tokenEndpoint": "t"}}""")
+        assertEquals(null, SignInStore(path).entry("local").held())
+    }
+
+    @Test
+    fun whatTheFileHoldsThatIsNotThisSignInIsWrittenBackAsItWas(@TempDir directory: Path) = runBlocking {
+        val path = directory.resolve(FILE_NAME)
+        val store = SignInStore(path)
+        store.entry("codespace:owner/name").keep(held(signedIn(7)))
+        val others = buildJsonObject {
+            put("codespace:owner/name", entryOf(path, "codespace:owner/name"))
+            // What a later release wrote, and this one does not understand.
+            put("later", kotlinx.serialization.json.Json.parseToJsonElement("""{"shape": ["unknown", 1, null], "nested": {"deep": true}}"""))
+            put("not-even-an-object", 3)
+        }
+        Files.writeString(path, others.toString())
+        val first = held(signedIn(1))
+        store.entry("local").keep(first)
+        val renewed = signedIn(2)
+        assertEquals(renewed, store.entry("local").renewed(first, renewed, "refresh-2"))
+        assertEquals(others, JsonObject(store.read() - "local"))
+        // What is not a sign-in is none to hold, and is not renewed into one.
+        assertEquals(null, store.entry("later").held())
+        assertEquals(null, store.entry("later").renewed(held(signedIn(3)), signedIn(3), "refresh-3"))
+        store.entry("local").forget()
+        assertEquals(others, store.read())
     }
 }
