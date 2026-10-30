@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
 package semiont.http
 
 import kotlinx.coroutines.CoroutineScope
@@ -19,7 +21,7 @@ import semiont.types.KbDescription
 import java.util.concurrent.CompletableFuture
 
 /** Who the knowledge base at an address says it is: its did, and how it describes itself. */
-public data class ConnectionIdentity(public val did: UserId, public val description: KbDescription)
+public data class ConnectionIdentity @JvmExposeBoxed constructor(@get:JvmExposeBoxed public val did: UserId, public val description: KbDescription)
 
 /**
  * Ask the knowledge base at `target` what it is, with a token just issued. It

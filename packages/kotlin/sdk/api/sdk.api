@@ -625,13 +625,15 @@ public final class semiont/http/ConnectKt {
 }
 
 public final class semiont/http/ConnectionIdentity {
-	public synthetic fun <init> (Ljava/lang/String;Lsemiont/types/KbDescription;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Lsemiont/types/KbDescription;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/identifiers/UserId;Lsemiont/types/KbDescription;)V
 	public final fun component1-lE7-m4I ()Ljava/lang/String;
 	public final fun component2 ()Lsemiont/types/KbDescription;
 	public final fun copy-Oz5wUo0 (Ljava/lang/String;Lsemiont/types/KbDescription;)Lsemiont/http/ConnectionIdentity;
 	public static synthetic fun copy-Oz5wUo0$default (Lsemiont/http/ConnectionIdentity;Ljava/lang/String;Lsemiont/types/KbDescription;ILjava/lang/Object;)Lsemiont/http/ConnectionIdentity;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDescription ()Lsemiont/types/KbDescription;
+	public final fun getDid ()Lsemiont/identifiers/UserId;
 	public final fun getDid-lE7-m4I ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -1175,8 +1177,9 @@ public final class semiont/registry/OpenKt {
 
 public final class semiont/registry/OpenResource {
 	public static final field Companion Lsemiont/registry/OpenResource$Companion;
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/identifiers/ResourceId;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;)V
 	public final fun component1-1-yoK9c ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()J
@@ -1186,6 +1189,7 @@ public final class semiont/registry/OpenResource {
 	public final fun copy-0-slNOc (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;)Lsemiont/registry/OpenResource;
 	public static synthetic fun copy-0-slNOc$default (Lsemiont/registry/OpenResource;Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/OpenResource;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Lsemiont/identifiers/ResourceId;
 	public final fun getId-1-yoK9c ()Ljava/lang/String;
 	public final fun getMediaType ()Ljava/lang/String;
 	public final fun getName ()Ljava/lang/String;
@@ -1215,6 +1219,9 @@ public final class semiont/registry/SemiontBrowser : java/lang/AutoCloseable {
 	public fun <init> (Lsemiont/registry/SemiontBrowserConfig;)V
 	public final fun addKb (Lsemiont/types/NewKnowledgeBase;Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun addKbFuture (Lsemiont/types/NewKnowledgeBase;Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public final fun addOpenResource (Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
+	public final fun addOpenResource (Lsemiont/identifiers/ResourceId;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun addOpenResource (Lsemiont/identifiers/ResourceId;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public final fun addOpenResource-cLomD_0 (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public static synthetic fun addOpenResource-cLomD_0$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
 	public final fun addOpenResource-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
@@ -1236,11 +1243,13 @@ public final class semiont/registry/SemiontBrowser : java/lang/AutoCloseable {
 	public final fun readActiveKbFuture ()Ljava/util/concurrent/CompletableFuture;
 	public final fun removeKb (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun removeKbFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun removeOpenResource (Lsemiont/identifiers/ResourceId;)V
 	public final fun removeOpenResource--Xm7VB4 (Ljava/lang/String;)V
 	public final fun reorderOpenResources (II)V
 	public final fun setActiveKb (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun setActiveKbFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public final fun setIdentityToken (Ljava/lang/String;)V
+	public final fun setLastViewedResource (Lsemiont/identifiers/ResourceId;)V
 	public final fun setLastViewedResource--Xm7VB4 (Ljava/lang/String;)V
 	public final fun signIn (Ljava/lang/String;Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun signInFuture (Ljava/lang/String;Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
@@ -1252,6 +1261,7 @@ public final class semiont/registry/SemiontBrowser : java/lang/AutoCloseable {
 	public final fun updateKb (Ljava/lang/String;Ljava/lang/String;)V
 	public final fun updateKb (Ljava/lang/String;Ljava/lang/String;Lsemiont/types/KbRead;)V
 	public static synthetic fun updateKb$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/KbRead;ILjava/lang/Object;)V
+	public final fun updateOpenResourceName (Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
 	public final fun updateOpenResourceName-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
 }
 

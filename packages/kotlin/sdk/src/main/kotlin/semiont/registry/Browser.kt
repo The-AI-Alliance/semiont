@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
 package semiont.registry
 
 import kotlinx.coroutines.CoroutineScope
@@ -376,6 +378,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
 
     /** Open a resource in the active knowledge base. One open already takes its name, and its media type and storage URI unless each is null. Nothing is opened while it has no live session. */
     @JvmOverloads
+    @JvmExposeBoxed
     public fun addOpenResource(resourceId: ResourceId, name: String, mediaType: String? = null, storageUri: String? = null): Unit = changeOpen { tabs ->
         val at = tabs.indexOfFirst { it.id == resourceId }
         if (at >= 0) {
@@ -387,9 +390,11 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     /** Close a resource in the active knowledge base. */
+    @JvmExposeBoxed
     public fun removeOpenResource(resourceId: ResourceId): Unit = changeOpen { tabs -> tabs.filter { it.id != resourceId } }
 
     /** Give an open resource of the active knowledge base a name. */
+    @JvmExposeBoxed
     public fun updateOpenResourceName(resourceId: ResourceId, name: String): Unit = changeOpen { tabs -> tabs.map { if (it.id == resourceId) it.copy(name = name) else it } }
 
     /** Move the open resource at one place in the shown list to another. A place that is not in the list moves nothing. */
@@ -402,6 +407,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     }
 
     /** Record the resource a person is looking at, in the active knowledge base. Nothing is recorded while it has no live session. */
+    @JvmExposeBoxed
     public fun setLastViewedResource(resourceId: ResourceId): Unit = synchronized(lock) {
         val kbId = liveKbId() ?: return
         changeViewed { it + (kbId to resourceId) }

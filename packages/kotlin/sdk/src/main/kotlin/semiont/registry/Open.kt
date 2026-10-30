@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.ExperimentalStdlibApi::class)
+
 package semiont.registry
 
 import kotlinx.serialization.Serializable
@@ -5,7 +7,8 @@ import semiont.identifiers.ResourceId
 
 /** One resource open in a knowledge base: a tab, where there are tabs. */
 @Serializable
-public data class OpenResource(
+public data class OpenResource @JvmExposeBoxed constructor(
+    @get:JvmExposeBoxed
     public val id: ResourceId,
     public val name: String,
     /** When it was opened, in milliseconds since the epoch. */
