@@ -20,11 +20,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final, final
 
-from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
-from semiont.http import KeyCredential, SecretCredential
+from semiont.http import KeyCredential, NotAnRsaKey, SecretCredential, UnreadableKey, private_key_from_pem
 from semiont.model import WireModel
 
 __all__ = ["Refused", "config_path_of", "key_account_of", "read_config", "service_account_of", "set_in"]
@@ -146,17 +143,17 @@ def service_account_of(service: str, issuer: str, environment: Mapping[str, str]
 def key_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> KeyCredential:
     """The service's own account at `issuer`, which its document names, proven by its key.
 
-    `SEMIONT_OIDC_CLIENT_KEY` holds the key: an RSA private key, PEM and
-    unencrypted. A refusal names the variable and never what it holds.
+    `SEMIONT_OIDC_CLIENT_KEY` holds the key: an RSA private key, PKCS#8 PEM
+    and unencrypted. A refusal names the variable and never what it holds.
     """
     client_id = _held(service, environment, "SEMIONT_OIDC_CLIENT_ID")
     pem = _held(service, environment, "SEMIONT_OIDC_CLIENT_KEY")
     try:
-        key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
-    except (ValueError, TypeError, UnsupportedAlgorithm):
+        key = private_key_from_pem(pem)
+    except UnreadableKey:
         raise Refused(f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an unencrypted PEM private key") from None
-    if not isinstance(key, RSAPrivateKey):
+    except NotAnRsaKey:
         raise Refused(
             f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an RSA key: a {service} signs its assertions with RS256"
-        )
+        ) from None
     return KeyCredential(issuer=issuer, client_id=client_id, private_key=key)

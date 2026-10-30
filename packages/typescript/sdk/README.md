@@ -213,6 +213,11 @@ claims.subscribe(async (job) => {
   whose token is its bearer, and the gateway names it by that account: `startAgentSession`
   signs it in, learns its DID, and keeps the token fresh. The engine it runs is no part of
   who it is: what it commits names that in its `generator`.
+- **A worker signs in with a key.** Its credential is a `KeyCredential`: its issuer, its
+  client id, and the RSA key the launcher hands it as `SEMIONT_OIDC_CLIENT_KEY`, a PKCS#8
+  PEM that `privateKeyFromPem` reads. Each grant carries an assertion signed for it alone,
+  which the issuer checks with the public half registered on the client, and no secret is
+  sent. A service account that holds a secret signs in with a `SecretCredential` instead.
 - **It says what it is called**, as itself, on `principal:profile`. Readers name an agent by
   the last name it said, as they name a person, so a `generator` carries no name of its own.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
@@ -274,8 +279,8 @@ is what a worker promises the dispatcher.
   three, and `specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
   to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
-  `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` and
-  `JOB_COMMIT_CHANNELS` for its stream.
+  `startAgentSession` and `privateKeyFromPem` for a worker's sign-in, and
+  `JOB_CLAIM_CHANNELS` and `JOB_COMMIT_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
   `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, and the `httpKb`
   helper for endpoint shapes.

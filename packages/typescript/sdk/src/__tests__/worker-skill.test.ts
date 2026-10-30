@@ -4,13 +4,17 @@
  * The TypeScript block of docs/builder/skills/semiont-worker/SKILL.md that
  * has `main` is a whole program. Node is given it here word for word, as
  * whoever copies it would run it, with a gateway and the issuer it trusts
- * standing in on this machine. What the program sends is read off them.
+ * standing in on this machine. What the program sends is read off them. The
+ * issuer admits the worker by its key, as a knowledge base's does: it grants
+ * a token only for an assertion the worker's key signed
+ * (specs/src/session/client-assertion-cases.json).
  *
  * The program imports `@semiont/sdk` and `@semiont/core` by name, so what
  * runs is the built packages: `npm run build:packages -- @semiont/sdk` comes
  * first, and a package that is not built fails this test by name.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { generateKeyPairSync, verify, type KeyObject } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
@@ -22,6 +26,10 @@ import { JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS } from '../claims';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const PACKAGE = join(REPO, 'packages/typescript/sdk');
 const SKILL = readFileSync(join(REPO, 'docs/builder/skills/semiont-worker/SKILL.md'), 'utf-8');
+/** What a grant that proves an account by its key posts. */
+const ASSERTION: { form: string[]; grantType: string; assertionType: string } = JSON.parse(
+  readFileSync(join(REPO, 'specs/src/session/client-assertion-cases.json'), 'utf-8'),
+);
 
 /** The skill's TypeScript blocks that are a whole program: the ones that have a `main`. */
 const PROGRAMS = [...SKILL.matchAll(/^```typescript\n([\s\S]*?)^```$/gm)]
@@ -50,6 +58,33 @@ function jwt(claims: object): string {
   return `${segment({ alg: 'HS256', typ: 'JWT' })}.${segment(claims)}.${segment('signature')}`;
 }
 
+/** A service account the issuer admits by its key: its client id, and the public half registered on its client. */
+interface KeyAccount {
+  clientId: string;
+  publicKey: KeyObject;
+}
+
+/**
+ * Whether a client-credentials grant's form proves `account`, as an issuer
+ * checks it: the table's fields and no others, and an assertion `account`'s
+ * key signed, made by and of the account, for this token endpoint, not expired.
+ */
+function proves(body: string, account: KeyAccount, tokenEndpoint: string): boolean {
+  const form = new URLSearchParams(body);
+  const fields = [...form.keys()];
+  if (fields.length !== ASSERTION.form.length || !ASSERTION.form.every((name) => fields.includes(name))) return false;
+  if (form.get('grant_type') !== ASSERTION.grantType || form.get('client_assertion_type') !== ASSERTION.assertionType) return false;
+  const [head, claimed, signature, ...rest] = text(form.get('client_assertion')).split('.');
+  if (head === undefined || claimed === undefined || signature === undefined || rest.length > 0) return false;
+  if (!verify('sha256', Buffer.from(`${head}.${claimed}`), account.publicKey, Buffer.from(signature, 'base64url'))) return false;
+  const claims: unknown = JSON.parse(Buffer.from(claimed, 'base64url').toString('utf-8'));
+  return member(JSON.parse(Buffer.from(head, 'base64url').toString('utf-8')), 'alg') === 'RS256'
+    && member(claims, 'iss') === account.clientId
+    && member(claims, 'sub') === account.clientId
+    && member(claims, 'aud') === tokenEndpoint
+    && Number(member(claims, 'exp')) > Date.now() / 1000;
+}
+
 /** One request, as it arrived. */
 interface Asked {
   method: string;
@@ -74,8 +109,9 @@ interface StandIn {
   close(): Promise<void>;
 }
 
-/** What the stand-in is told: who it says the account is, the token its issuer grants, the jobs its queue holds, and each resource's text. */
+/** What the stand-in is told: the account its issuer admits, who it says the account is, the token its issuer grants, the jobs its queue holds, and each resource's text. */
 interface Knows {
+  account: KeyAccount;
   did: string;
   serviceToken: string;
   queue: readonly unknown[];
@@ -84,7 +120,7 @@ interface Knows {
 
 /**
  * A gateway and the issuer it trusts, on this machine. It names its issuer,
- * grants a service account its token, names the account that token is, holds
+ * grants the account it admits its token, names the account that token is, holds
  * a stream open, serves a resource's bytes, and takes emits. Of what is emitted
  * it answers a claim, as the dispatcher does: the next job of its queue, or
  * that none is pending. And it answers a commit, as the record does: every
@@ -126,7 +162,9 @@ async function standIn(knows: Knows): Promise<StandIn> {
         case 'GET /realms/semiont/.well-known/openid-configuration':
           return json(response, 200, { issuer, authorization_endpoint: `${issuer}/auth`, token_endpoint: `${issuer}/token` });
         case 'POST /realms/semiont/token':
-          return json(response, 200, { access_token: knows.serviceToken, expires_in: 300 });
+          return proves(body, knows.account, `${issuer}/token`)
+            ? json(response, 200, { access_token: knows.serviceToken, expires_in: 300 })
+            : json(response, 401, { error: 'invalid_client' });
         case 'GET /api/users/me':
           return json(response, 200, { did: knows.did, email: null, name: null, image: null, domain: 'example.org' });
         case 'POST /bus/subscribe':
@@ -169,7 +207,6 @@ async function standIn(knows: Knows): Promise<StandIn> {
   };
 }
 
-const SECRET = 's3cr3t &=+/';
 const DID = 'did:web:example.org:agents:service-account-my-worker';
 const JOB = {
   status: 'running',
@@ -209,12 +246,16 @@ describe('the complete worker of the semiont-worker skill', () => {
 
     const issued = Math.floor(Date.now() / 1000);
     const serviceToken = jwt({ iat: issued, exp: issued + 300, n: 0 });
-    const standing = await standIn({ did: DID, serviceToken, queue: [JOB], resources: { 'res-1': page } });
+    // The worker's key, as the launcher hands it over: PKCS#8 PEM.
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const admitted: KeyAccount = { clientId: 'my-worker', publicKey };
+    const standing = await standIn({ account: admitted, did: DID, serviceToken, queue: [JOB], resources: { 'res-1': page } });
     gateway = standing;
 
     const running = spawn(process.execPath, ['--input-type=module-typescript', '-'], {
       cwd: PACKAGE,
-      env: { SEMIONT_API_URL: standing.origin, SEMIONT_OIDC_CLIENT_ID: 'my-worker', SEMIONT_OIDC_CLIENT_SECRET: SECRET },
+      env: { SEMIONT_API_URL: standing.origin, SEMIONT_OIDC_CLIENT_ID: admitted.clientId, SEMIONT_OIDC_CLIENT_KEY: pem },
     });
     worker = running;
     const said = { out: '', err: '' };
@@ -264,9 +305,10 @@ describe('the complete worker of the semiont-worker skill', () => {
     // And it reports what it proposed and what the record holds, established by the record's acknowledgement.
     expect(complete).toEqual({ ...identity, result: { found: 1, persisted: 1 }, durability: 'acknowledged' });
 
-    // It signed in as its account: the issuer's token is its bearer, and the gateway named it. Nothing is exchanged.
-    const [grant] = standing.asked.filter((request) => `${request.method} ${request.path}` === 'POST /realms/semiont/token');
-    expect(Object.fromEntries(new URLSearchParams(grant.body))).toEqual({ grant_type: 'client_credentials', client_id: 'my-worker', client_secret: SECRET });
+    // It signed in as its account, by its key: the issuer's token is its bearer, and the gateway named it. Nothing is exchanged.
+    const grants = standing.asked.filter((request) => `${request.method} ${request.path}` === 'POST /realms/semiont/token');
+    expect(grants).toHaveLength(1);
+    expect(proves(grants[0].body, admitted, `${standing.origin}/realms/semiont/token`)).toBe(true);
     const whoAmI = standing.asked.filter((request) => request.path === '/api/users/me');
     expect(whoAmI.map((request) => `${request.method} ${request.authorization}`)).toEqual([`GET Bearer ${serviceToken}`]);
     expect(standing.asked.filter((request) => request.path.startsWith('/api/tokens/'))).toEqual([]);
@@ -289,6 +331,8 @@ describe('the complete worker of the semiont-worker skill', () => {
     if (!stopped) throw new Error(`the worker did not end when it was told to.\n${account()}`);
     expect(ended).toEqual({ code: 0, signal: null });
     expect(channels()).not.toContain('job:fail');
-    expect(`${said.out}${said.err}`).not.toContain(SECRET);
+    for (const line of pem.split('\n').filter((line) => line !== '' && !line.startsWith('-----'))) {
+      expect(`${said.out}${said.err}`).not.toContain(line);
+    }
   }, 60_000);
 });

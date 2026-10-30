@@ -37,8 +37,10 @@ import java.util.concurrent.CopyOnWriteArrayList
 /** One answer of the fake: its status and its JSON body. */
 internal class Said(val status: Int, val body: JsonObject)
 
-/** One request the fake was asked: its method, path, headers and form. */
-internal class Asked(val method: String, val path: String, val authorization: String?, val form: Map<String, String>)
+/** One request the fake was asked: its method, path, headers and form, each field as it was sent. */
+internal class Asked(val method: String, val path: String, val authorization: String?, val fields: List<Pair<String, String>>) {
+    val form: Map<String, String> get() = fields.toMap()
+}
 
 /**
  * A knowledge base's gateway and the issuer it trusts, in one server, answering
@@ -86,13 +88,13 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
     init {
         server.createContext("/") { exchange ->
             val text = String(exchange.requestBody.readAllBytes())
-            val form = if (text.contains('=') && !text.startsWith("{")) {
-                text.split('&').associate { pair -> pair.split('=', limit = 2).let { URLDecoder.decode(it[0], Charsets.UTF_8) to URLDecoder.decode(it[1], Charsets.UTF_8) } }
+            val fields = if (text.contains('=') && !text.startsWith("{")) {
+                text.split('&').map { pair -> pair.split('=', limit = 2).let { URLDecoder.decode(it[0], Charsets.UTF_8) to URLDecoder.decode(it[1], Charsets.UTF_8) } }
             } else {
-                emptyMap()
+                emptyList()
             }
             val path = exchange.requestURI.path
-            asked += Asked(exchange.requestMethod, path, exchange.requestHeaders.getFirst("Authorization"), form)
+            asked += Asked(exchange.requestMethod, path, exchange.requestHeaders.getFirst("Authorization"), fields)
             // What a test scripts for a path is answered before what the realm says of itself.
             val scriptedFirst = scripted[path]?.pollFirst()
             if (scriptedFirst != null) {

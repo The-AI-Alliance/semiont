@@ -7,6 +7,7 @@ package launcher
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -82,8 +83,8 @@ func workerKeySet(k workerKey) string {
 	pub := k.signer.PublicKey
 	b, _ := json.MarshalIndent(map[string]any{"keys": []map[string]string{{
 		"kty": "RSA",
-		"n":   base64url(pub.N.Bytes()),
-		"e":   base64url(big.NewInt(int64(pub.E)).Bytes()),
+		"n":   base64.RawURLEncoding.EncodeToString(pub.N.Bytes()),
+		"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()),
 		"kid": k.thumbprint,
 		"alg": "RS256",
 		"use": "sig",

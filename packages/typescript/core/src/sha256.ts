@@ -1,5 +1,6 @@
 /**
- * SHA-256 (FIPS 180-4), for the id of an annotation (`annotation-id.ts`).
+ * SHA-256 (FIPS 180-4), for the id of an annotation (`annotation-id.ts`) and
+ * the thumbprint a service account's key is named by (`client-assertion.ts`).
  *
  * The platform's own is `crypto.subtle.digest`. It answers later, where an id
  * is worked out at once; and a browser withholds `crypto.subtle` from a page
@@ -10,9 +11,9 @@
  * tests.
  *
  * Private to this package: its root exports no hash. Nothing secret is hashed
- * here. An id is a public derivation of what an annotation is, so a wrong
- * digest cannot leak anything: it fails where it can be seen, in the id's
- * case table.
+ * here. An id is a public derivation of what an annotation is, and a
+ * thumbprint of a key's public half, so a wrong digest cannot leak anything:
+ * it fails where it can be seen, in the id's and the assertion's case tables.
  */
 
 /** The first 32 bits of the fractional parts of the cube roots of the first 64 primes. */

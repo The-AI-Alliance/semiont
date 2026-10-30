@@ -68,7 +68,7 @@ func newAgentWorld(t *testing.T) *agentWorld {
 func (w *agentWorld) signIn(t *testing.T, secret string) (*AgentToken, error) {
 	t.Helper()
 	issuer := Issuer{HTTP: &http.Client{}, Timing: quickTiming()}
-	service := NewServiceToken(Credential{Issuer: w.issuer.URL + "/realms/semiont", ClientID: "semiont-worker", ClientSecret: secret}, issuer)
+	service := NewServiceToken(SecretCredential{Issuer: w.issuer.URL + "/realms/semiont", ClientID: "semiont-worker", ClientSecret: secret}, issuer)
 	return SignInAgent(context.Background(), AgentConfig{Gateway: w.gateway.URL, Service: service, HTTP: &http.Client{}, Timing: quickTiming()})
 }
 
@@ -164,7 +164,7 @@ func TestARefusedServiceAccountNamesNoSecret(t *testing.T) {
 	if strings.Contains(err.Error(), "s3cret") || strings.Contains(err.Error(), "wrong") {
 		t.Errorf("the failure says the secret: %v", err)
 	}
-	credential := Credential{Issuer: "https://issuer.example", ClientID: "semiont-worker", ClientSecret: "s3cret"}
+	credential := SecretCredential{Issuer: "https://issuer.example", ClientID: "semiont-worker", ClientSecret: "s3cret"}
 	for _, shown := range []string{fmt.Sprint(credential), fmt.Sprintf("%+v", credential), fmt.Sprintf("%#v", credential)} {
 		if strings.Contains(shown, "s3cret") {
 			t.Errorf("a credential printed its secret: %s", shown)

@@ -30,7 +30,7 @@ use semiont_dispatcher_handlers::handlers::{COMMANDS, Handlers, Reply};
 use semiont_dispatcher_handlers::queue::{JobQueue, Stats};
 use semiont_dispatcher_jetstream::{JetStreamQueue, Settings};
 use semiont_http_transport::agent::AgentToken;
-use semiont_http_transport::service_account::{Credential, ServiceToken};
+use semiont_http_transport::service_account::{Credential, SecretCredential, ServiceToken};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
 use serde_json::json;
@@ -87,15 +87,12 @@ fn boot() -> Result<(), String> {
         .enable_all()
         .build()
         .map_err(|e| format!("cannot start the runtime: {e}"))?;
-    let outcome = runtime.block_on(serve(
-        document,
-        settings,
-        Credential {
-            issuer: String::new(),
-            client_id,
-            client_secret,
-        },
-    ));
+    let credential = SecretCredential {
+        issuer: document.identity.issuer.clone(),
+        client_id,
+        client_secret,
+    };
+    let outcome = runtime.block_on(serve(document, settings, credential));
     runtime.shutdown_timeout(Duration::from_secs(1));
     telemetry::shutdown(Duration::from_secs(2));
     outcome
@@ -104,20 +101,14 @@ fn boot() -> Result<(), String> {
 async fn serve(
     document: DispatcherConfig,
     settings: Settings,
-    credential: Credential,
+    credential: SecretCredential,
 ) -> Result<(), String> {
     telemetry::register_supervisor_restarts();
     telemetry::sample_lag();
     let http = reqwest::Client::builder()
         .build()
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
-    let service = ServiceToken::new(
-        Credential {
-            issuer: document.identity.issuer.clone(),
-            ..credential
-        },
-        http.clone(),
-    );
+    let service = ServiceToken::new(Credential::Secret(credential), http.clone());
     let agent = AgentToken::sign_in(&document.gateway_url, service, http.clone())
         .await
         .map_err(|e| format!("cannot sign in: {e}"))?;

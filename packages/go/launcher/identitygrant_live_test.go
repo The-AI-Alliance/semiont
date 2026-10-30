@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // A worker granted by its key, against a REAL Keycloak, in a throwaway realm.
@@ -62,7 +64,7 @@ func TestWorkerGrantLive(t *testing.T) {
 		return k
 	}
 	signIn := func(k workerKey) (map[string]any, error) {
-		return keyAccountClaims(tokenEndpoint, workerClientID(label), k.signer)
+		return clientCredentialsClaims(tokenEndpoint, semiont.KeyCredential{Issuer: base + "/realms/" + realm, ClientID: workerClientID(label), PrivateKey: k.signer})
 	}
 
 	// 1. A grant makes a client Keycloak admits the worker's assertion at, and

@@ -7,8 +7,8 @@ package launcher
 // key's public half on one client, serviceClientID("worker"). The private half never
 // leaves the machine: it reaches the worker's container as
 // SEMIONT_OIDC_CLIENT_KEY, and the worker signs each sign-in with it (RFC 7523,
-// clientassertion.go). No secret is sent, and none is kept for the worker in a
-// root.
+// the SDK's KeyCredential). No secret is sent, and none is kept for the worker
+// in a root.
 
 import (
 	"crypto/rand"
@@ -16,8 +16,9 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"fmt"
 	"path/filepath"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // custodyWorkerKey: the custody name of the machine's worker key, an RSA
@@ -50,7 +51,7 @@ func registeredKeyOf(pub *rsa.PublicKey) (registeredKey, error) {
 	if err != nil {
 		return registeredKey{}, err
 	}
-	return registeredKey{public: base64.StdEncoding.EncodeToString(der), thumbprint: jwkThumbprint(pub)}, nil
+	return registeredKey{public: base64.StdEncoding.EncodeToString(der), thumbprint: semiont.JWKThumbprint(pub)}, nil
 }
 
 // workerKey: the machine's worker key as the launcher hands it on — what the
@@ -80,23 +81,6 @@ func workerKeyOf(key *rsa.PrivateKey) (workerKey, error) {
 	}, nil
 }
 
-// readWorkerKey: the key a kept PKCS#8 PEM holds, which must be RSA.
-func readWorkerKey(kept string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(kept))
-	if block == nil || block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("not a PKCS#8 PEM private key")
-	}
-	parsed, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, err
-	}
-	key, ok := parsed.(*rsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("not an RSA key")
-	}
-	return key, nil
-}
-
 // loadOrCreateWorkerKey: the machine's worker key, from the machine's store
 // (machineCustody), generated and kept there on its first use.
 func loadOrCreateWorkerKey(u *UI) (workerKey, bool) {
@@ -110,7 +94,7 @@ func loadOrCreateWorkerKey(u *UI) (workerKey, bool) {
 		return workerKey{}, false
 	}
 	if kept != "" {
-		key, err := readWorkerKey(kept)
+		key, err := semiont.ParsePrivateKeyPEM(kept)
 		if err != nil {
 			u.Fail("The worker's key at %s cannot be read: %v", store.where(custodyWorkerKey), err)
 			return workerKey{}, false

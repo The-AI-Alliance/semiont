@@ -2,14 +2,14 @@ package launcher
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"testing"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // Live reconciliation against a REAL Keycloak, in a throwaway realm.
@@ -82,7 +82,8 @@ func TestIdentitySyncLive(t *testing.T) {
 
 	//    And for the worker, by the assertion the preflight signs: Keycloak
 	//    checks it with the key sync registered, and stamps the worker role.
-	worker, err := keyAccountClaims(base+"/realms/"+realm+"/protocol/openid-connect/token", serviceClientID("worker"), testWorkerKey().signer)
+	worker, err := clientCredentialsClaims(base+"/realms/"+realm+"/protocol/openid-connect/token",
+		semiont.KeyCredential{Issuer: base + "/realms/" + realm, ClientID: serviceClientID("worker"), PrivateKey: testWorkerKey().signer})
 	if err != nil {
 		t.Fatalf("the worker's grant: %v — the client sync created does not take the machine's key", err)
 	}
@@ -162,36 +163,10 @@ func liveAdmin(t *testing.T, token, method, url string, body map[string]any) int
 
 func liveClientCredentials(t *testing.T, base, realm, clientID, secret string) map[string]any {
 	t.Helper()
-	resp, err := adminHTTP.PostForm(base+"/realms/"+realm+"/protocol/openid-connect/token",
-		url.Values{
-			"grant_type":    {"client_credentials"},
-			"client_id":     {clientID},
-			"client_secret": {secret},
-		})
+	claims, err := clientCredentialsClaims(base+"/realms/"+realm+"/protocol/openid-connect/token",
+		semiont.SecretCredential{Issuer: base + "/realms/" + realm, ClientID: clientID, ClientSecret: secret})
 	if err != nil {
-		t.Fatalf("client-credentials grant: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("client-credentials grant for %s: HTTP %d — the client sync created is not one Keycloak will mint for", clientID, resp.StatusCode)
-	}
-	var body struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("decoding the grant response: %v", err)
-	}
-	parts := strings.Split(body.AccessToken, ".")
-	if len(parts) != 3 {
-		t.Fatalf("not a JWT: %q", body.AccessToken)
-	}
-	raw, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		t.Fatalf("decoding claims: %v", err)
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(raw, &claims); err != nil {
-		t.Fatalf("parsing claims: %v", err)
+		t.Fatalf("client-credentials grant for %s: %v — the client sync created is not one Keycloak will mint for", clientID, err)
 	}
 	fmt.Printf("    live token claims: roles=%v aud=%v\n", claims["roles"], claims["aud"])
 	return claims

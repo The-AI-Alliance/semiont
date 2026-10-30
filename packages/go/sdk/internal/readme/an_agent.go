@@ -12,7 +12,7 @@ import (
 func Work(ctx context.Context, gateway, issuer, secret string) error {
 	timing := semiont.DefaultTiming()
 	service := semiont.NewServiceToken(
-		semiont.Credential{Issuer: issuer, ClientID: "semiont-smelter", ClientSecret: secret},
+		semiont.SecretCredential{Issuer: issuer, ClientID: "semiont-smelter", ClientSecret: secret},
 		semiont.Issuer{HTTP: http.DefaultClient, Timing: timing},
 	)
 	agent, err := semiont.SignInAgent(ctx, semiont.AgentConfig{

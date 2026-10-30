@@ -343,6 +343,7 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 export * from './service-account';
+export { privateKeyFromPem } from './client-assertion';
 export { SignInError } from './sign-in-error';
 export { UnansweredError, jsonOf, whyUnanswered } from './unanswered';
 

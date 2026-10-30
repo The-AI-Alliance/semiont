@@ -149,13 +149,17 @@ let opened = sign_in_device(
 ### A daemon
 
 A daemon signs in as itself. An agent is an account, as a person is:
-`credential` is its account at the issuer (the issuer, a client id and a
-client secret), and the token the issuer grants it is its bearer at the
-gateway. The gateway names it by that account: `agent.did()` is the DID the
-gateway answers at `GET /api/users/me`. The token is renewed when it is due,
-and at once, by a new grant, when the gateway refuses it. It is not a
-session: an agent whose renewal fails keeps the token it has and tries again,
-where a person would be signed out.
+`credential` is its account at the issuer, and the token the issuer grants
+it is its bearer at the gateway. A `Credential` is the issuer and a client
+id, with the client secret the account proves itself with
+(`Credential::Secret`) or its RSA key (`Credential::Key`). With a key, each
+grant carries an assertion signed for it alone (RFC 7523,
+`private_key_jwt`), which the issuer checks with the public half registered
+on the client, and no secret is sent. The gateway names it by that account:
+`agent.did()` is the DID the gateway answers at `GET /api/users/me`. The
+token is renewed when it is due, and at once, by a new grant, when the
+gateway refuses it. It is not a session: an agent whose renewal fails keeps
+the token it has and tries again, where a person would be signed out.
 
 ```rust
 // A service signs in as itself, an agent with an account at the issuer,
@@ -205,13 +209,21 @@ queue. Its stream names `JOB_CLAIM_CHANNELS`, and the client's `job.claim`
 hands it each job it comes to hold.
 
 ```rust
+// Its account at the issuer proves itself with the worker's key, the
+// PKCS#8 PEM in `SEMIONT_OIDC_CLIENT_KEY`: each grant carries an
+// assertion signed with it, and no secret.
+let credential = KeyCredential {
+    issuer,
+    client_id,
+    private_key: private_key_from_pem(key)?,
+};
 // What the agent says it is called: here, its client id.
 let called = credential.client_id.clone();
 // A worker signs in as a daemon does: as itself, the agent its work is
 // attributed to.
 let agent = AgentToken::sign_in(
     gateway,
-    ServiceToken::new(credential, http.clone()),
+    ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
     http.clone(),
 )
 .await?;
@@ -324,8 +336,13 @@ while let Some(handed) = claims.next().await {
 claims.stop().await;
 ```
 
-`passages` stands for the worker's model: given the text, the passages it
-would highlight, each as the words it quoted (a `Vec<QuotedText>`).
+A worker proves itself with its key. `issuer` is the issuer the knowledge
+base trusts, `client_id` is the worker's client there
+(`SEMIONT_OIDC_CLIENT_ID`), and `key` is the PKCS#8 PEM the launcher hands the
+worker as `SEMIONT_OIDC_CLIENT_KEY`. `private_key_from_pem` reads it, and
+refuses one that is not an unencrypted RSA PKCS#8 key. `passages` stands for
+the worker's model: given the text, the passages it would highlight, each as
+the words it quoted (a `Vec<QuotedText>`).
 
 Its account at the issuer is an agent's: the realm stamps `"kind": "agent"`
 on its tokens, and the gateway names a token without it a person. It carries
@@ -439,7 +456,8 @@ credential goes by (`token`, `password`, `apiKey` and the rest of the list in
 | `client` | `client(config, options)`: a `SemiontClient` over this transport |
 | `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing`, `Bookmarks` |
 | `content` | `HttpContentTransport` |
-| `service_account`, `agent` | A service's sign-in: `Credential`, `ServiceToken`, `AgentToken` |
+| `service_account`, `agent` | A service's sign-in: `Credential` (`SecretCredential` or `KeyCredential`), `private_key_from_pem`, `ServiceToken`, `AgentToken` |
+| `client_assertion` | The assertion a key's grant carries: the key's thumbprint, the header and claims, signed RS256 |
 | `session` (`sign-in`) | Sessions over a gateway: `session_from_stored`, `sign_in_device`, `begin_sign_in`, `complete_sign_in`, `HttpSessionFactory` |
 | `oauth` (`sign-in`) | The issuer's grants: authorization code with PKCE, device, refresh, and revocation |
 | `loopback` (`sign-in`) | `LoopbackRedirect`: the address on this machine a person is sent back to |

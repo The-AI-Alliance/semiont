@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // A second start, of this knowledge base or another, gets the FIRST key: every
@@ -61,7 +62,7 @@ func TestTheWorkerKeyIsKeptForTheMachine(t *testing.T) {
 	if !first.signer.PublicKey.Equal(parsed) {
 		t.Error("the public half the realm is given is not the key's")
 	}
-	if first.thumbprint != jwkThumbprint(&first.signer.PublicKey) {
+	if first.thumbprint != semiont.JWKThumbprint(&first.signer.PublicKey) {
 		t.Error("the key is not named by its thumbprint")
 	}
 }
