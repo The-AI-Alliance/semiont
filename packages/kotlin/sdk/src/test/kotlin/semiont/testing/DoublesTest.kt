@@ -209,7 +209,9 @@ class DoublesTest {
         assertEquals("seeded", String(content.getBinaryStream(RESOURCE).bytes.toList().single()))
         val missing = assertThrows<TransportError> { content.getAnnotations(ResourceId("res-9")) }
         assertEquals(TransportErrorCode.NotFound, missing.reason)
-        assertEquals(listOf(PutBinary::class, GetBinary::class, GetBinaryStream::class, GetAnnotations::class), content.calls.map { it::class })
+        // Bytes nobody stored are not found, never read as none.
+        assertEquals(TransportErrorCode.NotFound, assertThrows<TransportError> { content.getBinary(ResourceId("res-9")) }.reason)
+        assertEquals(listOf(PutBinary::class, GetBinary::class, GetBinaryStream::class, GetAnnotations::class, GetBinary::class), content.calls.map { it::class })
     }
 
     @Test

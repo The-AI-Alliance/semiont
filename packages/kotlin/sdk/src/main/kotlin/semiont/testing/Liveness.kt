@@ -14,8 +14,8 @@ private const val SLACK = 4
  * failing (L2). Closing it ends the composition.
  */
 public class LivenessScenario @JvmOverloads constructor(
-    public val outputs: List<CompletableFuture<*>> = emptyList(),
-    public val settlements: List<CompletableFuture<*>> = emptyList(),
+    public val outputs: List<CompletableFuture<*>>,
+    public val settlements: List<CompletableFuture<*>>,
     private val end: AutoCloseable = AutoCloseable {},
 ) : AutoCloseable {
     override fun close(): Unit = end.close()

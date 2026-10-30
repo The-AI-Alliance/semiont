@@ -2102,8 +2102,6 @@ public final class semiont/testing/LivenessKt {
 }
 
 public final class semiont/testing/LivenessScenario : java/lang/AutoCloseable {
-	public fun <init> ()V
-	public fun <init> (Ljava/util/List;)V
 	public fun <init> (Ljava/util/List;Ljava/util/List;)V
 	public fun <init> (Ljava/util/List;Ljava/util/List;Ljava/lang/AutoCloseable;)V
 	public synthetic fun <init> (Ljava/util/List;Ljava/util/List;Ljava/lang/AutoCloseable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V

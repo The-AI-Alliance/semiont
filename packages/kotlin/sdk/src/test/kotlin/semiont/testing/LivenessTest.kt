@@ -136,7 +136,7 @@ class LivenessTest {
 
     @Test
     fun anOutputThatSaysNothingBreaksL1() = violated("L1: output #0 said nothing") {
-        assertLivenessAxioms(spec(listOf(listOf(Deliver))) { LivenessScenario(listOf(java.util.concurrent.CompletableFuture<Unit>())) })
+        assertLivenessAxioms(spec(listOf(listOf(Deliver))) { LivenessScenario(listOf(java.util.concurrent.CompletableFuture<Unit>()), emptyList()) })
     }
 
     @Test
