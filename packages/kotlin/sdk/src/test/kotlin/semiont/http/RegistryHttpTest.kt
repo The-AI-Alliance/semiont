@@ -127,7 +127,7 @@ private fun asked(address: String): Map<String, String> =
 class RegistryHttpTest {
     @Test
     fun aRegistryBringsUpASessionThatSaysWhoItIsAndRenewsAnExpiredToken() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             Behind(realm)
             realm.knowsAlice()
             val storage = MemoryStorage()
@@ -182,7 +182,7 @@ class RegistryHttpTest {
 
     @Test
     fun signingOutOfARegistryRevokesTheRefreshTokenAtItsIssuer() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             Behind(realm)
             realm.knowsAlice()
             realm.script("/revoke", Said(200, JsonObject(emptyMap())))
@@ -206,7 +206,7 @@ class RegistryHttpTest {
 
     @Test
     fun aRegistrysSessionResumesItsStreamFromThePlaceItsStorageKept() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             Behind(realm)
             realm.knowsAlice()
             val storage = MemoryStorage()
@@ -246,7 +246,7 @@ class RegistryHttpTest {
 
     @Test
     fun aRegistrysSignInRegistersTheKnowledgeBaseUnderWhatItSaysItIs() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             Behind(realm)
             realm.knowsAlice()
             val storage = MemoryStorage()
@@ -274,7 +274,7 @@ class RegistryHttpTest {
 
     @Test
     fun aKnowledgeBaseThatCannotSayWhoItIsIsNotRegistered() = runBlocking {
-        Realm(holdsStreams = true).use { realm ->
+        Realm().use { realm ->
             val behind = Behind(realm)
             val storage = MemoryStorage()
             browserOver(storage).use { browser ->

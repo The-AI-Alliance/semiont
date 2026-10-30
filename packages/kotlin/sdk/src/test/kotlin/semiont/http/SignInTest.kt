@@ -42,11 +42,11 @@ internal class Asked(val method: String, val path: String, val authorization: St
 
 /**
  * A knowledge base's gateway and the issuer it trusts, in one server, answering
- * each path with what a test gives it. One that `holdsStreams` holds the
- * latest stream a client opens, keeps what each emit carried, and is given
- * each to answer (`onEmit`), on that stream (`send`).
+ * each path with what a test gives it. It holds the latest stream a client
+ * opens, keeps what each emit carried, and is given each to answer
+ * (`onEmit`), on that stream (`send`).
  */
-internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = false) : AutoCloseable {
+internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
     private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
     val origin: String = "http://127.0.0.1:${server.address.port}"
     val asked = CopyOnWriteArrayList<Asked>()
@@ -100,7 +100,7 @@ internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = fal
                 return@createContext
             }
             when {
-                path == "/bus/subscribe" && holdsStreams -> {
+                path == "/bus/subscribe" -> {
                     subscriptions += Json.parseToJsonElement(text).jsonObject
                     exchange.responseHeaders.add("Content-Type", "text/event-stream")
                     exchange.sendResponseHeaders(200, 0)
@@ -109,7 +109,7 @@ internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = fal
                     out.flush()
                     stream = out
                 }
-                path == "/bus/emit" && holdsStreams -> {
+                path == "/bus/emit" -> {
                     val emit = Json.parseToJsonElement(text).jsonObject
                     emits += emit
                     answer(exchange, Said(202, buildJsonObject { put("subscribers", 1) }))
