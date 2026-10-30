@@ -324,8 +324,8 @@
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
       },
-      "CollaboratorEntry": {
-        "$ref": "components/schemas/CollaboratorEntry.json"
+      "RosterEntry": {
+        "$ref": "components/schemas/RosterEntry.json"
       },
       "CommandError": {
         "$ref": "components/schemas/CommandError.json"

@@ -103,7 +103,7 @@ export type {
   UnitCursor,
   GenerationJobParams,
   JobType,
-  CollaboratorEntry,
+  RosterEntry,
   Collaborator,
   KbDescription,
   DiscoveryDocument,

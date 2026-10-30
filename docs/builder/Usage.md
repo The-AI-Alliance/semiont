@@ -636,7 +636,7 @@ was missed (or signals `bus:resume-gap`, and the scope's caches are asked for
 again), outstanding requests' replies are re-requested from the server's
 retention buffer (`pendingReplies`), and the caches fed by events with no
 watermark — lists of resources, resources, entity types, tag schemas, the
-collaborator directory — are asked for again. See
+roster — are asked for again. See
 [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) for the wire
 contract.
 

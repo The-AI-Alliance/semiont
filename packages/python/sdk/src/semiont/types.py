@@ -126,7 +126,6 @@ __all__ = [
     "BusSubscribeRequestScopedItem",
     "BusSubscribeRequestScopedItemChannelsItem",
     "CloneResourceWithTokenResponse",
-    "CollaboratorEntry",
     "CommandError",
     "CommandErrorCode",
     "CommentingJobParams",
@@ -376,6 +375,7 @@ __all__ = [
     "ResourceUpdatedPayload",
     "ResourceUpload",
     "ResourceView",
+    "RosterEntry",
     "ScoredResource",
     "Selector",
     "SemanticMatch",
@@ -609,7 +609,7 @@ type BodyPurpose = Annotated[
 
 class BrowseAgentsRequest(WireModel, frozen=True):
     """
-    Request to browse the KB's collaborator directory (its declared Agents)
+    Request to browse the knowledge base's roster: the engines its Inference document names
     """
 
 
@@ -5247,7 +5247,7 @@ class AnchoredTextEntries(WireModel, frozen=True, extra="forbid"):
 
 class ArchivistRosterRole(WireModel, frozen=True, extra="forbid"):
     """
-    The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+    The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
     """
 
     provider: ArchivistRosterRoleProvider
@@ -6129,16 +6129,16 @@ class BrowseResourcesResult(WireModel, frozen=True):
     response: ListResourcesResponse
 
 
-class CollaboratorEntry(WireModel, frozen=True):
+class RosterEntry(WireModel, frozen=True, extra="forbid"):
     """
-    One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the jobs it serves. Actor-role-only agents (gatherer/matcher) and Persons omit `serves`. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+    One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
     """
 
-    agent: Agent
+    engine: ArchivistRosterRole
     serves: Annotated[
         list[JobFilter] | None,
         Field(
-            description="The jobs this agent is declared to serve (from the KB's workers.* config sections), as a claim would name them. Absent for Persons and for agents declared only under actor roles."
+            description="The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles."
         ),
     ] = None
 
@@ -6577,7 +6577,7 @@ class ArchivistRoster(WireModel, frozen=True, extra="forbid"):
 
 
 class BrowseAgentsResultResponse(WireModel, frozen=True):
-    agents: list[CollaboratorEntry]
+    agents: list[RosterEntry]
 
 
 class GatheredContextFocusAnnotation(WireModel, frozen=True):
@@ -6614,7 +6614,7 @@ type KnowledgeGraphNodesItem = Annotated[GraphResourceNode | GraphAnnotationNode
 
 class BrowseAgentsResult(WireModel, frozen=True):
     """
-    Result of browsing the collaborator directory
+    Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves
     """
 
     response: BrowseAgentsResultResponse

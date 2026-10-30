@@ -42,17 +42,11 @@ const context = { resources: [], annotations: [] } as unknown as GatheredContext
 /** The wizard's initial draft. */
 const DRAFT: GenerationDraft = freshGenerationDraft('Untitled', 'en');
 
-const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
-  ({
-    agent: {
-      '@type': 'Software',
-      name: 'Claude Sonnet 5',
-      provider: 'anthropic',
-      model: 'claude-sonnet-5',
-    },
-    serves: [{ jobType: 'yield' }],
-    limits: { contextTokens: 200_000, maxOutputTokens },
-  }) as unknown as Collaborator;
+const agentWithCeiling = (maxOutputTokens: number): Collaborator => ({
+  engine: { provider: 'anthropic', model: 'claude-sonnet-5' },
+  serves: [{ jobType: 'yield' }],
+  limits: { contextTokens: 200_000, maxOutputTokens },
+});
 
 /**
  * The step is CONTROLLED — the wizard owns the draft so
@@ -172,9 +166,9 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
   });
 
   it('falls back when the agent is present but discovery could not answer', () => {
-    const noLimits = { ...agentWithCeiling(64_000) } as Record<string, unknown>;
+    const noLimits = agentWithCeiling(64_000);
     delete noLimits.limits;
-    const { input } = renderStep(noLimits as unknown as Collaborator);
+    const { input } = renderStep(noLimits);
 
     expect(input().max).toBe('4000');
     expect(screen.queryByText(/Limited to/)).not.toBeInTheDocument();
@@ -461,17 +455,11 @@ describe('temperature gating — the Creativity slider follows the model', () =>
   // including the wizard's own 0.7 default — so a rejecting model must neither
   // show the control nor receive the field. Only an EXPLICIT false hides it:
   // absence of discovery means no claim, and the control stays.
-  const rejectingAgent = (): Collaborator =>
-    ({
-      agent: {
-        '@type': 'Software',
-        name: 'Claude Sonnet 5',
-        provider: 'anthropic',
-        model: 'claude-sonnet-5',
-      },
-      serves: [{ jobType: 'yield' }],
-      limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
-    }) as unknown as Collaborator;
+  const rejectingAgent = (): Collaborator => ({
+    engine: { provider: 'anthropic', model: 'claude-sonnet-5' },
+    serves: [{ jobType: 'yield' }],
+    limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
+  });
 
   it('hides the slider and OMITS temperature from the submission when the model rejects it', () => {
     const { props } = renderStep(rejectingAgent(), 'research');

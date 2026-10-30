@@ -22,12 +22,11 @@ type CacheState<T> =
   | { status: 'ready'; value: T }
   | { status: 'failed'; error: Error };
 
-const entry = (model: string): Collaborator =>
-  ({
-    agent: { '@type': 'Software', name: model, provider: 'anthropic', model },
-    serves: [{ jobType: 'yield' }],
-    limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
-  }) as unknown as Collaborator;
+const entry = (model: string): Collaborator => ({
+  engine: { provider: 'anthropic', model },
+  serves: [{ jobType: 'yield' }],
+  limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
+});
 
 /** A client whose `browse.agents()` replays whatever the given subject holds. */
 function makeClient(subject: Subject<CacheState<Collaborator[]>>) {

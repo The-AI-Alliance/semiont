@@ -2624,10 +2624,10 @@ type ArchivistHealthStatus string
 type ArchivistRoster struct {
 	// Actors The agent serving each actor that calls a model.
 	Actors struct {
-		// Gatherer The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		// Gatherer The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 		Gatherer *ArchivistRosterRole `json:"gatherer,omitempty"`
 
-		// Matcher The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		// Matcher The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 		Matcher *ArchivistRosterRole `json:"matcher,omitempty"`
 	} `json:"actors"`
 
@@ -2635,28 +2635,28 @@ type ArchivistRoster struct {
 	Workers struct {
 		// Mark The agent serving `mark` jobs of each motivation.
 		Mark *struct {
-			// Assessing The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Assessing The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Assessing *ArchivistRosterRole `json:"assessing,omitempty"`
 
-			// Commenting The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Commenting The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Commenting *ArchivistRosterRole `json:"commenting,omitempty"`
 
-			// Highlighting The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Highlighting The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Highlighting *ArchivistRosterRole `json:"highlighting,omitempty"`
 
-			// Linking The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Linking The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Linking *ArchivistRosterRole `json:"linking,omitempty"`
 
-			// Tagging The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+			// Tagging The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 			Tagging *ArchivistRosterRole `json:"tagging,omitempty"`
 		} `json:"mark,omitempty"`
 
-		// Yield The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+		// Yield The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 		Yield *ArchivistRosterRole `json:"yield,omitempty"`
 	} `json:"workers"`
 }
 
-// ArchivistRosterRole The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+// ArchivistRosterRole The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 type ArchivistRosterRole struct {
 	// Model The model identifier, as the provider names it.
 	Model string `json:"model"`
@@ -2859,13 +2859,13 @@ type BodyOperationReplaceOp string
 // BodyPurpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
 type BodyPurpose string
 
-// BrowseAgentsRequest Request to browse the KB's collaborator directory (its declared Agents)
+// BrowseAgentsRequest Request to browse the knowledge base's roster: the engines its Inference document names
 type BrowseAgentsRequest = map[string]interface{}
 
-// BrowseAgentsResult Result of browsing the collaborator directory
+// BrowseAgentsResult Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves
 type BrowseAgentsResult struct {
 	Response struct {
-		Agents []CollaboratorEntry `json:"agents"`
+		Agents []RosterEntry `json:"agents"`
 	} `json:"response"`
 }
 
@@ -3220,15 +3220,6 @@ type CloneResourceWithTokenResponse struct {
 
 	// Token Generated clone token
 	Token string `json:"token"`
-}
-
-// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the jobs it serves. Actor-role-only agents (gatherer/matcher) and Persons omit `serves`. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
-type CollaboratorEntry struct {
-	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
-	Agent Agent `json:"agent"`
-
-	// Serves The jobs this agent is declared to serve (from the KB's workers.* config sections), as a claim would name them. Absent for Persons and for agents declared only under actor roles.
-	Serves *[]JobFilter `json:"serves,omitempty"`
 }
 
 // CommandError Error response for failed bus commands. Replaces native Error objects on the EventBus so payloads are serializable and OpenAPI-typed.
@@ -5071,7 +5062,7 @@ type LibrarianConfig struct {
 
 // LibrarianModelConfig One model a Librarian asks: who it is, and where its provider is reached.
 type LibrarianModelConfig struct {
-	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	// Agent The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 	Agent ArchivistRosterRole `json:"agent"`
 
 	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
@@ -6124,6 +6115,15 @@ type ResourceView struct {
 	Resource ResourceDescriptor `json:"resource"`
 }
 
+// RosterEntry One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+type RosterEntry struct {
+	// Engine The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
+	Engine ArchivistRosterRole `json:"engine"`
+
+	// Serves The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles.
+	Serves *[]JobFilter `json:"serves,omitempty"`
+}
+
 // ScoredResource defines model for ScoredResource.
 type ScoredResource struct {
 	// Context JSON-LD context; URI, object, or array of these.
@@ -6742,7 +6742,7 @@ type WorkerAgentConfig struct {
 	// Accepts The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.
 	Accepts []JobFilter `json:"accepts"`
 
-	// Agent The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.
+	// Agent The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
 	Agent ArchivistRosterRole `json:"agent"`
 
 	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.

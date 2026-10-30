@@ -186,8 +186,8 @@ export interface BrowseNamespace {
   entityTypes(): CacheObservable<string[]>;
   tagSchemas(): CacheObservable<TagSchema[]>;
   /**
-   * The KB's collaborator directory — declared software agents (with
-   * `servesJobTypes` capabilities), not its members (Persons) —
+   * The KB's roster — each engine (a provider and a model) its config names,
+   * with the jobs it serves —
    * with each model's limits as the services holding its inference
    * credentials report them. KB-wide singleton; cached for the client
    * lifetime, asked again when the stream reopens after a drop.

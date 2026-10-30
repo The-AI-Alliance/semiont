@@ -3,7 +3,6 @@
 
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
 use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated, MarkRemoved};
-use semiont::identity::{agent_did, agent_name};
 use semiont::types::{JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter};
 use semiont_archivist_record::agents::did_to_agent;
 use semiont_archivist_record::{Object, dictionary_order, kb};
@@ -302,15 +301,13 @@ pub async fn tag_schemas(archivist: &Archivist, _: &Object) -> Answered {
     Ok(json!({ "tagSchemas": schemas }))
 }
 
-/// The roster: each agent once, in the order its first role appears, with
+/// The roster: each engine once, in the order its first role appears, with
 /// the jobs it serves, each named as a claim would name it. The roles are the
 /// roster's own, in its order: a `mark` job of each motivation it names, a
-/// `yield` job, then the actors.
+/// `yield` job, then the actors. An engine is a provider and a model, not a
+/// principal: it carries no identity of its own.
 pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
     const ACTORS: [&str; 2] = ["gatherer", "matcher"];
-    let Some(domain) = kb::committed(&archivist.root)?.domain else {
-        return Err("The knowledge base commits no .semiont/config.yaml, so declares no site.domain, and agent DIDs are minted under it — the same domain /api/tokens/agent mints worker DIDs from (no topology fallback)".into());
-    };
     let unreadable = |error: serde_json::Error| Refusal::from(error.to_string());
     let roster = &archivist.config.roster;
     let mut roles: Vec<(Value, Option<JobFilter>)> = Vec::new();
@@ -334,39 +331,25 @@ pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
         }
     }
 
-    let mut entries: Vec<(String, Value, Vec<JobFilter>)> = Vec::new();
+    let mut entries: Vec<(Value, Vec<JobFilter>)> = Vec::new();
     for (serving, job) in roles {
-        let (provider, model) = (
-            serving["provider"].as_str().unwrap_or_default(),
-            serving["model"].as_str().unwrap_or_default(),
-        );
-        let key = format!("{provider} {model}");
-        let at = match entries.iter().position(|(held, _, _)| *held == key) {
+        let engine = json!({ "provider": serving["provider"], "model": serving["model"] });
+        let at = match entries.iter().position(|(held, _)| *held == engine) {
             Some(at) => at,
             None => {
-                entries.push((
-                    key,
-                    json!({
-                        "@type": "Software",
-                        "@id": agent_did(&domain, provider, model),
-                        "name": agent_name(provider, model),
-                        "provider": provider,
-                        "model": model,
-                    }),
-                    Vec::new(),
-                ));
+                entries.push((engine, Vec::new()));
                 entries.len() - 1
             }
         };
-        entries[at].2.extend(job);
+        entries[at].1.extend(job);
     }
     let agents: Vec<Value> = entries
         .into_iter()
-        .map(|(_, agent, serves)| {
+        .map(|(engine, serves)| {
             if serves.is_empty() {
-                json!({ "agent": agent })
+                json!({ "engine": engine })
             } else {
-                json!({ "agent": agent, "serves": serves })
+                json!({ "engine": engine, "serves": serves })
             }
         })
         .collect();

@@ -575,7 +575,7 @@ every client, on no scope, and so carry no position. One published while
 the stream is down is lost, and nothing replays it. So when the stream is
 open again **after a drop**, the cache asks again for everything those
 events feed and it holds: every list of resources, every text search of
-them, every resource, the entity types and the tag schemas. The collaborator directory, which no
+them, every resource, the entity types and the tag schemas. The roster, which no
 event feeds, is asked for again here too: a gateway restarted with a
 changed roster presents as a drop.
 

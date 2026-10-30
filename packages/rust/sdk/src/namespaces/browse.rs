@@ -29,12 +29,12 @@ use crate::state_unit::StateUnit;
 use crate::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
-    Agent, AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
+    AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
     BrowseAnnotationHistoryRequest, BrowseAnnotationRequest, BrowseClickEvent,
     BrowseDirectoryRequest, BrowseDirectoryRequestSort, BrowseDirectoryResultResponse,
     BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest, BrowseResourceOpenEvent,
     BrowseResourceRequest, BrowseResourceViewedEvent, BrowseResourcesRequest,
-    BrowseTagSchemasRequest, CollaboratorEntry, GetAnnotationHistoryResponse,
+    BrowseTagSchemasRequest, RosterEntry, GetAnnotationHistoryResponse,
     GetAnnotationsResponse, GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse,
     InferencePairLimits, KbDescription, ListResourcesResponse, ResourceDescriptor, TagSchema,
 };
@@ -42,7 +42,7 @@ use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::Map;
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -87,35 +87,31 @@ impl ResourceFilters {
     }
 }
 
-/// One of the knowledge base's collaborators: its entry in the directory,
-/// and its model's limits when the service holding that model's credentials
-/// reported them. As JSON the limits sit beside the entry's own fields.
+/// One engine on the knowledge base's roster: its entry, and its model's
+/// limits when the service holding that model's credentials reported them. As
+/// JSON the limits sit beside the entry's own fields.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Collaborator {
     #[serde(flatten)]
-    pub entry: CollaboratorEntry,
+    pub entry: RosterEntry,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<InferenceLimits>,
 }
 
-/// The directory with each reported model's limits on its entries.
-fn joined(
-    directory: Vec<CollaboratorEntry>,
-    reported: &[InferencePairLimits],
-) -> Vec<Collaborator> {
-    directory
+/// The roster with each reported model's limits on its entries.
+fn joined(roster: Vec<RosterEntry>, reported: &[InferencePairLimits]) -> Vec<Collaborator> {
+    roster
         .into_iter()
         .map(|entry| {
-            let limits = match &entry.agent {
-                Agent::Software(agent) => reported
-                    .iter()
-                    .find(|pair| {
-                        Some(&pair.provider) == agent.provider.as_ref()
-                            && Some(&pair.model) == agent.model.as_ref()
-                    })
-                    .map(|pair| pair.limits.clone()),
-                Agent::Person(_) | Agent::Organization(_) => None,
-            };
+            // The provider as the wire names it, which is how a report names it.
+            let provider = serde_json::to_value(&entry.engine.provider).ok();
+            let limits = reported
+                .iter()
+                .find(|pair| {
+                    provider.as_ref().and_then(Value::as_str) == Some(pair.provider.as_str())
+                        && pair.model == *entry.engine.model
+                })
+                .map(|pair| pair.limits.clone());
             Collaborator { entry, limits }
         })
         .collect()
@@ -174,7 +170,7 @@ pub(super) struct Live {
     pub(super) annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>>,
     pub(super) entity_types: Cache<String, Vec<String>>,
     pub(super) tag_schemas: Cache<String, Vec<TagSchema>>,
-    pub(super) agents: Cache<String, Vec<CollaboratorEntry>>,
+    pub(super) agents: Cache<String, Vec<RosterEntry>>,
     /// Each key holder's report of its models' limits, by the operation
     /// that asks it.
     pub(super) limits: Cache<&'static str, Vec<InferencePairLimits>>,
@@ -431,7 +427,7 @@ impl Drop for Live {
 
 /// The directory is out of date, and so is what each key holder reported.
 pub(super) fn invalidate_agents(
-    agents: &Cache<String, Vec<CollaboratorEntry>>,
+    agents: &Cache<String, Vec<RosterEntry>>,
     limits: &Cache<&'static str, Vec<InferencePairLimits>>,
 ) {
     agents.invalidate(&WHOLE.to_owned());
@@ -442,18 +438,18 @@ pub(super) fn invalidate_agents(
 
 // ── What a query answers from ───────────────────────────────────────────
 
-/// The collaborator directory with each key holder's limits joined on.
+/// The roster with each key holder's limits joined on.
 struct Collaborators {
-    agents: Cache<String, Vec<CollaboratorEntry>>,
+    agents: Cache<String, Vec<RosterEntry>>,
     limits: Cache<&'static str, Vec<InferencePairLimits>>,
 }
 
 /// The directory's state, with what the key holders have reported so far:
 /// a holder that has not answered delays only its own models' limits.
 struct Joined {
-    directory: WatchStream<CacheState<Vec<CollaboratorEntry>>>,
+    directory: WatchStream<CacheState<Vec<RosterEntry>>>,
     reports: Vec<WatchStream<CacheState<Vec<InferencePairLimits>>>>,
-    entries: Option<CacheState<Vec<CollaboratorEntry>>>,
+    entries: Option<CacheState<Vec<RosterEntry>>>,
     reported: Vec<Vec<InferencePairLimits>>,
 }
 
@@ -493,7 +489,7 @@ impl Stream for Joined {
 impl Source<Vec<Collaborator>> for Collaborators {
     fn fresh(&self) -> BoxFuture<'static, Result<Vec<Collaborator>, SemiontError>> {
         enum Answer {
-            Directory(Result<Vec<CollaboratorEntry>, SemiontError>),
+            Directory(Result<Vec<RosterEntry>, SemiontError>),
             Limits(Vec<InferencePairLimits>),
         }
         // The directory is asked for first; each key holder's limits after it.

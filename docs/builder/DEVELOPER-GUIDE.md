@@ -243,26 +243,26 @@ await session.client.mark.updateEntityTypes(rId, current, [...current, 'Person']
 (Don't confuse this with `frame.addEntityTypes` (§4), which grows the KB-wide *vocabulary*
 — a different axis from one resource's tags.)
 
-**Who does the work — the collaborator directory.** Before delegating a pass, you
-can name the agent that will serve it: `browse.agents()` returns the KB's declared roster as
-`CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the jobs it's
-configured to serve, as `serves`: a list of `JobFilter`, the partial job descriptions a claim
-names (both types importable from `@semiont/core`). It's
-a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
-after a connection gap (a roster change means restarting the stack, which always presents as
-one). Match a job to its serving agent and you have the assignee *before* the work runs
-— and the same DID arrives back as `generator` on every annotation that work creates, so
-your dispatch-time attribution and the stored provenance agree by construction:
+**What runs the work — the roster.** Before delegating a pass, you can name the engine that
+will serve it: `browse.agents()` returns the KB's declared roster as `RosterEntry[]` — each
+entry an `engine`, a provider and a model, plus the jobs it's configured to serve, as
+`serves`: a list of `JobFilter`, the partial job descriptions a claim names (both types
+importable from `@semiont/core`). An engine is not a principal: the work is done by a worker,
+under its own account, and every annotation that work creates carries a `generator` naming
+that worker's DID and the engine it ran. It's a KB-wide live query like `entityTypes()`:
+cached for the client's lifetime and refreshed after a connection gap (a roster change means
+restarting the stack, which always presents as one). Match a job to its serving engine and
+you know the model *before* the work runs:
 
 ```typescript
-import type { CollaboratorEntry, JobFilter } from '@semiont/core';
+import type { JobFilter, RosterEntry } from '@semiont/core';
 
-const roster = await session.client.browse.agents().fresh();
-const linker = roster.find((e) =>
-  e.serves?.some((f) => f.jobType === 'mark' && f.params.motivation === 'linking'));
-// linker?.agent — the Software Agent (name, provider, model, DID '@id') that will
-// serve mark.delegate(rId, { motivation: 'linking', … }); entries without serves are
-// actor-role agents (retrieval/search), not job workers.
+const roster: RosterEntry[] = await session.client.browse.agents().fresh();
+const linking = (f: JobFilter) => f.jobType === 'mark' && f.params.motivation === 'linking';
+const linker = roster.find((e) => e.serves?.some(linking));
+// linker?.engine — the provider and model that will serve
+// mark.delegate(rId, { motivation: 'linking', … }); entries without serves are
+// actor-role engines (retrieval/search), not job workers.
 ```
 
 (In React, feed any live query to `useObservable` from `@semiont/react-ui` — e.g.
@@ -602,7 +602,7 @@ supplying its own `SessionStorage` — no other wiring.
 What persists, per KB:
 - Five browse caches — resource descriptors, annotation lists, annotation details,
   entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
-  histories, and the collaborator directory deliberately stay in-memory.
+  histories, and the roster deliberately stay in-memory.
 - The last **persisted** SSE event id PER SCOPE (a record under
   `semiont.lastEventId.<kbId>`), written only alongside cache-document flushes
   so the bookmark can never claim more than the caches contain. Ephemeral

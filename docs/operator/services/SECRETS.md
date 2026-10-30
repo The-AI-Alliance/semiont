@@ -187,7 +187,7 @@ a value instead of pointing at one.
 document names, and no other. The
 Anthropic key an Inference document names reaches the librarian and the worker, and no other service. They are
 the only services that call a model, so they are also the ones that report each model's limits
-(context window, output ceiling); the archivist lists the collaborator directory from its configuration document, which names each role's provider and model and no key.
+(context window, output ceiling); the archivist lists the roster from its configuration document, which names each role's provider and model and no key.
 A daemon's password reaches the services that connect to that daemon: Neo4j's goes to the
 librarian and to the weaver, whose documents name it, and the broker's pair goes to
 the dispatcher and to the gateway when its signal plane is the broker. Voyage's key reaches the

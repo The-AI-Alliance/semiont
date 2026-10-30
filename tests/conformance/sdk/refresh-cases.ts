@@ -55,7 +55,7 @@ const OTHER = annotation('a2', 'r2', 'highlighting');
 const LIST = { resources: [], total: 0, offset: 0, limit: 100 };
 const FOUND = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'semantic' };
 
-/** The operations a refresh of the collaborator directory asks beside its own: each key holder's limits. */
+/** The operations a refresh of the roster asks beside its own: each key holder's limits. */
 const limitsOperations = (): string[] => registry().operations.map((operation) => operation.request).filter((request) => request.endsWith(':limits-requested'));
 
 /** One request a query makes: on the bus, with the answer the suite gives it; or a read over HTTP, which the stand-in Archivist answers from what `seeded` gave it. */
