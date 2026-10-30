@@ -1181,7 +1181,6 @@
     {
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's jobFilter module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/job-filter.ts"
@@ -1194,6 +1193,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
         ]
       },
       "whole": [

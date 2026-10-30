@@ -913,6 +913,10 @@ public final class semiont/identity/IdentityKt {
 	public static final fun personDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 }
 
+public final class semiont/jobs/JobFilterKt {
+	public static final fun jobMatchesFilter (Lkotlinx/serialization/json/JsonObject;Lkotlinx/serialization/json/JsonObject;)Z
+}
+
 public final class semiont/namespaces/AuthNamespace {
 	public final fun me (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun meFuture ()Ljava/util/concurrent/CompletableFuture;
