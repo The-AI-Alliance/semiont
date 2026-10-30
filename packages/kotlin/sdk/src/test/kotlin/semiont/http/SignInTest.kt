@@ -3,10 +3,12 @@ package semiont.http
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,6 +25,7 @@ import semiont.signin.SCRIPT_CLIENT_ID
 import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URLDecoder
@@ -36,15 +39,36 @@ internal class Said(val status: Int, val body: JsonObject)
 /** One request the fake was asked: its method, path, headers and form. */
 internal class Asked(val method: String, val path: String, val authorization: String?, val form: Map<String, String>)
 
-/** A knowledge base's gateway and the issuer it trusts, in one server, answering each path with what a test gives it. */
-internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
+/**
+ * A knowledge base's gateway and the issuer it trusts, in one server, answering
+ * each path with what a test gives it. One that `holdsStreams` holds the
+ * latest stream a client opens, keeps what each emit carried, and is given
+ * each to answer (`onEmit`), on that stream (`send`).
+ */
+internal class Realm(trustsAnIssuer: Boolean = true, holdsStreams: Boolean = false) : AutoCloseable {
     private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
     val origin: String = "http://127.0.0.1:${server.address.port}"
     val asked = CopyOnWriteArrayList<Asked>()
     val scripted = mutableMapOf<String, ConcurrentLinkedDeque<Said>>()
+    val emits = CopyOnWriteArrayList<JsonObject>()
+
+    @Volatile
+    var onEmit: (JsonObject) -> Unit = {}
+
+    @Volatile
+    private var stream: OutputStream? = null
 
     fun script(path: String, vararg said: Said) {
         scripted.getOrPut(path) { ConcurrentLinkedDeque() }.addAll(said)
+    }
+
+    /** Write a frame on the stream the client holds. */
+    fun send(frame: JsonObject) {
+        val out = checkNotNull(stream) { "no client holds a stream" }
+        synchronized(out) {
+            out.write("event: bus-event\ndata: $frame\n\n".toByteArray())
+            out.flush()
+        }
     }
 
     private fun answer(exchange: HttpExchange, said: Said) {
@@ -72,6 +96,20 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
                 return@createContext
             }
             when {
+                path == "/bus/subscribe" && holdsStreams -> {
+                    exchange.responseHeaders.add("Content-Type", "text/event-stream")
+                    exchange.sendResponseHeaders(200, 0)
+                    val out = exchange.responseBody
+                    out.write(": open\n\n".toByteArray())
+                    out.flush()
+                    stream = out
+                }
+                path == "/bus/emit" && holdsStreams -> {
+                    val emit = Json.parseToJsonElement(text).jsonObject
+                    emits += emit
+                    answer(exchange, Said(202, buildJsonObject { put("subscribers", 1) }))
+                    onEmit(emit)
+                }
                 path == "/.well-known/oauth-protected-resource" && !trustsAnIssuer -> answer(exchange, Said(404, buildJsonObject { put("error", "not found") }))
                 path == "/.well-known/oauth-protected-resource" -> answer(exchange, Said(200, buildJsonObject {
                     put("resource", origin)
