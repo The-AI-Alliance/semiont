@@ -8,10 +8,14 @@ import semiont.bus.Operations
 import semiont.channels.Channels
 import semiont.channels.Empty
 import semiont.identifiers.ResourceId
+import semiont.mediatypes.cloneFormat
+import semiont.mediatypes.storageUri
+import semiont.resources.primaryMediaType
 import semiont.transport.ContentTransport
 import semiont.transport.PutBinaryRequest
 import semiont.transport.Upload
 import semiont.types.CloneResourceWithTokenResponse
+import semiont.types.CreateResourceResponse
 import semiont.types.GatheredContextFocusAnnotation
 import semiont.types.GatheredContextFocusResource
 import semiont.types.GenerationJobParams
@@ -70,6 +74,30 @@ public class YieldNamespace internal constructor(private val links: Links, priva
 
     /** `fromToken`, for Java. */
     public fun fromTokenFuture(token: String): CompletableFuture<ResourceDescriptor> = links.future { fromToken(token) }
+
+    /**
+     * Create a resource as a clone of the one `token` was made from. The
+     * source is read first; the clone's content then goes by the upload path,
+     * in the format its source's allows and under a name made from its own.
+     * `archiveOriginal` archives the source once the clone exists.
+     */
+    public suspend fun createFromToken(token: String, name: String, content: String, archiveOriginal: Boolean? = null): CreateResourceResponse {
+        val format = cloneFormat(primaryMediaType(fromToken(token)))
+        val clone = PutBinaryRequest(
+            name = name,
+            file = content.toByteArray(),
+            format = format.mediaType,
+            storageUri = storageUri(name, format),
+            cloneToken = token,
+            archiveOriginal = archiveOriginal,
+        )
+        return this.content.putBinary(clone).use { it.await() }
+    }
+
+    /** `createFromToken`, for Java. */
+    @JvmOverloads
+    public fun createFromTokenFuture(token: String, name: String, content: String, archiveOriginal: Boolean? = null): CompletableFuture<CreateResourceResponse> =
+        links.future { createFromToken(token, name, content, archiveOriginal) }
 
     /** Signal: a clone is begun in this viewer. */
     public fun clone(): Unit = links.signal(Channels.YIELD_CLONE, Empty)

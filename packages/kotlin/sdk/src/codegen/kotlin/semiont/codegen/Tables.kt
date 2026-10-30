@@ -4,13 +4,15 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.longOrNull
 
 /**
  * The code of the spec's tables beside its schemas: the bus registry's
  * channels, audiences, trace field and operations (bus/registry.json), the
- * timing a client keeps (client/timing.json), and the codes its failures
- * carry (errors/codes.json). Each refuses what it cannot render.
+ * timing a client keeps (client/timing.json), the codes its failures carry
+ * (errors/codes.json), and the media types a knowledge base admits
+ * (media-types/registry.json). Each refuses what it cannot render.
  */
 private fun JsonElement?.obj(what: String): JsonObject = this as? JsonObject ?: refuse("$what is no object")
 
@@ -265,4 +267,40 @@ internal fun errorCodesFile(table: JsonObject): String = buildString {
     val unrecognized = bus["unrecognizedFailure"].text("busRequest's unrecognizedFailure")
     append("/** The client code of a failure whose own code is none it knows. */\n")
     append("internal val UNRECOGNIZED_FAILURE: BusRequestErrorCode = BusRequestErrorCode.${variantOf(unrecognized.substringAfter('.'))}\n")
+}
+
+/**
+ * The media types a knowledge base admits, with what this SDK reads of each:
+ * a row's media type, its extension, where its text comes from, whether a
+ * person authors it and whether a generation writes it. The registry's media
+ * types are the `SupportedMediaType` enum's (`supported`), each once.
+ */
+internal fun mediaTypesFile(registry: JsonObject, supported: List<String>): String = buildString {
+    val sources = registry["textSource"].list("the registry's textSource").map { it.text("a text source") }
+    if (sources.isEmpty() || sources.toSet().size != sources.size) refuse("the registry's text sources are none, or one is stated twice")
+    val rows = registry["mediaTypes"].list("the registry's media types").map { it.obj("a media type") }
+    val stated = rows.map { it["mediaType"].text("a row's media type") }
+    if (stated.toSet().size != stated.size) refuse("the registry states a media type twice")
+    if (stated.toSet() != supported.toSet()) {
+        refuse("the registry and SupportedMediaType disagree: ${(stated - supported.toSet()) + (supported - stated.toSet())}")
+    }
+    append("/** Where a type's text comes from: decoded from its own bytes, derived by reading them, or nowhere. */\n")
+    append("internal enum class TextSource(\n    /** The word as the registry spells it. */\n    val word: String,\n) {\n")
+    for (source in sources) append("    ${variantOf(source)}(${literal(source)}),\n")
+    append("}\n\n")
+    append("/** One media type a knowledge base admits. Its extension is the one a stored name takes, with its dot; an authorable type is offered where a person writes a resource; a generatable one the generation worker can produce. */\n")
+    append("internal data class MediaType(val mediaType: String, val extension: String, val textSource: TextSource, val authorable: Boolean, val generatable: Boolean)\n\n")
+    append("/** The registry, in its own order: ${rows.size} media types. */\n")
+    append("internal val MEDIA_TYPES: List<MediaType> = listOf(\n")
+    for (row in rows) {
+        val type = row["mediaType"].text("a row's media type")
+        if (type != type.lowercase() || ';' in type) refuse("$type is not a base media type: lower case, and no parameters")
+        val extension = row["extension"].text("$type's extension")
+        if (!Regex("^\\.[a-z0-9]+$").matches(extension)) refuse("$type's extension is $extension: a dot, then lower-case letters and digits")
+        val source = row["textSource"].text("$type's text source")
+        if (source !in sources) refuse("$type's text source is $source, which is none of $sources")
+        fun flag(name: String) = (row[name] as? JsonPrimitive)?.booleanOrNull ?: refuse("$type does not say whether it is $name")
+        append("    MediaType(${literal(type)}, ${literal(extension)}, TextSource.${variantOf(source)}, ${flag("authorable")}, ${flag("generatable")}),\n")
+    }
+    append(")\n")
 }

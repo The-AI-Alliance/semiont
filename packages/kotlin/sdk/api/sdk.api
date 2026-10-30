@@ -600,6 +600,11 @@ public final class semiont/namespaces/YieldNamespace {
 	public final fun cloneToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun cloneTokenFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun cloneTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun createFromToken (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun createFromToken$default (Lsemiont/namespaces/YieldNamespace;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun createFromTokenFuture (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun createFromTokenFuture (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun createFromTokenFuture$default (Lsemiont/namespaces/YieldNamespace;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public final fun delegate (Lsemiont/types/GenerationJobParams;)Lsemiont/Delegation;
 	public final fun delegate (Lsemiont/types/GenerationJobParams;Ljava/lang/Long;)Lsemiont/Delegation;
 	public static synthetic fun delegate$default (Lsemiont/namespaces/YieldNamespace;Lsemiont/types/GenerationJobParams;Ljava/lang/Long;ILjava/lang/Object;)Lsemiont/Delegation;

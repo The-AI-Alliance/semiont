@@ -529,7 +529,6 @@
         },
         {
           "method": "createFromToken",
-          "notYetReached": { "kotlin": "The Kotlin SDK's media types, which make the clone's format and name." },
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [
