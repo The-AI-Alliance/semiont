@@ -144,7 +144,7 @@ class RegistryTest {
         val world = World().with(kbOfA(), kbOfB())
         world.browser().use { browser ->
             live(browser)
-            world.factory.sessions.answersAfterMs = 300
+            world.factory.sessions.answersAfter(300)
             val seen = Collections.synchronizedList(mutableListOf<String?>())
             val watching = launch(Dispatchers.Unconfined) { browser.activeSession.collect { seen += it?.kb?.id } }
 
@@ -211,7 +211,7 @@ class RegistryTest {
         world.browser().use { browser ->
             live(browser)
             // The first activation holds the turn while its session comes up, and the other two are asked for behind it.
-            world.factory.sessions.answersAfterMs = 500
+            world.factory.sessions.answersAfter(500)
             val asked = mutableListOf(async(Dispatchers.Default) { browser.setActiveKb(KB_B) })
             // B's session is being built: the first activation has closed A's and holds the turn.
             eventually("B's session is being built") { world.factory.sessions.transports(KB_B).isNotEmpty() }
@@ -231,7 +231,7 @@ class RegistryTest {
         val world = World().with(kbOfA(), kbOfB())
         world.browser().use { browser ->
             live(browser)
-            world.factory.sessions.answersAfterMs = 500
+            world.factory.sessions.answersAfter(500)
             // Every session shown after the first: the knowledge base that was active then, and the session's own.
             val seen = Collections.synchronizedList(mutableListOf<Pair<String?, String>>())
             val watching = launch(Dispatchers.Unconfined) {
@@ -254,7 +254,7 @@ class RegistryTest {
     fun aSessionBeingBroughtUpIsSaidToBeOnItsWay() = runBlocking {
         val world = World().with(kbOfA())
         // A session that takes a moment to come up: one that is up at once is up before anyone could be told it was coming.
-        world.factory.sessions.answersAfterMs = 500
+        world.factory.sessions.answersAfter(500)
         world.browser().use { browser ->
             eventually("an activation is under way") { browser.sessionActivating.value }
             assertNull(sessionOf(browser))
@@ -266,7 +266,7 @@ class RegistryTest {
     @Test
     fun aSessionThatCannotBeBuiltIsSaidAndThereIsNone() = runBlocking {
         val world = World().with(kbOfA())
-        world.factory.sessions.refusesToBuild = "this factory builds nothing"
+        world.factory.sessions.refuseToBuild("this factory builds nothing")
         world.browser().use { browser ->
             // Heard from before the registry begins its first activation.
             val refused = soon { firstOf(browser.errors()) }
