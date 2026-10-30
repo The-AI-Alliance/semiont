@@ -85,7 +85,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.jdk9)
+    // OpenTelemetry's API alone: what is exported, and where, is the application's.
+    implementation(platform(libs.opentelemetry.bom))
+    implementation(libs.opentelemetry.api)
+    implementation(libs.opentelemetry.extension.kotlin)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.opentelemetry.sdk)
     "codegenImplementation"(libs.kotlinx.serialization.json)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -266,6 +271,11 @@ val conformance: SourceSet = sourceSets.create("conformance") {
     runtimeClasspath += sourceSets.main.get().output
 }
 configurations.named(conformance.implementationConfigurationName) { extendsFrom(configurations.implementation.get()) }
+dependencies {
+    // What exports the SDK's telemetry, and where, is the application's: here, the drivers'.
+    conformance.implementationConfigurationName(libs.opentelemetry.sdk)
+    conformance.implementationConfigurationName(libs.opentelemetry.exporter.otlp)
+}
 val conformanceJar = tasks.register<Jar>("conformanceJar") {
     archiveBaseName = "semiont-conformance"
     from(conformance.output)

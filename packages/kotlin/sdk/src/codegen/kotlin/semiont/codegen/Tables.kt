@@ -151,6 +151,32 @@ internal fun operationsFile(registry: JsonObject, definitions: JsonObject): Stri
     append("@Generated\npublic val LIMITS_OPERATIONS: List<Operation<*, *, *>> = listOf(${limits.joinToString(", ") { "Operations.${constantName(it)}" }})\n")
 }
 
+/** The telemetry the SDK's transports export: each span with its kind, and each metric, by its name in the table. */
+internal fun telemetryFile(table: JsonObject): String = buildString {
+    val kinds = mapOf("client" to "CLIENT", "server" to "SERVER", "producer" to "PRODUCER", "consumer" to "CONSUMER", "internal" to "INTERNAL")
+    val taken = mutableSetOf<String>()
+    fun constant(name: String): String = constantName(name.replace("{channel}", "")).also { if (!taken.add(it)) refuse("the telemetry table: two rows would both be $it") }
+    append("/** The telemetry a Semiont SDK's transports export (specs/src/sdk-telemetry/telemetry.json). A span's name may hold `{channel}`, the bus channel. */\n")
+    append("internal object TelemetryTable {\n")
+    for (raw in table["spans"].list("the telemetry table's spans")) {
+        val row = raw.obj("a span")
+        val name = row["name"].text("a span's name")
+        val kind = row["kind"].text("$name's kind").let { kinds[it] ?: refuse("$name: a span kind the generator does not know: $it") }
+        append(kdoc("    ", row["meaning"].text("$name's meaning")))
+        append("    val ${constant(name)}: SpanRow = SpanRow(${literal(name)}, SpanKind.$kind)\n")
+    }
+    for (raw in table["metrics"].list("the telemetry table's metrics")) {
+        val row = raw.obj("a metric")
+        val name = row["name"].text("a metric's name")
+        val instrument = row["instrument"].text("$name's instrument")
+        if (instrument != "counter") refuse("$name: an instrument the generator does not know: $instrument")
+        val meaning = row["meaning"].text("$name's meaning")
+        append(kdoc("    ", meaning))
+        append("    val ${constant(name)}: MetricRow = MetricRow(${literal(name)}, ${literal(meaning)})\n")
+    }
+    append("}\n")
+}
+
 /** The timing a client keeps: each row a constant, `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`, a budget as a `RetryPolicy`. */
 internal fun timingFile(table: JsonObject): String = buildString {
     append("/** The timing a client keeps (specs/src/client/timing.json). */\n")

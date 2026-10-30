@@ -8,7 +8,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.future.future
 import kotlinx.coroutines.jdk9.asPublisher
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -26,6 +25,7 @@ import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
 import semiont.identifiers.UserId
+import semiont.telemetry.futureOf
 import semiont.transport.ConnectionState
 import semiont.transport.Events
 import semiont.transport.Frame
@@ -93,7 +93,7 @@ public suspend fun request(transport: Transport, operation: Operation<*, *, *>, 
 
 /** `request`, for Java. */
 public fun requestFuture(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long): CompletableFuture<JsonObject> =
-    CoroutineScope(Dispatchers.Default).future { request(transport, operation, payload, timeoutMs) }
+    CoroutineScope(Dispatchers.Default).futureOf { request(transport, operation, payload, timeoutMs) }
 
 /**
  * A request of the bus, as far as the frame that answers it on its
@@ -223,7 +223,7 @@ public class Bus(private val transport: Transport) {
     /** `emit`, for Java. */
     @JvmExposeBoxed
     public fun <P> emitFuture(channel: Channel<P>, payload: P, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
-        this.scope.future { emit(channel, payload, scope, correlationId) }
+        this.scope.futureOf { emit(channel, payload, scope, correlationId) }
 
     /** The frames delivered on `channel` from now on. Throws `BusRequestError` (`bus.unsubscribed`) for a channel this transport can never deliver. */
     public fun <P> frames(channel: Channel<P>): Typed<P> =
@@ -252,5 +252,5 @@ public class Bus(private val transport: Transport) {
 
     /** `request`, for Java. */
     public fun <Q, R, F> requestFuture(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long): CompletableFuture<R> =
-        scope.future { request(operation, payload, timeoutMs) }
+        scope.futureOf { request(operation, payload, timeoutMs) }
 }

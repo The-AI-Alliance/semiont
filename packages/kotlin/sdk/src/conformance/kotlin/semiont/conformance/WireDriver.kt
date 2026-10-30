@@ -37,7 +37,7 @@ import java.util.Base64
  * does, through what the SDK makes public.
  */
 public fun main() {
-    serve { abandon -> WireDriver(abandon) }
+    exporting().use { serve { abandon -> WireDriver(abandon) } }
 }
 
 /** The refresher a case's renewals give the client: each time it is asked, the next of them, made the client's token; none once they run out. */

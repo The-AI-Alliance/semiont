@@ -2,8 +2,10 @@
 
 package semiont.http
 
+import semiont.telemetry.futureOf
+import semiont.telemetry.callersTrace
+import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -11,7 +13,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.future.future
 import kotlinx.coroutines.jdk9.asFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -134,17 +135,19 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
                 }
             }
         }
-        val sending = scope.async(start = CoroutineStart.DEFAULT) {
+        val sending = scope.async(callersTrace()) {
             try {
-                // No deadline: how long an upload takes is how large the resource is.
-                exchange.answer(
-                    CreateResourceResponse.serializer(),
-                    "POST",
-                    "/resources",
-                    headers = mapOf("Content-Type" to "multipart/form-data; boundary=${form.boundary}"),
-                    body = { form.publisher(report) },
-                    atLength = true,
-                )
+                Telemetry.putting(request.format, form.size) {
+                    // No deadline: how long an upload takes is how large the resource is.
+                    exchange.answer(
+                        CreateResourceResponse.serializer(),
+                        "POST",
+                        "/resources",
+                        headers = mapOf("Content-Type" to "multipart/form-data; boundary=${form.boundary}"),
+                        body = { form.publisher(report) },
+                        atLength = true,
+                    )
+                }
             } finally {
                 progress.close()
             }
@@ -157,7 +160,9 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
         return response.headers().firstValue("content-type").orElse("application/octet-stream") to response.body()
     }
 
-    override suspend fun getBinary(resourceId: ResourceId): Content {
+    override suspend fun getBinary(resourceId: ResourceId): Content = Telemetry.getting(resourceId, stream = false) { whole(resourceId) }
+
+    private suspend fun whole(resourceId: ResourceId): Content {
         val (contentType, body) = arriving(resourceId)
         val bytes = try {
             readAll(body)
@@ -168,9 +173,11 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
     }
 
     @JvmExposeBoxed
-    override fun getBinaryFuture(resourceId: ResourceId): CompletableFuture<Content> = scope.future { getBinary(resourceId) }
+    override fun getBinaryFuture(resourceId: ResourceId): CompletableFuture<Content> = scope.futureOf { getBinary(resourceId) }
 
-    override suspend fun getBinaryStream(resourceId: ResourceId): ContentStream {
+    override suspend fun getBinaryStream(resourceId: ResourceId): ContentStream = Telemetry.getting(resourceId, stream = true) { stream(resourceId) }
+
+    private suspend fun stream(resourceId: ResourceId): ContentStream {
         val (contentType, body) = arriving(resourceId)
         val pieces = flow {
             try {
@@ -189,25 +196,25 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
     }
 
     @JvmExposeBoxed
-    override fun getBinaryStreamFuture(resourceId: ResourceId): CompletableFuture<ContentStream> = scope.future { getBinaryStream(resourceId) }
+    override fun getBinaryStreamFuture(resourceId: ResourceId): CompletableFuture<ContentStream> = scope.futureOf { getBinaryStream(resourceId) }
 
     override suspend fun getResourceGraph(resourceId: ResourceId): GetResourceResponse =
-        exchange.answer(GetResourceResponse.serializer(), "GET", "${pathOf(resourceId)}/jsonld")
+        Telemetry.gettingGraph(resourceId) { exchange.answer(GetResourceResponse.serializer(), "GET", "${pathOf(resourceId)}/jsonld") }
 
     @JvmExposeBoxed
-    override fun getResourceGraphFuture(resourceId: ResourceId): CompletableFuture<GetResourceResponse> = scope.future { getResourceGraph(resourceId) }
+    override fun getResourceGraphFuture(resourceId: ResourceId): CompletableFuture<GetResourceResponse> = scope.futureOf { getResourceGraph(resourceId) }
 
     override suspend fun getAnnotations(resourceId: ResourceId): GetAnnotationsResponse =
-        exchange.answer(GetAnnotationsResponse.serializer(), "GET", "${pathOf(resourceId)}/annotations")
+        Telemetry.gettingAnnotations(resourceId) { exchange.answer(GetAnnotationsResponse.serializer(), "GET", "${pathOf(resourceId)}/annotations") }
 
     @JvmExposeBoxed
-    override fun getAnnotationsFuture(resourceId: ResourceId): CompletableFuture<GetAnnotationsResponse> = scope.future { getAnnotations(resourceId) }
+    override fun getAnnotationsFuture(resourceId: ResourceId): CompletableFuture<GetAnnotationsResponse> = scope.futureOf { getAnnotations(resourceId) }
 
     override suspend fun getAnchoredText(resourceId: ResourceId): AnchoredTextAnswer =
-        exchange.answer(AnchoredTextAnswer.serializer(), "GET", "${pathOf(resourceId)}/anchored-text")
+        Telemetry.gettingAnchoredText(resourceId) { exchange.answer(AnchoredTextAnswer.serializer(), "GET", "${pathOf(resourceId)}/anchored-text") }
 
     @JvmExposeBoxed
-    override fun getAnchoredTextFuture(resourceId: ResourceId): CompletableFuture<AnchoredTextAnswer> = scope.future { getAnchoredText(resourceId) }
+    override fun getAnchoredTextFuture(resourceId: ResourceId): CompletableFuture<AnchoredTextAnswer> = scope.futureOf { getAnchoredText(resourceId) }
 
     override fun close(): Unit = scope.cancel()
 }

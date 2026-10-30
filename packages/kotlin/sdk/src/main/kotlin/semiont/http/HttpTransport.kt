@@ -2,13 +2,14 @@
 
 package semiont.http
 
+import semiont.telemetry.futureOf
+import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.future.future
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import semiont.Timings
@@ -100,11 +101,13 @@ public class HttpTransport @JvmOverloads constructor(
         stream.start()
     }
 
-    internal fun <T> future(work: suspend () -> T): CompletableFuture<T> = scope.future { work() }
-
     // ── the bus ──────────────────────────────────────────────────────────
 
-    override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
+    override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? =
+        Telemetry.emitting(channel, scope) { sent(channel, payload, scope, correlationId) }
+
+    /** One emit, made again inside the retry budget, its credential renewed once. */
+    private suspend fun sent(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
         val body = wireJson.encodeToString(
             BusEmitRequest.serializer(),
             BusEmitRequest(channel = channel, payload = payload, scope = scope, clientId = clientId, correlationId = correlationId),
@@ -163,7 +166,7 @@ public class HttpTransport @JvmOverloads constructor(
 
     @JvmExposeBoxed
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
-        future { emit(channel, payload, scope, correlationId) }
+        this.scope.futureOf { emit(channel, payload, scope, correlationId) }
 
     override fun frames(channel: String): Events<Frame> {
         if (channel !in channels && channel !in RESOURCE_SCOPED_CHANNELS) throw unsubscribed(channel)
@@ -208,7 +211,7 @@ public class HttpTransport @JvmOverloads constructor(
 
     override suspend fun getCurrentUser(): UserResponse = exchange.answer(UserResponse.serializer(), "GET", "/api/users/me")
 
-    override fun getCurrentUserFuture(): CompletableFuture<UserResponse> = future { getCurrentUser() }
+    override fun getCurrentUserFuture(): CompletableFuture<UserResponse> = scope.futureOf { getCurrentUser() }
 
     override suspend fun getMediaToken(resourceId: ResourceId): MediaTokenResponse {
         val body = wireJson.encodeToString(MediaTokenRequest.serializer(), MediaTokenRequest(resourceId = resourceId))
@@ -216,18 +219,18 @@ public class HttpTransport @JvmOverloads constructor(
     }
 
     @JvmExposeBoxed
-    override fun getMediaTokenFuture(resourceId: ResourceId): CompletableFuture<MediaTokenResponse> = future { getMediaToken(resourceId) }
+    override fun getMediaTokenFuture(resourceId: ResourceId): CompletableFuture<MediaTokenResponse> = scope.futureOf { getMediaToken(resourceId) }
 
     override suspend fun getProtectedResourceMetadata(): ProtectedResourceMetadata =
         exchange.answer(ProtectedResourceMetadata.serializer(), "GET", "/.well-known/oauth-protected-resource", authenticated = false)
 
-    override fun getProtectedResourceMetadataFuture(): CompletableFuture<ProtectedResourceMetadata> = future { getProtectedResourceMetadata() }
+    override fun getProtectedResourceMetadataFuture(): CompletableFuture<ProtectedResourceMetadata> = scope.futureOf { getProtectedResourceMetadata() }
 
     override suspend fun healthCheck(): HealthResponse = exchange.answer(HealthResponse.serializer(), "GET", "/api/health")
 
-    override fun healthCheckFuture(): CompletableFuture<HealthResponse> = future { healthCheck() }
+    override fun healthCheckFuture(): CompletableFuture<HealthResponse> = scope.futureOf { healthCheck() }
 
     override suspend fun getStatus(): StatusResponse = exchange.answer(StatusResponse.serializer(), "GET", "/api/status")
 
-    override fun getStatusFuture(): CompletableFuture<StatusResponse> = future { getStatus() }
+    override fun getStatusFuture(): CompletableFuture<StatusResponse> = scope.futureOf { getStatus() }
 }

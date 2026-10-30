@@ -2,11 +2,30 @@
 # Manual edits can break the build and are not advised.
 # This file is expected to be part of source control.
 # To regenerate this file, run: ./gradlew :dependencies --write-locks
+com.squareup.okhttp3:okhttp-jvm:5.5.0=conformanceRuntimeClasspath
+com.squareup.okhttp3:okhttp:5.5.0=conformanceRuntimeClasspath
+com.squareup.okio:okio-jvm:3.18.1=conformanceRuntimeClasspath
+com.squareup.okio:okio:3.18.1=conformanceRuntimeClasspath
+io.opentelemetry:opentelemetry-api:1.67.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-bom:1.67.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-common:1.67.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-context:1.67.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-exporter-common:1.67.0=conformanceRuntimeClasspath
+io.opentelemetry:opentelemetry-exporter-otlp-common:1.67.0=conformanceRuntimeClasspath
+io.opentelemetry:opentelemetry-exporter-otlp:1.67.0=conformanceCompileClasspath,conformanceRuntimeClasspath
+io.opentelemetry:opentelemetry-exporter-sender-okhttp:1.67.0=conformanceRuntimeClasspath
+io.opentelemetry:opentelemetry-extension-kotlin:1.67.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-sdk-common:1.67.0=conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-sdk-logs:1.67.0=conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-sdk-metrics:1.67.0=conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-sdk-trace:1.67.0=conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
+io.opentelemetry:opentelemetry-sdk:1.67.0=conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.apiguardian:apiguardian-api:1.1.2=javaTestCompileClasspath,testCompileClasspath
 org.jacoco:org.jacoco.agent:0.8.14=jacocoAgent,jacocoAnt
 org.jacoco:org.jacoco.ant:0.8.14=jacocoAnt
 org.jacoco:org.jacoco.core:0.8.14=jacocoAnt
 org.jacoco:org.jacoco.report:0.8.14=jacocoAnt
+org.jetbrains.kotlin:kotlin-bom:2.4.21=conformanceRuntimeClasspath,javaTestRuntimeClasspath,runtimeClasspath,testRuntimeClasspath
 org.jetbrains.kotlin:kotlin-stdlib:2.4.21=codegenCompileClasspath,codegenRuntimeClasspath,compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.11.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0=compileClasspath,conformanceCompileClasspath,conformanceRuntimeClasspath,javaTestCompileClasspath,javaTestRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath

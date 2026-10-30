@@ -1,5 +1,6 @@
 package semiont.http
 
+import semiont.telemetry.Telemetry
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.jdk9.asFlow
@@ -146,6 +147,7 @@ internal class Exchange(
     fun request(path: String, token: String?): HttpRequest.Builder {
         val builder = HttpRequest.newBuilder(URI.create("$baseUrl$path"))
         if (token != null) builder.header("Authorization", "Bearer $token")
+        Telemetry.headers().forEach { (name, value) -> builder.header(name, value) }
         return builder
     }
 

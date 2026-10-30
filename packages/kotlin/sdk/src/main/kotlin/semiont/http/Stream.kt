@@ -2,6 +2,7 @@
 
 package semiont.http
 
+import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -355,12 +356,12 @@ internal class Stream(
         val correlationId = (carried["correlationId"] as? JsonPrimitive)?.contentOrNull
         val scopeText = (carried["scope"] as? JsonPrimitive)?.contentOrNull
         val scope = scopeText?.let { ResourceId.parse(it) ?: return }
-        var trace: TraceContext? = null
+        var sentUnder: TraceContext? = null
         if (TRACE_FIELD in payload) {
-            trace = sentUnder(payload[TRACE_FIELD])
+            sentUnder = sentUnder(payload[TRACE_FIELD])
             payload = JsonObject(payload - TRACE_FIELD)
         }
-        val frame = Frame(channel, payload, correlationId, scope, trace)
+        val frame = Frame(channel, payload, correlationId, scope, Telemetry.received(channel, scope, sentUnder))
         router.route(frame)
         // A scope's position is the last recorded event delivered on it: only a recorded event's id (`p-…`) is one.
         if (id != null && scope != null && id.startsWith("p-")) watermarks[scope.value] = id

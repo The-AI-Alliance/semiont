@@ -100,7 +100,6 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   kotlin: {
     wire: [KOTLIN_WIRE_DRIVER],
-    exempt: { telemetry: 'the Kotlin SDK exports no telemetry yet' },
   },
 };
 
