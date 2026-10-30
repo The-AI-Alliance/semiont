@@ -1,7 +1,6 @@
 package semiont.namespaces
 
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -15,11 +14,16 @@ import semiont.telemetry.callersTrace
 import semiont.telemetry.futureOf
 import semiont.transport.Transport
 import java.util.concurrent.CompletableFuture
+import kotlin.coroutines.CoroutineContext
 
-/** What every namespace reaches the knowledge base through: the client's transport, the bus over it, the client's own bus, the waits it keeps, and the work it runs. */
-internal class Links(val transport: Transport, val wire: Bus, val own: EventBus, val timing: ClientTiming) {
+/**
+ * What every namespace reaches the knowledge base through: the client's
+ * transport, the bus over it, the client's own bus, the waits it keeps, and
+ * the work it runs, on `context`'s dispatcher.
+ */
+internal class Links(val transport: Transport, val wire: Bus, val own: EventBus, val timing: ClientTiming, context: CoroutineContext) {
     /** The client's work: what is running when the client closes ends with it. */
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val scope = CoroutineScope(SupervisorJob() + context)
 
     /** A request of `operation`, within the client's deadline. */
     suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q): R = wire.request(operation, payload, timing.busRequestMs)
