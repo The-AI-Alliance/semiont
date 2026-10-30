@@ -73,7 +73,7 @@ func readGrantedKey(b []byte) (registeredKey, error) {
 		}
 		parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
-			return registeredKey{}, err
+			return registeredKey{}, fmt.Errorf("a PUBLIC KEY that is not one: %v", err)
 		}
 		pub, ok := parsed.(*rsa.PublicKey)
 		if !ok {

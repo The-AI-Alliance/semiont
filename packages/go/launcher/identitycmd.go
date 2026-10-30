@@ -349,10 +349,6 @@ func identityRevoke(u *UI, args []string) int {
 		return 1
 	}
 	u.Ok("identity — revoked %s (deleted %s)", u.Bold(label), workerClientID(label))
-	if lifespan := r.rp.AccessTokenLifespan; lifespan > 0 {
-		fmt.Fprintf(os.Stderr, "  A token it already holds stays good until it expires, within %ds.\n", lifespan)
-	} else {
-		fmt.Fprintln(os.Stderr, "  A token it already holds stays good until it expires, within the realm's access-token lifetime.")
-	}
+	fmt.Fprintf(os.Stderr, "  A token it already holds stays good until it expires, within %ds.\n", r.rp.AccessTokenLifespan)
 	return 0
 }

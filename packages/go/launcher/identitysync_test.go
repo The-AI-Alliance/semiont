@@ -35,6 +35,20 @@ type stubAdmin struct {
 	realmCfg  map[string]any            // realm-level settings this realm reports
 	badLogin  bool
 	httpsOnly bool // the master realm's sslRequired refusing this caller's address
+	// refuseWrites: the admin API refusing every change to a client, as it
+	// refuses an admin without the rights to make one.
+	refuseWrites bool
+}
+
+// refusing: whether the stub refuses this request, and if so answers it so.
+func (s *stubAdmin) refusing(w http.ResponseWriter, r *http.Request) bool {
+	s.mu.Lock()
+	refuse := s.refuseWrites && r.Method != http.MethodGet
+	s.mu.Unlock()
+	if refuse {
+		w.WriteHeader(http.StatusForbidden)
+	}
+	return refuse
 }
 
 // clientReps: the minimal representation Keycloak returns for clients that
@@ -106,6 +120,9 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 				w.Header().Set("content-type", "application/json")
 				_ = json.NewEncoder(w).Encode(out)
 			case http.MethodPost:
+				if s.refusing(w, r) {
+					return
+				}
 				body, _ := io.ReadAll(r.Body)
 				var c map[string]any
 				_ = json.Unmarshal(body, &c)
@@ -119,6 +136,9 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 		s.mu.Lock()
 		s.paths = append(s.paths, r.Method+" "+r.URL.Path)
 		s.mu.Unlock()
+		if strings.Contains(r.URL.Path, "/clients/") && s.refusing(w, r) {
+			return
+		}
 		// One mapper: /admin/realms/<realm>/clients/<uuid>/protocol-mappers/models/<id>.
 		// A sub-resource with its own endpoint — a client-level PUT does not
 		// reach it — so it is recorded apart from the client patches.

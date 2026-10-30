@@ -206,6 +206,16 @@ func TestAGrantRefusesAKeyItMustNotRegister(t *testing.T) {
 		return string(b)
 	}
 	two, _ := json.Marshal(map[string]any{"keys": []map[string]string{set["keys"][0], set["keys"][0]}})
+	without := func(name string) string {
+		jwk := map[string]string{}
+		for m, v := range set["keys"][0] {
+			if m != name {
+				jwk[m] = v
+			}
+		}
+		b, _ := json.Marshal(map[string]any{"keys": []map[string]string{jwk}})
+		return string(b)
+	}
 
 	for _, c := range []struct{ why, file, want string }{
 		{"the private half, as the worker keeps it", k.private, "private key"},
@@ -213,6 +223,12 @@ func TestAGrantRefusesAKeyItMustNotRegister(t *testing.T) {
 		{"a key the worker cannot sign RS256 with", string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: ecDER})), "not an RSA key"},
 		{"a key set naming its key by another id", withMember("kid", "another-id"), "thumbprint"},
 		{"a key set of two keys", string(two), "registers one"},
+		{"a key set's key of no type", without("kty"), "not an RSA key"},
+		{"a key set's key with no modulus", without("n"), `"n" is not base64url`},
+		{"a key set's key whose exponent is not base64url", withMember("e", "not base64url!"), `"e" is not base64url`},
+		{"a key set's key whose exponent no int holds", withMember("e", "AQAAAAAAAAAAAAE"), "exponent is out of range"},
+		{"a certificate, not a public key", string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("x")})), `not a PUBLIC KEY`},
+		{"a PEM public key that is not one", string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: []byte("x")})), "a PUBLIC KEY that is not one"},
 		{"no key at all", "hello", "neither a JWK Set nor a PEM"},
 	} {
 		if _, err := readGrantedKey([]byte(c.file)); err == nil || !strings.Contains(err.Error(), c.want) {
@@ -232,6 +248,55 @@ func TestAGrantLabelIsChecked(t *testing.T) {
 	for _, label := range []string{localWorkerLabel, "", "Alice", "-alice", "alice-", "a_b", "a.b", strings.Repeat("a", 41)} {
 		if checkGrantLabel(label) == nil {
 			t.Errorf("%q taken as a label", label)
+		}
+	}
+}
+
+// The bootstrap admin's login refused: a grant and a revoke each say so, and
+// change nothing.
+func TestGrantAndRevokeReportARefusedAdminLogin(t *testing.T) {
+	s := newStubAdmin(t, "semiont", append(allServiceClientReps(), grantedRep("alice", anotherWorkerKey(t))))
+	s.badLogin = true
+	if _, err := grantWorker(s.srv.URL, "semiont", "admin", "wrong", "semiont-gateway", "bob", anotherWorkerKey(t)); err == nil || !strings.Contains(err.Error(), "admin") {
+		t.Errorf("grant: err = %v, want the admin login named", err)
+	}
+	if revoked, _, err := revokeWorker(s.srv.URL, "semiont", "admin", "wrong", "alice"); revoked || err == nil || !strings.Contains(err.Error(), "admin") {
+		t.Errorf("revoke: revoked=%v, err = %v, want the admin login named", revoked, err)
+	}
+	if len(s.created)+len(s.updated)+len(s.deleted) != 0 {
+		t.Errorf("a refused login changed the realm: POST %v, PUT %v, DELETE %v", s.created, s.updated, s.deleted)
+	}
+}
+
+// A realm that refuses the change: the grant and the revoke fail, naming the
+// client and the answer, and never report it made. A revoke that reported a
+// worker revoked when it still signs in would be the worst answer it has.
+func TestGrantAndRevokeReportARefusedChange(t *testing.T) {
+	s := newStubAdmin(t, "semiont", append(allServiceClientReps(), grantedRep("alice", anotherWorkerKey(t))))
+	s.refuseWrites = true
+	for _, c := range []struct {
+		what string
+		err  func() error
+		want string
+	}{
+		{"a new grant", func() error {
+			_, err := grantWorker(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", "bob", anotherWorkerKey(t))
+			return err
+		}, "creating semiont-worker-bob: HTTP 403"},
+		{"a new key", func() error {
+			_, err := grantWorker(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", "alice", anotherWorkerKey(t))
+			return err
+		}, "updating semiont-worker-alice: HTTP 403"},
+		{"a revoke", func() error {
+			revoked, _, err := revokeWorker(s.srv.URL, "semiont", "admin", "pw", "alice")
+			if revoked {
+				t.Error("a refused revoke reported the worker revoked")
+			}
+			return err
+		}, "deleting semiont-worker-alice: HTTP 403"},
+	} {
+		if err := c.err(); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", c.what, err, c.want)
 		}
 	}
 }
