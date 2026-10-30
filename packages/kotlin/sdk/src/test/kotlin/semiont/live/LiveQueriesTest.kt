@@ -4,15 +4,28 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestFactory
+import semiont.cache.CacheQuery
 import semiont.cache.CacheState
 import semiont.errors.BusRequestError
 import semiont.namespaces.Collaborator
+import semiont.sameJson
+import semiont.storage.CachePersistence
+import semiont.storage.MemoryStorage
 import semiont.transport.Frame
 
 /** A client's live queries: what collecting one holds, and what a read gives its collectors. */
@@ -190,4 +203,108 @@ class LiveQueriesTest {
         assertFalse(closed.ended.isCancelled)
         world.close()
     }
+
+    @Test
+    fun aClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThemAnew() = runBlocking {
+        val storage = MemoryStorage()
+        val persistence = CachePersistence(storage, "kb")
+        fun kept(name: String): JsonObject? = storage.get("semiont.cache.kb.$name")?.let { Json.parseToJsonElement(it).jsonObject }
+
+        val world = KbWorld(persistence = persistence)
+        val client = world.client
+        assertTrue(client.persistenceSettled)
+        withTimeout(5_000) {
+            client.browse.resource(RESOURCE).fresh()
+            client.browse.annotations(RESOURCE).fresh()
+            client.browse.annotation(RESOURCE, ANNOTATION).fresh()
+            client.browse.entityTypes().fresh()
+            client.browse.tagSchemas().fresh()
+            client.browse.events(RESOURCE).fresh()
+            client.gather.referencedBy(RESOURCE).fresh()
+            client.browse.resources().fresh()
+            client.match.resources("text").fresh()
+            client.browse.agents().fresh()
+        }
+        // What it knows is owed to storage until it has stopped changing.
+        assertFalse(client.persistenceSettled)
+        assertNull(kept("resource"))
+        eventually { client.persistenceSettled }
+        // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed.
+        world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
+        delay(100)
+        assertTrue(client.persistenceSettled)
+        world.close()
+
+        // The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.
+        for (name in listOf("resource", "annotations", "annotation-detail", "entity-types", "tag-schemas")) {
+            assertEquals(1L, checkNotNull(kept(name)) { name }.getValue("version").jsonPrimitive.long)
+        }
+        for (unkept in listOf("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "agents", "limits")) assertNull(kept(unkept), unkept)
+        // As the wire had it: by the wire's names, and without what the knowledge base never said.
+        val (resource) = checkNotNull(kept("resource")).getValue("entries").jsonArray.map { it.jsonArray }
+        assertTrue(sameJson(JsonArray(listOf(JsonPrimitive(RESOURCE.value), descriptor(RESOURCE))), JsonArray(resource.take(2))))
+        val (listed) = checkNotNull(kept("annotations")).getValue("entries").jsonArray.map { it.jsonArray }
+        assertTrue(sameJson(json("""{"annotations":[${annotation(ANNOTATION, RESOURCE)}],"total":1}"""), listed[1]))
+
+        // The next client of the same knowledge base, over the same storage: shown at once, with no pending before it, and asked for anew, once.
+        val again = KbWorld(persistence = persistence)
+        val live = again.watch(again.client.browse.resource(RESOURCE))
+        val types = again.watch(again.client.browse.entityTypes())
+        assertEquals("A resource", (live.next() as CacheState.Ready).value.name)
+        assertEquals(CacheState.Ready(listOf("Person")), types.next())
+        delay(100)
+        assertEquals(listOf("browse:resource-requested", "browse:entity-types-requested"), again.kb.emitted.map { it.channel })
+        // An annotation that was kept is asked for anew too, by a request that names its resource.
+        assertTrue(again.watch(again.client.browse.annotation(RESOURCE, ANNOTATION)).next() is CacheState.Ready)
+        eventually { again.kb.emitted.size == 3 }
+        assertEquals(json("""{"resourceId":"${RESOURCE.value}","annotationId":"${ANNOTATION.value}"}"""), again.kb.emitted.last().payload)
+        again.close()
+
+        // A client of another knowledge base, over the same storage, begins with nothing of this one's.
+        val other = KbWorld(answered = false, persistence = CachePersistence(storage, "another"))
+        assertEquals(CacheState.Pending, other.watch(other.client.browse.resource(RESOURCE)).next())
+        other.close()
+    }
+
+    @Test
+    fun aClientThatKeepsNothingIsAlwaysSettled() = runBlocking {
+        val world = KbWorld()
+        val reading = async { world.client.browse.resource(RESOURCE).fresh() }
+        assertTrue(world.client.persistenceSettled)
+        withTimeout(5_000) { reading.await() }
+        assertTrue(world.client.persistenceSettled)
+        world.close()
+    }
+
+    @TestFactory
+    fun aClientIsSettledUnlessAQueryItKeepsIsBeingFetchedOrIsOwedToStorage(): List<DynamicTest> = CacheQuery.entries.map { query ->
+        DynamicTest.dynamicTest(query.wire) {
+            runBlocking {
+                val world = KbWorld(answered = false, persistence = CachePersistence(MemoryStorage(), "kb"))
+                val client = world.client
+                val named = mapOf(
+                    CacheQuery.Resource to client.browse.resource(RESOURCE),
+                    CacheQuery.Annotations to client.browse.annotations(RESOURCE),
+                    CacheQuery.Annotation to client.browse.annotation(RESOURCE, ANNOTATION),
+                    CacheQuery.Events to client.browse.events(RESOURCE),
+                    CacheQuery.ReferencedBy to client.gather.referencedBy(RESOURCE),
+                    CacheQuery.Resources to client.browse.resources(),
+                    CacheQuery.MatchedResources to client.match.resources("text"),
+                    CacheQuery.EntityTypes to client.browse.entityTypes(),
+                    CacheQuery.TagSchemas to client.browse.tagSchemas(),
+                    CacheQuery.Agents to client.browse.agents(),
+                )
+                assertEquals(CacheQuery.entries.toSet(), named.keys)
+                val reading = async { named.getValue(query).fresh() }
+                delay(100)
+                // Fetching what it keeps, it is not at rest; fetching what it does not keep, it is.
+                assertEquals(query !in KEPT, client.persistenceSettled)
+                reading.cancel()
+                world.close()
+            }
+        }
+    }
 }
+
+/** The queries a client with a storage keeps. */
+private val KEPT = setOf(CacheQuery.Resource, CacheQuery.Annotations, CacheQuery.Annotation, CacheQuery.EntityTypes, CacheQuery.TagSchemas)

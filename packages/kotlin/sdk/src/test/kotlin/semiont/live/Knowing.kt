@@ -32,6 +32,7 @@ import semiont.cache.Cached
 import semiont.errors.SemiontError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.storage.CachePersistence
 import semiont.transport.Broadcast
 import semiont.transport.ConnectionState
 import semiont.transport.Content
@@ -246,11 +247,11 @@ internal class KbContent(private val answered: Boolean = true) : ContentTranspor
     override fun close() = Unit
 }
 
-/** A client over a knowledge base that answers every read a live query makes, or none. */
-internal class KbWorld(windowMs: Long = 100, answered: Boolean = true) {
+/** A client over a knowledge base that answers every read a live query makes, or none, keeping its queries where `persistence` says. */
+internal class KbWorld(windowMs: Long = 100, answered: Boolean = true, persistence: CachePersistence? = null) {
     val kb = Kb(answered)
     val content = KbContent(answered)
-    val client = SemiontClient(kb, content, Recording(), ClientTiming(invalidationWindowMs = windowMs))
+    val client = SemiontClient(kb, content, Recording(), ClientTiming(invalidationWindowMs = windowMs), persistence)
     private val watching = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** How often each operation is asked, and the annotations read, so far. */
