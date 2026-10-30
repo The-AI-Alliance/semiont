@@ -1626,6 +1626,41 @@ public final class semiont/state/BeckonStateUnit : semiont/StateUnit {
 	public final fun getHoveredAnnotationId ()Lsemiont/transport/Watched;
 }
 
+public final class semiont/state/GatherStateUnit : semiont/StateUnit {
+	public synthetic fun <init> (Lsemiont/SemiontClient;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/SemiontClient;Lsemiont/identifiers/ResourceId;)V
+	public fun close ()V
+	public final fun gatherAnnotation (Lsemiont/identifiers/AnnotationId;)V
+	public final fun gatherAnnotation (Lsemiont/identifiers/AnnotationId;J)V
+	public final fun gatherAnnotation (Lsemiont/identifiers/AnnotationId;JLjava/lang/Boolean;)V
+	public final fun gatherAnnotation (Lsemiont/identifiers/AnnotationId;JLjava/lang/Boolean;Ljava/lang/Boolean;)V
+	public final fun gatherAnnotation-2VybQ2U (Ljava/lang/String;)V
+	public final fun gatherAnnotation-CMbQ8Ps (Ljava/lang/String;JLjava/lang/Boolean;)V
+	public final fun gatherAnnotation-hXGs-Os (Ljava/lang/String;JLjava/lang/Boolean;Ljava/lang/Boolean;)V
+	public static synthetic fun gatherAnnotation-hXGs-Os$default (Lsemiont/state/GatherStateUnit;Ljava/lang/String;JLjava/lang/Boolean;Ljava/lang/Boolean;ILjava/lang/Object;)V
+	public final fun gatherAnnotation-iUDtbMI (Ljava/lang/String;J)V
+	public final fun gatherResource (Lsemiont/identifiers/ResourceId;)V
+	public final fun gatherResource (Lsemiont/identifiers/ResourceId;J)V
+	public final fun gatherResource (Lsemiont/identifiers/ResourceId;JJ)V
+	public final fun gatherResource (Lsemiont/identifiers/ResourceId;JJZ)V
+	public final fun gatherResource (Lsemiont/identifiers/ResourceId;JJZZ)V
+	public final fun gatherResource (Lsemiont/identifiers/ResourceId;JJZZLjava/util/List;)V
+	public final fun gatherResource--Xm7VB4 (Ljava/lang/String;)V
+	public final fun gatherResource-0-slNOc (Ljava/lang/String;JJZZLjava/util/List;)V
+	public static synthetic fun gatherResource-0-slNOc$default (Lsemiont/state/GatherStateUnit;Ljava/lang/String;JJZZLjava/util/List;ILjava/lang/Object;)V
+	public final fun gatherResource-cLomD_0 (Ljava/lang/String;JJZ)V
+	public final fun gatherResource-iAntK8w (Ljava/lang/String;JJZZ)V
+	public final fun gatherResource-k2J_C-I (Ljava/lang/String;J)V
+	public final fun gatherResource-ogcqSrQ (Ljava/lang/String;JJ)V
+	public final fun getAnnotationId ()Lsemiont/transport/Watched;
+	public final fun getContext ()Lsemiont/transport/Watched;
+	public final fun getError ()Lsemiont/transport/Watched;
+	public final fun getLoading ()Lsemiont/transport/Watched;
+	public final fun getResourceContext ()Lsemiont/transport/Watched;
+	public final fun getResourceError ()Lsemiont/transport/Watched;
+	public final fun getResourceLoading ()Lsemiont/transport/Watched;
+}
+
 public final class semiont/state/HoverDwell : semiont/StateUnit {
 	public fun <init> (Lkotlin/jvm/functions/Function1;J)V
 	public fun close ()V
@@ -1634,9 +1669,37 @@ public final class semiont/state/HoverDwell : semiont/StateUnit {
 	public final fun leave ()V
 }
 
+public final class semiont/state/MarkStateUnit : semiont/StateUnit {
+	public synthetic fun <init> (Lsemiont/SemiontClient;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/SemiontClient;Lsemiont/identifiers/ResourceId;)V
+	public final fun cancelPending ()V
+	public fun close ()V
+	public final fun dismissProgress ()V
+	public final fun getDelegatingMotivation ()Lsemiont/transport/Watched;
+	public final fun getFailure ()Lsemiont/transport/Watched;
+	public final fun getJobId ()Lsemiont/transport/Watched;
+	public final fun getPendingAnnotation ()Lsemiont/transport/Watched;
+	public final fun getProgress ()Lsemiont/transport/Watched;
+	public final fun getProgressMotivation ()Lsemiont/transport/Watched;
+	public final fun requestDelegate (Lsemiont/types/MarkJobParams;)V
+}
+
 public final class semiont/state/MatchStateUnit : semiont/StateUnit {
 	public fun <init> (Lsemiont/SemiontClient;)V
 	public fun close ()V
+}
+
+public final class semiont/state/PendingAnnotation {
+	public fun <init> (Lsemiont/types/AnnotationSelector;Lsemiont/types/Motivation;)V
+	public final fun component1 ()Lsemiont/types/AnnotationSelector;
+	public final fun component2 ()Lsemiont/types/Motivation;
+	public final fun copy (Lsemiont/types/AnnotationSelector;Lsemiont/types/Motivation;)Lsemiont/state/PendingAnnotation;
+	public static synthetic fun copy$default (Lsemiont/state/PendingAnnotation;Lsemiont/types/AnnotationSelector;Lsemiont/types/Motivation;ILjava/lang/Object;)Lsemiont/state/PendingAnnotation;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMotivation ()Lsemiont/types/Motivation;
+	public final fun getSelector ()Lsemiont/types/AnnotationSelector;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class semiont/state/SearchPipeline : semiont/StateUnit {
@@ -1661,6 +1724,20 @@ public final class semiont/state/SearchState {
 	public fun hashCode ()I
 	public final fun isSearching ()Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/state/YieldStateUnit : semiont/StateUnit {
+	public fun <init> (Lsemiont/SemiontClient;Ljava/lang/String;)V
+	public fun close ()V
+	public final fun dismissProgress ()V
+	public final fun generate (Lsemiont/types/GenerationJobParams;)V
+	public final fun generate (Lsemiont/types/GenerationJobParams;Ljava/lang/Long;)V
+	public static synthetic fun generate$default (Lsemiont/state/YieldStateUnit;Lsemiont/types/GenerationJobParams;Ljava/lang/Long;ILjava/lang/Object;)V
+	public final fun getFailure ()Lsemiont/transport/Watched;
+	public final fun getJobId ()Lsemiont/transport/Watched;
+	public final fun getOutcome ()Lsemiont/transport/Watched;
+	public final fun getProgress ()Lsemiont/transport/Watched;
+	public final fun isGenerating ()Lsemiont/transport/Watched;
 }
 
 public final class semiont/storage/CachePersistence {

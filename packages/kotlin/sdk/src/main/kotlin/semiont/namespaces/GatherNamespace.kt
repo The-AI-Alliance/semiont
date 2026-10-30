@@ -17,6 +17,21 @@ import semiont.types.GatheredContext
 import semiont.types.GetReferencedByResponseReferencedByItem
 import java.util.concurrent.CompletableFuture
 
+/** How many characters of an annotation's source its context takes when none is stated. */
+internal const val CONTEXT_WINDOW: Long = 2000
+
+/** How many links out from a resource its context reaches when none is stated. */
+internal const val RESOURCE_DEPTH: Long = 2
+
+/** How many resources a resource's context takes when none is stated. */
+internal const val RESOURCE_LIMIT: Long = 10
+
+/** Whether a resource's context takes its resources' content when that is not stated. */
+internal const val INCLUDES_CONTENT: Boolean = true
+
+/** Whether a resource's context takes a summary when that is not stated. */
+internal const val INCLUDES_SUMMARY: Boolean = false
+
 /** Assembling the context a model is given, and what refers to a resource. */
 public class GatherNamespace internal constructor(private val links: Links, private val live: Live) {
     /**
@@ -30,7 +45,7 @@ public class GatherNamespace internal constructor(private val links: Links, priv
     public fun annotation(
         resourceId: ResourceId,
         annotationId: AnnotationId,
-        contextWindow: Long = 2000,
+        contextWindow: Long = CONTEXT_WINDOW,
         includeSourceContext: Boolean? = null,
         includeTargetContext: Boolean? = null,
     ): Running<GatherAnnotationComplete> {
@@ -47,10 +62,10 @@ public class GatherNamespace internal constructor(private val links: Links, priv
      */
     public suspend fun resource(
         resourceId: ResourceId,
-        depth: Long = 2,
-        maxResources: Long = 10,
-        includeContent: Boolean = true,
-        includeSummary: Boolean = false,
+        depth: Long = RESOURCE_DEPTH,
+        maxResources: Long = RESOURCE_LIMIT,
+        includeContent: Boolean = INCLUDES_CONTENT,
+        includeSummary: Boolean = INCLUDES_SUMMARY,
         excludeEntityTypes: List<String> = emptyList(),
     ): GatheredContext {
         val options = GatherResourceRequestOptions(

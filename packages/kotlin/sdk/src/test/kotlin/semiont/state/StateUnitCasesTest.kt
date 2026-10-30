@@ -338,7 +338,7 @@ private fun play(case: JsonObject) = runTest {
         for (response in responses.jsonArray) transport.queueReply(operation, resolved(response).takeUnless { it is JsonNull })
     }
     val gateway = Recording()
-    val client = SemiontClient(transport, gateway, gateway, ClientTiming(), null, clock)
+    val client = SemiontClient(transport, gateway, gateway, ClientTiming(), null, clock, testScheduler.timeSource)
     val searches = Searches()
     val over = Over(client, searches, clock)
     val maker = MAKERS.getValue(case.getValue("unit").text())
