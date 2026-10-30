@@ -154,8 +154,18 @@ class LiveQueriesTest {
         assertEquals(listOf("browse:engines-requested") + LIMITS, kb.emitted.map { it.channel })
         val (engines, gather, job, match) = kb.emitted.toList()
 
-        // A holder that answers first has nothing to be shown on yet.
-        kb.answer(job, json("""{"limits":[{"engine":$gemma,"limits":{"contextTokens":8192,"maxOutputTokens":1}}]}"""))
+        // A holder that answers first has nothing to be shown on yet. An engine is its provider and its model: a model of
+        // the same name under another provider is another engine. What is reported first stands, and an engine not listed is shown nowhere.
+        kb.answer(
+            job,
+            json(
+                """{"limits":[
+                {"engine":{"provider":"ollama","model":"claude-opus-5-5"},"limits":{"contextTokens":7,"maxOutputTokens":1}},
+                {"engine":$gemma,"limits":{"contextTokens":8192,"maxOutputTokens":1}},
+                {"engine":$gemma,"limits":{"contextTokens":9999,"maxOutputTokens":1}},
+                {"engine":{"provider":"ollama","model":"unlisted"},"limits":{"contextTokens":1,"maxOutputTokens":1}}]}""",
+            ),
+        )
         live.nothingFor()
 
         // The engines are shown when they are answered, with what has been reported so far: they wait for no holder.
@@ -229,10 +239,12 @@ class LiveQueriesTest {
         assertFalse(client.persistenceSettled)
         assertNull(kept("resource"))
         eventually { client.persistenceSettled }
-        // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed.
+        // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed, and nothing is written.
+        val written = storage.get("semiont.cache.kb.annotation-detail")
         world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
-        delay(100)
+        delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
         assertTrue(client.persistenceSettled)
+        assertEquals(written, storage.get("semiont.cache.kb.annotation-detail"))
         world.close()
 
         // The five small queries, each a document under the client's prefix; a list, a search and a history are not kept.
