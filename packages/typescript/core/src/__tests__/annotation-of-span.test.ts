@@ -20,7 +20,7 @@ type Agent = components['schemas']['Agent'];
 
 const GENERATOR: Agent = {
   '@type': 'Software',
-  '@id': 'did:web:test.local:agents:test:test',
+  '@id': 'did:web:test.local:agents:test-worker',
   name: 'test',
   provider: 'test',
   model: 'test',
@@ -61,7 +61,7 @@ describe('building an annotation again does not make another', () => {
   it('survives being built at a different time by a different agent', () => {
     // Recovery happens later, in a fresh worker process. If `created` or the
     // generator leaked into the id, every recovery would duplicate.
-    const other: Agent = { ...GENERATOR, '@id': 'did:web:test.local:agents:test:OTHER' };
+    const other: Agent = { ...GENERATOR, '@id': 'did:web:test.local:agents:other-worker' };
     const first = build(span(0, 12), 'highlighting');
     const second = annotationOfSpan({ text: CONTENT, resourceId: RID, generator: other, motivation: 'highlighting', span: span(0, 12) });
     expect(second.id).toBe(first.id);

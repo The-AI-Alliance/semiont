@@ -95,12 +95,11 @@ mod tests {
     use serde_json::{Value, json};
 
     /// A DID says who someone is and nothing else: no name, provider or model
-    /// is read from it, whatever its segments are.
+    /// is read from it.
     #[test]
     fn a_did_names_who_and_nothing_else() {
         for (did, kind) in [
             ("did:web:kb.example:agents:semiont-worker", "Software"),
-            ("did:web:kb.example:agents:ollama:gemma2", "Software"),
             ("did:web:kb.example:users:alice%40kb.example", "Person"),
             ("did:web:kb.example:alice", "Person"),
         ] {

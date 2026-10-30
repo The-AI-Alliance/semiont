@@ -408,7 +408,7 @@ describe('HttpTransport — HTTP wire shape', () => {
     test('appends the full set of generation-provenance fields', async () => {
       const agent = {
         '@type': 'Software' as const,
-        '@id': 'did:web:example.com:agents:ollama:gemma4%3A26b',
+        '@id': 'did:web:example.com:agents:semiont-worker',
         name: 'ollama gemma4:26b',
         provider: 'ollama',
         model: 'gemma4:26b',

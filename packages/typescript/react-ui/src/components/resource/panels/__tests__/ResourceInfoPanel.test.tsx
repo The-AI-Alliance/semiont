@@ -594,7 +594,7 @@ describe('ResourceInfoPanel Component', () => {
           {...defaultProps}
           generator={{
             '@type': 'Software',
-            '@id': 'did:web:example.com:agents:ollama:gemma2%3A27b',
+            '@id': 'did:web:example.com:agents:semiont-worker',
             name: 'ignored',
             provider: 'ollama',
             model: 'gemma2:27b',
