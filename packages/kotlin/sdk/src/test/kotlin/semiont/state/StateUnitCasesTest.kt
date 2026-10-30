@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package semiont.state
 
 import kotlinx.coroutines.channels.Channel
