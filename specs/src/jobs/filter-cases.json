@@ -90,6 +90,20 @@
       "matches": false
     },
     {
+      "why": "a filter's parameter the job does not state is no match",
+      "filter": {
+        "jobType": "mark",
+        "params": {
+          "motivation": "tagging"
+        }
+      },
+      "job": {
+        "jobType": "mark",
+        "params": {}
+      },
+      "matches": false
+    },
+    {
       "why": "a parameter the filter does not state is not compared",
       "filter": {
         "jobType": "mark",

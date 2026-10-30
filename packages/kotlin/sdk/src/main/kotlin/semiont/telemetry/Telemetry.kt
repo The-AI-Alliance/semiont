@@ -139,9 +139,6 @@ private object MapGetter : TextMapGetter<Map<String, String>> {
 /** The trace the caller is in, as a coroutine's context: work launched on the caller's behalf runs in it. */
 internal fun callersTrace(): CoroutineContext = Context.current().inCoroutines()
 
-/** No trace, as a coroutine's context: work launched in it begins a trace of its own, whatever span its launcher was in. */
-internal fun noTrace(): CoroutineContext = Context.root().inCoroutines()
-
 /** The trace `carried` states, as OpenTelemetry's context: the root when it states none. */
 private fun extracted(carried: TraceContext?): Context {
     val sent = carried ?: return Context.root()

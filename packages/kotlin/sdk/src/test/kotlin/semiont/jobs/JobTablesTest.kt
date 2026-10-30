@@ -7,10 +7,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.Spec
 import semiont.types.FailureClass
+import semiont.types.wireJson
 
 private fun cases(table: String): List<JsonObject> = Spec.read(table).jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 
@@ -24,6 +26,17 @@ class JobTablesTest {
             assertEquals(matches, jobMatchesFilter(case.getValue("filter").jsonObject, case.getValue("job").jsonObject), case.getValue("why").jsonPrimitive.content)
         }
         assertEquals(setOf(true, false), cases.map { it.getValue("matches").jsonPrimitive.boolean }.toSet(), "the table asks both ways")
+    }
+
+    @Test
+    fun aValueIsComparedAsWhatItIsAndNotAsItIsWritten() {
+        fun matches(stated: String, held: String) = jobMatchesFilter(wireJson.parseToJsonElement("""{"x": $stated}""").jsonObject, wireJson.parseToJsonElement("""{"x": $held}""").jsonObject)
+        assertTrue(matches("1", "1.0"), "a number is the number it is, however it is written")
+        assertTrue(matches("[1, \"a\"]", "[1.0, \"a\"]"), "and so is one in a list")
+        assertFalse(matches("\"1\"", "1"), "a text is no number")
+        assertFalse(matches("true", "1"), "and neither is a truth")
+        assertFalse(matches("true", "\"true\""), "nor a text")
+        assertFalse(matches("[1]", "[1, 2]"), "a list is compared whole")
     }
 
     @Test

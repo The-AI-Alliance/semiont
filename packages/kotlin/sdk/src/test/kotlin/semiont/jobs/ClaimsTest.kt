@@ -32,8 +32,6 @@ import org.junit.jupiter.api.assertThrows
 import semiont.ClientTiming
 import semiont.Recording
 import semiont.SemiontClient
-import semiont.bus.Operations
-import semiont.bus.replyChannelsFor
 import semiont.channels.Channels
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -41,6 +39,7 @@ import semiont.identifiers.AnnotationId
 import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
 import semiont.sameJson
+import semiont.telemetry.callersTrace
 import semiont.transport.ConnectionState
 import semiont.types.Annotation
 import semiont.types.DurabilityEvidence
@@ -264,11 +263,12 @@ class ClaimsTest {
 
     @Test
     fun aStreamThatDoesNotNameWhatClaimingReadsCannotCarryAWorkersClaims() = runTest(timeout = LIMIT) {
-        val w = World(this, channels = replyChannelsFor(Operations.JOB_CLAIM) + Channels.JOB_QUEUED.name)
+        // The stream names both broadcasts and none of the claim's replies: only the claims can say it cannot carry them.
+        val w = World(this, channels = listOf(Channels.JOB_QUEUED.name, Channels.JOB_CANCEL_REQUESTED.name))
         val claims = w.client.job.claim(EVERYTHING)
         val refused = assertThrows<BusRequestError> { claims.next() }
         assertEquals(BusRequestErrorCode.Unsubscribed, refused.reason)
-        assertTrue(refused.message!!.contains(Channels.JOB_CANCEL_REQUESTED.name), refused.message)
+        assertTrue(refused.message!!.contains(Channels.JOB_CLAIMED.name), refused.message)
         assertEquals(emptyList<JsonObject>(), w.desk.sent("job:claim"))
         w.over()
     }
@@ -471,6 +471,18 @@ class ClaimsTest {
     }
 
     @Test
+    fun theQuestionIsAskedOfTheBatchsLastAnnotation() = runTest(timeout = LIMIT) {
+        val w = World(this, wire = listOf(Fault.DELIVER, Fault.DROP, Fault.DELIVER, Fault.DELIVER))
+        w.desk.offered += running("job-1")
+        val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
+        val job = held(claims)
+        job.commit(RESOURCE, listOf(made("ann-first"), made("ann-last")))
+        assertEquals(listOf("ann-last"), w.desk.sent("browse:annotation-requested").map { (it.getValue("annotationId") as JsonPrimitive).content })
+        claims.stop()
+        w.over()
+    }
+
+    @Test
     fun answeredThatItIsNotThereTheCommitRaisesWhatItsRequestDidAndTheFailureSaysWhatWasObserved() = runTest(timeout = LIMIT) {
         committing(DurabilityEvidence.ProbeRefused) { w, job, did ->
             assertEquals(BusRequestErrorCode.Timeout, did.single()?.reason)
@@ -558,12 +570,13 @@ class ClaimsTest {
         val w = World(this)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING)
-        val job = inSpan('a') { async { claims.next() } }.await()!!
+        // The claims are read in a span, as a worker's code may read them.
+        val job = inSpan('a') { async(callersTrace()) { claims.next() } }.await()!!
         assertEquals(listOf<String?>(null), w.desk.claimedIn, "the first claim is made in no trace, whatever span the claims are read in")
         assertNull(job.trace, "a reply that arrived in no trace")
         w.desk.offered += running("job-2")
-        // The settle runs inside the job's span; the claim it makes is in no trace.
-        inSpan('b') { launch { finish(job) } }
+        // The settle runs inside the job's span, as a worker's does; the claim it makes is in no trace.
+        inSpan('b') { launch(callersTrace()) { finish(job) } }
         runCurrent()
         assertEquals(listOf<String?>(null, null), w.desk.claimedIn)
         claims.stop()

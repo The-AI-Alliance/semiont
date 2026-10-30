@@ -21,7 +21,6 @@ import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
 import semiont.telemetry.futureOf
-import semiont.telemetry.noTrace
 import semiont.transport.Broadcast
 import semiont.transport.ConnectionState
 import semiont.transport.Events
@@ -285,8 +284,8 @@ public class Claims internal constructor(
             }
             claiming = true
             wakePending = false
-            // In no trace: the claim, and the reading of its answer, whatever span the idle moment came in.
-            claimInFlight = scope.launch(noTrace()) { claim() }
+            // The claims' own work, which carries no trace of whoever was idle: the claim begins a trace of its own.
+            claimInFlight = scope.launch { claim() }
         }
     }
 
