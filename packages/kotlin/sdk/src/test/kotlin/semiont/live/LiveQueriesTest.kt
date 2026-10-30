@@ -253,7 +253,8 @@ class LiveQueriesTest {
         assertEquals("A resource", (live.next() as CacheState.Ready).value.name)
         assertEquals(CacheState.Ready(listOf("Person")), types.next())
         delay(100)
-        assertEquals(listOf("browse:resource-requested", "browse:entity-types-requested"), again.kb.emitted.map { it.channel })
+        // Two collectors, each asking from its own thread: once each, in no order.
+        assertEquals(mapOf("browse:resource-requested" to 1, "browse:entity-types-requested" to 1), again.asked())
         // An annotation that was kept is asked for anew too, by a request that names its resource.
         assertTrue(again.watch(again.client.browse.annotation(RESOURCE, ANNOTATION)).next() is CacheState.Ready)
         eventually { again.kb.emitted.size == 3 }
