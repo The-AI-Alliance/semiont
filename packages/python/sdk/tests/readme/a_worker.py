@@ -2,7 +2,7 @@ from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
+from semiont.http import AgentToken, HttpTransport, KeyCredential, ServiceToken, private_key_from_pem
 from semiont.identifiers import AnnotationId
 from semiont.types import (
     Agent,
@@ -40,9 +40,9 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
     return MarkJobDone(found=len(quoted), persisted=len(highlights))
 
 
-async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process signs in at its issuer as its account: the agent its work is attributed to.
-    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
+async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
+    # The process signs in at its issuer as its account, by its key: the agent its work is attributed to.
+    service = ServiceToken(KeyCredential(issuer=issuer, client_id=client_id, private_key=private_key_from_pem(key)))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
         AgentToken(gateway, service=service) as agent,

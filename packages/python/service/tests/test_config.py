@@ -19,7 +19,7 @@ from pydantic import JsonValue
 from semiont.http import SecretCredential
 from semiont.types import WeaverConfig, WorkerConfig
 
-from semiont_service.config import Refused, config_path_of, read_config, service_account_of, set_in, signing_key_of
+from semiont_service.config import Refused, config_path_of, key_account_of, read_config, service_account_of, set_in
 
 KNOWLEDGE_BASE: Final[dict[str, JsonValue]] = {
     "domain": "kb.example",
@@ -331,25 +331,33 @@ def _pem(key: rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey, encryption: serial
 
 
 _KEY: Final = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+_PKCS1: Final = _KEY.private_bytes(
+    serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()
+).decode()
 
 
-def test_the_signing_key_is_the_rsa_key_its_variable_holds_and_no_client_id_is_read() -> None:
+def test_a_key_account_is_the_documents_client_proven_by_the_rsa_key_its_variable_holds_and_no_client_id_is_read() -> None:
     # Which client holds the key's public half is each knowledge base's to say, in the document.
-    key = signing_key_of("worker", {"SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)})
-    assert key.private_numbers() == _KEY.private_numbers()
+    account = key_account_of(
+        "worker", "https://auth.example.org/realms/kb", "semiont-worker-alice", {"SEMIONT_OIDC_CLIENT_KEY": _pem(_KEY)}
+    )
+    assert (account.issuer, account.client_id) == ("https://auth.example.org/realms/kb", "semiont-worker-alice")
+    assert account.private_key.private_numbers() == _KEY.private_numbers()
 
 
 @pytest.mark.parametrize("left", ["unset", "empty"])
 def test_the_key_unset_or_empty_is_refused_by_name(left: str) -> None:
     environment = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker"} if left == "unset" else {"SEMIONT_OIDC_CLIENT_KEY": ""}
     with pytest.raises(Refused) as refused:
-        signing_key_of("worker", environment)
+        key_account_of("worker", ISSUER, "semiont-worker", environment)
     assert str(refused.value) == "SEMIONT_OIDC_CLIENT_KEY is not set in the worker's environment: a worker signs in as a service account"
 
 
 def test_a_secret_is_no_key() -> None:
     with pytest.raises(Refused, match=r"^SEMIONT_OIDC_CLIENT_KEY is not set in the worker's environment"):
-        signing_key_of("worker", {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"})
+        key_account_of(
+            "worker", ISSUER, "semiont-worker", {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+        )
 
 
 @pytest.mark.parametrize(
@@ -357,13 +365,14 @@ def test_a_secret_is_no_key() -> None:
     [
         ("not a key at all", "is not an unencrypted PEM private key"),
         (_pem(_KEY, serialization.BestAvailableEncryption(b"a passphrase")), "is not an unencrypted PEM private key"),
+        (_PKCS1, "is not an unencrypted PEM private key"),
         (_pem(ec.generate_private_key(ec.SECP256R1())), "is not an RSA key: a worker signs its assertions with RS256"),
     ],
-    ids=["not PEM", "encrypted", "not RSA"],
+    ids=["not PEM", "encrypted", "PKCS#1", "not RSA"],
 )
 def test_a_key_that_is_not_an_unencrypted_rsa_key_is_refused_and_never_said(held: str, saying: str) -> None:
     with pytest.raises(Refused) as refused:
-        signing_key_of("worker", {"SEMIONT_OIDC_CLIENT_KEY": held})
+        key_account_of("worker", ISSUER, "semiont-worker", {"SEMIONT_OIDC_CLIENT_KEY": held})
     assert str(refused.value) == f"SEMIONT_OIDC_CLIENT_KEY in the worker's environment {saying}"
     assert held not in str(refused.value)
     assert refused.value.__cause__ is None

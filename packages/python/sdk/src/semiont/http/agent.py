@@ -30,6 +30,8 @@ from types import TracebackType
 from typing import Final, Self, final
 
 import httpx
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
 
@@ -47,7 +49,16 @@ from semiont.timing import HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
 from semiont.types import UserResponse
 from semiont.watched import Variable, Watched
 
-__all__ = ["AgentToken", "Credential", "KeyCredential", "SecretCredential", "ServiceToken"]
+__all__ = [
+    "AgentToken",
+    "Credential",
+    "KeyCredential",
+    "NotAnRsaKey",
+    "SecretCredential",
+    "ServiceToken",
+    "UnreadableKey",
+    "private_key_from_pem",
+]
 
 
 @final
@@ -77,6 +88,38 @@ class KeyCredential:
 
 type Credential = SecretCredential | KeyCredential
 """A service account at an issuer, by how it proves itself."""
+
+_PKCS8_BEGIN: Final = "-----BEGIN PRIVATE KEY-----"
+_PKCS8_END: Final = "-----END PRIVATE KEY-----"
+
+
+@final
+class UnreadableKey(ValueError):
+    """Text that is not an unencrypted PKCS#8 PEM private key."""
+
+
+@final
+class NotAnRsaKey(ValueError):
+    """A private key that is not RSA: a key credential signs its assertions with RS256."""
+
+
+def private_key_from_pem(pem: str) -> RSAPrivateKey:
+    """The RSA private key a PKCS#8 PEM holds, unencrypted: the text between `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----`.
+
+    Raises `UnreadableKey` for text that is not one, an encrypted or PKCS#1
+    key among them, and `NotAnRsaKey` for a key of another kind. Neither says
+    anything of the text.
+    """
+    armoured = pem.strip()
+    if not (armoured.startswith(_PKCS8_BEGIN) and armoured.endswith(_PKCS8_END)):
+        raise UnreadableKey("The key is not a PKCS#8 PEM private key: one that begins -----BEGIN PRIVATE KEY-----")
+    try:
+        key = serialization.load_pem_private_key(armoured.encode("ascii"), password=None)
+    except (ValueError, TypeError, UnicodeEncodeError, UnsupportedAlgorithm):
+        raise UnreadableKey("The PEM holds no private key that can be read") from None
+    if not isinstance(key, RSAPrivateKey):
+        raise NotAnRsaKey("The PEM holds no RSA private key: a key credential signs its assertions with RS256")
+    return key
 
 
 def _proof(credential: Credential, token_endpoint: str) -> list[tuple[str, str]]:

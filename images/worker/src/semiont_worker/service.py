@@ -34,12 +34,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import final
 
-from semiont.http import KeyCredential
 from semiont.model import written
 from semiont.types import WorkerConfig, WorkerEngineConfig
 from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inference_client
 from semiont_inference.interface import InferenceClient
-from semiont_service.config import Refused, config_path_of, read_config, signing_key_of
+from semiont_service.config import Refused, config_path_of, key_account_of, read_config
 from semiont_service.health import bind_health
 from semiont_service.log import configure
 from semiont_service.observability import Exporting, install
@@ -112,19 +111,16 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     # What is written from the document's level: the service's own code, the inference drivers' and the SDK's.
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_inference", "semiont"))
     served_once(config)
-    key = signing_key_of(SERVICE, environment)
+    credentials = tuple(
+        key_account_of(SERVICE, knowledge_base.identity.issuer, knowledge_base.identity.client_id, environment)
+        for knowledge_base in config.knowledge_bases
+    )
     clients = _clients_of(config, environment)
     return _Started(
         config=config,
         knowledge_bases=tuple(
-            Served(
-                entry=knowledge_base,
-                credential=KeyCredential(
-                    issuer=knowledge_base.identity.issuer, client_id=knowledge_base.identity.client_id, private_key=key
-                ),
-                clients=clients_there,
-            )
-            for knowledge_base, clients_there in zip(config.knowledge_bases, clients, strict=True)
+            Served(entry=knowledge_base, credential=credential, clients=clients_there)
+            for knowledge_base, credential, clients_there in zip(config.knowledge_bases, credentials, clients, strict=True)
         ),
     )
 

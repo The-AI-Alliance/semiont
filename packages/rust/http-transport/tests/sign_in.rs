@@ -14,8 +14,9 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use bytes::Bytes;
+use ring::signature::{RSA_PKCS1_2048_8192_SHA256, RsaPublicKeyComponents};
 use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
 use semiont::channels::PrincipalProfile;
 use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure};
@@ -45,6 +46,7 @@ use semiont::types::{
 };
 use semiont_http_transport::agent::{AgentSignInError, AgentToken};
 use semiont_http_transport::client::client;
+use semiont_http_transport::client_assertion::{JWT_BEARER, LIFETIME_SECONDS, thumbprint};
 use semiont_http_transport::discovery::http_discovery;
 use semiont_http_transport::loopback::LoopbackRedirect;
 use semiont_http_transport::oauth::{
@@ -52,7 +54,9 @@ use semiont_http_transport::oauth::{
     begin_authorization, code_challenge, complete_authorization, discover_issuer,
     refresh_at_issuer, refresh_stored_session, revoke_at_issuer, sign_in_with_device_grant,
 };
-use semiont_http_transport::service_account::{Credential, ServiceToken};
+use semiont_http_transport::service_account::{
+    Credential, KeyCredential, KeyError, SecretCredential, ServiceToken, private_key_from_pem,
+};
 use semiont_http_transport::session::{
     CompleteSignInError, HttpSessionFactory, IssuedSession, SignInDevice, StoredSignIn,
     begin_sign_in, complete_sign_in, describe_connection, session_from_issued, session_from_stored,
@@ -2200,11 +2204,11 @@ impl World {
         AgentToken::sign_in(
             &self.origin,
             ServiceToken::new(
-                Credential {
+                Credential::Secret(SecretCredential {
                     issuer: self.issuer(),
                     client_id: client_id.to_owned(),
                     client_secret: "a-secret".to_owned(),
-                },
+                }),
                 self.http.clone(),
             ),
             self.http.clone(),
@@ -2281,6 +2285,317 @@ async fn an_agent_whose_token_the_gateway_refuses_is_not_signed_in() {
         .expect("the gateway refused the token");
 
     assert_eq!(refused, AgentSignInError::CredentialRefused { status: 401 });
+}
+
+// ── A service account that proves itself with a key ─────────────────────
+//
+// Each grant carries an assertion signed for it alone, and no secret. What
+// an issuer does with the assertion is done here by hand: its signature is
+// checked with the key's public half, and its claims read. The shape the
+// table states is tests/client_assertion_cases.rs's.
+
+fn assertion_table() -> Value {
+    serde_json::from_str(include_str!(
+        "../../../../specs/src/session/client-assertion-cases.json"
+    ))
+    .expect("the table is JSON")
+}
+
+/// RFC 7517's example RSA key (Appendix A.2), by its JWK members in the
+/// order an `RSAPrivateKey` holds them: n, e, d, p, q, dp, dq, qi. A key
+/// published to be an example, and the one RFC 7638 takes the thumbprint
+/// of: the table's key.
+const EXAMPLE_KEY: [&str; 8] = [
+    "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
+    "AQAB",
+    "X4cTteJY_gn4FYPsXB8rdXix5vwsg1FLN5E3EaG6RJoVH-HLLKD9M7dx5oo7GURknchnrRweUkC7hT5fJLM0WbFAKNLWY2vv7B6NqXSzUvxT0_YSfqijwp3RTzlBaCxWp4doFk5N2o8Gy_nHNKroADIkJ46pRUohsXywbReAdYaMwFs9tv8d_cPVY3i07a3t8MN6TNwm0dSawm9v47UiCl3Sk5ZiG7xojPLu4sbg1U2jx4IBTNBznbJSzFHK66jT8bgkuqsk0GjskDJk19Z4qwjwbsnn4j2WBii3RL-Us2lGVkY8fkFzme1z0HbIkfz0Y6mqnOYtqc0X4jfcKoAC8Q",
+    "83i-7IvMGXoMXCskv73TKr8637FiO7Z27zv8oj6pbWUQyLPQBQxtPVnwD20R-60eTDmD2ujnMt5PoqMrm8RfmNhVWDtjjMmCMjOpSXicFHj7XOuVIYQyqVWlWEh6dN36GVZYk93N8Bc9vY41xy8B9RzzOGVQzXvNEvn7O0nVbfs",
+    "3dfOR9cuYq-0S-mkFLzgItgMEfFzB2q3hWehMuG0oCuqnb3vobLyumqjVZQO1dIrdwgTnCdpYzBcOfW5r370AFXjiWft_NGEiovonizhKpo9VVS78TzFgxkIdrecRezsZ-1kYd_s1qDbxtkDEgfAITAG9LUnADun4vIcb6yelxk",
+    "G4sPXkc6Ya9y8oJW9_ILj4xuppu0lzi_H7VTkS8xj5SdX3coE0oimYwxIi2emTAue0UOa5dpgFGyBJ4c8tQ2VF402XRugKDTP8akYhFo5tAA77Qe_NmtuYZc3C3m3I24G2GvR5sSDxUyAN2zq8Lfn9EUms6rY3Ob8YeiKkTiBj0",
+    "s9lAH9fggBsoFR8Oac2R_E2gw282rT2kGOAhvIllETE1efrA6huUUvMfBcMpn8lqeW6vzznYY5SSQF7pMdC_agI3nG8Ibp1BUb0JUiraRNqUfLhcQb_d9GF4Dh7e74WbRsobRonujTYN1xCaP6TO61jvWrX-L18txXw494Q_cgk",
+    "GyM_p6JrXySiz1toFgKbWV-JdI3jQ4ypu9rbMWx3rQJBfmt0FoYzgUIZEVFEcOqwemRN81zoDAaa-Bk0KWNGDjJHZDdDmFhW3AN7lI-puxk_mHZGJ11rxyR8O55XLSe3SPmRfKwZI6yU24ZxvQKFYItdldUKGzO6Ia6zTKhAVRU",
+];
+
+/// The public half of RFC 7515's example RSA key (Appendix A.2), n and e: a
+/// key the account does not hold.
+const ANOTHER_KEY: [&str; 2] = [
+    "ofgWCuLjybRlzo0tZWJjNiuSfb4p4fAkd_wWJcyQoTbji9k0l8W26mPddxHmfHQp-Vaw-4qPCJrcS2mJPMEzP1Pt0Bm4d4QlL-yRT-SFd2lZS-pCgNMsD1W_YpRPEwOWvG6b32690r2jZ47soMZo9wGzjb_7OMg0LOL-bSf63kpaSHSXndS5z5rexMdbBYUsLA9e-KXBdQOS-UTo7WTBEMa2R2CapHg665xsmtdVMTBQY4uDZlxvb3qCo5ZwKh9kG4LT6_I5IhlJH7aGhyxXFvUK-DWNmoudF8NAco9_h9iaGNj8q2ethFkMLs91kzk2PAcDTW9gb54h4FRWyuXpoQ",
+    "AQAB",
+];
+
+fn number(member: &str) -> Vec<u8> {
+    URL_SAFE_NO_PAD.decode(member).expect("a base64url number")
+}
+
+/// A DER element: its tag, its length and its content.
+fn der(tag: u8, content: &[u8]) -> Vec<u8> {
+    let mut element = vec![tag];
+    if content.len() < 0x80 {
+        element.push(content.len() as u8);
+    } else {
+        let length: Vec<u8> = content
+            .len()
+            .to_be_bytes()
+            .into_iter()
+            .skip_while(|byte| *byte == 0)
+            .collect();
+        element.push(0x80 | length.len() as u8);
+        element.extend(length);
+    }
+    element.extend_from_slice(content);
+    element
+}
+
+/// A DER INTEGER of an unsigned big-endian number.
+fn integer(magnitude: &[u8]) -> Vec<u8> {
+    let mut content = Vec::new();
+    if magnitude.first().is_some_and(|byte| byte & 0x80 != 0) {
+        content.push(0);
+    }
+    content.extend_from_slice(magnitude);
+    der(0x02, &content)
+}
+
+/// rsaEncryption's AlgorithmIdentifier: its OID, 1.2.840.113549.1.1.1, and
+/// no parameters.
+const RSA_ENCRYPTION: [u8; 13] = [
+    0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00,
+];
+
+/// An elliptic-curve key's AlgorithmIdentifier: id-ecPublicKey,
+/// 1.2.840.10045.2.1, on P-256, 1.2.840.10045.3.1.7.
+const EC_P256: [u8; 19] = [
+    0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d,
+    0x03, 0x01, 0x07,
+];
+
+/// A PKCS#8 PrivateKeyInfo (RFC 5958) of `key` under `algorithm`, as a PEM.
+fn pkcs8_pem(algorithm: &[u8], key: &[u8]) -> String {
+    let info = der(
+        0x30,
+        &[integer(&[0]), der(0x30, algorithm), der(0x04, key)].concat(),
+    );
+    let base64 = STANDARD.encode(info);
+    let lines: Vec<&str> = base64
+        .as_bytes()
+        .chunks(64)
+        .map(|line| std::str::from_utf8(line).expect("base64 is ASCII"))
+        .collect();
+    format!(
+        "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
+        lines.join("\n")
+    )
+}
+
+/// RFC 7517's example key as a worker is handed its key: a PKCS#8 PEM.
+fn example_key() -> String {
+    let members: Vec<u8> = EXAMPLE_KEY
+        .iter()
+        .flat_map(|member| integer(&number(member)))
+        .collect();
+    pkcs8_pem(
+        &RSA_ENCRYPTION,
+        &der(0x30, &[integer(&[0]), members].concat()),
+    )
+}
+
+/// The client id of the account that proves itself with the example key.
+const KEYED: &str = "semiont-worker-alice-laptop";
+
+impl World {
+    fn keyed(&self, key: &str) -> KeyCredential {
+        KeyCredential {
+            issuer: self.issuer(),
+            client_id: KEYED.to_owned(),
+            private_key: private_key_from_pem(key).expect("an RSA key"),
+        }
+    }
+}
+
+/// The names of a form's fields, in order.
+fn fields(form: &HashMap<String, String>) -> Vec<&str> {
+    let mut names: Vec<&str> = form.keys().map(String::as_str).collect();
+    names.sort_unstable();
+    names
+}
+
+/// The fields the table says a grant by assertion posts, in order.
+fn assertion_form(table: &Value) -> Vec<&str> {
+    let mut names: Vec<&str> = table["form"]
+        .as_array()
+        .expect("the table states a form")
+        .iter()
+        .map(|name| name.as_str().expect("a field's name"))
+        .collect();
+    names.sort_unstable();
+    names
+}
+
+/// The header and claims of `assertion`, once its signature is checked with
+/// the public key `n`, `e`, as an issuer checks it.
+fn checked(assertion: &str, n: &[u8], e: &[u8]) -> Option<(Value, Value)> {
+    let (signing_input, signature) = assertion.rsplit_once('.').expect("a signature");
+    RsaPublicKeyComponents { n, e }
+        .verify(
+            &RSA_PKCS1_2048_8192_SHA256,
+            signing_input.as_bytes(),
+            &URL_SAFE_NO_PAD.decode(signature).expect("base64url"),
+        )
+        .ok()?;
+    let (head, body) = signing_input.split_once('.').expect("a header and claims");
+    let read = |part: &str| -> Value {
+        serde_json::from_slice(&URL_SAFE_NO_PAD.decode(part).expect("base64url")).expect("JSON")
+    };
+    Some((read(head), read(body)))
+}
+
+#[tokio::test]
+async fn each_grant_carries_an_assertion_signed_for_it_alone_and_no_secret() {
+    let world = World::start().await;
+    world.answers([
+        granted(&agent_jwt(300, 1, INDEXER), None),
+        granted(&agent_jwt(300, 2, INDEXER), None),
+    ]);
+    let service = ServiceToken::new(
+        Credential::Key(Box::new(world.keyed(&example_key()))),
+        world.http.clone(),
+    );
+    service.token(false).await.expect("granted");
+    service.token(true).await.expect("granted again");
+
+    let table = assertion_table();
+    let (n, e) = (number(EXAMPLE_KEY[0]), number(EXAMPLE_KEY[1]));
+    let mut jtis = Vec::new();
+    for sent in world.token_forms() {
+        assert_eq!(fields(&sent), assertion_form(&table));
+        assert_eq!(
+            sent["grant_type"],
+            table["grantType"].as_str().expect("a grant type")
+        );
+        assert_eq!(sent["client_assertion_type"], JWT_BEARER);
+        let (head, claims) =
+            checked(&sent["client_assertion"], &n, &e).expect("signed with the account's key");
+        assert_eq!(head, json!({ "alg": "RS256", "kid": thumbprint(&n, &e) }));
+        assert_eq!(claims["iss"], KEYED);
+        assert_eq!(claims["sub"], KEYED);
+        assert_eq!(claims["aud"], format!("{}/token", world.issuer()));
+        let issued = claims["iat"].as_u64().expect("whole seconds");
+        let expires = claims["exp"].as_u64().expect("whole seconds");
+        assert_eq!(expires - issued, LIFETIME_SECONDS);
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("after 1970")
+            .as_secs();
+        assert!(now.abs_diff(issued) < 60, "issued at {issued}, now {now}");
+        jtis.push(claims["jti"].as_str().expect("a jti").to_owned());
+    }
+    assert_eq!(jtis.len(), 2);
+    assert_ne!(jtis[0], jtis[1], "a grant's assertion is never sent twice");
+}
+
+#[tokio::test]
+async fn an_assertion_another_key_signed_is_not_this_accounts() {
+    let world = World::start().await;
+    world.answers([granted(&agent_jwt(300, 1, INDEXER), None)]);
+    ServiceToken::new(
+        Credential::Key(Box::new(world.keyed(&example_key()))),
+        world.http.clone(),
+    )
+    .token(false)
+    .await
+    .expect("granted");
+
+    let assertion = &world.token_forms()[0]["client_assertion"];
+    let (n, e) = (number(ANOTHER_KEY[0]), number(ANOTHER_KEY[1]));
+    assert_eq!(checked(assertion, &n, &e), None);
+}
+
+#[tokio::test]
+async fn a_key_credential_never_shows_its_key_and_a_refused_grant_never_shows_its_assertion() {
+    let world = World::start().await;
+    let credential = world.keyed(&example_key());
+    assert_eq!(
+        format!("{credential:?}"),
+        format!(
+            r#"KeyCredential {{ issuer: "{}", client_id: "{KEYED}", .. }}"#,
+            world.issuer()
+        )
+    );
+    let secret = SecretCredential {
+        issuer: world.issuer(),
+        client_id: KEYED.to_owned(),
+        client_secret: "a-secret".to_owned(),
+    };
+    assert!(!format!("{:?}", Credential::Secret(secret)).contains("a-secret"));
+
+    // An error body can echo what it was sent: the status is said, never the
+    // body.
+    world.answers([(
+        401,
+        json!({ "error": "invalid_client", "error_description": "echo" }),
+    )]);
+    let refused = ServiceToken::new(Credential::Key(Box::new(credential)), world.http.clone())
+        .token(false)
+        .await
+        .expect_err("refused");
+    assert_eq!(
+        refused.to_string(),
+        format!(
+            "Client-credentials grant for {KEYED} at {} failed (HTTP 401)",
+            world.issuer()
+        )
+    );
+    let assertion = &world.token_forms()[0]["client_assertion"];
+    assert!(!refused.to_string().contains(assertion.as_str()));
+    assert!(!format!("{refused:?}").contains(assertion.as_str()));
+}
+
+#[test]
+fn a_worker_reads_its_key_from_a_pkcs8_pem_and_nothing_else() {
+    let key = example_key();
+    let public = |pem: &str| {
+        RsaPublicKeyComponents::<Vec<u8>>::from(
+            private_key_from_pem(pem).expect("an RSA key").public(),
+        )
+    };
+    let read = public(&key);
+    assert_eq!(
+        (read.n, read.e),
+        (number(EXAMPLE_KEY[0]), number(EXAMPLE_KEY[1]))
+    );
+    // As an environment variable may hold it: its lines ended otherwise, and
+    // space around it.
+    let carried = format!("\n  {}  \n", key.replace('\n', "\r\n"));
+    assert_eq!(public(&carried).n, number(EXAMPLE_KEY[0]));
+
+    let refused = |pem: &str| private_key_from_pem(pem).err();
+    // Armoured otherwise: PKCS#1, or encrypted.
+    let pkcs1 = key.replace("PRIVATE KEY", "RSA PRIVATE KEY");
+    assert_eq!(refused(&pkcs1), Some(KeyError::NotPkcs8Pem));
+    let encrypted = key.replace("PRIVATE KEY", "ENCRYPTED PRIVATE KEY");
+    assert_eq!(refused(&encrypted), Some(KeyError::NotPkcs8Pem));
+    let unarmoured: String = key
+        .lines()
+        .filter(|line| !line.starts_with("-----"))
+        .collect();
+    assert_eq!(refused(&unarmoured), Some(KeyError::NotPkcs8Pem));
+    let not_base64 = "-----BEGIN PRIVATE KEY-----\n!!!!\n-----END PRIVATE KEY-----\n";
+    assert_eq!(refused(not_base64), Some(KeyError::NotPkcs8Pem));
+    // PKCS#8, and not RSA.
+    let elliptic = pkcs8_pem(&EC_P256, &der(0x30, &integer(&[1])));
+    assert_eq!(
+        refused(&elliptic),
+        Some(KeyError::NotRsa("WrongAlgorithm".to_owned()))
+    );
+    // What it says names what the key is not, and nothing of what it was.
+    assert_eq!(
+        KeyError::NotPkcs8Pem.to_string(),
+        "not an unencrypted PKCS#8 PEM private key (-----BEGIN PRIVATE KEY-----)"
+    );
+    assert_eq!(
+        KeyError::NotRsa("WrongAlgorithm".to_owned()).to_string(),
+        "not an RSA key to sign assertions with RS256 (WrongAlgorithm)"
+    );
 }
 
 // ── A request that is never answered ────────────────────────────────────
@@ -2788,17 +3103,27 @@ async fn passages(text: &str) -> Vec<QuotedText> {
 
 async fn a_worker(
     gateway: &str,
-    credential: Credential,
+    issuer: String,
+    client_id: String,
+    key: &str,
     http: reqwest::Client,
 ) -> Result<(), Box<dyn Error>> {
     // <readme:worker>
+    // Its account at the issuer proves itself with the worker's key, the
+    // PKCS#8 PEM in `SEMIONT_OIDC_CLIENT_KEY`: each grant carries an
+    // assertion signed with it, and no secret.
+    let credential = KeyCredential {
+        issuer,
+        client_id,
+        private_key: private_key_from_pem(key)?,
+    };
     // What the agent says it is called: here, its client id.
     let called = credential.client_id.clone();
     // A worker signs in as a daemon does: as itself, the agent its work is
     // attributed to.
     let agent = AgentToken::sign_in(
         gateway,
-        ServiceToken::new(credential, http.clone()),
+        ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
         http.clone(),
     )
     .await?;
@@ -3063,11 +3388,11 @@ async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
         async move {
             a_daemon(
                 &gateway,
-                Credential {
+                Credential::Secret(SecretCredential {
                     issuer,
                     client_id: "semiont-indexer".to_owned(),
                     client_secret: "a-secret".to_owned(),
-                },
+                }),
                 http,
                 move |job| {
                     if let JobCompleteCommand::MarkJobCompleteCommand(job) = job {
@@ -3128,11 +3453,9 @@ async fn the_worker_says_what_it_is_called_claims_as_its_agent_says_the_lifecycl
         async move {
             a_worker(
                 &gateway,
-                Credential {
-                    issuer,
-                    client_id: "my-worker".to_owned(),
-                    client_secret: "a-secret".to_owned(),
-                },
+                issuer,
+                "my-worker".to_owned(),
+                &example_key(),
                 http,
             )
             .await
@@ -3167,6 +3490,11 @@ async fn the_worker_says_what_it_is_called_claims_as_its_agent_says_the_lifecycl
             "job:complete",
             "job:claim"
         ]
+    );
+    // It signed in by its key: its grant carried an assertion, and no secret.
+    assert_eq!(
+        fields(&world.token_forms()[0]),
+        assertion_form(&assertion_table())
     );
     let emitted = world.staged.emitted.lock().unwrap().clone();
     // It said it is called by its client id, before it claimed.

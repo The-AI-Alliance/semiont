@@ -20,14 +20,11 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Final, final
 
-from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
-from semiont.http import SecretCredential
+from semiont.http import KeyCredential, NotAnRsaKey, SecretCredential, UnreadableKey, private_key_from_pem
 from semiont.model import WireModel
 
-__all__ = ["Refused", "config_path_of", "read_config", "service_account_of", "set_in", "signing_key_of"]
+__all__ = ["Refused", "config_path_of", "key_account_of", "read_config", "service_account_of", "set_in"]
 
 
 @final
@@ -143,20 +140,20 @@ def service_account_of(service: str, issuer: str, environment: Mapping[str, str]
     )
 
 
-def signing_key_of(service: str, environment: Mapping[str, str]) -> RSAPrivateKey:
-    """The key the service proves itself with, at every issuer it signs in at.
+def key_account_of(service: str, issuer: str, client_id: str, environment: Mapping[str, str]) -> KeyCredential:
+    """The service's account at `issuer`, the client `client_id` that its document names there, proven by its key.
 
-    `SEMIONT_OIDC_CLIENT_KEY` holds it: an RSA private key, PEM and
-    unencrypted. Which client holds its public half at an issuer is the
+    `SEMIONT_OIDC_CLIENT_KEY` holds the key: an RSA private key, PKCS#8 PEM
+    and unencrypted. Which client holds its public half at an issuer is the
     document's to say. A refusal names the variable and never what it holds.
     """
     pem = _held(service, environment, "SEMIONT_OIDC_CLIENT_KEY")
     try:
-        key = serialization.load_pem_private_key(pem.encode("utf-8"), password=None)
-    except (ValueError, TypeError, UnsupportedAlgorithm):
+        key = private_key_from_pem(pem)
+    except UnreadableKey:
         raise Refused(f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an unencrypted PEM private key") from None
-    if not isinstance(key, RSAPrivateKey):
+    except NotAnRsaKey:
         raise Refused(
             f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an RSA key: a {service} signs its assertions with RS256"
-        )
-    return key
+        ) from None
+    return KeyCredential(issuer=issuer, client_id=client_id, private_key=key)

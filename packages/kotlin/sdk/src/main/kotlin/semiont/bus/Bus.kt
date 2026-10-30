@@ -103,7 +103,7 @@ public fun requestFuture(transport: Transport, operation: Operation<*, *, *>, pa
  * account for. Cancelled, it reports nothing more, and a reply that comes
  * anyway settles nothing.
  */
-private suspend fun resultOf(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long): Frame {
+internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *>, payload: JsonObject, timeoutMs: Long): Frame {
     val asked = operation.request.name
     val result = operation.result.name
     val failure = operation.failure.name

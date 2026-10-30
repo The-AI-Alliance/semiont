@@ -12,15 +12,16 @@ categories = ["api-bindings", "web-programming::http-client", "authentication"]
 [features]
 # Signing a person in, and sessions over a gateway: the issuer's grants with
 # PKCE, a registry's sign-in, the loopback redirect and discovery over HTTP.
-# A service signs in as its own account and links none of it.
-sign-in = ["dep:base64", "dep:ring", "tokio/net", "tokio/io-util"]
+# A service signs in as its own account, by its secret or its key, and
+# leaves it off.
+sign-in = ["tokio/net", "tokio/io-util"]
 
 [dependencies]
-base64 = { workspace = true, optional = true }
+base64.workspace = true
 bytes.workspace = true
 futures.workspace = true
 reqwest = { workspace = true, features = ["json", "stream"] }
-ring = { workspace = true, optional = true }
+ring.workspace = true
 semiont.workspace = true
 semiont-telemetry.workspace = true
 serde.workspace = true

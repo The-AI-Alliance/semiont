@@ -13,7 +13,7 @@ import pytest
 from aio import pass_time, run, soon
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from gateway_server import Asked, GatewayServer
 from issuer import TOKEN, issuer_of, says, trusting
@@ -22,7 +22,7 @@ from spec import SPEC, read, strings, text
 from tokens import token
 
 from semiont.errors import SignInError
-from semiont.http import KeyCredential, ServiceToken
+from semiont.http import KeyCredential, NotAnRsaKey, ServiceToken, UnreadableKey, private_key_from_pem
 from semiont.http._client_assertion import JWT_BEARER, LIFETIME_SECONDS, thumbprint
 
 _JSON = TypeAdapter[JsonValue](JsonValue)
@@ -122,3 +122,31 @@ def test_a_key_credential_never_shows_its_key_and_a_refused_grant_never_shows_it
             assert assertion not in repr(failed.value)
 
     run(scenario())
+
+
+def test_a_pkcs8_pem_is_read_as_its_rsa_key_and_anything_else_is_refused_without_a_word_of_it() -> None:
+    key = a_key()
+    pkcs8 = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    # As a variable holds it: surrounding white space and CRLF line ends are the same key.
+    assert private_key_from_pem("\n" + pkcs8.replace("\n", "\r\n") + "  ").private_numbers() == key.private_numbers()
+
+    pkcs1 = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption())
+    passphrase = serialization.BestAvailableEncryption(b"pass")
+    encrypted = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, passphrase)
+    unreadable = [
+        "not a key at all",
+        pkcs1.decode(),
+        encrypted.decode(),
+        "-----BEGIN PRIVATE KEY-----\nbm90IGEga2V5\n-----END PRIVATE KEY-----\n",
+    ]
+    for held in unreadable:
+        with pytest.raises(UnreadableKey) as unread:
+            private_key_from_pem(held)
+        assert held.strip() not in str(unread.value)
+        assert unread.value.__cause__ is None
+
+    elliptic = ec.generate_private_key(ec.SECP256R1())
+    held = elliptic.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+    with pytest.raises(NotAnRsaKey) as refused:
+        private_key_from_pem(held)
+    assert held not in str(refused.value)

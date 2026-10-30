@@ -655,7 +655,6 @@
         },
         {
           "method": "claim",
-          "notYetReached": { "kotlin": "The Kotlin SDK's claims, with the worker surface." },
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [
@@ -715,7 +714,6 @@
     {
       "handed": "claims",
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust, ranged over in Go.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's worker surface: the claims `job.claim` returns." },
       "members": [
         {
           "member": "next",
@@ -749,7 +747,6 @@
     {
       "handed": "heldJob",
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's worker surface: a job its worker holds." },
       "members": [
         { "member": "jobId" },
         { "member": "jobType" },
@@ -1181,7 +1178,6 @@
     {
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's jobFilter module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/job-filter.ts"
@@ -1194,6 +1190,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
         ]
       },
       "whole": [

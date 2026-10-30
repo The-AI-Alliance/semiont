@@ -190,18 +190,22 @@ Rust's is
 [semiont-worker-driver.rs](../../../packages/rust/http-transport/conformance/src/bin/semiont-worker-driver.rs),
 Python's is
 [conformance/worker.py](../../../packages/python/sdk/conformance/worker.py),
-and Go's is
-[semiont-go-worker-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-worker-driver/main.go).
+Go's is
+[semiont-go-worker-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-worker-driver/main.go),
+and Kotlin's, written in Java over the SDK's Java surface, is
+[WorkerDriver.java](../../../packages/kotlin/sdk/src/conformance/java/semiont/conformance/WorkerDriver.java).
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, the Go drivers,
+It needs a built gateway and the Rust drivers, the Go drivers, the Kotlin
+drivers with a JDK of the version `packages/kotlin/sdk/.java-version` names,
 `nats-server` (2.10 or later), `uv` and Python 3.12 or later on `PATH`, and
 the packages built:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
 (cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
+(cd packages/kotlin/sdk && ./gradlew installConformance)
 npm run build:packages
 cd tests/conformance
 npm ci

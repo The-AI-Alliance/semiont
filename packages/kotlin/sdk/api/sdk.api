@@ -806,6 +806,20 @@ public final class semiont/http/IssuerKt {
 	public static final fun signOutFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
 }
 
+public final class semiont/http/KeyCredential : semiont/http/Credential {
+	public static final field Companion Lsemiont/http/KeyCredential$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/security/interfaces/RSAPrivateCrtKey;)V
+	public static final fun fromPem (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/KeyCredential;
+	public fun getClientId ()Ljava/lang/String;
+	public fun getIssuer ()Ljava/lang/String;
+	public final fun getPrivateKey ()Ljava/security/interfaces/RSAPrivateCrtKey;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/http/KeyCredential$Companion {
+	public final fun fromPem (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/KeyCredential;
+}
+
 public final class semiont/http/PendingAuthorization {
 	public static final field Companion Lsemiont/http/PendingAuthorization$Companion;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
@@ -910,6 +924,99 @@ public final class semiont/identity/IdentityKt {
 	public static final fun kbDid (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbResource (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun personDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class semiont/jobs/ActiveJob {
+	public final fun getJobId ()Lsemiont/identifiers/JobId;
+	public final fun getJobId-uJFoOgc ()Ljava/lang/String;
+	public final fun getJobType ()Lsemiont/types/JobType;
+	public final fun getSince ()Ljava/time/Instant;
+}
+
+public final class semiont/jobs/ClaimRefusal {
+	public final fun getCode ()Lsemiont/errors/BusRequestErrorCode;
+	public final fun getMessage ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/jobs/Claims {
+	public final fun getStalled ()Lsemiont/transport/Watched;
+	public final fun next (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun nextFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun refused ()Lsemiont/transport/Events;
+	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun stopFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun vitals ()Lsemiont/jobs/WorkerVitals;
+}
+
+public abstract class semiont/jobs/HeldJob : java/lang/AutoCloseable {
+	public synthetic fun <init> (Lsemiont/jobs/Holder;Lsemiont/types/JobRunning;Lsemiont/transport/Variable;Lsemiont/transport/TraceContext;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun cancel (Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun cancel$default (Lsemiont/jobs/HeldJob;Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun cancelFuture (Ljava/util/List;Ljava/util/Map;)Ljava/util/concurrent/CompletableFuture;
+	public final fun checkpoint (Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun checkpoint$default (Lsemiont/jobs/HeldJob;Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun checkpointFuture (Ljava/util/List;Ljava/util/Map;)Ljava/util/concurrent/CompletableFuture;
+	public fun close ()V
+	public final fun commit-ogcqSrQ (Ljava/lang/String;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun commitFuture (Lsemiont/identifiers/ResourceId;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun commitFuture-k2J_C-I (Ljava/lang/String;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun fail (Ljava/lang/String;Lsemiont/types/FailureClass;Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun fail$default (Lsemiont/jobs/HeldJob;Ljava/lang/String;Lsemiont/types/FailureClass;Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun failFuture (Ljava/lang/String;Lsemiont/types/FailureClass;Ljava/util/List;Ljava/util/Map;)Ljava/util/concurrent/CompletableFuture;
+	public final fun getAnnotationId ()Lsemiont/identifiers/AnnotationId;
+	public final fun getAnnotationId-C0ARYTo ()Ljava/lang/String;
+	public final fun getAttempt ()J
+	public final fun getCancelled ()Lsemiont/transport/Watched;
+	public final fun getCompletedUnits ()Ljava/util/List;
+	public final fun getJobId ()Lsemiont/identifiers/JobId;
+	public final fun getJobId-uJFoOgc ()Ljava/lang/String;
+	public final fun getJobType ()Lsemiont/types/JobType;
+	public final fun getMaxRetries ()J
+	public final fun getParams ()Lsemiont/types/JobParams;
+	public final fun getResourceId ()Lsemiont/identifiers/ResourceId;
+	public final fun getResourceId-1-yoK9c ()Ljava/lang/String;
+	public final fun getRetryCount ()J
+	public final fun getSettled ()Z
+	public final fun getTrace ()Lsemiont/transport/TraceContext;
+	public final fun getUnitCursors ()Ljava/util/Map;
+	public final fun progress (Lsemiont/types/JobProgress;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun progressFuture (Lsemiont/types/JobProgress;)Ljava/util/concurrent/CompletableFuture;
+	public final fun start (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun startFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/jobs/HeldJobStall {
+	public final fun getHeldSince ()Ljava/time/Instant;
+	public final fun getJobId ()Lsemiont/identifiers/JobId;
+	public final fun getJobId-uJFoOgc ()Ljava/lang/String;
+	public final fun getJobType ()Lsemiont/types/JobType;
+	public final fun getLastActivityAt ()Ljava/time/Instant;
+	public final fun getSilentForMs ()J
+	public final fun getThresholdMs ()J
+}
+
+public final class semiont/jobs/HeldMarkJob : semiont/jobs/HeldJob {
+	public final fun complete (Lsemiont/types/MarkJobResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun completeFuture (Lsemiont/types/MarkJobResult;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/jobs/HeldYieldJob : semiont/jobs/HeldJob {
+	public final fun complete (Lsemiont/types/YieldJobResult;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun completeFuture (Lsemiont/types/YieldJobResult;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/jobs/JobFilterKt {
+	public static final fun jobMatchesFilter (Lkotlinx/serialization/json/JsonObject;Lkotlinx/serialization/json/JsonObject;)Z
+}
+
+public final class semiont/jobs/WorkerVitals {
+	public final fun getActiveJob ()Lsemiont/jobs/ActiveJob;
+	public final fun getJobsCompleted ()J
+	public final fun getLastActivityAt ()Ljava/time/Instant;
+	public final fun getLastClaimAt ()Ljava/time/Instant;
+	public final fun getLastFinishedAt ()Ljava/time/Instant;
+	public final fun getLastQueuedEventAt ()Ljava/time/Instant;
 }
 
 public final class semiont/namespaces/AuthNamespace {
@@ -1045,6 +1152,12 @@ public final class semiont/namespaces/JobNamespace {
 	public final fun cancel-PSXEM9Q (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun cancelFuture (Lsemiont/identifiers/JobId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun cancelFuture--cCJ8JM (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun claim (Ljava/util/List;)Lsemiont/jobs/Claims;
+	public final fun claim (Ljava/util/List;J)Lsemiont/jobs/Claims;
+	public final fun claim (Ljava/util/List;JJ)Lsemiont/jobs/Claims;
+	public final fun claim (Ljava/util/List;JJJ)Lsemiont/jobs/Claims;
+	public final fun claim (Ljava/util/List;JJJJ)Lsemiont/jobs/Claims;
+	public static synthetic fun claim$default (Lsemiont/namespaces/JobNamespace;Ljava/util/List;JJJJILjava/lang/Object;)Lsemiont/jobs/Claims;
 	public final fun complete ()Lsemiont/bus/Typed;
 	public final fun fail ()Lsemiont/bus/Typed;
 	public final fun pollUntilComplete-U24uh8E (Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;

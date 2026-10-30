@@ -17,7 +17,7 @@ use semiont::identity;
 use semiont_core::config;
 use semiont_core::types::GatewayConfig;
 use semiont_http_service::{IssuerVerifier, KeyTimings};
-use semiont_http_transport::service_account::Credential;
+use semiont_http_transport::service_account::{Credential, SecretCredential};
 use semiont_observability::{logging, telemetry};
 use serde_json::json;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -89,16 +89,12 @@ fn boot() -> Result<i32, String> {
         .enable_all()
         .build()
         .map_err(|e| format!("cannot start the runtime: {e}"))?;
-    let outcome = runtime.block_on(run(
-        config,
-        signal,
-        keys,
-        Credential {
-            issuer: String::new(),
-            client_id,
-            client_secret,
-        },
-    ));
+    let credential = SecretCredential {
+        issuer: config.identity.issuer.clone(),
+        client_id,
+        client_secret,
+    };
+    let outcome = runtime.block_on(run(config, signal, keys, credential));
     runtime.shutdown_timeout(Duration::from_secs(1));
     telemetry::shutdown(Duration::from_secs(2));
     outcome
@@ -108,7 +104,7 @@ async fn run(
     config: GatewayConfig,
     signal: SignalConfig,
     keys: KeyRing,
-    credential: Credential,
+    credential: SecretCredential,
 ) -> Result<i32, String> {
     let http = reqwest::Client::builder()
         .build()
@@ -133,10 +129,7 @@ async fn run(
     let archivist = Archivist::new(
         &config.archivist.host,
         config.archivist.port,
-        Credential {
-            issuer: config.identity.issuer.clone(),
-            ..credential
-        },
+        Credential::Secret(credential),
         http,
     );
 
