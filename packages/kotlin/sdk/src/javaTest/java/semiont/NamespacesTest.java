@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
 import kotlinx.serialization.json.Json;
 import kotlinx.serialization.json.JsonElementKt;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import semiont.bus.Delivered;
 import semiont.bus.Typed;
+import semiont.errors.SemiontError;
 import semiont.channels.Channels;
 import semiont.identifiers.AnnotationId;
 import semiont.identifiers.JobId;
@@ -102,9 +105,13 @@ final class NamespacesTest {
         return first;
     }
 
-    /** Wait for `call` to settle, either way. */
+    /** Wait for `call` to settle: with a value, or refused with a failure the SDK names. */
     private static void settle(CompletableFuture<?> call) throws Exception {
-        call.handle((_, _) -> null).get(10, SECONDS);
+        try {
+            call.get(10, SECONDS);
+        } catch (ExecutionException refused) {
+            assertInstanceOf(SemiontError.class, refused.getCause());
+        }
     }
 
     /** The channel `call` asked on, once it has settled either way. */
@@ -273,7 +280,10 @@ final class NamespacesTest {
     @Test
     void jobAsksOfAJob() throws Exception {
         assertEquals("job:status-requested", asked(client.getJob().statusFuture(JOB)));
-        assertEquals("job:status-requested", asked(client.getJob().pollUntilCompleteFuture(JOB, 10, 1_000, status -> {})));
+        List<Object> statuses = new ArrayList<>();
+        assertEquals("job:status-requested", asked(client.getJob().pollUntilCompleteFuture(JOB, 10, 1_000, statuses::add)));
+        // The first ask was refused, so no status was told.
+        assertEquals(List.of(), statuses);
         assertEquals("job:cancel-requested", asked(client.getJob().cancelFuture(JOB)));
     }
 

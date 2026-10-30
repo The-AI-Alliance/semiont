@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +35,8 @@ import semiont.discovery.Unchanged;
 import semiont.errors.BusRequestError;
 import semiont.errors.IdentityUnverifiableError;
 import semiont.errors.IdentityUnverifiableReason;
+import semiont.errors.SessionError;
+import semiont.errors.SessionErrorCode;
 import semiont.http.AuthorizationKt;
 import semiont.http.BeginAuthorizationOptions;
 import semiont.http.ConnectKt;
@@ -213,8 +216,16 @@ final class ModulesTest {
         SignInOutcome outcome = new SignInOutcome(kb, new Expected("did:web:kb.example", "A KB"));
         assertEquals("A KB", outcome.getExpected().getName());
         try (SessionSignals signals = new SessionSignals()) {
-            SessionFactoryOptions made = new SessionFactoryOptions(kb, storage, signals, _ -> Unit.INSTANCE);
+            List<SessionError> told = new ArrayList<>();
+            SessionFactoryOptions made = new SessionFactoryOptions(kb, storage, signals, error -> {
+                told.add(error);
+                return Unit.INSTANCE;
+            });
             assertEquals(kb, made.getKb());
+            // What the session the options build says of its failures reaches whoever made them.
+            SessionError failed = new SessionError(SessionErrorCode.ConstructFailed, "it could not be built", "kb-a");
+            made.getOnError().invoke(failed);
+            assertEquals(List.of(failed), told);
         }
 
         try (Gateway gateway = new Gateway(); SemiontBrowser browser = new SemiontBrowser(new SemiontBrowserConfig(storage, new HttpSessionFactory()))) {
@@ -227,7 +238,7 @@ final class ModulesTest {
     void aRetryIsRunFromJava() throws Exception {
         AtomicInteger attempts = new AtomicInteger();
         // What is retried is a failure the SDK names: here, a stream that cannot deliver a channel.
-        String done = RetryKt.retryWithBackoffFuture(new RetryPolicy(3, 1, 2), _ -> true, () -> attempts.incrementAndGet() == 1
+        String done = RetryKt.retryWithBackoffFuture(new RetryPolicy(3, 1, 2), failed -> failed instanceof BusRequestError, () -> attempts.incrementAndGet() == 1
                 ? CompletableFuture.<String>failedFuture(TransportKt.unsubscribed("job:queued"))
                 : CompletableFuture.completedFuture("done")).get(10, SECONDS);
         assertEquals("done", done);

@@ -73,7 +73,9 @@ final class TestingTest {
         session.getClient().close();
         session.getTransport().close();
 
-        ScriptedSessions sessions = new ScriptedSessions((kbId, _, _) -> object("kb", kbId));
+        // Each knowledge base's gateway answers a request with what it was asked.
+        ScriptedSessions sessions = new ScriptedSessions((kbId, operation, payload) -> new JsonObject(Map.<String, JsonElement>of(
+                "kb", JsonElementKt.JsonPrimitive(kbId), "operation", JsonElementKt.JsonPrimitive(operation), "asked", payload)));
         sessions.queueRenewals("renewed");
         assertTrue(sessions.transports("kb-a").isEmpty());
         assertEquals(0, sessions.getRenewed());
@@ -90,7 +92,7 @@ final class TestingTest {
     @Test
     void aJavaCompositionIsHeldToTheLivenessAxioms() {
         List<List<FaultAction>> dropped = List.of(List.of(DropReply.INSTANCE));
-        LivenessSpec silent = new LivenessSpec(transport -> new LivenessScenario(List.of(new CompletableFuture<Void>()), List.of()), 20, 1, dropped);
+        LivenessSpec silent = new LivenessSpec(transport -> new LivenessScenario(List.of(new CompletableFuture<Void>()), List.of(), transport), 20, 1, dropped);
         AssertionError caught = assertThrows(AssertionError.class, () -> LivenessKt.assertLivenessAxioms(silent));
         assertTrue(caught.getMessage().startsWith("L1: output #0 said nothing"), caught.getMessage());
 
@@ -116,10 +118,13 @@ final class TestingTest {
 
     @Test
     void aJavaTestAnswersWhatNobodyQueuedAndDrawsItsFaults() throws Exception {
-        FaultyTransport transport = new FaultyTransport(List.of(), (operation, _) -> object("answered", operation));
+        FaultyTransport transport = new FaultyTransport(List.of(), (operation, payload) -> new JsonObject(Map.<String, JsonElement>of(
+                "answered", JsonElementKt.JsonPrimitive(operation), "asked", payload)));
         TestClient made = new TestClient(transport);
         JsonObject answered = BusKt.requestFuture(made.getClient().getTransport(), Operations.BROWSE_KB_REQUESTED, new JsonObject(Map.of()), 5_000).get(10, SECONDS);
-        assertEquals(object("answered", "browse:kb-requested"), answered.get("response"));
+        JsonObject response = JsonElementKt.getJsonObject(answered.get("response"));
+        assertEquals(JsonElementKt.JsonPrimitive("browse:kb-requested"), response.get("answered"));
+        assertTrue(response.containsKey("asked"));
         made.getClient().close();
         transport.close();
 
