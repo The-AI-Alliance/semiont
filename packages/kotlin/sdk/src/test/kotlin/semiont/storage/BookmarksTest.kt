@@ -98,8 +98,9 @@ class BookmarksTest {
         places.save(RESOURCE, "p-8")
         places.save(OTHER, "p-3")
         assertNull(storage.get(KEY))
-        // Reading what a cache kept writes no place.
+        // Reading what a cache kept, and forgetting it, write no place.
         assertNull(caches.get(CACHE))
+        caches.delete(CACHE)
         assertNull(storage.get(KEY))
         caches.set(CACHE, "{}")
         assertEquals("{}" to "{}", storage.get(CACHE) to caches.get(CACHE))
@@ -112,6 +113,23 @@ class BookmarksTest {
         storage.set(KEY, """{"res-9": "p-1"}""")
         caches.set(CACHE, "{}")
         assertEquals(mapOf(ResourceId("res-9") to "p-1"), places.load())
+        caches.delete(CACHE)
+        assertNull(storage.get(CACHE))
+    }
+
+    @Test
+    fun aCachesUpdateCarriesThePlacesAsItsWriteDoesAndWhatIsHeardIsWhatTheStorageBeneathHears() {
+        val beneath = SharedStorage()
+        val places = CoupledBookmarks(beneath, KEY)
+        places.save(RESOURCE, "p-7")
+        places.storage.update(CACHE) { kept -> "${kept.orEmpty()}{}" }
+        assertEquals("{}" to mapOf(RESOURCE to "p-7"), beneath.get(CACHE) to places.load())
+
+        val heard = mutableListOf<Pair<String, String?>>()
+        checkNotNull(places.storage.subscribe { key, value -> heard += key to value }).use {
+            beneath.context().set(CACHE, "[]")
+        }
+        assertEquals(listOf(CACHE to "[]"), heard)
     }
 
     @Test
