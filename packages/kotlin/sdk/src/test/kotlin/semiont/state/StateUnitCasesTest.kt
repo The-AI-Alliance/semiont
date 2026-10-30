@@ -23,6 +23,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -39,12 +40,17 @@ import semiont.Timings
 import semiont.errors.SemiontError
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
+import semiont.namespaces.CONTEXT_WINDOW
 import semiont.sameJson
 import semiont.session.KbIdentityConflict
 import semiont.session.SessionEndReason
 import semiont.session.SessionSignals
 import semiont.transport.Frame
 import semiont.transport.Watched
+import semiont.types.AnnotationSelector
+import semiont.types.GenerationJobParams
+import semiont.types.MarkJobParams
+import semiont.types.Motivation
 import semiont.types.wireJson
 import kotlin.coroutines.CoroutineContext
 
@@ -200,6 +206,81 @@ private fun Over.search(made: JsonObject): Made {
     )
 }
 
+private fun flag(watched: Watched<Boolean>): State<Boolean> = State(watched) { Held.Wire(JsonPrimitive(it)) }
+
+private fun Over.gather(made: JsonObject): Made {
+    val unit = GatherStateUnit(client, ResourceId(made.getValue("resourceId").text()))
+    return Made(
+        unit,
+        mapOf(
+            "context" to wire(unit.context),
+            "loading" to flag(unit.loading),
+            "error" to failure(unit.error),
+            "annotationId" to wire(unit.annotationId),
+            "resourceContext" to wire(unit.resourceContext),
+            "resourceLoading" to flag(unit.resourceLoading),
+            "resourceError" to failure(unit.resourceError),
+        ),
+        mapOf(
+            "gatherAnnotation" to { args ->
+                unit.gatherAnnotation(
+                    AnnotationId(args.getValue("annotationId").text()),
+                    args["contextWindow"]?.jsonPrimitive?.long ?: CONTEXT_WINDOW,
+                    args["includeSourceContext"]?.jsonPrimitive?.booleanOrNull,
+                    args["includeTargetContext"]?.jsonPrimitive?.booleanOrNull,
+                )
+            },
+            "gatherResource" to { args -> unit.gatherResource(ResourceId(args.getValue("resourceId").text())) },
+        ),
+    )
+}
+
+private fun Over.yielding(made: JsonObject): Made {
+    val unit = YieldStateUnit(client, made.getValue("locale").text())
+    return Made(
+        unit,
+        mapOf(
+            "isGenerating" to flag(unit.isGenerating),
+            "progress" to wire(unit.progress),
+            "outcome" to wire(unit.outcome),
+            "failure" to failure(unit.failure),
+            "jobId" to wire(unit.jobId),
+        ),
+        mapOf(
+            "generate" to { args ->
+                unit.generate(wireJson.decodeFromJsonElement(GenerationJobParams.serializer(), args.getValue("params")), args["stallDeadlineMs"]?.let(::durationMs))
+            },
+            "dismissProgress" to { _ -> unit.dismissProgress() },
+        ),
+    )
+}
+
+private fun Over.mark(made: JsonObject): Made {
+    val unit = MarkStateUnit(client, ResourceId(made.getValue("resourceId").text()))
+    return Made(
+        unit,
+        mapOf(
+            "pendingAnnotation" to State(unit.pendingAnnotation) { held ->
+                Held.Wire(
+                    held?.let {
+                        JsonObject(mapOf("selector" to wireJson.encodeToJsonElement(serializer<AnnotationSelector>(), it.selector), "motivation" to wireJson.encodeToJsonElement(serializer<Motivation>(), it.motivation)))
+                    } ?: JsonNull,
+                )
+            },
+            "delegatingMotivation" to wire(unit.delegatingMotivation),
+            "progress" to wire(unit.progress),
+            "progressMotivation" to wire(unit.progressMotivation),
+            "failure" to failure(unit.failure),
+            "jobId" to wire(unit.jobId),
+        ),
+        mapOf(
+            "requestDelegate" to { args -> unit.requestDelegate(wireJson.decodeFromJsonElement(serializer<MarkJobParams>(), args.getValue("params"))) },
+            "cancelPending" to { _ -> unit.cancelPending() },
+            "dismissProgress" to { _ -> unit.dismissProgress() },
+        ),
+    )
+}
+
 private fun signals(): Made {
     val signals = SessionSignals()
     return Made(
@@ -231,6 +312,9 @@ private val MAKERS: Map<String, Over.(JsonObject) -> Made> = mapOf(
     "beckon" to { made -> beckon(made) },
     "hoverDwell" to { made -> hoverDwell(made) },
     "search" to { made -> search(made) },
+    "gather" to { made -> gather(made) },
+    "yield" to { made -> yielding(made) },
+    "mark" to { made -> mark(made) },
     "sessionSignals" to { _ -> signals() },
 )
 
