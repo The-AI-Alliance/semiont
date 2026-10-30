@@ -1332,7 +1332,6 @@
     {
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's storagePersister module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/cache-persister.ts"
@@ -1345,6 +1344,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/storage"
         ]
       },
       "members": [

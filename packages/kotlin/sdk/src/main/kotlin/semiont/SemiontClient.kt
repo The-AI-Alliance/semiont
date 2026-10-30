@@ -12,6 +12,7 @@ import semiont.namespaces.JobNamespace
 import semiont.namespaces.Links
 import semiont.namespaces.Live
 import semiont.namespaces.Refresher
+import semiont.storage.CachePersistence
 import semiont.namespaces.MarkNamespace
 import semiont.namespaces.MatchNamespace
 import semiont.namespaces.SystemNamespace
@@ -33,6 +34,8 @@ public class SemiontClient @JvmOverloads constructor(
     content: ContentTransport,
     gateway: GatewayOperations,
     public val timing: ClientTiming = ClientTiming(),
+    /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
+    persistence: CachePersistence? = null,
 ) : AutoCloseable {
     /** The client's own bus: every frame the transport delivered, and every signal the client's parts gave each other. */
     public val bus: EventBus = EventBus()
@@ -50,10 +53,13 @@ public class SemiontClient @JvmOverloads constructor(
         wire = Bus(transport)
         links = Links(transport, wire, bus, timing)
         transport.bridgeInto(bus)
-        live = Live(links, content)
+        live = Live(links, content, persistence)
         refresher = Refresher(links, live)
         refresher.start()
     }
+
+    /** Whether every query the client keeps is at rest: none is being fetched, and none is owed to storage. A client that keeps nothing is always so. */
+    public val persistenceSettled: Boolean get() = live.persistenceSettled
 
     /** The vocabulary: what kinds of things exist. */
     public val frame: FrameNamespace = FrameNamespace(links)

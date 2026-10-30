@@ -89,7 +89,8 @@ public final class semiont/Running : kotlinx/coroutines/flow/Flow {
 public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;)V
 	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;)V
-	public synthetic fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;Lsemiont/storage/CachePersistence;)V
+	public synthetic fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;Lsemiont/storage/CachePersistence;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public final fun getAuth ()Lsemiont/namespaces/AuthNamespace;
 	public final fun getBeckon ()Lsemiont/namespaces/BeckonNamespace;
@@ -101,6 +102,7 @@ public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public final fun getJob ()Lsemiont/namespaces/JobNamespace;
 	public final fun getMark ()Lsemiont/namespaces/MarkNamespace;
 	public final fun getMatch ()Lsemiont/namespaces/MatchNamespace;
+	public final fun getPersistenceSettled ()Z
 	public final fun getSystem ()Lsemiont/namespaces/SystemNamespace;
 	public final fun getTiming ()Lsemiont/ClientTiming;
 	public final fun getTransport ()Lsemiont/transport/Transport;
@@ -485,6 +487,11 @@ public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/ht
 	public final fun signInFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
+public abstract interface class semiont/http/Bookmarks {
+	public abstract fun load ()Ljava/util/Map;
+	public abstract fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+}
+
 public abstract interface class semiont/http/Credential {
 	public abstract fun getClientId ()Ljava/lang/String;
 	public abstract fun getIssuer ()Ljava/lang/String;
@@ -538,8 +545,9 @@ public final class semiont/http/HttpTransport : semiont/transport/GatewayOperati
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;)V
-	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Ljava/net/http/HttpClient;)V
-	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Lsemiont/http/Bookmarks;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Lsemiont/http/Bookmarks;Ljava/net/http/HttpClient;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Lsemiont/http/Bookmarks;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun bridgeInto (Lsemiont/transport/FrameSink;)V
 	public fun close ()V
 	public fun emit-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -1005,6 +1013,38 @@ public final class semiont/signin/StateHomeKt {
 	public static final field FILE_NAME Ljava/lang/String;
 	public static final fun stateDir (Lsemiont/signin/Platform;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun thisPlatform ()Lsemiont/signin/Platform;
+}
+
+public final class semiont/storage/CachePersistence {
+	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;)V
+	public final fun getKeyPrefix ()Ljava/lang/String;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+}
+
+public final class semiont/storage/CoupledBookmarks : semiont/http/Bookmarks {
+	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;)V
+	public final fun getFlushGate ()Lkotlin/jvm/functions/Function0;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+	public fun load ()Ljava/util/Map;
+	public fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun setFlushGate (Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class semiont/storage/MemoryStorage : semiont/storage/SessionStorage {
+	public fun <init> ()V
+	public fun get (Ljava/lang/String;)Ljava/lang/String;
+	public fun set (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public abstract interface class semiont/storage/SessionStorage {
+	public abstract fun get (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun set (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class semiont/storage/StoragePersister : semiont/cache/CachePersister {
+	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;Lkotlinx/serialization/KSerializer;Lkotlinx/serialization/KSerializer;JJ)V
+	public fun load ()Ljava/util/Map;
+	public fun save (Ljava/util/Map;)V
 }
 
 public final class semiont/transport/ConnectionState : java/lang/Enum {
