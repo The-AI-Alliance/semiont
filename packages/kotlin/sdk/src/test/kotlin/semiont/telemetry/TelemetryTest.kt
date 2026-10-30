@@ -1,5 +1,14 @@
 package semiont.telemetry
 
+import semiont.http.HttpTransport
+import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.CompletableFuture
+import java.net.InetSocketAddress
+import java.net.InetAddress
+import com.sun.net.httpserver.HttpServer
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.SpanKind
@@ -95,5 +104,44 @@ class TelemetryTest {
         GlobalOpenTelemetry.resetForTest()
         assertEquals(TraceContext(SENT_UNDER), Telemetry.received("beckon:focus", null, TraceContext(SENT_UNDER)))
         assertEquals(null, Telemetry.received("beckon:focus", null, null))
+    }
+
+    @Test
+    fun anApplicationInstallsItsOwnOpenTelemetryAfterTheSdkHasBegun() {
+        GlobalOpenTelemetry.resetForTest()
+        Telemetry.received("beckon:focus", null, TraceContext(SENT_UNDER))
+        // The SDK asked for one and installed none, so the application's is taken.
+        OpenTelemetrySdk.builder().buildAndRegisterGlobal()
+    }
+
+    @Test
+    fun aFutureRunsInTheTraceItsCallerIsIn() {
+        val tracer = GlobalOpenTelemetry.getOrNoop().getTracer("a caller")
+        val caller = tracer.spanBuilder("the caller's work").startSpan()
+        val sent = caller.makeCurrent().use { CoroutineScope(Dispatchers.Default).futureOf { Telemetry.headers() }.get() }
+        caller.end()
+        assertEquals("00-${caller.spanContext.traceId}-${caller.spanContext.spanId}", sent["traceparent"]?.substringBeforeLast('-'))
+    }
+
+    @Test
+    fun anEmitCarriesTheTraceOfItsSpanToTheGateway() {
+        val heard = CompletableFuture<String?>()
+        val gateway = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
+        gateway.createContext("/bus/emit") { exchange ->
+            heard.complete(exchange.requestHeaders.getFirst("traceparent"))
+            exchange.requestBody.readAllBytes()
+            exchange.sendResponseHeaders(202, -1)
+            exchange.close()
+        }
+        gateway.start()
+        try {
+            HttpTransport("http://127.0.0.1:${gateway.address.port}", MutableStateFlow<String?>(null)).use { transport ->
+                runBlocking { transport.emit("beckon:sparkle", JsonObject(emptyMap())) }
+            }
+            val span = kept.spans.single { it.name == "bus.emit:beckon:sparkle" }
+            assertEquals("00-${span.traceId}-${span.spanId}", heard.get(5, TimeUnit.SECONDS)?.substringBeforeLast('-'))
+        } finally {
+            gateway.stop(0)
+        }
     }
 }
