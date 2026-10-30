@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.serializer
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -51,6 +52,7 @@ import semiont.transport.ResourceHold
 import semiont.transport.Transport
 import semiont.transport.Upload
 import semiont.transport.Watched
+import semiont.types.JobFilter
 import semiont.types.AnchoredTextAnswer
 import semiont.types.AnnotationSelector
 import semiont.types.BindBodyOperation
@@ -228,6 +230,8 @@ private val calls: Map<String, Call> = mapOf(
     "job.status" to { c, a -> c.job.status(a.job()) },
     "job.pollUntilComplete" to { c, a -> c.job.pollUntilComplete(a.job(), everyMs = 1_000, withinMs = 60_000) },
     "job.cancel" to { c, a -> c.job.cancel(a.job()) },
+    // Read, the claims claim: the first claim is what the row holds.
+    "job.claim" to { c, a -> c.job.claim(wireJson.decodeFromJsonElement(ListSerializer(serializer<JobFilter>()), a.getValue("options").jsonObject.getValue("accepts"))).next() },
     "auth.me" to { c, _ -> c.auth.me() },
     "auth.mediaToken" to { c, a -> c.auth.mediaToken(a.resource()) },
     "auth.protectedResourceMetadata" to { c, _ -> c.auth.protectedResourceMetadata() },
