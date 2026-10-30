@@ -539,9 +539,9 @@ private class Types(private val definitions: JsonObject, private val generation:
                         union(schema(target)) != null -> setOf("text", "list", "object")
                         else -> setOf("object")
                     }
-                    if (implementable(type)) member(type, reads) else variant(type, wrapped(name, type, type), reads)
+                    if (implementable(type)) member(type, reads) else variant(type, wrapped(name, type, "$TYPES_PACKAGE.$type"), reads)
                 }
-                target != null && target in generation.identifiers -> variant(named(target), wrapped(name, target, target), setOf("text"))
+                target != null && target in generation.identifiers -> variant(named(target), wrapped(name, target, "$IDENTIFIERS_PACKAGE.$target"), setOf("text"))
                 isEmpty -> variant("Empty", "    /** The empty object. */\n    @Serializable\n    public data object Empty : $name\n\n", setOf("object"))
                 isString(member) -> variant("Text", wrapped(name, "Text", "String"), setOf("text"))
                 member["type"].string() == "array" -> variant("List", wrapped(name, "List", "kotlin.collections.List<${typeOf(name, "Item", member["items"])}>"), setOf("list"))
@@ -579,7 +579,7 @@ private class Types(private val definitions: JsonObject, private val generation:
         }
     }
 
-    /** A variant of a union that holds a value of `type`, written as the value itself. */
+    /** A variant of a union that holds a value of `type`, written as the value itself. `type` is qualified where the variant is named as it is, which would shadow it. */
     fun wrapped(union: String, variant: String, type: String): String {
         val descriptor = if (type == "String") {
             "PrimitiveSerialDescriptor(${literal("$TYPES_PACKAGE.$union.$variant")}, PrimitiveKind.STRING)"
