@@ -41,7 +41,7 @@ import java.util.concurrent.Flow.Publisher
 public val PERSISTED_EVENT_TYPES: List<String> = semiont.channels.PERSISTED
 
 /** What the gateway stamps on a payload to say who emitted it. */
-private const val EMITTED_BY = "_userId"
+internal const val EMITTED_BY = "_userId"
 
 private val LOG: System.Logger = System.getLogger("semiont.bus")
 
