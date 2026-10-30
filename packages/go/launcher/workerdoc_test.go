@@ -406,7 +406,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("worker").mem, nil, nil), " ")
+	args := strings.Join(workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil), " ")
 	if want := "/stage/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}
@@ -415,10 +415,13 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 			t.Errorf("the worker is handed %s, which it does not read:\n%s", unread, args)
 		}
 	}
-	for _, handed := range []string{"SEMIONT_OIDC_CLIENT_ID=" + serviceClientID("worker"), "SEMIONT_OIDC_CLIENT_SECRET=client-secret"} {
+	for _, handed := range []string{"SEMIONT_OIDC_CLIENT_ID=" + serviceClientID("worker"), "SEMIONT_OIDC_CLIENT_KEY=client-key"} {
 		if !strings.Contains(args, handed) {
 			t.Errorf("the worker is not handed its service account (%s):\n%s", handed, args)
 		}
+	}
+	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_SECRET") {
+		t.Errorf("the worker is handed a secret; it proves itself with the machine's key:\n%s", args)
 	}
 
 	port := fmt.Sprint(workerDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma"))).Port)

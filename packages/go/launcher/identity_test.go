@@ -87,7 +87,7 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 }
 
 func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan, realmAccounts{}))
 	// The gateway verifies tokens, and in the agent exchange never presents
 	// one — but it dials the Archivist for content, events and the working
 	// tree's branch, and proves who it is like any caller.
@@ -98,7 +98,7 @@ func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
 
 func TestKeycloakRealmJSON(t *testing.T) {
 	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan,
-		map[string]string{"archivist": "archivist-secret", "weaver": "weaver-secret"}))
+		realmAccounts{secrets: map[string]string{"archivist": "archivist-secret", "weaver": "weaver-secret"}}))
 	for _, want := range []string{
 		`"realm": "semiont"`,
 		`"clientId": "semiont-browser"`,
@@ -154,7 +154,7 @@ func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
 	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
 		t.Errorf("configured lifespan not carried on the plan: got %d, want 60", got)
 	}
-	doc := string(keycloakRealmJSON("semiont", "aud", 3000, plan.Roles["identity"].AccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "aud", 3000, plan.Roles["identity"].AccessTokenLifespan, realmAccounts{}))
 	if !strings.Contains(doc, `"accessTokenLifespan": 60`) {
 		t.Error("the realm document did not take the configured lifespan")
 	}
@@ -199,7 +199,7 @@ func TestBrowserWebOriginsFollowTheBrowserPort(t *testing.T) {
 // The realm document is what actually reaches Keycloak, so the origin has to
 // survive the render — and the redirect URIs must stay portless beside it.
 func TestKeycloakRealmJSONAllowsTheBrowsersOrigin(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", 3000, keycloakAccessTokenLifespan, realmAccounts{}))
 	for _, want := range []string{
 		`"http://localhost:3000"`,
 		`"http://127.0.0.1:3000"`,
