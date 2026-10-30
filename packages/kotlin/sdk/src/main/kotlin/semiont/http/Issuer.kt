@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -38,8 +39,8 @@ import java.util.concurrent.CompletableFuture
 /** The HTTP client of every request to an issuer. It keeps the JDK's default proxy selector and trust store, as a transport's does. */
 internal val issuerHttp: HttpClient by lazy { HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build() }
 
-/** What a grant issued. */
-internal class IssuedTokens(val access: String, val refresh: String)
+/** What a grant issued: the access token, and the refresh token that renews it. */
+public data class IssuedTokens(public val access: String, public val refresh: String)
 
 /** An issuer's answer: its status, and its body when that was a JSON object. */
 internal class Answer(val status: Int, private val body: JsonObject?) {
@@ -141,8 +142,20 @@ private const val DEVICE_CODE_LIFETIME_S = 600.0
 /** How long to wait between asks when the issuer does not say, and how much `slow_down` adds: RFC 8628 §3.5's five seconds. */
 private const val DEVICE_POLL_S = 5.0
 
-/** An issuer, and the endpoints of it a client uses. */
-internal class IssuerEndpoints(val issuer: String, val authorization: String, val token: String, val device: String?, val revocation: String?)
+/**
+ * An issuer, and the endpoints of it a client uses: where a person is sent to
+ * sign in, where tokens are asked for, and, when the issuer has them, where a
+ * device is authorized and a refresh token revoked. Kept with a sign-in under
+ * way, as every SDK keeps it.
+ */
+@Serializable
+public data class IssuerEndpoints(
+    public val issuer: String,
+    public val authorization: String,
+    public val token: String,
+    public val device: String? = null,
+    public val revocation: String? = null,
+)
 
 /** What a person is shown to approve a sign-in from wherever they have a browser. */
 public data class DeviceCode(
@@ -152,6 +165,10 @@ public data class DeviceCode(
     /** How long the code is good for, in seconds. */
     public val expiresIn: Double,
 )
+
+/** An issuer that issued no refresh token: a session it began could not outlive its first access token. */
+internal fun noRefreshToken(): SignInError =
+    SignInError(SignInErrorCode.Exchange, "The issuer returned no refresh token: the session could not outlive its first access token")
 
 private fun noIssuer() = SignInError(SignInErrorCode.NoIssuer, "The knowledge base trusts no external issuer")
 
@@ -224,7 +241,7 @@ internal suspend fun signInWithDeviceGrant(baseUrl: String, onCode: (DeviceCode)
         val access = answer.text("access_token")
         if (answer.status == 200 && access != null) {
             val refresh = answer.text("refresh_token")
-                ?: throw SignInError(SignInErrorCode.Exchange, "The issuer returned no refresh token: the session could not outlive its first access token")
+                ?: throw noRefreshToken()
             return issuer to IssuedTokens(access, refresh)
         }
         when (answer.text("error")) {

@@ -168,6 +168,11 @@
       "name": "searchDebounceMs",
       "value": 250,
       "docs": "How long a search waits after its query last changed before it asks. A query still being typed is not asked for letter by letter."
+    },
+    {
+      "name": "discoveryIntervalMs",
+      "value": 5000,
+      "docs": "How often a launcher's discovery document is read again, unless a caller says otherwise. A launcher rewrites it on every change to its stack, so a list of the knowledge bases it manages is a few seconds behind at worst, and the document is not read without pause."
     }
   ]
 }

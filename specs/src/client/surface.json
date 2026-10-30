@@ -870,8 +870,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's sessionSignals state unit." },
-      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals" },
+      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
       "members": [
         { "member": "sessionEnded" },
         { "member": "permissionDenied" },
@@ -1409,7 +1408,6 @@
     {
       "module": "registry",
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's registry module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/semiont-browser.ts",
@@ -1434,6 +1432,10 @@
         ],
         "go": [
           "packages/go/sdk/registry"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "whole": [
@@ -1450,7 +1452,8 @@
           "absent": {
             "python": "Python makes one with `SemiontBrowser(config)`, held with `async with`.",
             "typescript": "TypeScript makes one with `new SemiontBrowser(config)`.",
-            "rust": "Rust makes one with `SemiontBrowser::new(config)`."
+            "rust": "Rust makes one with `SemiontBrowser::new(config)`.",
+            "kotlin": "Kotlin makes one with `SemiontBrowser(config)`, closed with `close()`."
           }
         },
         {
@@ -1619,7 +1622,8 @@
           "absent": {
             "python": "Python's `complete_sign_in` raises the `SignInError` or the `IdentityUnverifiableError` itself.",
             "typescript": "TypeScript's `completeSignIn` rejects with the `SignInError` or the `IdentityUnverifiableError` itself.",
-            "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`."
+            "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`.",
+            "kotlin": "Kotlin's `completeSignIn` throws the `SignInError` or the `IdentityUnverifiableError` itself."
           }
         }
       ]
@@ -1627,7 +1631,6 @@
     {
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's redirectSignIn module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/oauth.ts",
@@ -1646,6 +1649,11 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/errors"
         ]
       },
       "members": [
@@ -1696,7 +1704,6 @@
     {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's discovery module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/discovery.ts"
@@ -1711,6 +1718,10 @@
         ],
         "go": [
           "packages/go/sdk/discovery"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/discovery",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "whole": [

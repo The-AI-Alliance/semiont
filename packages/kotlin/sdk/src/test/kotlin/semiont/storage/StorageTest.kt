@@ -43,6 +43,58 @@ class StorageTest {
         storage.set("b", "two")
         storage.set("a", "three")
         assertEquals("three" to "two", storage.get("a") to storage.get("b"))
+        storage.delete("a")
+        storage.delete("never there")
+        assertEquals(null to "two", storage.get("a") to storage.get("b"))
+    }
+
+    @Test
+    fun anUpdateIsGivenWhatIsStoredAndStoresWhatItSays() {
+        val storage = MemoryStorage()
+        val given = mutableListOf<String?>()
+        val appended = { stored: String? ->
+            given += stored
+            "${stored.orEmpty()}+"
+        }
+        storage.update("a", appended)
+        storage.update("a", appended)
+        assertEquals(listOf(null, "+"), given)
+        assertEquals("++", storage.get("a"))
+        // Saying nothing removes the key.
+        storage.update("a") { null }
+        assertNull(storage.get("a"))
+    }
+
+    @Test
+    fun storageInMemoryHasNoOtherContextToHear() {
+        assertNull(MemoryStorage().subscribe { _, _ -> })
+    }
+
+    @Test
+    fun eachContextOfASharedStorageHearsWhatTheOthersWriteAndNeverWhatItWrites() {
+        val here = SharedStorage()
+        val there = here.context()
+        val elsewhere = here.context()
+        val heardHere = mutableListOf<Pair<String, String?>>()
+        val heardThere = mutableListOf<Pair<String, String?>>()
+        here.subscribe { key, value -> heardHere += key to value }
+        val stopThere = checkNotNull(there.subscribe { key, value -> heardThere += key to value })
+
+        here.set("a", "one")
+        there.update("a") { stored -> "$stored, two" }
+        elsewhere.delete("a")
+
+        // Every context reads the same values.
+        assertEquals(listOf<String?>(null, null, null), listOf(here.get("a"), there.get("a"), elsewhere.get("a")))
+        assertEquals(listOf("a" to "one, two", "a" to null), heardHere)
+        assertEquals(listOf("a" to "one", "a" to null), heardThere)
+
+        // A subscription that has ended hears nothing.
+        stopThere.close()
+        elsewhere.set("b", "three")
+        assertEquals(listOf("a" to "one", "a" to null), heardThere)
+        assertEquals("b" to "three", heardHere.last())
+        assertEquals("three", there.get("b"))
     }
 
     @Test

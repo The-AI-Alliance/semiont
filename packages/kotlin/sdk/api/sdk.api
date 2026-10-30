@@ -110,6 +110,10 @@ public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public final fun getYield ()Lsemiont/namespaces/YieldNamespace;
 }
 
+public abstract interface class semiont/StateUnit : java/lang/AutoCloseable {
+	public abstract fun close ()V
+}
+
 public abstract interface class semiont/annotations/AnchorMethod {
 	public abstract fun getValue ()Ljava/lang/String;
 }
@@ -421,12 +425,104 @@ public final class semiont/channels/ScopedChannel {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/discovery/Absent : semiont/discovery/DiscoveryState {
+	public fun <init> (Lsemiont/discovery/DiscoveryAbsentReason;)V
+	public fun <init> (Lsemiont/discovery/DiscoveryAbsentReason;Ljava/lang/String;)V
+	public synthetic fun <init> (Lsemiont/discovery/DiscoveryAbsentReason;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lsemiont/discovery/DiscoveryAbsentReason;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Lsemiont/discovery/DiscoveryAbsentReason;Ljava/lang/String;)Lsemiont/discovery/Absent;
+	public static synthetic fun copy$default (Lsemiont/discovery/Absent;Lsemiont/discovery/DiscoveryAbsentReason;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/discovery/Absent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDiagnostic ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/discovery/DiscoveryAbsentReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/discovery/DiscoveryAbsentReason : java/lang/Enum {
+	public static final field Invalid Lsemiont/discovery/DiscoveryAbsentReason;
+	public static final field NotFound Lsemiont/discovery/DiscoveryAbsentReason;
+	public static final field NotJson Lsemiont/discovery/DiscoveryAbsentReason;
+	public static final field Unreadable Lsemiont/discovery/DiscoveryAbsentReason;
+	public static final field UnsupportedVersion Lsemiont/discovery/DiscoveryAbsentReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/discovery/DiscoveryAbsentReason;
+	public static fun values ()[Lsemiont/discovery/DiscoveryAbsentReason;
+}
+
+public final class semiont/discovery/DiscoveryDiff {
+	public fun <init> (Lsemiont/discovery/DiscoveryState;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public final fun component1 ()Lsemiont/discovery/DiscoveryState;
+	public final fun component2 ()Ljava/util/List;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Ljava/util/List;
+	public final fun component5 ()Ljava/util/List;
+	public final fun copy (Lsemiont/discovery/DiscoveryState;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;)Lsemiont/discovery/DiscoveryDiff;
+	public static synthetic fun copy$default (Lsemiont/discovery/DiscoveryDiff;Lsemiont/discovery/DiscoveryState;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lsemiont/discovery/DiscoveryDiff;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdded ()Ljava/util/List;
+	public final fun getDuplicated ()Ljava/util/List;
+	public final fun getRemoved ()Ljava/util/List;
+	public final fun getState ()Lsemiont/discovery/DiscoveryState;
+	public final fun getUpdated ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/discovery/DiscoveryKt {
+	public static final field DISCOVERY_INTERVAL J
+	public static final fun parseDiscoveryDocument (Ljava/lang/String;)Lsemiont/discovery/DiscoveryState;
+	public static final fun subscribeDiscovery (Lsemiont/discovery/DiscoveryTransport;J)Lsemiont/transport/Events;
+	public static final fun textDiscovery (Lkotlin/jvm/functions/Function0;)Lsemiont/discovery/DiscoveryTransport;
+}
+
+public abstract interface class semiont/discovery/DiscoveryRead {
+}
+
+public abstract interface class semiont/discovery/DiscoveryState : semiont/discovery/DiscoveryRead {
+}
+
+public abstract interface class semiont/discovery/DiscoveryTransport {
+	public abstract fun read (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun readFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/discovery/DiscoveryTransport$DefaultImpls {
+	public static fun readFuture (Lsemiont/discovery/DiscoveryTransport;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/discovery/Managed : semiont/discovery/DiscoveryState {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lsemiont/discovery/Managed;
+	public static synthetic fun copy$default (Lsemiont/discovery/Managed;Ljava/util/List;ILjava/lang/Object;)Lsemiont/discovery/Managed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKbs ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/discovery/Unchanged : semiont/discovery/DiscoveryRead {
+	public static final field INSTANCE Lsemiont/discovery/Unchanged;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/errors/BusRequestError : semiont/errors/SemiontError {
 	public fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
 	public synthetic fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun getCode ()Ljava/lang/String;
 	public final fun getFailure ()Lkotlinx/serialization/json/JsonObject;
 	public final fun getReason ()Lsemiont/errors/BusRequestErrorCode;
+}
+
+public final class semiont/errors/IdentityUnverifiableError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/IdentityUnverifiableReason;Ljava/lang/String;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/IdentityUnverifiableReason;
 }
 
 public final class semiont/errors/JobError : semiont/errors/SemiontError {
@@ -487,9 +583,60 @@ public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/ht
 	public final fun signInFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
+public final class semiont/http/AuthorizationKt {
+	public static final fun beginAuthorization (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun beginAuthorizationFuture (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun codeChallenge (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun completeAuthorization (Ljava/lang/String;Lsemiont/storage/SessionStorage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun completeAuthorizationFuture (Ljava/lang/String;Lsemiont/storage/SessionStorage;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/http/BeginAuthorizationOptions {
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lsemiont/types/HttpEndpoint;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/BeginAuthorizationOptions;
+	public static synthetic fun copy$default (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/BeginAuthorizationOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getExpectedName ()Ljava/lang/String;
+	public final fun getKbId ()Ljava/lang/String;
+	public final fun getRedirectUri ()Ljava/lang/String;
+	public final fun getTarget ()Lsemiont/types/HttpEndpoint;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class semiont/http/Bookmarks {
 	public abstract fun load ()Ljava/util/Map;
 	public abstract fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class semiont/http/ConnectKt {
+	public static final fun describeConnection (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun describeConnectionFuture (Lsemiont/types/HttpEndpoint;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/http/ConnectionIdentity {
+	public synthetic fun <init> (Ljava/lang/String;Lsemiont/types/KbDescription;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/identifiers/UserId;Lsemiont/types/KbDescription;)V
+	public final fun component1-lE7-m4I ()Ljava/lang/String;
+	public final fun component2 ()Lsemiont/types/KbDescription;
+	public final fun copy-Oz5wUo0 (Ljava/lang/String;Lsemiont/types/KbDescription;)Lsemiont/http/ConnectionIdentity;
+	public static synthetic fun copy-Oz5wUo0$default (Lsemiont/http/ConnectionIdentity;Ljava/lang/String;Lsemiont/types/KbDescription;ILjava/lang/Object;)Lsemiont/http/ConnectionIdentity;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDescription ()Lsemiont/types/KbDescription;
+	public final fun getDid ()Lsemiont/identifiers/UserId;
+	public final fun getDid-lE7-m4I ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class semiont/http/Credential {
@@ -512,6 +659,10 @@ public final class semiont/http/DeviceCode {
 	public final fun getVerificationUriComplete ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/http/DiscoveryKt {
+	public static final fun httpDiscovery (Ljava/lang/String;)Lsemiont/discovery/DiscoveryTransport;
 }
 
 public final class semiont/http/EndpointKt {
@@ -538,6 +689,14 @@ public final class semiont/http/HttpContentTransport : semiont/transport/Content
 	public fun getResourceGraphFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getResourceGraphFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun putBinary (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
+}
+
+public final class semiont/http/HttpSessionFactory : semiont/registry/SessionFactory {
+	public fun <init> ()V
+	public fun revoke (Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun revokeFuture (Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public fun session (Lsemiont/registry/SessionFactoryOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun sessionFuture (Lsemiont/registry/SessionFactoryOptions;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/HttpTransport : semiont/transport/GatewayOperations, semiont/transport/Transport {
@@ -574,6 +733,55 @@ public final class semiont/http/HttpTransport : semiont/transport/GatewayOperati
 	public fun trackReply (Ljava/lang/String;Ljava/util/Collection;)Lsemiont/transport/PendingReply;
 }
 
+public final class semiont/http/IssuedTokens {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/IssuedTokens;
+	public static synthetic fun copy$default (Lsemiont/http/IssuedTokens;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/IssuedTokens;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccess ()Ljava/lang/String;
+	public final fun getRefresh ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/http/IssuerEndpoints {
+	public static final field Companion Lsemiont/http/IssuerEndpoints$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/IssuerEndpoints;
+	public static synthetic fun copy$default (Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/IssuerEndpoints;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAuthorization ()Ljava/lang/String;
+	public final fun getDevice ()Ljava/lang/String;
+	public final fun getIssuer ()Ljava/lang/String;
+	public final fun getRevocation ()Ljava/lang/String;
+	public final fun getToken ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/http/IssuerEndpoints$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lsemiont/http/IssuerEndpoints$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/http/IssuerEndpoints;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/http/IssuerEndpoints;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/http/IssuerEndpoints$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
 public final class semiont/http/IssuerKt {
 	public static final fun renewKept (Lsemiont/signin/SignInKept;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun renewKeptFuture (Lsemiont/signin/SignInKept;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
@@ -583,10 +791,46 @@ public final class semiont/http/IssuerKt {
 	public static final fun signOutFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
 }
 
-public final class semiont/http/OpenedSession : java/lang/AutoCloseable {
-	public fun close ()V
-	public final fun getClient ()Lsemiont/SemiontClient;
-	public final fun getSession ()Lsemiont/session/SemiontSession;
+public final class semiont/http/PendingAuthorization {
+	public static final field Companion Lsemiont/http/PendingAuthorization$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lsemiont/types/HttpEndpoint;
+	public final fun component5 ()Lsemiont/http/IssuerEndpoints;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/PendingAuthorization;
+	public static synthetic fun copy$default (Lsemiont/http/PendingAuthorization;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/PendingAuthorization;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getExpectedName ()Ljava/lang/String;
+	public final fun getIssuer ()Lsemiont/http/IssuerEndpoints;
+	public final fun getKbId ()Ljava/lang/String;
+	public final fun getRedirectUri ()Ljava/lang/String;
+	public final fun getState ()Ljava/lang/String;
+	public final fun getTarget ()Lsemiont/types/HttpEndpoint;
+	public final fun getVerifier ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/http/PendingAuthorization$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lsemiont/http/PendingAuthorization$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/http/PendingAuthorization;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/http/PendingAuthorization;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/http/PendingAuthorization$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class semiont/http/SecretCredential : semiont/http/Credential {
@@ -604,9 +848,13 @@ public final class semiont/http/ServiceToken {
 }
 
 public final class semiont/http/SessionsKt {
-	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun beginSignIn (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun beginSignInFuture (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun completeSignIn (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun completeSignInFuture (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/Timing {
@@ -861,6 +1109,306 @@ public final class semiont/namespaces/YieldNamespace {
 	public final fun resource (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
 }
 
+public final class semiont/registry/Expected {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lsemiont/registry/Expected;
+	public static synthetic fun copy$default (Lsemiont/registry/Expected;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/Expected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDid ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/registry/KbReadKind : java/lang/Enum {
+	public static final field Conflict Lsemiont/registry/KbReadKind;
+	public static final field NoVerdict Lsemiont/registry/KbReadKind;
+	public static final field Recorded Lsemiont/registry/KbReadKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/registry/KbReadKind;
+	public static fun values ()[Lsemiont/registry/KbReadKind;
+}
+
+public final class semiont/registry/KbReadVerdict {
+	public fun <init> (Lsemiont/registry/KbReadKind;)V
+	public fun <init> (Lsemiont/registry/KbReadKind;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/registry/KbReadKind;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lsemiont/registry/KbReadKind;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lsemiont/registry/KbReadKind;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Lsemiont/registry/KbReadKind;Ljava/lang/String;Ljava/lang/String;)Lsemiont/registry/KbReadVerdict;
+	public static synthetic fun copy$default (Lsemiont/registry/KbReadVerdict;Lsemiont/registry/KbReadKind;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/KbReadVerdict;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lsemiont/registry/KbReadKind;
+	public final fun getObservedDid ()Ljava/lang/String;
+	public final fun getObservedName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/registry/KbSessionStatus : java/lang/Enum {
+	public static final field Authenticated Lsemiont/registry/KbSessionStatus;
+	public static final field Expired Lsemiont/registry/KbSessionStatus;
+	public static final field SignedOut Lsemiont/registry/KbSessionStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/registry/KbSessionStatus;
+	public static fun values ()[Lsemiont/registry/KbSessionStatus;
+}
+
+public final class semiont/registry/KeepingKt {
+	public static final fun clearStoredSession (Lsemiont/storage/SessionStorage;Ljava/lang/String;)V
+	public static final fun keptIn (Lsemiont/storage/SessionStorage;Ljava/lang/String;)Lsemiont/signin/SignInKept;
+	public static final fun loadKnowledgeBases (Lsemiont/storage/SessionStorage;)Ljava/util/List;
+	public static final fun saveKnowledgeBases (Lsemiont/storage/SessionStorage;Ljava/util/List;)V
+	public static final fun storeSession (Lsemiont/storage/SessionStorage;Ljava/lang/String;Lsemiont/registry/StoredSession;)V
+	public static final fun storedSession (Lsemiont/storage/SessionStorage;Ljava/lang/String;)Lsemiont/registry/StoredSession;
+}
+
+public final class semiont/registry/OpenKt {
+	public static final fun applyTabChecks (Ljava/util/List;Ljava/util/Map;)Ljava/util/List;
+	public static final fun sortOpenResources (Ljava/util/List;)Ljava/util/List;
+}
+
+public final class semiont/registry/OpenResource {
+	public static final field Companion Lsemiont/registry/OpenResource$Companion;
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/identifiers/ResourceId;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;)V
+	public final fun component1-1-yoK9c ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()J
+	public final fun component4 ()I
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy-0-slNOc (Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;)Lsemiont/registry/OpenResource;
+	public static synthetic fun copy-0-slNOc$default (Lsemiont/registry/OpenResource;Ljava/lang/String;Ljava/lang/String;JILjava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/OpenResource;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()Lsemiont/identifiers/ResourceId;
+	public final fun getId-1-yoK9c ()Ljava/lang/String;
+	public final fun getMediaType ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getOpenedAt ()J
+	public final fun getOrder ()I
+	public final fun getStorageUri ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/registry/OpenResource$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lsemiont/registry/OpenResource$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/registry/OpenResource;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/registry/OpenResource;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/registry/OpenResource$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/registry/SemiontBrowser : java/lang/AutoCloseable {
+	public fun <init> (Lsemiont/registry/SemiontBrowserConfig;)V
+	public final fun addKb (Lsemiont/types/NewKnowledgeBase;Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun addKbFuture (Lsemiont/types/NewKnowledgeBase;Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public final fun addOpenResource (Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
+	public final fun addOpenResource (Lsemiont/identifiers/ResourceId;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun addOpenResource (Lsemiont/identifiers/ResourceId;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun addOpenResource-cLomD_0 (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public static synthetic fun addOpenResource-cLomD_0$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)V
+	public final fun addOpenResource-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun addOpenResource-ogcqSrQ (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun close ()V
+	public final fun errors ()Lsemiont/transport/Events;
+	public final fun getActiveKbId ()Lsemiont/transport/Watched;
+	public final fun getActiveSession ()Lsemiont/transport/Watched;
+	public final fun getActiveSignals ()Lsemiont/transport/Watched;
+	public final fun getBus ()Lsemiont/bus/EventBus;
+	public final fun getIdentityToken ()Lsemiont/transport/Watched;
+	public final fun getKbs ()Lsemiont/transport/Watched;
+	public final fun getLastViewedResource ()Lsemiont/transport/Watched;
+	public final fun getOpenResources ()Lsemiont/transport/Watched;
+	public final fun getSessionActivating ()Lsemiont/transport/Watched;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+	public final fun kbSessionStatus (Ljava/lang/String;)Lsemiont/registry/KbSessionStatus;
+	public final fun readActiveKb (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun readActiveKbFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun removeKb (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun removeKbFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun removeOpenResource (Lsemiont/identifiers/ResourceId;)V
+	public final fun removeOpenResource--Xm7VB4 (Ljava/lang/String;)V
+	public final fun reorderOpenResources (II)V
+	public final fun setActiveKb (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun setActiveKbFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun setIdentityToken (Ljava/lang/String;)V
+	public final fun setLastViewedResource (Lsemiont/identifiers/ResourceId;)V
+	public final fun setLastViewedResource--Xm7VB4 (Ljava/lang/String;)V
+	public final fun signIn (Ljava/lang/String;Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun signInFuture (Ljava/lang/String;Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public final fun signOut (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun signOutFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun signedIn (Lsemiont/registry/SignedIn;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun signedInFuture (Lsemiont/registry/SignedIn;)Ljava/util/concurrent/CompletableFuture;
+	public final fun updateKb (Ljava/lang/String;)V
+	public final fun updateKb (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun updateKb (Ljava/lang/String;Ljava/lang/String;Lsemiont/types/KbRead;)V
+	public static synthetic fun updateKb$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/KbRead;ILjava/lang/Object;)V
+	public final fun updateOpenResourceName (Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
+	public final fun updateOpenResourceName-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class semiont/registry/SemiontBrowserConfig {
+	public fun <init> (Lsemiont/storage/SessionStorage;Lsemiont/registry/SessionFactory;)V
+	public final fun component1 ()Lsemiont/storage/SessionStorage;
+	public final fun component2 ()Lsemiont/registry/SessionFactory;
+	public final fun copy (Lsemiont/storage/SessionStorage;Lsemiont/registry/SessionFactory;)Lsemiont/registry/SemiontBrowserConfig;
+	public static synthetic fun copy$default (Lsemiont/registry/SemiontBrowserConfig;Lsemiont/storage/SessionStorage;Lsemiont/registry/SessionFactory;ILjava/lang/Object;)Lsemiont/registry/SemiontBrowserConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSessionFactory ()Lsemiont/registry/SessionFactory;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/registry/SessionFactory {
+	public abstract fun revoke (Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun revokeFuture (Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun session (Lsemiont/registry/SessionFactoryOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun sessionFuture (Lsemiont/registry/SessionFactoryOptions;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/registry/SessionFactory$DefaultImpls {
+	public static fun revokeFuture (Lsemiont/registry/SessionFactory;Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public static fun sessionFuture (Lsemiont/registry/SessionFactory;Lsemiont/registry/SessionFactoryOptions;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/registry/SessionFactoryOptions {
+	public fun <init> (Lsemiont/types/KnowledgeBase;Lsemiont/storage/SessionStorage;Lsemiont/session/SessionSignals;Lkotlin/jvm/functions/Function1;)V
+	public final fun getKb ()Lsemiont/types/KnowledgeBase;
+	public final fun getOnError ()Lkotlin/jvm/functions/Function1;
+	public final fun getSignals ()Lsemiont/session/SessionSignals;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+}
+
+public final class semiont/registry/SignInOutcome {
+	public fun <init> (Lsemiont/types/KnowledgeBase;Lsemiont/registry/Expected;)V
+	public final fun component1 ()Lsemiont/types/KnowledgeBase;
+	public final fun component2 ()Lsemiont/registry/Expected;
+	public final fun copy (Lsemiont/types/KnowledgeBase;Lsemiont/registry/Expected;)Lsemiont/registry/SignInOutcome;
+	public static synthetic fun copy$default (Lsemiont/registry/SignInOutcome;Lsemiont/types/KnowledgeBase;Lsemiont/registry/Expected;ILjava/lang/Object;)Lsemiont/registry/SignInOutcome;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpected ()Lsemiont/registry/Expected;
+	public final fun getKb ()Lsemiont/types/KnowledgeBase;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/registry/SignedIn {
+	public fun <init> (Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;)V
+	public fun <init> (Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lsemiont/types/KbEndpoint;
+	public final fun component2 ()Lsemiont/types/KbDescription;
+	public final fun component3 ()Lsemiont/registry/StoredSession;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/registry/SignedIn;
+	public static synthetic fun copy$default (Lsemiont/registry/SignedIn;Lsemiont/types/KbEndpoint;Lsemiont/types/KbDescription;Lsemiont/registry/StoredSession;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/SignedIn;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDescription ()Lsemiont/types/KbDescription;
+	public final fun getEndpoint ()Lsemiont/types/KbEndpoint;
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getExpectedName ()Ljava/lang/String;
+	public final fun getKbId ()Ljava/lang/String;
+	public final fun getSession ()Lsemiont/registry/StoredSession;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/registry/StoredKt {
+	public static final field ACTIVE_KEY Ljava/lang/String;
+	public static final field KNOWLEDGE_BASES_KEY Ljava/lang/String;
+	public static final field LAST_VIEWED_RESOURCE_BY_KB_KEY Ljava/lang/String;
+	public static final field OPEN_RESOURCES_BY_KB_KEY Ljava/lang/String;
+	public static final field PENDING_AUTHORIZATION_KEY Ljava/lang/String;
+	public static final fun kbOfSessionKey (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun sessionKey (Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class semiont/registry/StoredSession {
+	public static final field Companion Lsemiont/registry/StoredSession$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/registry/StoredSession;
+	public static synthetic fun copy$default (Lsemiont/registry/StoredSession;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/StoredSession;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccess ()Ljava/lang/String;
+	public final fun getClientId ()Ljava/lang/String;
+	public final fun getRefresh ()Ljava/lang/String;
+	public final fun getRevocationEndpoint ()Ljava/lang/String;
+	public final fun getTokenEndpoint ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/registry/StoredSession$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lsemiont/registry/StoredSession$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/registry/StoredSession;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/registry/StoredSession;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/registry/StoredSession$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/registry/TabCheck {
+	public fun <init> (Lsemiont/registry/TabVerdict;)V
+	public fun <init> (Lsemiont/registry/TabVerdict;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/registry/TabVerdict;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lsemiont/registry/TabVerdict;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lsemiont/registry/TabVerdict;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Lsemiont/registry/TabVerdict;Ljava/lang/String;Ljava/lang/String;)Lsemiont/registry/TabCheck;
+	public static synthetic fun copy$default (Lsemiont/registry/TabCheck;Lsemiont/registry/TabVerdict;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/registry/TabCheck;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMediaType ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getVerdict ()Lsemiont/registry/TabVerdict;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/registry/TabVerdict : java/lang/Enum {
+	public static final field Gone Lsemiont/registry/TabVerdict;
+	public static final field Ready Lsemiont/registry/TabVerdict;
+	public static final field Unknown Lsemiont/registry/TabVerdict;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/registry/TabVerdict;
+	public static fun values ()[Lsemiont/registry/TabVerdict;
+}
+
 public final class semiont/retry/RetryFacts {
 	public fun <init> ()V
 	public fun <init> (Ljava/lang/Integer;Ljava/lang/String;)V
@@ -908,6 +1456,36 @@ public final class semiont/retry/RetryRule {
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class semiont/session/KbIdentityConflict {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lsemiont/session/KbIdentityConflict;
+	public static synthetic fun copy$default (Lsemiont/session/KbIdentityConflict;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/session/KbIdentityConflict;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getObservedDid ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/session/OpenedSession : java/lang/AutoCloseable {
+	public fun close ()V
+	public final fun getClient ()Lsemiont/SemiontClient;
+	public final fun getSession ()Lsemiont/session/SemiontSession;
+}
+
+public final class semiont/session/PermissionDenied {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lsemiont/session/PermissionDenied;
+	public static synthetic fun copy$default (Lsemiont/session/PermissionDenied;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/session/PermissionDenied;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/session/SemiontSession : java/lang/AutoCloseable {
 	public fun close ()V
 	public final fun errors ()Lsemiont/transport/Events;
@@ -931,6 +1509,31 @@ public final class semiont/session/SessionEndReason : java/lang/Enum {
 	public final fun getWire ()Ljava/lang/String;
 	public static fun valueOf (Ljava/lang/String;)Lsemiont/session/SessionEndReason;
 	public static fun values ()[Lsemiont/session/SessionEndReason;
+}
+
+public final class semiont/session/SessionEnded {
+	public fun <init> (Lsemiont/session/SessionEndReason;)V
+	public final fun component1 ()Lsemiont/session/SessionEndReason;
+	public final fun copy (Lsemiont/session/SessionEndReason;)Lsemiont/session/SessionEnded;
+	public static synthetic fun copy$default (Lsemiont/session/SessionEnded;Lsemiont/session/SessionEndReason;ILjava/lang/Object;)Lsemiont/session/SessionEnded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lsemiont/session/SessionEndReason;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/session/SessionSignals : semiont/StateUnit {
+	public fun <init> ()V
+	public final fun acknowledgeKbIdentityConflict ()V
+	public final fun acknowledgePermissionDenied ()V
+	public final fun acknowledgeSessionEnded ()V
+	public fun close ()V
+	public final fun getKbIdentityConflict ()Lsemiont/transport/Watched;
+	public final fun getPermissionDenied ()Lsemiont/transport/Watched;
+	public final fun getSessionEnded ()Lsemiont/transport/Watched;
+	public final fun notifyKbIdentityConflict (Lsemiont/session/KbIdentityConflict;)V
+	public final fun notifyPermissionDenied (Ljava/lang/String;)V
+	public final fun notifySessionEnded (Lsemiont/session/SessionEndReason;)V
 }
 
 public final class semiont/session/TokensKt {
@@ -1031,13 +1634,19 @@ public final class semiont/storage/CoupledBookmarks : semiont/http/Bookmarks {
 
 public final class semiont/storage/MemoryStorage : semiont/storage/SessionStorage {
 	public fun <init> ()V
+	public fun delete (Ljava/lang/String;)V
 	public fun get (Ljava/lang/String;)Ljava/lang/String;
 	public fun set (Ljava/lang/String;Ljava/lang/String;)V
+	public fun subscribe (Lkotlin/jvm/functions/Function2;)Ljava/lang/AutoCloseable;
+	public fun update (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 }
 
 public abstract interface class semiont/storage/SessionStorage {
+	public abstract fun delete (Ljava/lang/String;)V
 	public abstract fun get (Ljava/lang/String;)Ljava/lang/String;
 	public abstract fun set (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun subscribe (Lkotlin/jvm/functions/Function2;)Ljava/lang/AutoCloseable;
+	public abstract fun update (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class semiont/storage/StoragePersister : semiont/cache/CachePersister {
