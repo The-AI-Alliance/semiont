@@ -55,11 +55,11 @@ Each verb's contract is in **[flows/](flows/README.md)**.
 
 **Coordination is first-class.** `beckon:focus`, `beckon:sparkle`, `browse:click` and `browse:resource-open` reach every connected participant as protocol events, not as one viewer's local state. An agent can direct a person's attention to what it found, and a person can direct an agent's.
 
-## One authority, three generated clients
+## One authority, generated clients
 
 The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, who receives each, and the payload field a relayed frame's trace rides in. [CHANNELS.md](CHANNELS.md) is the readable inventory.
 
-The TypeScript, Rust, Go and Python clients each *generate* their channel tables from that file. Four implementations in four languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
+The TypeScript, Rust, Go, Python and Kotlin clients each *generate* their channel tables from that file. Five implementations in five languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
 
 The same holds one level up. **[`specs/src/client/surface.json`](../../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns, and the members of what a worker is handed: its claims, and a job it holds. Every SDK is held to it: a lint checks each SDK's methods and those members against the table, and each SDK's own tests run the table's cases.
 
@@ -88,7 +88,7 @@ await semiont.bind.body(resourceId, annotationId, [                             
 
 Three surfaces speak these verbs:
 
-- **The SDKs**, in [TypeScript](../../packages/typescript/sdk/README.md), [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md) and [Go](../../packages/go/sdk/README.md), are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
+- **The SDKs**, in [TypeScript](../../packages/typescript/sdk/README.md), [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md), [Go](../../packages/go/sdk/README.md) and [Kotlin](../../packages/kotlin/sdk/README.md), the last for Java programs too, are the typed clients everything else is built on. See **[the builder docs](../builder/README.md)**.
 - **[Agent skills](../builder/skills/)** are ready-made skill definitions that agentic coding assistants use to work in a knowledge base without writing integration code.
 - **[The launcher](../../apps/launcher/README.md)**, the `semiont` binary, exposes the verbs as terminal commands against a running stack; `semiont <verb> --help` for each.
 

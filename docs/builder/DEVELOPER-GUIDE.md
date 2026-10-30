@@ -4,9 +4,10 @@ Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly t
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.
 
-Building in Rust, Python or Go? The recipes are the same: the namespaces and methods match, and
-the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md)
-and [Go](../../packages/go/sdk/README.md) READMEs show each call in their own language.
+Building in Rust, Python, Go, Kotlin or Java? The recipes are the same: the namespaces and methods
+match, and the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md),
+[Go](../../packages/go/sdk/README.md) and [Kotlin](../../packages/kotlin/sdk/README.md) READMEs show
+each call in their own language, the Kotlin one in Java too.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
@@ -160,10 +161,10 @@ for (const ann of annotations) {
 | What kind it is | `isHighlight`, `isReference`, `isAssessment`, `isComment`, `isTag` |
 | What it says | `getEntityTypes`, `getCommentText`, `getTagCategory`, `getTagSchemaId` |
 
-The Rust, Python and Go SDKs have the same readers (`semiont::annotations`,
-`semiont.annotations`, the Go package `annotations`), and one table,
-[`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all four to the
-same answer for the same annotation.
+The Rust, Python, Go and Kotlin SDKs have the same readers (`semiont::annotations`,
+`semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and one
+table, [`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all five to
+the same answer for the same annotation.
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -400,10 +401,10 @@ A span that is not the text's is refused: `annotationOfSpan` throws a `SpanRefus
 whose `code` names the refusal. `reconcile` is one way to find a model's words, with its own
 tolerance for a misquote; a span found another way is built the same.
 
-The Rust, Python and Go SDKs have the same three (`semiont::annotations`,
-`semiont.annotations`, the Go package `annotations`), and two tables,
-[`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
-[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all four to
+The Rust, Python, Go and Kotlin SDKs have the same three (`semiont::annotations`,
+`semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and two
+tables, [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
+[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all five to
 the same answer.
 
 ## 10. Find link candidates (semantic search)

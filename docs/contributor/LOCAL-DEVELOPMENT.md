@@ -30,7 +30,7 @@ container stop semiont-verdaccio
 
 What a full run does:
 
-1. Builds every package of `packages/<language>/<name>`, each in its language's container: the npm packages in the order [`version.json`](../../version.json) lists them, the Rust crates with `cargo build`, the Python packages' distributions with `uv build` (the SDK's with `build-python-sdk.sh`, checked as CI does), and the Go modules with `go build`. A package nothing of has changed since it was last built here is skipped, and the summary at the end says which.
+1. Builds every package of `packages/<language>/<name>`, each in its language's container: the npm packages in the order [`version.json`](../../version.json) lists them, the Rust crates with `cargo build`, the Python packages' distributions with `uv build` (the SDK's with `build-python-sdk.sh`, checked as CI does), the Go modules with `go build`, and the Kotlin SDK with its Gradle wrapper. A package nothing of has changed since it was last built here is skipped, and the summary at the end says which.
 2. Publishes the npm packages to a throwaway local registry (Verdaccio), which it leaves running, for the Browser's image, the one that installs from it. A run that builds no such image starts none.
 3. Builds the eight images from the same Dockerfiles the publish workflows use, tagged `ghcr.io/the-ai-alliance/semiont-<service>:local`. They are never pushed.
 4. Loads the images into every container runtime on the machine, so the stack can run under any of them.

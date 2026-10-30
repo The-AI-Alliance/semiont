@@ -26,5 +26,5 @@ How the actors are deployed is the operator's **[CONTAINER-TOPOLOGY.md](../opera
 ## Cross-references
 
 - **[../protocol/](../protocol/)** — the eight flows, the event-bus protocol, the OpenAPI reference, the W3C compliance story.
-- **[../../packages/README.md](../../packages/README.md)** — every package in each of the four languages, with what it is and whether it is published.
+- **[../../packages/README.md](../../packages/README.md)** — every package in each of the five languages, with what it is and whether it is published.
 - **[../contributor/](../contributor/README.md)** — codebase orientation for new contributors.

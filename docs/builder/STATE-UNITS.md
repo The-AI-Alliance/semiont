@@ -2,7 +2,7 @@
 
 A **state unit** is a piece of state that changes over time, held behind a surface its consumers read but cannot write, with one commitment: `dispose`. Every SDK is built from them, holds its units to the same axioms, and runs one table of what each of the SDK's units does.
 
-The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go. This doc states the pattern first, then each language's form of it.
+The pattern is the same in every language. What differs is what a language reads state with: RxJS Observables in TypeScript, `tokio::sync::watch` receivers and streams in Rust, a `Watched[T]` read with `async for` in Python, a `Watched[T]` ranged over with `for` in Go, a `Watched<T>` collected as a `Flow` in Kotlin. This doc states the pattern first, then each language's form of it.
 
 ## What state units do
 
@@ -264,21 +264,27 @@ A unit is a struct built over a `*semiont.Client` it never closes, made by its c
 
 As in Rust, a unit is a struct, not a closure. The Go README lists [the units and what each holds](../../packages/go/sdk/README.md#state-units), with a program that watches one.
 
+## In Kotlin
+
+A unit is a class built over a `SemiontClient` it never closes, made by its constructor (`YieldStateUnit(client, locale)`), and it implements `semiont.StateUnit`. Each thing it holds is a `Watched<T>`: `value` is the value now, and collecting it gives that value and then each change, until the unit ends; a reader that falls behind is given the latest. What writes it the unit keeps to itself. A unit runs what it starts as coroutines in its client's context. `close()` ends it: what it had running stops, and every reader of its states ends. A Java program reads a state through `asPublisher()`.
+
+As in Rust, a unit is a class, not a closure. The units are the classes of `semiont.state`.
+
 ## How these rules are enforced
 
 The structural contract — `dispose()` exists — is the only part the **type system** catches. Everything else is enforced by an executable axiom suite plus CI compliance scripts (the runtime twin of this doc), with a residue of review-only conventions. The executable spec IS the harness — `assertStateUnitAxioms` from `@semiont/core/testing/axioms`, invoked once from each state unit's test file; its property definitions are the authoritative statements of the axioms below.
 
-That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`) and Go's (`semionttest.AssertStateUnitAxioms`) hold their units under the same ids; the last column says which rules they hold too.
+That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`), Go's (`semionttest.AssertStateUnitAxioms`) and Kotlin's (its tests' `assertStateUnitAxioms`, in `src/test/kotlin/semiont/state/Axioms.kt`) hold their units under the same ids; the last column says which rules they hold too.
 
-What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py` and `packages/go/sdk/state/cases_test.go`.
+What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` and `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt`.
 
 Five enforcement tiers:
 
-| Tier | Mechanism | Rules | Held in Rust, Python and Go too |
+| Tier | Mechanism | Rules | Held in Rust, Python, Go and Kotlin too |
 |---|---|---|---|
-| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation | A5, A5b, A6, X3: all three |
-| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing/axioms`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `Bus.request` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs | L1, L2, L3: all three |
-| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children | A7-passed, A7-owned: all three; X1: Python and Go |
+| **Axioms** — property-based (fast-check) | `assertStateUnitAxioms`, per unit | **A5** idempotent & total dispose · **A5b** post-dispose inertness · **A6** subscribers see `complete` · **X3-runtime** instance isolation | A5, A5b, A6, X3: all four |
+| **Liveness axioms** — property-based (fast-check), composition-level | `assertLivenessAxioms` / `assertExactlyOnceDelivery` from `@semiont/core/testing/axioms`, driving `FaultyTransport` (sdk) and the mock-conn SSE harness (http-transport) | **L1** subscriptions never silently pend forever · **L2** every `Bus.request` settles within timeout × retry budget · **L3** exactly-once delivery across handovers (drain-over-abort) · **L4** degraded modes emit breadcrumbs | L1, L2, L3: all four |
+| **Structural assertions** — single-shot | `assertStateUnitAxioms`, per unit | **X1** no raw origin Subject on the surface · **A7-passed** don't dispose injected deps · **A7-owned** do dispose constructed children | A7-passed, A7-owned: all four; X1: Python, Go and Kotlin |
 | **Static compliance** — CI grep (`scripts/compliance/`, run by the `compliance-check` job of `ci.yml`) | bash + grep | no `class` in a `*-state-unit.ts` file (TypeScript's convention: its units are made by factories) · **X3-static** no module-scoped mutable state · **X5** no fire-and-forget `Promise<void>` in SDK namespaces · **session-typed factories** — no `!`-asserted factory args; `useStateUnit` confined to the shell allowlist | X3: Rust, as a test that fails any `static` item; Python, as a test that fails module state not marked `Final` |
 | **Conventions** — code review only | — | **A3-interior** internal state in Subjects · **X2** no `Promise<T>` on long-running ops · **X6** no dual bus+field exposure of the same state | — |
 

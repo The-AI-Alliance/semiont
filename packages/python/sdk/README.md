@@ -13,8 +13,8 @@ A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
 It has the same namespaces, methods and live queries as the
-[TypeScript SDK][sdk-typescript], the [Rust SDK][sdk-rust] and the
-[Go SDK][sdk-go], and is held to the same [conformance suite][conformance]. New to Semiont? The
+[TypeScript SDK][sdk-typescript], the [Rust SDK][sdk-rust], the
+[Go SDK][sdk-go] and the [Kotlin SDK][sdk-kotlin], and is held to the same [conformance suite][conformance]. New to Semiont? The
 [Introduction][introduction] explains the domain and the ideas the API falls
 out of. Its code is TypeScript, and the ideas are this package's too.
 
@@ -885,7 +885,7 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
 
 The protocol it keeps to is [the transport contract][transport-contract] and
 [the HTTP transport][transport-http], and the [conformance suite][conformance]
-holds it there, case by case, beside the TypeScript, Rust and Go SDKs.
+holds it there, case by case, beside the TypeScript, Rust, Go and Kotlin SDKs.
 
 ## Content, and the gateway's own operations
 
@@ -1054,6 +1054,7 @@ Apache-2.0. See [LICENSE][license].
 [sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/typescript/sdk/README.md
 [sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/rust/sdk/README.md
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md
+[sdk-kotlin]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/kotlin/sdk/README.md
 [launcher]: https://github.com/The-AI-Alliance/semiont/blob/main/apps/launcher/README.md
 [specs]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/README.md
 [surface]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/surface.json
