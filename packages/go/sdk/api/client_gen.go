@@ -2254,17 +2254,17 @@ type AgentPerson struct {
 // AgentPersonType defines model for AgentPerson.Type.
 type AgentPersonType string
 
-// AgentSoftware A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
+// AgentSoftware A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `name`, `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads none of them from its DID. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.
 type AgentSoftware struct {
-	// Id DID-shaped identifier (e.g. did:web:host:agents:provider:model)
+	// Id The agent's DID: did:web:<domain>:agents:<subject>, its account at the knowledge base's issuer
 	Id   *string           `json:"@id,omitempty"`
 	Type AgentSoftwareType `json:"@type"`
 
 	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
 	Model *string `json:"model,omitempty"`
 
-	// Name Stable human-friendly label. Not parsed; UI composes display from structured fields.
-	Name string `json:"name"`
+	// Name What the agent calls itself. Not parsed. Absent when it said nothing.
+	Name *string `json:"name,omitempty"`
 
 	// Parameters Inference parameters (temperature, maxTokens, systemPrompt, etc.). Runtime metadata, not part of identity.
 	Parameters *map[string]interface{} `json:"parameters,omitempty"`
@@ -7405,9 +7405,11 @@ func (a AgentSoftware) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	object["name"], err = json.Marshal(a.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	if a.Name != nil {
+		object["name"], err = json.Marshal(a.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
 	}
 
 	if a.Parameters != nil {

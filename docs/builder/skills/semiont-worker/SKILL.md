@@ -329,9 +329,10 @@ println!("working as {}", agent.did());
 let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
+    name: Some(agent_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
-    ..AgentSoftware::new(agent_name(provider, model))
+    ..AgentSoftware::new()
 }
 .into();
 // Its stream names what claiming and committing read. This worker awaits

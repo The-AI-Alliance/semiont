@@ -22,8 +22,9 @@ fn uri_shaped(value: &str) -> bool {
 }
 
 /// The agent a DID names, its kind by `kind_of` (held to
-/// specs/src/principals/kind-cases.json). An agent DID that carries a provider
-/// and a model is named by them; a DID with no kind segment, by its last part.
+/// specs/src/principals/kind-cases.json). Software is named by its DID alone:
+/// what an agent calls itself, and what it runs, are its own to say. A person's
+/// DID with no kind segment is named by its last part.
 pub fn did_to_agent(did: &str) -> Object {
     let mut agent = Object::new();
     if did.is_empty() {
@@ -42,21 +43,11 @@ pub fn did_to_agent(did: &str) -> Object {
     if uri_shaped(did) {
         agent.insert("@id".into(), json!(did));
     }
-    let parts: Vec<&str> = did.split(':').collect();
-    let last = |name: &str| parts.iter().rposition(|part| *part == name);
-    match kind {
-        Kind::Software => {
-            if let Some(at) = last("agents").filter(|at| *at + 3 == parts.len()) {
-                let (provider, model) = (decoded(parts[at + 1]), decoded(parts[at + 2]));
-                agent.insert("name".into(), json!(format!("{provider} {model}")));
-                agent.insert("provider".into(), json!(provider));
-                agent.insert("model".into(), json!(model));
-            }
-        }
-        Kind::Person => {
-            if last("users").filter(|at| *at + 2 == parts.len()).is_none() {
-                agent.insert("name".into(), json!(decoded(parts[parts.len() - 1])));
-            }
+    if matches!(kind, Kind::Person) {
+        let parts: Vec<&str> = did.split(':').collect();
+        let users = parts.iter().rposition(|part| *part == "users");
+        if users.filter(|at| *at + 2 == parts.len()).is_none() {
+            agent.insert("name".into(), json!(decoded(parts[parts.len() - 1])));
         }
     }
     agent
@@ -118,7 +109,23 @@ pub fn attribution(
 #[cfg(test)]
 mod tests {
     use super::did_to_agent;
-    use serde_json::Value;
+    use serde_json::{Value, json};
+
+    /// An agent's DID says who it is and nothing it runs: no name, provider or
+    /// model is read from it, whatever segments its subject holds.
+    #[test]
+    fn software_is_named_by_its_did_alone() {
+        for did in [
+            "did:web:kb.example:agents:semiont-worker",
+            "did:web:kb.example:agents:ollama:gemma2",
+        ] {
+            assert_eq!(
+                Value::Object(did_to_agent(did)),
+                json!({ "@type": "Software", "@id": did }),
+                "{did}"
+            );
+        }
+    }
 
     /// The record reads a DID's kind as specs/src/principals/kind-cases.json
     /// states it.

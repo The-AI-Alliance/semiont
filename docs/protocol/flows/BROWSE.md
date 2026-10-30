@@ -42,7 +42,7 @@ Driving another participant's viewer is [Beckon](BECKON.md): `beckon.openResourc
 
 **A read is answered from what exists.** No `browse:` request appends to the log.
 
-**A history says who did each thing.** An event names its actor by DID and nothing else. A history reply carries each event as the log holds it and, beside it, the `agent` that DID identifies: a person, or a software peer with its provider and model. A person's `name` is filled in from the knowledge base's record of what its people are called, and a person it has no name for carries none. The agent is made when the reply is made. It is in no log, and no name is written into an event's payload.
+**A history says who did each thing.** An event names its actor by DID and nothing else. A history reply carries each event as the log holds it and, beside it, the `agent` that DID identifies: a person, or a software peer named by its DID alone. A person's `name` is filled in from the knowledge base's record of what its people are called, and a person it has no name for carries none. The agent is made when the reply is made. It is in no log, and no name is written into an event's payload.
 
 **Browse answers from the record.** The event log, the views made from it and the working tree are all a `browse:` read draws on. A question that needs the graph, the vector index or an embedding is retrieval, and belongs to the other two reading verbs: searching resources by text is [Match](MATCH.md), and what refers to a resource is [Gather](GATHER.md).
 

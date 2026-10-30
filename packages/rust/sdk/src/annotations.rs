@@ -21,7 +21,11 @@
 //!
 //! let text = "Ada Lovelace wrote the first algorithm.";
 //! let resource_id: ResourceId = "res-1".parse()?;
-//! let generator: Agent = AgentSoftware::new("gemma3").into();
+//! let generator: Agent = AgentSoftware {
+//!     name: Some("gemma3".to_owned()),
+//!     ..AgentSoftware::new()
+//! }
+//! .into();
 //!
 //! // The model wrote the name without its capitals. The span is the text's.
 //! let found = reconcile(text, &QuotedText::new("ada lovelace")).ok_or("not in the text")?;

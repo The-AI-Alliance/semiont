@@ -482,7 +482,7 @@ class AgentPerson(WireModel, frozen=True, extra="allow"):
 
 class AgentSoftware(WireModel, frozen=True, extra="allow"):
     """
-    A software peer (an inference model acting as a first-class participant) — the Software branch of Agent. Carries structured provider + model.
+    A software peer, the Software branch of Agent: an agent, which is an account as a person is. Its `name`, `provider` and `model` are what it says of itself, attributed to it and not checked; the knowledge base reads none of them from its DID. A generator the knowledge base supplies, for an agent that supplied none, carries `@type` and `@id` alone.
     """
 
     type: Annotated[Literal["Software"], Field(alias="@type")]
@@ -490,13 +490,13 @@ class AgentSoftware(WireModel, frozen=True, extra="allow"):
         str | None,
         Field(
             alias="@id",
-            description="DID-shaped identifier (e.g. did:web:host:agents:provider:model)",
+            description="The agent's DID: did:web:<domain>:agents:<subject>, its account at the knowledge base's issuer",
         ),
     ] = None
     name: Annotated[
-        str,
-        Field(description="Stable human-friendly label. Not parsed; UI composes display from structured fields."),
-    ]
+        str | None,
+        Field(description="What the agent calls itself. Not parsed. Absent when it said nothing."),
+    ] = None
     provider: Annotated[str | None, Field(description="Inference provider (e.g. ollama, anthropic)")] = None
     model: Annotated[
         str | None,
