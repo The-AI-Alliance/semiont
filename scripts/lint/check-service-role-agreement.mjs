@@ -70,7 +70,7 @@ const ROLES = [
       },
       {
         file: 'packages/rust/sdk/src/roles.rs',
-        what: 'the grant the Rust SDK holds, which the gateway delegates to a worker\'s agent token and the dispatcher authorizes a job:claim by',
+        what: 'the grant the Rust SDK holds: the dispatcher authorizes a job:claim by it, and the Archivist refuses a write from its holder that cites no jobId',
         pattern: /WORKER_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },
     ],
