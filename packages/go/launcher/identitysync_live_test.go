@@ -18,18 +18,20 @@ import (
 // stub cannot tell us is whether the clients `serviceAccountClient` and
 // `workerClient` render are ones Keycloak actually accepts — the worker's
 // taking an assertion signed with the machine's key — and whether the token
-// it then mints carries
-// the FLAT `roles` array and the audience the gateway requires — which is the
-// whole reason the client shape matters. A hand-created client that Keycloak
-// accepts but whose token carries `realm_access.roles` fails every
-// service-to-service call while the realm looks correct in the console.
+// it then mints carries the FLAT `roles` array and the audience the gateway
+// requires — which is the whole reason the client shape matters. A
+// hand-created client that Keycloak accepts but whose token carries
+// `realm_access.roles` fails every service-to-service call while the realm
+// looks correct in the console.
 //
-// Skipped unless SEMIONT_LIVE_KEYCLOAK names a base URL, because CI has no
-// broker. Run it with the admin password this root persisted:
+// CI's "Launcher Tests (Go, Keycloak)" job runs it, with TestWorkerGrantLive,
+// against the Keycloak the launcher starts (scripts/ci/keycloak-image.sh), and
+// fails if either skips. Elsewhere it is skipped unless SEMIONT_LIVE_KEYCLOAK
+// names a base URL. Run it with the admin password this root persisted:
 //
 //	SEMIONT_LIVE_KEYCLOAK=http://localhost:8080 \
 //	KC_BOOTSTRAP_ADMIN_PASSWORD=$(cat "$HOME/Library/Application Support/semiont/roots/<root>/keycloak-admin-password") \
-//	go -C packages/go/launcher test . -run TestIdentitySyncLive -v
+//	go -C packages/go/launcher test . -run 'Live$' -v
 //
 // It creates its own realm and deletes it, so the KB's realm is never touched.
 func TestIdentitySyncLive(t *testing.T) {
