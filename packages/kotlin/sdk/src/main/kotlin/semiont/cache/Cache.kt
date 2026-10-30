@@ -1,0 +1,278 @@
+package semiont.cache
+
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.transformWhile
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import semiont.Timings
+import semiont.errors.BusRequestError
+import semiont.errors.BusRequestErrorCode
+import semiont.errors.SemiontError
+
+/** Where a cache keeps its values, so a later one begins with them. */
+public interface CachePersister<K : Any, V : Any> {
+    /** What was kept, asked once, when the cache is built: none when nothing was. */
+    public fun load(): Map<K, V>?
+
+    /** Keep these: the cache's values, after they changed. */
+    public fun save(entries: Map<K, V>)
+}
+
+/** What a read of a closed client fails as: what a request of a closed bus does. */
+internal fun closed(): BusRequestError = BusRequestError(BusRequestErrorCode.Closed, "The client is closed")
+
+/** One key: its state, which every observer of it holds, and the fetch in flight for it, by its number. */
+private class Key<V : Any>(state: CacheState<V>) {
+    /** The key's state; none once the cache is disposed, which ends every observer. */
+    val state = MutableStateFlow<CacheState<V>?>(state)
+
+    /** The fetch in flight, by its number. An `invalidate` lets go of it without waiting: its answer may never come. */
+    var inFlight: Pair<Int, Deferred<V>>? = null
+
+    /** Whether anything asked for the key and has not let go of it. */
+    fun known(): Boolean = inFlight != null || state.value !is CacheState.Pending
+}
+
+/**
+ * A read-through cache: what a client's live queries answer from
+ * (docs/protocol/CACHE-SEMANTICS.md, B1 to B20). A key has one state, and every
+ * observer of the key holds it. `observe` is the live view: the first observer
+ * of a key with nothing starts a fetch, later ones are given what is there, a
+ * failed fetch is tried once more, and a key with a value keeps showing it
+ * whatever its refetches do. `fetch` is the one-shot read: it always asks,
+ * gives what it was answered or throws the failure it met, and never retries.
+ * `invalidate` asks again and shows the value meanwhile; `set` writes a value
+ * that is known; `remove` ends a key whose entity is gone; `dispose` ends every
+ * observer, and nothing is fetched, retried or written after it.
+ *
+ * `ask` asks the service for a key's value, and its fetches run in `scope`, the client's. With a `persister`, the cache
+ * begins with what was kept, shows a kept value at once and asks for it again
+ * the first time it is observed, and saves its values once they have stopped
+ * changing for `saveDebounceMs`.
+ */
+internal class Cache<K : Any, V : Any>(
+    private val ask: suspend (K) -> V,
+    private val scope: CoroutineScope,
+    private val persister: CachePersister<K, V>? = null,
+    private val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
+) {
+    private val lock = Any()
+    private var disposed = false
+    private var fetches = 0
+    private var saving: Job? = null
+    private val keys = LinkedHashMap<K, Key<V>>()
+
+    /** Keys whose value an earlier cache kept and this one has not asked for. */
+    private val kept = mutableSetOf<K>()
+
+    init {
+        persister?.load()?.forEach { (key, value) -> keys[key] = Key(CacheState.Ready(value)) }
+        kept += keys.keys
+    }
+
+    private fun held(key: K): Key<V> = keys.getOrPut(key) { Key(CacheState.Pending) }
+
+    private fun values(): Map<K, V> = keys.mapNotNull { (key, held) -> (held.state.value as? CacheState.Ready)?.let { key to it.value } }.toMap()
+
+    /** The values changed: save them once they have stopped changing. Called under the lock. */
+    private fun oweASave() {
+        val keeping = persister ?: return
+        saving?.cancel()
+        saving = scope.launch {
+            delay(saveDebounceMs)
+            val entries = synchronized(lock) {
+                saving = null
+                values()
+            }
+            keeping.save(entries)
+        }
+    }
+
+    /**
+     * Start a fetch for `key`, or join the one in flight. Called under the
+     * lock. The fetch asks at once, in this thread, so the requests of fetches
+     * started one after another are sent in that order; it is in flight before
+     * it begins, so one that ends at once has let go of the key when it ends.
+     */
+    private fun fetching(key: K): Deferred<V> {
+        // Asked for by this cache now, whichever path asked.
+        kept -= key
+        val held = held(key)
+        held.inFlight?.let { return it.second }
+        fetches += 1
+        val number = fetches
+        val answer = CompletableDeferred<V>()
+        held.inFlight = number to answer
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                answer.complete(fetched(key, number))
+            } catch (failure: Throwable) {
+                // A fetch the client's closing ended is cancelled for whoever waits on it, who is then told the client closed.
+                if (failure is CancellationException) answer.cancel(failure) else answer.completeExceptionally(failure)
+                if (failure is CancellationException) throw failure
+            }
+        }
+        return answer
+    }
+
+    private suspend fun fetched(key: K, number: Int): V {
+        val value = try {
+            ask(key)
+        } finally {
+            // Only its own, and on every way out: an `invalidate` may have put a newer fetch in its place.
+            synchronized(lock) {
+                val held = keys[key]
+                if (held != null && held.inFlight?.first == number) held.inFlight = null
+            }
+        }
+        // A value from any fetch is written, the newest last: each is at least as new as what was there. A failure writes
+        // nothing. One answered after the cache was disposed has no key to write to.
+        synchronized(lock) {
+            keys[key]?.let {
+                it.state.value = CacheState.Ready(value)
+                oweASave()
+            }
+        }
+        return value
+    }
+
+    /** What a fetch gives, to one of those waiting on it: whoever stops waiting does not stop the fetch. */
+    private suspend fun joined(fetch: Deferred<V>): V = try {
+        fetch.await()
+    } catch (cancelled: CancellationException) {
+        // The fetch was ended by its client's closing, and its caller was not: that is a failure to hear, not a cancellation.
+        if (currentCoroutineContext().isActive && fetch.isCancelled) throw closed()
+        throw cancelled
+    }
+
+    /** Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed. Called under the lock. */
+    private fun revalidate(key: K) {
+        val first = fetching(key)
+        scope.launch {
+            try {
+                joined(first)
+                return@launch
+            } catch (_: SemiontError) {
+                // Tried once more, below.
+            }
+            val again = synchronized(lock) { if (disposed) null else fetching(key) } ?: return@launch
+            try {
+                joined(again)
+            } catch (failure: SemiontError) {
+                synchronized(lock) {
+                    val held = keys[key]
+                    if (held != null && held.state.value !is CacheState.Ready) held.state.value = CacheState.Failed(failure)
+                }
+            }
+        }
+    }
+
+    /**
+     * The key's state, now and as it changes, until the cache is disposed.
+     * Observing is what asks: a key with nothing is fetched, a failed key is
+     * tried again, and a value an earlier cache kept is asked for anew while it
+     * is shown.
+     */
+    fun observe(key: K): Flow<CacheState<V>> = synchronized(lock) {
+        if (disposed) return emptyFlow()
+        val wasKept = key in kept
+        val held = held(key)
+        val asks = when (held.state.value) {
+            // An observer arriving at a failed key starts over, for everyone: a fetch is in flight for all of them.
+            is CacheState.Failed -> {
+                held.state.value = CacheState.Pending
+                true
+            }
+            is CacheState.Ready -> wasKept
+            else -> held.inFlight == null
+        }
+        if (asks) revalidate(key)
+        held.state.transformWhile { state ->
+            if (state != null) emit(state)
+            state != null
+        }
+    }
+
+    /**
+     * Ask for the key's value now: what the service answers, which every
+     * observer of the key is given too, or the failure, which only this caller
+     * is. Concurrent asks for one key share one fetch.
+     */
+    suspend fun fetch(key: K): V {
+        val fetch = synchronized(lock) {
+            if (disposed) throw closed()
+            fetching(key)
+        }
+        return joined(fetch)
+    }
+
+    /** The key's value now, asking for nothing. */
+    fun get(key: K): V? = synchronized(lock) { (keys[key]?.state?.value as? CacheState.Ready)?.value }
+
+    /** Whether anything has asked for the key and not let go of it: it has a value or a failure, or a fetch for it is in flight. */
+    fun known(key: K): Boolean = synchronized(lock) { keys[key]?.known() == true }
+
+    /** Every key the cache knows. */
+    fun keys(): List<K> = synchronized(lock) { keys.filterValues { it.known() }.keys.toList() }
+
+    /** Whether a cache that keeps its values has not yet kept what it knows: a fetch is in flight, or a save is owed. */
+    val persistencePending: Boolean
+        get() = synchronized(lock) { persister != null && (saving != null || keys.values.any { it.inFlight != null }) }
+
+    /** The key's value is out of date: ask again, showing what there is meanwhile. A fetch in flight is not waited on. */
+    fun invalidate(key: K): Unit = synchronized(lock) {
+        if (disposed) return
+        val held = held(key)
+        held.inFlight = null
+        if (held.state.value is CacheState.Failed) held.state.value = CacheState.Pending
+        revalidate(key)
+    }
+
+    /** `invalidate`, of every key the cache knows. */
+    fun invalidateAll(): Unit = keys().forEach(::invalidate)
+
+    /** The key's entity is gone: its value is dropped and the key fails with `gone`, at once, for every observer. Nothing is asked for. */
+    fun remove(key: K, gone: SemiontError): Unit = synchronized(lock) {
+        if (disposed) return
+        val held = held(key)
+        held.inFlight = null
+        held.state.value = CacheState.Failed(gone)
+        oweASave()
+    }
+
+    /** The key's value is known: write it, asking for nothing. */
+    fun set(key: K, value: V): Unit = synchronized(lock) {
+        if (disposed) return
+        kept -= key
+        held(key).state.value = CacheState.Ready(value)
+        oweASave()
+    }
+
+    /** End the cache: a save that was owed is made now, every observer's states end, and nothing is fetched or written after. Disposing twice is disposing once. */
+    fun dispose() {
+        val (owed, ended) = synchronized(lock) {
+            val owed = saving?.let {
+                it.cancel()
+                saving = null
+                values()
+            }
+            disposed = true
+            val ended = keys.values.toList()
+            keys.clear()
+            kept.clear()
+            owed to ended
+        }
+        owed?.let { persister?.save(it) }
+        ended.forEach { it.state.value = null }
+    }
+}
