@@ -4,9 +4,9 @@
     "typescript": ["packages/typescript/core/src/__tests__/job-filter.test.ts"],
     "rust": ["packages/rust/sdk/tests/job_filter.rs"],
     "python": ["packages/python/sdk/tests/test_claims.py"],
-    "go": ["packages/go/sdk/claims_test.go"]
+    "go": ["packages/go/sdk/claims_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's jobFilter module, which its worker's claims read."},
   "cases": [
     {
       "why": "a mark filter takes a mark job of its motivation",
