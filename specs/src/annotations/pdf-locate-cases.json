@@ -5,9 +5,9 @@
     "rust": ["packages/rust/sdk/src/annotations/locate.rs"],
     "python": ["packages/python/sdk/tests/test_pdf_locate.py"],
     "go": ["packages/go/sdk/annotations/locate_test.go"],
-    "worker": ["images/worker/tests/test_claim_cases.py"]
+    "worker": ["images/worker/tests/test_claim_cases.py"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/PdfLocateTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's annotations module: where a span of a PDF's text is on its pages."},
   "cases": [
     {
       "why": "a span that is exactly one item is that item's box; its neighbours, one ending before the span starts and one starting after it ends, are not overlapped",
