@@ -15,6 +15,12 @@ import semiont.types.MatchResourcesResponse
 import semiont.types.MatchSearchRequest
 import semiont.types.MatchSearchResult
 
+/** How many candidates a search for a reference gives when none is stated. */
+internal const val SEARCH_LIMIT: Long = 10
+
+/** Whether a search for a reference scores its candidates semantically when that is not stated. */
+internal const val SEMANTIC_SCORING: Boolean = true
+
 /** Searching: for what a reference could refer to, and for resources by text. */
 public class MatchNamespace internal constructor(private val links: Links, private val live: Live) {
     /** Candidates for a reference, given its gathered context: ten, scored semantically, when nothing else is stated. */
@@ -24,8 +30,8 @@ public class MatchNamespace internal constructor(private val links: Links, priva
         resourceId: ResourceId,
         referenceId: AnnotationId,
         context: GatheredContext,
-        limit: Long = 10,
-        useSemanticScoring: Boolean = true,
+        limit: Long = SEARCH_LIMIT,
+        useSemanticScoring: Boolean = SEMANTIC_SCORING,
     ): Running<MatchSearchResult> {
         val request = MatchSearchRequest(resourceId = resourceId, referenceId = referenceId, context = context, limit = limit, useSemanticScoring = useSemanticScoring)
         return Running(links.scope) { searched(request) }

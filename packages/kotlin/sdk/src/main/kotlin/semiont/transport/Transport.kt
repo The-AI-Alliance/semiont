@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -63,6 +64,23 @@ public class Watched<T> internal constructor(private val now: () -> T, private v
         state.transformWhile {
             emit(it)
             !ends(it)
+        },
+    )
+
+    /**
+     * `state`, ending once `ended` holds: a reader that has been told something
+     * is not told the end again, and one that has been told nothing is told the
+     * value it ends on.
+     */
+    internal constructor(state: StateFlow<T>, ended: StateFlow<Boolean>) : this(
+        { state.value },
+        flow {
+            var told = false
+            combine(state, ended) { value, over -> value to over }.transformWhile { (value, over) ->
+                if (!over || !told) emit(value)
+                told = true
+                !over
+            }.collect(this)
         },
     )
 

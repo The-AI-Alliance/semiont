@@ -47,12 +47,12 @@ public class JobNamespace internal constructor(private val links: Links) {
      * `onStatus` is told each status as it is answered.
      */
     public suspend fun pollUntilComplete(jobId: JobId, everyMs: Long, withinMs: Long, onStatus: ((JobStatusResponse) -> Unit)? = null): JobStatusResponse {
-        val deadline = System.nanoTime() + withinMs * 1_000_000
+        val began = links.clock.markNow()
         while (true) {
             val answered = status(jobId)
             onStatus?.invoke(answered)
             if (answered.status in ENDED) return answered
-            if (System.nanoTime() > deadline) throw BusRequestError(BusRequestErrorCode.Timeout, "Job polling timeout after ${withinMs}ms")
+            if (began.elapsedNow().inWholeMilliseconds > withinMs) throw BusRequestError(BusRequestErrorCode.Timeout, "Job polling timeout after ${withinMs}ms")
             delay(everyMs)
         }
     }

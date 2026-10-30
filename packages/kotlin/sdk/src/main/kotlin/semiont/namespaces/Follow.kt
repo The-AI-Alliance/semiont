@@ -138,7 +138,10 @@ private class Follower<C : JobCompleteCommand>(
 ) {
     suspend fun followed(): JobEvent<C> = supervisorScope { within(this) }
 
-    private fun now(): Long = System.nanoTime() / 1_000_000
+    private val origin = links.clock.markNow()
+
+    /** The client's time, in milliseconds since the follower began. */
+    private fun now(): Long = origin.elapsedNow().inWholeMilliseconds
 
     private suspend fun within(scope: CoroutineScope): JobEvent<C> {
         val silence = links.timing.jobSilenceMs

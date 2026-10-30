@@ -1,5 +1,6 @@
 package semiont
 
+import kotlinx.coroutines.Dispatchers
 import semiont.bus.Bus
 import semiont.bus.EventBus
 import semiont.namespaces.AuthNamespace
@@ -20,6 +21,8 @@ import semiont.namespaces.YieldNamespace
 import semiont.transport.ContentTransport
 import semiont.transport.GatewayOperations
 import semiont.transport.Transport
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.TimeSource
 
 /**
  * A client of one knowledge base: its namespaces, each a verb of the protocol,
@@ -29,14 +32,27 @@ import semiont.transport.Transport
  * resource's scope. Closing it ends what it runs and its own bus; it never
  * closes its transport, which is whoever made it's to close.
  */
-public class SemiontClient @JvmOverloads constructor(
+public class SemiontClient internal constructor(
     public val transport: Transport,
     content: ContentTransport,
     gateway: GatewayOperations,
-    public val timing: ClientTiming = ClientTiming(),
-    /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
-    persistence: CachePersistence? = null,
+    public val timing: ClientTiming,
+    persistence: CachePersistence?,
+    /** Where the client's work runs. */
+    context: CoroutineContext,
+    /** The time `context`'s waits keep. */
+    clock: TimeSource,
 ) : AutoCloseable {
+    @JvmOverloads
+    public constructor(
+        transport: Transport,
+        content: ContentTransport,
+        gateway: GatewayOperations,
+        timing: ClientTiming = ClientTiming(),
+        /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
+        persistence: CachePersistence? = null,
+    ) : this(transport, content, gateway, timing, persistence, Dispatchers.Default, TimeSource.Monotonic)
+
     /** The client's own bus: every frame the transport delivered, and every signal the client's parts gave each other. */
     public val bus: EventBus = EventBus()
 
@@ -51,7 +67,7 @@ public class SemiontClient @JvmOverloads constructor(
 
     init {
         wire = Bus(transport)
-        links = Links(transport, wire, bus, timing)
+        links = Links(transport, wire, bus, timing, context, clock)
         transport.bridgeInto(bus)
         live = Live(links, content, persistence)
         refresher = Refresher(links, live)

@@ -194,17 +194,17 @@ internal class Live(private val links: Links, private val content: ContentTransp
 
     /** End the queries: every collector's states end. */
     fun dispose() {
-        resource.dispose()
-        lists.dispose()
-        annotations.dispose()
-        annotation.dispose()
-        entityTypes.dispose()
-        tagSchemas.dispose()
-        engines.dispose()
-        limits.dispose()
-        events.dispose()
-        referencedBy.dispose()
-        searches.dispose()
+        resource.close()
+        lists.close()
+        annotations.close()
+        annotation.close()
+        entityTypes.close()
+        tagSchemas.close()
+        engines.close()
+        limits.close()
+        events.close()
+        referencedBy.close()
+        searches.close()
         annotationOf.clear()
     }
 }

@@ -783,8 +783,7 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's mark state unit." },
-      "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit" },
+      "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit" },
       "members": [
         { "member": "pendingAnnotation" },
         { "member": "delegatingMotivation" },
@@ -800,8 +799,7 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's yield state unit." },
-      "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit" },
+      "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit" },
       "members": [
         { "member": "isGenerating" },
         { "member": "progress" },
@@ -815,8 +813,7 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's gather state unit." },
-      "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit" },
+      "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit" },
       "members": [
         { "member": "context" },
         { "member": "loading" },
@@ -832,15 +829,13 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's match state unit." },
-      "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit" },
+      "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit" },
       "members": []
     },
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's beckon state unit." },
-      "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit" },
+      "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit" },
       "members": [
         { "member": "hoveredAnnotationId" },
         { "member": "focus" }
@@ -849,8 +844,7 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's hoverDwell state unit." },
-      "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell" },
+      "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell" },
       "members": [
         { "member": "enter" },
         { "member": "leave" }
@@ -859,8 +853,7 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's search state unit." },
-      "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline" },
+      "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline" },
       "members": [
         { "member": "query" },
         { "member": "state" },
@@ -886,8 +879,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's cache state unit." },
-      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache" },
+      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
       "members": [
         { "member": "observe" },
         { "member": "fetch" },
@@ -904,8 +896,7 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's session state unit." },
-      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session" },
+      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -922,7 +913,8 @@
           "absent": {
             "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
           }
         }
       ]

@@ -461,8 +461,8 @@ class CacheTest {
         val observer = readied(world, 1)
         val waiting = world.observe("waiting")
         assertEquals(PENDING, now(waiting))
-        world.cache.dispose()
-        world.cache.dispose()
+        world.cache.close()
+        world.cache.close()
         ended(observer)
         ended(waiting)
 
@@ -491,7 +491,7 @@ class CacheTest {
         val world = World(this)
         val observer = world.observe()
         assertEquals(PENDING, now(observer))
-        world.cache.dispose()
+        world.cache.close()
         world.service.fail(0)
         runCurrent()
         assertEquals(listOf(KEY), world.service.asked)
@@ -517,7 +517,7 @@ class CacheTest {
     @Test
     fun aReadOfAClosedCacheByACallerThatStoppedWaitingIsOnlyAbandoned() = runTest {
         val world = World(this)
-        world.cache.dispose()
+        world.cache.close()
         // Begun by a caller that has stopped waiting, as a read of many keys begins its later ones: nothing is asked, and its end is the caller's.
         val caller = CoroutineScope(Job())
         caller.cancel()
@@ -647,7 +647,7 @@ class CacheTest {
         val persister = Kept()
         val world = World(this, persister)
         world.cache.set("a", 1)
-        world.cache.dispose()
+        world.cache.close()
         assertEquals(listOf(mapOf("a" to 1)), persister.saves)
         world.cache.set("b", 2)
         advanceTimeBy(200)
@@ -656,7 +656,7 @@ class CacheTest {
         // With nothing owed, disposing saves nothing.
         val idle = Kept(mapOf("a" to 1))
         val resting = World(this, idle)
-        resting.cache.dispose()
+        resting.cache.close()
         assertEquals(emptyList<Map<String, Int>>(), idle.saves)
         world.close()
         resting.close()
