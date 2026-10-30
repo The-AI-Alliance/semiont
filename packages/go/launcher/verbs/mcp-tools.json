@@ -4,7 +4,7 @@
     {
       "name": "knowledge_bases",
       "title": "Knowledge bases",
-      "description": "The knowledge bases this machine has a sign-in for, each with the key every other tool takes as `kb`. Each says who is signed in, whether that sign-in renews itself, and, for a codespace's, whether its forward to this machine is up.",
+      "description": "The knowledge bases this machine has a sign-in for, each with the key every other tool takes as `kb`. Each says who is signed in when their token named an address, whether that sign-in renews itself, and, for a codespace's, whether its forward to this machine is up.",
       "calls": [],
       "readOnly": true,
       "arguments": [],
@@ -15,14 +15,14 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["kb", "signedInAs", "renews"],
+              "required": ["kb", "renews"],
               "additionalProperties": false,
               "properties": {
                 "kb": { "type": "string", "description": "The key a tool's `kb` names it by: `local`, or `codespace:<owner>/<name>`." },
                 "did": { "type": "string", "description": "The knowledge base's did:web, when the launcher recorded it." },
                 "root": { "type": "string", "description": "A local knowledge base's directory." },
                 "repo": { "type": "string", "description": "A codespace knowledge base's repository." },
-                "signedInAs": { "type": "string", "description": "Whom `semiont login` signed in." },
+                "signedInAs": { "type": "string", "description": "Whom `semiont login` signed in: the address their token named. Absent when it named none." },
                 "renews": { "type": "boolean", "description": "Whether the sign-in renews itself. One that does not ends when its access token does." },
                 "forwardUp": { "type": "boolean", "description": "A codespace knowledge base's: whether its forward to this machine is up. When it is down, `semiont status --repo <repo>` re-establishes it." }
               }

@@ -225,21 +225,17 @@ func (e *signInEntry) Held(context.Context) (HeldSignIn, bool, error) {
 }
 
 // Keep keeps a sign-in the script client was issued. The store names each
-// sign-in by its address and its issuer: a token that lacks either is not
-// kept.
+// sign-in by its issuer, and by its address when the token names one: a token
+// that names no issuer is not kept.
 func (e *signInEntry) Keep(_ context.Context, signIn HeldSignIn) error {
 	if signIn.ClientID != ScriptClientID {
 		return fmt.Errorf("the sign-in store keeps what the client %s was issued, and this was issued to %s", ScriptClientID, signIn.ClientID)
 	}
-	email, hasEmail := TextClaim(signIn.Access, "email")
 	issuer, hasIssuer := TextClaim(signIn.Access, "iss")
-	if !hasEmail || !hasIssuer {
-		lacking := "email"
-		if hasEmail {
-			lacking = "issuer"
-		}
-		return signInUnanswered(SignInErrorCodeExchange, fmt.Sprintf("The sign-in to %s was not kept: its access token names no %s", e.key, lacking))
+	if !hasIssuer {
+		return signInUnanswered(SignInErrorCodeExchange, fmt.Sprintf("The sign-in to %s was not kept: its access token names no issuer", e.key))
 	}
+	email, _ := TextClaim(signIn.Access, "email")
 	learned := SignIn{Email: email, Issuer: issuer, TokenEndpoint: signIn.TokenEndpoint, RevocationEndpoint: signIn.RevocationEndpoint}
 	return e.store.change(func(document map[string]json.RawMessage) (bool, error) {
 		return true, put(document, e.key, written(learned, signIn.Access, signIn.Refresh))

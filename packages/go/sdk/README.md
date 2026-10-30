@@ -172,7 +172,7 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 		return err
 	}
 	if me := session.User().Value(); me != nil {
-		fmt.Println(me.Email, status.Version)
+		fmt.Println(me.Did, status.Version)
 	}
 	return nil
 }

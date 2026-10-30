@@ -172,23 +172,35 @@ fn a_sign_in_that_cannot_be_renewed_is_no_session() {
         .as_object_mut()
         .expect("an entry")
         .remove("refreshToken");
-    // Nor is an entry that does not say who signed in, or at which issuer.
-    let mut by_nobody = launchers("a1", "r1");
-    by_nobody.as_object_mut().expect("an entry").remove("email");
+    // Nor is an entry that does not say at which issuer it was made.
     let mut from_nowhere = launchers("a1", "r1");
     from_nowhere
         .as_object_mut()
         .expect("an entry")
         .remove("issuer");
     let home = Home::holding(json!({
-        "local": without_refresh, "other": "not an entry",
-        "by-nobody": by_nobody, "from-nowhere": from_nowhere,
+        "local": without_refresh, "other": "not an entry", "from-nowhere": from_nowhere,
     }));
     let store = home.store();
 
-    for key in ["local", "other", "by-nobody", "from-nowhere"] {
+    for key in ["local", "other", "from-nowhere"] {
         assert_eq!(stored_session(&store, key), None, "{key}");
     }
+}
+
+#[test]
+fn an_entry_that_names_no_address_is_a_session() {
+    let mut by_an_account_with_none = launchers("a1", "r1");
+    by_an_account_with_none
+        .as_object_mut()
+        .expect("an entry")
+        .remove("email");
+    let home = Home::holding(json!({ "local": by_an_account_with_none }));
+
+    assert_eq!(
+        stored_session(&home.store(), "local"),
+        Some(script("a1", "r1"))
+    );
 }
 
 #[test]
@@ -332,13 +344,38 @@ fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer()
 }
 
 #[test]
-fn a_session_whose_token_does_not_say_who_or_which_issuer_is_not_kept_and_that_is_said() {
+fn a_sign_in_whose_token_names_no_address_is_kept_without_one() {
+    let home = Home::new();
+    let store = home.store();
+    let unaddressed = jwt(json!({ "iss": ISSUER, "sub": "an-account" }));
+
+    store_session(&store, "local", &script(&unaddressed, "r1"));
+
+    let document = home.document();
+    let entry = &document["local"];
+    assert_eq!(entry["issuer"], ISSUER);
+    assert!(!entry.as_object().expect("an entry").contains_key("email"));
+    assert_eq!(
+        stored_session(&store, "local"),
+        Some(script(&unaddressed, "r1"))
+    );
+
+    // A renewal whose token names an address keeps none: the sign-in learned none.
+    let renewed = jwt(json!({ "iss": ISSUER, "email": "bob@example.org" }));
+    renew(&store, "local", &renewed, "r2");
+    let document = home.document();
+    let entry = &document["local"];
+    assert_eq!(entry["token"], renewed);
+    assert!(!entry.as_object().expect("an entry").contains_key("email"));
+    assert!(home.failures().is_empty(), "{:?}", home.failures());
+}
+
+#[test]
+fn a_session_whose_token_names_no_issuer_is_not_kept_and_that_is_said() {
     let home = Home::holding(json!({ "codespace:owner/name": launchers("a2", "r2") }));
     let store = home.store();
-    let by_nobody = jwt(json!({ "iss": ISSUER }));
     let from_nowhere = jwt(json!({ "email": "bob@example.org" }));
 
-    store_session(&store, "local", &script(&by_nobody, "r1"));
     store_session(&store, "local", &script(&from_nowhere, "r1"));
     store_session(&store, "local", &script("opaque", "r1"));
 
@@ -352,9 +389,8 @@ fn a_session_whose_token_does_not_say_who_or_which_issuer_is_not_kept_and_that_i
     assert_eq!(
         home.failures(),
         [
-            "The sign-in to local was not kept: its access token names no email",
             "The sign-in to local was not kept: its access token names no issuer",
-            "The sign-in to local was not kept: its access token names no email",
+            "The sign-in to local was not kept: its access token names no issuer",
         ]
     );
 }
