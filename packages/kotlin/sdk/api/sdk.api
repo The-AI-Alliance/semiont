@@ -171,6 +171,13 @@ public abstract class semiont/errors/SemiontError : java/lang/Exception {
 	public fun getRetryAfterMs ()Ljava/lang/Long;
 }
 
+public final class semiont/errors/SessionError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/SessionErrorCode;Ljava/lang/String;Ljava/lang/String;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getKbId ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/SessionErrorCode;
+}
+
 public final class semiont/errors/SignInError : semiont/errors/SemiontError {
 	public fun <init> (Lsemiont/errors/SignInErrorCode;Ljava/lang/String;Ljava/lang/Integer;)V
 	public synthetic fun <init> (Lsemiont/errors/SignInErrorCode;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -290,6 +297,12 @@ public final class semiont/http/IssuerKt {
 	public static final fun signOutFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
 }
 
+public final class semiont/http/OpenedSession : java/lang/AutoCloseable {
+	public fun close ()V
+	public final fun getClient ()Lsemiont/SemiontClient;
+	public final fun getSession ()Lsemiont/session/SemiontSession;
+}
+
 public final class semiont/http/SecretCredential : semiont/http/Credential {
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
 	public fun getClientId ()Ljava/lang/String;
@@ -302,6 +315,12 @@ public final class semiont/http/ServiceToken {
 	public fun <init> (Lsemiont/http/Credential;)V
 	public final fun authorization (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun authorizationFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/http/SessionsKt {
+	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/Timing {
@@ -535,6 +554,39 @@ public final class semiont/retry/RetryRule {
 	public final fun getName ()Ljava/lang/String;
 	public final fun retryable (Lsemiont/retry/RetryFacts;)Z
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/session/SemiontSession : java/lang/AutoCloseable {
+	public fun close ()V
+	public final fun errors ()Lsemiont/transport/Events;
+	public final fun expiresAt ()Ljava/lang/Double;
+	public final fun getClient ()Lsemiont/SemiontClient;
+	public final fun getId ()Ljava/lang/String;
+	public final fun getKb ()Lsemiont/types/KbTarget;
+	public final fun getStreamState ()Lsemiont/transport/Watched;
+	public final fun getToken ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun getUser ()Lkotlinx/coroutines/flow/StateFlow;
+	public final fun ready (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun readyFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun refresh (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun refreshFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/session/SessionEndReason : java/lang/Enum {
+	public static final field EXPIRED Lsemiont/session/SessionEndReason;
+	public static final field REFUSED Lsemiont/session/SessionEndReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/session/SessionEndReason;
+	public static fun values ()[Lsemiont/session/SessionEndReason;
+}
+
+public final class semiont/session/TokensKt {
+	public static final fun isTokenExpired (Ljava/lang/String;D)Z
+	public static final fun refreshDelay (Ljava/lang/String;D)Ljava/lang/Double;
+	public static final fun renewalDelay (DD)D
+	public static final fun textClaim (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun tokenExpiry (Ljava/lang/String;)Ljava/lang/Double;
 }
 
 public final class semiont/signin/HeldSignIn {

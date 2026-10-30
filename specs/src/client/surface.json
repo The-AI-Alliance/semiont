@@ -1278,7 +1278,6 @@
     {
       "module": "tokens",
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by specs/src/session/cases.json.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's tokens module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1292,6 +1291,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/session"
         ]
       },
       "members": [

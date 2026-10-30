@@ -66,3 +66,14 @@ public class SignInError(
 ) : SemiontError(message) {
     override val code: String get() = reason.code
 }
+
+/** A failure that makes a session itself unusable. A request's own failure stays with its caller. */
+public class SessionError(
+    /** Why, as a code of the session vocabulary. */
+    public val reason: SessionErrorCode,
+    message: String,
+    /** The knowledge base whose session it is. */
+    public val kbId: String,
+) : SemiontError(message) {
+    override val code: String get() = reason.code
+}

@@ -38,7 +38,7 @@ public class SemiontClient @JvmOverloads constructor(
     /** The bus over the transport, typed by channel: an emit, a channel's frames, a request. */
     public val wire: Bus
 
-    private val links: Links
+    internal val links: Links
 
     init {
         wire = Bus(transport)
