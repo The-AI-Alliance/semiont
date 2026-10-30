@@ -112,6 +112,7 @@ public class InMemoryContent : ContentTransport {
 
     override suspend fun getBinary(resourceId: ResourceId): Content = called(GetBinary(resourceId)) { stored[resourceId] ?: throw notFound("content", resourceId) }
 
+    @JvmExposeBoxed
     override fun getBinaryFuture(resourceId: ResourceId): CompletableFuture<Content> = scope.futureOf { getBinary(resourceId) }
 
     override suspend fun getBinaryStream(resourceId: ResourceId): ContentStream {
@@ -119,21 +120,25 @@ public class InMemoryContent : ContentTransport {
         return ContentStream(content.contentType, flowOf(content.bytes), scope)
     }
 
+    @JvmExposeBoxed
     override fun getBinaryStreamFuture(resourceId: ResourceId): CompletableFuture<ContentStream> = scope.futureOf { getBinaryStream(resourceId) }
 
     override suspend fun getResourceGraph(resourceId: ResourceId): GetResourceResponse =
         called(GetResourceGraph(resourceId)) { graphs[resourceId] ?: throw notFound("description", resourceId) }
 
+    @JvmExposeBoxed
     override fun getResourceGraphFuture(resourceId: ResourceId): CompletableFuture<GetResourceResponse> = scope.futureOf { getResourceGraph(resourceId) }
 
     override suspend fun getAnnotations(resourceId: ResourceId): GetAnnotationsResponse =
         called(GetAnnotations(resourceId)) { annotations[resourceId] ?: throw notFound("annotations", resourceId) }
 
+    @JvmExposeBoxed
     override fun getAnnotationsFuture(resourceId: ResourceId): CompletableFuture<GetAnnotationsResponse> = scope.futureOf { getAnnotations(resourceId) }
 
     override suspend fun getAnchoredText(resourceId: ResourceId): AnchoredTextAnswer =
         called(GetAnchoredText(resourceId)) { anchoredTexts[resourceId] ?: throw notFound("anchored text", resourceId) }
 
+    @JvmExposeBoxed
     override fun getAnchoredTextFuture(resourceId: ResourceId): CompletableFuture<AnchoredTextAnswer> = scope.futureOf { getAnchoredText(resourceId) }
 
     override fun close(): Unit = Unit
@@ -183,6 +188,7 @@ public class StubGateway : GatewayOperations {
 
     override suspend fun getMediaToken(resourceId: ResourceId): MediaTokenResponse = answered("getMediaToken", { mediaToken }, resourceId)
 
+    @JvmExposeBoxed
     override fun getMediaTokenFuture(resourceId: ResourceId): CompletableFuture<MediaTokenResponse> = scope.futureOf { getMediaToken(resourceId) }
 
     override suspend fun getProtectedResourceMetadata(): ProtectedResourceMetadata = answered("getProtectedResourceMetadata", { protectedResourceMetadata })

@@ -144,7 +144,7 @@ Every component schema of the spec is a type of `semiont.types`, and each kind o
   MarkDeleteCommand command = MarkDeleteCommand.builder(new AnnotationId("ann-1")).resourceId(new ResourceId("res-1")).build();
   ```
 
-Java reaches the ids as their own types, not as text, through Kotlin's `@JvmExposeBoxed`, which is still experimental in Kotlin 2.4. The SDK opts in to it where it declares the ids and the models; a program that calls the SDK needs no opt-in of its own.
+Java reaches the ids as their own types, not as text, through Kotlin's `@JvmExposeBoxed`, which is still experimental in Kotlin 2.4. The SDK opts in to it where it declares the ids and the models; a program that calls the SDK needs no opt-in of its own. Five functions that only return an id give Java its text, as Kotlin exposes no typed form of an id a function only returns: `bodySource` and `targetSource` of `semiont.annotations`, and `kbDid`, `personDid` and `agentDid` of `semiont.identity`.
 
 ## The wire
 
@@ -152,7 +152,9 @@ Java reaches the ids as their own types, not as text, through Kotlin's `@JvmExpo
 
 `semiont.bus.Bus` is the bus typed by channel. A channel is a constant of `Channels`, typed by the payload its frames carry, and an operation a constant of `Operations`, typed by what it sends and what each reply carries: `emit`, `frames` and `request` each take one, and the compiler refuses a payload that is not its channel's.
 
-Every suspending member has a twin for Java that returns a `CompletableFuture` (`requestFuture`), and every stream reads as a `java.util.concurrent.Flow.Publisher` (`asPublisher()`). Cancelling a future gives the work up: a request's connection is closed.
+Every suspending member a program calls has a twin for Java that returns a `CompletableFuture` (`requestFuture`), and every stream reads as a `java.util.concurrent.Flow.Publisher` (`asPublisher()`). Cancelling a future gives the work up: a request's connection is closed. A twin that takes an id is called on a class, not through an interface: Java calls `HttpTransport`'s `emitFuture`, as Kotlin exposes no typed form of an interface's member.
+
+Five interfaces are implemented in Kotlin, not in Java, since their members suspend or take an id: `TokenRefresher`, `SignInKept`, `SessionFactory`, `DiscoveryTransport` and `Bookmarks`. A Java program uses the SDK's own: `AgentToken` and the sessions' refreshers; `SignInStore`, `MemorySignIn` and `keptIn`; `HttpSessionFactory`; `httpDiscovery` and `textDiscovery`; `CoupledBookmarks`. One that signs in its own way feeds its transport the token and gives it no refresher. Its tests build on `semiont.testing` rather than on a transport of their own.
 
 - **The bus log:** with `SEMIONT_BUS_LOG` set to anything but nothing, a line on standard output for each frame sent or received and each read and upload, in the form every Semiont SDK writes, with every credential's value withheld.
 

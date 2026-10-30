@@ -3,6 +3,8 @@
 package semiont.transport
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -20,6 +22,7 @@ import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
 import semiont.identifiers.ResourceId
+import semiont.telemetry.futureOf
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CopyOnWriteArrayList
@@ -272,6 +275,9 @@ public class ResourceHold internal constructor(release: () -> Unit) : AutoClosea
 public class PendingReply internal constructor(private val reply: CompletableDeferred<Frame?>, private val forget: () -> Unit) : AutoCloseable {
     /** The reply. Null when the transport closed before one came. */
     public suspend fun frame(): Frame? = reply.await()
+
+    /** `frame`, for Java. */
+    public fun frameFuture(): CompletableFuture<Frame?> = CoroutineScope(Dispatchers.Default).futureOf { frame() }
 
     override fun close(): Unit = forget()
 }

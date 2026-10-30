@@ -246,6 +246,7 @@ public class FaultyTransport internal constructor(
         if (isSubscribed(sent.channel)) deliver(sent)
     }
 
+    @JvmExposeBoxed
     override fun emitFuture(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): CompletableFuture<Long?> =
         arriving.futureOf { emit(channel, payload, scope, correlationId) }
 
@@ -257,6 +258,7 @@ public class FaultyTransport internal constructor(
     override fun isSubscribed(channel: String): Boolean = channels == null || channel in channels
 
     /** Nothing here is delivered by scope, so a hold changes only the count of them (`holds`). */
+    @JvmExposeBoxed
     override fun subscribeToResource(resourceId: ResourceId): ResourceHold {
         synchronized(this) { held[resourceId] = (held[resourceId] ?: 0) + 1 }
         return ResourceHold {

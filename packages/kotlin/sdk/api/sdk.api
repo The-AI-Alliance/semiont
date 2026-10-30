@@ -1967,6 +1967,7 @@ public final class semiont/testing/FaultyTransport : semiont/transport/Transport
 	public fun close ()V
 	public final fun deliver (Lsemiont/transport/Frame;)V
 	public fun emit-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun emitFuture (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun emitFuture-NOvym2Y (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public final fun fail (Lsemiont/errors/SemiontError;)V
 	public fun failures ()Lsemiont/transport/Events;
@@ -1983,6 +1984,7 @@ public final class semiont/testing/FaultyTransport : semiont/transport/Transport
 	public final fun queueReply (Ljava/lang/String;Ljava/util/List;)V
 	public final fun refuseWhen (Lsemiont/testing/Refuse;)V
 	public final fun setState (Lsemiont/transport/ConnectionState;)V
+	public fun subscribeToResource (Lsemiont/identifiers/ResourceId;)Lsemiont/transport/ResourceHold;
 	public fun subscribeToResource--Xm7VB4 (Ljava/lang/String;)Lsemiont/transport/ResourceHold;
 	public fun trackReply (Ljava/lang/String;Ljava/util/Collection;)Lsemiont/transport/PendingReply;
 }
@@ -2056,15 +2058,20 @@ public final class semiont/testing/InMemoryContent : semiont/transport/ContentTr
 	public fun <init> ()V
 	public fun close ()V
 	public fun getAnchoredText-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAnchoredTextFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getAnchoredTextFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun getAnnotations-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAnnotationsFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getAnnotationsFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun getBinary-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getBinaryFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getBinaryFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun getBinaryStream-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getBinaryStreamFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getBinaryStreamFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public final fun getCalls ()Ljava/util/List;
 	public fun getResourceGraph-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getResourceGraphFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getResourceGraphFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun putBinary (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
 	public final fun seed (Lsemiont/identifiers/ResourceId;Lsemiont/transport/Content;)V
@@ -2197,6 +2204,7 @@ public final class semiont/testing/StubGateway : semiont/transport/GatewayOperat
 	public fun getCurrentUser (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun getCurrentUserFuture ()Ljava/util/concurrent/CompletableFuture;
 	public fun getMediaToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getMediaTokenFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public fun getMediaTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public fun getProtectedResourceMetadata (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun getProtectedResourceMetadataFuture ()Ljava/util/concurrent/CompletableFuture;
@@ -2337,6 +2345,7 @@ public abstract interface class semiont/transport/GatewayOperations {
 public final class semiont/transport/PendingReply : java/lang/AutoCloseable {
 	public fun close ()V
 	public final fun frame (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun frameFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/transport/PutBinaryRequest {
