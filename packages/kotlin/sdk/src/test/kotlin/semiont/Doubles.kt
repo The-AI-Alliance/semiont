@@ -46,13 +46,17 @@ internal fun obj(vararg pairs: Pair<String, JsonElement>) = JsonObject(mapOf(*pa
 
 /**
  * A transport, a content transport and a gateway in one, which keep what each
- * call did and answer none but the requests a case answers: a case holds what
- * a call did, step by step, and not what it was answered.
+ * call did and answer none but the requests a case answers, and the bytes a
+ * test serves: a case holds what a call did, step by step, and not what it was
+ * answered.
  */
 internal class Recording : Transport, GatewayOperations, ContentTransport {
     val did = CopyOnWriteArrayList<Did>()
     private val router = ReplyRouter()
     private val answers = ConcurrentHashMap<String, JsonElement>()
+
+    /** A resource's bytes, served to whoever reads any resource's: nothing is served when it is none. */
+    var serves: Content? = null
 
     private fun saw(route: String, name: String, sends: JsonObject) {
         did += Did(route, name, sends)
@@ -136,7 +140,7 @@ internal class Recording : Transport, GatewayOperations, ContentTransport {
         return Upload(CompletableDeferred(), Events(emptyFlow()) {})
     }
 
-    override suspend fun getBinary(resourceId: ResourceId): Content = asked("content", "getBinary", resource(resourceId))
+    override suspend fun getBinary(resourceId: ResourceId): Content = serves ?: asked("content", "getBinary", resource(resourceId))
 
     override fun getBinaryFuture(resourceId: ResourceId): CompletableFuture<Content> = unasked()
 

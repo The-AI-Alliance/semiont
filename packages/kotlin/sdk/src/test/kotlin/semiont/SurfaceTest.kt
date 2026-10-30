@@ -114,6 +114,7 @@ private val calls: Map<String, Call> = mapOf(
     "frame.addTagSchema" to { c, a -> c.frame.addTagSchema(a.read("schema", TagSchema.serializer())) },
     "browse.resourceGraph" to { c, a -> c.browse.resourceGraph(a.resource()) },
     "browse.resourceAnchoredText" to { c, a -> c.browse.resourceAnchoredText(a.resource()) },
+    "browse.resourceContent" to { c, a -> c.browse.resourceContent(a.resource()) },
     "browse.resourceRepresentation" to { c, a -> c.browse.resourceRepresentation(a.resource()) },
     "browse.resourceRepresentationStream" to { c, a -> c.browse.resourceRepresentationStream(a.resource()) },
     "browse.resourceEvents" to { c, a -> c.browse.resourceEvents(a.resource()) },
