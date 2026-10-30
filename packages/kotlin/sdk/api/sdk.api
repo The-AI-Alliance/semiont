@@ -1032,13 +1032,19 @@ public final class semiont/storage/CoupledBookmarks : semiont/http/Bookmarks {
 
 public final class semiont/storage/MemoryStorage : semiont/storage/SessionStorage {
 	public fun <init> ()V
+	public fun delete (Ljava/lang/String;)V
 	public fun get (Ljava/lang/String;)Ljava/lang/String;
 	public fun set (Ljava/lang/String;Ljava/lang/String;)V
+	public fun subscribe (Lkotlin/jvm/functions/Function2;)Ljava/lang/AutoCloseable;
+	public fun update (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 }
 
 public abstract interface class semiont/storage/SessionStorage {
+	public abstract fun delete (Ljava/lang/String;)V
 	public abstract fun get (Ljava/lang/String;)Ljava/lang/String;
 	public abstract fun set (Ljava/lang/String;Ljava/lang/String;)V
+	public abstract fun subscribe (Lkotlin/jvm/functions/Function2;)Ljava/lang/AutoCloseable;
+	public abstract fun update (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class semiont/storage/StoragePersister : semiont/cache/CachePersister {

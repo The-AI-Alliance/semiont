@@ -172,6 +172,17 @@ class BookmarksTest {
                 if (key == CACHE) throw java.io.IOException("the storage is full")
                 held[key] = value
             }
+
+            override fun delete(key: String) {
+                held.remove(key)
+            }
+
+            override fun update(key: String, change: (String?) -> String?) {
+                val after = change(held[key])
+                if (after == null) delete(key) else set(key, after)
+            }
+
+            override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = null
         }
         val places = CoupledBookmarks(full, KEY)
         places.save(RESOURCE, "p-7")

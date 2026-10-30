@@ -34,6 +34,15 @@ public class CoupledBookmarks(private val beneath: SessionStorage, private val k
             beneath.set(key, value)
             flush()
         }
+
+        override fun delete(key: String): Unit = beneath.delete(key)
+
+        override fun update(key: String, change: (String?) -> String?) {
+            beneath.update(key, change)
+            flush()
+        }
+
+        override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable? = beneath.subscribe(onChange)
     }
 
     override fun load(): Map<ResourceId, String> = beneath.get(key)?.let { kept ->
