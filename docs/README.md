@@ -6,7 +6,7 @@ be a person or an AI agent: nothing here is written for one and not the other.
 | You are | You want to | Start here |
 |---|---|---|
 | An **analyst** | Work in a knowledge base: read, annotate, link, and review what agents propose | [analyst/](analyst/README.md) |
-| A **builder** | Build an application, a script, a daemon or an agent on the SDK | [builder/](builder/README.md) |
+| A **builder** | Build an application, a script or an agent on the SDK, in TypeScript, Rust, Python or Go, and customize annotation and generation, down to a worker running your own logic or model | [builder/](builder/README.md) |
 | An **operator** | Run a knowledge base: install, configure, deploy, secure, observe, back up | [operator/](operator/README.md) |
 | A **contributor** | Change Semiont itself | [contributor/](contributor/README.md) |
 

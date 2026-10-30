@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 
-**Semiont turns your documents into a knowledge base that people and AI agents build together, with everything it knows pinned to the passage it came from.** Alongside each document it keeps what has been noticed in it: what it mentions, how it connects to the others, and what to make of it. Answers drawn from it, by an application or an agent, can cite the passages they rest on, so they can be checked. It is open source, and can run entirely on your own machines.
+**Semiont turns your documents into a knowledge base that people and AI agents build together, with everything it knows pinned to the passage it came from.** Ask about a passage, and it gathers what to read with it: the documents it connects to, similar passages, and what has been noted about them. Hand it AI work, such as annotating or drafting, and the work becomes a tracked job that any worker can take, yours included. What comes back is on the record: who asked, who did the work, and what each claim rests on.
+
+Your AI agent can do all of this through the SDK, in any of its languages, to explore on the spot or to build an application that lasts. Semiont is open source and can run entirely on your own machines.
 
 ![The Semiont browser: a document with its references highlighted, and a panel of assessments beside it](website/assets/images/semiont-2026-03-10.png)
 
