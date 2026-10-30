@@ -45,6 +45,8 @@ import semiont.sameJson
 import semiont.session.KbIdentityConflict
 import semiont.session.SessionEndReason
 import semiont.session.SessionSignals
+import semiont.testing.FaultyTransport
+import semiont.testing.RequestLogEntry
 import semiont.transport.Frame
 import semiont.transport.Watched
 import semiont.types.AnnotationSelector
@@ -333,9 +335,9 @@ private fun answersOf(stated: String): Answers = Answers.entries.single { it.nam
 private fun play(case: JsonObject) = runTest {
     val clock = StandardTestDispatcher(testScheduler)
     val stated = case.getValue("transport").jsonObject
-    val transport = Answering(answersOf(stated.getValue("answers").text()), stated["delayMs"]?.let(::durationMs), clock)
+    val transport = answering(answersOf(stated.getValue("answers").text()), stated["delayMs"]?.let(::durationMs), clock)
     for ((operation, responses) in stated["replies"]?.jsonObject ?: JsonObject(emptyMap())) {
-        for (response in responses.jsonArray) transport.queueReply(operation, resolved(response).takeUnless { it is JsonNull })
+        transport.queueReply(operation, responses.jsonArray.map { resolved(it).takeUnless { response -> response is JsonNull } })
     }
     val gateway = Recording()
     val client = SemiontClient(transport, gateway, gateway, ClientTiming(), null, clock, testScheduler.timeSource)
@@ -368,7 +370,7 @@ private fun play(case: JsonObject) = runTest {
 }
 
 private class Steps(
-    private val transport: Answering,
+    private val transport: FaultyTransport,
     private val client: SemiontClient,
     private val searches: Searches,
     private val units: Map<String, Made>,
@@ -397,7 +399,7 @@ private class Steps(
                 val asked = requestId(said.getValue("answer").text(), said.getValue("nth").jsonPrimitive.int)
                 transport.deliver(Frame(said.getValue("reply").text(), resolved(said.getValue("payload")).jsonObject, asked))
             }
-            "queueReply" in said -> transport.queueReply(said.getValue("queueReply").text(), resolved(said.getValue("response")).takeUnless { it is JsonNull })
+            "queueReply" in said -> transport.queueReply(said.getValue("queueReply").text(), listOf(resolved(said.getValue("response")).takeUnless { it is JsonNull }))
             "invoke" in said -> unit(said.getValue("of")).invoke(said.getValue("invoke").text(), resolved(said["args"] ?: JsonObject(emptyMap())).jsonObject)
             "pass" in said -> {
                 // What is ready runs at the time it became ready, before the clock moves; what falls due runs to its end.
@@ -426,7 +428,7 @@ private class Steps(
                     assertTrue(matches(resolved(said.getValue("payloads")), sent), "sent on $channel: $sent")
                 }
             }
-            "nothingSent" in said -> assertEquals(emptyList<Sent>(), transport.requestLog, "requests were sent")
+            "nothingSent" in said -> assertEquals(emptyList<RequestLogEntry>(), transport.requestLog, "requests were sent")
             "heard" in said -> {
                 test.runCurrent()
                 val frames = heard.drop(told)

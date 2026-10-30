@@ -40,6 +40,9 @@ import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
 import semiont.sameJson
 import semiont.telemetry.callersTrace
+import semiont.testing.Deliver
+import semiont.testing.DropReply
+import semiont.testing.FaultAction
 import semiont.transport.ConnectionState
 import semiont.types.Annotation
 import semiont.types.DurabilityEvidence
@@ -78,15 +81,15 @@ private fun made(id: String): Annotation = wireJson.decodeFromJsonElement(serial
  * background work, so a test that fails before it stops its claims leaves no
  * timer running for good.
  */
-private class World(test: TestScope, wire: List<Fault> = emptyList(), channels: Collection<String>? = null) {
+private class World(test: TestScope, wire: List<FaultAction> = emptyList(), channels: Collection<String>? = null) {
     val clock = StandardTestDispatcher(test.testScheduler)
     val desk = Desk(clock, wire, channels)
     private val gateway = Recording()
-    val client = SemiontClient(desk, gateway, gateway, ClientTiming(), null, clock + SupervisorJob(test.backgroundScope.coroutineContext.job), test.testScheduler.timeSource)
+    val client = SemiontClient(desk.transport, gateway, gateway, ClientTiming(), null, clock + SupervisorJob(test.backgroundScope.coroutineContext.job), test.testScheduler.timeSource)
 
     fun over() {
         client.close()
-        desk.close()
+        desk.transport.close()
     }
 }
 
@@ -179,7 +182,7 @@ class ClaimsTest {
 
     @Test
     fun anAnnouncementWhileAClaimIsInFlightEarnsExactlyOneMoreClaim() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(Fault.DROP, Fault.DELIVER))
+        val w = World(this, wire = listOf(DropReply, Deliver))
         val claims = w.client.job.claim(EVERYTHING, jobClaimTimeoutMs = 1_000)
         val reading = async { claims.next() }
         runCurrent()
@@ -202,17 +205,17 @@ class ClaimsTest {
     @Test
     fun claimsWhenTheStreamOpensAndWhenItOpensAgain() = runTest(timeout = LIMIT) {
         val w = World(this)
-        w.desk.connection.value = ConnectionState.Connecting
+        w.desk.transport.setState(ConnectionState.Connecting)
         val claims = w.client.job.claim(EVERYTHING)
         val reading = async { claims.next() }
         runCurrent()
         assertEquals(0, w.desk.sent("job:claim").size, "a claim on a stream not yet open would only be refused")
-        w.desk.connection.value = ConnectionState.Open
+        w.desk.transport.setState(ConnectionState.Open)
         runCurrent()
         assertEquals(1, w.desk.sent("job:claim").size)
-        w.desk.connection.value = ConnectionState.Reconnecting
+        w.desk.transport.setState(ConnectionState.Reconnecting)
         runCurrent()
-        w.desk.connection.value = ConnectionState.Open
+        w.desk.transport.setState(ConnectionState.Open)
         runCurrent()
         assertEquals(2, w.desk.sent("job:claim").size)
         reading.cancel()
@@ -249,7 +252,7 @@ class ClaimsTest {
 
     @Test
     fun aClaimNotAnsweredInTimeIsReportedAsARefusal() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(Fault.DROP))
+        val w = World(this, wire = listOf(DropReply))
         val claims = w.client.job.claim(EVERYTHING, jobClaimTimeoutMs = 500)
         val refused = claims.refused()
         val reading = async { claims.next() }
@@ -395,16 +398,16 @@ class ClaimsTest {
 
     /** A worker holding `job-1` on a wire where each commit observes as `observed` says, in order; and what each commit did. */
     private suspend fun TestScope.committing(vararg observed: DurabilityEvidence, then: suspend (World, HeldJob, List<BusRequestError?>) -> Unit) {
-        val wire = mutableListOf(Fault.DELIVER)
+        val wire = mutableListOf<FaultAction>(Deliver)
         for (how in observed) {
             when (how) {
-                DurabilityEvidence.Acknowledged -> wire += Fault.DELIVER
-                DurabilityEvidence.ProbeConfirmed, DurabilityEvidence.ProbeRefused -> wire += listOf(Fault.DROP, Fault.DELIVER)
-                DurabilityEvidence.ProbeUnreachable -> wire += listOf(Fault.DROP, Fault.DROP)
+                DurabilityEvidence.Acknowledged -> wire += Deliver
+                DurabilityEvidence.ProbeConfirmed, DurabilityEvidence.ProbeRefused -> wire += listOf(DropReply, Deliver)
+                DurabilityEvidence.ProbeUnreachable -> wire += listOf(DropReply, DropReply)
             }
         }
         // The claim the settle makes.
-        wire += Fault.DELIVER
+        wire += Deliver
         val w = World(this, wire = wire)
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
@@ -472,7 +475,7 @@ class ClaimsTest {
 
     @Test
     fun theQuestionIsAskedOfTheBatchsLastAnnotation() = runTest(timeout = LIMIT) {
-        val w = World(this, wire = listOf(Fault.DELIVER, Fault.DROP, Fault.DELIVER, Fault.DELIVER))
+        val w = World(this, wire = listOf(Deliver, DropReply, Deliver, Deliver))
         w.desk.offered += running("job-1")
         val claims = w.client.job.claim(EVERYTHING, markCommitTimeoutMs = QUICK)
         val job = held(claims)
