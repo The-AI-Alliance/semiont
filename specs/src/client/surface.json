@@ -984,7 +984,6 @@
     {
       "module": "annotations",
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by specs/src/annotations's tables.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's annotations module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/web-annotation-utils.ts",
@@ -998,13 +997,17 @@
         ],
         "go": [
           "packages/go/sdk/annotations"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/annotations"
         ]
       },
       "whole": [
         "typescript",
         "rust",
         "python",
-        "go"
+        "go",
+        "kotlin"
       ],
       "members": [
         {
@@ -1085,7 +1088,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1094,7 +1098,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1103,7 +1108,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1145,7 +1151,8 @@
           "member": "SpanRefusedError",
           "kind": "type",
           "absent": {
-            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error."
+            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusedError: a SemiontError, and that family is sealed, so every member of it is in semiont.errors."
           }
         },
         {
@@ -1154,7 +1161,8 @@
           "absent": {
             "typescript": "TypeScript's is with @semiont/core's other error codes.",
             "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
-            "go": "Go's is semiont.SpanRefusal, generated with the other error codes."
+            "go": "Go's is semiont.SpanRefusal, generated with the other error codes.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusal, generated with the other error codes."
           }
         },
         {
@@ -1163,7 +1171,8 @@
           "absent": {
             "typescript": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
             "python": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
-            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text."
+            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "kotlin": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where Kotlin's annotationOfSpan is overloaded for each."
           }
         },
         {
@@ -1172,7 +1181,8 @@
           "absent": {
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
-            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         },
         {
@@ -1181,7 +1191,8 @@
           "absent": {
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
-            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         }
       ]

@@ -245,6 +245,7 @@ internal fun errorCodesFile(table: JsonObject): String = buildString {
     vocabulary("signIn", "SignInErrorCode", table["signIn"].obj("signIn")["docs"].text("signIn's docs"))
     vocabulary("session", "SessionErrorCode", table["session"].obj("session")["docs"].text("session's docs"))
     vocabulary("job", "JobErrorCode", table["job"].obj("job")["docs"].text("job's docs"))
+    vocabulary("spanRefusal", "SpanRefusal", table["spanRefusal"].obj("spanRefusal")["docs"].text("spanRefusal's docs"))
     val transport = table["transport"].obj("transport")["codes"].list("transport's codes").map { it.obj("a transport code") }
     append("/** The code a refusal of `status` fails with. */\n")
     append("internal fun transportErrorCodeFor(status: Int): TransportErrorCode = when {\n")

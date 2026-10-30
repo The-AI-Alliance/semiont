@@ -97,3 +97,12 @@ public class JobError @JvmExposeBoxed constructor(
 ) : SemiontError(message) {
     override val code: String get() = reason.code
 }
+
+/** A span no annotation was built of: it is not the text's, or, for a PDF, is nowhere on its pages. */
+public class SpanRefusedError(
+    /** Which refusal it is, as a code of the span-refusal vocabulary. */
+    public val reason: SpanRefusal,
+    message: String,
+) : SemiontError(message) {
+    override val code: String get() = reason.code
+}

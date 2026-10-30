@@ -105,6 +105,151 @@ public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public final fun getYield ()Lsemiont/namespaces/YieldNamespace;
 }
 
+public abstract interface class semiont/annotations/AnchorMethod {
+	public abstract fun getValue ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/AnchorMethod$ContextRecovered : semiont/annotations/AnchorMethod {
+	public static final field INSTANCE Lsemiont/annotations/AnchorMethod$ContextRecovered;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/AnchorMethod$FirstOfMany : semiont/annotations/AnchorMethod {
+	public static final field INSTANCE Lsemiont/annotations/AnchorMethod$FirstOfMany;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/AnchorMethod$FuzzyMatch : semiont/annotations/AnchorMethod {
+	public fun <init> (Lsemiont/annotations/MatchQuality;)V
+	public final fun component1 ()Lsemiont/annotations/MatchQuality;
+	public final fun copy (Lsemiont/annotations/MatchQuality;)Lsemiont/annotations/AnchorMethod$FuzzyMatch;
+	public static synthetic fun copy$default (Lsemiont/annotations/AnchorMethod$FuzzyMatch;Lsemiont/annotations/MatchQuality;ILjava/lang/Object;)Lsemiont/annotations/AnchorMethod$FuzzyMatch;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getQuality ()Lsemiont/annotations/MatchQuality;
+	public fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/AnchorMethod$UniqueMatch : semiont/annotations/AnchorMethod {
+	public static final field INSTANCE Lsemiont/annotations/AnchorMethod$UniqueMatch;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/AnnotationsKt {
+	public static final fun annotationExactText (Lsemiont/types/Annotation;)Ljava/lang/String;
+	public static final fun annotationOfResource (Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;)Lsemiont/types/Annotation;
+	public static final fun annotationOfResource (Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;Lsemiont/types/Agent;)Lsemiont/types/Annotation;
+	public static final fun annotationOfResource (Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;)Lsemiont/types/Annotation;
+	public static final fun annotationOfResource-cLomD_0 (Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;)Lsemiont/types/Annotation;
+	public static synthetic fun annotationOfResource-cLomD_0$default (Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;ILjava/lang/Object;)Lsemiont/types/Annotation;
+	public static final fun annotationOfResource-k2J_C-I (Ljava/lang/String;Lsemiont/types/Motivation;)Lsemiont/types/Annotation;
+	public static final fun annotationOfResource-ogcqSrQ (Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan (Ljava/lang/String;Lsemiont/annotations/TextSpan;Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;Lsemiont/types/Agent;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan (Ljava/lang/String;Lsemiont/annotations/TextSpan;Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan (Lsemiont/types/AnchoredText;Lsemiont/annotations/TextSpan;Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;Lsemiont/types/Agent;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan (Lsemiont/types/AnchoredText;Lsemiont/annotations/TextSpan;Lsemiont/identifiers/ResourceId;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan-5NWYt7w (Ljava/lang/String;Lsemiont/annotations/TextSpan;Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan-5NWYt7w (Lsemiont/types/AnchoredText;Lsemiont/annotations/TextSpan;Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;)Lsemiont/types/Annotation;
+	public static synthetic fun annotationOfSpan-5NWYt7w$default (Ljava/lang/String;Lsemiont/annotations/TextSpan;Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;ILjava/lang/Object;)Lsemiont/types/Annotation;
+	public static synthetic fun annotationOfSpan-5NWYt7w$default (Lsemiont/types/AnchoredText;Lsemiont/annotations/TextSpan;Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;Lsemiont/types/AnnotationBodies;ILjava/lang/Object;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan-snzPxMI (Ljava/lang/String;Lsemiont/annotations/TextSpan;Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;)Lsemiont/types/Annotation;
+	public static final fun annotationOfSpan-snzPxMI (Lsemiont/types/AnchoredText;Lsemiont/annotations/TextSpan;Ljava/lang/String;Lsemiont/types/Motivation;Lsemiont/types/Agent;)Lsemiont/types/Annotation;
+	public static final fun bodySource (Lsemiont/types/AnnotationBodies;)Ljava/lang/String;
+	public static final fun commentText (Lsemiont/types/Annotation;)Ljava/lang/String;
+	public static final fun entityTypes (Lsemiont/types/Annotation;)Ljava/util/List;
+	public static final fun exactText (Lsemiont/types/AnnotationSelector;)Ljava/lang/String;
+	public static final fun isAssessment (Lsemiont/types/Annotation;)Z
+	public static final fun isBodyResolved (Lsemiont/types/AnnotationBodies;)Z
+	public static final fun isComment (Lsemiont/types/Annotation;)Z
+	public static final fun isHighlight (Lsemiont/types/Annotation;)Z
+	public static final fun isReference (Lsemiont/types/Annotation;)Z
+	public static final fun isResolvedReference (Lsemiont/types/Annotation;)Z
+	public static final fun isStubReference (Lsemiont/types/Annotation;)Z
+	public static final fun isTag (Lsemiont/types/Annotation;)Z
+	public static final fun tagCategory (Lsemiont/types/Annotation;)Ljava/lang/String;
+	public static final fun tagSchemaId (Lsemiont/types/Annotation;)Ljava/lang/String;
+	public static final fun targetSelector (Lsemiont/types/AnnotationTargetValue;)Lsemiont/types/AnnotationSelector;
+	public static final fun targetSource (Lsemiont/types/AnnotationTargetValue;)Ljava/lang/String;
+	public static final fun textQuoteSelector (Lsemiont/types/AnnotationSelector;)Lsemiont/types/TextQuoteSelector;
+}
+
+public final class semiont/annotations/MatchQuality : java/lang/Enum {
+	public static final field CaseInsensitive Lsemiont/annotations/MatchQuality;
+	public static final field Fuzzy Lsemiont/annotations/MatchQuality;
+	public static final field Normalized Lsemiont/annotations/MatchQuality;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getValue ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/annotations/MatchQuality;
+	public static fun values ()[Lsemiont/annotations/MatchQuality;
+}
+
+public final class semiont/annotations/QuotedText {
+	public fun <init> (Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/annotations/QuotedText;
+	public static synthetic fun copy$default (Lsemiont/annotations/QuotedText;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/annotations/QuotedText;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExact ()Ljava/lang/String;
+	public final fun getPrefix ()Ljava/lang/String;
+	public final fun getSuffix ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/ReconciledSpan {
+	public fun <init> (Lsemiont/annotations/TextSpan;Lsemiont/annotations/AnchorMethod;)V
+	public final fun component1 ()Lsemiont/annotations/TextSpan;
+	public final fun component2 ()Lsemiont/annotations/AnchorMethod;
+	public final fun copy (Lsemiont/annotations/TextSpan;Lsemiont/annotations/AnchorMethod;)Lsemiont/annotations/ReconciledSpan;
+	public static synthetic fun copy$default (Lsemiont/annotations/ReconciledSpan;Lsemiont/annotations/TextSpan;Lsemiont/annotations/AnchorMethod;ILjava/lang/Object;)Lsemiont/annotations/ReconciledSpan;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAnchorMethod ()Lsemiont/annotations/AnchorMethod;
+	public final fun getSpan ()Lsemiont/annotations/TextSpan;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/annotations/SpansKt {
+	public static final fun reconcile (Ljava/lang/String;Lsemiont/annotations/QuotedText;)Lsemiont/annotations/ReconciledSpan;
+}
+
+public final class semiont/annotations/TextSpan {
+	public fun <init> (JJLjava/lang/String;)V
+	public fun <init> (JJLjava/lang/String;Ljava/lang/String;)V
+	public fun <init> (JJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (JJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (JJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/annotations/TextSpan;
+	public static synthetic fun copy$default (Lsemiont/annotations/TextSpan;JJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/annotations/TextSpan;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEnd ()J
+	public final fun getExact ()Ljava/lang/String;
+	public final fun getPrefix ()Ljava/lang/String;
+	public final fun getStart ()J
+	public final fun getSuffix ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class semiont/bus/Bus {
 	public fun <init> (Lsemiont/transport/Transport;)V
 	public final fun emit-6b3uWpE (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -262,6 +407,12 @@ public final class semiont/errors/SignInError : semiont/errors/SemiontError {
 	public fun getCode ()Ljava/lang/String;
 	public final fun getReason ()Lsemiont/errors/SignInErrorCode;
 	public final fun getStatus ()Ljava/lang/Integer;
+}
+
+public final class semiont/errors/SpanRefusedError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/SpanRefusal;Ljava/lang/String;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/SpanRefusal;
 }
 
 public final class semiont/errors/TransportError : semiont/errors/SemiontError {
