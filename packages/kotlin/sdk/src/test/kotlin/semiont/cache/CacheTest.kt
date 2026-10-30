@@ -2,8 +2,10 @@
 
 package semiont.cache
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -18,6 +20,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -490,6 +493,19 @@ class CacheTest {
         assertEquals(listOf(KEY), world.service.asked)
         world.close()
         assertEquals("bus.closed", (read.await().exceptionOrNull() as BusRequestError).code)
+    }
+
+    @Test
+    fun aReadOfAClosedCacheByACallerThatStoppedWaitingIsOnlyAbandoned() = runTest {
+        val world = World(this)
+        world.cache.dispose()
+        // Begun by a caller that has stopped waiting, as a read of many keys begins its later ones: nothing is asked, and its end is the caller's.
+        val caller = CoroutineScope(Job())
+        caller.cancel()
+        val read = caller.async(start = CoroutineStart.UNDISPATCHED) { world.cache.fetch(KEY) }
+        assertInstanceOf(CancellationException::class.java, read.getCompletionExceptionOrNull())
+        assertEquals(emptyList<String>(), world.service.asked)
+        world.close()
     }
 
     @Test
