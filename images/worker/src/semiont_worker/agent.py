@@ -232,7 +232,8 @@ class AgentWorker:
     def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], tuple[Engine, ...]]:
         if self._opened is None:
             raise RuntimeError("the agent's stream is not open: `open` it")
-        return (self._signed_in().did, *self._opened)
+        client, engines = self._opened
+        return self._signed_in().did, client, engines
 
     def vitals(self) -> dict[str, JsonValue]:
         """What the agent says of itself to the health endpoint: who it is, and what each engine says of itself."""
@@ -251,9 +252,7 @@ class AgentWorker:
                 answering = working.create_task(
                     answer_limits_requests(client.wire, JOB_LIMITS_REQUESTED, [engine.inference for engine in engines])
                 )
-                claiming = [working.create_task(engine.work(client, did)) for engine in engines]
-                for each in claiming:
-                    await each
+                await asyncio.gather(*(working.create_task(engine.work(client, did)) for engine in engines))
                 answering.cancel()
         except* Exception as failed:
             # What ended the agent's work, as itself: the others ended because it did.
