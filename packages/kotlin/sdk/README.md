@@ -124,7 +124,16 @@ A client given a `CachePersistence` keeps its small queries in a `SessionStorage
 
 ## Taking work
 
-A worker takes jobs: `client.job.claim(accepts)` gives its `Claims`, and each `next()` the next job it comes to hold, a `HeldMarkJob` or a `HeldYieldJob`. A held job says its own start, progress and checkpoints, commits its annotations, and settles once with `complete`, `fail` or `cancel`; closing one nobody settled fails it, and `stop()` fails the job held first. What a worker promises is docs/protocol/WORKER-CONTRACT.md, and the worker conformance suite holds this SDK to it through a driver written in Java.
+A worker claims jobs from a knowledge base's queue, does each one, and says what became of it. `client.job.claim(accepts)` is its side of the queue, given what the worker accepts, each a `JobFilter`: the `mark` jobs of one motivation, or the `yield` jobs. Its `Claims` hand out the jobs the worker comes to hold, one at a time: each `next()` the next, a `HeldMarkJob` or a `HeldYieldJob`.
+
+- **A worker is an agent.** Its process signs in at its issuer as its account, `AgentToken(gateway, ServiceToken(SecretCredential(...)))`, and the gateway names it by that account: `agent.did`, once `signIn()` has returned. The account needs two roles at the issuer: `semiont-service`, which marks a service's account, and `semiont-worker`, without which every claim is refused as `bus.unauthorized`.
+- **It says what it is called**, as itself: `client.wire.emit(Channels.PRINCIPAL_PROFILE, PrincipalProfileCommand(name = clientId))`, here its client id. Readers name it by the last name it said, as they name a person.
+- **Its stream names `JOB_CLAIM_CHANNELS`**, and `JOB_COMMIT_CHANNELS` when it commits, and the reply channels of whatever else it awaits: `HttpTransport(gateway, agent.token, JOB_CLAIM_CHANNELS + JOB_COMMIT_CHANNELS, refresher = agent)`. The announcements that wake an idle worker reach only a stream that names them, so one whose stream does not is refused at its first claim, as `bus.unsubscribed`.
+- **What it commits names its generator**: an `AgentSoftware` whose `id` is the agent's DID (`agent.did.value`), with the engine it ran (`provider`, `model`). It carries no name: readers name the agent by what it said it is called.
+- **A held job settles once.** It says its own start, progress and checkpoints, commits its annotations (`commit(resourceId, annotations)` returns once the record has them), and settles with `complete`, `fail` or `cancel`. Closing one nobody settled fails it, and `stop()` fails the job held first. `fail` says whether the queue will run the job again, by the rule `willRetryAfter` states.
+- **A refused claim is told**, on `claims.refused()`, with its code. A claim answered with nothing pending is no refusal, and the worker waits.
+
+What a worker promises is docs/protocol/WORKER-CONTRACT.md, and the worker conformance suite holds this SDK to it through a driver written in Java.
 
 ## Testing
 

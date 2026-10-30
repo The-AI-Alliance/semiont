@@ -21,4 +21,4 @@ private fun retried(failureClass: FailureClass?): Boolean = when (failureClass) 
  * reports it on `job:fail` as `willRetry`, so the two never disagree:
  * specs/src/jobs/retry-cases.json is the table both answer alike.
  */
-internal fun willRetryAfter(retryCount: Long, maxRetries: Long, failureClass: FailureClass?): Boolean = retried(failureClass) && retryCount < maxRetries
+public fun willRetryAfter(retryCount: Long, maxRetries: Long, failureClass: FailureClass?): Boolean = retried(failureClass) && retryCount < maxRetries

@@ -38,7 +38,10 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /** What a worker's stream names for its claims: the replies of `job:claim`, and the two broadcasts a worker reads. */
-internal val JOB_CLAIM_CHANNELS: List<String> = replyChannelsFor(Operations.JOB_CLAIM) + Channels.JOB_QUEUED.name + Channels.JOB_CANCEL_REQUESTED.name
+public val JOB_CLAIM_CHANNELS: List<String> = replyChannelsFor(Operations.JOB_CLAIM) + Channels.JOB_QUEUED.name + Channels.JOB_CANCEL_REQUESTED.name
+
+/** What a worker's stream names for its commits as well: the replies of `mark:commit`, and of the question whether a batch is recorded. */
+public val JOB_COMMIT_CHANNELS: List<String> = replyChannelsFor(Operations.MARK_COMMIT, Operations.BROWSE_ANNOTATION_REQUESTED)
 
 /** What one claim came to: a job held, a refusal, or nothing pending. */
 private sealed interface Answer {
@@ -190,7 +193,7 @@ public class Claims internal constructor(
             throw BusRequestError(
                 BusRequestErrorCode.Unsubscribed,
                 "This transport's stream does not name ${unnamed.joinToString(", ")}: a worker on it would never be answered, woken or told of a cancellation. " +
-                    "Name the replies of job:claim, job:queued and job:cancel-requested among its channels.",
+                    "Name JOB_CLAIM_CHANNELS among its channels.",
             )
         }
         // Both broadcasts are read as they come, not as this SDK types them: the comparison of an announcement with a

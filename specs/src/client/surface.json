@@ -713,7 +713,7 @@
   "worker": [
     {
       "handed": "claims",
-      "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust, ranged over in Go.",
+      "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
       "members": [
         {
           "member": "next",
@@ -1202,6 +1202,41 @@
       "members": [
         {
           "member": "jobMatchesFilter",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "claims",
+      "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by specs/src/jobs/retry-cases.json.",
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/claims.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/claims.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/claims.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
+        ]
+      },
+      "members": [
+        {
+          "member": "jobClaimChannels",
+          "kind": "constant"
+        },
+        {
+          "member": "jobCommitChannels",
+          "kind": "constant"
+        },
+        {
+          "member": "willRetryAfter",
           "kind": "function"
         }
       ]

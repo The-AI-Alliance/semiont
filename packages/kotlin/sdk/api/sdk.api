@@ -935,6 +935,11 @@ public final class semiont/jobs/Claims {
 	public final fun vitals ()Lsemiont/jobs/WorkerVitals;
 }
 
+public final class semiont/jobs/ClaimsKt {
+	public static final fun getJOB_CLAIM_CHANNELS ()Ljava/util/List;
+	public static final fun getJOB_COMMIT_CHANNELS ()Ljava/util/List;
+}
+
 public abstract class semiont/jobs/HeldJob : java/lang/AutoCloseable {
 	public synthetic fun <init> (Lsemiont/jobs/Holder;Lsemiont/types/JobRunning;Lsemiont/transport/Variable;Lsemiont/transport/TraceContext;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun cancel (Ljava/util/List;Ljava/util/Map;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -994,6 +999,10 @@ public final class semiont/jobs/HeldYieldJob : semiont/jobs/HeldJob {
 
 public final class semiont/jobs/JobFilterKt {
 	public static final fun jobMatchesFilter (Lkotlinx/serialization/json/JsonObject;Lkotlinx/serialization/json/JsonObject;)Z
+}
+
+public final class semiont/jobs/RetriesKt {
+	public static final fun willRetryAfter (JJLsemiont/types/FailureClass;)Z
 }
 
 public final class semiont/jobs/WorkerVitals {

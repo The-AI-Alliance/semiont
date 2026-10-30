@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -19,9 +18,6 @@ import kotlinx.serialization.json.JsonElement;
 import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.Test;
-import semiont.bus.BusKt;
-import semiont.bus.Operations;
-import semiont.channels.Channels;
 import semiont.errors.BusRequestErrorCode;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
@@ -29,9 +25,11 @@ import semiont.identifiers.JobId;
 import semiont.identifiers.ResourceId;
 import semiont.jobs.ClaimRefusal;
 import semiont.jobs.Claims;
+import semiont.jobs.ClaimsKt;
 import semiont.jobs.HeldJob;
 import semiont.jobs.HeldYieldJob;
 import semiont.jobs.JobFilterKt;
+import semiont.jobs.RetriesKt;
 import semiont.transport.Events;
 import semiont.types.FailureClass;
 import semiont.types.JobFilter;
@@ -59,10 +57,7 @@ final class WorkerTest {
         final AtomicInteger claimed = new AtomicInteger();
 
         Opened() throws Exception {
-            List<String> channels = new ArrayList<>(BusKt.replyChannelsFor(Operations.JOB_CLAIM));
-            channels.add(Channels.JOB_QUEUED.getName());
-            channels.add(Channels.JOB_CANCEL_REQUESTED.getName());
-            transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"), channels);
+            transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"), ClaimsKt.getJOB_CLAIM_CHANNELS());
             content = new HttpContentTransport(transport);
             client = new SemiontClient(transport, content, transport);
             gateway.answer = body -> {
@@ -226,5 +221,13 @@ final class WorkerTest {
         JsonObject marking = new JsonObject(Map.<String, JsonElement>of("jobType", JsonElementKt.JsonPrimitive("mark")));
         assertTrue(JobFilterKt.jobMatchesFilter(filter, yielding));
         assertFalse(JobFilterKt.jobMatchesFilter(filter, marking));
+    }
+
+    @Test
+    void whetherAFailedJobRunsAgainAndWhatACommitReadsAreAskedFromJava() {
+        assertTrue(RetriesKt.willRetryAfter(0, 1, FailureClass.Transient));
+        assertFalse(RetriesKt.willRetryAfter(1, 1, FailureClass.Transient));
+        assertFalse(RetriesKt.willRetryAfter(0, 1, FailureClass.Deterministic));
+        assertTrue(ClaimsKt.getJOB_COMMIT_CHANNELS().contains("mark:commit-ok"));
     }
 }
