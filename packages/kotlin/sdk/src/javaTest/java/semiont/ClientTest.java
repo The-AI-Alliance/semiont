@@ -21,6 +21,8 @@ import semiont.annotations.QuotedText;
 import semiont.annotations.ReconciledSpan;
 import semiont.annotations.TextSpan;
 import semiont.bus.Delivered;
+import semiont.cache.CacheState;
+import semiont.cache.Cached;
 import semiont.bus.Typed;
 import semiont.channels.Channels;
 import semiont.errors.SpanRefusal;
@@ -40,6 +42,7 @@ import semiont.types.HighlightingJobParams;
 import semiont.types.JobCompleteCommand;
 import semiont.types.MarkJobCompleteCommand;
 import semiont.types.Motivation;
+import semiont.types.TagSchema;
 
 /**
  * The client as a Java program calls it: each shape of what its namespaces
@@ -223,5 +226,73 @@ final class ClientTest {
         SpanRefusedError refused = assertThrows(SpanRefusedError.class,
                 () -> AnnotationsKt.annotationOfSpan(text, new TextSpan(0, 99, "Ada"), new ResourceId("res-1"), Motivation.Highlighting, AgentSoftware.builder("gemma3").build()));
         assertEquals(SpanRefusal.SpanOutOfRange, refused.getReason());
+    }
+
+    @Test
+    void aLiveQueryIsReadThroughItsPublisherAndItsStatesAreValuesJavaTellsApart() throws Exception {
+        try (Opened opened = new Opened()) {
+            opened.gateway.answer = body -> {
+                if (body.contains("\"channel\":\"browse:entity-types-requested\"")) return reply("browse:entity-types-result", "{\"response\":{\"entityTypes\":[\"Person\"]}}", body);
+                if (body.contains("\"channel\":\"browse:tag-schemas-requested\"")) return reply("browse:tag-schemas-failed", "{\"message\":\"no schemas here\"}", body);
+                return null;
+            };
+            Cached<List<String>> types = opened.client.getBrowse().entityTypes();
+            List<String> seen = new CopyOnWriteArrayList<>();
+            CompletableFuture<List<String>> value = new CompletableFuture<>();
+            types.asPublisher().subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(CacheState<List<String>> state) {
+                    // The three states are values: Java tells them apart by their classes.
+                    if (state instanceof CacheState.Pending) {
+                        seen.add("pending");
+                    } else if (state instanceof CacheState.Ready<List<String>> ready) {
+                        seen.add("ready");
+                        value.complete(ready.getValue());
+                    } else if (state instanceof CacheState.Failed failed) {
+                        seen.add("failed");
+                        value.completeExceptionally(failed.getError());
+                    }
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    value.completeExceptionally(error);
+                }
+
+                @Override
+                public void onComplete() {}
+            });
+            assertEquals(List.of("Person"), value.get(10, SECONDS));
+            assertEquals(List.of("pending", "ready"), seen);
+            assertEquals(List.of("Person"), types.freshFuture().get(10, SECONDS));
+
+            // A failure is a state, given after the query's one retry has failed too.
+            CompletableFuture<CacheState.Failed> failed = new CompletableFuture<>();
+            opened.client.getBrowse().tagSchemas().asPublisher().subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(CacheState<List<TagSchema>> state) {
+                    if (state instanceof CacheState.Failed failure) failed.complete(failure);
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    failed.completeExceptionally(error);
+                }
+
+                @Override
+                public void onComplete() {}
+            });
+            assertEquals("bus.rejected", failed.get(10, SECONDS).getError().getCode());
+        }
     }
 }

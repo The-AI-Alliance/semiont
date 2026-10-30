@@ -71,8 +71,11 @@ public data class Timing @JvmOverloads constructor(
  * The bus over HTTP: emits to `POST /bus/emit`, and one stream from
  * `POST /bus/subscribe` (docs/protocol/TRANSPORT-HTTP.md). It reads its token
  * from `token`, which its owner feeds, and asks `refresher` for another when
- * the gateway refuses it. The stream opens once there is a token. Its HTTP
- * client keeps the JDK's default proxy selector and trust store.
+ * the gateway refuses it. The stream opens once there is a token and
+ * something to carry: a channel it names on no scope, or a resource's scope. With
+ * `bookmarks`, each scope's stream begins where they say the client's last
+ * life left it; with none, at the present. Its HTTP client keeps the JDK's
+ * default proxy selector and trust store.
  */
 public class HttpTransport @JvmOverloads constructor(
     baseUrl: String,
@@ -81,6 +84,7 @@ public class HttpTransport @JvmOverloads constructor(
     private val channels: List<String> = BRIDGED_CHANNELS,
     private val timing: Timing = Timing(),
     private val refresher: TokenRefresher? = null,
+    bookmarks: Bookmarks? = null,
     private val http: HttpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build(),
 ) : Transport, GatewayOperations {
     override val baseUrl: String = baseUrl.trimEnd('/')
@@ -94,7 +98,7 @@ public class HttpTransport @JvmOverloads constructor(
     @Volatile
     private var closing = false
     internal val exchange = Exchange(this.baseUrl, http, token, refresher, failureStream, timing.httpRequestMs) { closing }
-    private val stream = Stream(this.baseUrl, http, token, refresher, clientId, channels, timing, hub, router, failureStream, scope)
+    private val stream = Stream(this.baseUrl, http, token, refresher, clientId, channels, timing, hub, router, failureStream, scope, bookmarks)
     private val holds = mutableMapOf<String, Int>()
 
     override val state: Watched<ConnectionState> = Watched(stream.state) { it == ConnectionState.Closed }

@@ -2,7 +2,22 @@
 
 package semiont.namespaces
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.runningFold
 import semiont.bus.Operations
+import semiont.cache.Cache
+import semiont.cache.CacheState
+import semiont.cache.Cached
+import semiont.cache.Keyed
+import semiont.cache.Source
+import semiont.cache.shown
 import semiont.channels.Channels
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
@@ -10,7 +25,10 @@ import semiont.resources.decodeRepresentation
 import semiont.transport.Content
 import semiont.transport.ContentStream
 import semiont.transport.ContentTransport
+import semiont.transport.ResourceHold
+import semiont.types.AgentSoftware
 import semiont.types.AnchoredTextAnswer
+import semiont.types.Annotation
 import semiont.types.AttributedEvent
 import semiont.types.BrowseAnnotationHistoryRequest
 import semiont.types.BrowseClickEvent
@@ -21,13 +39,104 @@ import semiont.types.BrowseEventsRequest
 import semiont.types.BrowseKbRequest
 import semiont.types.BrowseResourceOpenEvent
 import semiont.types.BrowseResourceViewedEvent
+import semiont.types.CollaboratorEntry
 import semiont.types.GetAnnotationHistoryResponse
 import semiont.types.GetResourceResponse
+import semiont.types.InferenceLimits
+import semiont.types.InferencePairLimits
 import semiont.types.KbDescription
+import semiont.types.ListResourcesResponse
+import semiont.types.ResourceDescriptor
+import semiont.types.TagSchema
 import java.util.concurrent.CompletableFuture
 
 /** Reads: one-shot reads, and this viewer's own signals. */
-public class BrowseNamespace internal constructor(private val links: Links, private val content: ContentTransport) {
+/** One of the knowledge base's collaborators: its entry in the directory, and its model's limits when the service holding that model's credentials reported them. */
+public data class Collaborator(public val entry: CollaboratorEntry, public val limits: InferenceLimits?)
+
+/** The directory with each reported model's limits on its entries. */
+private fun joined(directory: List<CollaboratorEntry>, reported: List<InferencePairLimits>): List<Collaborator> {
+    val byModel = reported.reversed().associate { (it.provider to it.model) to it.limits }
+    return directory.map { entry ->
+        val agent = entry.agent as? AgentSoftware
+        val provider = agent?.provider
+        val model = agent?.model
+        Collaborator(entry, if (provider != null && model != null) byModel[provider to model] else null)
+    }
+}
+
+/**
+ * The collaborator directory with each key holder's limits joined on. The
+ * directory is asked for first; a holder that has not answered delays only its
+ * own models' limits, and one that answered nothing reports none.
+ */
+private class Collaborators(private val live: Live) : Source<List<Collaborator>> {
+    override suspend fun fresh(): List<Collaborator> = coroutineScope {
+        val directory = async(start = CoroutineStart.UNDISPATCHED) { live.agents.fetch(WHOLE) }
+        val reports = LIMITS_HOLDERS.map { async(start = CoroutineStart.UNDISPATCHED) { live.limits.fetch(it) } }
+        joined(directory.await(), reports.awaitAll().flatten())
+    }
+
+    override fun watch(): Flow<CacheState<List<Collaborator>>> {
+        val directory = live.agents.observe(WHOLE)
+        // A holder's report is pending, then what it reported: it never fails (`Live`).
+        val reports = LIMITS_HOLDERS.map { holder ->
+            live.limits.observe(holder).runningFold(emptyList<InferencePairLimits>()) { reported, state -> (state as? CacheState.Ready)?.value ?: reported }
+        }
+        val reported = if (reports.isEmpty()) flowOf(emptyList()) else combine(reports) { it.toList().flatten() }
+        // A report that changes nothing a collector is shown is not a state.
+        return combine(directory, reported) { entries, pairs -> entries.shown { joined(it, pairs) } }.distinctUntilChanged()
+    }
+
+    override fun invalidate(): Unit = live.invalidateAgents()
+
+    override fun hold(): ResourceHold? = null
+}
+
+public class BrowseNamespace internal constructor(private val links: Links, private val content: ContentTransport, private val live: Live) {
+    /** A query of one resource: collecting it holds the resource's scope. */
+    private fun <K : Any, V : Any, T : Any> of(resourceId: ResourceId, cache: Cache<K, V>, key: K, view: (V) -> T): Cached<T> =
+        live.query(Keyed(cache, key, view, links.transport to resourceId))
+
+    /** A resource's description: a live query. */
+    @JvmExposeBoxed
+    public fun resource(resourceId: ResourceId): Cached<ResourceDescriptor> = of(resourceId, live.resource, resourceId) { it }
+
+    /**
+     * A page of the resources the filters admit, the first hundred when
+     * nothing is stated, `offset` of them passed over before the page begins:
+     * a live query. It is kept true by what every client hears and by the
+     * events of the resources this client holds the scope of, and by nothing
+     * else. Finding resources by text is `match.resources`.
+     */
+    @JvmOverloads
+    public fun resources(limit: Long = LIST_LIMIT, offset: Long = 0, archived: Boolean? = null, entityType: String? = null): Cached<ListResourcesResponse> =
+        live.query(Keyed(live.lists, ResourceFilters(limit, offset, archived, entityType), { it }))
+
+    /** A resource's annotations: a live query. */
+    @JvmExposeBoxed
+    public fun annotations(resourceId: ResourceId): Cached<List<Annotation>> = of(resourceId, live.annotations, resourceId, ::listed)
+
+    /** One annotation of a resource: a live query. */
+    @JvmExposeBoxed
+    public fun annotation(resourceId: ResourceId, annotationId: AnnotationId): Cached<Annotation> {
+        live.annotationOf[annotationId] = resourceId
+        return of(resourceId, live.annotation, annotationId) { it }
+    }
+
+    /** The knowledge base's entity types: a live query. */
+    public fun entityTypes(): Cached<List<String>> = live.query(Keyed(live.entityTypes, WHOLE, { it }))
+
+    /** The knowledge base's tag schemas: a live query. */
+    public fun tagSchemas(): Cached<List<TagSchema>> = live.query(Keyed(live.tagSchemas, WHOLE, { it }))
+
+    /** The knowledge base's collaborators, with each model's limits as the services holding its credentials report them: a live query. */
+    public fun agents(): Cached<List<Collaborator>> = live.query(Collaborators(live))
+
+    /** A resource's events, each with who it is attributed to: a live query. */
+    @JvmExposeBoxed
+    public fun events(resourceId: ResourceId): Cached<List<AttributedEvent>> = of(resourceId, live.events, resourceId) { it }
+
     /** A resource's description as linked data: itself, its annotations and the references to it. */
     public suspend fun resourceGraph(resourceId: ResourceId): GetResourceResponse = content.getResourceGraph(resourceId)
 

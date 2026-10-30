@@ -3,14 +3,17 @@ public final class semiont/ClientTiming {
 	public fun <init> (J)V
 	public fun <init> (JJ)V
 	public fun <init> (JJJ)V
-	public synthetic fun <init> (JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (JJJJ)V
+	public synthetic fun <init> (JJJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()J
 	public final fun component2 ()J
 	public final fun component3 ()J
-	public final fun copy (JJJ)Lsemiont/ClientTiming;
-	public static synthetic fun copy$default (Lsemiont/ClientTiming;JJJILjava/lang/Object;)Lsemiont/ClientTiming;
+	public final fun component4 ()J
+	public final fun copy (JJJJ)Lsemiont/ClientTiming;
+	public static synthetic fun copy$default (Lsemiont/ClientTiming;JJJJILjava/lang/Object;)Lsemiont/ClientTiming;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getBusRequestMs ()J
+	public final fun getInvalidationWindowMs ()J
 	public final fun getJobSilenceMs ()J
 	public final fun getJobStatusPollMs ()J
 	public fun hashCode ()I
@@ -86,7 +89,8 @@ public final class semiont/Running : kotlinx/coroutines/flow/Flow {
 public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;)V
 	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;)V
-	public synthetic fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;Lsemiont/storage/CachePersistence;)V
+	public synthetic fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;Lsemiont/storage/CachePersistence;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public final fun getAuth ()Lsemiont/namespaces/AuthNamespace;
 	public final fun getBeckon ()Lsemiont/namespaces/BeckonNamespace;
@@ -98,6 +102,7 @@ public final class semiont/SemiontClient : java/lang/AutoCloseable {
 	public final fun getJob ()Lsemiont/namespaces/JobNamespace;
 	public final fun getMark ()Lsemiont/namespaces/MarkNamespace;
 	public final fun getMatch ()Lsemiont/namespaces/MatchNamespace;
+	public final fun getPersistenceSettled ()Z
 	public final fun getSystem ()Lsemiont/namespaces/SystemNamespace;
 	public final fun getTiming ()Lsemiont/ClientTiming;
 	public final fun getTransport ()Lsemiont/transport/Transport;
@@ -322,6 +327,55 @@ public final class semiont/bus/Typed : java/lang/AutoCloseable, kotlinx/coroutin
 	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public abstract interface class semiont/cache/CachePersister {
+	public abstract fun load ()Ljava/util/Map;
+	public abstract fun save (Ljava/util/Map;)V
+}
+
+public abstract interface class semiont/cache/CacheState {
+	public abstract fun getStatus ()Ljava/lang/String;
+}
+
+public final class semiont/cache/CacheState$Failed : semiont/cache/CacheState {
+	public fun <init> (Lsemiont/errors/SemiontError;)V
+	public final fun component1 ()Lsemiont/errors/SemiontError;
+	public final fun copy (Lsemiont/errors/SemiontError;)Lsemiont/cache/CacheState$Failed;
+	public static synthetic fun copy$default (Lsemiont/cache/CacheState$Failed;Lsemiont/errors/SemiontError;ILjava/lang/Object;)Lsemiont/cache/CacheState$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Lsemiont/errors/SemiontError;
+	public fun getStatus ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/cache/CacheState$Pending : semiont/cache/CacheState {
+	public static final field INSTANCE Lsemiont/cache/CacheState$Pending;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getStatus ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/cache/CacheState$Ready : semiont/cache/CacheState {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lsemiont/cache/CacheState$Ready;
+	public static synthetic fun copy$default (Lsemiont/cache/CacheState$Ready;Ljava/lang/Object;ILjava/lang/Object;)Lsemiont/cache/CacheState$Ready;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getStatus ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/cache/Cached : kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun fresh (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun freshFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun invalidate ()V
+}
+
 public final class semiont/channels/Channel {
 	public final fun getName ()Ljava/lang/String;
 	public fun toString ()Ljava/lang/String;
@@ -433,6 +487,11 @@ public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/ht
 	public final fun signInFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
+public abstract interface class semiont/http/Bookmarks {
+	public abstract fun load ()Ljava/util/Map;
+	public abstract fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+}
+
 public abstract interface class semiont/http/Credential {
 	public abstract fun getClientId ()Ljava/lang/String;
 	public abstract fun getIssuer ()Ljava/lang/String;
@@ -486,8 +545,9 @@ public final class semiont/http/HttpTransport : semiont/transport/GatewayOperati
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;)V
 	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;)V
-	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Ljava/net/http/HttpClient;)V
-	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Lsemiont/http/Bookmarks;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Lsemiont/http/Bookmarks;Ljava/net/http/HttpClient;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Lsemiont/http/Bookmarks;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun bridgeInto (Lsemiont/transport/FrameSink;)V
 	public fun close ()V
 	public fun emit-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -629,11 +689,19 @@ public final class semiont/namespaces/BindNamespace {
 }
 
 public final class semiont/namespaces/BrowseNamespace {
+	public final fun agents ()Lsemiont/cache/Cached;
+	public final fun annotation (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Lsemiont/cache/Cached;
+	public final fun annotation-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun annotationHistory-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun annotationHistoryFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun annotationHistoryFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun annotations (Lsemiont/identifiers/ResourceId;)Lsemiont/cache/Cached;
+	public final fun annotations--Xm7VB4 (Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun click (Lsemiont/identifiers/AnnotationId;)V
 	public final fun click-2VybQ2U (Ljava/lang/String;)V
+	public final fun entityTypes ()Lsemiont/cache/Cached;
+	public final fun events (Lsemiont/identifiers/ResourceId;)Lsemiont/cache/Cached;
+	public final fun events--Xm7VB4 (Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun files (Ljava/lang/String;Lsemiont/types/BrowseDirectoryRequestSort;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun files$default (Lsemiont/namespaces/BrowseNamespace;Ljava/lang/String;Lsemiont/types/BrowseDirectoryRequestSort;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun filesFuture (Ljava/lang/String;Lsemiont/types/BrowseDirectoryRequestSort;)Ljava/util/concurrent/CompletableFuture;
@@ -641,6 +709,8 @@ public final class semiont/namespaces/BrowseNamespace {
 	public final fun kbFuture ()Ljava/util/concurrent/CompletableFuture;
 	public final fun openResource (Lsemiont/identifiers/ResourceId;)V
 	public final fun openResource--Xm7VB4 (Ljava/lang/String;)V
+	public final fun resource (Lsemiont/identifiers/ResourceId;)Lsemiont/cache/Cached;
+	public final fun resource--Xm7VB4 (Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun resourceAnchoredText-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun resourceAnchoredTextFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun resourceAnchoredTextFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
@@ -661,6 +731,26 @@ public final class semiont/namespaces/BrowseNamespace {
 	public final fun resourceRepresentationStreamFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
 	public final fun resourceViewed (Lsemiont/identifiers/ResourceId;)V
 	public final fun resourceViewed--Xm7VB4 (Ljava/lang/String;)V
+	public final fun resources ()Lsemiont/cache/Cached;
+	public final fun resources (J)Lsemiont/cache/Cached;
+	public final fun resources (JJ)Lsemiont/cache/Cached;
+	public final fun resources (JJLjava/lang/Boolean;)Lsemiont/cache/Cached;
+	public final fun resources (JJLjava/lang/Boolean;Ljava/lang/String;)Lsemiont/cache/Cached;
+	public static synthetic fun resources$default (Lsemiont/namespaces/BrowseNamespace;JJLjava/lang/Boolean;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/cache/Cached;
+	public final fun tagSchemas ()Lsemiont/cache/Cached;
+}
+
+public final class semiont/namespaces/Collaborator {
+	public fun <init> (Lsemiont/types/CollaboratorEntry;Lsemiont/types/InferenceLimits;)V
+	public final fun component1 ()Lsemiont/types/CollaboratorEntry;
+	public final fun component2 ()Lsemiont/types/InferenceLimits;
+	public final fun copy (Lsemiont/types/CollaboratorEntry;Lsemiont/types/InferenceLimits;)Lsemiont/namespaces/Collaborator;
+	public static synthetic fun copy$default (Lsemiont/namespaces/Collaborator;Lsemiont/types/CollaboratorEntry;Lsemiont/types/InferenceLimits;ILjava/lang/Object;)Lsemiont/namespaces/Collaborator;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEntry ()Lsemiont/types/CollaboratorEntry;
+	public final fun getLimits ()Lsemiont/types/InferenceLimits;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class semiont/namespaces/FrameNamespace {
@@ -682,6 +772,8 @@ public final class semiont/namespaces/GatherNamespace {
 	public final fun annotation-n0x_L0s (Ljava/lang/String;Ljava/lang/String;JLjava/lang/Boolean;Ljava/lang/Boolean;)Lsemiont/Running;
 	public static synthetic fun annotation-n0x_L0s$default (Lsemiont/namespaces/GatherNamespace;Ljava/lang/String;Ljava/lang/String;JLjava/lang/Boolean;Ljava/lang/Boolean;ILjava/lang/Object;)Lsemiont/Running;
 	public final fun annotation-rbRhPYE (Ljava/lang/String;Ljava/lang/String;J)Lsemiont/Running;
+	public final fun referencedBy (Lsemiont/identifiers/ResourceId;)Lsemiont/cache/Cached;
+	public final fun referencedBy--Xm7VB4 (Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun resource-Z9ojSc8 (Ljava/lang/String;JJZZLjava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun resource-Z9ojSc8$default (Lsemiont/namespaces/GatherNamespace;Ljava/lang/String;JJZZLjava/util/List;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun resourceFuture (Lsemiont/identifiers/ResourceId;JJZZLjava/util/List;)Ljava/util/concurrent/CompletableFuture;
@@ -730,6 +822,12 @@ public final class semiont/namespaces/MarkNamespace {
 
 public final class semiont/namespaces/MatchNamespace {
 	public final fun requestSearch (Lsemiont/types/MatchSearchRequest;Ljava/lang/String;)V
+	public final fun resources (Ljava/lang/String;)Lsemiont/cache/Cached;
+	public final fun resources (Ljava/lang/String;J)Lsemiont/cache/Cached;
+	public final fun resources (Ljava/lang/String;JJ)Lsemiont/cache/Cached;
+	public final fun resources (Ljava/lang/String;JJLjava/lang/Boolean;)Lsemiont/cache/Cached;
+	public final fun resources (Ljava/lang/String;JJLjava/lang/Boolean;Ljava/lang/String;)Lsemiont/cache/Cached;
+	public static synthetic fun resources$default (Lsemiont/namespaces/MatchNamespace;Ljava/lang/String;JJLjava/lang/Boolean;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/cache/Cached;
 	public final fun search (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Lsemiont/types/GatheredContext;)Lsemiont/Running;
 	public final fun search (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Lsemiont/types/GatheredContext;J)Lsemiont/Running;
 	public final fun search (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Lsemiont/types/GatheredContext;JZ)Lsemiont/Running;
@@ -915,6 +1013,38 @@ public final class semiont/signin/StateHomeKt {
 	public static final field FILE_NAME Ljava/lang/String;
 	public static final fun stateDir (Lsemiont/signin/Platform;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun thisPlatform ()Lsemiont/signin/Platform;
+}
+
+public final class semiont/storage/CachePersistence {
+	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;)V
+	public final fun getKeyPrefix ()Ljava/lang/String;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+}
+
+public final class semiont/storage/CoupledBookmarks : semiont/http/Bookmarks {
+	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;)V
+	public final fun getFlushGate ()Lkotlin/jvm/functions/Function0;
+	public final fun getStorage ()Lsemiont/storage/SessionStorage;
+	public fun load ()Ljava/util/Map;
+	public fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun setFlushGate (Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class semiont/storage/MemoryStorage : semiont/storage/SessionStorage {
+	public fun <init> ()V
+	public fun get (Ljava/lang/String;)Ljava/lang/String;
+	public fun set (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public abstract interface class semiont/storage/SessionStorage {
+	public abstract fun get (Ljava/lang/String;)Ljava/lang/String;
+	public abstract fun set (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class semiont/storage/StoragePersister : semiont/cache/CachePersister {
+	public fun <init> (Lsemiont/storage/SessionStorage;Ljava/lang/String;Lkotlinx/serialization/KSerializer;Lkotlinx/serialization/KSerializer;JJ)V
+	public fun load ()Ljava/util/Map;
+	public fun save (Ljava/util/Map;)V
 }
 
 public final class semiont/transport/ConnectionState : java/lang/Enum {

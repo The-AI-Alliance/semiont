@@ -119,6 +119,7 @@ internal class Stream(
     private val router: ReplyRouter,
     private val failures: Broadcast<SemiontError>,
     private val scope: CoroutineScope,
+    private val bookmarks: Bookmarks?,
 ) {
     private sealed interface Report
 
@@ -148,7 +149,8 @@ internal class Stream(
     private var running = false
 
     private val scoped = sortedMapOf<String, Pair<ResourceId, List<String>>>()
-    private val watermarks = mutableMapOf<String, String>()
+    /** Each scope's position: where the client's last life left it, when it kept that, and what has been delivered since. */
+    private val watermarks = bookmarks?.load().orEmpty().mapKeys { it.key.value }.toMutableMap()
     private val seen = SeenIds(timing.seenEventIdsCount)
 
     private var nextConn = 0
@@ -270,6 +272,9 @@ internal class Stream(
     // ── connecting ───────────────────────────────────────────────────────
 
     private fun connect(keepPrevious: Boolean, now: Long) {
+        // A transport that carries nothing opens no stream: one held only for the gateway's own operations, or to ask
+        // who a token is, makes no request of the bus. Taking a resource's scope gives it something to carry.
+        if (global.isEmpty() && scoped.isEmpty()) return
         // A connect with no token cannot succeed, and neither can one that sends again the token the gateway just
         // refused. Neither is attempted: the client waits, with no request, for a different one.
         val token = currentToken()
@@ -369,7 +374,10 @@ internal class Stream(
         val frame = Frame(channel, payload, correlationId, scope, Telemetry.received(channel, scope, sentUnder))
         router.route(frame)
         // A scope's position is the last recorded event delivered on it: only a recorded event's id (`p-…`) is one.
-        if (id != null && scope != null && id.startsWith("p-")) watermarks[scope.value] = id
+        if (id != null && scope != null && id.startsWith("p-")) {
+            watermarks[scope.value] = id
+            bookmarks?.save(scope, id)
+        }
         hub.deliver(frame)
     }
 

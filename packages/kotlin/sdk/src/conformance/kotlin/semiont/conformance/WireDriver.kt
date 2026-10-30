@@ -59,6 +59,7 @@ private class WireDriver(private val abandon: (Long) -> Boolean) : Driver {
         "put", "upload", "get", "get-stream", "graph", "annotations", "anchored-text",
         "health", "status", "current-user", "media-token", "protected-resource-metadata", "sync",
     )
+    override val inTurn = emptySet<String>()
 
     private var client: Client? = null
     private val held = mutableMapOf<String, MutableList<ResourceHold>>()

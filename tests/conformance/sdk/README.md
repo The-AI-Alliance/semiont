@@ -347,9 +347,9 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-The TypeScript, Rust, Python and Go drivers each run every wire case. An SDK
-that arrives in steps names what it has not reached, with what it lacks: the
-Kotlin SDK's line does.
+The TypeScript, Rust, Python, Go and Kotlin drivers each run every wire case.
+An SDK that arrives in steps names what it has not reached, with what it
+lacks.
 
 ## Cases that restate a table
 
@@ -383,9 +383,11 @@ the module [packages/go/sdk/conformance](../../../packages/go/sdk/conformance):
 [semiont-go-wire-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-wire-driver/main.go)
 and
 [semiont-go-live-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-live-driver/main.go),
-built into its `bin/`. Kotlin's wire driver is
-[`WireDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/WireDriver.kt),
-laid out with its start script in `packages/kotlin/sdk/build/conformance` by
+built into its `bin/`. Kotlin's are
+[`WireDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/WireDriver.kt)
+and
+[`LiveDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/LiveDriver.kt),
+laid out with their start scripts in `packages/kotlin/sdk/build/conformance` by
 `./gradlew installConformance`.
 
 ## Running it

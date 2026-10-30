@@ -10,6 +10,9 @@ import semiont.namespaces.FrameNamespace
 import semiont.namespaces.GatherNamespace
 import semiont.namespaces.JobNamespace
 import semiont.namespaces.Links
+import semiont.namespaces.Live
+import semiont.namespaces.Refresher
+import semiont.storage.CachePersistence
 import semiont.namespaces.MarkNamespace
 import semiont.namespaces.MatchNamespace
 import semiont.namespaces.SystemNamespace
@@ -31,6 +34,8 @@ public class SemiontClient @JvmOverloads constructor(
     content: ContentTransport,
     gateway: GatewayOperations,
     public val timing: ClientTiming = ClientTiming(),
+    /** Where the client keeps what its queries hold, so the next client of the same knowledge base shows it at once: nowhere, when none. */
+    persistence: CachePersistence? = null,
 ) : AutoCloseable {
     /** The client's own bus: every frame the transport delivered, and every signal the client's parts gave each other. */
     public val bus: EventBus = EventBus()
@@ -40,17 +45,27 @@ public class SemiontClient @JvmOverloads constructor(
 
     internal val links: Links
 
+    /** The caches the client's live queries answer from, and what keeps them true. */
+    private val live: Live
+    private val refresher: Refresher
+
     init {
         wire = Bus(transport)
         links = Links(transport, wire, bus, timing)
         transport.bridgeInto(bus)
+        live = Live(links, content, persistence)
+        refresher = Refresher(links, live)
+        refresher.start()
     }
+
+    /** Whether every query the client keeps is at rest: none is being fetched, and none is owed to storage. A client that keeps nothing is always so. */
+    public val persistenceSettled: Boolean get() = live.persistenceSettled
 
     /** The vocabulary: what kinds of things exist. */
     public val frame: FrameNamespace = FrameNamespace(links)
 
     /** Reads, and this viewer's own signals. */
-    public val browse: BrowseNamespace = BrowseNamespace(links, content)
+    public val browse: BrowseNamespace = BrowseNamespace(links, content, live)
 
     /** Annotations, a resource's own metadata, and the annotating of a resource delegated as a job. */
     public val mark: MarkNamespace = MarkNamespace(links)
@@ -59,10 +74,10 @@ public class SemiontClient @JvmOverloads constructor(
     public val bind: BindNamespace = BindNamespace(links)
 
     /** Assembling the context a model is given, and what refers to a resource. */
-    public val gather: GatherNamespace = GatherNamespace(links)
+    public val gather: GatherNamespace = GatherNamespace(links, live)
 
     /** Searching: for what a reference could refer to, and for resources by text. */
-    public val match: MatchNamespace = MatchNamespace(links)
+    public val match: MatchNamespace = MatchNamespace(links, live)
 
     /** Creating resources. `yield` is no keyword in Kotlin; Java calls it as a member, which its contextual `yield` does not touch. */
     public val yield: YieldNamespace = YieldNamespace(links, content)
@@ -79,8 +94,14 @@ public class SemiontClient @JvmOverloads constructor(
     /** What the knowledge base says about itself. */
     public val system: SystemNamespace = SystemNamespace(links, gateway)
 
-    /** End the client: its own bus ends, so every reader of it does, and then the work it began. Closing twice is closing once. */
+    /**
+     * End the client: its live queries end, so every collector of one does, and
+     * its own bus, so every reader of it does, and then the work it began.
+     * Closing twice is closing once.
+     */
     override fun close() {
+        refresher.dispose()
+        live.dispose()
         bus.destroy()
         links.close()
     }

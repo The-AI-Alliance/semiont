@@ -8,4 +8,6 @@ public data class ClientTiming @JvmOverloads constructor(
     public val jobSilenceMs: Long = Timings.JOB_SILENCE_MS,
     /** How often a follower asks a job's status while it waits for the job to end. */
     public val jobStatusPollMs: Long = Timings.JOB_STATUS_POLL_MS,
+    /** How long the refetches of one key that events ask for are taken as one. */
+    public val invalidationWindowMs: Long = Timings.INVALIDATION_WINDOW_MS,
 )
