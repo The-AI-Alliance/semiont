@@ -2,6 +2,8 @@
 
 package semiont.http
 
+import semiont.bus.Logged
+import semiont.bus.BusLog
 import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -356,6 +358,9 @@ internal class Stream(
         val correlationId = (carried["correlationId"] as? JsonPrimitive)?.contentOrNull
         val scopeText = (carried["scope"] as? JsonPrimitive)?.contentOrNull
         val scope = scopeText?.let { ResourceId.parse(it) ?: return }
+        BusLog.line(Logged.RECV, channel, payload, scope, correlationId)
+        // What closing a retired connection at once would have lost.
+        if (conn in superseded) BusLog.note("LINGER", channel, "delivered on superseded connection")
         var sentUnder: TraceContext? = null
         if (TRACE_FIELD in payload) {
             sentUnder = sentUnder(payload[TRACE_FIELD])

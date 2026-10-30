@@ -2,6 +2,8 @@
 
 package semiont.http
 
+import semiont.bus.Logged
+import semiont.bus.BusLog
 import semiont.telemetry.futureOf
 import semiont.telemetry.Telemetry
 import kotlinx.coroutines.CoroutineScope
@@ -103,8 +105,10 @@ public class HttpTransport @JvmOverloads constructor(
 
     // ── the bus ──────────────────────────────────────────────────────────
 
-    override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? =
-        Telemetry.emitting(channel, scope) { sent(channel, payload, scope, correlationId) }
+    override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
+        BusLog.line(Logged.EMIT, channel, payload, scope, correlationId)
+        return Telemetry.emitting(channel, scope) { sent(channel, payload, scope, correlationId) }
+    }
 
     /** One emit, made again inside the retry budget, its credential renewed once. */
     private suspend fun sent(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {

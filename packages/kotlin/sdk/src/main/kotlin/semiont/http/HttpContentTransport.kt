@@ -2,6 +2,9 @@
 
 package semiont.http
 
+import kotlinx.serialization.json.JsonObject
+import semiont.bus.Logged
+import semiont.bus.BusLog
 import semiont.telemetry.futureOf
 import semiont.telemetry.callersTrace
 import semiont.telemetry.Telemetry
@@ -117,6 +120,14 @@ private class Form(request: PutBinaryRequest) {
     }
 }
 
+/** What a read asks, as its bus log line shows it: the resource, and which of its parts when not its bytes whole. */
+private fun asked(resourceId: ResourceId, part: String?): JsonObject = JsonObject(
+    buildMap {
+        put("resourceId", JsonPrimitive(resourceId.value))
+        part?.let { put(it, JsonPrimitive(true)) }
+    },
+)
+
 /** Content over the gateway an `HttpTransport` speaks to. */
 public class HttpContentTransport(private val transport: HttpTransport) : ContentTransport {
     private val exchange = transport.exchange
@@ -137,6 +148,13 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
         }
         val sending = scope.async(callersTrace()) {
             try {
+                val described = mapOf(
+                    "name" to JsonPrimitive(request.name),
+                    "format" to JsonPrimitive(request.format),
+                    "storageUri" to JsonPrimitive(request.storageUri),
+                    "sizeBytes" to JsonPrimitive(request.file.size),
+                )
+                BusLog.line(Logged.PUT, "content", JsonObject(described), null, null)
                 Telemetry.putting(request.format, form.size) {
                     // No deadline: how long an upload takes is how large the resource is.
                     exchange.answer(
@@ -160,7 +178,10 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
         return response.headers().firstValue("content-type").orElse("application/octet-stream") to response.body()
     }
 
-    override suspend fun getBinary(resourceId: ResourceId): Content = Telemetry.getting(resourceId, stream = false) { whole(resourceId) }
+    override suspend fun getBinary(resourceId: ResourceId): Content {
+        BusLog.line(Logged.GET, "content", asked(resourceId, null), null, null)
+        return Telemetry.getting(resourceId, stream = false) { whole(resourceId) }
+    }
 
     private suspend fun whole(resourceId: ResourceId): Content {
         val (contentType, body) = arriving(resourceId)
@@ -175,7 +196,10 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
     @JvmExposeBoxed
     override fun getBinaryFuture(resourceId: ResourceId): CompletableFuture<Content> = scope.futureOf { getBinary(resourceId) }
 
-    override suspend fun getBinaryStream(resourceId: ResourceId): ContentStream = Telemetry.getting(resourceId, stream = true) { stream(resourceId) }
+    override suspend fun getBinaryStream(resourceId: ResourceId): ContentStream {
+        BusLog.line(Logged.GET, "content", asked(resourceId, "stream"), null, null)
+        return Telemetry.getting(resourceId, stream = true) { stream(resourceId) }
+    }
 
     private suspend fun stream(resourceId: ResourceId): ContentStream {
         val (contentType, body) = arriving(resourceId)
@@ -198,20 +222,26 @@ public class HttpContentTransport(private val transport: HttpTransport) : Conten
     @JvmExposeBoxed
     override fun getBinaryStreamFuture(resourceId: ResourceId): CompletableFuture<ContentStream> = scope.futureOf { getBinaryStream(resourceId) }
 
-    override suspend fun getResourceGraph(resourceId: ResourceId): GetResourceResponse =
-        Telemetry.gettingGraph(resourceId) { exchange.answer(GetResourceResponse.serializer(), "GET", "${pathOf(resourceId)}/jsonld") }
+    override suspend fun getResourceGraph(resourceId: ResourceId): GetResourceResponse {
+        BusLog.line(Logged.GET, "content", asked(resourceId, "graph"), null, null)
+        return Telemetry.gettingGraph(resourceId) { exchange.answer(GetResourceResponse.serializer(), "GET", "${pathOf(resourceId)}/jsonld") }
+    }
 
     @JvmExposeBoxed
     override fun getResourceGraphFuture(resourceId: ResourceId): CompletableFuture<GetResourceResponse> = scope.futureOf { getResourceGraph(resourceId) }
 
-    override suspend fun getAnnotations(resourceId: ResourceId): GetAnnotationsResponse =
-        Telemetry.gettingAnnotations(resourceId) { exchange.answer(GetAnnotationsResponse.serializer(), "GET", "${pathOf(resourceId)}/annotations") }
+    override suspend fun getAnnotations(resourceId: ResourceId): GetAnnotationsResponse {
+        BusLog.line(Logged.GET, "content", asked(resourceId, "annotations"), null, null)
+        return Telemetry.gettingAnnotations(resourceId) { exchange.answer(GetAnnotationsResponse.serializer(), "GET", "${pathOf(resourceId)}/annotations") }
+    }
 
     @JvmExposeBoxed
     override fun getAnnotationsFuture(resourceId: ResourceId): CompletableFuture<GetAnnotationsResponse> = scope.futureOf { getAnnotations(resourceId) }
 
-    override suspend fun getAnchoredText(resourceId: ResourceId): AnchoredTextAnswer =
-        Telemetry.gettingAnchoredText(resourceId) { exchange.answer(AnchoredTextAnswer.serializer(), "GET", "${pathOf(resourceId)}/anchored-text") }
+    override suspend fun getAnchoredText(resourceId: ResourceId): AnchoredTextAnswer {
+        BusLog.line(Logged.GET, "content", asked(resourceId, "anchoredText"), null, null)
+        return Telemetry.gettingAnchoredText(resourceId) { exchange.answer(AnchoredTextAnswer.serializer(), "GET", "${pathOf(resourceId)}/anchored-text") }
+    }
 
     @JvmExposeBoxed
     override fun getAnchoredTextFuture(resourceId: ResourceId): CompletableFuture<AnchoredTextAnswer> = scope.futureOf { getAnchoredText(resourceId) }

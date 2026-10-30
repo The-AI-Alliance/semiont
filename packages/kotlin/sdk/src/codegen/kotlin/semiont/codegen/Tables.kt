@@ -177,6 +177,14 @@ internal fun telemetryFile(table: JsonObject): String = buildString {
     append("}\n")
 }
 
+/** The names a credential goes by, which the bus log withholds the value of (bus/log-cases.json). */
+internal fun credentialsFile(table: JsonObject): String = buildString {
+    val names = table["names"].list("the bus log's names").map { it.text("a name") }
+    if (names.isEmpty() || names.toSet().size != names.size) refuse("the bus log's names are none, or one is named twice")
+    append("/** The names a credential goes by: a bus log line shows `[withheld]` for the value of a member under any of them (specs/src/bus/log-cases.json). */\n")
+    append("internal val CREDENTIAL_NAMES: Set<String> = setOf(${names.joinToString(", ") { literal(it) }})\n")
+}
+
 /** The timing a client keeps: each row a constant, `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`, a budget as a `RetryPolicy`. */
 internal fun timingFile(table: JsonObject): String = buildString {
     append("/** The timing a client keeps (specs/src/client/timing.json). */\n")
