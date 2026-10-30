@@ -17,6 +17,7 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
 use semiont::annotations::{QuotedText, annotation_of_span, reconcile};
+use semiont::channels::PrincipalProfile;
 use semiont::claims::{ClaimOptions, HeldJob, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, JobFailure};
 use semiont::client::ClientOptions;
 use semiont::discovery::{
@@ -25,7 +26,7 @@ use semiont::discovery::{
 use semiont::errors::{
     BusRequestErrorCode, IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode,
 };
-use semiont::identity::{agent_did, engine_name};
+use semiont::identity::agent_did;
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
 use semiont::session::{
     OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
@@ -36,11 +37,11 @@ use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::as_id;
 use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
 use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
-use semiont::transport::PutBinaryRequest;
+use semiont::transport::{Envelope, PutBinaryRequest};
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
     JobCompleteCommand, JobProgress, KbEndpoint, KbTarget, KnowledgeBase, LocalEndpoint,
-    MarkJobDone, MarkJobFilter, MarkJobFilterParams, Motivation,
+    MarkJobDone, MarkJobFilter, MarkJobFilterParams, Motivation, PrincipalProfileCommand,
 };
 use semiont_http_transport::agent::{AgentSignInError, AgentToken};
 use semiont_http_transport::client::client;
@@ -2791,6 +2792,8 @@ async fn a_worker(
     http: reqwest::Client,
 ) -> Result<(), Box<dyn Error>> {
     // <readme:worker>
+    // What the agent says it is called: here, its client id.
+    let called = credential.client_id.clone();
     // A worker signs in as a daemon does: as itself, the agent its work is
     // attributed to.
     let agent = AgentToken::sign_in(
@@ -2801,11 +2804,11 @@ async fn a_worker(
     .await?;
     println!("working as {}", agent.did());
     // What made the annotations it commits: the agent, as the gateway names
-    // it, and the engine it ran.
+    // it, and the engine it ran. It carries no name: readers name the agent
+    // by what it says it is called.
     let (provider, model) = ("ollama", "gemma3:4b");
     let generator = AgentSoftware {
         id: Some(agent.did().to_string()),
-        name: Some(engine_name(provider, model)),
         provider: Some(provider.to_owned()),
         model: Some(model.to_owned()),
         ..AgentSoftware::new()
@@ -2827,6 +2830,18 @@ async fn a_worker(
         },
         ClientOptions::default(),
     );
+    // It says what it is called, as itself, once. Readers name it by the
+    // last name it said, as they name a person.
+    client
+        .wire()
+        .emit::<PrincipalProfile>(
+            &PrincipalProfileCommand {
+                _user_id: None,
+                name: called,
+            },
+            Envelope::default(),
+        )
+        .await?;
 
     // What it accepts: the `mark` jobs of one motivation.
     let highlighting = MarkJobFilter::new(MarkJobFilterParams {
@@ -3091,7 +3106,7 @@ async fn the_daemon_signs_in_as_an_agent_and_is_given_each_completion() {
 }
 
 #[tokio::test]
-async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed_and_claims_again()
+async fn the_worker_says_what_it_is_called_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_handed_and_claims_again()
  {
     let world = World::start().await;
     world.answers([granted(
@@ -3144,6 +3159,7 @@ async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_hand
     assert_eq!(
         said(),
         [
+            "principal:profile",
             "job:claim",
             "job:start",
             "job:report-progress",
@@ -3153,15 +3169,17 @@ async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_hand
         ]
     );
     let emitted = world.staged.emitted.lock().unwrap().clone();
+    // It said it is called by its client id, before it claimed.
+    assert_eq!(emitted[0]["payload"], json!({ "name": "my-worker" }));
     assert_eq!(
-        emitted[0]["payload"],
+        emitted[1]["payload"],
         json!({ "accepts": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }] })
     );
-    assert_eq!(emitted[1]["payload"]["jobId"], "job-1");
+    assert_eq!(emitted[2]["payload"]["jobId"], "job-1");
     // What it committed: one highlight, of the first line of the bytes the
     // gateway served, for the job it holds, made by the agent it works as
     // with the engine it ran.
-    let commit = &emitted[3]["payload"];
+    let commit = &emitted[4]["payload"];
     assert_eq!(commit["jobId"], "job-1");
     assert_eq!(commit["resourceId"], "res-1");
     let highlights = commit["annotations"].as_array().expect("a batch");
@@ -3178,13 +3196,13 @@ async fn the_worker_claims_as_its_agent_says_the_lifecycle_of_the_job_it_is_hand
         highlights[0]["generator"],
         json!({
             "@type": "Software", "@id": "did:web:example.org:agents:service-account-my-worker",
-            "name": "ollama gemma3:4b", "provider": "ollama", "model": "gemma3:4b",
+            "provider": "ollama", "model": "gemma3:4b",
         })
     );
     // And it reports what it proposed and what the record holds, established
     // by the record's acknowledgement.
     assert_eq!(
-        emitted[4]["payload"],
+        emitted[5]["payload"],
         json!({
             "resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "attempt": 1,
             "result": { "found": 1, "persisted": 1 }, "durability": "acknowledged",

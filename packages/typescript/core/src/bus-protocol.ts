@@ -222,7 +222,7 @@ export type EventMap = {
   // Domain event (branded — system of record). System-level: no resourceId.
   'principal:profiled': StoredEvent<EventOfType<'principal:profiled'>>;
 
-  // Command — gateway-emitted, never client-set.
+  // Command — what a principal is called: emitted by the gateway from a token's name, or by a principal of itself. The gateway stamps the sender's DID.
   'principal:profile': components['schemas']['PrincipalProfileCommand'];
 
   // ========================================================================

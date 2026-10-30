@@ -430,9 +430,10 @@ The Archivist answers these reads. Each replies on the channel's `-result`, or o
 concurrently, in no particular order. A resource's annotations are no bus read: their number
 follows the document's, and they are read over HTTP (§ The HTTP surface).
 
-**Names.** A reply that mentions principals names them from `profiles.json`: every agent of type
-`Person` whose DID has a profile carries that profile's name. If the projection cannot be read, the reply
-names no one.
+**Names.** A reply that mentions principals names them from `profiles.json`: every object of type
+`Person` or `Software`, a person or an agent, whose DID has a profile carries that profile's name, as
+[`naming-cases.json`](../../specs/src/principals/naming-cases.json) states. If the projection cannot
+be read, the reply names no one.
 
 | Request | Answers |
 |---|---|

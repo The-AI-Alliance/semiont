@@ -1,6 +1,7 @@
 {
-  "$comment": "How the people a reply mentions are named, as every implementation must name them. No stored thing carries a person's name: a person is identified by an id, and what the knowledge base calls them is filled in when a reply is read. Every implementation runs every case and fails on a difference, in whatever language it is written. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `profiles` is what the knowledge base calls its principals: each one's `name` and the moment it gave it (`since`), by its id, as the profiles projection holds them. `named` is the reply with its people named. THE RULE. A person is an object whose `@type` is `Person`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another person. A person whose `@id` is in `profiles` has its `name` set to the name stated there, in place of any name it carried. A person whose `@id` is not in `profiles` is left as it is, with the name it carried or with none. Nothing else of a person changes, and nothing else of the reply does: an object whose `@type` is anything else is no person, though its `@id` is in `profiles`, and `since` is put nowhere. Add a case here before changing an implementation.",
+  "$comment": "How the principals a reply mentions are named, as every implementation must name them. No stored thing carries a principal's name: a person and an agent are each identified by an id, and what the knowledge base calls them, what each last said it is called, is filled in when a reply is read. Every implementation runs every case and fails on a difference, in whatever language it is written. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `profiles` is what the knowledge base calls its principals: each one's `name` and the moment it gave it (`since`), by its id, as the profiles projection holds them. `named` is the reply with its principals named. THE RULE. A principal is an object whose `@type` is `Person` or `Software`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another principal. A principal whose `@id` is in `profiles` has its `name` set to the name stated there, in place of any name it carried. A principal whose `@id` is not in `profiles` is left as it is, with the name it carried or with none. Nothing else of a principal changes, and nothing else of the reply does: an object whose `@type` is anything else is no principal, though its `@id` is in `profiles`, and `since` is put nowhere. Add a case here before changing an implementation.",
   "runBy": {
+    "archivist": ["images/archivist/src/naming.rs"],
     "librarian": ["images/librarian/tests/test_naming_cases.py"]
   },
   "cases": [
@@ -219,19 +220,58 @@
       }
     },
     {
-      "why": "a Software agent is no person: it keeps its own name, though its id has a profile",
+      "why": "an agent with a profile, identified and not named, is given the name, as a person is, and the engine it stated is kept",
       "reply": {
-        "generator": { "@type": "Software", "@id": "did:web:example.org:users:ada", "name": "ollama gemma", "provider": "ollama", "model": "gemma" }
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "provider": "ollama", "model": "gemma" }
       },
       "profiles": {
-        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
+        "did:web:example.org:agents:semiont-worker": { "name": "semiont-worker", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
-        "generator": { "@type": "Software", "@id": "did:web:example.org:users:ada", "name": "ollama gemma", "provider": "ollama", "model": "gemma" }
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "semiont-worker", "provider": "ollama", "model": "gemma" }
       }
     },
     {
-      "why": "an Organization is no person either, and neither is an object that states an id with a profile and no type",
+      "why": "a name an agent carried is replaced by the name of its profile: here the carried one named its engine",
+      "reply": {
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "ollama gemma", "provider": "ollama", "model": "gemma" }
+      },
+      "profiles": {
+        "did:web:example.org:agents:semiont-worker": { "name": "semiont-worker", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "semiont-worker", "provider": "ollama", "model": "gemma" }
+      }
+    },
+    {
+      "why": "an agent with no profile is left as it is, with no name",
+      "reply": {
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:stranger", "provider": "ollama", "model": "gemma" }
+      },
+      "profiles": {
+        "did:web:example.org:agents:semiont-worker": { "name": "semiont-worker", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:stranger", "provider": "ollama", "model": "gemma" }
+      }
+    },
+    {
+      "why": "a person and an agent in one reply are each named by their own profile",
+      "reply": {
+        "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" },
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "provider": "ollama", "model": "gemma" }
+      },
+      "profiles": {
+        "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
+        "did:web:example.org:agents:semiont-worker": { "name": "semiont-worker", "since": "2020-03-04T05:06:07.000Z" }
+      },
+      "named": {
+        "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" },
+        "generator": { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "semiont-worker", "provider": "ollama", "model": "gemma" }
+      }
+    },
+    {
+      "why": "an Organization is no principal, and neither is an object that states an id with a profile and no type",
       "reply": {
         "publisher": { "@type": "Organization", "@id": "did:web:example.org:users:ada", "name": "An organization" },
         "about": { "@id": "did:web:example.org:users:ada" }
@@ -287,7 +327,7 @@
       }
     },
     {
-      "why": "a reply that mentions no person is as it was",
+      "why": "a reply that mentions no principal is as it was",
       "reply": {
         "annotations": [
           { "id": "ann-1", "motivation": "highlighting", "target": { "source": "res-1" } }
@@ -309,7 +349,7 @@
       }
     },
     {
-      "why": "a string that is a person's id, and a member named for one, are no person: only an object typed as one is",
+      "why": "a string that is a principal's id, and a member named for one, are no principal: only an object typed as one is",
       "reply": {
         "userId": "did:web:example.org:users:ada",
         "did:web:example.org:users:ada": { "role": "editor" },

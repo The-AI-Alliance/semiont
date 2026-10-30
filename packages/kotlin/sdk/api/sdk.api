@@ -892,7 +892,6 @@ public abstract interface class semiont/http/TokenRefresher {
 public final class semiont/identity/IdentityKt {
 	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun encodeUriComponent (Ljava/lang/String;)Ljava/lang/String;
-	public static final fun engineName (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbDid (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbResource (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun personDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

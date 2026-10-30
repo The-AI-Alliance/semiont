@@ -374,7 +374,7 @@ def test_an_agent_opens_its_stream_as_its_account_with_the_token_its_issuer_gran
     assert capsys.readouterr().out.splitlines() == [f"working as {agent_did('example.org', 'semiont-smelter')}", "open"]
 
 
-def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_s_lifecycle_and_claims_again(
+def test_a_worker_says_what_it_is_called_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_s_lifecycle_and_claims_again(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # The resource's first line is the span of the first case of the id table: the id it states is the highlight's.
@@ -433,8 +433,18 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
             # Settling the job is an idle moment, and so the next claim: the one that is refused.
             await until("the worker's second claim", lambda: said().count("job:claim") == 2)
             await settle()
-            assert said() == ["job:claim", "job:start", "job:report-progress", "mark:commit", "job:complete", "job:claim"]
-            claim, start, progress, commit, complete, _ = gateway.emits
+            assert said() == [
+                "principal:profile",
+                "job:claim",
+                "job:start",
+                "job:report-progress",
+                "mark:commit",
+                "job:complete",
+                "job:claim",
+            ]
+            profiled, claim, start, progress, commit, complete, _ = gateway.emits
+            # Before it claims, it says it is called by its client id.
+            assert profiled["payload"] == {"name": "my-worker"}
             assert claim["payload"] == {"accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}]}
             # Every message of the lifecycle names the job and the attempt it is.
             identity: JsonObject = {"resourceId": "res-1", "jobId": "job-1", "jobType": "mark", "attempt": 1}
@@ -449,7 +459,6 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
             assert highlight["generator"] == {
                 "@type": "Software",
                 "@id": did,
-                "name": "ollama gemma3:4b",
                 "provider": "ollama",
                 "model": "gemma3:4b",
             }
@@ -545,7 +554,7 @@ def test_several_knowledge_bases_lists_what_is_registered_brings_up_the_active_o
 
 
 def test_building_annotations_builds_a_highlight_of_a_text_and_of_a_pdf_and_a_link_and_reads_each() -> None:
-    generator = AgentSoftware(type="Software", name="ollama gemma3:4b")
+    generator = AgentSoftware(type="Software", provider="ollama", model="gemma3:4b")
     text = "Ada Lovelace\nwrote the first algorithm.\n"
 
     # The model wrote the name in small letters: the highlight quotes it as the text has it.

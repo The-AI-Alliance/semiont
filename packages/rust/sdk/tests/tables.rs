@@ -92,18 +92,6 @@ fn principal_cases() {
             "{why}: an agent's DID read as a person"
         );
     }
-    let engines = cases["engines"]
-        .as_array()
-        .expect("principals/cases.json has engines");
-    assert!(!engines.is_empty(), "principals/cases.json has no engine");
-    for case in engines {
-        assert_eq!(
-            identity::engine_name(&text(case, "provider"), &text(case, "model")),
-            text(case, "name"),
-            "{}",
-            text(case, "why")
-        );
-    }
 }
 
 /// A case's kind, as the table names it.

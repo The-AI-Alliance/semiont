@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Bus command the gateway emits when a principal ACTS, carrying the display name it just verified on its token. The Stower persists it as principal:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a principal has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the profiles projection. Emitted for a person and for an agent alike; never for a request that merely reads.",
+  "description": "Bus command saying what a principal is called. The gateway emits it when a principal ACTS, carrying the display name it just verified on its token; a principal may also emit it itself, for itself, which is how an agent, whose token carries no name, says what it is called. Either way the gateway stamps `_userId` with the sender's verified DID, so a principal names only itself. The Stower persists it as principal:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a principal has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the profiles projection. Emitted for a person and for an agent alike; never for a request that merely reads.",
   "properties": {
     "_userId": {
       "allOf": [
@@ -12,7 +12,7 @@
     },
     "name": {
       "type": "string",
-      "description": "The display name from the issuer's `name` claim, as verified on the token that carried this act. A token with no name produces no command at all — the issuer is where a name is set, and absence is recorded as absence."
+      "description": "The display name: from the issuer's `name` claim, as verified on the token that carried an act, or what the principal said of itself. A token with no name produces no command from the gateway — the issuer is where a person's name is set, and absence is recorded as absence."
     }
   },
   "required": [

@@ -205,6 +205,8 @@ queue. Its stream names `JOB_CLAIM_CHANNELS`, and the client's `job.claim`
 hands it each job it comes to hold.
 
 ```rust
+// What the agent says it is called: here, its client id.
+let called = credential.client_id.clone();
 // A worker signs in as a daemon does: as itself, the agent its work is
 // attributed to.
 let agent = AgentToken::sign_in(
@@ -215,11 +217,11 @@ let agent = AgentToken::sign_in(
 .await?;
 println!("working as {}", agent.did());
 // What made the annotations it commits: the agent, as the gateway names
-// it, and the engine it ran.
+// it, and the engine it ran. It carries no name: readers name the agent
+// by what it says it is called.
 let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
-    name: Some(engine_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
     ..AgentSoftware::new()
@@ -241,6 +243,18 @@ let client = client(
     },
     ClientOptions::default(),
 );
+// It says what it is called, as itself, once. Readers name it by the
+// last name it said, as they name a person.
+client
+    .wire()
+    .emit::<PrincipalProfile>(
+        &PrincipalProfileCommand {
+            _user_id: None,
+            name: called,
+        },
+        Envelope::default(),
+    )
+    .await?;
 
 // What it accepts: the `mark` jobs of one motivation.
 let highlighting = MarkJobFilter::new(MarkJobFilterParams {

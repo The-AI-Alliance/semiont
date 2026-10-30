@@ -38,6 +38,8 @@ A worker does not sign in as a person. It is an agent, and an agent is an accoun
 
 The token the issuer grants is the worker's bearer at the gateway, and the gateway names the worker by that account: `did:web:<domain>:agents:<subject>`, an agent's DID, because the realm marks every agent's account as one (its tokens carry the claim `kind`, holding `agent`). That DID is what the work is attributed to. The model a worker runs is no part of who it is: each annotation it commits names the engine that made it. A process signs in once, whatever models it runs.
 
+What a worker is called is its profile, and it says so itself, as any principal may: a `principal:profile` command, `{ name }`, emitted on its client's wire. The gateway stamps the command with the sender's own DID, so a worker names only itself. Readers name an agent by the last name it said, as they name a person, and leave one that has said nothing unnamed. Semiont's own worker says its client id, as the workers below do.
+
 The account needs the `semiont-worker` role at the issuer. The gateway passes on the roles its token carries, and the dispatcher refuses every claim from an account without that one. Granting it to the worker's client is how an operator admits a worker that is not one of the stack's own.
 
 `startAgentSession` signs the worker in, asks the gateway its DID, and keeps its token fresh for as long as the process runs: it asks the issuer for a new one as each comes due, and at once when the gateway refuses one. The client is built over what it holds.
@@ -167,7 +169,7 @@ async function recordHighlights(
 }
 ```
 
-`generator` is the worker's own statement of what made the annotations: the agent it signed in as, by the DID the gateway named it with, and the engine it ran (`provider`, `model`). The record refuses a `generator` whose `@id` is not the writer's own.
+`generator` is the worker's own statement of what made the annotations: the agent it signed in as, by the DID the gateway named it with, and the engine it ran (`provider`, `model`). It carries no name: readers name the agent by [what it says it is called](#who-a-worker-is). The record refuses a `generator` whose `@id` is not the writer's own.
 
 The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does.
 
@@ -237,12 +239,7 @@ async function main(): Promise<void> {
   console.log(`working as ${agent.did}`);
   // What its annotations say made them: the agent, and the engine it ran.
   const engine = { provider: 'ollama', model: 'gemma3:4b' };
-  const generator: components['schemas']['Agent'] = {
-    '@type': 'Software',
-    '@id': agent.did,
-    name: `${engine.provider} ${engine.model}`,
-    ...engine,
-  };
+  const generator: components['schemas']['Agent'] = { '@type': 'Software', '@id': agent.did, ...engine };
 
   // What this worker's stream names: what claiming reads, and what a commit
   // of annotations awaits. It awaits nothing else, so it names nothing else.
@@ -253,6 +250,8 @@ async function main(): Promise<void> {
     channels: [...JOB_CLAIM_CHANNELS, ...JOB_COMMIT_CHANNELS],
   });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+  // What it is called, said as itself: here, its client id.
+  await client.wire.emit('principal:profile', { name: clientId });
 
   const claims = client.job.claim({
     accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
@@ -315,6 +314,8 @@ Let a job in hand finish before shutting down, or stop the claims, which fails i
 The Rust SDK is two crates: `semiont`, whose client has `job.claim`, and `semiont-http-transport`, which signs the worker in. `AgentToken::sign_in` signs the worker in as [its account](#who-a-worker-is), learns the DID the gateway names it by, and keeps its token fresh for as long as the process holds it.
 
 ```rust
+// What the agent says it is called: here, its client id.
+let called = credential.client_id.clone();
 // A worker signs in as a daemon does: as itself, the agent its work is
 // attributed to.
 let agent = AgentToken::sign_in(
@@ -325,11 +326,11 @@ let agent = AgentToken::sign_in(
 .await?;
 println!("working as {}", agent.did());
 // What made the annotations it commits: the agent, as the gateway names
-// it, and the engine it ran.
+// it, and the engine it ran. It carries no name: readers name the agent
+// by what it says it is called.
 let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
-    name: Some(engine_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
     ..AgentSoftware::new()
@@ -351,6 +352,18 @@ let client = client(
     },
     ClientOptions::default(),
 );
+// It says what it is called, as itself, once. Readers name it by the
+// last name it said, as they name a person.
+client
+    .wire()
+    .emit::<PrincipalProfile>(
+        &PrincipalProfileCommand {
+            _user_id: None,
+            name: called,
+        },
+        Envelope::default(),
+    )
+    .await?;
 
 // What it accepts: the `mark` jobs of one motivation.
 let highlighting = MarkJobFilter::new(MarkJobFilterParams {
@@ -437,12 +450,21 @@ The Python SDK is one package, `semiont`. `AgentToken`, held with `async with`, 
 
 ```python
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
+from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
-from semiont.identity import engine_name
-from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
+from semiont.types import (
+    Agent,
+    AgentSoftware,
+    Annotation,
+    JobProgress,
+    MarkJobDone,
+    MarkJobFilter,
+    MarkJobFilterParams,
+    PrincipalProfileCommand,
+)
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
 
@@ -480,32 +502,34 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
         ) as transport,
         SemiontClient(transport, transport.content, transport) as client,
-        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
-        client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
-        generator = AgentSoftware(type="Software", id=agent.did, name=engine_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
-        # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
-        async for handed in claims:
-            match handed:
-                case ClaimRefusal(code="bus.unauthorized"):
-                    # This credential can never claim. Stop, so that whoever runs the worker sees it.
-                    raise PermissionError(handed.message)
-                case ClaimRefusal():
-                    print(f"claim refused: {handed.message}")
-                case HeldYieldJob():
-                    await handed.fail("this worker runs no yield job", failure_class="deterministic")
-                case HeldMarkJob():
-                    # A job left unsettled at the end of this block is failed.
-                    async with handed as job:
-                        await job.start()
-                        try:
-                            result = await highlight(client, job, generator)
-                        except Exception as error:
-                            await job.fail(str(error))
-                        else:
-                            await job.complete(result)
+        # It says what it is called, as itself: here, its client id. Readers name it by the last name it said, as they name a person.
+        await client.wire.emit(PRINCIPAL_PROFILE, PrincipalProfileCommand(name=client_id))
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran. It carries no name.
+        generator = AgentSoftware(type="Software", id=agent.did, provider=PROVIDER, model=MODEL)
+        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
+        async with client.job.claim(accepts) as claims:
+            # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
+            async for handed in claims:
+                match handed:
+                    case ClaimRefusal(code="bus.unauthorized"):
+                        # This credential can never claim. Stop, so that whoever runs the worker sees it.
+                        raise PermissionError(handed.message)
+                    case ClaimRefusal():
+                        print(f"claim refused: {handed.message}")
+                    case HeldYieldJob():
+                        await handed.fail("this worker runs no yield job", failure_class="deterministic")
+                    case HeldMarkJob():
+                        # A job left unsettled at the end of this block is failed.
+                        async with handed as job:
+                            await job.start()
+                            try:
+                                result = await highlight(client, job, generator)
+                            except Exception as error:
+                                await job.fail(str(error))
+                            else:
+                                await job.complete(result)
 ```
 
 `gateway` is the gateway's origin and `issuer` is the issuer the knowledge base trusts. Nothing in the package reads the environment: the process reads its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, and passes what it found. [The package's README](../../../../packages/python/sdk/README.md#a-worker) has the rules this program keeps.
