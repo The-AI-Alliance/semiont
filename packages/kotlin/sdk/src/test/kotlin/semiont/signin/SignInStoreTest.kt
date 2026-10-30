@@ -234,11 +234,14 @@ class SignInStoreTest {
                 sys.stdin.read()
             """.trimIndent()
 
-            /** Linux's own flock(1) where the system has it, as the launcher's lock is flock(2); Python's elsewhere. */
-            fun holderCommand(lock: Path): List<String> = when (thisPlatform()) {
-                Platform.OTHER -> listOf("flock", "--exclusive", lock.toString(), "sh", "-c", "echo held; cat >/dev/null")
-                Platform.MACOS -> listOf("python3", "-c", python, lock.toString())
-                Platform.WINDOWS -> listOf("python", "-c", python, lock.toString())
+            /**
+             * Linux's own flock(1) where the system has it, as the launcher's lock is flock(2); Python's elsewhere,
+             * its script in a file of its own: Windows' command line would lose the quotes of a script passed inline.
+             */
+            fun holderCommand(lock: Path): List<String> {
+                if (thisPlatform() == Platform.OTHER) return listOf("flock", "--exclusive", lock.toString(), "sh", "-c", "echo held; cat >/dev/null")
+                val script = Files.createTempFile("holder", ".py").also { Files.writeString(it, python) }
+                return listOf(if (thisPlatform() == Platform.WINDOWS) "python" else "python3", script.toString(), lock.toString())
             }
         }
     }

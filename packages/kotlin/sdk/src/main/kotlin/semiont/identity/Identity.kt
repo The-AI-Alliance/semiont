@@ -29,12 +29,12 @@ public fun agentDid(domain: String, provider: String, model: String): UserId =
     UserId("did:web:$domain:agents:${encodeUriComponent(provider)}:${encodeUriComponent(model)}")
 
 /**
- * An agent's address: `provider:model` with every run of characters outside
- * `[A-Za-z0-9-]` one hyphen and none at either end, at `agents.` and the
- * domain up to its first colon.
+ * An agent's address: `provider:model` with every run of characters other
+ * than ASCII letters and digits one hyphen, a hyphen of its own included, and
+ * none at either end, at `agents.` and the domain up to its first colon.
  */
 public fun agentAddress(domain: String, provider: String, model: String): String {
-    val slug = notOfAnAddress.replace("$provider:$model", "-").replace(Regex("-+"), "-").trim('-')
+    val slug = notOfAnAddress.replace("$provider:$model", "-").trim('-')
     return "$slug@agents.${domain.substringBefore(':')}"
 }
 
