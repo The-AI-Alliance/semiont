@@ -59,10 +59,17 @@ holds the count.
   what was expected of it, and never a value found in the document.
   *Held by `worker-service/boot`.*
 - **B3.** The document carries no secret. The service's own account at the
-  issuer is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its
-  environment. With either unset or empty it writes `[fatal] <variable> is not
-  set in the worker's environment: a worker signs in as a service account` and
-  exits with status 1. Nothing it writes carries the secret.
+  issuer is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its
+  environment: its client id, and the RSA private key it proves itself with,
+  PEM and unencrypted. Each sign-in carries an assertion signed with the key
+  (RFC 7523, `private_key_jwt`; `specs/src/session/client-assertion-cases.json`),
+  and no secret. With either unset or empty it writes `[fatal] <variable> is
+  not set in the worker's environment: a worker signs in as a service account`
+  and exits with status 1. With a key it cannot read it writes `[fatal]
+  SEMIONT_OIDC_CLIENT_KEY in the worker's environment is not an unencrypted PEM
+  private key`, and with one that is not RSA `[fatal] SEMIONT_OIDC_CLIENT_KEY in
+  the worker's environment is not an RSA key: a worker signs its assertions with
+  RS256`, each exiting with status 1. Nothing it writes carries the key.
   *Held by `worker-service/boot`.*
 - **B4.** A provider's key is named, not stated: an agent's `apiKeyEnv` is the
   name of the environment variable that holds it. When the variable an agent
@@ -888,7 +895,7 @@ focused on a resource or on an annotation.
 ## Environment
 
 Beside its document, a Worker service reads its environment for its service
-account (`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`,
+account (`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY`,
 [B3](#configuration)), for the keys its document names
 ([B4](#configuration)), and for the variables of this section. Its own code
 reads no other. The libraries it is built on read some unasked. Its

@@ -4,9 +4,9 @@
     "typescript": ["packages/typescript/core/src/__tests__/bus-log-cases.test.ts"],
     "rust": ["packages/rust/sdk/src/bus_log.rs"],
     "python": ["packages/python/sdk/tests/test_bus_log.py"],
-    "go": ["packages/go/sdk/buslog_test.go"]
+    "go": ["packages/go/sdk/buslog_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusLogTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's bus log, the line it writes for each frame when SEMIONT_BUS_LOG is set."},
   "names": [
     "token",
     "cloneToken",

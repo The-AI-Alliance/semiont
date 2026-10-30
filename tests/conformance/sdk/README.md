@@ -348,7 +348,8 @@ driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
 The TypeScript, Rust, Python and Go drivers each run every wire case. An SDK
-that arrives in steps names what it has not reached, with what it lacks.
+that arrives in steps names what it has not reached, with what it lacks: the
+Kotlin SDK's line does.
 
 ## Cases that restate a table
 
@@ -382,17 +383,22 @@ the module [packages/go/sdk/conformance](../../../packages/go/sdk/conformance):
 [semiont-go-wire-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-wire-driver/main.go)
 and
 [semiont-go-live-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-live-driver/main.go),
-built into its `bin/`.
+built into its `bin/`. Kotlin's wire driver is
+[`WireDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/WireDriver.kt),
+laid out with its start script in `packages/kotlin/sdk/build/conformance` by
+`./gradlew installConformance`.
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, the Go drivers, `nats-server`
-(2.10 or later) on `PATH`, the TypeScript SDK built, and, for the Python
-drivers, `uv` and Python 3.12 or later on `PATH`:
+It needs a built gateway and the Rust drivers, the Go drivers, the Kotlin
+drivers with a JDK of the version `packages/kotlin/sdk/.java-version` names,
+`nats-server` (2.10 or later) on `PATH`, the TypeScript SDK built, and, for
+the Python drivers, `uv` and Python 3.12 or later on `PATH`:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
 (cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
+(cd packages/kotlin/sdk && ./gradlew installConformance)
 npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci

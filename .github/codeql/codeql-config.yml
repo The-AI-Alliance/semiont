@@ -33,6 +33,9 @@ paths:
   - packages/go/launcher
   # The Go SDK the launcher is built on: a module root too
   - packages/go/sdk
+  # The Kotlin SDK: what its artifact holds, and the generator of its types
+  - packages/kotlin/sdk/src/main
+  - packages/kotlin/sdk/src/codegen
   - packages/typescript/http-transport/src
   - packages/typescript/core/src
   - packages/typescript/react-ui/src

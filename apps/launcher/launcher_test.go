@@ -17,8 +17,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
@@ -436,13 +440,14 @@ func (s *scenario) env() []string {
 	{
 		// Pinned so the boot goldens are deterministic: an unpinned run
 		// generates a fresh credential per service and every golden would
-		// differ from the last.
+		// differ from the last. The worker has none to pin: it proves itself
+		// with the machine's key, whose value never reaches argv.
 		//
-		// Tracks `serviceClients` in packages/go/launcher, which this external test
+		// Tracks `secretClients` in packages/go/launcher, which this external test
 		// package cannot see. Drift is loud rather than silent: a service missing
 		// from this list gets a generated credential and its boot golden differs
 		// on the very next run.
-		for _, svc := range []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"} {
+		for _, svc := range []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver"} {
 			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
 		}
 	}
@@ -3373,7 +3378,7 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	secrets := []string{"ANTHROPIC_API_KEY", "JWT_SECRET", "SEMIONT_OIDC_CLIENT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "POSTGRES_PASSWORD", "KC_DB_PASSWORD"}
+	secrets := []string{"ANTHROPIC_API_KEY", "JWT_SECRET", "SEMIONT_OIDC_CLIENT_SECRET", "SEMIONT_OIDC_CLIENT_KEY", "KC_BOOTSTRAP_ADMIN_PASSWORD", "POSTGRES_PASSWORD", "KC_DB_PASSWORD"}
 	for _, l := range strings.Split(s.argv(t), "\n") {
 		if !strings.HasPrefix(l, "container run") {
 			continue
@@ -3387,7 +3392,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	for _, c := range []struct{ container, name, want string }{
 		{"semiont-worker", "ANTHROPIC_API_KEY", "test-key"},
 		{"semiont-gateway", "JWT_SECRET", ""},
-		{"semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		{"semiont-weaver", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		// The PEM's first line: the record keeps a line per variable.
+		{"semiont-worker", "SEMIONT_OIDC_CLIENT_KEY", "-----BEGIN PRIVATE KEY-----"},
 		{"semiont-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
 		{"semiont-keycloak", "KC_DB_PASSWORD", ""},
 		{"semiont-postgres", "POSTGRES_PASSWORD", ""},
@@ -3396,6 +3403,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 		if got == "" || (c.want != "" && got != c.want) {
 			t.Errorf("%s did not receive %s through the runtime's environment (got %q)", c.container, c.name, got)
 		}
+	}
+	if _, handed := s.containerEnv(t, "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET"); handed {
+		t.Error("the worker was handed a secret; it proves itself with the machine's key")
 	}
 }
 
@@ -6147,6 +6157,19 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 	if err := os.WriteFile(p, []byte(rec), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A grant reads its key before the record, so it is given one to read.
+	workerKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&workerKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "worker.pem")
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Every command that draws a conclusion from the record. A new one that
 	// reads stack.json belongs in this list.
@@ -6161,6 +6184,8 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 		{"clean", "--dry-run"},
 		{"roots"},
 		{"identity", "sync"},
+		{"identity", "grant", "alice", "--key", keyFile},
+		{"identity", "revoke", "alice"},
 		{"export", "--repo", "owner/kb"},
 		{"logout"},
 	} {
@@ -7306,12 +7331,11 @@ func findFile(t *testing.T, dir, name string) string {
 
 func TestStartServiceWorker(t *testing.T) {
 	// Gateway already running; Jaeger up on 16686. Restarting the worker must
-	// present its OWN persisted credential, auto-enable OTel, stage a fresh
-	// private config, and leave the rest of the stack untouched.
+	// present the machine's key, auto-enable OTel, stage a fresh private
+	// config, and leave the rest of the stack untouched.
 	//
-	// Each service holds its own credential, written per root, so a restart
-	// reads the same file the full start wrote and no container needs
-	// inspecting.
+	// The key is kept for the machine, so a restart reads the same file the
+	// full start wrote and no container needs inspecting.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_gateway=running",
@@ -7332,19 +7356,19 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting Worker Pool",
 		"OTel collector detected — export enabled",
-		"--env SEMIONT_OIDC_CLIENT_SECRET ",
+		"--env SEMIONT_OIDC_CLIENT_KEY ",
 		"🚀 worker is up",
 		"semiont status",
 	)
-	if strings.Contains(stdout, "test-worker-client-secret") {
-		t.Error("a service-account secret leaked into stdout")
+	if strings.Contains(stdout, "PRIVATE KEY") {
+		t.Error("the worker's key leaked into stdout")
 	}
 	argv := s.argv(t)
 	mustContain(t, "argv", argv,
 		"stop semiont-worker",
 		"rm semiont-worker",
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker",
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker-local",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.json:/etc/semiont/worker.json:ro",
 	)
@@ -10382,7 +10406,7 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 		// the six machine identities, against the CONFIGURED issuer rather
 		// than identityEndpoint's localhost form
 		"client-credentials grant at "+iss+" as semiont-gateway",
-		"client-credentials grant at "+iss+" as semiont-worker",
+		"client-credentials grant at "+iss+" as semiont-worker-local, by an assertion signed with the machine's worker key",
 		// and the two clients people sign in through
 		"device authorization at "+iss+" as semiont-cli",
 		"authorization request at "+iss+" as semiont-browser",

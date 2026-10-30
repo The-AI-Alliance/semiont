@@ -72,7 +72,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 The realm is imported on Keycloak's first boot and never again, so a realm created by an older launcher can lack clients or roles a newer one needs. The preflight refuses rather than start services that cannot authenticate, and names the fix:
 
 ```bash
-semiont identity sync   # adds missing clients, reconciles roles, redirects, web origins, lifetime; touches no secret or account
+semiont identity sync   # adds missing clients, reconciles roles, the kind claim, the worker's key, redirects, web origins, lifetime; touches no secret or account
 semiont start
 ```
 

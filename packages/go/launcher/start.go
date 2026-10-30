@@ -839,8 +839,9 @@ func librarianArgs(stage string, e exposure, clientSecret, img, mem string, user
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
-		// This process's own credential at the realm. It buys the agent tokens
-		// of its matcher's and its gatherer's models from the gateway.
+		// This process's own credential at the realm. It buys one agent token
+		// from the gateway, as the agent (semiont, librarian), whatever models its
+		// matcher and its gatherer ask.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
@@ -877,7 +878,7 @@ func dispatcherArgs(stage string, e exposure, clientSecret, img, mem string, use
 // every address already, and names the variable holding each provider's key
 // (workerSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func workerArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
+func workerArgs(stage string, e exposure, clientKey, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("worker").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
 		"--memory", mem}
@@ -887,11 +888,12 @@ func workerArgs(stage string, e exposure, clientSecret, img, mem string, userEnv
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
-		// This process's own credential at the realm. It buys an agent token
-		// from the gateway; it is not the agent identity, which is per
-		// (provider, model) and named in the request.
+		// This process's own account at the realm, and the machine's key it
+		// signs each sign-in with (workerkey.go): no secret is sent. It buys
+		// an agent token from the gateway; it is not the agent identity, which
+		// is per (provider, model) and named in the request.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("worker"),
-		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+		"--env", "SEMIONT_OIDC_CLIENT_KEY="+clientKey)
 	a = append(a, superviseEnv()...)
 	return append(a, img)
 }

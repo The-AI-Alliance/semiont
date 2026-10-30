@@ -1,6 +1,6 @@
 """Semiont over HTTP: the transport a client reaches a knowledge base's gateway by, and how it is signed in there."""
 
-from semiont.http.agent import AgentToken, Credential, ServiceToken
+from semiont.http.agent import AgentToken, Credential, KeyCredential, SecretCredential, ServiceToken
 from semiont.http.content import HttpContentTransport
 from semiont.http.endpoint import gateway_url, is_valid_hostname
 from semiont.http.exchange import TokenRefresher
@@ -16,6 +16,8 @@ __all__ = [
     "DeviceCode",
     "HttpContentTransport",
     "HttpTransport",
+    "KeyCredential",
+    "SecretCredential",
     "ServiceToken",
     "Timing",
     "TokenRefresher",

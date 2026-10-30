@@ -22,14 +22,16 @@
  * observe chain (≤2) plus a sanctioned invalidate chain (≤2) on one key.
  *
  * L4 (a degraded mode leaves a breadcrumb): the console-warn spy is the
- * assertion surface, not just a silencer. Property 1 carries the per-run
- * implication — a consumed fault on a MOUNTED rid's observe path ⇒ ≥1
- * breadcrumb before that run's outputs all settled ([cache RETRY] fires
- * before the retry that gates notification).
+ * assertion surface, not just a silencer. Both L1/L2 properties carry the
+ * per-run implication — a consumed fault on a MOUNTED rid's key ⇒ ≥1
+ * [cache RETRY]/[cache IDLE] breadcrumb in that run. An invalidate chain's
+ * own faults are in it: `invalidate()` drives the same SWR retry that warns,
+ * and its requests share the observe chain's key. The harness holds each run
+ * open for its whole bound before teardown reads the spy, and a faulted
+ * attempt warns within one Bus.request timeout of its emit, so every
+ * breadcrumb a run owes has landed by then.
  * Scoped deliberately: fetch()/await-path faults have NO breadcrumb by design
- * (the caller owns retry policy), and the invalidate property is excluded —
- * an invalidate chain's warn can land after the bound when outputs were
- * already notified via the stale value, so asserting there would be flaky.
+ * (the caller owns retry policy).
  * The two cache breadcrumbs ([cache RETRY]/[cache IDLE]) are also pinned
  * individually in the deterministic test at the bottom. Scope acquisition
  * has no breadcrumb: the transport ref-counts scopes per resource, so they
@@ -84,8 +86,9 @@ function loaderOutputs(browse: BrowseNamespace, rid: string): Observable<unknown
 describe('liveness axioms over the real BrowseNamespace composition', () => {
   // The breadcrumbs ([cache RETRY]/[cache IDLE]) are always-on by design
   // (L4). The spy keeps property runs quiet AND is the L4 assertion
-  // surface: property 1 checks degradation ⇒ ≥1 breadcrumb per run; the
-  // deterministic test at the bottom pins each breadcrumb individually.
+  // surface: both L1/L2 properties check degradation ⇒ ≥1 breadcrumb per
+  // run; the deterministic test at the bottom pins each breadcrumb
+  // individually.
   let warnSpy: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -93,6 +96,33 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
   afterEach(() => {
     warnSpy.mockRestore();
   });
+
+  /**
+   * L4 for one run, called from its teardown — which the harness runs only
+   * after waiting out its whole bound. A faulted attempt rejects within one
+   * TIMEOUT_MS of its emit (at once for reject-emit, at the Bus.request
+   * timeout for drop-reply) and warns in that rejection, so every mounted-rid
+   * chain that consumed a fault has warned by now. The spy's window opens at
+   * the run's setup (`mockClear`). Violating runs are collected, not thrown,
+   * so a breadcrumb failure can't shadow a sharper L1/L2 diagnosis from the
+   * harness's finally block. Quote-bounded rid match — '"res-a"' must not
+   * match the await path's '"res-await"'.
+   */
+  const checkBreadcrumb = (transport: FaultyTransport, rids: readonly string[], l4Silent: string[]): void => {
+    const mountedFaults = transport.requestLog.filter(
+      (e) =>
+        (e.action.kind === 'drop-reply' || e.action.kind === 'reject-emit') &&
+        rids.some((r) => e.retryKey.includes(`"${r}"`)),
+    );
+    if (mountedFaults.length > 0 && warnSpy.mock.calls.length === 0) {
+      l4Silent.push(
+        `L4: run with mounts [${rids.join(',')}] consumed ` +
+        `${mountedFaults.length} mounted-rid fault(s) ` +
+        `(${mountedFaults.map((e) => e.action.kind).join(',')}) ` +
+        `but emitted zero breadcrumbs — silence under degradation`,
+      );
+    }
+  };
 
   it(
     'L1/L2: concurrent distinct-rid loaders on a faulty wire — every subscription sees a value or an error, requests stay within the B14 budget',
@@ -107,9 +137,6 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
         ['res-a'],
       ];
       let run = 0;
-      // L4 accumulator: violating runs are collected (not thrown) so a
-      // breadcrumb failure can't shadow a sharper L1/L2 diagnosis from the
-      // harness's finally block; asserted empty after the property.
       const l4Silent: string[] = [];
 
       await assertLivenessAxioms({
@@ -154,25 +181,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
             outputs,
             settlements,
             teardown: () => {
-              // L4 — degradation ⇒ ≥1 breadcrumb. Runs after the harness's
-              // L1/L2 checks (its finally), so every mounted-rid chain that
-              // consumed a fault has already warned: [cache RETRY] precedes
-              // the retry whose outcome gates the output's notification.
-              // Quote-bounded rid match — '"res-a"' must not match the
-              // await path's '"res-await"'.
-              const observePathFaults = transport.requestLog.filter(
-                (e) =>
-                  (e.action.kind === 'drop-reply' || e.action.kind === 'reject-emit') &&
-                  rids.some((r) => e.retryKey.includes(`"${r}"`)),
-              );
-              if (observePathFaults.length > 0 && warnSpy.mock.calls.length === 0) {
-                l4Silent.push(
-                  `L4: run with mounts [${rids.join(',')}] consumed ` +
-                  `${observePathFaults.length} observe-path fault(s) ` +
-                  `(${observePathFaults.map((e) => e.action.kind).join(',')}) ` +
-                  `but emitted zero breadcrumbs — silence under degradation`,
-                );
-              }
+              checkBreadcrumb(transport, rids, l4Silent);
               bus.destroy();
             },
           };
@@ -187,6 +196,9 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
   it(
     'L1/L2 hold across the invalidate path (budget widened for the sanctioned refetch chain)',
     async () => {
+      const rids = ['res-x', 'res-y'];
+      const l4Silent: string[] = [];
+
       await assertLivenessAxioms({
         timeoutMs: TIMEOUT_MS,
         // One key may legitimately see the observe chain (1 + retry) PLUS the
@@ -194,6 +206,7 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
         retryBudget: 3,
         makeResponse,
         setup: async (transport: FaultyTransport) => {
+          warnSpy.mockClear(); // per-run L4 window
           const bus = new EventBus();
           const browse = new BrowseNamespace(
             transport,
@@ -202,19 +215,24 @@ describe('liveness axioms over the real BrowseNamespace composition', () => {
             { busTimeoutMs: TIMEOUT_MS },
           );
 
-          const outputs = [
-            ...loaderOutputs(browse, 'res-x'),
-            ...loaderOutputs(browse, 'res-y'),
-          ];
+          const outputs = rids.flatMap((rid) => loaderOutputs(browse, rid));
 
           // Let the initial chains make some progress, then invalidate one
           // resource mid-flight: a refetch racing the original chain (B9).
           await new Promise<void>((r) => setTimeout(r, 0));
           browse.invalidateResourceDetail(makeResourceId('res-x'));
 
-          return { outputs, teardown: () => bus.destroy() };
+          return {
+            outputs,
+            teardown: () => {
+              checkBreadcrumb(transport, rids, l4Silent);
+              bus.destroy();
+            },
+          };
         },
       });
+
+      expect(l4Silent).toEqual([]);
     },
     60_000,
   );
