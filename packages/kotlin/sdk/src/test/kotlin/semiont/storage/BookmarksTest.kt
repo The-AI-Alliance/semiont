@@ -2,7 +2,6 @@ package semiont.storage
 
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -19,7 +18,6 @@ import org.junit.jupiter.api.Test
 import semiont.http.HttpTransport
 import semiont.http.Timing
 import semiont.identifiers.ResourceId
-import semiont.transport.ConnectionState
 import java.io.OutputStream
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -173,7 +171,6 @@ class BookmarksTest {
         val places = CoupledBookmarks(storage, KEY)
         Gateway().use { gateway ->
             HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK, null, places).use { transport ->
-                withTimeout(5_000) { transport.state.first { it == ConnectionState.Open } }
                 val heard = transport.frames("mark:added")
                 transport.subscribeToResource(RESOURCE).use {
                     transport.subscribeToResource(OTHER).use {
@@ -194,7 +191,6 @@ class BookmarksTest {
         // With no bookmarks, a stream begins every scope at the present and keeps nothing.
         Gateway().use { gateway ->
             HttpTransport(gateway.origin, MutableStateFlow("t"), emptyList(), QUICK).use { transport ->
-                withTimeout(5_000) { transport.state.first { it == ConnectionState.Open } }
                 transport.subscribeToResource(RESOURCE).use {
                     assertEquals(mapOf("res-1" to null), gateway.placesAskedFrom(1))
                 }

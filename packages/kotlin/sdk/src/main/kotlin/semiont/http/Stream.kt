@@ -272,6 +272,9 @@ internal class Stream(
     // ── connecting ───────────────────────────────────────────────────────
 
     private fun connect(keepPrevious: Boolean, now: Long) {
+        // A transport that carries nothing opens no stream: one held only for the gateway's own operations, or to ask
+        // who a token is, makes no request of the bus. Taking a resource's scope gives it something to carry.
+        if (global.isEmpty() && scoped.isEmpty()) return
         // A connect with no token cannot succeed, and neither can one that sends again the token the gateway just
         // refused. Neither is attempted: the client waits, with no request, for a different one.
         val token = currentToken()
