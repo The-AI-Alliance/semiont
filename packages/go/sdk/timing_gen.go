@@ -209,6 +209,12 @@ type Timing struct {
 	// query last changed before it asks. A query still being typed is not asked
 	// for letter by letter.
 	SearchDebounce time.Duration
+	// DiscoveryInterval is discoveryIntervalMs: How often a launcher's discovery
+	// document is read again, unless a caller says otherwise. A launcher
+	// rewrites it on every change to its stack, so a list of the knowledge bases
+	// it manages is a few seconds behind at worst, and the document is not read
+	// without pause.
+	DiscoveryInterval time.Duration
 }
 
 // DefaultTiming is the table's values.
@@ -246,5 +252,6 @@ func DefaultTiming() Timing {
 		AnchoredTextReask:                 5000 * time.Millisecond,
 		HoverDelay:                        150 * time.Millisecond,
 		SearchDebounce:                    250 * time.Millisecond,
+		DiscoveryInterval:                 5000 * time.Millisecond,
 	}
 }

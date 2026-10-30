@@ -18,6 +18,7 @@ __all__ = [
     "BUS_REQUEST_TIMEOUT_MS",
     "DEGRADED_THRESHOLD_MS",
     "DELEGATE_SILENCE_MS",
+    "DISCOVERY_INTERVAL_MS",
     "EMIT_RETRY",
     "EMIT_TIMEOUT_MS",
     "GENERATED_TEXT_ASKS_COUNT",
@@ -227,6 +228,11 @@ HOVER_DELAY_MS: Final = 150
 # is not asked for letter by letter.
 SEARCH_DEBOUNCE_MS: Final = 250
 
+# How often a launcher's discovery document is read again, unless a caller says otherwise. A
+# launcher rewrites it on every change to its stack, so a list of the knowledge bases it manages
+# is a few seconds behind at worst, and the document is not read without pause.
+DISCOVERY_INTERVAL_MS: Final = 5000
+
 # Every entry's name, as the table states it.
 TIMING_NAMES: Final[tuple[str, ...]] = (
     "busRequestTimeoutMs",
@@ -261,4 +267,5 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "anchoredTextReaskMs",
     "hoverDelayMs",
     "searchDebounceMs",
+    "discoveryIntervalMs",
 )
