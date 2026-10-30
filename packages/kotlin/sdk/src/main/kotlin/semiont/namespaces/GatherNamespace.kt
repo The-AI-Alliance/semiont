@@ -4,6 +4,8 @@ package semiont.namespaces
 
 import semiont.Running
 import semiont.bus.Operations
+import semiont.cache.Cached
+import semiont.cache.Keyed
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
 import semiont.types.GatherAnnotationComplete
@@ -12,10 +14,11 @@ import semiont.types.GatherAnnotationRequest
 import semiont.types.GatherResourceRequest
 import semiont.types.GatherResourceRequestOptions
 import semiont.types.GatheredContext
+import semiont.types.GetReferencedByResponseReferencedByItem
 import java.util.concurrent.CompletableFuture
 
 /** Assembling the context a model is given, and what refers to a resource. */
-public class GatherNamespace internal constructor(private val links: Links) {
+public class GatherNamespace internal constructor(private val links: Links, private val live: Live) {
     /**
      * The context around one annotation, taking `contextWindow` characters of
      * its source: two thousand when none is stated. The source's context and
@@ -70,4 +73,9 @@ public class GatherNamespace internal constructor(private val links: Links) {
         includeSummary: Boolean,
         excludeEntityTypes: List<String>,
     ): CompletableFuture<GatheredContext> = links.future { resource(resourceId, depth, maxResources, includeContent, includeSummary, excludeEntityTypes) }
+
+    /** The annotations elsewhere that refer to a resource: a live query. */
+    @JvmExposeBoxed
+    public fun referencedBy(resourceId: ResourceId): Cached<List<GetReferencedByResponseReferencedByItem>> =
+        live.query(Keyed(live.referencedBy, resourceId, { it }, links.transport to resourceId))
 }

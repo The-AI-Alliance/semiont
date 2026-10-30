@@ -79,14 +79,12 @@
       "methods": [
         {
           "method": "resource",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:resource-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resources",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:resources-requested" },
           "cases": [
@@ -104,42 +102,36 @@
         },
         {
           "method": "annotations",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "content": "getAnnotations" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "annotation",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:annotation-requested" },
           "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
         },
         {
           "method": "entityTypes",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:entity-types-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "tagSchemas",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:tag-schemas-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "agents",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:agents-requested" },
           "cases": [{ "why": "the directory is asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
         },
         {
           "method": "events",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:events-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -422,7 +414,6 @@
         },
         {
           "method": "referencedBy",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "gather:referenced-by-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -464,7 +455,6 @@
         },
         {
           "method": "resources",
-          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "match:resources-requested" },
           "cases": [
@@ -1342,7 +1332,6 @@
     {
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's storagePersister module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/cache-persister.ts"
@@ -1355,6 +1344,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/storage"
         ]
       },
       "members": [

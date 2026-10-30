@@ -102,6 +102,15 @@ private class Args(private val stated: JsonObject, private val fixtures: JsonObj
     fun job(): JobId = JobId(text("jobId"))
 }
 
+/** The filters a case states for a list or a search: the first hundred, and the rest unstated, where it states none. */
+private class Filters(args: Args) {
+    private val stated = args["filters"]?.jsonObject ?: JsonObject(emptyMap())
+    val limit: Long = stated["limit"]?.jsonPrimitive?.long ?: 100
+    val offset: Long = stated["offset"]?.jsonPrimitive?.long ?: 0
+    val archived: Boolean? = stated["archived"]?.jsonPrimitive?.boolean
+    val entityType: String? = stated["entityType"]?.jsonPrimitive?.content
+}
+
 /** A method as a case calls it. */
 private typealias Call = suspend (SemiontClient, Args) -> Any?
 
@@ -112,6 +121,17 @@ private val calls: Map<String, Call> = mapOf(
     "frame.addEntityType" to { c, a -> c.frame.addEntityType(a.text("type")) },
     "frame.addEntityTypes" to { c, a -> c.frame.addEntityTypes(a.texts("types")) },
     "frame.addTagSchema" to { c, a -> c.frame.addTagSchema(a.read("schema", TagSchema.serializer())) },
+    "browse.resource" to { c, a -> c.browse.resource(a.resource()).fresh() },
+    "browse.resources" to { c, a ->
+        val filters = Filters(a)
+        c.browse.resources(filters.limit, filters.offset, filters.archived, filters.entityType).fresh()
+    },
+    "browse.annotations" to { c, a -> c.browse.annotations(a.resource()).fresh() },
+    "browse.annotation" to { c, a -> c.browse.annotation(a.resource(), a.annotation()).fresh() },
+    "browse.entityTypes" to { c, _ -> c.browse.entityTypes().fresh() },
+    "browse.tagSchemas" to { c, _ -> c.browse.tagSchemas().fresh() },
+    "browse.agents" to { c, _ -> c.browse.agents().fresh() },
+    "browse.events" to { c, a -> c.browse.events(a.resource()).fresh() },
     "browse.resourceGraph" to { c, a -> c.browse.resourceGraph(a.resource()) },
     "browse.resourceAnchoredText" to { c, a -> c.browse.resourceAnchoredText(a.resource()) },
     "browse.resourceContent" to { c, a -> c.browse.resourceContent(a.resource()) },
@@ -155,6 +175,7 @@ private val calls: Map<String, Call> = mapOf(
             )
         }
     },
+    "gather.referencedBy" to { c, a -> c.gather.referencedBy(a.resource()).fresh() },
     "gather.annotation" to { c, a ->
         val options = a["options"]?.jsonObject ?: JsonObject(emptyMap())
         c.gather.annotation(
@@ -174,6 +195,10 @@ private val calls: Map<String, Call> = mapOf(
             limit = options["limit"]?.jsonPrimitive?.long ?: 10,
             useSemanticScoring = options["useSemanticScoring"]?.jsonPrimitive?.boolean ?: true,
         ).await()
+    },
+    "match.resources" to { c, a ->
+        val filters = Filters(a)
+        c.match.resources(a.text("search"), filters.limit, filters.offset, filters.archived, filters.entityType).fresh()
     },
     "match.requestSearch" to { c, a -> c.match.requestSearch(a.read("input", MatchSearchRequest.serializer()), a.text("correlationId")) },
     "yield.resource" to { c, a ->

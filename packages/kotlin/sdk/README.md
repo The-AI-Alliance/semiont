@@ -2,7 +2,7 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=kotlin-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-The Semiont SDK for the JVM: one artifact, written in Kotlin, which Java programs call as first-class consumers. It is not published, and its client is not yet written: what is here is the protocol's types, the wire it speaks over, its build and the gates it is held to.
+The Semiont SDK for the JVM: one artifact, written in Kotlin, which Java programs call as first-class consumers. It is not published. What is here is the protocol's types, the wire it speaks over, signing in, the client and its live queries, its build and the gates it is held to.
 
 ## The protocol's types
 
@@ -48,6 +48,24 @@ Every suspending member has a twin for Java that returns a `CompletableFuture` (
 
 - **A person** signs in from a process with no browser through the device grant: `signInDevice(kb, kept) { code -> ... }` shows the code, and keeps the sign-in once it is approved. `signOut(kept)` revokes it at the issuer and forgets it.
 - **A service** signs in as itself with `ServiceToken(SecretCredential(...))`. An agent is an account, as a person is: `AgentToken` signs it in with its account's token, learns the DID the gateway names it by from `GET /api/users/me`, and renews by a new grant at its issuer, when the token is due and at once when the gateway refuses it. A transport takes it as its token and its refresher. An agent whose renewal fails keeps the token it has and tries again.
+
+## Live queries
+
+The client's reads of what changes are live queries (`Cached`): `client.browse.annotations(resource)`, `client.browse.entityTypes()` and the rest of specs/src/client/surface.json's `cache` rows. Making one touches nothing. Collected, it is the query's state now and each state after it, until the client is closed: `CacheState.Pending`, `CacheState.Ready` with its value, or `CacheState.Failed` with its error. A failure is a state, never a throw, and the next act on the query tries again. While a query of a resource is collected, the client holds that resource's scope, so the events that keep it true reach it. `fresh()` is the one-shot read, and `invalidate()` asks again while the value is shown.
+
+```kotlin
+client.browse.annotations(resource).collect { state ->
+    when (state) {
+        is CacheState.Pending -> ...
+        is CacheState.Ready -> show(state.value)
+        is CacheState.Failed -> report(state.error)
+    }
+}
+```
+
+Java reads a query through `asPublisher()` and tells the states apart with `instanceof`. Java gets no exhaustiveness for `CacheState`: a chain that leaves one out compiles.
+
+A client given a `CachePersistence` keeps its small queries in a `SessionStorage`, so the next client of the same knowledge base shows them at once and asks for them anew. `CoupledBookmarks` keeps the stream's place in each scope beside them, for an `HttpTransport` to resume from.
 
 ## The JVM's settings
 

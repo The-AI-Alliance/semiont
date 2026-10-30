@@ -12,9 +12,10 @@ import kotlinx.serialization.json.longOrNull
  * channels, audiences, trace field and operations (bus/registry.json), the
  * timing a client keeps (client/timing.json), the codes its failures carry
  * (errors/codes.json), the media types a knowledge base admits
- * (media-types/registry.json), and the Encoding Standard's labels and
- * single-byte encodings (text/encoding-cases.json). Each refuses what it
- * cannot render.
+ * (media-types/registry.json), the Encoding Standard's labels and
+ * single-byte encodings (text/encoding-cases.json), and what each event does
+ * to a client's cache (client/refresh.json). Each refuses what it cannot
+ * render.
  */
 private fun JsonElement?.obj(what: String): JsonObject = this as? JsonObject ?: refuse("$what is no object")
 
@@ -150,9 +151,12 @@ internal fun operationsFile(registry: JsonObject, definitions: JsonObject): Stri
         append("    ${literal(request)} to Operations.${constantName(request)},\n")
     }
     append(")\n\n")
-    val limits = operations.map { it["request"].text("an operation's request") }.filter { it.endsWith(":limits-requested") }
+    val limits = operations.filter { it["request"].text("an operation's request").endsWith(":limits-requested") }
+    // Each asks the same and is answered the same, so one type holds them all, and a caller asks each without a cast.
+    val limitsTypes = limits.map { op -> listOf("request", "result", "failure").joinToString(", ") { channel(op[it].text("a limits operation's $it")).type } }.distinct()
+    val limitsType = limitsTypes.singleOrNull() ?: refuse("the limits operations are typed $limitsTypes: they must ask and answer alike")
     append("/** The operations that report the limits of the models a service holds credentials for. */\n")
-    append("@Generated\npublic val LIMITS_OPERATIONS: List<Operation<*, *, *>> = listOf(${limits.joinToString(", ") { "Operations.${constantName(it)}" }})\n")
+    append("@Generated\npublic val LIMITS_OPERATIONS: List<Operation<$limitsType>> = listOf(${limits.joinToString(", ") { "Operations.${constantName(it["request"].text("an operation's request"))}" }})\n")
 }
 
 /** The telemetry the SDK's transports export: each span with its kind, and each metric, by its name in the table. */
@@ -362,4 +366,63 @@ internal fun encodingsFile(table: JsonObject): String = buildString {
     append(")\n\n")
     append("/** The encodings the standard reads no text under: every label of each is refused. */\n")
     append("internal val REFUSED: Set<String> = setOf(${refused.joinToString(", ") { escaped(it) }})\n")
+}
+
+/**
+ * What a client asks again for, and when (client/refresh.json): the live
+ * queries, the triggers, and each trigger's rows. A row reaches `subject`
+ * unless it says otherwise. A row that names a query the table lacks, or a
+ * trigger that is neither `reopened` nor a channel of the registry, is refused.
+ */
+internal fun cacheRefreshFile(table: JsonObject, registry: JsonObject): String = buildString {
+    val queries = table["queries"].list("the refresh table's queries").map { it.obj("a query") }
+    val names = queries.map { it["name"].text("a query's name") }
+    if (names.toSet().size != names.size) refuse("the refresh table names a query twice")
+    val channels = registry["channels"].list("the registry's channels").map { it.obj("a channel")["channel"].text("a channel's name") }.toSet()
+    append("/** The live queries a client's cache answers. */\n")
+    append("internal enum class CacheQuery(\n    /** The query as the table names it. */\n    val wire: String,\n) {\n")
+    for (query in queries) {
+        append(kdoc("    ", query["docs"].text("a query's docs")))
+        append("    ${variantOf(query["name"].text("a query's name"))}(${literal(query["name"].text("a query's name"))}),\n")
+    }
+    append("}\n\n")
+    val rows = table["refresh"].list("the refresh table's rows").map { it.obj("a row") }
+    val triggers = rows.map { it["on"].text("a row's trigger") }.distinct()
+    for (trigger in triggers) if (trigger != "reopened" && trigger !in channels) refuse("$trigger is no channel of the registry")
+    append("/** What each trigger is: a channel whose events are it, or `reopened`, the stream open again after a drop. */\n")
+    append("internal enum class CacheRefreshTrigger(\n    /** The trigger as the table names it. */\n    val wire: String,\n) {\n")
+    for (trigger in triggers) append("    ${variantOf(trigger)}(${literal(trigger)}),\n")
+    append("}\n\n")
+    append("/** Which keys a row acts on: `Subject`, the keys the event names; `Held`, every key the client holds. */\n")
+    append("internal enum class CacheRefreshReach { Subject, Held }\n\n")
+    append("/** Which of a split channel's two kinds of event a row is for. */\n")
+    append("internal enum class CacheRefreshWhen { Enriched, Unenriched }\n\n")
+    append("/** What one trigger does to the cache: what it asks for again, what it writes with the value the event carries, and what it says is gone. */\n")
+    append("internal data class CacheRefresh(\n    val reach: CacheRefreshReach,\n    val refetches: List<CacheQuery>,\n    val writes: List<CacheQuery>,\n    val removes: List<CacheQuery>,\n    val whenIs: CacheRefreshWhen?,\n)\n\n")
+    fun queriesOf(row: JsonObject, key: String, trigger: String): String {
+        val named = (row[key] as? JsonArray)?.map { it.text("a query $trigger $key") } ?: emptyList()
+        for (name in named) if (name !in names) refuse("$trigger $key $name, which is no query of the table")
+        return named.joinToString(", ", "listOf(", ")") { "CacheQuery.${variantOf(it)}" }
+    }
+    append("/** Each trigger's rows: one, or one for each kind of event of a split channel. */\n")
+    append("internal val CACHE_REFRESH: Map<CacheRefreshTrigger, List<CacheRefresh>> = mapOf(\n")
+    for (trigger in triggers) {
+        append("    CacheRefreshTrigger.${variantOf(trigger)} to listOf(\n")
+        for (row in rows.filter { it["on"].text("a row's trigger") == trigger }) {
+            val reach = when (val stated = (row["reach"] as? JsonPrimitive)?.content ?: "subject") {
+                "subject" -> "Subject"
+                "held" -> "Held"
+                else -> refuse("$trigger reaches $stated, which is neither subject nor held")
+            }
+            val whenIs = when (val stated = (row["when"] as? JsonPrimitive)?.content) {
+                null -> "null"
+                "enriched" -> "CacheRefreshWhen.Enriched"
+                "unenriched" -> "CacheRefreshWhen.Unenriched"
+                else -> refuse("$trigger is for $stated events, which are neither enriched nor unenriched")
+            }
+            append("        CacheRefresh(CacheRefreshReach.$reach, ${queriesOf(row, "refetches", trigger)}, ${queriesOf(row, "writes", trigger)}, ${queriesOf(row, "removes", trigger)}, $whenIs),\n")
+        }
+        append("    ),\n")
+    }
+    append(")\n")
 }
