@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.transformWhile
@@ -78,13 +79,14 @@ public class Watched<T> internal constructor(private val now: () -> T, private v
  * A value something holds, and the `Watched` its readers are handed. `set`
  * tells them of a change, and a value equal to what it holds is none;
  * `raise` tells them of an occurrence, each one, equal to the last or not.
- * `end` ends every reader, and nothing is told after it.
+ * `end` ends every reader, and nothing is told after it: a reader that comes
+ * after the end is given the value as it stands, and ends.
  */
 internal class Variable<T>(initial: T) {
-    /** One telling: compared by identity, so each is new to a reader. */
-    private class Told<T>(val value: T)
+    /** One telling: compared by identity, so each is new to a reader. `last` is the end. */
+    private class Told<T>(val value: T, val last: Boolean = false)
 
-    private val state = MutableStateFlow<Told<T>?>(Told(initial))
+    private val state = MutableStateFlow(Told(initial))
 
     @Volatile
     private var held: T = initial
@@ -92,11 +94,11 @@ internal class Variable<T>(initial: T) {
     val value: T get() = held
 
     fun set(value: T): Unit = synchronized(this) {
-        if (state.value != null && held != value) told(value)
+        if (!state.value.last && held != value) told(value)
     }
 
     fun raise(value: T): Unit = synchronized(this) {
-        if (state.value != null) told(value)
+        if (!state.value.last) told(value)
     }
 
     private fun told(value: T) {
@@ -104,14 +106,21 @@ internal class Variable<T>(initial: T) {
         state.value = Told(value)
     }
 
-    fun end(): Unit = synchronized(this) { state.value = null }
+    fun end(): Unit = synchronized(this) {
+        if (!state.value.last) state.value = Told(held, last = true)
+    }
 
     /** What its readers are handed. */
     fun reading(): Watched<T> = Watched(
         { held },
-        state.transformWhile { told ->
-            if (told != null) emit(told.value)
-            told != null
+        flow {
+            // A reader that has been told something is not told the end again; one that has been told nothing is told the value it ends on.
+            var told = false
+            state.transformWhile { now ->
+                if (!now.last || !told) emit(now.value)
+                told = true
+                !now.last
+            }.collect(this)
         },
     )
 }

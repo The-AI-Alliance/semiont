@@ -20,8 +20,6 @@ import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KnowledgeBase
 
-private const val KB_A = "kb-a"
-
 private val table = Spec.read("session/stored.json").jsonObject
 private val session = table.getValue("storedSession").jsonObject
 private val members = session.getValue("properties").jsonObject.keys

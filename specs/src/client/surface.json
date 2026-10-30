@@ -1444,8 +1444,7 @@
       "members": [
         {
           "member": "SemiontBrowser",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "newSemiontBrowser",
@@ -1459,13 +1458,11 @@
         },
         {
           "member": "SemiontBrowserConfig",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "SignedIn",
           "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "absent": {
             "typescript": "TypeScript's `completeSignIn` lands a sign-in itself, and names no type for what the registry is handed."
           }
@@ -1473,25 +1470,21 @@
         {
           "member": "Expected",
           "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "absent": {
             "typescript": "TypeScript states what a person believed inside `SignInOutcome`, and names no type for it."
           }
         },
         {
           "member": "SignInOutcome",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "KbReadVerdict",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "KbReadKind",
           "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "absent": {
             "typescript": "TypeScript's verdict is a union told apart by its `kind`.",
             "rust": "Rust's verdict is an enum, whose variants are its kinds."
@@ -1499,41 +1492,34 @@
         },
         {
           "member": "SessionFactory",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "SessionFactoryOptions",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "HttpSessionFactory",
           "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "named": {
             "typescript": "createHttpSessionFactory"
           }
         },
         {
           "member": "KbSessionStatus",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "OpenResource",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "TabCheck",
-          "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "type"
         },
         {
           "member": "TabVerdict",
           "kind": "type",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "absent": {
             "typescript": "TypeScript's check is a union told apart by its `kind`.",
             "rust": "Rust's check is an enum, whose variants are its verdicts."
@@ -1541,13 +1527,11 @@
         },
         {
           "member": "applyTabChecks",
-          "kind": "function",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "function"
         },
         {
           "member": "sortOpenResources",
-          "kind": "function",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." }
+          "kind": "function"
         },
         {
           "member": "StoredSession",
@@ -1621,7 +1605,6 @@
         {
           "member": "beginSignIn",
           "kind": "function",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
@@ -1629,7 +1612,6 @@
         {
           "member": "completeSignIn",
           "kind": "function",
-          "notYetReached": { "kotlin": "The Kotlin SDK's registry, after its stored keys and readers." },
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
