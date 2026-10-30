@@ -31,13 +31,13 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** One answer of the fake: its status and its JSON body. */
-private class Said(val status: Int, val body: JsonObject)
+internal class Said(val status: Int, val body: JsonObject)
 
 /** One request the fake was asked: its method, path, headers and form. */
-private class Asked(val method: String, val path: String, val authorization: String?, val form: Map<String, String>)
+internal class Asked(val method: String, val path: String, val authorization: String?, val form: Map<String, String>)
 
 /** A knowledge base's gateway and the issuer it trusts, in one server, answering each path with what a test gives it. */
-private class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
+internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
     private val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
     val origin: String = "http://127.0.0.1:${server.address.port}"
     val asked = CopyOnWriteArrayList<Asked>()
@@ -95,7 +95,7 @@ private fun jwt(claims: JsonObject): String {
     return listOf("""{"alg":"RS256","typ":"JWT"}""", claims.toString()).joinToString(".") { encoded.encodeToString(it.toByteArray()) } + ".c2lnbmF0dXJl"
 }
 
-private fun tokenFor(name: String, lifetimeSeconds: Long = 3600): String {
+internal fun tokenFor(name: String, lifetimeSeconds: Long = 3600): String {
     val now = System.currentTimeMillis() / 1000
     return jwt(buildJsonObject {
         put("email", "alice@example.org")
@@ -106,7 +106,7 @@ private fun tokenFor(name: String, lifetimeSeconds: Long = 3600): String {
     })
 }
 
-private fun issued(access: String, refresh: String? = null): Said = Said(200, buildJsonObject {
+internal fun issued(access: String, refresh: String? = null): Said = Said(200, buildJsonObject {
     put("access_token", access)
     put("token_type", "Bearer")
     refresh?.let { put("refresh_token", it) }
