@@ -1649,7 +1649,6 @@
     {
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's redirectSignIn module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/oauth.ts",
@@ -1668,6 +1667,11 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/errors"
         ]
       },
       "members": [

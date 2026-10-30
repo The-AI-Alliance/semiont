@@ -519,6 +519,12 @@ public final class semiont/errors/BusRequestError : semiont/errors/SemiontError 
 	public final fun getReason ()Lsemiont/errors/BusRequestErrorCode;
 }
 
+public final class semiont/errors/IdentityUnverifiableError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/IdentityUnverifiableReason;Ljava/lang/String;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/IdentityUnverifiableReason;
+}
+
 public final class semiont/errors/JobError : semiont/errors/SemiontError {
 	public synthetic fun <init> (Lsemiont/errors/JobErrorCode;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/FailureClass;Lkotlin/jvm/internal/BoxingConstructorMarker;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun <init> (Lsemiont/errors/JobErrorCode;Ljava/lang/String;Lsemiont/identifiers/JobId;Lsemiont/types/FailureClass;)V
@@ -577,9 +583,58 @@ public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/ht
 	public final fun signInFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
+public final class semiont/http/AuthorizationKt {
+	public static final fun beginAuthorization (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun beginAuthorizationFuture (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun codeChallenge (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun completeAuthorization (Ljava/lang/String;Lsemiont/storage/SessionStorage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun completeAuthorizationFuture (Ljava/lang/String;Lsemiont/storage/SessionStorage;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/http/BeginAuthorizationOptions {
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lsemiont/types/HttpEndpoint;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/BeginAuthorizationOptions;
+	public static synthetic fun copy$default (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/BeginAuthorizationOptions;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getExpectedName ()Ljava/lang/String;
+	public final fun getKbId ()Ljava/lang/String;
+	public final fun getRedirectUri ()Ljava/lang/String;
+	public final fun getTarget ()Lsemiont/types/HttpEndpoint;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public abstract interface class semiont/http/Bookmarks {
 	public abstract fun load ()Ljava/util/Map;
 	public abstract fun save-k2J_C-I (Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class semiont/http/ConnectKt {
+	public static final fun describeConnection (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun describeConnectionFuture (Lsemiont/types/HttpEndpoint;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/http/ConnectionIdentity {
+	public synthetic fun <init> (Ljava/lang/String;Lsemiont/types/KbDescription;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-lE7-m4I ()Ljava/lang/String;
+	public final fun component2 ()Lsemiont/types/KbDescription;
+	public final fun copy-Oz5wUo0 (Ljava/lang/String;Lsemiont/types/KbDescription;)Lsemiont/http/ConnectionIdentity;
+	public static synthetic fun copy-Oz5wUo0$default (Lsemiont/http/ConnectionIdentity;Ljava/lang/String;Lsemiont/types/KbDescription;ILjava/lang/Object;)Lsemiont/http/ConnectionIdentity;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDescription ()Lsemiont/types/KbDescription;
+	public final fun getDid-lE7-m4I ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class semiont/http/Credential {
@@ -668,6 +723,55 @@ public final class semiont/http/HttpTransport : semiont/transport/GatewayOperati
 	public fun trackReply (Ljava/lang/String;Ljava/util/Collection;)Lsemiont/transport/PendingReply;
 }
 
+public final class semiont/http/IssuedTokens {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/IssuedTokens;
+	public static synthetic fun copy$default (Lsemiont/http/IssuedTokens;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/IssuedTokens;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccess ()Ljava/lang/String;
+	public final fun getRefresh ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/http/IssuerEndpoints {
+	public static final field Companion Lsemiont/http/IssuerEndpoints$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/IssuerEndpoints;
+	public static synthetic fun copy$default (Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/IssuerEndpoints;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAuthorization ()Ljava/lang/String;
+	public final fun getDevice ()Ljava/lang/String;
+	public final fun getIssuer ()Ljava/lang/String;
+	public final fun getRevocation ()Ljava/lang/String;
+	public final fun getToken ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/http/IssuerEndpoints$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lsemiont/http/IssuerEndpoints$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/http/IssuerEndpoints;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/http/IssuerEndpoints;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/http/IssuerEndpoints$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+}
+
 public final class semiont/http/IssuerKt {
 	public static final fun renewKept (Lsemiont/signin/SignInKept;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static final fun renewKeptFuture (Lsemiont/signin/SignInKept;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
@@ -681,6 +785,48 @@ public final class semiont/http/OpenedSession : java/lang/AutoCloseable {
 	public fun close ()V
 	public final fun getClient ()Lsemiont/SemiontClient;
 	public final fun getSession ()Lsemiont/session/SemiontSession;
+}
+
+public final class semiont/http/PendingAuthorization {
+	public static final field Companion Lsemiont/http/PendingAuthorization$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lsemiont/types/HttpEndpoint;
+	public final fun component5 ()Lsemiont/http/IssuerEndpoints;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7 ()Ljava/lang/String;
+	public final fun component8 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/PendingAuthorization;
+	public static synthetic fun copy$default (Lsemiont/http/PendingAuthorization;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/http/PendingAuthorization;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpectedDid ()Ljava/lang/String;
+	public final fun getExpectedName ()Ljava/lang/String;
+	public final fun getIssuer ()Lsemiont/http/IssuerEndpoints;
+	public final fun getKbId ()Ljava/lang/String;
+	public final fun getRedirectUri ()Ljava/lang/String;
+	public final fun getState ()Ljava/lang/String;
+	public final fun getTarget ()Lsemiont/types/HttpEndpoint;
+	public final fun getVerifier ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/http/PendingAuthorization$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public static final field INSTANCE Lsemiont/http/PendingAuthorization$$serializer;
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/http/PendingAuthorization;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/http/PendingAuthorization;)V
+	public fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/http/PendingAuthorization$Companion {
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
 }
 
 public final class semiont/http/SecretCredential : semiont/http/Credential {
