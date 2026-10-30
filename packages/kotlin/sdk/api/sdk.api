@@ -1891,6 +1891,10 @@ public final class semiont/storage/StoragePersister : semiont/cache/CachePersist
 	public fun save (Ljava/util/Map;)V
 }
 
+public abstract interface class semiont/testing/Answer {
+	public abstract fun answer (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)Lkotlinx/serialization/json/JsonElement;
+}
+
 public abstract interface class semiont/testing/ContentCall {
 }
 
@@ -2064,6 +2068,10 @@ public final class semiont/testing/PutBinary : semiont/testing/ContentCall {
 	public fun toString ()Ljava/lang/String;
 }
 
+public abstract interface class semiont/testing/Refusal {
+	public abstract fun refuse (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)Lkotlinx/serialization/json/JsonObject;
+}
+
 public abstract interface class semiont/testing/Refuse {
 	public abstract fun refuse (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)Lkotlinx/serialization/json/JsonObject;
 }
@@ -2097,6 +2105,39 @@ public final class semiont/testing/RequestLogEntry {
 
 public abstract interface class semiont/testing/Respond {
 	public abstract fun respond (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)Lkotlinx/serialization/json/JsonElement;
+}
+
+public final class semiont/testing/ScriptedSessions : semiont/registry/SessionFactory {
+	public fun <init> ()V
+	public fun <init> (Lsemiont/testing/Answer;)V
+	public synthetic fun <init> (Lsemiont/testing/Answer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun answersAfter (J)V
+	public final fun failRenewal (Lsemiont/errors/SignInError;)V
+	public final fun getRenewed ()I
+	public final fun getRevoked ()Ljava/util/List;
+	public final fun queueRenewals ([Ljava/lang/String;)V
+	public final fun refuseToBuild (Ljava/lang/String;)V
+	public final fun refuseWhen (Lsemiont/testing/Refusal;)V
+	public fun revoke (Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun revokeFuture (Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
+	public final fun saysWho (Lsemiont/types/UserResponse;)V
+	public fun session (Lsemiont/registry/SessionFactoryOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun sessionFuture (Lsemiont/registry/SessionFactoryOptions;)Ljava/util/concurrent/CompletableFuture;
+	public final fun transports (Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class semiont/testing/ScriptedSessionsKt {
+	public static final fun getREFUSE_UNSCRIPTED_KB ()Lsemiont/testing/Answer;
+}
+
+public final class semiont/testing/SharedStorage : semiont/storage/SessionStorage {
+	public fun <init> ()V
+	public final fun context ()Lsemiont/testing/SharedStorage;
+	public fun delete (Ljava/lang/String;)V
+	public fun get (Ljava/lang/String;)Ljava/lang/String;
+	public fun set (Ljava/lang/String;Ljava/lang/String;)V
+	public fun subscribe (Lkotlin/jvm/functions/Function2;)Ljava/lang/AutoCloseable;
+	public fun update (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 }
 
 public final class semiont/testing/StubGateway : semiont/transport/GatewayOperations {
