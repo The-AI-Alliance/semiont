@@ -23,7 +23,7 @@ import semiont.errors.TransportErrorCode
 import semiont.identifiers.ResourceId
 import semiont.retry.RetryFacts
 import semiont.retry.RetryPolicy
-import semiont.retry.RetryRules
+import semiont.retry.BOOT
 import semiont.retry.equalJitter
 import semiont.retry.retryAfterMs
 import semiont.transport.Broadcast
@@ -151,7 +151,7 @@ public class HttpTransport @JvmOverloads constructor(
                 throw exchange.failed(failure)
             }
             // A limit, a gateway that says it will recover, or no answer at all: made again inside the budget.
-            val again = failure.status == null || RetryRules.boot(RetryFacts(failure.status, "POST"))
+            val again = failure.status == null || BOOT.retryable(RetryFacts(failure.status, "POST"))
             if (!again || made >= timing.emitRetry.attempts || closing) throw exchange.failed(failure)
             delay(maxOf(equalJitter(capMs), failure.retryAfterMs ?: 0))
             capMs = minOf(capMs * 2, timing.emitRetry.maxDelayMs)

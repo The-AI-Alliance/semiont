@@ -114,6 +114,14 @@ public abstract class semiont/errors/SemiontError : java/lang/Exception {
 	public fun getRetryAfterMs ()Ljava/lang/Long;
 }
 
+public final class semiont/errors/SignInError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/SignInErrorCode;Ljava/lang/String;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Lsemiont/errors/SignInErrorCode;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/SignInErrorCode;
+	public final fun getStatus ()Ljava/lang/Integer;
+}
+
 public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 	public fun <init> (Lsemiont/errors/TransportErrorCode;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Long;)V
 	public synthetic fun <init> (Lsemiont/errors/TransportErrorCode;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -121,6 +129,11 @@ public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 	public final fun getReason ()Lsemiont/errors/TransportErrorCode;
 	public fun getRetryAfterMs ()Ljava/lang/Long;
 	public final fun getStatus ()Ljava/lang/Integer;
+}
+
+public final class semiont/http/EndpointKt {
+	public static final fun gatewayUrl (Lsemiont/types/HttpEndpoint;)Ljava/lang/String;
+	public static final fun isValidHostname (Ljava/lang/String;)Z
 }
 
 public final class semiont/http/HttpContentTransport : semiont/transport/ContentTransport {
@@ -177,6 +190,11 @@ public final class semiont/http/HttpTransport : semiont/transport/GatewayOperati
 	public fun trackReply (Ljava/lang/String;Ljava/util/Collection;)Lsemiont/transport/PendingReply;
 }
 
+public final class semiont/http/IssuerKt {
+	public static final fun renewKept (Lsemiont/signin/SignInKept;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun renewKeptFuture (Lsemiont/signin/SignInKept;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
 public final class semiont/http/Timing {
 	public fun <init> ()V
 	public fun <init> (J)V
@@ -209,6 +227,42 @@ public abstract interface class semiont/http/TokenRefresher {
 	public abstract fun refresh (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class semiont/identity/IdentityKt {
+	public static final fun agentAddress (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun agentName (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun encodeUriComponent (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun kbDid (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun kbResource (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun personDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+}
+
+public final class semiont/retry/RetryFacts {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Integer;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/Integer;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Integer;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/Integer;Ljava/lang/String;)Lsemiont/retry/RetryFacts;
+	public static synthetic fun copy$default (Lsemiont/retry/RetryFacts;Ljava/lang/Integer;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/retry/RetryFacts;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMethod ()Ljava/lang/String;
+	public final fun getStatus ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/retry/RetryKt {
+	public static final fun equalJitter (J)J
+	public static final fun getBOOT ()Lsemiont/retry/RetryRule;
+	public static final fun getREFRESH ()Lsemiont/retry/RetryRule;
+	public static final fun getRETRY_RULES ()Ljava/util/Map;
+	public static final fun getTRANSPORT ()Lsemiont/retry/RetryRule;
+	public static final fun retryAfterMs (Ljava/lang/String;)Ljava/lang/Long;
+	public static final fun retryWithBackoff (Lsemiont/retry/RetryPolicy;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun retryWithBackoffFuture (Lsemiont/retry/RetryPolicy;Ljava/util/function/Predicate;Ljava/util/function/Supplier;)Ljava/util/concurrent/CompletableFuture;
+}
+
 public final class semiont/retry/RetryPolicy {
 	public fun <init> (IJJ)V
 	public final fun component1 ()I
@@ -222,6 +276,85 @@ public final class semiont/retry/RetryPolicy {
 	public final fun getMaxDelayMs ()J
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/retry/RetryRule {
+	public final fun getName ()Ljava/lang/String;
+	public final fun retryable (Lsemiont/retry/RetryFacts;)Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/signin/HeldSignIn {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/signin/HeldSignIn;
+	public static synthetic fun copy$default (Lsemiont/signin/HeldSignIn;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/signin/HeldSignIn;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAccess ()Ljava/lang/String;
+	public final fun getClientId ()Ljava/lang/String;
+	public final fun getRefresh ()Ljava/lang/String;
+	public final fun getRevocationEndpoint ()Ljava/lang/String;
+	public final fun getTokenEndpoint ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/signin/MemorySignIn : semiont/signin/SignInKept {
+	public fun <init> ()V
+	public fun <init> (Lsemiont/signin/HeldSignIn;)V
+	public synthetic fun <init> (Lsemiont/signin/HeldSignIn;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun forget (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun forgetFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun held (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun heldFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun keep (Lsemiont/signin/HeldSignIn;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun keepFuture (Lsemiont/signin/HeldSignIn;)Ljava/util/concurrent/CompletableFuture;
+	public fun renewed (Lsemiont/signin/HeldSignIn;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun renewedFuture (Lsemiont/signin/HeldSignIn;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/signin/Platform : java/lang/Enum {
+	public static final field MACOS Lsemiont/signin/Platform;
+	public static final field OTHER Lsemiont/signin/Platform;
+	public static final field WINDOWS Lsemiont/signin/Platform;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/signin/Platform;
+	public static fun values ()[Lsemiont/signin/Platform;
+}
+
+public abstract interface class semiont/signin/SignInKept {
+	public abstract fun forget (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun forgetFuture ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun held (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun heldFuture ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun keep (Lsemiont/signin/HeldSignIn;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun keepFuture (Lsemiont/signin/HeldSignIn;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun renewed (Lsemiont/signin/HeldSignIn;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun renewedFuture (Lsemiont/signin/HeldSignIn;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/signin/SignInKept$DefaultImpls {
+	public static fun forgetFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
+	public static fun heldFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
+	public static fun keepFuture (Lsemiont/signin/SignInKept;Lsemiont/signin/HeldSignIn;)Ljava/util/concurrent/CompletableFuture;
+	public static fun renewedFuture (Lsemiont/signin/SignInKept;Lsemiont/signin/HeldSignIn;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/signin/SignInStore {
+	public fun <init> (Ljava/nio/file/Path;)V
+	public final fun change (Lkotlin/jvm/functions/Function1;)V
+	public final fun entry (Ljava/lang/String;)Lsemiont/signin/SignInKept;
+	public final fun read ()Lkotlinx/serialization/json/JsonObject;
+}
+
+public final class semiont/signin/StateHomeKt {
+	public static final field FILE_NAME Ljava/lang/String;
+	public static final fun stateDir (Lsemiont/signin/Platform;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+	public static final fun thisPlatform ()Lsemiont/signin/Platform;
 }
 
 public final class semiont/transport/ConnectionState : java/lang/Enum {

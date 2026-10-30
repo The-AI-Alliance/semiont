@@ -51,3 +51,18 @@ public class BusRequestError(
         }
     }
 }
+
+/**
+ * A sign-in at the issuer a knowledge base trusts, or a renewal there, that
+ * did not succeed. One that carries a status is the issuer's answer; one that
+ * carries none got no answer: a refusal and an outage are different events.
+ */
+public class SignInError(
+    /** Why, as a code of the sign-in vocabulary. */
+    public val reason: SignInErrorCode,
+    message: String,
+    /** The HTTP status the issuer answered, when it answered. */
+    public val status: Int? = null,
+) : SemiontError(message) {
+    override val code: String get() = reason.code
+}

@@ -99,6 +99,8 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // The sign-in store calls flock through the foreign-function API, as an application that uses it enables.
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
 val javaTestRun = tasks.register<Test>("javaTest") {
