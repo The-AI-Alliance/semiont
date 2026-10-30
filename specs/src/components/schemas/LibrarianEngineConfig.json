@@ -1,9 +1,9 @@
 {
   "type": "object",
-  "description": "One model a Librarian asks: who it is, and where its provider is reached.",
+  "description": "The engine a Librarian actor asks: which it is, and where its provider is reached.",
   "properties": {
-    "agent": {
-      "$ref": "./ArchivistRosterRole.json"
+    "engine": {
+      "$ref": "./Engine.json"
     },
     "baseUrl": {
       "type": "string",
@@ -17,7 +17,7 @@
     }
   },
   "required": [
-    "agent",
+    "engine",
     "baseUrl"
   ],
   "additionalProperties": false

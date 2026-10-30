@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Collaborator, GatheredContext } from '@semiont/core';
+import type { EngineWithLimits, GatheredContext } from '@semiont/core';
 import type { ResourceGatherOptions } from '@semiont/sdk';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
@@ -62,11 +62,11 @@ export interface ResourceGenerateModalTranslations {
 
 export interface ResourceGenerateModalProps {
   /**
-   * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
+   * The engine used for `yield` jobs, forwarded to ConfigureGenerationStep so
    * the max-length control is bounded by the model's real output ceiling.
    * Optional: absent means the default bounds, never an error.
    */
-  generationAgent?: Collaborator;
+  generationEngine?: EngineWithLimits;
   isOpen: boolean;
   onClose: () => void;
   resourceId: string;
@@ -127,7 +127,7 @@ export function ResourceGenerateModal({
   gatherError,
   onGather,
   translations: t,
-  generationAgent,
+  generationEngine,
 }: ResourceGenerateModalProps) {
   // The host's callbacks are read through refs, so a host that passes a new
   // function on every render does not re-create the handlers below.
@@ -365,7 +365,7 @@ export function ResourceGenerateModal({
 
                   {gatherFired && gatherContext && (
                     <ConfigureGenerationStep
-                      {...(generationAgent ? { generationAgent } : {})}
+                      {...(generationEngine ? { generationEngine } : {})}
                       context={gatherContext}
                       config={generationDraft}
                       onConfigChange={setGenerationDraft}

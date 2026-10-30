@@ -130,7 +130,7 @@ private val calls: Map<String, Call> = mapOf(
     "browse.annotation" to { c, a -> c.browse.annotation(a.resource(), a.annotation()).fresh() },
     "browse.entityTypes" to { c, _ -> c.browse.entityTypes().fresh() },
     "browse.tagSchemas" to { c, _ -> c.browse.tagSchemas().fresh() },
-    "browse.agents" to { c, _ -> c.browse.agents().fresh() },
+    "browse.engines" to { c, _ -> c.browse.engines().fresh() },
     "browse.events" to { c, a -> c.browse.events(a.resource()).fresh() },
     "browse.resourceGraph" to { c, a -> c.browse.resourceGraph(a.resource()) },
     "browse.resourceAnchoredText" to { c, a -> c.browse.resourceAnchoredText(a.resource()) },

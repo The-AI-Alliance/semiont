@@ -1,10 +1,10 @@
 {
   "type": "object",
-  "description": "What a person last said they are called, and when: the profile a `person:profiled` event gives.",
+  "description": "What a principal last said it is called, and when: the profile a `principal:profiled` event gives.",
   "properties": {
     "name": {
       "type": "string",
-      "description": "The name the person last gave."
+      "description": "The name the principal last gave."
     },
     "since": {
       "type": "string",

@@ -85,7 +85,7 @@ export interface FaultyTransportConfig {
  * A `() => ({})` default would answer every unscripted operation with a
  * SUCCESS whose every field is `undefined`. That is not a neutral default —
  * it is a fabricated reply, and it surfaces far from its cause (a caller doing
- * `result.agents.find(...)` reports `undefined is not a function`, naming
+ * `result.engines.find(...)` reports `undefined is not a function`, naming
  * neither the operation nor the missing script). A shape-correct empty default
  * would be worse still: a hand-written mirror of a wire shape the spec owns,
  * carrying a fallback.

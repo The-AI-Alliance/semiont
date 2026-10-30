@@ -1,5 +1,5 @@
-//! `POST /bus/emit`: validate a frame, stamp who sent it, name a person on
-//! the record when they write, claim a request's reply for its client, and
+//! `POST /bus/emit`: validate a frame, stamp who sent it, name a principal on
+//! the record when it writes, claim a request's reply for its client, and
 //! publish it on the plane.
 
 use crate::app::App;
@@ -14,6 +14,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
+use semiont::channels::{Channel, PrincipalProfile};
 use semiont::transport::TraceCarrier;
 use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
 use semiont_core::spec::spec;
@@ -54,7 +55,7 @@ pub fn envelope(correlation_id: Option<&str>) -> Option<Meta> {
     (!meta.is_empty()).then_some(meta)
 }
 
-/// A principal's name, for a write they are making: `person:profile`, a
+/// A principal's name, for a write it is making: `principal:profile`, a
 /// person's and an agent's alike. Silent for a token that carries no name.
 pub async fn publish_profile(app: &App, principal: &Principal) -> Result<(), Unavailable> {
     let Some(name) = principal.name.as_ref() else {
@@ -63,7 +64,7 @@ pub async fn publish_profile(app: &App, principal: &Principal) -> Result<(), Una
     app.bus
         .plane
         .ingest(
-            "person:profile".to_owned(),
+            PrincipalProfile::NAME.to_owned(),
             json!({ "_userId": principal.did, "name": name }),
             None,
             None,
@@ -129,7 +130,7 @@ pub async fn emit(
     if let Some(roles) = principal.roles.as_ref().filter(|r| !r.is_empty()) {
         payload.insert("_roles".to_owned(), json!(roles));
     }
-    // A person writing is when the record learns what they are called.
+    // A principal writing is when the record learns what it is called.
     if spec().writes(&channel) {
         publish_profile(&app, &principal).await?;
     }

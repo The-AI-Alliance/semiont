@@ -37,12 +37,13 @@ import semiont.http.HttpTransport
 import semiont.http.Timing
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.ResourceId
-import semiont.namespaces.Collaborator
+import semiont.namespaces.EngineWithLimits
 import semiont.storage.CachePersistence
 import semiont.storage.MemoryStorage
 import semiont.transport.ConnectionState
 import semiont.types.Annotation
 import semiont.types.AttributedEvent
+import semiont.types.EngineEntry
 import semiont.types.GenerationJobParams
 import semiont.types.GetReferencedByResponseReferencedByItem
 import semiont.types.InferenceLimits
@@ -54,7 +55,6 @@ import semiont.types.ListResourcesResponse
 import semiont.types.MarkJobParams
 import semiont.types.MatchResourcesResponse
 import semiont.types.ResourceDescriptor
-import semiont.types.RosterEntry
 import semiont.types.TagSchema
 
 /**
@@ -82,17 +82,17 @@ private fun <T> state(state: CacheState<T>, written: (T) -> JsonElement): JsonOb
     is CacheState.Failed -> Say.of("status" to JsonPrimitive("failed"), "error" to failure(state.error))
 }
 
-/** A collaborator as the suite reads one: its roster entry, with its limits beside its fields when it has them. */
-private object CollaboratorWritten : KSerializer<Collaborator> {
-    override val descriptor = RosterEntry.serializer().descriptor
+/** An engine as the suite reads one: its entry, with its limits beside its fields when it has them. */
+private object EngineWithLimitsWritten : KSerializer<EngineWithLimits> {
+    override val descriptor = EngineEntry.serializer().descriptor
 
-    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: Collaborator) {
-        val entry = wire.encodeToJsonElement(RosterEntry.serializer(), value.entry).jsonObject
+    override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: EngineWithLimits) {
+        val entry = wire.encodeToJsonElement(EngineEntry.serializer(), value.entry).jsonObject
         val limits = value.limits?.let { "limits" to wire.encodeToJsonElement(InferenceLimits.serializer(), it) }
         encoder.encodeSerializableValue(JsonObject.serializer(), JsonObject(entry + listOfNotNull(limits)))
     }
 
-    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): Collaborator = throw UnsupportedOperationException("the suite sends no collaborator")
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): EngineWithLimits = throw UnsupportedOperationException("the suite sends no engine")
 }
 
 /** A job event as the suite reads one: its kind, and what it carries. */
@@ -225,7 +225,7 @@ private class LiveDriver : Driver {
             "referencedBy" -> Query(client.gather.referencedBy(of()), ListSerializer(GetReferencedByResponseReferencedByItem.serializer()))
             "entityTypes" -> Query(client.browse.entityTypes(), ListSerializer(String.serializer()))
             "tagSchemas" -> Query(client.browse.tagSchemas(), ListSerializer(TagSchema.serializer()))
-            "agents" -> Query(client.browse.agents(), ListSerializer(CollaboratorWritten))
+            "engines" -> Query(client.browse.engines(), ListSerializer(EngineWithLimitsWritten))
             "resources" -> filtered(stated) { limit, offset, archived, entityType -> Query(client.browse.resources(limit, offset, archived, entityType), ListResourcesResponse.serializer()) }
             "matchedResources" -> filtered(stated) { limit, offset, archived, entityType ->
                 Query(client.match.resources(stated.text("search"), limit, offset, archived, entityType), MatchResourcesResponse.serializer())

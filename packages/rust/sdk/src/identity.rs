@@ -1,4 +1,5 @@
-//! How a knowledge base is named, and the principals who act in it.
+//! How a knowledge base is named, the principals who act in it, and an
+//! engine.
 //!
 //! Every function here is held to a shared case table (tests/tables.rs):
 //! `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, `kind_of`
@@ -49,7 +50,7 @@ pub fn agent_did(domain: &str, subject: &str) -> String {
 
 /// An engine's name — a provider and a model, which is no principal — as a
 /// worker states it of itself unless it says otherwise.
-pub fn agent_name(provider: &str, model: &str) -> String {
+pub fn engine_name(provider: &str, model: &str) -> String {
     format!("{provider} {model}")
 }
 

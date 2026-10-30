@@ -134,8 +134,8 @@
   color: var(--semiont-text-tertiary);
 }
 
-/* Collaborators roster — one row per software agent, with its job types and ceilings */
-.semiont-collaboration-panel__collaborator {
+/* Engines — one row per engine, with its job types and ceilings */
+.semiont-collaboration-panel__engine {
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
@@ -144,15 +144,15 @@
   line-height: 1.4;
 }
 
-.semiont-collaboration-panel__collaborator + .semiont-collaboration-panel__collaborator {
+.semiont-collaboration-panel__engine + .semiont-collaboration-panel__engine {
   border-top: 1px solid var(--semiont-border-secondary);
 }
 
-[data-theme="dark"] .semiont-collaboration-panel__collaborator + .semiont-collaboration-panel__collaborator {
+[data-theme="dark"] .semiont-collaboration-panel__engine + .semiont-collaboration-panel__engine {
   border-top-color: var(--semiont-color-gray-700);
 }
 
-.semiont-collaboration-panel__collaborator-id {
+.semiont-collaboration-panel__engine-id {
   display: flex;
   gap: 0.375rem;
   align-items: baseline;
@@ -160,25 +160,25 @@
 }
 
 /* The provider is context for the model, not a peer of it. */
-.semiont-collaboration-panel__collaborator-provider {
+.semiont-collaboration-panel__engine-provider {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
-.semiont-collaboration-panel__collaborator-model {
+.semiont-collaboration-panel__engine-model {
   font-weight: var(--semiont-font-medium);
   word-break: break-all;
 }
 
-.semiont-collaboration-panel__collaborator-jobs,
-.semiont-collaboration-panel__collaborator-limits {
+.semiont-collaboration-panel__engine-jobs,
+.semiont-collaboration-panel__engine-limits {
   font-size: var(--semiont-text-xs);
   color: var(--semiont-text-secondary);
 }
 
 /* Ceilings are figures — align them with the numeral treatment used elsewhere. */
-.semiont-collaboration-panel__collaborator-limits {
+.semiont-collaboration-panel__engine-limits {
   font-variant-numeric: tabular-nums;
 }

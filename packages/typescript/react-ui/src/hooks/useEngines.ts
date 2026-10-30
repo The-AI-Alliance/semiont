@@ -1,42 +1,42 @@
 import { useEffect, useState } from 'react';
-import type { Collaborator } from '@semiont/core';
+import type { EngineWithLimits } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
-export interface UseCollaboratorsResult {
-  collaborators: Collaborator[];
+export interface UseEnginesResult {
+  engines: EngineWithLimits[];
   loading: boolean;
   error: Error | null;
 }
 
 /**
- * The KB's collaborator roster — its declared software agents, each with the
- * job types it serves and, when discovery could answer, its model's context and
- * output ceilings.
+ * The KB's engines — each a provider and a model, with the jobs the KB's
+ * Inference document has it used for and, when discovery could answer, its
+ * context and output ceilings.
  *
  * Takes the client explicitly rather than reaching for `useSemiont()`, matching
  * `useMediaToken(client)`: a bring-your-own-session host can use it with a bare
  * session, and the batteries-included page passes `session.client`.
  *
- * SUBSCRIBES rather than fetching once. `browse.agents()` is a `CacheObservable`
+ * SUBSCRIBES rather than fetching once. `browse.engines()` is a `CacheObservable`
  * whose only refresh triggers are its stream reopening after a drop and an
- * explicit `fresh()` — a gateway restart with a changed roster presents as a
- * drop, so a one-shot read would pin the UI to a roster that no longer exists. Awaiting
+ * explicit `fresh()` — a gateway restart with changed engines presents as a
+ * drop, so a one-shot read would pin the UI to engines that no longer exist. Awaiting
  * it instead would also force a network round trip on every mount, which is
  * exactly what the cache exists to avoid.
  *
- * `error` is surfaced but empty-on-failure is the display contract: a roster
- * that cannot be read shows as no roster, never as a broken panel.
+ * `error` is surfaced but empty-on-failure is the display contract: engines
+ * that cannot be read show as no engines, never as a broken panel.
  */
-export function useCollaborators(client: SemiontClient | null): UseCollaboratorsResult {
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+export function useEngines(client: SemiontClient | null): UseEnginesResult {
+  const [engines, setEngines] = useState<EngineWithLimits[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!client) {
-      // No client, no roster — and not "loading" either, or a host without a
+      // No client, no engines — and not "loading" either, or a host without a
       // session would spin forever.
-      setCollaborators([]);
+      setEngines([]);
       setLoading(false);
       setError(null);
       return;
@@ -45,14 +45,14 @@ export function useCollaborators(client: SemiontClient | null): UseCollaborators
     setLoading(true);
     setError(null);
 
-    const sub = client.browse.agents().subscribe({
+    const sub = client.browse.engines().subscribe({
       next: (state) => {
         // The three states are exhaustive by construction (the cache emits
         // pending | ready | failed, and failure is an emission, not a stream
-        // error); `pending` deliberately leaves the previous roster on screen
-        // rather than blanking it during a revalidation.
+        // error); `pending` deliberately leaves the previous engines on screen
+        // rather than blanking them during a revalidation.
         if (state.status === 'ready') {
-          setCollaborators(state.value);
+          setEngines(state.value);
           setLoading(false);
           setError(null);
         } else if (state.status === 'failed') {
@@ -69,5 +69,5 @@ export function useCollaborators(client: SemiontClient | null): UseCollaborators
     return () => sub.unsubscribe();
   }, [client]);
 
-  return { collaborators, loading, error };
+  return { engines, loading, error };
 }

@@ -115,8 +115,8 @@ function live(query: Arguments): CacheObservable<unknown> {
       return browse.entityTypes();
     case 'tagSchemas':
       return browse.tagSchemas();
-    case 'agents':
-      return browse.agents();
+    case 'engines':
+      return browse.engines();
     default:
       throw new Misuse(`no live query ${String(query['query'])}`);
   }

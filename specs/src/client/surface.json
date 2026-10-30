@@ -125,10 +125,10 @@
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
-          "method": "agents",
+          "method": "engines",
           "shape": "cache",
-          "via": { "request": "browse:agents-requested" },
-          "cases": [{ "why": "the directory is asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
+          "via": { "request": "browse:engines-requested" },
+          "cases": [{ "why": "the engines are asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
         },
         {
           "method": "events",

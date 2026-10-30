@@ -45,6 +45,7 @@ from typing import Final, Literal, final
 from openai import APIStatusError, Omit, Timeout, omit
 from openai.types.shared_params import ResponseFormatJSONSchema
 from pydantic import JsonValue, TypeAdapter, ValidationError
+from semiont.types import EngineProvider
 
 from semiont_inference._log import LOG
 from semiont_inference._once import refused_discovery
@@ -108,7 +109,7 @@ class ChatCompletions:
     """
 
     def __init__(
-        self, *, provider: str, model: str, base_url: str, api_key: str | None, own: Mapping[str, JsonValue], thinking: str
+        self, *, provider: EngineProvider, model: str, base_url: str, api_key: str | None, own: Mapping[str, JsonValue], thinking: str
     ) -> None:
         if api_key is not None and not api_key.strip():
             raise ValueError(

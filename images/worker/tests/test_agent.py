@@ -21,21 +21,21 @@ from holding import EVERY_JOB, SOURCE, Parties, answering, job
 from semiont.http import SecretCredential, ServiceToken
 from semiont.identifiers import UserId
 from semiont.operations import OPERATIONS
-from semiont.types import WorkerAgentConfig
+from semiont.types import WorkerEngineConfig
 from standing_in import GENERATOR
 
 from semiont_worker import agent
-from semiont_worker.agent import WORKER_CHANNELS, AgentWorker, Engine, exit_for_restart, run_what_is_claimed, watch_for_a_stall
+from semiont_worker.agent import WORKER_CHANNELS, AgentWorker, EngineAtWork, exit_for_restart, run_what_is_claimed, watch_for_a_stall
 
 AGENT: Final = UserId("did:web:test.local:agents:semiont-worker")
 
 
-def entry(provider: str, model: str, motivation: str) -> WorkerAgentConfig:
-    """An entry of the document's `agents`: an engine serving one motivation of `mark` jobs."""
-    return WorkerAgentConfig.model_validate(
+def entry(provider: str, model: str, motivation: str) -> WorkerEngineConfig:
+    """An entry of the document's `engines`: an engine used for one motivation of `mark` jobs."""
+    return WorkerEngineConfig.model_validate(
         {
-            "agent": {"provider": provider, "model": model},
-            "accepts": [{"jobType": "mark", "params": {"motivation": motivation}}],
+            "engine": {"provider": provider, "model": model},
+            "jobs": [{"jobType": "mark", "params": {"motivation": motivation}}],
             "baseUrl": "http://127.0.0.1:1",
         }
     )
@@ -244,7 +244,7 @@ def test_what_an_engine_makes_names_the_agent_by_its_did_and_the_engine_and_its_
         parties.text_resource()
         parties.queue.append(job("job-1", "mark", {"motivation": "highlighting"}))
         async with parties.client as client:
-            engine = Engine(highlighting, answering('[{"exact": "the first program"}]'), client.job.claim(highlighting.accepts))
+            engine = EngineAtWork(highlighting, answering('[{"exact": "the first program"}]'), client.job.claim(highlighting.jobs))
             working = asyncio.ensure_future(engine.work(client, AGENT))
             for _ in range(20):
                 await turns()
@@ -253,7 +253,7 @@ def test_what_an_engine_makes_names_the_agent_by_its_did_and_the_engine_and_its_
                 {"@type": "Software", "@id": AGENT, "name": "ollama gemma2:27b", "provider": "ollama", "model": "gemma2:27b"}
             ]
             vitals = engine.vitals()
-            assert (vitals["provider"], vitals["model"], vitals["serves"], vitals["jobsCompleted"], vitals["activeJob"]) == (
+            assert (vitals["provider"], vitals["model"], vitals["jobs"], vitals["jobsCompleted"], vitals["activeJob"]) == (
                 "ollama",
                 "gemma2:27b",
                 [{"jobType": "mark", "params": {"motivation": "highlighting"}}],
@@ -274,8 +274,10 @@ def test_engines_on_one_stream_each_claim_with_their_own_filters_and_one_whose_c
     async def scenario() -> None:
         parties = Parties()
         async with parties.client as client:
-            claims = [client.job.claim(each.accepts) for each in (highlighting, commenting)]
-            engines = [Engine(each, answering("[]"), claimed) for each, claimed in zip((highlighting, commenting), claims, strict=True)]
+            claims = [client.job.claim(each.jobs) for each in (highlighting, commenting)]
+            engines = [
+                EngineAtWork(each, answering("[]"), claimed) for each, claimed in zip((highlighting, commenting), claims, strict=True)
+            ]
             working = [asyncio.ensure_future(engine.work(client, AGENT)) for engine in engines]
             for _ in range(5):
                 await turns()
@@ -356,10 +358,10 @@ def test_the_agent_signs_in_once_and_runs_every_engine_over_one_stream_until_it_
             assert dialled.streams == [WORKER_CHANNELS]
             assert parties.claims == 2
             vitals = worker.vitals()
-            workers = vitals["workers"]
+            engines = vitals["engines"]
             assert vitals["did"] == AGENT
-            assert isinstance(workers, list)
-            assert [(each["provider"], each["model"]) for each in workers if isinstance(each, dict)] == [
+            assert isinstance(engines, list)
+            assert [(each["provider"], each["model"]) for each in engines if isinstance(each, dict)] == [
                 ("ollama", "gemma2:27b"),
                 ("ollama", "llama3"),
             ]

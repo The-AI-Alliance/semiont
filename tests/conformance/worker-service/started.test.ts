@@ -28,14 +28,14 @@ const IDLE = { lastQueuedEventAt: null, lastClaimAt: null, lastFinishedAt: null,
 
 const instant = (value: unknown): boolean => typeof value === 'string' && new Date(value).toISOString() === value;
 
-/** A worker of two engines: the first serves two motivations of `mark` jobs, the second `yield` jobs. */
-async function twoEngines(w: WorkerServiceWorld): Promise<{ served: Served; first: Engine; second: Engine; accepts: [JobFilter[], JobFilter[]] }> {
+/** A worker of two engines: the first used for two motivations of `mark` jobs, the second for `yield` jobs. */
+async function twoEngines(w: WorkerServiceWorld): Promise<{ served: Served; first: Engine; second: Engine; jobs: [JobFilter[], JobFilter[]] }> {
   const [first, second] = w.engines;
-  const accepts: [JobFilter[], JobFilter[]] = [[marks('highlighting'), marks('commenting')], [YIELDS]];
-  const served = await w.start({ agents: [w.entry(first!, accepts[0]), w.entry(second!, accepts[1])] });
+  const jobs: [JobFilter[], JobFilter[]] = [[marks('highlighting'), marks('commenting')], [YIELDS]];
+  const served = await w.start({ engines: [w.entry(first!, jobs[0]), w.entry(second!, jobs[1])] });
   // Each engine claims once the stream is open, and is told nothing is pending.
   await eventually('both engines to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
-  return { served, first: first!, second: second!, accepts };
+  return { served, first: first!, second: second!, jobs };
 }
 
 const byModel = <T extends { model: unknown }>(entries: T[]): T[] => [...entries].sort((a, b) => (String(a.model) < String(b.model) ? -1 : 1));
@@ -62,11 +62,11 @@ eachWorkerService('a started worker', (world) => {
 
   it('claims for each engine with its own filters and no others, as a worker, all as the one agent', async () => {
     const w = world();
-    const { served, accepts } = await twoEngines(w);
+    const { served, jobs } = await twoEngines(w);
     expect(byFilters(w.claims.map(({ by, accepts: filters, answered }) => ({ by, accepts: filters, answered })))).toEqual(
       byFilters([
-        { by: w.did, accepts: accepts[0], answered: undefined },
-        { by: w.did, accepts: accepts[1], answered: undefined },
+        { by: w.did, accepts: jobs[0], answered: undefined },
+        { by: w.did, accepts: jobs[1], answered: undefined },
       ]),
     );
     // Each claim carries the roles of the agent's account, as its token carries them.
@@ -74,24 +74,24 @@ eachWorkerService('a started worker', (world) => {
     // On the wire a claim is its filters and nothing else, said to no scope.
     expect(byFilters(served.emits('job:claim').map(({ by, payload, scope }) => ({ by, accepts: payload['accepts'], payload, scope })))).toEqual(
       byFilters([
-        { by: w.did, accepts: accepts[0], payload: { accepts: accepts[0] }, scope: undefined },
-        { by: w.did, accepts: accepts[1], payload: { accepts: accepts[1] }, scope: undefined },
+        { by: w.did, accepts: jobs[0], payload: { accepts: jobs[0] }, scope: undefined },
+        { by: w.did, accepts: jobs[1], payload: { accepts: jobs[1] }, scope: undefined },
       ]),
     );
   });
 
   it('answers GET /health, without a token, with who it is, its engines and what each can say of itself', async () => {
     const w = world();
-    const { served, first, second, accepts } = await twoEngines(w);
+    const { served, first, second, jobs } = await twoEngines(w);
     const health = await served.process.http('GET', '/health');
     expect(health.status).toBe(200);
     expect(health.headers.get('content-type')).toMatch(/^application\/json/);
     expect(health.json).toEqual({
       status: 'ok',
       did: w.did,
-      workers: [
-        { provider: first.provider, model: first.model, serves: accepts[0], ...IDLE },
-        { provider: second.provider, model: second.model, serves: accepts[1], ...IDLE },
+      engines: [
+        { provider: first.provider, model: first.model, jobs: jobs[0], ...IDLE },
+        { provider: second.provider, model: second.model, jobs: jobs[1], ...IDLE },
       ],
     });
   });
@@ -129,8 +129,8 @@ eachWorkerService('a started worker', (world) => {
     const engine = w.engines[0]!;
     const served = await w.start();
     await eventually('the engine to have claimed', 15_000, () => (w.claims.length >= 1 ? true : undefined));
-    const vitals = async () => ((await served.process.http('GET', '/health')).json as { workers: Array<Record<string, unknown>> }).workers[0]!;
-    expect(await vitals()).toEqual({ provider: engine.provider, model: engine.model, serves: served.process.settings.agents[0]!.accepts, ...IDLE });
+    const vitals = async () => ((await served.process.http('GET', '/health')).json as { engines: Array<Record<string, unknown>> }).engines[0]!;
+    expect(await vitals()).toEqual({ provider: engine.provider, model: engine.model, jobs: served.process.settings.engines[0]!.jobs, ...IDLE });
 
     // A job is announced: the engine claims it, and holds it while its model is silent.
     const job = markJob(w, 'held', { motivation: 'highlighting' });
@@ -162,7 +162,7 @@ eachWorkerService('a started worker', (world) => {
       body['model'] === first!.model
         ? { response: JSON.stringify([{ exact: 'the first program' }]) }
         : { response: JSON.stringify([{ exact: 'Charles Babbage', comment: 'He designed the engine.' }]) };
-    const served = await w.start({ agents: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [marks('commenting')])] });
+    const served = await w.start({ engines: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [marks('commenting')])] });
     await settled(served, highlights);
     await settled(served, comments);
 

@@ -24,7 +24,7 @@ Testing in the Semiont Browser is split between two packages following the compo
 **Key Principles**:
 1. **Type Safety First** - TypeScript provides compile-time validation
 2. **Separation of Concerns** - Business logic tested in react-ui, integration tested in the Browser
-3. **Scripted Collaborators** - Component tests script the `SemiontBrowser` that `useSemiont()` returns; integration tests run the real SDK against a `fetch` stub
+3. **Scripted Dependencies** - Component tests script the `SemiontBrowser` that `useSemiont()` returns; integration tests run the real SDK against a `fetch` stub
 4. **Performance as Testing** - Bundle analysis catches regressions
 5. **Error Boundaries** - Runtime error handling for edge cases
 

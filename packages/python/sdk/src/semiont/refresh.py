@@ -48,9 +48,9 @@ type CacheQuery = Literal[
     "entityTypes",
     # The knowledge base's tag schemas.
     "tagSchemas",
-    # The roster, joined with the limits each inference key holder reports: asking again asks
-    # every `<flow>:limits-requested` operation of the registry again too.
-    "agents",
+    # The knowledge base's engines, joined with the limits each inference key holder reports:
+    # asking again asks every `<flow>:limits-requested` operation of the registry again too.
+    "engines",
 ]
 
 CACHE_QUERIES: Final[tuple[CacheQuery, ...]] = (
@@ -63,7 +63,7 @@ CACHE_QUERIES: Final[tuple[CacheQuery, ...]] = (
     "matchedResources",
     "entityTypes",
     "tagSchemas",
-    "agents",
+    "engines",
 )
 
 # Which of a split channel's two kinds of event a row is for.
@@ -117,7 +117,7 @@ CACHE_REFRESH: Final[Mapping[CacheRefreshTrigger, tuple[CacheRefresh, ...]]] = M
         # events are replayed from where the client left off, or `bus:resume-gap` says they
         # could not be.
         "reopened": (
-            CacheRefresh(reach="held", refetches=("resources", "matchedResources", "resource", "entityTypes", "tagSchemas", "agents")),
+            CacheRefresh(reach="held", refetches=("resources", "matchedResources", "resource", "entityTypes", "tagSchemas", "engines")),
         ),
         # The gateway could not replay what a scope missed: everything held of that resource,
         # and of its annotations, is asked for again.

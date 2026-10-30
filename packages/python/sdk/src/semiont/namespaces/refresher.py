@@ -275,9 +275,9 @@ class Refresher:
                 self._again(live.entity_types, WHOLE, "entity-types")
             case "tagSchemas":
                 self._again(live.tag_schemas, WHOLE, "tag-schemas")
-            case "agents":
-                if live.agents.known(WHOLE):
-                    self._windows.run("agents", live.invalidate_agents)
+            case "engines":
+                if live.engines.known(WHOLE):
+                    self._windows.run("engines", live.invalidate_engines)
             case _:
                 assert_never(query)
 

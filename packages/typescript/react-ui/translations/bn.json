@@ -97,7 +97,7 @@
     "reconnecting": "সার্ভারে পুনরায় সংযোগ হচ্ছে...",
     "sharing": "শেয়ারিং",
     "collaborationComingSoon": "সহযোগিতা বৈশিষ্ট্য শীঘ্রই আসছে",
-    "collaborators": "সহযোগীরা",
+    "engines": "ইঞ্জিনসমূহ",
     "ceilings": "{{contextTokens}} ইনপুট / {{maxOutputTokens}} আউটপুট",
     "sharedWindow": "{{contextTokens}} উইন্ডো"
   },

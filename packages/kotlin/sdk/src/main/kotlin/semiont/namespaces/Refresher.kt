@@ -179,7 +179,7 @@ internal class Refresher(private val links: Links, private val live: Live) {
             CacheQuery.MatchedResources -> windows.run("matched-resources", live.searches::invalidateAll)
             CacheQuery.EntityTypes -> again(live.entityTypes, WHOLE, "entity-types")
             CacheQuery.TagSchemas -> again(live.tagSchemas, WHOLE, "tag-schemas")
-            CacheQuery.Agents -> if (live.agents.known(WHOLE)) windows.run("agents", live::invalidateAgents)
+            CacheQuery.Engines -> if (live.engines.known(WHOLE)) windows.run("engines", live::invalidateEngines)
         }
     }
 

@@ -78,7 +78,7 @@ and some of them repeat what the document held.
 
 
 def _member(location: Sequence[int | str]) -> str:
-    """A member of the document, as the document's own names reach it: `agents[0].accepts`. The document itself is `root`."""
+    """A member of the document, as the document's own names reach it: `engines[0].jobs`. The document itself is `root`."""
     path = ""
     for step in location:
         path += f"[{step}]" if isinstance(step, int) else f".{step}" if path else step

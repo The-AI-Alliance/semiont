@@ -36,8 +36,9 @@ import (
 // requests run concurrently, so this is also the wait for all of them.
 const statusCeilingTimeout = 3 * time.Second
 
-// modelCeilings maps a (provider, model) pair to the ceilings the platform
-// discovered for it — the granularity the inference clients discover at.
+// modelCeilings maps an engine, by its provider and model, to the ceilings
+// the platform discovered for it — the granularity the inference clients
+// discover at.
 type modelCeilings map[string]api.InferenceLimits
 
 func ceilingKey(provider, model string) string { return provider + "\x00" + model }
@@ -79,8 +80,8 @@ func fetchModelCeilings(u *UI, st *StackState) modelCeilings {
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			for _, pair := range r.Response.Limits {
-				out[ceilingKey(pair.Provider, pair.Model)] = pair.Limits
+			for _, reported := range r.Response.Limits {
+				out[ceilingKey(string(reported.Engine.Provider), reported.Engine.Model)] = reported.Limits
 			}
 		})
 	}

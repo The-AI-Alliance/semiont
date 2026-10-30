@@ -29,20 +29,20 @@ message:
 | --- | --- |
 | `match:search-requested` | A reference search: the resources an annotation could refer to, scored |
 | `match:resources-requested` | A text search: resources by text, in the graph, and by meaning, in the vector index, when nothing matches by text |
-| `match:limits-requested` | The limits of the Matcher's model |
+| `match:limits-requested` | The limits of the Matcher's engine |
 | `gather:requested` | What surrounds an annotation |
 | `gather:resource-requested` | What surrounds a resource |
 | `gather:summary-requested` | An annotation's summary |
 | `gather:referenced-by-requested` | The annotations elsewhere that refer to a resource |
-| `gather:limits-requested` | The limits of the Gatherer's model |
+| `gather:limits-requested` | The limits of the Gatherer's engine |
 
 Two actors ask a model: the **Matcher**, in a reference search, and the **Gatherer**, in a
-gather and a summary. Each has a model of its own. The service is one agent whatever those
-models are.
+gather and a summary. Each has an engine of its own. The service is one agent whatever those
+engines are.
 
 **It owns no store, and makes nothing in one.** It reads the graph and the vector index, and
 puts no node, no edge, no collection and no point in either. What it needs of
-[the record](../../docs/protocol/ARCHIVIST.md), and what the knowledge base calls the people a reply
+[the record](../../docs/protocol/ARCHIVIST.md), and the profiles of the principals a reply
 names, it asks the Archivist on the bus, each read bounded by its question. A Librarian that
 is stopped and started again has lost nothing.
 
@@ -53,11 +53,11 @@ is stopped and started again has lost nothing.
   (`GET /resources/{id}/anchored-text`).
 - **The Archivist**, for a resource's bytes (`GET /resources/{id}/content`), as its service
   account; and, on the bus, for a resource's description (`browse:resource-requested`), an
-  annotation on it (`browse:annotation-requested`) and the profiles of the people a reply
-  names (`browse:people-requested`).
+  annotation on it (`browse:annotation-requested`) and the profiles of the principals a
+  reply names (`browse:profiles-requested`).
 - **The graph database and the vector index**, each read directly.
 - **An embedding provider**, for the vector of a query, and **the provider of each actor's
-  model**.
+  engine**.
 
 **It mounts no piece of the knowledge base, and opens no file of the record.** The launcher
 mounts two things in it: its configuration document, read-only, and a store of its own for its
@@ -95,7 +95,7 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 | `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
 | `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
 | `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
-| `matcher`, `gatherer` | each actor's model ([`LibrarianModelConfig`](../../specs/src/components/schemas/LibrarianModelConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
+| `matcher`, `gatherer` | each actor's engine ([`LibrarianEngineConfig`](../../specs/src/components/schemas/LibrarianEngineConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
 | `modelCatalogue` | the path of the model catalogue: what each model of `google`, `openai` and `together` can take, which those providers' APIs do not say. It is read only where an actor's model is one of theirs |
 | `gather.settleTimeoutMs` | how long a gather around a resource waits for the Smelter |
 | `search.semanticFloor` | the least similarity a hit by meaning must have |

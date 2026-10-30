@@ -57,9 +57,9 @@ What init does:
 - **Documents built, not copied**: `--inference anthropic|ollama --model <id>
   --embedding ollama:<model>` writes the stack's documents into
   `.semiont/stack/` from the launcher's own knowledge — the images and memory
-  of its catalog, and an Inference document whose roster binds both actors and
-  every job to the one model chosen (per-job refinement is your edit, under
-  `spec.roster.workers.mark.<motivation>` and `spec.roster.workers.yield`).
+  of its catalog, and an Inference document that gives both actors and every
+  job one engine, the model chosen (per-job refinement is your edit, under
+  `spec.engines.jobs.mark.<motivation>` and `spec.engines.jobs.yield`).
   NOTHING is mastered anywhere.
 - **Choices validated live**: with a key, Anthropic models validate against
   `/v1/models` (an unlisted id is a refusal printing what exists; no
@@ -381,14 +381,14 @@ semiont stop
   collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). `semiont start --dry-run` lists
   what it would place.
   **The inference driver is who performs inference per the
-  roster, not which process the launcher runs**: any role on `ollama` →
-  the local-Ollama shape (host-process dance, container fallback); an
-  all-remote roster (Claude throughout) → `inference (Anthropic)`, an external
+  engines, not which process the launcher runs**: any engine on `ollama` →
+  the local-Ollama shape (host-process dance, container fallback); all-remote
+  engines (Claude throughout) → `inference (Anthropic)`, an external
   SaaS role that launches nothing. In that second shape the local Ollama the
   KnowledgeIndex's embedding still needs exists solely for the embedding, so
   **embedding owns it** — the row reads `embedding (Ollama)` with the
   host/container runtime, the model pulls ride on it, and its launched
-  container is embedding's to stop. With roles on `ollama`, embedding instead
+  container is embedding's to stop. With engines on `ollama`, embedding instead
   rides the inference role's Ollama and reports the same provider — one
   process is never described two ways. A `voyage` embedding is remote SaaS;
   either way embedding has a status row and start/stop belongs to whatever
@@ -402,7 +402,7 @@ semiont stop
   in-process index cannot be shared across them.
 - **The inference and embedding rows list their models.** Which models a stack
   uses is the documents' truth, recorded at start (every model the Inference
-  document's roster names, and the embedding's `model`); whether each is pulled
+  document's engines name, and the embedding's `model`); whether each is pulled
   is verified live against Ollama's `/api/tags` and `/api/ps`, with size,
   parameter count and quantization. A model that was never pulled is
   otherwise invisible until a worker reaches
@@ -410,7 +410,7 @@ semiont stop
   up it lists what is installed and pulls each configured model that is
   absent, over Ollama's HTTP API (one path for both a host process and the
   launcher's container — no `ollama` CLI needed on PATH). Only models Ollama
-  can actually serve are pulled: the roster's `ollama` roles plus an ollama
+  can actually serve are pulled: the `ollama` engines' models plus an ollama
   embedding, never a Claude. If Ollama cannot be listed, NOTHING is pulled —
   unknown is not missing, and re-downloading gigabytes a user already has is
   the worse error. A failed pull warns and leaves the stack running rather
@@ -429,7 +429,7 @@ semiont stop
   against Ollama's `:latest` form. Remote models (Claude, Voyage) list as
   `remote` — there is nothing to install.
   A local Ollama runs only when the documents name ollama — owned by
-  inference when the roster uses it, by embedding when only the embedding
+  inference when an engine uses it, by embedding when only the embedding
   does. Every other container's `image` is its document's — a KB pins or
   upgrades an infra image without a launcher release. `--dry-run` renders
   the derived plan.

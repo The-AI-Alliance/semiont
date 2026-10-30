@@ -16,7 +16,7 @@ Gather adds no knowledge. It finds and assembles what is already there.
 
 The replies are `gather:complete`, `gather:resource-complete` and `gather:referenced-by-result`, or their `-failed` counterparts.
 
-The librarian answers two more requests on the wire. `gather:summary-requested` names an annotation and its resource, and is answered with [a model's summary of the annotation](../LIBRARIAN.md#an-annotations-summary); no SDK method asks it. `gather:limits-requested` is answered with the [limits](../LIBRARIAN.md#limits) of the model Gather uses; `browse.agents` asks it.
+The librarian answers two more requests on the wire. `gather:summary-requested` names an annotation and its resource, and is answered with [a model's summary of the annotation](../LIBRARIAN.md#an-annotations-summary); no SDK method asks it. `gather:limits-requested` is answered with the [limits](../LIBRARIAN.md#limits) of the engine Gather uses; `browse.engines` asks it.
 
 ## The gathered context
 

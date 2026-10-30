@@ -198,7 +198,7 @@
       "withNoCursor": "from-the-first",
       "steps": [
         { "start": true },
-        { "record": ["__system__", "person:profiled"] },
+        { "record": ["__system__", "principal:profiled"] },
         { "record": ["__system__", "frame:entity-type-added"] },
         { "deliver": ["__system__", 3] }
       ],

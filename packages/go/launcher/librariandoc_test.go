@@ -22,7 +22,7 @@ func mixedActors(t *testing.T) *stack.Stack {
 	t.Helper()
 	st := fixtureStack(t, "ollama-gemma")
 	withAnthropic(st)
-	st.Inference.Spec.Roster.Actors.Matcher = anthropicHaiku()
+	st.Inference.Spec.Engines.Actors.Matcher = anthropicHaiku()
 	return st
 }
 
@@ -84,11 +84,11 @@ func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
-	if doc.Matcher.Agent != *anthropicHaiku() || doc.Matcher.BaseUrl != "https://api.anthropic.com" || doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
+	if doc.Matcher.Engine != *anthropicHaiku() || doc.Matcher.BaseUrl != "https://api.anthropic.com" || doc.Matcher.ApiKeyEnv == nil || *doc.Matcher.ApiKeyEnv != "ANTHROPIC_API_KEY" {
 		t.Errorf("matcher = %+v, want %+v at Anthropic's own address, its key named ANTHROPIC_API_KEY", doc.Matcher, *anthropicHaiku())
 	}
-	gatherer := api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderOllama, Model: "gemma4:26b"}
-	if doc.Gatherer.Agent != gatherer || doc.Gatherer.BaseUrl != "http://192.168.64.1:11434" || doc.Gatherer.ApiKeyEnv != nil {
+	gatherer := api.Engine{Provider: api.EngineProviderOllama, Model: "gemma4:26b"}
+	if doc.Gatherer.Engine != gatherer || doc.Gatherer.BaseUrl != "http://192.168.64.1:11434" || doc.Gatherer.ApiKeyEnv != nil {
 		t.Errorf("gatherer = %+v, want %+v at the Ollama this start places, with no key", doc.Gatherer, gatherer)
 	}
 	if doc.Gather.SettleTimeoutMs != 15_000 || doc.Search.SemanticFloor != 0.6 {
@@ -146,8 +146,8 @@ func TestLibrarianDocumentSharesTheWeaversGraphAndTheSmeltersIndex(t *testing.T)
 
 // A secret is named and never stated: the document names the variable each
 // document names, and the Librarian is handed exactly those. An Ollama is
-// asked without a key, so a roster whose every actor asks an Ollama names
-// none, and two actors under one key are handed it once.
+// asked without a key, so engines whose every actor asks an Ollama name none,
+// and two actors under one key are handed it once.
 func TestLibrarianDocumentNamesItsSecrets(t *testing.T) {
 	st := mixedActors(t)
 	externalGraph(st)
@@ -168,70 +168,70 @@ func TestLibrarianDocumentNamesItsSecrets(t *testing.T) {
 	}
 
 	if got := librarianSecrets(placed(t, fixtureStack(t, "ollama-gemma"))); len(got) != 0 {
-		t.Errorf("a roster whose every actor asks an Ollama names %v", got)
+		t.Errorf("engines whose every actor asks an Ollama name %v", got)
 	}
 	if got := librarianSecrets(placed(t, fixtureStack(t, "anthropic"))); len(got) != 1 || got[0] != "ANTHROPIC_API_KEY" {
 		t.Errorf("two actors under one key are handed %v, want the one variable", got)
 	}
 }
 
-// A model's provider is reached where a worker's agent of that provider is:
-// one decider, so a model the worker and the Librarian share is one agent at
-// one address.
-func TestLibrarianModelsAreReachedWhereTheWorkersAgentsAre(t *testing.T) {
+// An actor's engine's provider is reached where the worker's engine of that
+// provider is: one decider, so an engine the worker and the Librarian share is
+// at one address.
+func TestLibrarianEnginesAreReachedWhereTheWorkersEnginesAre(t *testing.T) {
 	st := mixedActors(t)
-	st.Inference.Spec.Roster.Workers.Mark.Tagging = anthropicHaiku()
+	st.Inference.Spec.Engines.Jobs.Mark.Tagging = anthropicHaiku()
 	p := placed(t, st)
 	doc := librarianDocumentOf(t, p)
-	agents, err := workerAgents(p)
+	engines, err := workerEngines(p)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for actor, model := range map[string]api.LibrarianModelConfig{"matcher": doc.Matcher, "gatherer": doc.Gatherer} {
+	for actor, asked := range map[string]api.LibrarianEngineConfig{"matcher": doc.Matcher, "gatherer": doc.Gatherer} {
 		found := false
-		for _, agent := range agents {
-			if agent.Agent != model.Agent {
+		for _, engine := range engines {
+			if engine.Engine != asked.Engine {
 				continue
 			}
 			found = true
-			if agent.BaseUrl != model.BaseUrl || !reflect.DeepEqual(agent.ApiKeyEnv, model.ApiKeyEnv) {
-				t.Errorf("the %s asks %+v at %q under %v, and the worker's agent is at %q under %v", actor, model.Agent, model.BaseUrl, model.ApiKeyEnv, agent.BaseUrl, agent.ApiKeyEnv)
+			if engine.BaseUrl != asked.BaseUrl || !reflect.DeepEqual(engine.ApiKeyEnv, asked.ApiKeyEnv) {
+				t.Errorf("the %s asks %+v at %q under %v, and the worker's engine is at %q under %v", actor, asked.Engine, asked.BaseUrl, asked.ApiKeyEnv, engine.BaseUrl, engine.ApiKeyEnv)
 			}
 		}
 		if !found {
-			t.Fatalf("no worker is bound to the %s's model %+v: this test would compare nothing", actor, model.Agent)
+			t.Fatalf("no job of the worker's has the %s's engine %+v: this test would compare nothing", actor, asked.Engine)
 		}
 	}
 }
 
-// An actor is served by `actors.<actor>` and by nothing else: the roster the
-// Archivist's document names and the model the Librarian's document names are
-// one binding.
-func TestLibrarianModelsAreTheRostersActors(t *testing.T) {
+// An actor's engine is `actors.<actor>` and nothing else: the one the
+// Archivist's document names and the one the Librarian's document names are
+// one engine.
+func TestLibrarianEnginesAreTheActorsEngines(t *testing.T) {
 	p := placed(t, mixedActors(t))
-	roster := archivistDocumentOf(t, p).Roster
+	engines := archivistDocumentOf(t, p).Engines
 	doc := librarianDocumentOf(t, p)
-	if roster.Actors.Matcher == nil || *roster.Actors.Matcher != doc.Matcher.Agent {
-		t.Errorf("the roster's matcher is %+v, the Librarian's %+v", roster.Actors.Matcher, doc.Matcher.Agent)
+	if engines.Actors.Matcher == nil || *engines.Actors.Matcher != doc.Matcher.Engine {
+		t.Errorf("the engines' matcher is %+v, the Librarian's %+v", engines.Actors.Matcher, doc.Matcher.Engine)
 	}
-	if roster.Actors.Gatherer == nil || *roster.Actors.Gatherer != doc.Gatherer.Agent {
-		t.Errorf("the roster's gatherer is %+v, the Librarian's %+v", roster.Actors.Gatherer, doc.Gatherer.Agent)
+	if engines.Actors.Gatherer == nil || *engines.Actors.Gatherer != doc.Gatherer.Engine {
+		t.Errorf("the engines' gatherer is %+v, the Librarian's %+v", engines.Actors.Gatherer, doc.Gatherer.Engine)
 	}
 }
 
 // What the document cannot be written from is refused, naming the document and
-// the field: an actor the roster binds no model to, whatever the workers are
-// bound to, and a Voyage embedding that names no key.
+// the field: an actor given no engine, whatever the jobs are given, and a
+// Voyage embedding that names no key.
 func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 	for _, c := range []struct {
 		why   string
 		vary  func(st *stack.Stack)
 		names func(st *stack.Stack) string
 	}{
-		{"no matcher", func(st *stack.Stack) { st.Inference.Spec.Roster.Actors.Matcher = nil },
-			func(st *stack.Stack) string { return st.Files.Inference + ": spec.roster.actors.matcher" }},
-		{"no gatherer", func(st *stack.Stack) { st.Inference.Spec.Roster.Actors.Gatherer = nil },
-			func(st *stack.Stack) string { return st.Files.Inference + ": spec.roster.actors.gatherer" }},
+		{"no matcher", func(st *stack.Stack) { st.Inference.Spec.Engines.Actors.Matcher = nil },
+			func(st *stack.Stack) string { return st.Files.Inference + ": spec.engines.actors.matcher" }},
+		{"no gatherer", func(st *stack.Stack) { st.Inference.Spec.Engines.Actors.Gatherer = nil },
+			func(st *stack.Stack) string { return st.Files.Inference + ": spec.engines.actors.gatherer" }},
 		{"Voyage with no key", func(st *stack.Stack) { voyageEmbedding(st); st.KnowledgeIndex.Spec.Embedding.ApiKey = nil },
 			func(st *stack.Stack) string { return st.Files.KnowledgeIndex + ": spec.embedding.apiKey" }},
 	} {

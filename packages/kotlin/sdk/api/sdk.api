@@ -891,8 +891,8 @@ public abstract interface class semiont/http/TokenRefresher {
 
 public final class semiont/identity/IdentityKt {
 	public static final fun agentDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
-	public static final fun agentName (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun encodeUriComponent (Ljava/lang/String;)Ljava/lang/String;
+	public static final fun engineName (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbDid (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun kbResource (Ljava/lang/String;)Ljava/lang/String;
 	public static final fun personDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
@@ -936,7 +936,6 @@ public final class semiont/namespaces/BindNamespace {
 }
 
 public final class semiont/namespaces/BrowseNamespace {
-	public final fun agents ()Lsemiont/cache/Cached;
 	public final fun annotation (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Lsemiont/cache/Cached;
 	public final fun annotation-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun annotationHistory-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -946,6 +945,7 @@ public final class semiont/namespaces/BrowseNamespace {
 	public final fun annotations--Xm7VB4 (Ljava/lang/String;)Lsemiont/cache/Cached;
 	public final fun click (Lsemiont/identifiers/AnnotationId;)V
 	public final fun click-2VybQ2U (Ljava/lang/String;)V
+	public final fun engines ()Lsemiont/cache/Cached;
 	public final fun entityTypes ()Lsemiont/cache/Cached;
 	public final fun events (Lsemiont/identifiers/ResourceId;)Lsemiont/cache/Cached;
 	public final fun events--Xm7VB4 (Ljava/lang/String;)Lsemiont/cache/Cached;
@@ -987,14 +987,14 @@ public final class semiont/namespaces/BrowseNamespace {
 	public final fun tagSchemas ()Lsemiont/cache/Cached;
 }
 
-public final class semiont/namespaces/Collaborator {
-	public fun <init> (Lsemiont/types/RosterEntry;Lsemiont/types/InferenceLimits;)V
-	public final fun component1 ()Lsemiont/types/RosterEntry;
+public final class semiont/namespaces/EngineWithLimits {
+	public fun <init> (Lsemiont/types/EngineEntry;Lsemiont/types/InferenceLimits;)V
+	public final fun component1 ()Lsemiont/types/EngineEntry;
 	public final fun component2 ()Lsemiont/types/InferenceLimits;
-	public final fun copy (Lsemiont/types/RosterEntry;Lsemiont/types/InferenceLimits;)Lsemiont/namespaces/Collaborator;
-	public static synthetic fun copy$default (Lsemiont/namespaces/Collaborator;Lsemiont/types/RosterEntry;Lsemiont/types/InferenceLimits;ILjava/lang/Object;)Lsemiont/namespaces/Collaborator;
+	public final fun copy (Lsemiont/types/EngineEntry;Lsemiont/types/InferenceLimits;)Lsemiont/namespaces/EngineWithLimits;
+	public static synthetic fun copy$default (Lsemiont/namespaces/EngineWithLimits;Lsemiont/types/EngineEntry;Lsemiont/types/InferenceLimits;ILjava/lang/Object;)Lsemiont/namespaces/EngineWithLimits;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getEntry ()Lsemiont/types/RosterEntry;
+	public final fun getEntry ()Lsemiont/types/EngineEntry;
 	public final fun getLimits ()Lsemiont/types/InferenceLimits;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

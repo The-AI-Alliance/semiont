@@ -9,7 +9,7 @@ import pytest
 from aio import run
 from provider import Anthropic, Ollama
 from refusals.a_provider_the_vocabulary_lacks import an_unknown_provider
-from semiont.types import ArchivistRosterRoleProvider
+from semiont.types import EngineProvider
 
 from semiont_inference.anthropic import AnthropicInferenceClient
 from semiont_inference.catalogue import read_catalogue
@@ -67,7 +67,7 @@ def test_an_ollama_client_is_made_for_the_model_at_the_address_and_takes_no_key(
 
 @pytest.mark.parametrize("api_key", [None, "", "   "], ids=["none", "empty", "white space"])
 @pytest.mark.parametrize("provider", sorted(KEYED))
-def test_a_provider_that_takes_a_key_is_refused_without_one_by_its_name(provider: ArchivistRosterRoleProvider, api_key: str | None) -> None:
+def test_a_provider_that_takes_a_key_is_refused_without_one_by_its_name(provider: EngineProvider, api_key: str | None) -> None:
     model = LISTED.get(provider, "claude-haiku-4-5-20251001")
     with pytest.raises(KeyRequired, match=f"^api_key is required for the {KEYED[provider]} inference client$"):
         create_inference_client(provider=provider, model=model, base_url="http://127.0.0.1:1", api_key=api_key, catalogue=CATALOGUE)
@@ -77,9 +77,7 @@ def test_a_provider_that_takes_a_key_is_refused_without_one_by_its_name(provider
     ("provider", "made"),
     [("google", GoogleInferenceClient), ("openai", OpenAIInferenceClient), ("together", TogetherInferenceClient)],
 )
-def test_a_provider_whose_api_is_silent_is_made_with_what_the_catalogue_says_of_its_model(
-    provider: ArchivistRosterRoleProvider, made: type
-) -> None:
+def test_a_provider_whose_api_is_silent_is_made_with_what_the_catalogue_says_of_its_model(provider: EngineProvider, made: type) -> None:
     model = LISTED[provider]
     client = create_inference_client(provider=provider, model=model, base_url="http://127.0.0.1:1", api_key="k", catalogue=CATALOGUE)
     assert isinstance(client, made)
@@ -88,7 +86,7 @@ def test_a_provider_whose_api_is_silent_is_made_with_what_the_catalogue_says_of_
 
 @pytest.mark.parametrize("provider", sorted(LISTED))
 def test_a_provider_whose_api_is_silent_is_refused_with_no_catalogue_with_one_that_lacks_its_model_and_with_one_that_is_not_there(
-    provider: ArchivistRosterRoleProvider, tmp_path: Path
+    provider: EngineProvider, tmp_path: Path
 ) -> None:
     with pytest.raises(CatalogueRequired, match=f"^a model catalogue is required for the provider {provider}, "):
         create_inference_client(provider=provider, model=LISTED[provider], base_url="http://127.0.0.1:1", api_key="k", catalogue=None)
@@ -100,7 +98,7 @@ def test_a_provider_whose_api_is_silent_is_refused_with_no_catalogue_with_one_th
 
 
 @pytest.mark.parametrize("provider", ["anthropic", "llamacpp", "ollama", "vllm"])
-def test_a_provider_that_states_its_own_facts_never_has_the_catalogue_read(provider: ArchivistRosterRoleProvider, tmp_path: Path) -> None:
+def test_a_provider_that_states_its_own_facts_never_has_the_catalogue_read(provider: EngineProvider, tmp_path: Path) -> None:
     # A file that is not there would fail a read: none is made for these four.
     missing = tmp_path / "no-catalogue.json"
     made = create_inference_client(provider=provider, model="m", base_url="http://127.0.0.1:1", api_key="k", catalogue=missing)
@@ -110,7 +108,7 @@ def test_a_provider_that_states_its_own_facts_never_has_the_catalogue_read(provi
 @pytest.mark.parametrize(("provider", "made"), [("llamacpp", LlamaCppInferenceClient), ("vllm", VllmInferenceClient)])
 @pytest.mark.parametrize("api_key", [None, "a-key"], ids=["no key", "a key"])
 def test_a_server_a_deployment_runs_is_made_with_a_key_or_without_and_with_no_catalogue(
-    provider: ArchivistRosterRoleProvider, made: type, api_key: str | None
+    provider: EngineProvider, made: type, api_key: str | None
 ) -> None:
     client = create_inference_client(provider=provider, model="m", base_url="http://127.0.0.1:1/v1", api_key=api_key, catalogue=None)
     assert isinstance(client, made)
@@ -125,8 +123,8 @@ def test_a_provider_it_does_not_know_is_refused_when_run_as_it_is_by_both_checke
 def test_every_provider_the_protocol_names_makes_a_client_that_says_it_is_that_provider() -> None:
     # The factory's vocabulary is the spec's, as the SDK generates it: a provider added there is one the factory must make.
     signature = inspect.signature(create_inference_client)
-    assert signature.parameters["provider"].annotation is ArchivistRosterRoleProvider
-    (stated, *_) = typing.get_args(ArchivistRosterRoleProvider.__value__)
+    assert signature.parameters["provider"].annotation is EngineProvider
+    (stated, *_) = typing.get_args(EngineProvider.__value__)
     named = typing.get_args(stated)
     assert sorted(named) == ["anthropic", "google", "llamacpp", "ollama", "openai", "together", "vllm"]
     for provider in named:

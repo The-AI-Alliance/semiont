@@ -63,15 +63,15 @@ func TestCeilingCell(t *testing.T) {
 	}
 }
 
-// The ollama-gemma roster binds two models across eight roles, most of them
-// more than once.
-func TestBindingModelsAreSortedAndDeduped(t *testing.T) {
+// The ollama-gemma engines name two models across eight jobs and actors, most
+// of them more than once.
+func TestEngineModelsAreSortedAndDeduped(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	// A mixed roster lists remote models too — these ARE the models this stack
-	// performs inference with, whoever serves them — each under the provider
-	// its role names.
-	st.Inference.Spec.Roster.Workers.Yield = &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5"}
-	got := bindingModels(st)
+	// Engines of mixed providers list remote models too — these ARE the models
+	// this stack performs inference with, whoever serves them — each under the
+	// provider its engine names.
+	st.Inference.Spec.Engines.Jobs.Yield = &api.Engine{Provider: api.EngineProviderAnthropic, Model: "claude-sonnet-4-5"}
+	got := engineModels(st)
 	want := []servedModel{
 		{Model: "claude-sonnet-4-5", Provider: "anthropic"},
 		{Model: "gemma4:26b", Provider: "ollama"},
@@ -119,11 +119,11 @@ func TestWriteVettedStackRefusesUnstartable(t *testing.T) {
 		}
 		return files
 	}
-	// A roster that binds every job, and no WorkerPool to run a worker from.
+	// Engines for every job, and no WorkerPool to run a worker from.
 	bad := generated()
 	delete(bad, stack.WorkerPoolFile)
 	if writeVettedStack(u, root, bad) {
-		t.Fatal("a roster binding jobs with no workers.yaml passed the vet")
+		t.Fatal("engines for jobs with no workers.yaml passed the vet")
 	}
 	if _, err := os.Stat(filepath.Join(root, stack.Dir)); !os.IsNotExist(err) {
 		t.Errorf("the refusal left %s behind: %v", stack.Dir, err)

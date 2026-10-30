@@ -1,11 +1,11 @@
-"""What a Librarian reads of the record, and what the knowledge base calls its people: each asked of the Archivist, over the bus.
+"""What a Librarian reads of the record, and the profiles of the knowledge base's principals: each asked of the Archivist, over the bus.
 
 The Archivist keeps both, and a Librarian only reads them
 (`docs/protocol/LIBRARIAN.md` § What it answers, § Names). Each read is
 bounded by its question: a resource's descriptor and the sequence number of
 its last event (`browse:resource-requested`), one annotation on a resource
-(`browse:annotation-requested`), and the profiles of the people a reply
-names (`browse:people-requested`). It opens no file of the record. A
+(`browse:annotation-requested`), and the profiles of the principals a
+reply names (`browse:profiles-requested`). It opens no file of the record. A
 resource's bytes are another read, and no part of this
 (`semiont_service.content`).
 """
@@ -16,22 +16,22 @@ from typing import Final, final, override
 from semiont.bus import Bus
 from semiont.errors import BusRequestError, TransportError
 from semiont.identifiers import AnnotationId, ResourceId, UserId
-from semiont.operations import BROWSE_ANNOTATION_REQUESTED, BROWSE_PEOPLE_REQUESTED, BROWSE_RESOURCE_REQUESTED
-from semiont.types import Annotation, BrowseAnnotationRequest, BrowsePeopleRequest, BrowseResourceRequest, PersonProfile
+from semiont.operations import BROWSE_ANNOTATION_REQUESTED, BROWSE_PROFILES_REQUESTED, BROWSE_RESOURCE_REQUESTED
+from semiont.types import Annotation, BrowseAnnotationRequest, BrowseProfilesRequest, BrowseResourceRequest, Profile
 
-from semiont_librarian.reads import Described, People, PeopleUnread, Record
+from semiont_librarian.reads import Described, Profiles, ProfilesUnread, Record
 
-__all__ = ["READ", "BusPeople", "BusRecord"]
+__all__ = ["READ", "BusProfiles", "BusRecord"]
 
-READ: Final = (BROWSE_RESOURCE_REQUESTED, BROWSE_ANNOTATION_REQUESTED, BROWSE_PEOPLE_REQUESTED)
+READ: Final = (BROWSE_RESOURCE_REQUESTED, BROWSE_ANNOTATION_REQUESTED, BROWSE_PROFILES_REQUESTED)
 """The operations a Librarian awaits: its stream names their replies."""
 
 
 def _asked_at_once() -> int:
-    """How many people one request may ask after: the bound the request's own schema states (`BrowsePeopleRequest`)."""
-    bound = BrowsePeopleRequest.model_json_schema()["properties"]["dids"]["maxItems"]
+    """How many principals one request may ask after: the bound the request's own schema states (`BrowseProfilesRequest`)."""
+    bound = BrowseProfilesRequest.model_json_schema()["properties"]["dids"]["maxItems"]
     if not isinstance(bound, int):
-        raise TypeError("BrowsePeopleRequest states no bound on how many people one request asks after")
+        raise TypeError("BrowseProfilesRequest states no bound on how many principals one request asks after")
     return bound
 
 
@@ -75,27 +75,27 @@ class BusRecord(Record):
 
 
 @final
-class BusPeople(People):
-    """What the knowledge base calls its people, as a Librarian reads it over `bus`."""
+class BusProfiles(Profiles):
+    """The profiles of the knowledge base's principals, as a Librarian reads them over `bus`."""
 
     def __init__(self, bus: Bus) -> None:
         self._bus: Final = bus
 
     @override
-    async def of(self, dids: Sequence[str]) -> Mapping[str, PersonProfile]:
-        """The profile of each of `dids` that has one, as the Archivist answers it now. Raises `PeopleUnread` where the read fails.
+    async def of(self, dids: Sequence[str]) -> Mapping[str, Profile]:
+        """The profile of each of `dids` that has one, as the Archivist answers it now. Raises `ProfilesUnread` where the read fails.
 
         A text that is no DID has no profile, and is not asked after; each
         DID is asked after once. Where nothing is to be asked after, nothing
-        is asked. More people than one request may ask after are asked after
+        is asked. More principals than one request may ask after are asked after
         in parts, in order.
         """
         asked = list(dict.fromkeys(did for did in (UserId.parse(text) for text in dids) if did is not None))
-        profiles: dict[str, PersonProfile] = {}
+        profiles: dict[str, Profile] = {}
         for start in range(0, len(asked), _ASKED_AT_ONCE):
             part = asked[start : start + _ASKED_AT_ONCE]
             try:
-                profiles.update((await self._bus.request(BROWSE_PEOPLE_REQUESTED, BrowsePeopleRequest(dids=part))).response.people)
+                profiles.update((await self._bus.request(BROWSE_PROFILES_REQUESTED, BrowseProfilesRequest(dids=part))).response.profiles)
             except (BusRequestError, TransportError) as failure:
-                raise PeopleUnread(f"What the knowledge base calls {len(asked)} people could not be read: {failure}") from failure
+                raise ProfilesUnread(f"The profiles of {len(asked)} principals could not be read: {failure}") from failure
         return profiles

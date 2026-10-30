@@ -77,16 +77,18 @@ fn answers(
             }),
             "browse:entity-types-requested" => json!({ "entityTypes": [format!("Type{n}")] }),
             "browse:tag-schemas-requested" => json!({ "tagSchemas": [] }),
-            "browse:agents-requested" => json!({ "agents": [
+            "browse:engines-requested" => json!({ "engines": [
                 { "engine": { "provider": "anthropic", "model": "reader-1" },
-                  "serves": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }, { "jobType": "yield" }] },
+                  "jobs": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }, { "jobType": "yield" }] },
                 { "engine": { "provider": "anthropic", "model": "writer-1" } },
             ] }),
             "job:limits-requested" => json!({ "limits": [
-                { "provider": "anthropic", "model": "reader-1", "limits": { "contextTokens": 1000.0, "maxOutputTokens": 100.0 } },
+                { "engine": { "provider": "anthropic", "model": "reader-1" }, "limits": { "contextTokens": 1000.0, "maxOutputTokens": 100.0 } },
+                // Another provider's model of the same name: no engine of this knowledge base.
+                { "engine": { "provider": "ollama", "model": "writer-1" }, "limits": { "contextTokens": 9.0, "maxOutputTokens": 9.0 } },
             ] }),
             "gather:limits-requested" | "match:limits-requested" => json!({ "limits": [
-                { "provider": "anthropic", "model": "writer-1", "limits": { "contextTokens": 2000.0, "maxOutputTokens": 200.0 } },
+                { "engine": { "provider": "anthropic", "model": "writer-1" }, "limits": { "contextTokens": 2000.0, "maxOutputTokens": 200.0 } },
             ] }),
             "gather:referenced-by-requested" => json!({ "referencedBy": [] }),
             "match:resources-requested" => json!({
@@ -252,7 +254,7 @@ const READS: [Read; 10] = [
     Read::Asked("gather:referenced-by-requested"),
     Read::Asked("browse:entity-types-requested"),
     Read::Asked("browse:tag-schemas-requested"),
-    Read::Asked("browse:agents-requested"),
+    Read::Asked("browse:engines-requested"),
     Read::Asked("match:resources-requested"),
 ];
 
@@ -309,7 +311,7 @@ async fn watching_everything() -> Everything {
     ));
     watching.push(Box::new(client.browse.entity_types().watch()));
     watching.push(Box::new(client.browse.tag_schemas().watch()));
-    watching.push(Box::new(client.browse.agents().watch()));
+    watching.push(Box::new(client.browse.engines().watch()));
     settle().await;
     let before = made(&transport, &content);
     assert_eq!(
@@ -433,7 +435,7 @@ async fn b13_after_a_drop_what_events_without_a_position_feed_is_asked_for_again
     all.transport.set_state(ConnectionState::Reconnecting);
     settle().await;
     all.transport.set_state(ConnectionState::Open);
-    // Lists, searches, resources, the vocabulary and the directory: not
+    // Lists, searches, resources, the vocabulary and the engines: not
     // what a scope replays.
     assert_eq!(all.more().await, [2, 1, 0, 0, 0, 0, 1, 1, 1, 1]);
 }
@@ -738,7 +740,7 @@ async fn a_query_of_the_knowledge_base_as_a_whole_holds_no_scope() {
             .watch(),
         client.browse.entity_types().watch(),
         client.browse.tag_schemas().watch(),
-        client.browse.agents().watch(),
+        client.browse.engines().watch(),
     );
     settle().await;
     assert!(transport.scopes().is_empty(), "{:?}", transport.scopes());
@@ -1036,65 +1038,60 @@ async fn b13_a_gap_asks_again_for_what_refers_to_the_resource_it_names_and_to_no
     assert_eq!(asked(&transport, ["gather:referenced-by-requested"]), [3]);
 }
 
-// ── The roster ──────────────────────────────────────────
+// ── The engines ─────────────────────────────────────────
 
-fn limits_of(collaborators: &[semiont::namespaces::Collaborator]) -> Vec<Option<f64>> {
-    collaborators
+fn limits_of(engines: &[semiont::namespaces::EngineWithLimits]) -> Vec<Option<f64>> {
+    engines
         .iter()
-        .map(|collaborator| {
-            collaborator
-                .limits
-                .as_ref()
-                .map(|limits| limits.context_tokens)
-        })
+        .map(|engine| engine.limits.as_ref().map(|limits| limits.context_tokens))
         .collect()
 }
 
 #[tokio::test(start_paused = true)]
-async fn the_directory_has_each_models_limits_as_its_key_holder_reports_them() {
+async fn each_engine_has_its_limits_as_its_key_holder_reports_them() {
     let (client, transport, _) = world();
-    let mut watcher = client.browse.agents().watch();
-    let directory = holds(&mut watcher).await;
-    let directory = directory.ready().expect("a directory");
-    assert_eq!(limits_of(directory), [Some(1000.0), Some(2000.0)]);
-    // An entry is given as the directory states it.
+    let mut watcher = client.browse.engines().watch();
+    let engines = holds(&mut watcher).await;
+    let engines = engines.ready().expect("the engines");
+    assert_eq!(limits_of(engines), [Some(1000.0), Some(2000.0)]);
+    // An entry is given as the knowledge base states it.
     assert_eq!(
-        serde_json::to_value(&directory[0]).expect("it serializes")["serves"],
+        serde_json::to_value(&engines[0]).expect("it serializes")["jobs"],
         json!([{ "jobType": "mark", "params": { "motivation": "highlighting" } }, { "jobType": "yield" }])
     );
     assert_eq!(
         asked(
             &transport,
-            ["browse:agents-requested", "job:limits-requested"]
+            ["browse:engines-requested", "job:limits-requested"]
         ),
         [1, 1]
     );
 
-    let read = client.browse.agents().fresh().await.expect("a directory");
+    let read = client.browse.engines().fresh().await.expect("the engines");
     assert_eq!(limits_of(&read), [Some(1000.0), Some(2000.0)]);
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_key_holder_that_does_not_answer_holds_up_nothing_but_its_own_models_limits() {
+async fn a_key_holder_that_does_not_answer_holds_up_nothing_but_its_own_engines_limits() {
     let transport = FaultyTransport::answering(
         vec![],
         answers(&["gather:limits-requested", "match:limits-requested"]),
     );
     let client = client_over(&transport, None);
-    let mut watcher = client.browse.agents().watch();
-    let directory = holds(&mut watcher).await;
+    let mut watcher = client.browse.engines().watch();
+    let engines = holds(&mut watcher).await;
     assert_eq!(
-        limits_of(directory.ready().expect("a directory")),
+        limits_of(engines.ready().expect("the engines")),
         [Some(1000.0), None]
     );
-    let read = client.browse.agents().fresh().await.expect("a directory");
+    let read = client.browse.engines().fresh().await.expect("the engines");
     assert_eq!(limits_of(&read), [Some(1000.0), None]);
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_stream_that_reopens_asks_the_directory_and_the_key_holders_again() {
+async fn a_stream_that_reopens_asks_for_the_engines_and_the_key_holders_again() {
     let (client, transport, _) = world();
-    let _watching = client.browse.agents().watch();
+    let _watching = client.browse.engines().watch();
     settle().await;
     transport.set_state(ConnectionState::Reconnecting);
     settle().await;
@@ -1104,7 +1101,7 @@ async fn a_stream_that_reopens_asks_the_directory_and_the_key_holders_again() {
         asked(
             &transport,
             [
-                "browse:agents-requested",
+                "browse:engines-requested",
                 "job:limits-requested",
                 "gather:limits-requested"
             ]

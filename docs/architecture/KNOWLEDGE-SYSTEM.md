@@ -100,7 +100,7 @@ The single write gateway. Bus commands (`mark:create-request`, `mark:commit`, `y
 
 ### Browser (archivist)
 
-The read actor for the record — resources, annotations, events, history, entity-type and tag-schema listings, the roster, directory browse — answered from the event log, the materialized views and the working tree. Anything that needs the graph, the vector index or an embedding is retrieval, and the librarian's. Directory browse lists a directory of the working tree and marks the files that are a resource's content, under a path-confinement invariant: every resolved path stays within the knowledge base's root.
+The read actor for the record — resources, annotations, events, history, entity-type and tag-schema listings, the engines, profiles, directory browse — answered from the event log, the materialized views and the working tree. Anything that needs the graph, the vector index or an embedding is retrieval, and the librarian's. Directory browse lists a directory of the working tree and marks the files that are a resource's content, under a path-confinement invariant: every resolved path stays within the knowledge base's root.
 
 ### CloneTokenManager (archivist)
 

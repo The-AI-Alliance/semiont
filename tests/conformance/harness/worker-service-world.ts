@@ -52,11 +52,11 @@ export type JobType = components['schemas']['JobType'];
 export type FailureClass = components['schemas']['FailureClass'];
 export type Annotation = components['schemas']['Annotation'];
 type ResourceDescriptor = components['schemas']['ResourceDescriptor'];
-type AgentEntry = WorkerSettings['agents'][number];
+type WorkerEngineConfig = components['schemas']['WorkerEngineConfig'];
 
-/** An engine a case's worker runs: a provider and a model, and the name its `generator` states for the pair. */
+/** An engine a case's worker runs: a provider and a model, and the name its `generator` states for the engine. */
 export interface Engine {
-  provider: AgentEntry['agent']['provider'];
+  provider: WorkerEngineConfig['engine']['provider'];
   model: string;
   name: string;
 }
@@ -312,16 +312,16 @@ export class WorkerServiceWorld {
   // ── the document a worker is started with ────────────────────────────────
 
   /**
-   * A worker's configuration document: one engine, the first, serving every
-   * job on the stand-in Ollama, unless `agents` says otherwise. It names
+   * A worker's configuration document: one engine, the first, used for every
+   * job on the stand-in Ollama, unless `engines` says otherwise. It names
    * `gatewayUrl`, which `start` points at its recording proxy.
    */
-  async settings(gatewayUrl: string, agents?: AgentEntry[]): Promise<WorkerSettings> {
+  async settings(gatewayUrl: string, engines?: WorkerEngineConfig[]): Promise<WorkerSettings> {
     const first = this.engines[0]!;
     return {
       gatewayUrl,
       identity: { issuer: this.world.issuer.origin },
-      agents: agents ?? [{ agent: { provider: first.provider, model: first.model }, accepts: everyJob(), baseUrl: this.ollama.origin }],
+      engines: engines ?? [{ engine: { provider: first.provider, model: first.model }, jobs: everyJob(), baseUrl: this.ollama.origin }],
       modelCatalogue: MODEL_CATALOGUE,
       port: await freePort(),
       logLevel: 'info',
@@ -330,13 +330,13 @@ export class WorkerServiceWorld {
   }
 
   /**
-   * An entry of the document's `agents`: `engine`, serving `accepts`, on the
+   * An entry of the document's `engines`: `engine`, used for `jobs`, on the
    * stand-in of its provider. An Anthropic engine's entry names the variable
    * its key is in.
    */
-  entry(engine: Engine, accepts: JobFilter[]): AgentEntry {
-    const serving = { agent: { provider: engine.provider, model: engine.model }, accepts };
-    return engine.provider === 'anthropic' ? { ...serving, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...serving, baseUrl: this.ollama.origin };
+  entry(engine: Engine, jobs: JobFilter[]): WorkerEngineConfig {
+    const used = { engine: { provider: engine.provider, model: engine.model }, jobs };
+    return engine.provider === 'anthropic' ? { ...used, baseUrl: this.anthropic.origin, apiKeyEnv: ANTHROPIC_KEY_VARIABLE } : { ...used, baseUrl: this.ollama.origin };
   }
 
   /** A launch as `start` makes it, for a case that must change it: the gateway is dialled directly. */
@@ -354,12 +354,12 @@ export class WorkerServiceWorld {
    * stopped when the case ends. Each variable its document names for a key
    * holds the stand-in Anthropic's.
    */
-  async start(options: { agents?: AgentEntry[]; env?: WorkerEnvironment; unlisted?: Record<string, string>; settings?: Partial<WorkerSettings> } = {}): Promise<Served> {
+  async start(options: { engines?: WorkerEngineConfig[]; env?: WorkerEnvironment; unlisted?: Record<string, string>; settings?: Partial<WorkerSettings> } = {}): Promise<Served> {
     const proxy = await startClientProxy(this.world.origin);
     try {
-      const settings: WorkerSettings = { ...(await this.settings(proxy.origin, options.agents)), ...options.settings };
+      const settings: WorkerSettings = { ...(await this.settings(proxy.origin, options.engines)), ...options.settings };
       const keys: WorkerEnvironment = {};
-      for (const entry of settings.agents) if (entry.apiKeyEnv !== undefined) keys[entry.apiKeyEnv] = this.anthropic.apiKey;
+      for (const entry of settings.engines) if (entry.apiKeyEnv !== undefined) keys[entry.apiKeyEnv] = this.anthropic.apiKey;
       const process = await startWorkerService({
         command: this.command,
         settings,

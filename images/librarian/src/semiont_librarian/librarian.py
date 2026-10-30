@@ -3,8 +3,9 @@
 `docs/protocol/LIBRARIAN.md` states what it does, rule by rule. Held with
 `async with`: it takes frames from the way in to the way out. It reads
 through what it is handed and through nothing else: it knows no address, no
-directory and no database. What it reads of the record and of its people is
-asked of the Archivist, on the bus, by what it is handed to read them by.
+directory and no database. What it reads of the record and of the profiles of
+the knowledge base's principals is asked of the Archivist, on the bus, by what
+it is handed to read them by.
 
 **One stream.** Every frame the transport delivers is taken as it is
 delivered, whatever its channel, in the order of delivery (§ What it
@@ -29,7 +30,7 @@ that fails ends nothing: the next is handled. A frame that is not its
 channel's is logged, and answered as a failure where it states enough to be.
 
 **Who is named.** The replies to a text search and to a reference search have
-their people named, each by what handles it (§ Names). The reply to what
+their persons named, each by what handles it (§ Names). The reply to what
 refers to a resource names no person, and no one is named in it.
 
 **Stopping** (§ Stopping). On the way out no frame is taken any more, what is
@@ -91,7 +92,7 @@ from semiont_vectors.store import VectorReader
 from semiont_librarian.annotation_gather import gather as gather_annotation
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
-from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, People, Record
+from semiont_librarian.reads import AnchoredText, Degraded, GraphReads, Profiles, Record
 from semiont_librarian.reference_search import search as search_references
 from semiont_librarian.referenced_by import answer as answer_referenced_by
 from semiont_librarian.resource_gather import gather as gather_resource
@@ -167,7 +168,7 @@ class _Delivered(FrameSink):
 class Librarian:
     """A Librarian over what it is handed to read by, reaching the bus through `transport`.
 
-    `record` and `people` read what the Archivist keeps; `graph` the six reads
+    `record` and `profiles` read what the Archivist keeps; `graph` the six reads
     of the graph; `vectors` the index, connected, and `embedding` what makes
     a query's vector; `matcher` and `gatherer` the models of its two actors;
     `content` what reads a resource's bytes, and `anchored` what asks for its
@@ -179,7 +180,7 @@ class Librarian:
     meaning.
 
     The transport's stream names the eight request channels, the two
-    signals and the replies of what `record` and `people` ask before it is
+    signals and the replies of what `record` and `profiles` ask before it is
     entered.
     """
 
@@ -187,7 +188,7 @@ class Librarian:
         self,
         *,
         record: Record,
-        people: People,
+        profiles: Profiles,
         graph: GraphReads,
         vectors: VectorReader,
         embedding: EmbeddingProvider,
@@ -204,7 +205,7 @@ class Librarian:
         transport: Transport,
     ) -> None:
         self._record: Final = record
-        self._people: Final = people
+        self._profiles: Final = profiles
         self._graph: Final = graph
         self._vectors: Final = vectors
         self._embedding: Final = embedding
@@ -307,7 +308,7 @@ class Librarian:
                     self._beside(self._summarize(frame, passage))
             case _:
                 # The two limits requests among them, whose answerer listens for them itself, and the replies to what
-                # the record and the people are asked.
+                # the record and the profiles are asked.
                 return
 
     def _signalled[P: WireModel](self, frame: Frame, channel: Channel[P]) -> P | None:
@@ -442,7 +443,7 @@ class Librarian:
                 vectors=self._vectors,
                 embedding=self._embedding,
                 inference=self._matcher,
-                people=self._people,
+                profiles=self._profiles,
                 now=self._now,
             )
 
@@ -452,7 +453,7 @@ class Librarian:
         await self._answer(frame, MATCH_SEARCH_REQUESTED.result, MATCH_SEARCH_REQUESTED.failure, searched, failed)
 
     async def _search_text(self, frame: Frame, request: MatchResourcesRequest) -> None:
-        """Answer a `match:resources-requested`: the page a text finds, its people named."""
+        """Answer a `match:resources-requested`: the page a text finds, its persons named."""
 
         async def searched() -> MatchResourcesResult:
             return await answer_text_search(
@@ -463,7 +464,7 @@ class Librarian:
                 embedding=self._embedding,
                 semantic_floor=self._semantic_floor,
                 content=self._content,
-                people=self._people,
+                profiles=self._profiles,
             )
 
         def failed(said: str) -> CommandError:

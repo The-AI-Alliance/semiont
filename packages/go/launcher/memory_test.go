@@ -74,7 +74,7 @@ func TestStartCeilingsCountTheCeilingsTheDocumentsState(t *testing.T) {
 func TestStartCeilingsLeaveOutAnAbsentWorker(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	with := startCeilingsGB(mustPlan(t, st), startOptions{})
-	st.Inference.Spec.Roster.Workers = api.ArchivistRoster{}.Workers
+	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
 	without := startCeilingsGB(mustPlan(t, st), startOptions{})
 	if with-without != 2 {
 		t.Fatalf("ceilings with a worker %vG, without %vG: want them the WorkerPool's 2G apart", with, without)

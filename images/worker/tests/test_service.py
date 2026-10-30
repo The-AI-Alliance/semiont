@@ -28,21 +28,21 @@ ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIE
 DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://127.0.0.1:1",
     "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
-    "agents": [
+    "engines": [
         {
-            "agent": {"provider": "anthropic", "model": "claude-test"},
-            "accepts": [{"jobType": "yield"}],
+            "engine": {"provider": "anthropic", "model": "claude-test"},
+            "jobs": [{"jobType": "yield"}],
             "baseUrl": "http://127.0.0.1:1",
             "apiKeyEnv": "FIRST_KEY",
         },
         {
-            "agent": {"provider": "ollama", "model": "gemma2:27b"},
-            "accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}],
+            "engine": {"provider": "ollama", "model": "gemma2:27b"},
+            "jobs": [{"jobType": "mark", "params": {"motivation": "highlighting"}}],
             "baseUrl": "http://127.0.0.1:1",
         },
         {
-            "agent": {"provider": "anthropic", "model": "claude-other"},
-            "accepts": [{"jobType": "mark", "params": {"motivation": "linking"}}],
+            "engine": {"provider": "anthropic", "model": "claude-other"},
+            "jobs": [{"jobType": "mark", "params": {"motivation": "linking"}}],
             "baseUrl": "http://127.0.0.1:1",
             "apiKeyEnv": "SECOND_KEY",
         },
@@ -91,21 +91,21 @@ CATALOGUE: Final[dict[str, JsonValue]] = {
 """A model catalogue file with one model in it, OpenAI's `gpt-listed`."""
 
 
-def of_one_agent(provider: str, model: str, **stated: JsonValue) -> dict[str, JsonValue]:
-    """The document, with one agent of this provider and model at an address, and over that whatever a test states of the document."""
-    agent: dict[str, JsonValue] = {
-        "agent": {"provider": provider, "model": model},
-        "accepts": [{"jobType": "yield"}],
+def of_one_engine(provider: str, model: str, **stated: JsonValue) -> dict[str, JsonValue]:
+    """The document, with one engine of this provider and model at an address, and over that whatever a test states of the document."""
+    engine: dict[str, JsonValue] = {
+        "engine": {"provider": provider, "model": model},
+        "jobs": [{"jobType": "yield"}],
         "baseUrl": "http://127.0.0.1:1/v1",
     }
-    return {**DOCUMENT, "agents": [agent], **stated}
+    return {**DOCUMENT, "engines": [engine], **stated}
 
 
 @pytest.mark.usefixtures("unconfigured")
-def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_its_agent_names_no_variable_for_one(tmp_path: Path) -> None:
-    said = refusal(["--config", written(tmp_path, of_one_agent("anthropic", "claude-test"))], dict(ACCOUNT))
+def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_its_engine_names_no_variable_for_one(tmp_path: Path) -> None:
+    said = refusal(["--config", written(tmp_path, of_one_engine("anthropic", "claude-test"))], dict(ACCOUNT))
     assert said == (
-        "agents[0].apiKeyEnv is not stated, and agents[0].agent.provider is anthropic: "
+        "engines[0].apiKeyEnv is not stated, and engines[0].engine.provider is anthropic: "
         "api_key is required for the Anthropic inference client"
     )
 
@@ -114,7 +114,7 @@ def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_its_agent_na
 def test_a_server_a_deployment_runs_boots_with_no_key_and_its_catalogue_is_not_read(tmp_path: Path) -> None:
     # The document names a catalogue file that is not there, as every document here does: nothing reads it.
     for provider in ("vllm", "llamacpp"):
-        started = boot(["--config", written(tmp_path, of_one_agent(provider, "a-model"))], dict(ACCOUNT))
+        started = boot(["--config", written(tmp_path, of_one_engine(provider, "a-model"))], dict(ACCOUNT))
         assert [(client.provider, client.model_id) for client in started.clients] == [(provider, "a-model")]
 
 
@@ -125,27 +125,27 @@ def test_a_provider_whose_facts_are_a_catalogue_s_boots_with_them_and_is_refused
     keyed = {**ACCOUNT, "OPENAI_KEY": "sk-test"}
 
     def stating(model: str, **stated: JsonValue) -> str:
-        document = of_one_agent("openai", model, **stated)
-        agents = document["agents"]
-        assert isinstance(agents, list)
-        (agent,) = agents
-        assert isinstance(agent, dict)
-        agent["apiKeyEnv"] = "OPENAI_KEY"
+        document = of_one_engine("openai", model, **stated)
+        engines = document["engines"]
+        assert isinstance(engines, list)
+        (engine,) = engines
+        assert isinstance(engine, dict)
+        engine["apiKeyEnv"] = "OPENAI_KEY"
         return written(tmp_path, document)
 
     unlisted = refusal(["--config", stating("gpt-unlisted", modelCatalogue=str(catalogue))], keyed)
-    assert unlisted.startswith(f"modelCatalogue names {catalogue}, which does not serve agents[0]: ")
+    assert unlisted.startswith(f"modelCatalogue names {catalogue}, which does not serve engines[0]: ")
     assert unlisted.endswith("states nothing of the model gpt-unlisted of the provider openai")
     nowhere = tmp_path / "none.json"
     absent = refusal(["--config", stating("gpt-listed", modelCatalogue=str(nowhere))], keyed)
-    assert absent.startswith(f"modelCatalogue names {nowhere}, which does not serve agents[0]: the model catalogue cannot be read: ")
+    assert absent.startswith(f"modelCatalogue names {nowhere}, which does not serve engines[0]: the model catalogue cannot be read: ")
 
     started = boot(["--config", stating("gpt-listed", modelCatalogue=str(catalogue))], keyed)
     assert [(client.provider, client.model_id) for client in started.clients] == [("openai", "gpt-listed")]
 
 
 @pytest.mark.usefixtures("unconfigured")
-def test_everything_it_is_started_with_is_read_at_boot_a_client_for_each_agent_in_the_document_s_order(tmp_path: Path) -> None:
+def test_everything_it_is_started_with_is_read_at_boot_a_client_for_each_engine_in_the_document_s_order(tmp_path: Path) -> None:
     started = boot(["--config", written(tmp_path)], {**ACCOUNT, "FIRST_KEY": "sk-first", "SECOND_KEY": "sk-second", "UNREAD": "x"})
     assert (started.credential.issuer, started.credential.client_id) == ("http://127.0.0.1:1/realms/semiont", "semiont-worker")
     assert started.credential.private_key.private_numbers() == KEY.private_numbers()
@@ -158,7 +158,7 @@ def test_everything_it_is_started_with_is_read_at_boot_a_client_for_each_agent_i
 
 
 @pytest.mark.usefixtures("unconfigured")
-def test_the_document_is_refused_before_the_account_the_account_before_a_key_and_the_keys_in_the_order_of_their_agents(
+def test_the_document_is_refused_before_the_account_the_account_before_a_key_and_the_keys_in_the_order_of_their_engines(
     tmp_path: Path,
 ) -> None:
     keys = {"FIRST_KEY": "sk-first", "SECOND_KEY": "sk-second"}
@@ -173,9 +173,9 @@ def test_the_document_is_refused_before_the_account_the_account_before_a_key_and
     assert refusal(["--config", path], {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker"}).startswith("SEMIONT_OIDC_CLIENT_KEY is not set")
     secret = {"SEMIONT_OIDC_CLIENT_ID": "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
     assert refusal(["--config", path], secret).startswith("SEMIONT_OIDC_CLIENT_KEY is not set")
-    # The providers' keys, the first agent's first.
-    assert refusal(["--config", path], ACCOUNT).startswith("agents[0].apiKeyEnv names a variable")
-    assert refusal(["--config", path], {**ACCOUNT, "FIRST_KEY": "sk-first"}).startswith("agents[2].apiKeyEnv names a variable")
+    # The providers' keys, the first engine's first.
+    assert refusal(["--config", path], ACCOUNT).startswith("engines[0].apiKeyEnv names a variable")
+    assert refusal(["--config", path], {**ACCOUNT, "FIRST_KEY": "sk-first"}).startswith("engines[2].apiKeyEnv names a variable")
     assert boot(["--config", path], {**ACCOUNT, **keys}).config.log_level == "warn"
 
 
@@ -201,7 +201,11 @@ def test_from_boot_on_the_log_is_written_as_the_document_says(tmp_path: Path, ca
             {"SEMIONT_OIDC_CLIENT_KEY": PEM},
             "[fatal] SEMIONT_OIDC_CLIENT_ID is not set in the worker's environment: a worker signs in as a service account\n",
         ),
-        (["--config", "<document>"], ACCOUNT, "[fatal] agents[0].apiKeyEnv names a variable that is not set in the worker's environment\n"),
+        (
+            ["--config", "<document>"],
+            ACCOUNT,
+            "[fatal] engines[0].apiKeyEnv names a variable that is not set in the worker's environment\n",
+        ),
     ],
 )
 def test_a_service_that_does_not_start_says_why_once_on_stderr_and_exits_with_status_1(

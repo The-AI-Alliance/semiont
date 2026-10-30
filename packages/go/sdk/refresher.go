@@ -351,9 +351,9 @@ func (r *refresher) refetchTagSchemas(CacheRefreshReach, cacheSubject) {
 	again(r, r.live.tagSchemas, whole{}, "tag-schemas")
 }
 
-func (r *refresher) refetchAgents(CacheRefreshReach, cacheSubject) {
-	if r.live.agents.Known(whole{}) {
-		r.windows.run("agents", r.live.invalidateAgents)
+func (r *refresher) refetchEngines(CacheRefreshReach, cacheSubject) {
+	if r.live.engines.Known(whole{}) {
+		r.windows.run("engines", r.live.invalidateEngines)
 	}
 }
 

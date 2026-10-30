@@ -72,9 +72,9 @@ def stored_annotation_type(motivation: Motivation) -> str:
 def _stored_agent(agent: Agent) -> JsonValue:
     """An agent as the graph holds it: who, and not what a person is called.
 
-    A person's name is the directory's. The record's annotation carries none
+    A person's name is its profile's. The record's annotation carries none
     for the one who asked, and the Archivist joins it onto every read from
-    the people projection, where a person can change it. A graph that stored
+    the profiles projection, where a person can change it. A graph that stored
     the name would hold a copy that goes stale, and a check of the graph
     against a read would call every annotation by a named person wrong.
     Software is not named on a read: its agent is stored as the record gives

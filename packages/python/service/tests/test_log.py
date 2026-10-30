@@ -41,7 +41,7 @@ def test_as_json_an_event_is_one_object_with_its_level_its_message_when_who_said
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     configured("info", "json")
-    LOG.info("Processing job", extra={"jobId": "job-1", "serves": [{"jobType": "yield"}], "attempt": 2})
+    LOG.info("Processing job", extra={"jobId": "job-1", "jobs": [{"jobType": "yield"}], "attempt": 2})
     (line,) = lines(capsys)
     event = _LINE.validate_json(line)
     when = event.pop("timestamp")
@@ -52,7 +52,7 @@ def test_as_json_an_event_is_one_object_with_its_level_its_message_when_who_said
         "message": "Processing job",
         "component": "worker",
         "jobId": "job-1",
-        "serves": [{"jobType": "yield"}],
+        "jobs": [{"jobType": "yield"}],
         "attempt": 2,
     }
 

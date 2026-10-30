@@ -97,7 +97,7 @@
     "reconnecting": "Yhdistetään palvelimeen uudelleen...",
     "sharing": "Jakaminen",
     "collaborationComingSoon": "Yhteistyöominaisuudet tulossa pian",
-    "collaborators": "Yhteistyökumppanit",
+    "engines": "Moottorit",
     "ceilings": "{{contextTokens}} sisään / {{maxOutputTokens}} ulos",
     "sharedWindow": "{{contextTokens}} ikkuna"
   },

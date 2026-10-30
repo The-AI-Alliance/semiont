@@ -97,7 +97,7 @@
     "reconnecting": "Se reconectează la server...",
     "sharing": "Partajare",
     "collaborationComingSoon": "Funcțiile de colaborare vor fi disponibile în curând",
-    "collaborators": "Colaboratori",
+    "engines": "Motoare",
     "ceilings": "{{contextTokens}} intrare / {{maxOutputTokens}} ieșire",
     "sharedWindow": "Fereastră de {{contextTokens}}"
   },

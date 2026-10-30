@@ -143,7 +143,7 @@ attention. Each is a namespace of the client.
 | | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.update_entity_types`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
-| Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| Reading | `browse` | Navigate, read and observe, including the knowledge base's engines | `browse.resource`, `browse.annotations`, `browse.engines`, `browse.click` |
 | | `match` | Search the corpus: resources by text, and candidates for a reference | `match.resources`, `match.search` |
 | | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referenced_by` |
 | Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.open_resource` |
@@ -428,7 +428,7 @@ from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
-from semiont.identity import agent_name
+from semiont.identity import engine_name
 from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
@@ -472,7 +472,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
     ):
         print(f"working as {agent.did}")
         # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
-        generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
+        generator = AgentSoftware(type="Software", id=agent.did, name=engine_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:

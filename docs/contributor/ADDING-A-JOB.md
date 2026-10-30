@@ -19,7 +19,7 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 | 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
 | 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `tests/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
 | 7 | [Write the rule](#7-write-the-rule) | `docs/protocol/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
-| 8 | [Bind it to a worker](#8-bind-it-to-a-worker) | a knowledge base's Inference document; nothing in the launcher | `TestEveryRosterJobHasAFilter`, in `apps/launcher` |
+| 8 | [Give it an engine](#8-give-it-an-engine) | a knowledge base's Inference document; nothing in the launcher | `TestEveryEngineJobHasAFilter`, in `packages/go/launcher` |
 | 9 | [Word it in each client](#9-word-it-in-each-client) | `packages/go/launcher/verbs/mark.go`, `packages/typescript/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
 
 The numbers are the order the change reaches each part, and not the order to write it in. The repository works test first: step 5's cases and step 6's case are written before step 4's code, and each is seen to fail for the missing job.
@@ -31,9 +31,9 @@ A job description is the spec's, so the job starts there, in [`specs/src/compone
 - [`Motivation.json`](../../specs/src/components/schemas/Motivation.json) lists the motivation.
 - A schema states what the job takes, beside the other five, as [`TaggingJobParams.json`](../../specs/src/components/schemas/TaggingJobParams.json) does: closed, with `motivation` required and of its one value.
 - [`MarkJobParams.json`](../../specs/src/components/schemas/MarkJobParams.json) gains it as a member and in its mapping, and [`specs/src/openapi.json`](../../specs/src/openapi.json) names it among its `components.schemas`.
-- [`ArchivistRoster.json`](../../specs/src/components/schemas/ArchivistRoster.json) gains the motivation under `workers.mark`, so that the roster can say who serves the job.
+- [`ArchivistEngines.json`](../../specs/src/components/schemas/ArchivistEngines.json) gains the motivation under `jobs.mark`, so that a knowledge base can say which engine software does the job with.
 
-`npm run lint:spec-jobs` holds `MarkJobParams` to `Motivation`: its members are the schemas its mapping names, the mapping names one for each motivation and for nothing else, each member's `motivation` is the one value that selects it, and each member is closed. `npm run lint:spec-archivist` holds the roster's motivations to the same list. A step left out fails one of the two.
+`npm run lint:spec-jobs` holds `MarkJobParams` to `Motivation`: its members are the schemas its mapping names, the mapping names one for each motivation and for nothing else, each member's `motivation` is the one value that selects it, and each member is closed. `npm run lint:spec-archivist` holds the engines' motivations to the same list. A step left out fails one of the two.
 
 What the job needs no schema of its own for:
 
@@ -74,7 +74,7 @@ The Worker service is Python, in [`images/worker/src/semiont_worker`](../../imag
 
 | Module | What it is |
 |---|---|
-| `agent.py` | One agent of the service: it signs in, claims with its entry's `accepts`, and runs each job it is handed |
+| `agent.py` | The service's one agent: it signs in once, and for each engine of its document claims the jobs that entry names and runs each job it is handed |
 | `held_job.py` | One held job from its claim to its settle: it reads what the job needs, runs the job's processor, commits each piece and checkpoints it, and completes, cancels or fails the job |
 | `held_params.py` | Which job was handed over: the params as the spec's shape for their motivation |
 | `processors.py` | One processor for each kind of job, each doing one job from start to end |
@@ -131,17 +131,17 @@ What every kind does is held in files of its own, and a new kind joins those tha
 
 Each rule ends with the cases that hold it. A new rule takes the next number of its letter, wherever it stands, and no rule's number changes. `npm run lint:transport-contract` fails on a rule that names a case the suite does not have.
 
-Three other documents say something of each kind of job: [JOBS.md § `job:create`](../protocol/JOBS.md#jobcreate), what admission checks; [Mark § Delegation](../protocol/flows/MARK.md#delegation), the params a caller gives; and the operator's [Configuration § Inference](../operator/administration/CONFIGURATION.md#inference), the binding.
+Three other documents say something of each kind of job: [JOBS.md § `job:create`](../protocol/JOBS.md#jobcreate), what admission checks; [Mark § Delegation](../protocol/flows/MARK.md#delegation), the params a caller gives; and the operator's [Configuration § Inference](../operator/administration/CONFIGURATION.md#inference), each job's engine.
 
-## 8. Bind it to a worker
+## 8. Give it an engine
 
-A knowledge base's Inference document says which provider and model serve a job, in its roster, keyed as a job is described ([Configuration § Inference](../operator/administration/CONFIGURATION.md#inference)): a `mark` job of a motivation is served by `workers.mark.<motivation>`, and a `yield` job by `workers.yield`. A job the roster does not bind is served by no one.
+A knowledge base's Inference document says which engine, a provider and a model, software does a job with, in its `engines`, keyed as a job is described ([Configuration § Inference](../operator/administration/CONFIGURATION.md#inference)): a `mark` job of a motivation is done with `jobs.mark.<motivation>`, and a `yield` job with `jobs.yield`. A job with no engine there is done by no software worker. Which principal does a job is not configured: whoever holds the worker role and claims it.
 
-A Worker service reads no document of a knowledge base. The launcher writes the roster, as the Inference document states it, into two documents: the Archivist's, whose roster answers who serves each job, and the worker's ([`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json)), in which each agent's `accepts` are the filters of the jobs it serves. The worker claims with those filters and no other.
+A Worker service reads no document of a knowledge base. The launcher writes the engines, as the Inference document states them, into two documents: the Archivist's, which answers the knowledge base's engines, and the worker's ([`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json)), in which each engine's `jobs` are the filters of the jobs the worker does with it. The worker claims with those filters and no other.
 
-Nothing in the launcher is written for a new motivation. The filters it writes are derived from the generated roster ([`archivistdoc.go`](../../packages/go/launcher/archivistdoc.go), [`workerdoc.go`](../../packages/go/launcher/workerdoc.go)), so they follow step 1's roster and step 2's `client_gen.go`. `TestEveryRosterJobHasAFilter` holds that every job the roster has is given a filter that names it.
+Nothing in the launcher is written for a new motivation. The filters it writes are derived from the generated engines ([`archivistdoc.go`](../../packages/go/launcher/archivistdoc.go), [`workerdoc.go`](../../packages/go/launcher/workerdoc.go)), so they follow step 1's engines and step 2's `client_gen.go`. `TestEveryEngineJobHasAFilter` holds that every job the engines have is given a filter that names it.
 
-A knowledge base serves the new job once its Inference document's roster binds it.
+A knowledge base's software does the new job once its Inference document gives the job an engine.
 
 ## 9. Word it in each client
 
@@ -161,11 +161,11 @@ A job of a verb that has none today is a new value of [`JobType.json`](../../spe
 - [`JobFilter`](../../specs/src/components/schemas/JobFilter.json), by which a claim names the verb's jobs;
 - [`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json), which carries the verb's result. The results every verb reports are together [`JobResult`](../../specs/src/components/schemas/JobResult.json), each closed, with no member that says which it is and no required member in common with another.
 
-`npm run lint:spec-archivist` holds the roster's job types to `JobType`, so the roster gains the verb under `workers`. The dispatcher's admission says what resource the job is recorded under and what its retry budget is.
+`npm run lint:spec-archivist` holds the engines' job types to `JobType`, so `ArchivistEngines` gains the verb under `jobs`. The dispatcher's admission says what resource the job is recorded under and what its retry budget is.
 
 A verb's job is also written into each SDK, where a motivation's is not. The claiming of the TypeScript, the Rust and the Python SDK hands a worker a held job of its verb, which completes with that verb's result (`claims.ts`, `claims.rs`, `claims.py`), and the verb's namespace has the `delegate` that asks for the job and follows it. [`specs/src/client/surface.json`](../../specs/src/client/surface.json) states the method, and `npm run lint:client-surface` holds each SDK to it.
 
-The rest is the path above: the worker's processor and its branch, the suite's file, the rules, the roster's binding (`spec.roster.workers.<jobType>` in an Inference document) and each client's words.
+The rest is the path above: the worker's processor and its branch, the suite's file, the rules, the job's engine (`spec.engines.jobs.<jobType>` in an Inference document) and each client's words.
 
 The verb is one of the eight. A job is how a verb is done on someone's behalf, and what the job makes is what the verb makes by hand: the same events, by another author.
 

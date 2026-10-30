@@ -97,7 +97,7 @@
     "reconnecting": "جارٍ إعادة الاتصال بالخادم...",
     "sharing": "المشاركة",
     "collaborationComingSoon": "ميزات التعاون قادمة قريبًا",
-    "collaborators": "المتعاونون",
+    "engines": "المحركات",
     "ceilings": "{{contextTokens}} إدخال / {{maxOutputTokens}} إخراج",
     "sharedWindow": "نافذة {{contextTokens}}"
   },

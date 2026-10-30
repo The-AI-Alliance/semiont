@@ -75,7 +75,7 @@ def everything(client: Client) -> Sequence[Cached[object]]:
         client.match.resources("a search"),
         browse.entity_types(),
         browse.tag_schemas(),
-        browse.agents(),
+        browse.engines(),
     ]
 
 

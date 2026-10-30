@@ -97,7 +97,7 @@
     "reconnecting": "Sunucuya yeniden bağlanılıyor...",
     "sharing": "Paylaşım",
     "collaborationComingSoon": "İşbirliği özellikleri yakında",
-    "collaborators": "İş Birlikçiler",
+    "engines": "Motorlar",
     "ceilings": "{{contextTokens}} giriş / {{maxOutputTokens}} çıkış",
     "sharedWindow": "{{contextTokens}} pencere"
   },

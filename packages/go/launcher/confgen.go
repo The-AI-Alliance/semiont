@@ -6,8 +6,8 @@ package launcher
 // its catalog, the shapes derivePlan reads — plus the user's model choices.
 // They say what the knowledge base needs and state no address: where each
 // daemon listens is the launcher's to place at every start (topology.go), so
-// the files are the same on every machine. The roster binds every job and
-// both actors to the one model chosen; per-job refinement is the user's edit.
+// the files are the same on every machine. Every job and both actors are
+// given one engine, the model chosen; per-job refinement is the user's edit.
 //
 // Every generated document passes through the SAME vet as a template copy:
 // stack.Load + derivePlan on a temporary tree before the real files exist. A
@@ -28,7 +28,7 @@ import (
 
 type genParams struct {
 	Inference         string // "anthropic" | "ollama"
-	Model             string // the model every role is bound to
+	Model             string // the model of every job's and actor's engine
 	ModelLight        string // optional: emitted as a commented example only
 	EmbeddingModel    string // ollama-served embedding model
 	AnthropicEndpoint string // the baseURL the Inference document states
@@ -130,25 +130,25 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 
 	var inference stack.Inference
 	inference.ApiVersion, inference.Kind, inference.Metadata = meta("Inference", name)
-	provider := api.ArchivistRosterRoleProvider(p.Inference)
+	provider := api.EngineProvider(p.Inference)
 	switch provider {
-	case api.ArchivistRosterRoleProviderAnthropic:
+	case api.EngineProviderAnthropic:
 		baseURL := p.AnthropicEndpoint
-		inference.Spec.Providers = map[api.ArchivistRosterRoleProvider]stack.Provider{
+		inference.Spec.Providers = map[api.EngineProvider]stack.Provider{
 			provider: {BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}},
 		}
-	case api.ArchivistRosterRoleProviderOllama:
-		inference.Spec.Providers = map[api.ArchivistRosterRoleProvider]stack.Provider{provider: {}}
+	case api.EngineProviderOllama:
+		inference.Spec.Providers = map[api.EngineProvider]stack.Provider{provider: {}}
 	default:
 		return nil, fmt.Errorf("the provider %q: init writes an Inference document for anthropic or ollama", p.Inference)
 	}
-	role := func() *api.ArchivistRosterRole {
-		return &api.ArchivistRosterRole{Provider: provider, Model: p.Model}
+	engine := func() *api.Engine {
+		return &api.Engine{Provider: provider, Model: p.Model}
 	}
-	inference.Spec.Roster.Actors.Gatherer, inference.Spec.Roster.Actors.Matcher = role(), role()
-	workerRoster := reflect.ValueOf(&inference.Spec.Roster.Workers).Elem()
-	for _, job := range workerJobs() {
-		job.slot(workerRoster).Set(reflect.ValueOf(role()))
+	inference.Spec.Engines.Actors.Gatherer, inference.Spec.Engines.Actors.Matcher = engine(), engine()
+	jobs := reflect.ValueOf(&inference.Spec.Engines.Jobs).Elem()
+	for _, job := range engineJobs() {
+		job.slot(jobs).Set(reflect.ValueOf(engine()))
 	}
 
 	files := map[string]any{
@@ -170,7 +170,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 		at := filepath.Join(stack.InferenceDir, name+".yaml")
 		out[at] = append(out[at], []byte(fmt.Sprintf(
 			"# Per-job refinement is yours to make. For example, a lighter model\n"+
-				"# for the high-volume annotation jobs: under spec.roster.workers.mark,\n"+
+				"# for the high-volume annotation jobs: under spec.engines.jobs.mark,\n"+
 				"# { provider: %s, model: %s } for highlighting, commenting and tagging.\n",
 			p.Inference, p.ModelLight))...)
 	}

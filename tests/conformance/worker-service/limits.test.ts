@@ -25,16 +25,16 @@ async function limits(w: WorkerServiceWorld): Promise<{ payload: Record<string, 
 /** A window of `contextTokens`, as an Ollama model's is stated: one window, shared by what goes in and what comes out. */
 const shared = (contextTokens: number) => ({ contextTokens, maxOutputTokens: contextTokens, acceptsTemperature: true });
 
-/** A worker of two engines, the first two of `engines`: one that serves highlighting and one that serves generation. */
+/** A worker of two engines, the first two of `engines`: one used for highlighting and one for generation. */
 async function started(w: WorkerServiceWorld, engines: readonly Engine[]): Promise<Served> {
   const [first, second] = engines;
-  const served = await w.start({ agents: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [YIELDS])] });
+  const served = await w.start({ engines: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [YIELDS])] });
   await eventually('both engines to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
   return served;
 }
 
 eachWorkerService('the limits a worker answers', (world) => {
-  it('answers a request once, as the agent, with the limits of every engine\'s provider and model, in the order of its engines', async () => {
+  it('answers a request once, as the agent, with the limits of every engine, in the order of its engines', async () => {
     const w = world();
     const [first, second] = w.engines;
     const served = await started(w, w.engines);
@@ -42,8 +42,8 @@ eachWorkerService('the limits a worker answers', (world) => {
     expect(answer.payload).toEqual({
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: shared(CONTEXT_LENGTH) },
-          { provider: second!.provider, model: second!.model, limits: shared(CONTEXT_LENGTH) },
+          { engine: { provider: first!.provider, model: first!.model }, limits: shared(CONTEXT_LENGTH) },
+          { engine: { provider: second!.provider, model: second!.model }, limits: shared(CONTEXT_LENGTH) },
         ],
       },
     });
@@ -70,8 +70,8 @@ eachWorkerService('the limits a worker answers', (world) => {
     const learned = {
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: shared(4096) },
-          { provider: second!.provider, model: second!.model, limits: shared(4096) },
+          { engine: { provider: first!.provider, model: first!.model }, limits: shared(4096) },
+          { engine: { provider: second!.provider, model: second!.model }, limits: shared(4096) },
         ],
       },
     };
@@ -93,8 +93,8 @@ eachWorkerService('the limits a worker answers', (world) => {
     const stated = {
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: false } },
-          { provider: second!.provider, model: second!.model, limits: { contextTokens: 180_000, maxOutputTokens: 8192, acceptsTemperature: false } },
+          { engine: { provider: first!.provider, model: first!.model }, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: false } },
+          { engine: { provider: second!.provider, model: second!.model }, limits: { contextTokens: 180_000, maxOutputTokens: 8192, acceptsTemperature: false } },
         ],
       },
     };

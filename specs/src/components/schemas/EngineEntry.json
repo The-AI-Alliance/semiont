@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "One of the knowledge base's engines: a provider and a model its Inference document names, and the jobs the document has it used for. An engine is not a principal: whichever worker claims a job does it, under its own account, and names on each write the engine it used, if any. Carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).",
+  "properties": {
+    "engine": {
+      "$ref": "./Engine.json"
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "$ref": "./JobFilter.json"
+      },
+      "description": "The jobs the knowledge base's Inference document has this engine used for, as a claim names them. Absent for an engine only Librarian actors ask."
+    }
+  },
+  "required": [
+    "engine"
+  ],
+  "additionalProperties": false
+}

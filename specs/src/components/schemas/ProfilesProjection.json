@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "description": "What the principals of a knowledge base are called: the file `projections/__system__/profiles.json` under the state directory, the sum of the `principal:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the principals a reply mentions. Written as JSON indented by two spaces.",
+  "properties": {
+    "profiles": {
+      "type": "object",
+      "description": "Each principal's current profile, keyed by its DID.",
+      "additionalProperties": {
+        "$ref": "./Profile.json"
+      }
+    }
+  },
+  "required": [
+    "profiles"
+  ],
+  "additionalProperties": false
+}

@@ -97,7 +97,7 @@
     "reconnecting": "正在重新连接服务器...",
     "sharing": "共享",
     "collaborationComingSoon": "协作功能即将推出",
-    "collaborators": "协作者",
+    "engines": "引擎",
     "ceilings": "输入 {{contextTokens}} / 输出 {{maxOutputTokens}}",
     "sharedWindow": "{{contextTokens}} 窗口"
   },

@@ -1,6 +1,6 @@
 package verbs
 
-// beckon.go — `semiont beckon`: draw a collaborator's attention to a
+// beckon.go — `semiont beckon`: draw a participant's attention to a
 // resource or annotation. Fire-and-forget by design: beckon:focus is a
 // broadcast launcher.UI signal with no reply channel, so this verb reports what it
 // SENT, never that anyone saw it. Claiming delivery would be a lie the

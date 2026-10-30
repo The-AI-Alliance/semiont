@@ -38,55 +38,55 @@ import semiont.types.BrowseEventsRequest
 import semiont.types.BrowseKbRequest
 import semiont.types.BrowseResourceOpenEvent
 import semiont.types.BrowseResourceViewedEvent
+import semiont.types.EngineEntry
+import semiont.types.EngineLimits
 import semiont.types.GetAnnotationHistoryResponse
 import semiont.types.GetResourceResponse
 import semiont.types.InferenceLimits
-import semiont.types.InferencePairLimits
 import semiont.types.KbDescription
 import semiont.types.ListResourcesResponse
 import semiont.types.ResourceDescriptor
-import semiont.types.RosterEntry
 import semiont.types.TagSchema
 import java.util.concurrent.CompletableFuture
 
-/** Reads: one-shot reads, and this viewer's own signals. */
-/** One engine on the knowledge base's roster: its entry, and its model's limits when the service holding that model's credentials reported them. */
-public data class Collaborator(public val entry: RosterEntry, public val limits: InferenceLimits?)
+/** One of the knowledge base's engines: its entry, and the engine's limits when the service holding its provider's credentials reported them. */
+public data class EngineWithLimits(public val entry: EngineEntry, public val limits: InferenceLimits?)
 
-/** The roster with each reported model's limits on its entries. A report names its provider as the wire spells it. */
-private fun joined(roster: List<RosterEntry>, reported: List<InferencePairLimits>): List<Collaborator> {
-    val byModel = reported.reversed().associate { (it.provider to it.model) to it.limits }
-    return roster.map { entry -> Collaborator(entry, byModel[entry.engine.provider.value to entry.engine.model]) }
+/** The engines with each reported engine's limits on its entries. */
+private fun joined(engines: List<EngineEntry>, reported: List<EngineLimits>): List<EngineWithLimits> {
+    val byEngine = reported.reversed().associate { it.engine to it.limits }
+    return engines.map { entry -> EngineWithLimits(entry, byEngine[entry.engine]) }
 }
 
 /**
- * The collaborator directory with each key holder's limits joined on. The
- * directory is asked for first; a holder that has not answered delays only its
- * own models' limits, and one that answered nothing reports none.
+ * The engines with each key holder's limits joined on. The engines are asked
+ * for first; a holder that has not answered delays only its own engines'
+ * limits, and one that answered nothing reports none.
  */
-private class Collaborators(private val live: Live) : Source<List<Collaborator>> {
-    override suspend fun fresh(): List<Collaborator> = coroutineScope {
-        val directory = async(start = CoroutineStart.UNDISPATCHED) { live.agents.fetch(WHOLE) }
+private class Engines(private val live: Live) : Source<List<EngineWithLimits>> {
+    override suspend fun fresh(): List<EngineWithLimits> = coroutineScope {
+        val engines = async(start = CoroutineStart.UNDISPATCHED) { live.engines.fetch(WHOLE) }
         val reports = LIMITS_HOLDERS.map { async(start = CoroutineStart.UNDISPATCHED) { live.limits.fetch(it) } }
-        joined(directory.await(), reports.awaitAll().flatten())
+        joined(engines.await(), reports.awaitAll().flatten())
     }
 
-    override fun watch(): Flow<CacheState<List<Collaborator>>> {
-        val directory = live.agents.observe(WHOLE)
+    override fun watch(): Flow<CacheState<List<EngineWithLimits>>> {
+        val engines = live.engines.observe(WHOLE)
         // A holder's report is pending, then what it reported: it never fails (`Live`).
         val reports = LIMITS_HOLDERS.map { holder ->
-            live.limits.observe(holder).runningFold(emptyList<InferencePairLimits>()) { reported, state -> (state as? CacheState.Ready)?.value ?: reported }
+            live.limits.observe(holder).runningFold(emptyList<EngineLimits>()) { reported, state -> (state as? CacheState.Ready)?.value ?: reported }
         }
         val reported = if (reports.isEmpty()) flowOf(emptyList()) else combine(reports) { it.toList().flatten() }
         // A report that changes nothing a collector is shown is not a state.
-        return combine(directory, reported) { entries, pairs -> entries.shown { joined(it, pairs) } }.distinctUntilChanged()
+        return combine(engines, reported) { entries, limits -> entries.shown { joined(it, limits) } }.distinctUntilChanged()
     }
 
-    override fun invalidate(): Unit = live.invalidateAgents()
+    override fun invalidate(): Unit = live.invalidateEngines()
 
     override fun hold(): ResourceHold? = null
 }
 
+/** Reads: one-shot reads, and this viewer's own signals. */
 public class BrowseNamespace internal constructor(private val links: Links, private val content: ContentTransport, private val live: Live) {
     /** A query of one resource: collecting it holds the resource's scope. */
     private fun <K : Any, V : Any, T : Any> of(resourceId: ResourceId, cache: Cache<K, V>, key: K, view: (V) -> T): Cached<T> =
@@ -124,8 +124,8 @@ public class BrowseNamespace internal constructor(private val links: Links, priv
     /** The knowledge base's tag schemas: a live query. */
     public fun tagSchemas(): Cached<List<TagSchema>> = live.query(Keyed(live.tagSchemas, WHOLE, { it }))
 
-    /** The knowledge base's collaborators, with each model's limits as the services holding its credentials report them: a live query. */
-    public fun agents(): Cached<List<Collaborator>> = live.query(Collaborators(live))
+    /** The knowledge base's engines, with each engine's limits as the services holding its provider's credentials report them: a live query. */
+    public fun engines(): Cached<List<EngineWithLimits>> = live.query(Engines(live))
 
     /** A resource's events, each with who it is attributed to: a live query. */
     @JvmExposeBoxed
