@@ -155,7 +155,7 @@ private suspend fun answered(id: JsonElement, op: String, run: suspend () -> Jso
 
 /** One operation of a driver written in Java: its answer, as a future the protocol awaits. */
 public fun interface JavaOperation {
-    public fun run(id: Long, args: JsonObject): CompletableFuture<JsonElement>
+    public fun run(args: JsonObject): CompletableFuture<JsonElement>
 }
 
 /**
@@ -169,7 +169,7 @@ public fun serveJava(operations: Map<String, JavaOperation>, inTurn: Set<String>
             override val operations: Set<String> = operations.keys
             override val inTurn: Set<String> = inTurn
 
-            override suspend fun run(id: Long, op: String, args: JsonObject): JsonElement = operations.getValue(op).run(id, args).await()
+            override suspend fun run(id: Long, op: String, args: JsonObject): JsonElement = operations.getValue(op).run(args).await()
 
             override fun finish() = finish.run()
         }

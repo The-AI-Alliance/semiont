@@ -101,14 +101,16 @@ public final class WorkerDriver {
         return JsonElementKt.JsonPrimitive(value);
     }
 
-    private static JsonObject object(Object... pairs) {
-        Map<String, JsonElement> fields = new LinkedHashMap<>();
-        for (int at = 0; at < pairs.length; at += 2) fields.put((String) pairs[at], (JsonElement) pairs[at + 1]);
-        return new JsonObject(fields);
+    /** An object of these members, in this order. */
+    @SafeVarargs
+    private static JsonObject fields(Map.Entry<String, JsonElement>... members) {
+        Map<String, JsonElement> written = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> member : members) written.put(member.getKey(), member.getValue());
+        return new JsonObject(written);
     }
 
     private static void say(String name, JsonElement value) {
-        Say.line(object(name, value));
+        Say.line(fields(Map.entry(name, value)));
     }
 
     private static JsonElement when(Instant at) {
@@ -226,7 +228,7 @@ public final class WorkerDriver {
         }
         Scope inSpan = current.makeCurrent();
         try {
-            return call.apply(held).thenApply(done -> JsonNull.INSTANCE);
+            return call.apply(held).thenApply(_ -> JsonNull.INSTANCE);
         } finally {
             inSpan.close();
         }
@@ -238,7 +240,7 @@ public final class WorkerDriver {
         synchronized (this) {
             ending = span;
         }
-        return working(call).whenComplete((done, failed) -> ending.end());
+        return working(call).whenComplete((_, _) -> ending.end());
     }
 
     // ── The operations ──────────────────────────────────────────────
@@ -369,15 +371,15 @@ public final class WorkerDriver {
             });
             List<JsonElement> units = new ArrayList<>();
             for (String unit : handed.getCompletedUnits()) units.add(text(unit));
-            say("claimed", object(
-                    "jobId", text(handed.getJobId().getValue()),
-                    "jobType", text(handed.getJobType().getValue()),
-                    "resourceId", text(handed.getResourceId().getValue()),
-                    "params", Stated.written(handed.getParams()),
-                    "completedUnits", new JsonArray(units),
-                    "unitCursors", Stated.written(handed.getUnitCursors()),
-                    "retryCount", number(handed.getRetryCount()),
-                    "maxRetries", number(handed.getMaxRetries())));
+            say("claimed", fields(
+                    Map.entry("jobId", text(handed.getJobId().getValue())),
+                    Map.entry("jobType", text(handed.getJobType().getValue())),
+                    Map.entry("resourceId", text(handed.getResourceId().getValue())),
+                    Map.entry("params", Stated.written(handed.getParams())),
+                    Map.entry("completedUnits", new JsonArray(units)),
+                    Map.entry("unitCursors", Stated.written(handed.getUnitCursors())),
+                    Map.entry("retryCount", number(handed.getRetryCount())),
+                    Map.entry("maxRetries", number(handed.getMaxRetries()))));
         }
     }
 
@@ -437,15 +439,19 @@ public final class WorkerDriver {
     private JsonElement vitals() {
         WorkerVitals vitals = claiming().vitals();
         ActiveJob active = vitals.getActiveJob();
-        return object(
-                "lastQueuedEventAt", when(vitals.getLastQueuedEventAt()),
-                "lastClaimAt", when(vitals.getLastClaimAt()),
-                "lastFinishedAt", when(vitals.getLastFinishedAt()),
-                "lastActivityAt", when(vitals.getLastActivityAt()),
-                "activeJob", active == null
-                        ? JsonNull.INSTANCE
-                        : object("jobId", text(active.getJobId().getValue()), "type", text(active.getJobType().getValue()), "since", when(active.getSince())),
-                "jobsCompleted", number(vitals.getJobsCompleted()));
+        JsonElement holding = active == null
+                ? JsonNull.INSTANCE
+                : fields(
+                        Map.entry("jobId", text(active.getJobId().getValue())),
+                        Map.entry("type", text(active.getJobType().getValue())),
+                        Map.entry("since", when(active.getSince())));
+        return fields(
+                Map.entry("lastQueuedEventAt", when(vitals.getLastQueuedEventAt())),
+                Map.entry("lastClaimAt", when(vitals.getLastClaimAt())),
+                Map.entry("lastFinishedAt", when(vitals.getLastFinishedAt())),
+                Map.entry("lastActivityAt", when(vitals.getLastActivityAt())),
+                Map.entry("activeJob", holding),
+                Map.entry("jobsCompleted", number(vitals.getJobsCompleted())));
     }
 
     /** Close the client and the transport, telling the suite nothing more: what a stop does after its failing, and all a killed worker does. */
@@ -476,12 +482,12 @@ public final class WorkerDriver {
 
     /** An operation done at once: its answer, settled. */
     private static JavaOperation now(Function<JsonObject, JsonElement> work) {
-        return (id, args) -> CompletableFuture.completedFuture(work.apply(args));
+        return args -> CompletableFuture.completedFuture(work.apply(args));
     }
 
     /** An operation settled by what it began. */
     private static JavaOperation later(Function<JsonObject, CompletableFuture<JsonElement>> work) {
-        return (id, args) -> work.apply(args);
+        return work::apply;
     }
 
     private Map<String, JavaOperation> operations() {
