@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpServer;
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -15,6 +16,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -32,13 +34,18 @@ import semiont.bus.Operations;
 import semiont.bus.Typed;
 import semiont.channels.Channels;
 import semiont.channels.Empty;
+import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
 import semiont.identifiers.ResourceId;
+import semiont.transport.Content;
+import semiont.transport.ContentStream;
+import semiont.transport.PutBinaryRequest;
+import semiont.transport.Upload;
 import semiont.types.BeckonFocusEvent;
 import semiont.types.FrameAddEntityTypeCommand;
 import semiont.types.StatusResponse;
 
-/** The wire layer as a Java program calls it: a request through its future, a stream through its publisher, and a request the program gives up. */
+/** The wire layer as a Java program calls it: a request through its future, a stream through its publisher, a request the program gives up, and content uploaded and read. */
 final class WireTest {
     private static final Pattern CORRELATION = Pattern.compile("\"correlationId\":\"([^\"]+)\"");
 
@@ -48,6 +55,7 @@ final class WireTest {
         private final HttpServer server;
         private final CompletableFuture<OutputStream> stream = new CompletableFuture<>();
         final BlockingQueue<String> emitted = new LinkedBlockingQueue<>();
+        final CompletableFuture<byte[]> uploaded = new CompletableFuture<>();
         /** The frame to send back for an emit's body, or null for none. */
         volatile Function<String, String> answer = body -> null;
 
@@ -74,8 +82,23 @@ final class WireTest {
                 String frame = answer.apply(body);
                 if (frame != null) send(frame);
             });
+            server.createContext("/resources", exchange -> {
+                if (exchange.getRequestMethod().equals("POST")) {
+                    uploaded.complete(exchange.getRequestBody().readAllBytes());
+                    answer(exchange, 202, "application/json", "{\"resourceId\":\"res-2\"}".getBytes(UTF_8));
+                } else {
+                    answer(exchange, 200, "text/plain", "the bytes".getBytes(UTF_8));
+                }
+            });
             server.setExecutor(handling);
             server.start();
+        }
+
+        private static void answer(com.sun.net.httpserver.HttpExchange exchange, int status, String type, byte[] body) throws IOException {
+            exchange.getResponseHeaders().add("Content-Type", type);
+            exchange.sendResponseHeaders(status, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
         }
 
         String origin() {
@@ -159,6 +182,64 @@ final class WireTest {
                 // Given up, the request's connection is closed: the server reads its end.
                 assertEquals(-1, request.read());
             }
+        }
+    }
+
+    @Test
+    void anUploadIsBuiltAndAwaitedFromJava() throws Exception {
+        try (Gateway gateway = new Gateway();
+                HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow(null));
+                HttpContentTransport content = new HttpContentTransport(transport)) {
+            PutBinaryRequest request = PutBinaryRequest.builder("Notes", "the bytes".getBytes(UTF_8), "text/plain", "file://notes.txt")
+                    .language("en")
+                    .entityTypes(List.of("Concept"))
+                    .sourceResourceId(new ResourceId("res-1"))
+                    .build();
+            assertEquals(request, PutBinaryRequest.builder("Notes", "the bytes".getBytes(UTF_8), "text/plain", "file://notes.txt")
+                    .language("en").entityTypes(List.of("Concept")).sourceResourceId(new ResourceId("res-1")).build());
+            try (Upload upload = content.putBinary(request)) {
+                assertEquals(new ResourceId("res-2"), upload.awaitFuture().get(10, SECONDS).getResourceId());
+            }
+            String sent = new String(gateway.uploaded.get(10, SECONDS), UTF_8);
+            assertTrue(sent.contains("the bytes") && sent.contains("Concept") && sent.contains("res-1"), sent);
+        }
+    }
+
+    @Test
+    void aResourcesBytesAreReadWholeAndThroughAPublisherFromJava() throws Exception {
+        try (Gateway gateway = new Gateway();
+                HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow(null));
+                HttpContentTransport content = new HttpContentTransport(transport)) {
+            Content whole = content.getBinaryFuture(new ResourceId("res-1")).get(10, SECONDS);
+            assertEquals("text/plain", whole.getContentType());
+            assertEquals("the bytes", new String(whole.getBytes(), UTF_8));
+
+            ContentStream stream = content.getBinaryStreamFuture(new ResourceId("res-1")).get(10, SECONDS);
+            ByteArrayOutputStream read = new ByteArrayOutputStream();
+            CompletableFuture<Void> ended = new CompletableFuture<>();
+            stream.asPublisher().subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    subscription.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(byte[] piece) {
+                    read.writeBytes(piece);
+                }
+
+                @Override
+                public void onError(Throwable error) {
+                    ended.completeExceptionally(error);
+                }
+
+                @Override
+                public void onComplete() {
+                    ended.complete(null);
+                }
+            });
+            ended.get(10, SECONDS);
+            assertEquals("the bytes", read.toString(UTF_8));
         }
     }
 }
