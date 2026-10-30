@@ -23,11 +23,6 @@ fn uri_shaped(value: &str) -> bool {
 /// say.
 pub fn did_to_agent(did: &str) -> Object {
     let mut agent = Object::new();
-    if did.is_empty() {
-        agent.insert("@type".into(), json!("Person"));
-        agent.insert("name".into(), json!("unknown"));
-        return agent;
-    }
     agent.insert(
         "@type".into(),
         json!(match kind_of(did) {
@@ -115,11 +110,13 @@ mod tests {
                 "{did}"
             );
         }
-        assert_eq!(
-            Value::Object(did_to_agent("alice")),
-            json!({ "@type": "Person" }),
-            "a sender that is no URI has no @id, and is not named by itself"
-        );
+        for sender in ["alice", ""] {
+            assert_eq!(
+                Value::Object(did_to_agent(sender)),
+                json!({ "@type": "Person" }),
+                "a sender that is no URI, or none, has no @id and no name: {sender:?}"
+            );
+        }
     }
 
     /// The record reads a DID's kind as specs/src/principals/kind-cases.json
