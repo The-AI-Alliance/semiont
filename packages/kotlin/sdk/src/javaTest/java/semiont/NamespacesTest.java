@@ -102,9 +102,14 @@ final class NamespacesTest {
         return first;
     }
 
+    /** Wait for `call` to settle, either way. */
+    private static void settle(CompletableFuture<?> call) throws Exception {
+        call.handle((_, _) -> null).get(10, SECONDS);
+    }
+
     /** The channel `call` asked on, once it has settled either way. */
     private String asked(CompletableFuture<?> call) throws Exception {
-        call.handle((value, error) -> null).get(10, SECONDS);
+        settle(call);
         List<RequestLogEntry> log = transport.getRequestLog();
         assertFalse(log.isEmpty(), "nothing was asked");
         return log.get(log.size() - 1).getChannel();
@@ -112,14 +117,14 @@ final class NamespacesTest {
 
     /** What `call` read of the content, once it has settled either way. */
     private ContentCall read(CompletableFuture<?> call) throws Exception {
-        call.handle((value, error) -> null).get(10, SECONDS);
+        settle(call);
         List<ContentCall> calls = content.getCalls();
         return calls.get(calls.size() - 1);
     }
 
     /** The gateway's operation `call` called, once it has settled either way. */
     private String called(CompletableFuture<?> call) throws Exception {
-        call.handle((value, error) -> null).get(10, SECONDS);
+        settle(call);
         List<String> calls = gateway.getCalls();
         return calls.get(calls.size() - 1);
     }

@@ -92,8 +92,12 @@ final class Gateway implements AutoCloseable {
         return found.group(1);
     }
 
+    int port() {
+        return server.getAddress().getPort();
+    }
+
     String origin() {
-        return "http://127.0.0.1:" + server.getAddress().getPort();
+        return "http://127.0.0.1:" + port();
     }
 
     /** The next emit's body. One that does not come within ten seconds fails the test. */

@@ -73,7 +73,7 @@ final class TestingTest {
         session.getClient().close();
         session.getTransport().close();
 
-        ScriptedSessions sessions = new ScriptedSessions((kbId, operation, payload) -> object("kb", kbId));
+        ScriptedSessions sessions = new ScriptedSessions((kbId, _, _) -> object("kb", kbId));
         sessions.queueRenewals("renewed");
         assertTrue(sessions.transports("kb-a").isEmpty());
         assertEquals(0, sessions.getRenewed());
@@ -116,7 +116,7 @@ final class TestingTest {
 
     @Test
     void aJavaTestAnswersWhatNobodyQueuedAndDrawsItsFaults() throws Exception {
-        FaultyTransport transport = new FaultyTransport(List.of(), (operation, payload) -> object("answered", operation));
+        FaultyTransport transport = new FaultyTransport(List.of(), (operation, _) -> object("answered", operation));
         TestClient made = new TestClient(transport);
         JsonObject answered = BusKt.requestFuture(made.getClient().getTransport(), Operations.BROWSE_KB_REQUESTED, new JsonObject(Map.of()), 5_000).get(10, SECONDS);
         assertEquals(object("answered", "browse:kb-requested"), answered.get("response"));

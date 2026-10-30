@@ -82,7 +82,7 @@ final class ModulesTest {
     private static final ResourceId RESOURCE = new ResourceId("res-1");
     /** A gateway's endpoint, as a sign-in names it. */
     private static HttpEndpoint endpointOf(Gateway gateway) {
-        return HttpEndpoint.builder("127.0.0.1", Long.parseLong(gateway.origin().substring(gateway.origin().lastIndexOf(':') + 1)), HttpEndpointProtocol.Http).build();
+        return HttpEndpoint.builder("127.0.0.1", gateway.port(), HttpEndpointProtocol.Http).build();
     }
 
     /** Wait for `future` to fail, and give what it failed with. */
@@ -213,7 +213,7 @@ final class ModulesTest {
         SignInOutcome outcome = new SignInOutcome(kb, new Expected("did:web:kb.example", "A KB"));
         assertEquals("A KB", outcome.getExpected().getName());
         try (SessionSignals signals = new SessionSignals()) {
-            SessionFactoryOptions made = new SessionFactoryOptions(kb, storage, signals, error -> Unit.INSTANCE);
+            SessionFactoryOptions made = new SessionFactoryOptions(kb, storage, signals, _ -> Unit.INSTANCE);
             assertEquals(kb, made.getKb());
         }
 
@@ -227,7 +227,7 @@ final class ModulesTest {
     void aRetryIsRunFromJava() throws Exception {
         AtomicInteger attempts = new AtomicInteger();
         // What is retried is a failure the SDK names: here, a stream that cannot deliver a channel.
-        String done = RetryKt.retryWithBackoffFuture(new RetryPolicy(3, 1, 2), failed -> true, () -> attempts.incrementAndGet() == 1
+        String done = RetryKt.retryWithBackoffFuture(new RetryPolicy(3, 1, 2), _ -> true, () -> attempts.incrementAndGet() == 1
                 ? CompletableFuture.<String>failedFuture(TransportKt.unsubscribed("job:queued"))
                 : CompletableFuture.completedFuture("done")).get(10, SECONDS);
         assertEquals("done", done);
