@@ -91,7 +91,9 @@ private fun TestScope.changes(script: Script, polls: Int): List<DiscoveryDiff> {
 private fun addresses(kbs: List<DiscoveredKB>) = kbs.map { "${it.host}:${it.port}" }
 
 /** A diff as what it added, changed and removed, by address. */
-private fun summary(diff: DiscoveryDiff) = Triple(addresses(diff.added), addresses(diff.updated), addresses(diff.removed))
+private typealias Summary = Triple<List<String>, List<String>, List<String>>
+
+private fun summary(diff: DiscoveryDiff): Summary = Triple(addresses(diff.added), addresses(diff.updated), addresses(diff.removed))
 
 private fun reasonOf(state: DiscoveryState): DiscoveryAbsentReason? = (state as? Absent)?.reason
 
@@ -213,7 +215,7 @@ class DiscoveryTest {
         )
         val told = changes(script, 4)
         assertEquals(
-            listOf(
+            listOf<Summary>(
                 Triple(listOf("localhost:4000"), emptyList(), emptyList()),
                 Triple(listOf("localhost:4100"), listOf("localhost:4000"), emptyList()),
                 Triple(emptyList(), emptyList(), listOf("localhost:4000")),
@@ -229,7 +231,7 @@ class DiscoveryTest {
         val script = Script(parseDiscoveryDocument(document(entry("localhost", 4000, A))), parseDiscoveryDocument(document(entry("localhost", 4001, A))))
         val told = changes(script, 2)
         assertEquals(2, told.size)
-        assertEquals(Triple(listOf("localhost:4001"), emptyList<String>(), listOf("localhost:4000")), summary(told[1]))
+        assertEquals(Summary(listOf("localhost:4001"), emptyList(), listOf("localhost:4000")), summary(told[1]))
     }
 
     @Test
@@ -257,7 +259,7 @@ class DiscoveryTest {
             parseDiscoveryDocument("{}"),
         )
         assertEquals(
-            listOf(
+            listOf<Pair<DiscoveryAbsentReason?, Summary>>(
                 DiscoveryAbsentReason.NotJson to Triple(emptyList<String>(), emptyList<String>(), emptyList<String>()),
                 null to Triple(listOf("localhost:4000"), emptyList(), emptyList()),
                 DiscoveryAbsentReason.NotJson to Triple(emptyList(), emptyList(), listOf("localhost:4000")),
@@ -273,7 +275,7 @@ class DiscoveryTest {
         val told = changes(Script(both, both, parseDiscoveryDocument(document(entry("localhost", 4100, A)))), 4)
         // No change while both are there, and the one that stops is not hidden by the one that goes on.
         assertEquals(
-            listOf(
+            listOf<Summary>(
                 Triple(listOf("localhost:4000", "localhost:4100"), emptyList(), emptyList()),
                 Triple(emptyList(), emptyList(), listOf("localhost:4000")),
             ),

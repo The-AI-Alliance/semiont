@@ -1718,7 +1718,6 @@
     {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's discovery module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/discovery.ts"
@@ -1733,6 +1732,10 @@
         ],
         "go": [
           "packages/go/sdk/discovery"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/discovery",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "whole": [
