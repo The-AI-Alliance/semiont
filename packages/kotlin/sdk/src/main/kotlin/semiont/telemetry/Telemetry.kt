@@ -96,13 +96,7 @@ internal object Telemetry {
      * the frame brought otherwise.
      */
     fun received(channel: String, scope: ResourceId?, sentUnder: TraceContext?): TraceContext? {
-        val parent = sentUnder?.let { sent ->
-            val carrier = buildMap {
-                put("traceparent", sent.traceparent)
-                sent.tracestate?.let { put("tracestate", it) }
-            }
-            otel().propagators.textMapPropagator.extract(Context.root(), carrier, MapGetter)
-        } ?: Context.root()
+        val parent = extracted(sentUnder)
         val row = TelemetryTable.BUS_RECV
         val span = otel().getTracer(SCOPE).spanBuilder(row.name.replace(CHANNEL, channel))
             .setParent(parent)
@@ -144,6 +138,22 @@ private object MapGetter : TextMapGetter<Map<String, String>> {
 
 /** The trace the caller is in, as a coroutine's context: work launched on the caller's behalf runs in it. */
 internal fun callersTrace(): CoroutineContext = Context.current().inCoroutines()
+
+/** No trace, as a coroutine's context: work launched in it begins a trace of its own, whatever span its launcher was in. */
+internal fun noTrace(): CoroutineContext = Context.root().inCoroutines()
+
+/** The trace `carried` states, as OpenTelemetry's context: the root when it states none. */
+private fun extracted(carried: TraceContext?): Context {
+    val sent = carried ?: return Context.root()
+    val carrier = buildMap {
+        put("traceparent", sent.traceparent)
+        sent.tracestate?.let { put("tracestate", it) }
+    }
+    return GlobalOpenTelemetry.getOrNoop().propagators.textMapPropagator.extract(Context.root(), carrier, MapGetter)
+}
+
+/** The trace `carried` states, as a coroutine's context: none when it states none. */
+internal fun continuing(carried: TraceContext?): CoroutineContext = extracted(carried).inCoroutines()
 
 /** `work` as a future, for Java, run in the trace its caller is in. */
 internal fun <T> CoroutineScope.futureOf(work: suspend () -> T): CompletableFuture<T> = future(callersTrace()) { work() }
