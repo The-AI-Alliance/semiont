@@ -220,7 +220,7 @@ func TestIdentityRevokeDeletesTheGrant(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	harness.MustContainAll(t, "stdout", stdout, "revoked alice", "semiont-worker-alice")
-	harness.MustContainAll(t, "stderr", stderr, "stays good until it expires")
+	harness.MustContainAll(t, "stderr", stderr, "stay good until they expire", "within 300s", "an agent token the gateway minted it")
 	if len(admin.deleted) != 1 || admin.deleted[0] != "semiont-worker-alice" {
 		t.Errorf("deleted %v, want semiont-worker-alice alone", admin.deleted)
 	}
@@ -237,5 +237,128 @@ func TestIdentityRevokeOfAnUnknownLabelFails(t *testing.T) {
 	harness.MustContainAll(t, "stderr", stderr, "No worker is granted as alice", "Granted: bob")
 	if len(admin.deleted) != 0 {
 		t.Errorf("deleted %v for a label nothing was granted under", admin.deleted)
+	}
+}
+
+// fixtureCopy: the knowledge base at src, copied where a test may change its
+// documents, changed by edit.
+func fixtureCopy(t *testing.T, src string, edit func(stackDir string)) string {
+	t.Helper()
+	root := filepath.Join(t.TempDir(), "kb")
+	if err := os.CopyFS(root, os.DirFS(src)); err != nil {
+		t.Fatal(err)
+	}
+	edit(filepath.Join(root, ".semiont", "stack"))
+	return root
+}
+
+// replaceIn: one document of the copy, with old replaced by new.
+func replaceIn(t *testing.T, path, old, new string) {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), old) {
+		t.Fatalf("%s holds no %q", path, old)
+	}
+	if err := os.WriteFile(path, []byte(strings.Replace(string(b), old, new, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// At an issuer the launcher does not run, the realm is somebody else's: grant
+// and revoke refuse, and say what to do there instead.
+func TestIdentityGrantAndRevokeSayWhatToDoAtAnIssuerTheLauncherDoesNotRun(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", nil)
+	root := fixtureCopy(t, syncFixture(t, admin), func(dir string) {
+		replaceIn(t, filepath.Join(dir, "knowledge-base.yaml"), "    ref: issuer\n",
+			"    external: { type: keycloak, url: https://login.example.com/realms/kb }\n")
+		if err := os.Remove(filepath.Join(dir, "issuer.yaml")); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"grant", "alice", "--key", keyFile(t, testWorkerKey())}, "a client that authenticates with a signed JWT"},
+		{[]string{"revoke", "alice"}, "Delete the worker's client at your own issuer"},
+	} {
+		code, _, stderr := identityOutput(t, append(c.args, "--root", root, "--config", "anthropic")...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1", c.args, code)
+		}
+		harness.MustContainAll(t, "stderr", stderr, "not launcher-run", c.want)
+	}
+	if len(admin.paths) != 0 {
+		t.Errorf("an issuer the launcher does not run was reached: %v", admin.paths)
+	}
+}
+
+// A grant says what it did: granted, already granted this key, or the key
+// replaced.
+func TestIdentityGrantSaysWhatItDid(t *testing.T) {
+	k := testWorkerKey()
+	for _, c := range []struct {
+		name string
+		held []map[string]any
+		want string
+	}{
+		{"the same key", []map[string]any{grantedRep("alice", k.registeredKey)}, "alice is already granted this key (" + k.thumbprint + ")"},
+		{"another key", []map[string]any{grantedRep("alice", anotherWorkerKey(t))}, "updated semiont-worker-alice: key now " + k.thumbprint},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			admin := newStubAdmin(t, "semiont", append(correctRealm(), c.held...))
+			root := syncFixture(t, admin)
+			code, stdout, stderr := identityOutput(t, "grant", "alice", "--key", keyFile(t, k), "--root", root, "--config", "anthropic")
+			if code != 0 {
+				t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			harness.MustContainAll(t, "stdout", stdout, c.want, "Client id:  semiont-worker-alice")
+		})
+	}
+}
+
+func TestIdentityGrantAndRevokeReportARefusedAdminLogin(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", append(correctRealm(), grantedRep("alice", anotherWorkerKey(t))))
+	admin.badLogin = true
+	root := syncFixture(t, admin)
+	for _, args := range [][]string{
+		{"grant", "bob", "--key", keyFile(t, testWorkerKey())},
+		{"revoke", "alice"},
+	} {
+		code, _, stderr := identityOutput(t, append(args, "--root", root, "--config", "anthropic")...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1", args, code)
+		}
+		harness.MustContainAll(t, "stderr", stderr, "admin login was refused")
+	}
+	if len(admin.created)+len(admin.deleted) != 0 {
+		t.Errorf("a refused login changed the realm: created %v, deleted %v", admin.created, admin.deleted)
+	}
+}
+
+// What a subcommand does not take is refused, before the realm is reached.
+func TestIdentitySubcommandsRefuseWhatTheyDoNotTake(t *testing.T) {
+	admin := newStubAdmin(t, "semiont", correctRealm())
+	root := syncFixture(t, admin)
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"sync", "alice"}, "sync takes no argument"},
+		{[]string{"revoke"}, "revoke takes one label"},
+		{[]string{"revoke", "alice", "bob"}, "revoke takes one label"},
+		{[]string{"grant", "alice", "--key", filepath.Join(t.TempDir(), "absent.jwks")}, "Reading"},
+	} {
+		code, _, stderr := identityOutput(t, append(c.args, "--root", root, "--config", "anthropic")...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1", c.args, code)
+		}
+		harness.MustContainAll(t, "stderr", stderr, c.want)
+	}
+	if len(admin.paths) != 0 {
+		t.Errorf("a refused subcommand reached the realm: %v", admin.paths)
 	}
 }
