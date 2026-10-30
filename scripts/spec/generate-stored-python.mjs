@@ -7,7 +7,7 @@
 //   packages/python/sdk/src/semiont/stored.py
 //
 // A registry in one SDK finds what one in another wrote, over one storage,
-// only if both say these alike. TypeScript, Rust and Go state them by hand,
+// only if both say these alike. TypeScript, Rust, Go and Kotlin state them by hand,
 // each held to the table by a test; Python's are this. The reading of the
 // session's schema is sign-in-schema.mjs's.
 //

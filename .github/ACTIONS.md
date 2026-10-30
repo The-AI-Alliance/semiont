@@ -22,7 +22,7 @@ every operation the spec declares is the gateway conformance suite's to check
 (the `gateway-conformance` job).
 
 ### CodeQL Security Analysis (`codeql-analysis.yml`)
-CodeQL over the TypeScript, Go, Rust and Python, nightly on `main` and when a
+CodeQL over the TypeScript, Go, Rust, Python and Kotlin, nightly on `main` and when a
 release calls it.
 
 ### Rust Crate Advisories (`rust-advisories.yml`)

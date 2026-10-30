@@ -8,29 +8,34 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicInteger;
 import kotlinx.coroutines.flow.StateFlowKt;
 import kotlinx.serialization.json.JsonElement;
 import kotlinx.serialization.json.JsonElementKt;
 import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.Test;
-import semiont.bus.BusKt;
-import semiont.bus.Operations;
-import semiont.channels.Channels;
+import semiont.errors.BusRequestErrorCode;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
 import semiont.identifiers.JobId;
 import semiont.identifiers.ResourceId;
+import semiont.jobs.ClaimRefusal;
 import semiont.jobs.Claims;
+import semiont.jobs.ClaimsKt;
 import semiont.jobs.HeldJob;
 import semiont.jobs.HeldYieldJob;
 import semiont.jobs.JobFilterKt;
+import semiont.jobs.RetriesKt;
+import semiont.transport.Events;
 import semiont.types.FailureClass;
 import semiont.types.JobFilter;
 import semiont.types.JobProgress;
+import semiont.types.JobType;
+import semiont.types.YieldJobDone;
 import semiont.types.YieldJobFilter;
 
 /**
@@ -52,10 +57,7 @@ final class WorkerTest {
         final AtomicInteger claimed = new AtomicInteger();
 
         Opened() throws Exception {
-            List<String> channels = new ArrayList<>(BusKt.replyChannelsFor(Operations.JOB_CLAIM));
-            channels.add(Channels.JOB_QUEUED.getName());
-            channels.add(Channels.JOB_CANCEL_REQUESTED.getName());
-            transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"), channels);
+            transport = new HttpTransport(gateway.origin(), StateFlowKt.<String>MutableStateFlow("token"), ClaimsKt.getJOB_CLAIM_CHANNELS());
             content = new HttpContentTransport(transport);
             client = new SemiontClient(transport, content, transport);
             gateway.answer = body -> {
@@ -83,6 +85,31 @@ final class WorkerTest {
             transport.close();
             gateway.close();
         }
+    }
+
+    /** The first thing `publisher` gives. */
+    private static <T> CompletableFuture<T> first(Flow.Publisher<T> publisher) {
+        CompletableFuture<T> first = new CompletableFuture<>();
+        publisher.subscribe(new Flow.Subscriber<>() {
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(T item) {
+                first.complete(item);
+            }
+
+            @Override
+            public void onError(Throwable error) {
+                first.completeExceptionally(error);
+            }
+
+            @Override
+            public void onComplete() {}
+        });
+        return first;
     }
 
     @Test
@@ -128,11 +155,79 @@ final class WorkerTest {
     }
 
     @Test
+    void aJavaWorkerReadsWhatItWasHandedAndCompletesIt() throws Exception {
+        try (Opened opened = new Opened()) {
+            Claims claims = opened.client.getJob().claim(List.<JobFilter>of(YieldJobFilter.builder().build()));
+            assertNull(claims.getStalled().getValue());
+            HeldYieldJob held = assertInstanceOf(HeldYieldJob.class, claims.nextFuture().get(10, SECONDS));
+            assertEquals(JobType.Yield, held.getJobType());
+            assertNotNull(held.getParams());
+            assertEquals(List.of(), held.getCompletedUnits());
+            assertEquals(Map.of(), held.getUnitCursors());
+            assertEquals(0L, held.getRetryCount());
+            assertEquals(1L, held.getMaxRetries());
+            assertNull(held.getAnnotationId());
+            // The reply that handed the job over carried no trace.
+            assertNull(held.getTrace());
+            held.startFuture().get(10, SECONDS);
+            held.checkpointFuture(List.of("unit-1"), Map.of()).get(10, SECONDS);
+            assertTrue(opened.next("job:checkpoint").contains("unit-1"));
+            // A batch of no annotations is no commit: nothing is sent.
+            held.commitFuture(new ResourceId("res-1"), List.of()).get(10, SECONDS);
+            held.completeFuture(YieldJobDone.builder(new ResourceId("res-2"), "A summary", false).build()).get(10, SECONDS);
+            assertTrue(opened.next("job:complete").contains("res-2"));
+            assertTrue(held.getSettled());
+            claims.stopFuture().get(10, SECONDS);
+        }
+    }
+
+    @Test
+    void aJavaWorkerCancelsTheJobItHolds() throws Exception {
+        try (Opened opened = new Opened()) {
+            Claims claims = opened.client.getJob().claim(List.<JobFilter>of(YieldJobFilter.builder().build()));
+            HeldJob held = claims.nextFuture().get(10, SECONDS);
+            held.startFuture().get(10, SECONDS);
+            held.cancelFuture(List.of(), Map.of()).get(10, SECONDS);
+            assertTrue(opened.next("job:cancel").contains("\"jobId\":\"job-1\""));
+            assertTrue(held.getSettled());
+            claims.stopFuture().get(10, SECONDS);
+        }
+    }
+
+    @Test
+    void aClaimTheDispatcherRefusesIsSaidToAJavaWorker() throws Exception {
+        try (Opened opened = new Opened()) {
+            opened.gateway.answer = body -> body.contains("\"channel\":\"job:claim\"")
+                    ? "{\"channel\":\"job:claim-failed\",\"payload\":{\"message\":\"This account may not claim\",\"code\":\"unauthorized\"},\"correlationId\":\""
+                            + Gateway.correlationOf(body) + "\"}"
+                    : null;
+            Claims claims = opened.client.getJob().claim(List.<JobFilter>of(YieldJobFilter.builder().build()));
+            try (Events<ClaimRefusal> refused = claims.refused()) {
+                // The worker claims once it is asked for a job.
+                CompletableFuture<HeldJob> reading = claims.nextFuture();
+                ClaimRefusal refusal = first(refused.asPublisher()).get(10, SECONDS);
+                reading.cancel(true);
+                assertEquals(BusRequestErrorCode.Unauthorized, refusal.getCode());
+                assertEquals("This account may not claim", refusal.getMessage());
+            }
+            claims.stopFuture().get(10, SECONDS);
+        }
+    }
+
+    @Test
     void whetherAJobMatchesAFilterIsAskedFromJava() {
         JsonObject filter = new JsonObject(Map.<String, JsonElement>of("jobType", JsonElementKt.JsonPrimitive("yield")));
         JsonObject yielding = new JsonObject(Map.<String, JsonElement>of("jobType", JsonElementKt.JsonPrimitive("yield"), "params", new JsonObject(Map.of())));
         JsonObject marking = new JsonObject(Map.<String, JsonElement>of("jobType", JsonElementKt.JsonPrimitive("mark")));
         assertTrue(JobFilterKt.jobMatchesFilter(filter, yielding));
         assertFalse(JobFilterKt.jobMatchesFilter(filter, marking));
+    }
+
+    @Test
+    void whetherAFailedJobRunsAgainAndWhatACommitReadsAreAskedFromJava() {
+        assertTrue(RetriesKt.willRetryAfter(0, 1, FailureClass.Transient));
+        assertFalse(RetriesKt.willRetryAfter(1, 1, FailureClass.Transient));
+        assertFalse(RetriesKt.willRetryAfter(0, 1, FailureClass.Deterministic));
+        assertTrue(ClaimsKt.getJOB_COMMIT_CHANNELS().contains("mark:commit-ok"));
     }
 }

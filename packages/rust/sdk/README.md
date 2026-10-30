@@ -18,7 +18,7 @@ tell them apart.
 
 It has the same namespaces, methods and behaviour as the
 [TypeScript SDK](../../typescript/sdk/README.md), the [Python SDK](../../python/sdk/README.md)
-and the [Go SDK](../../go/sdk/README.md), and the four are held to the same
+the [Go SDK](../../go/sdk/README.md) and the [Kotlin SDK](../../kotlin/sdk/README.md), and the five are held to the same
 [conformance suite](../../../tests/conformance/sdk/README.md). New to Semiont?
 The [Introduction](../../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas

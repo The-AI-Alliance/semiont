@@ -264,7 +264,7 @@ A line is the operation, the channel (`content` for an upload or a read of conte
 
 **No line holds a credential.** Every bus log writes the value of a member whose whole name is one a credential goes by as `[withheld]`, wherever in a payload the member is and whatever its value is. The names are a short list, the `names` of [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json). One is `token`, which is what the bus's own payloads name the one credential they declare: the token a resource is cloned by (`yield:clone-resource-requested`, `yield:clone-create`, and the `response` of `yield:clone-token-generated`). The rest are the names a credential has elsewhere (`password`, `apiKey`, `refreshToken` and `authorization` among them): some payloads take any member, and a credential put in one is withheld under such a name too. A name is matched whole and in the same case, so a member whose name only contains one (`maxTokens`, `apiKeyEnv`) is written as it is, and so is everything else. That table is the rule, and each implementation's tests run it.
 
-Four implementations write the log. Each is switched on for a whole process, and each writes to its own place:
+Five implementations write the log. Each is switched on for a whole process, and each writes to its own place:
 
 | Implementation | Switched on by | Written to |
 |---|---|---|
@@ -273,8 +273,9 @@ Four implementations write the log. Each is switched on for a whole process, and
 | Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/rust/sdk/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 | Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/python/sdk/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
 | Go: a client of the Go SDK, the launcher's verbs among them ([`buslog.go`](../../packages/go/sdk/buslog.go)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
+| Kotlin: a client of the Kotlin SDK, in Kotlin or Java ([`BusLog.kt`](../../packages/kotlin/sdk/src/main/kotlin/semiont/bus/BusLog.kt)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
 
-Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust, Python and Go transports log at the same points as the TypeScript one this table names:
+Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust, Python, Go and Kotlin transports log at the same points as the TypeScript one this table names:
 
 | Op | Site |
 |---|---|

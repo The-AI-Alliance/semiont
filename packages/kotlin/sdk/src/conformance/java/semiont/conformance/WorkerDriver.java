@@ -32,9 +32,6 @@ import kotlinx.serialization.json.JsonObject;
 import kotlinx.serialization.json.JsonPrimitive;
 import semiont.SemiontClient;
 import semiont.Timings;
-import semiont.bus.BusKt;
-import semiont.bus.Operations;
-import semiont.channels.Channels;
 import semiont.errors.SemiontError;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
@@ -43,6 +40,7 @@ import semiont.identifiers.ResourceId;
 import semiont.jobs.ActiveJob;
 import semiont.jobs.ClaimRefusal;
 import semiont.jobs.Claims;
+import semiont.jobs.ClaimsKt;
 import semiont.jobs.HeldJob;
 import semiont.jobs.HeldJobStall;
 import semiont.jobs.HeldMarkJob;
@@ -286,10 +284,8 @@ public final class WorkerDriver {
             commits = Boolean.parseBoolean(stated.getContent());
         }
         // What a worker's stream names for its claims, and for its commits when it will make any, and no more.
-        List<String> channels = new ArrayList<>(BusKt.replyChannelsFor(Operations.JOB_CLAIM));
-        channels.add(Channels.JOB_QUEUED.getName());
-        channels.add(Channels.JOB_CANCEL_REQUESTED.getName());
-        if (commits) channels.addAll(BusKt.replyChannelsFor(Operations.MARK_COMMIT, Operations.BROWSE_ANNOTATION_REQUESTED));
+        List<String> channels = new ArrayList<>(ClaimsKt.getJOB_CLAIM_CHANNELS());
+        if (commits) channels.addAll(ClaimsKt.getJOB_COMMIT_CHANNELS());
         HttpTransport made = new HttpTransport(text(args, "baseUrl"), StateFlowKt.MutableStateFlow(text(args, "token")), channels, new Timing(reconnectMs, lazyRemoveMs, lingerMs));
         // Taken at once, so every failure from the first request on is heard.
         reading(made.failures().asPublisher(), (SemiontError error) -> say("error", ProtocolKt.failure(error)));

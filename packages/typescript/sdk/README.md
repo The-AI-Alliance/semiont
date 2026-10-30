@@ -19,8 +19,9 @@ tell them apart.
 It has the same namespaces, methods and behaviour as the
 [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/rust/sdk) ([`semiont`](https://crates.io/crates/semiont) on crates.io)
 the [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk) ([`semiont`](https://pypi.org/project/semiont/) on PyPI)
-and the [Go SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk) ([`github.com/The-AI-Alliance/semiont/packages/go/sdk`](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) on pkg.go.dev),
-and the four are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
+the [Go SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk) ([`github.com/The-AI-Alliance/semiont/packages/go/sdk`](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) on pkg.go.dev)
+and the [Kotlin SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/kotlin/sdk), for Kotlin and Java programs,
+and the five are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
 New to Semiont? The [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
 explains the domain and the ideas the API falls out of.
 

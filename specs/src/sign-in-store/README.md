@@ -2,10 +2,10 @@
 
 One standalone contract: `<stateDir>/tokens.json`, where the semiont launcher
 (Go, `apps/launcher`) keeps the session of each stack a person has signed in
-to, and where an application built on the Go, Rust or Python SDK finds it.
+to, and where an application built on the Go, Rust, Python or Kotlin SDK finds it.
 One sign-in serves the launcher's verbs and that application.
 
-It is a contract because programs in three languages read and write the
+It is a contract because programs in four languages read and write the
 file. Like [discovery](../discovery/README.md), its schema refs nothing
 outside this directory.
 

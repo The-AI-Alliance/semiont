@@ -1,4 +1,6 @@
-package semiont.storage
+package semiont.testing
+
+import semiont.storage.SessionStorage
 
 /** What every context of one shared storage reads and writes. */
 private class Shared {
@@ -12,8 +14,8 @@ private class Shared {
  * what the others write, never what it writes itself. `context` is another
  * context over the same values.
  */
-internal class SharedStorage private constructor(private val shared: Shared) : SessionStorage {
-    constructor() : this(Shared())
+public class SharedStorage private constructor(private val shared: Shared) : SessionStorage {
+    public constructor() : this(Shared())
 
     private val listeners = mutableListOf<(String, String?) -> Unit>()
 
@@ -22,15 +24,15 @@ internal class SharedStorage private constructor(private val shared: Shared) : S
     }
 
     /** Another context over the same values. */
-    fun context(): SharedStorage = SharedStorage(shared)
+    public fun context(): SharedStorage = SharedStorage(shared)
 
     override fun get(key: String): String? = synchronized(shared) { shared.stored[key] }
 
-    override fun set(key: String, value: String) = written(key) { value }
+    override fun set(key: String, value: String): Unit = written(key) { value }
 
-    override fun delete(key: String) = written(key) { null }
+    override fun delete(key: String): Unit = written(key) { null }
 
-    override fun update(key: String, change: (String?) -> String?) = written(key, change)
+    override fun update(key: String, change: (String?) -> String?): Unit = written(key, change)
 
     override fun subscribe(onChange: (key: String, value: String?) -> Unit): AutoCloseable {
         synchronized(shared) { listeners += onChange }

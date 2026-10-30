@@ -53,7 +53,7 @@ internal class Bench(val context: CoroutineContext, val clock: TimeSource) {
     /** A client of its own, on the case's clock, over a transport that refuses every request. */
     fun client(): SemiontClient {
         val gateway = Recording()
-        return SemiontClient(Answering(Answers.REFUSES, null, context), gateway, gateway, ClientTiming(), null, context, clock).also { made += it }
+        return SemiontClient(answering(Answers.REFUSES, null, context), gateway, gateway, ClientTiming(), null, context, clock).also { made += it }
     }
 
     fun close(): Unit = made.forEach { it.close() }

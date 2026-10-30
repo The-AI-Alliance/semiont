@@ -20,7 +20,7 @@ Then follow the **[Quick Start](docs/builder/QUICK-START.md)**: create a knowled
 
 - **[Analyst](docs/analyst/README.md)**: work in a knowledge base, annotating, linking, and reviewing what agents propose. A [demo knowledge base](docs/KNOWLEDGE-BASES.md) comes with content to start on.
 - **[Operator](docs/operator/README.md)**: run a knowledge base, for yourself or for others.
-- **[Builder](docs/builder/README.md)**: build an application, a script or an agent on the SDK, in TypeScript, Rust, Python or Go, and customize annotation and generation, down to a worker running your own logic or model.
+- **[Builder](docs/builder/README.md)**: build an application, a script or an agent on the SDK, in TypeScript, Rust, Python, Go, Kotlin or Java, and customize annotation and generation, down to a worker running your own logic or model.
 - **[Contributor](docs/contributor/README.md)**: change Semiont itself.
 
 ## 📜 License

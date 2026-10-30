@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and nine Python projects and three Go modules beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
+Semiont is a monorepo with two workspaces, the npm packages and the Rust crates, and nine Python projects, three Go modules and a Gradle build beside them. No language's packages depend on another's. All are built against [`specs/`](../../specs/src/openapi.json), the protocol each implements from its side.
 
 For what each package is and where it is published, see **[../../packages/README.md](../../packages/README.md)**: one table per language.
 
@@ -131,6 +131,12 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 `apps/launcher` is the `semiont` launcher: the binary that starts and stops a stack, signs a person in, and speaks the eight verbs at a terminal. It is the program's `main` and the tests that build it and drive it; what it does is `packages/go/launcher`'s, and its commands on a knowledge base are front ends on `packages/go/sdk`. It requires both with a `replace` directive on their paths. It is built for each platform and released as an archive and through Homebrew.
 
+## The Gradle build
+
+`packages/kotlin/sdk` is the Kotlin SDK, one artifact for Kotlin and Java programs, package `semiont` and those beneath it: the client, its transport over a gateway (`semiont.http`), sign-in, the state units (`semiont.state`), a worker's claims (`semiont.jobs`) and the doubles a test is built on (`semiont.testing`). It depends on `kotlinx.coroutines`, `kotlinx.serialization` and the OpenTelemetry API, and on nothing else in this repository. What it holds of `specs/` its own build generates from `specs/src` before every compile, and nothing generated is committed. It is published nowhere yet.
+
+Its `conformance` source set is the three programs the conformance suite drives the Kotlin SDK through (wire, live and worker), and the only Kotlin that takes an OpenTelemetry exporter.
+
 ## What each service image runs
 
 | Image | Runs | From |
@@ -152,12 +158,12 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 3. **Layered dependencies.** A package depends only on packages in lower layers. No circular dependencies.
 
-4. **The spec is the boundary between languages.** No package of one language depends on a package of another: not a crate, an npm package, a Python project or a Go module. What they agree on is in `specs/`, and each side generates its types from it.
+4. **The spec is the boundary between languages.** No package of one language depends on a package of another: not a crate, an npm package, a Python project, a Go module or the Gradle build. What they agree on is in `specs/`, and each side generates its types from it.
 
 5. **Platform independence.** The npm packages work in both a browser and Node.js. Where one has a Node-only part it is a subpath of its own (`@semiont/observability/node`).
 
 ## See also
 
-- **[../../packages/README.md](../../packages/README.md)** — every package in each of the four languages, with what it is and whether it is published.
+- **[../../packages/README.md](../../packages/README.md)** — every package in each of the five languages, with what it is and whether it is published.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the seven KB actors, and the service each runs in.
 - **[CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)** — how the service images fit together in a running stack.
