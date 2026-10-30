@@ -1,0 +1,437 @@
+public final class semiont/bus/Bus {
+	public fun <init> (Lsemiont/transport/Transport;)V
+	public final fun emit-6b3uWpE (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun emit-6b3uWpE$default (Lsemiont/bus/Bus;Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun emitFuture (Lsemiont/channels/Channel;Ljava/lang/Object;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun emitFuture-NOvym2Y (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun frames (Lsemiont/channels/Channel;)Lsemiont/bus/Typed;
+	public final fun frames (Lsemiont/channels/ScopedChannel;Lsemiont/identifiers/ResourceId;)Lsemiont/bus/Typed;
+	public final fun frames-4s78tp8 (Lsemiont/channels/ScopedChannel;Ljava/lang/String;)Lsemiont/bus/Typed;
+	public final fun request (Lsemiont/bus/Operation;Ljava/lang/Object;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun request$default (Lsemiont/bus/Bus;Lsemiont/bus/Operation;Ljava/lang/Object;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun requestFuture (Lsemiont/bus/Operation;Ljava/lang/Object;J)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/bus/BusKt {
+	public static final fun decoded (Lsemiont/channels/Channel;Lkotlinx/serialization/json/JsonObject;)Ljava/lang/Object;
+	public static final fun decoded (Lsemiont/channels/ScopedChannel;Lkotlinx/serialization/json/JsonObject;)Ljava/lang/Object;
+	public static final fun getPERSISTED_EVENT_TYPES ()Ljava/util/List;
+	public static final fun replyChannelsFor ([Lsemiont/bus/Operation;)Ljava/util/List;
+	public static final fun request (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun request$default (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun requestFuture (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;J)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/bus/Delivered {
+	public synthetic fun <init> (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3-Au_5XH8 ()Ljava/lang/String;
+	public final fun component4-1KRECTw ()Ljava/lang/String;
+	public final fun component5 ()Lsemiont/transport/TraceContext;
+	public final fun copy-cCR51TQ (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;)Lsemiont/bus/Delivered;
+	public static synthetic fun copy-cCR51TQ$default (Lsemiont/bus/Delivered;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;ILjava/lang/Object;)Lsemiont/bus/Delivered;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCorrelationId ()Ljava/lang/String;
+	public final fun getPayload ()Ljava/lang/Object;
+	public final fun getScope ()Lsemiont/identifiers/ResourceId;
+	public final fun getScope-Au_5XH8 ()Ljava/lang/String;
+	public final fun getTrace ()Lsemiont/transport/TraceContext;
+	public final fun getUserId ()Lsemiont/identifiers/UserId;
+	public final fun getUserId-1KRECTw ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/bus/Operation {
+	public final fun getFailure ()Lsemiont/channels/Channel;
+	public final fun getReplyNames ()Ljava/util/List;
+	public final fun getRequest ()Lsemiont/channels/Channel;
+	public final fun getResult ()Lsemiont/channels/Channel;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/bus/Typed : java/lang/AutoCloseable, kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public fun close ()V
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class semiont/channels/Channel {
+	public final fun getName ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/channels/Empty {
+	public static final field INSTANCE Lsemiont/channels/Empty;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public final fun serializer ()Lkotlinx/serialization/KSerializer;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/channels/Response {
+	public static final field Companion Lsemiont/channels/Response$Companion;
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lsemiont/channels/Response;
+	public static synthetic fun copy$default (Lsemiont/channels/Response;Ljava/lang/Object;ILjava/lang/Object;)Lsemiont/channels/Response;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResponse ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final synthetic class semiont/channels/Response$$serializer : kotlinx/serialization/internal/GeneratedSerializer {
+	public fun <init> (Lkotlinx/serialization/KSerializer;)V
+	public final fun childSerializers ()[Lkotlinx/serialization/KSerializer;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public final fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lsemiont/channels/Response;
+	public final fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+	public final fun serialize (Lkotlinx/serialization/encoding/Encoder;Lsemiont/channels/Response;)V
+	public final fun typeParametersSerializers ()[Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/channels/Response$Companion {
+	public final fun serializer (Lkotlinx/serialization/KSerializer;)Lkotlinx/serialization/KSerializer;
+}
+
+public final class semiont/channels/ScopedChannel {
+	public final fun getName ()Ljava/lang/String;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/errors/BusRequestError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/BusRequestErrorCode;Ljava/lang/String;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/BusRequestErrorCode;
+}
+
+public abstract class semiont/errors/SemiontError : java/lang/Exception {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public abstract fun getCode ()Ljava/lang/String;
+	public fun getRetryAfterMs ()Ljava/lang/Long;
+}
+
+public final class semiont/errors/TransportError : semiont/errors/SemiontError {
+	public fun <init> (Lsemiont/errors/TransportErrorCode;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Long;)V
+	public synthetic fun <init> (Lsemiont/errors/TransportErrorCode;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Long;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getCode ()Ljava/lang/String;
+	public final fun getReason ()Lsemiont/errors/TransportErrorCode;
+	public fun getRetryAfterMs ()Ljava/lang/Long;
+	public final fun getStatus ()Ljava/lang/Integer;
+}
+
+public final class semiont/http/HttpContentTransport : semiont/transport/ContentTransport {
+	public fun <init> (Lsemiont/http/HttpTransport;)V
+	public fun close ()V
+	public fun getAnchoredText-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAnchoredTextFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public fun getAnchoredTextFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getAnnotations-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getAnnotationsFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public fun getAnnotationsFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getBinary-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getBinaryFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public fun getBinaryFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getBinaryStream-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getBinaryStreamFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public fun getBinaryStreamFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getResourceGraph-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getResourceGraphFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public fun getResourceGraphFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun putBinary (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
+}
+
+public final class semiont/http/HttpTransport : semiont/transport/GatewayOperations, semiont/transport/Transport {
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;)V
+	public fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Ljava/net/http/HttpClient;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/coroutines/flow/StateFlow;Ljava/util/List;Lsemiont/http/Timing;Lsemiont/http/TokenRefresher;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun bridgeInto (Lsemiont/transport/FrameSink;)V
+	public fun close ()V
+	public fun emit-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun emitFuture (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun emitFuture-NOvym2Y (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun failures ()Lsemiont/transport/Events;
+	public fun frames (Ljava/lang/String;)Lsemiont/transport/Events;
+	public fun getBaseUrl ()Ljava/lang/String;
+	public fun getCurrentUser (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getCurrentUserFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun getMediaToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getMediaTokenFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public fun getMediaTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public fun getProtectedResourceMetadata (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getProtectedResourceMetadataFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun getState ()Lsemiont/transport/Watched;
+	public fun getStatus (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getStatusFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun healthCheck (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun healthCheckFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun isSubscribed (Ljava/lang/String;)Z
+	public fun subscribeToResource (Lsemiont/identifiers/ResourceId;)Lsemiont/transport/ResourceHold;
+	public fun subscribeToResource--Xm7VB4 (Ljava/lang/String;)Lsemiont/transport/ResourceHold;
+	public fun trackReply (Ljava/lang/String;Ljava/util/Collection;)Lsemiont/transport/PendingReply;
+}
+
+public final class semiont/http/Timing {
+	public fun <init> ()V
+	public fun <init> (J)V
+	public fun <init> (JJ)V
+	public fun <init> (JJJ)V
+	public fun <init> (JJJLsemiont/retry/RetryPolicy;)V
+	public fun <init> (JJJLsemiont/retry/RetryPolicy;I)V
+	public fun <init> (JJJLsemiont/retry/RetryPolicy;IJ)V
+	public synthetic fun <init> (JJJLsemiont/retry/RetryPolicy;IJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun component3 ()J
+	public final fun component4 ()Lsemiont/retry/RetryPolicy;
+	public final fun component5 ()I
+	public final fun component6 ()J
+	public final fun copy (JJJLsemiont/retry/RetryPolicy;IJ)Lsemiont/http/Timing;
+	public static synthetic fun copy$default (Lsemiont/http/Timing;JJJLsemiont/retry/RetryPolicy;IJILjava/lang/Object;)Lsemiont/http/Timing;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEmitRetry ()Lsemiont/retry/RetryPolicy;
+	public final fun getHttpRequestMs ()J
+	public final fun getLazyRemoveMs ()J
+	public final fun getLingerMs ()J
+	public final fun getReconnectMs ()J
+	public final fun getSeenEventIdsCount ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/http/TokenRefresher {
+	public abstract fun refresh (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class semiont/retry/RetryPolicy {
+	public fun <init> (IJJ)V
+	public final fun component1 ()I
+	public final fun component2 ()J
+	public final fun component3 ()J
+	public final fun copy (IJJ)Lsemiont/retry/RetryPolicy;
+	public static synthetic fun copy$default (Lsemiont/retry/RetryPolicy;IJJILjava/lang/Object;)Lsemiont/retry/RetryPolicy;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttempts ()I
+	public final fun getInitialDelayMs ()J
+	public final fun getMaxDelayMs ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/transport/ConnectionState : java/lang/Enum {
+	public static final field Closed Lsemiont/transport/ConnectionState;
+	public static final field Connecting Lsemiont/transport/ConnectionState;
+	public static final field Degraded Lsemiont/transport/ConnectionState;
+	public static final field Initial Lsemiont/transport/ConnectionState;
+	public static final field Open Lsemiont/transport/ConnectionState;
+	public static final field Reconnecting Lsemiont/transport/ConnectionState;
+	public static final field Unauthenticated Lsemiont/transport/ConnectionState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/transport/ConnectionState;
+	public static fun values ()[Lsemiont/transport/ConnectionState;
+}
+
+public final class semiont/transport/Content {
+	public fun <init> (Ljava/lang/String;[B)V
+	public final fun getBytes ()[B
+	public final fun getContentType ()Ljava/lang/String;
+}
+
+public final class semiont/transport/ContentStream {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public final fun getBytes ()Lsemiont/transport/Events;
+	public final fun getContentType ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/transport/ContentTransport : java/lang/AutoCloseable {
+	public abstract fun getAnchoredText-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getAnchoredTextFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getAnnotations-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getAnnotationsFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getBinary-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getBinaryFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getBinaryStream-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getBinaryStreamFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getResourceGraph-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getResourceGraphFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun putBinary (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
+}
+
+public final class semiont/transport/Events : java/lang/AutoCloseable, kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public fun close ()V
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class semiont/transport/Frame {
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lkotlinx/serialization/json/JsonObject;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4-Au_5XH8 ()Ljava/lang/String;
+	public final fun component5 ()Lsemiont/transport/TraceContext;
+	public final fun copy-Ne8IA3g (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;)Lsemiont/transport/Frame;
+	public static synthetic fun copy-Ne8IA3g$default (Lsemiont/transport/Frame;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;ILjava/lang/Object;)Lsemiont/transport/Frame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChannel ()Ljava/lang/String;
+	public final fun getCorrelationId ()Ljava/lang/String;
+	public final fun getPayload ()Lkotlinx/serialization/json/JsonObject;
+	public final fun getScope ()Lsemiont/identifiers/ResourceId;
+	public final fun getScope-Au_5XH8 ()Ljava/lang/String;
+	public final fun getTrace ()Lsemiont/transport/TraceContext;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/transport/FrameSink {
+	public abstract fun deliver (Lsemiont/transport/Frame;)V
+}
+
+public abstract interface class semiont/transport/GatewayOperations {
+	public abstract fun getCurrentUser (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getCurrentUserFuture ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getMediaToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getMediaTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getProtectedResourceMetadata (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getProtectedResourceMetadataFuture ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun getStatus (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getStatusFuture ()Ljava/util/concurrent/CompletableFuture;
+	public abstract fun healthCheck (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun healthCheckFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/transport/PendingReply : java/lang/AutoCloseable {
+	public fun close ()V
+	public final fun frame (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class semiont/transport/PutBinaryRequest {
+	public static final field Companion Lsemiont/transport/PutBinaryRequest$Companion;
+	public synthetic fun <init> (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public static final fun builder (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10-jnM91lI ()Ljava/lang/String;
+	public final fun component11 ()Ljava/lang/Boolean;
+	public final fun component2 ()[B
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun component7-C0ARYTo ()Ljava/lang/String;
+	public final fun component8-Au_5XH8 ()Ljava/lang/String;
+	public final fun component9 ()Ljava/lang/String;
+	public final fun copy-eAR4XUQ (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)Lsemiont/transport/PutBinaryRequest;
+	public static synthetic fun copy-eAR4XUQ$default (Lsemiont/transport/PutBinaryRequest;Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ILjava/lang/Object;)Lsemiont/transport/PutBinaryRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEntityTypes ()Ljava/util/List;
+	public final fun getFile ()[B
+	public final fun getFormat ()Ljava/lang/String;
+	public final fun getGenerationPrompt ()Ljava/lang/String;
+	public final fun getJobId ()Lsemiont/identifiers/JobId;
+	public final fun getJobId-jnM91lI ()Ljava/lang/String;
+	public final fun getLanguage ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getSourceAnnotationId ()Lsemiont/identifiers/AnnotationId;
+	public final fun getSourceAnnotationId-C0ARYTo ()Ljava/lang/String;
+	public final fun getSourceResourceId ()Lsemiont/identifiers/ResourceId;
+	public final fun getSourceResourceId-Au_5XH8 ()Ljava/lang/String;
+	public final fun getStorageUri ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun isDraft ()Ljava/lang/Boolean;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/transport/PutBinaryRequest$Builder {
+	public final fun build ()Lsemiont/transport/PutBinaryRequest;
+	public final fun entityTypes (Ljava/util/List;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun generationPrompt (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun isDraft (Ljava/lang/Boolean;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun jobId (Lsemiont/identifiers/JobId;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun jobId-dAF7pZU (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun language (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun sourceAnnotationId (Lsemiont/identifiers/AnnotationId;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun sourceAnnotationId-KdeD-Ww (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun sourceResourceId (Lsemiont/identifiers/ResourceId;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun sourceResourceId-yxrLRgo (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+}
+
+public final class semiont/transport/PutBinaryRequest$Companion {
+	public final fun builder (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+}
+
+public final class semiont/transport/ResourceHold : java/lang/AutoCloseable {
+	public fun close ()V
+}
+
+public final class semiont/transport/TraceContext {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lsemiont/transport/TraceContext;
+	public static synthetic fun copy$default (Lsemiont/transport/TraceContext;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lsemiont/transport/TraceContext;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getTraceparent ()Ljava/lang/String;
+	public final fun getTracestate ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/transport/Transport : java/lang/AutoCloseable {
+	public abstract fun bridgeInto (Lsemiont/transport/FrameSink;)V
+	public abstract fun close ()V
+	public abstract fun emit-6b3uWpE (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun emit-6b3uWpE$default (Lsemiont/transport/Transport;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun emitFuture-NOvym2Y (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public abstract fun failures ()Lsemiont/transport/Events;
+	public abstract fun frames (Ljava/lang/String;)Lsemiont/transport/Events;
+	public abstract fun getBaseUrl ()Ljava/lang/String;
+	public abstract fun getState ()Lsemiont/transport/Watched;
+	public abstract fun isSubscribed (Ljava/lang/String;)Z
+	public abstract fun subscribeToResource--Xm7VB4 (Ljava/lang/String;)Lsemiont/transport/ResourceHold;
+	public abstract fun trackReply (Ljava/lang/String;Ljava/util/Collection;)Lsemiont/transport/PendingReply;
+}
+
+public final class semiont/transport/Transport$DefaultImpls {
+	public static synthetic fun emit-6b3uWpE$default (Lsemiont/transport/Transport;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class semiont/transport/TransportKt {
+	public static final fun unsubscribed (Ljava/lang/String;)Lsemiont/errors/BusRequestError;
+}
+
+public final class semiont/transport/Upload : java/lang/AutoCloseable {
+	public final fun await (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun awaitFuture ()Ljava/util/concurrent/CompletableFuture;
+	public fun close ()V
+	public final fun getProgress ()Lsemiont/transport/Events;
+}
+
+public final class semiont/transport/UploadProgress {
+	public fun <init> (JJ)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun copy (JJ)Lsemiont/transport/UploadProgress;
+	public static synthetic fun copy$default (Lsemiont/transport/UploadProgress;JJILjava/lang/Object;)Lsemiont/transport/UploadProgress;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBytesUploaded ()J
+	public final fun getTotalBytes ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/transport/Watched : kotlinx/coroutines/flow/Flow {
+	public final fun asPublisher ()Ljava/util/concurrent/Flow$Publisher;
+	public fun collect (Lkotlinx/coroutines/flow/FlowCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getValue ()Ljava/lang/Object;
+}
+

@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
+import org.gradle.jvm.application.tasks.CreateStartScripts
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 import javax.tools.ToolProvider
@@ -24,6 +25,7 @@ kotlin {
         filters {
             exclude {
                 byNames.addAll("semiont.types.**", "semiont.identifiers.**")
+                annotatedWith.add("semiont.Generated")
             }
         }
     }
@@ -35,6 +37,13 @@ tasks.withType<JavaCompile>().configureEach {
 
 dependencyLocking {
     lockAllConfigurations()
+}
+// The Kotlin plugin's own tools (its compiler, its build tools, its compiler
+// plugins) are the versions the plugin's version fixes. Locked as well, they
+// were left behind when Dependabot moved the plugin, and the build refused
+// the new plugin's compiler.
+configurations.matching { it.name.startsWith("kotlin") }.configureEach {
+    resolutionStrategy.deactivateDependencyLocking()
 }
 
 // The generator of the SDK's protocol types: Kotlin of its own, compiled
@@ -74,6 +83,14 @@ configurations.named(javaTest.runtimeOnlyConfigurationName) { extendsFrom(config
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.jdk9)
+    // OpenTelemetry's API alone: what is exported, and where, is the application's.
+    implementation(platform(libs.opentelemetry.bom))
+    implementation(libs.opentelemetry.api)
+    implementation(libs.opentelemetry.extension.kotlin)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.opentelemetry.sdk)
     "codegenImplementation"(libs.kotlinx.serialization.json)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -243,6 +260,57 @@ val refusals = tasks.register<Refusals>("refusals") {
     against.from(sourceSets.main.map { it.output }, configurations.runtimeClasspath)
     compiler.from(configurations.named("kotlinCompilerClasspath"))
     scratch = layout.buildDirectory.dir("refusals")
+}
+
+// The conformance drivers: programs the suites under tests/conformance start
+// in the SDK's place, each reaching the SDK only through what it makes public.
+// installConformance lays them out as the suites find them: a start script
+// each in build/conformance/bin, over the SDK and what it runs on in lib.
+val conformance: SourceSet = sourceSets.create("conformance") {
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += sourceSets.main.get().output
+}
+configurations.named(conformance.implementationConfigurationName) { extendsFrom(configurations.implementation.get()) }
+dependencies {
+    // What exports the SDK's telemetry, and where, is the application's: here, the drivers'.
+    conformance.implementationConfigurationName(libs.opentelemetry.sdk)
+    conformance.implementationConfigurationName(libs.opentelemetry.exporter.otlp)
+}
+val conformanceJar = tasks.register<Jar>("conformanceJar") {
+    archiveBaseName = "semiont-conformance"
+    from(conformance.output)
+}
+val wireDriverScripts = tasks.register<CreateStartScripts>("wireDriverScripts") {
+    applicationName = "semiont-kotlin-wire-driver"
+    mainClass = "semiont.conformance.WireDriverKt"
+    outputDir = layout.buildDirectory.dir("conformance-scripts").get().asFile
+    classpath = files(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
+}
+tasks.register<Sync>("installConformance") {
+    description = "Lays out the conformance drivers where the suites find them."
+    group = LifecycleBasePlugin.BUILD_GROUP
+    into(layout.buildDirectory.dir("conformance"))
+    into("lib") {
+        from(conformanceJar, tasks.jar, configurations.named(conformance.runtimeClasspathConfigurationName))
+    }
+    into("bin") {
+        from(wireDriverScripts)
+    }
+    // JaCoCo's agent, for a run of the suites that measures the drivers (JAVA_OPTS).
+    into("jacoco") {
+        from(zipTree(configurations.named("jacocoAgent").map { it.singleFile })) { include("jacocoagent.jar") }
+    }
+}
+
+// What the suites ran of the SDK, from what its drivers wrote as they ran with JaCoCo's agent.
+tasks.register<JacocoReport>("conformanceCoverage") {
+    description = "Reports what the conformance suites ran of the SDK."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    executionData(fileTree(layout.buildDirectory.dir("conformance-coverage")).include("*.exec"))
+    sourceSets(sourceSets.main.get())
+    reports {
+        xml.required = true
+    }
 }
 
 tasks.check {

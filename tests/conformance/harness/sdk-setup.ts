@@ -29,6 +29,10 @@ export default function setup(project: TestProject): void {
   if (go !== undefined && !existsSync(go)) {
     throw new Error(`The Go driver is not built: ${go} does not exist. Run \`CGO_ENABLED=0 go build -o bin/ ./cmd/...\` in packages/go/sdk/conformance.`);
   }
+  const kotlin = drivers['kotlin']?.wire?.[0];
+  if (kotlin !== undefined && !existsSync(kotlin)) {
+    throw new Error(`The Kotlin driver is not built: ${kotlin} does not exist. Run \`./gradlew installConformance\` in packages/kotlin/sdk.`);
+  }
   if ('python' in drivers) makePythonSdkEnvironment();
   if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.

@@ -52,4 +52,45 @@ class GeneratorTest {
         assertTrue(code.contains("value class ThingId"), code)
         assertFalse(code.contains("typealias ThingId"), code)
     }
+
+    /** A registry of `channels`, answered by `operations`, with `scoped` the channels a resource's scope carries. */
+    private fun registry(channels: String, operations: String = "[]", scoped: String = "[]"): JsonObject =
+        definitions("""{"channels":$channels,"audience":{"everyone":[],"scoped":$scoped},"operations":$operations,"trace":{"field":"_carried"}}""")
+
+    private val bothKinds = """{
+        "A":{"type":"object","properties":{"_userId":{"type":"string"},"kind":{"type":"string","enum":["a"]}}},
+        "B":{"type":"object","properties":{"kind":{"type":"string","enum":["b"]}}},
+        "Either":{"oneOf":[{"${'$'}ref":"#/definitions/A"},{"${'$'}ref":"#/definitions/B"}]},
+        "Stored":{"type":"object","properties":{"_userId":{"type":"string"}}}
+    }"""
+
+    @Test
+    fun aUnionWhoseMembersDeclareDifferentStampsIsRefused() {
+        val said = assertThrows(Refused::class.java) {
+            channelsFile(registry("""[{"channel":"x:either","shape":"schema","schema":"Either"}]"""), definitions(bothKinds))
+        }.message.orEmpty()
+        assertTrue(said.contains("Either") && said.contains("stamps"), said)
+    }
+
+    @Test
+    fun aChannelCarriesTheStampsItsPayloadDeclares() {
+        val code = channelsFile(registry("""[{"channel":"x:a","shape":"schema","schema":"A"},{"channel":"x:b","shape":"schema","schema":"B"}]"""), definitions(bothKinds))
+        assertTrue(code.contains("""Channel<A> = Channel("x:a", A.serializer(), setOf("_userId"))"""), code)
+        assertTrue(code.contains("""Channel<B> = Channel("x:b", B.serializer(), emptySet())"""), code)
+    }
+
+    @Test
+    fun anOperationAnsweredOnAResourcesScopeIsRefused() {
+        val said = assertThrows(Refused::class.java) {
+            operationsFile(
+                registry(
+                    """[{"channel":"x:asked","shape":"schema","schema":"B"},{"channel":"x:done","shape":"storedEvent","event":"x:done","payload":"B"},{"channel":"x:failed","shape":"schema","schema":"B"}]""",
+                    operations = """[{"request":"x:asked","result":"x:done","failure":"x:failed"}]""",
+                    scoped = """["x:done"]""",
+                ),
+                definitions(bothKinds.replace("\"Stored\"", "\"StoredEventResponse\"")),
+            )
+        }.message.orEmpty()
+        assertTrue(said.contains("x:done") && said.contains("scope"), said)
+    }
 }
