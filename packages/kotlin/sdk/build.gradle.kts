@@ -296,6 +296,21 @@ tasks.register<Sync>("installConformance") {
     into("bin") {
         from(wireDriverScripts)
     }
+    // JaCoCo's agent, for a run of the suites that measures the drivers (JAVA_OPTS).
+    into("jacoco") {
+        from(zipTree(configurations.named("jacocoAgent").map { it.singleFile })) { include("jacocoagent.jar") }
+    }
+}
+
+// What the suites ran of the SDK, from what its drivers wrote as they ran with JaCoCo's agent.
+tasks.register<JacocoReport>("conformanceCoverage") {
+    description = "Reports what the conformance suites ran of the SDK."
+    group = LifecycleBasePlugin.VERIFICATION_GROUP
+    executionData(fileTree(layout.buildDirectory.dir("conformance-coverage")).include("*.exec"))
+    sourceSets(sourceSets.main.get())
+    reports {
+        xml.required = true
+    }
 }
 
 tasks.check {
