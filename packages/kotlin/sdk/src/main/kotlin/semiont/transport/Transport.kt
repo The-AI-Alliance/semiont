@@ -132,11 +132,13 @@ internal class Variable<T>(initial: T) {
     fun reading(): Watched<T> = Watched(
         { held },
         flow {
-            // A reader that has been told something is not told the end again; one that has been told nothing is told the value it ends on.
-            var told = false
+            // A reader is told the value it ends on unless it was told that value last: the end is no new occurrence, and a
+            // value set just before the end, which the reader had not caught up with, is not lost to it.
+            var told: Told<T>? = null
             state.transformWhile { now ->
-                if (!now.last || !told) emit(now.value)
-                told = true
+                val before = told
+                if (!now.last || before == null || before.value != now.value) emit(now.value)
+                told = now
                 !now.last
             }.collect(this)
         },
