@@ -175,7 +175,9 @@ final class StateUnitsTest {
             unit.gatherAnnotation(new AnnotationId("ann-1"));
             assertTrue(context.next().isPresent());
             assertEquals(new AnnotationId("ann-1"), unit.getAnnotationId().getValue());
-            assertFalse(unit.getLoading().getValue());
+            // The context is held before the gather is said to be over, so a reader told of it may still find it loading.
+            Reading<Optional<Boolean>> loading = new Reading<>(unit.getLoading().asPublisher());
+            while (loading.next().orElseThrow()) {}
             assertNull(unit.getError().getValue());
         }
     }
@@ -219,7 +221,9 @@ final class StateUnitsTest {
             assertNull(gather.getResourceContext().getValue());
             gather.gatherResource(resource);
             while (gatherFailed.next().isEmpty()) {}
-            assertFalse(gather.getResourceLoading().getValue());
+            // The failure is held before the gather is said to be over.
+            Reading<Optional<Boolean>> resourceLoading = new Reading<>(gather.getResourceLoading().asPublisher());
+            while (resourceLoading.next().orElseThrow()) {}
 
             assertNull(mark.getPendingAnnotation().getValue());
             assertNull(mark.getProgress().getValue());
