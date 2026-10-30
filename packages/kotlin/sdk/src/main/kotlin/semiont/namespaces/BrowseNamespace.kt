@@ -26,7 +26,6 @@ import semiont.transport.Content
 import semiont.transport.ContentStream
 import semiont.transport.ContentTransport
 import semiont.transport.ResourceHold
-import semiont.types.AgentSoftware
 import semiont.types.AnchoredTextAnswer
 import semiont.types.Annotation
 import semiont.types.AttributedEvent
@@ -39,7 +38,6 @@ import semiont.types.BrowseEventsRequest
 import semiont.types.BrowseKbRequest
 import semiont.types.BrowseResourceOpenEvent
 import semiont.types.BrowseResourceViewedEvent
-import semiont.types.CollaboratorEntry
 import semiont.types.GetAnnotationHistoryResponse
 import semiont.types.GetResourceResponse
 import semiont.types.InferenceLimits
@@ -47,22 +45,18 @@ import semiont.types.InferencePairLimits
 import semiont.types.KbDescription
 import semiont.types.ListResourcesResponse
 import semiont.types.ResourceDescriptor
+import semiont.types.RosterEntry
 import semiont.types.TagSchema
 import java.util.concurrent.CompletableFuture
 
 /** Reads: one-shot reads, and this viewer's own signals. */
-/** One of the knowledge base's collaborators: its entry in the directory, and its model's limits when the service holding that model's credentials reported them. */
-public data class Collaborator(public val entry: CollaboratorEntry, public val limits: InferenceLimits?)
+/** One engine on the knowledge base's roster: its entry, and its model's limits when the service holding that model's credentials reported them. */
+public data class Collaborator(public val entry: RosterEntry, public val limits: InferenceLimits?)
 
-/** The directory with each reported model's limits on its entries. */
-private fun joined(directory: List<CollaboratorEntry>, reported: List<InferencePairLimits>): List<Collaborator> {
+/** The roster with each reported model's limits on its entries. A report names its provider as the wire spells it. */
+private fun joined(roster: List<RosterEntry>, reported: List<InferencePairLimits>): List<Collaborator> {
     val byModel = reported.reversed().associate { (it.provider to it.model) to it.limits }
-    return directory.map { entry ->
-        val agent = entry.agent as? AgentSoftware
-        val provider = agent?.provider
-        val model = agent?.model
-        Collaborator(entry, if (provider != null && model != null) byModel[provider to model] else null)
-    }
+    return roster.map { entry -> Collaborator(entry, byModel[entry.engine.provider.value to entry.engine.model]) }
 }
 
 /**

@@ -141,8 +141,8 @@ class LiveQueriesTest {
 
     @Test
     fun theCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItReportsThem() = runBlocking {
-        val gemma = """{"@type":"Software","name":"gemma","provider":"ollama","model":"gemma2:27b"}"""
-        val claude = """{"@type":"Software","name":"claude","provider":"anthropic","model":"claude-opus-5-5"}"""
+        val gemma = """{"engine":{"provider":"ollama","model":"gemma2:27b"}}"""
+        val claude = """{"engine":{"provider":"anthropic","model":"claude-opus-5-5"}}"""
         val world = KbWorld(answered = false)
         val kb = world.kb
         fun limitsOf(collaborators: List<Collaborator>) = collaborators.map { it.limits?.contextTokens }
@@ -159,9 +159,9 @@ class LiveQueriesTest {
         live.nothingFor()
 
         // The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-        kb.answer(directory, json("""{"agents":[{"agent":$gemma},{"agent":$claude}]}"""))
+        kb.answer(directory, json("""{"agents":[$gemma,$claude]}"""))
         var shown = live.ready().value
-        assertEquals(listOf("gemma", "claude"), shown.map { (it.entry.agent as semiont.types.AgentSoftware).name })
+        assertEquals(listOf("gemma2:27b", "claude-opus-5-5"), shown.map { it.entry.engine.model })
         assertEquals(listOf(8192.0, null), limitsOf(shown))
 
         // A holder that reports later delays only its own models' limits.
@@ -179,9 +179,9 @@ class LiveQueriesTest {
         eventually { kb.emitted.size == 8 }
         assertEquals(listOf("browse:agents-requested") + LIMITS, kb.emitted.drop(4).map { it.channel })
         live.nothingFor()
-        kb.answer(kb.emitted[4], json("""{"agents":[{"agent":$claude}]}"""))
+        kb.answer(kb.emitted[4], json("""{"agents":[$claude]}"""))
         shown = live.ready().value
-        assertEquals(listOf("claude"), shown.map { (it.entry.agent as semiont.types.AgentSoftware).name })
+        assertEquals(listOf("claude-opus-5-5"), shown.map { it.entry.engine.model })
         assertEquals(listOf(9.0), limitsOf(shown))
         world.close()
     }
