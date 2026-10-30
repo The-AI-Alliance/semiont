@@ -88,7 +88,6 @@ dependencies {
     // OpenTelemetry's API alone: what is exported, and where, is the application's.
     implementation(platform(libs.opentelemetry.bom))
     implementation(libs.opentelemetry.api)
-    implementation(libs.opentelemetry.extension.kotlin)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.opentelemetry.sdk)
     "codegenImplementation"(libs.kotlinx.serialization.json)
@@ -99,6 +98,8 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // The sign-in store calls flock through the foreign-function API, as an application that uses it enables.
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
 val javaTestRun = tasks.register<Test>("javaTest") {

@@ -185,6 +185,19 @@ internal fun credentialsFile(table: JsonObject): String = buildString {
     append("internal val CREDENTIAL_NAMES: Set<String> = setOf(${names.joinToString(", ") { literal(it) }})\n")
 }
 
+/** The clients a Semiont client signs in as at a knowledge base's issuer, and the scope every sign-in asks for (session/oauth.json). */
+internal fun oauthClientsFile(table: JsonObject): String = buildString {
+    for (raw in table["clients"].list("the OAuth clients")) {
+        val client = raw.obj("an OAuth client")
+        val name = client["name"].text("a client's name")
+        append(kdoc("", client["docs"].text("$name's docs")))
+        append("@Generated\npublic const val ${constantName(name)}_CLIENT_ID: String = ${literal(client["id"].text("$name's id"))}\n\n")
+    }
+    val scope = table["scope"].obj("the sign-in scope")
+    append(kdoc("", scope["docs"].text("the scope's docs")))
+    append("@Generated\npublic const val SIGN_IN_SCOPE: String = ${literal(scope["value"].text("the scope's value"))}\n")
+}
+
 /** The timing a client keeps: each row a constant, `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`, a budget as a `RetryPolicy`. */
 internal fun timingFile(table: JsonObject): String = buildString {
     append("/** The timing a client keeps (specs/src/client/timing.json). */\n")
@@ -225,6 +238,7 @@ internal fun errorCodesFile(table: JsonObject): String = buildString {
     }
     vocabulary("transport", "TransportErrorCode", "Why a transport failed a request: what a server refused, or that none answered.")
     vocabulary("busRequest", "BusRequestErrorCode", "Why a bus request did not resolve.")
+    vocabulary("signIn", "SignInErrorCode", table["signIn"].obj("signIn")["docs"].text("signIn's docs"))
     val transport = table["transport"].obj("transport")["codes"].list("transport's codes").map { it.obj("a transport code") }
     append("/** The code a refusal of `status` fails with. */\n")
     append("internal fun transportErrorCodeFor(status: Int): TransportErrorCode = when {\n")

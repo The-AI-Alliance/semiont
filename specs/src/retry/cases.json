@@ -5,9 +5,9 @@
     "rust": ["packages/rust/sdk/src/retry.rs", "packages/rust/sdk/tests/retry_cases.rs"],
     "python": ["packages/python/sdk/tests/test_retry.py"],
     "go": ["packages/go/sdk/retry_test.go"],
-    "worker": ["images/worker/tests/test_retry_job_rule.py"]
+    "worker": ["images/worker/tests/test_retry_job_rule.py"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/retry/RetryCasesTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's retry module: whether a failed request is worth another attempt."},
   "rules": [
     {
       "why": "429 is the server saying not now",

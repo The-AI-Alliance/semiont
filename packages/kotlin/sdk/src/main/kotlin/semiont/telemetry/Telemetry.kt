@@ -7,9 +7,10 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.context.Context
+import io.opentelemetry.context.Scope
 import io.opentelemetry.context.propagation.TextMapGetter
-import io.opentelemetry.extension.kotlin.asContextElement
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ThreadContextElement
 import kotlinx.coroutines.future.future
 import kotlinx.coroutines.withContext
 import semiont.identifiers.ResourceId
@@ -59,7 +60,7 @@ internal object Telemetry {
             .setAllAttributes(attributes)
             .startSpan()
         try {
-            return withContext(Context.current().with(span).asContextElement()) { work() }
+            return withContext(Context.current().with(span).inCoroutines()) { work() }
         } catch (error: Throwable) {
             span.setStatus(StatusCode.ERROR)
             throw error
@@ -142,7 +143,26 @@ private object MapGetter : TextMapGetter<Map<String, String>> {
 }
 
 /** The trace the caller is in, as a coroutine's context: work launched on the caller's behalf runs in it. */
-internal fun callersTrace(): CoroutineContext = Context.current().asContextElement()
+internal fun callersTrace(): CoroutineContext = Context.current().inCoroutines()
 
 /** `work` as a future, for Java, run in the trace its caller is in. */
 internal fun <T> CoroutineScope.futureOf(work: suspend () -> T): CompletableFuture<T> = future(callersTrace()) { work() }
+
+/**
+ * A trace made current for a coroutine: each time it resumes, its thread is
+ * in the trace, and each time it suspends, the thread is put back as it was.
+ * OpenTelemetry's context lives on a thread, and a coroutine moves between
+ * threads.
+ */
+private class InTrace(private val trace: Context) : ThreadContextElement<Scope> {
+    companion object Key : CoroutineContext.Key<InTrace>
+
+    override val key: CoroutineContext.Key<InTrace> get() = Key
+
+    override fun updateThreadContext(context: CoroutineContext): Scope = trace.makeCurrent()
+
+    override fun restoreThreadContext(context: CoroutineContext, oldState: Scope): Unit = oldState.close()
+}
+
+/** This trace, as a coroutine's context: what runs in it runs in the trace, whichever thread it resumes on. */
+private fun Context.inCoroutines(): CoroutineContext = InTrace(this)

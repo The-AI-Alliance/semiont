@@ -1219,7 +1219,6 @@
     {
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's retry module." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/retry.ts"
@@ -1232,6 +1231,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/retry"
         ]
       },
       "members": [
@@ -1244,7 +1246,6 @@
     {
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by specs/src/session/gateway-url-cases.json.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's hostName module." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1257,6 +1258,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "members": [
