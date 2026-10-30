@@ -91,7 +91,7 @@ internal fun channelsFile(registry: JsonObject, definitions: JsonObject): String
     for (row in rows) {
         val kind = if (row.scoped) "ScopedChannel" else "Channel"
         val stamps = if (row.stamps.isEmpty()) "emptySet()" else "setOf(${row.stamps.sorted().joinToString(", ") { literal(it) }})"
-        append("    public val ${constantName(row.name)}: $kind<${row.type}> = $kind(${literal(row.name)}, ${row.serializer}, $stamps)\n")
+        append("    @JvmField\n    public val ${constantName(row.name)}: $kind<${row.type}> = $kind(${literal(row.name)}, ${row.serializer}, $stamps)\n")
     }
     append("}\n\n")
     append("/** Every channel's name, in the registry's order. */\n")
@@ -135,7 +135,7 @@ internal fun operationsFile(registry: JsonObject, definitions: JsonObject): Stri
         }
         val types = listOf(request, result, failure).joinToString(", ") { channel(it).type }
         val replyNames = if (named.isEmpty()) "emptyList()" else "listOf(${named.joinToString(", ") { literal(it) }})"
-        append("    public val ${constantName(request)}: Operation<$types> =\n")
+        append("    @JvmField\n    public val ${constantName(request)}: Operation<$types> =\n")
         append("        Operation(Channels.${constantName(request)}, Channels.${constantName(result)}, Channels.${constantName(failure)}, $replyNames)\n")
     }
     append("}\n\n")
