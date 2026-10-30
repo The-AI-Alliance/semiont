@@ -13,7 +13,7 @@ import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.retry.RetryFacts
-import semiont.retry.RetryRules
+import semiont.retry.TRANSPORT
 import semiont.retry.retryAfterMs
 import semiont.transport.Broadcast
 import semiont.types.ErrorResponse
@@ -164,7 +164,7 @@ internal class Exchange(
         body: (() -> HttpRequest.BodyPublisher)? = null,
         atLength: Boolean = false,
     ): Arriving {
-        val repeatable = RetryRules.transport(RetryFacts(503, method))
+        val repeatable = TRANSPORT.retryable(RetryFacts(503, method))
         var sent = if (authenticated) token.value else null
         var retried = false
         var renewed = false
@@ -205,7 +205,7 @@ internal class Exchange(
                 }
                 throw failed(refused)
             }
-            if (!retried && !closing() && RetryRules.transport(RetryFacts(status, method))) {
+            if (!retried && !closing() && TRANSPORT.retryable(RetryFacts(status, method))) {
                 retried = true
                 delay(maxOf(Timings.REQUEST_RETRY_PAUSE_MS, stated ?: 0))
                 continue

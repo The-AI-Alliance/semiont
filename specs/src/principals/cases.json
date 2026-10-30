@@ -12,13 +12,13 @@
     ],
     "conformance": [
       "tests/conformance/gateway/tokens.test.ts"
+    ],
+    "kotlin": [
+      "packages/kotlin/sdk/src/test/kotlin/semiont/identity/IdentityTest.kt"
     ]
   },
   "absent": {
     "typescript": "No TypeScript code names a principal: the gateway, in Rust, mints every DID it acts for."
-  },
-  "notYetReached": {
-    "kotlin": "The Kotlin SDK's names of the principals the gateway acts for."
   },
   "person": "did:web:{domain}:users:{subject}",
   "people": [
