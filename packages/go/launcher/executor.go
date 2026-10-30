@@ -82,15 +82,16 @@ type keeper interface {
 	jwtSecret(kb kbRoot) (string, bool)                       // gateway token-signing key: env, else persisted per-root, else generated
 	identityAdminPassword(kb kbRoot) (string, bool)           // Keycloak's bootstrap admin password: same three sources
 	serviceClientSecret(kb kbRoot, svc string) (string, bool) // one service's account credential, per root
+	workerKey() (workerKey, bool)                             // the key this machine's worker proves itself with, one per machine
 	daemonPassword(kb kbRoot, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
 // credential or a person is sent to sign in.
 type admitter interface {
-	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
-	preflightBrowserMove(issuerBase string, port int) bool                                                         // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
-	openAdminToThisMachine(password string)                                                                        // Keycloak's own admin answers this machine over plain HTTP, whatever address the runtime delivers its connections from
+	preflightIdentity(issuerBase, audience string, accounts realmAccounts, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
+	preflightBrowserMove(issuerBase string, port int) bool                                                      // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
+	openAdminToThisMachine(password string)                                                                     // Keycloak's own admin answers this machine over plain HTTP, whatever address the runtime delivers its connections from
 }
 
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
@@ -635,6 +636,10 @@ func (x *liveExec) serviceClientSecret(kb kbRoot, svc string) (string, bool) {
 	return loadOrCreateServiceClientSecret(x.u, kb.key(), svc)
 }
 
+func (x *liveExec) workerKey() (workerKey, bool) {
+	return loadOrCreateWorkerKey(x.u)
+}
+
 func (x *liveExec) daemonPassword(kb kbRoot, role string) (string, bool) {
 	return loadOrCreateDaemonPassword(x.u, kb.key(), role)
 }
@@ -859,8 +864,8 @@ func (x *liveExec) openAdminToThisMachine(password string) {
 // while the operator could have been told up front which client and why. The
 // one exception is a finding marked warnOnly — a realm that works but predates
 // a change to the document, where refusing would strand a healthy deployment.
-func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool {
-	findings, observedLifespan := verifyServiceAccounts(issuerBase, audience, secrets)
+func (x *liveExec) preflightIdentity(issuerBase, audience string, accounts realmAccounts, wantLifespan int, managed bool) bool {
+	findings, observedLifespan := verifyServiceAccounts(issuerBase, audience, accounts)
 	if len(findings) > 0 {
 		x.u.Fail("The issuer does not honour the service-account credentials this start would inject.")
 		for _, f := range findings {
@@ -873,21 +878,26 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		// The repair, named rather than described — but named as the
 		// COMMANDS TO RUN, in order, with the follow-up: naming a verb
 		// alone leaves the sequence to be inferred.
+		secretFinding := slices.IndexFunc(findings, func(f serviceAccountFinding) bool { return f.svc != "worker" })
+		workerFinding := slices.ContainsFunc(findings, func(f serviceAccountFinding) bool { return f.svc == "worker" })
 		if managed {
 			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.Bold("semiont identity sync"))
-			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("Adds the missing clients and reconciles an existing one's roles mapper. Touches no accounts."))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("Adds the missing clients, and reconciles an existing one's roles mapper and the worker's key. Touches no accounts."))
 			fmt.Fprintln(os.Stderr, "")
 			fmt.Fprintf(os.Stderr, "  Then:    %s\n", x.u.Bold("semiont start"))
 			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("This start again, which will then get past this gate."))
-			fmt.Fprintln(os.Stderr, "")
-			// The case sync cannot repair, said plainly rather than left for
-			// the operator to discover by looping. On a client that already
-			// exists reconcileServiceClients touches only the roles mapper —
-			// it never reconciles the secret — so "already correct" on a
-			// client named above is not success, it is the other cause.
-			fmt.Fprintln(os.Stderr, "  If sync reports a client above as already correct rather than created, that")
-			fmt.Fprintln(os.Stderr, "  client exists with a DIFFERENT secret, which sync does not change. Delete it")
-			fmt.Fprintln(os.Stderr, "  in the Keycloak admin console and run sync again.")
+			if secretFinding >= 0 {
+				// The case sync cannot repair, said plainly rather than left for
+				// the operator to discover by looping. On a client that already
+				// exists reconcileServiceClients never reconciles the secret —
+				// it cannot know it — so "already correct" on a secret client
+				// named above is not success, it is the other cause. The
+				// worker's key it does know, and reconciles.
+				fmt.Fprintln(os.Stderr, "")
+				fmt.Fprintln(os.Stderr, "  If sync reports a client above as already correct rather than created, that")
+				fmt.Fprintln(os.Stderr, "  client exists with a DIFFERENT secret, which sync does not change. Delete it")
+				fmt.Fprintln(os.Stderr, "  in the Keycloak admin console and run sync again.")
+			}
 			return false
 		}
 		// Deliberately does NOT mention `semiont identity sync`, even to rule
@@ -895,13 +905,20 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		// issuer it did not start, and a named command gets skimmed into an
 		// instruction to run it.
 		fmt.Fprintln(os.Stderr, "  This issuer is one you run, so its clients are yours to create.")
-		fmt.Fprintln(os.Stderr, "  For each client named above: create it, enable the client-credentials grant,")
-		fmt.Fprintf(os.Stderr, "  and supply its secret as %s — for example %s\n",
-			x.u.Bold("SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>"),
-			serviceClientSecretEnv(findings[0].svc)+" for "+serviceClientID(findings[0].svc)+".")
+		if secretFinding >= 0 {
+			svc := findings[secretFinding].svc
+			fmt.Fprintln(os.Stderr, "  For each client named above: create it, enable the client-credentials grant,")
+			fmt.Fprintf(os.Stderr, "  and supply its secret as %s — for example %s\n",
+				x.u.Bold("SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>"),
+				serviceClientSecretEnv(svc)+" for "+serviceClientID(svc)+".")
+		}
+		if workerFinding {
+			fmt.Fprintf(os.Stderr, "  For %s: create it with the signed-JWT client authenticator, enable the\n", serviceClientID("worker"))
+			fmt.Fprintf(os.Stderr, "  client-credentials grant, and register on it the key %s prints.\n", x.u.Bold("semiont worker key"))
+		}
 		return false
 	}
-	x.u.Log("Service accounts: %s", x.u.Dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))
+	x.u.Log("Service accounts: %s", x.u.Dim(fmt.Sprintf("%d verified at the realm", len(secretClients)+1)))
 
 	// The realm imports on FIRST BOOT and never again, so a knowledge base can
 	// configure a revocation window its realm has never heard of and nothing
@@ -1371,6 +1388,10 @@ func (x *planExec) serviceClientSecret(_ kbRoot, svc string) (string, bool) {
 	return "<" + svc + "-client-secret>", true
 }
 
+func (x *planExec) workerKey() (workerKey, bool) {
+	return workerKey{private: "<worker-key>", public: "<worker-public-key>", thumbprint: "<worker-key-thumbprint>"}, true
+}
+
 func (x *planExec) daemonPassword(_ kbRoot, role string) (string, bool) {
 	return "<" + daemonPasswords[role].custody + ">", true
 }
@@ -1451,11 +1472,13 @@ func (x *planExec) recordBrowser(string, string, int) {}
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the
 // answer must carry.
-func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string, wantLifespan int, _ bool) bool {
-	for _, svc := range serviceClients {
+func (x *planExec) preflightIdentity(issuerBase, audience string, accounts realmAccounts, wantLifespan int, _ bool) bool {
+	for _, svc := range secretClients {
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
 	}
+	x.c("client-credentials grant at %s as %s, by an assertion signed with the machine's worker key (%s) — require flat `roles` containing %q and %q, and `aud` containing %s",
+		issuerBase, serviceClientID("worker"), accounts.worker.thumbprint, serviceRole, workerRole, audience)
 	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, semiont.ScriptClientID)
 	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, semiont.BrowserClientID, probeRedirect)
 	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")

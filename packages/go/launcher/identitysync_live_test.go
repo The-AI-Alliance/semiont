@@ -15,8 +15,10 @@ import (
 // Live reconciliation against a REAL Keycloak, in a throwaway realm.
 //
 // The stub tests pin the launcher's reading; this one pins Keycloak's. What a
-// stub cannot tell us is whether the client `serviceAccountClient` renders is
-// one Keycloak actually accepts, and whether the token it then mints carries
+// stub cannot tell us is whether the clients `serviceAccountClient` and
+// `workerClient` render are ones Keycloak actually accepts — the worker's
+// taking an assertion signed with the machine's key — and whether the token
+// it then mints carries
 // the FLAT `roles` array and the audience the gateway requires — which is the
 // whole reason the client shape matters. A hand-created client that Keycloak
 // accepts but whose token carries `realm_access.roles` fails every
@@ -53,17 +55,17 @@ func TestIdentitySyncLive(t *testing.T) {
 	t.Cleanup(func() { liveAdmin(t, tok, http.MethodDelete, base+"/admin/realms/"+realm, nil) })
 
 	// 1. An empty realm gets every client.
-	rep, err := syncServiceClients(base, realm, "admin", pw, audience, secretForTest)
+	rep, err := syncServiceClients(base, realm, "admin", pw, audience, testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if len(rep.created) != len(serviceClients) {
-		t.Fatalf("created %d clients, want %d: %v", len(rep.created), len(serviceClients), rep.created)
+	if len(rep.created) != len(stackServices) {
+		t.Fatalf("created %d clients, want %d: %v", len(rep.created), len(stackServices), rep.created)
 	}
 
 	// 2. Keycloak MINTS for what sync created, and the token is the shape the
 	//    gateway demands. This is the assertion a stub cannot make.
-	svc := serviceClients[0]
+	svc := secretClients[0]
 	claims := liveClientCredentials(t, base, realm, serviceClientID(svc), secretForTest(svc))
 
 	if !flatRolesContain(claims["roles"], serviceRole) {
@@ -73,16 +75,27 @@ func TestIdentitySyncLive(t *testing.T) {
 		t.Fatalf("token's `aud` does not carry %q — got %#v", audience, claims["aud"])
 	}
 
-	// 3. Idempotent against a real realm, not just a stub.
-	rep2, err := syncServiceClients(base, realm, "admin", pw, audience, secretForTest)
+	//    And for the worker, by the assertion the preflight signs: Keycloak
+	//    checks it with the key sync registered, and stamps the worker role.
+	worker, err := keyAccountClaims(base+"/realms/"+realm+"/protocol/openid-connect/token", serviceClientID("worker"), testWorkerKey().signer)
+	if err != nil {
+		t.Fatalf("the worker's grant: %v — the client sync created does not take the machine's key", err)
+	}
+	if f, bad := checkServiceAccountClaims("worker", worker, audience); bad {
+		t.Fatalf("the worker's token: %s", f)
+	}
+
+	// 3. Idempotent against a real realm, not just a stub — the worker's key
+	//    as Keycloak lists it back included.
+	rep2, err := syncServiceClients(base, realm, "admin", pw, audience, testAccounts())
 	if err != nil {
 		t.Fatalf("second sync: %v", err)
 	}
 	if len(rep2.created) != 0 {
 		t.Fatalf("second run created %v, want nothing", rep2.created)
 	}
-	if len(rep2.present) != len(serviceClients) {
-		t.Fatalf("second run saw %d present, want %d", len(rep2.present), len(serviceClients))
+	if len(rep2.present) != len(stackServices) {
+		t.Fatalf("second run saw %d present, want %d: updated %v", len(rep2.present), len(stackServices), rep2.updated)
 	}
 }
 

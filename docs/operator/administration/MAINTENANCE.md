@@ -64,6 +64,8 @@ If the start refuses at the identity preflight, the realm was created by an olde
 
 **A service account's secret (`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`)** is that service's own credential at the issuer. Each service has its own, so rotating one means changing it at the issuer and in the knowledge base's secrets store, then restarting that one service.
 
+**The worker's key (`SEMIONT_OIDC_CLIENT_KEY`)** is the machine's, not a knowledge base's. Rotating it means deleting `machine/worker-key` under the launcher's data directory; the next start or `semiont identity sync` makes a new one, and `semiont identity sync` puts its public half on the worker's client in each realm the launcher runs. An issuer you run is given the new key by registering what `semiont worker key` prints.
+
 **A daemon's password** (Neo4j, PostgreSQL, the broker) is tied to the data it initialized. Rotating one means deleting it from the secrets store and clearing that daemon's store: [Rotating a daemon's password](../services/SECRETS.md#values-the-launcher-keeps).
 
 **A provider's API key** (`ANTHROPIC_API_KEY` and the like) is yours. Change it where it lives, and restart the services that use it: the librarian and the worker.

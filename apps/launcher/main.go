@@ -34,6 +34,7 @@ Identity & auth:
   login     Sign in through the knowledge base's issuer (device grant; tokens stored, never a password)
   logout    End the stored session (server best-effort, local token forgotten)
   identity  Reconcile a running realm's service-account clients (identity sync)
+  worker    The public key this machine's worker signs in with (worker key)
 
 Settings:
   settings  Every setting the launcher keeps: the runtime, where secrets come
@@ -109,6 +110,8 @@ func main() {
 		code = launcher.Settings(rest)
 	case "identity":
 		code = launcher.Identity(rest)
+	case "worker":
+		code = launcher.Worker(rest)
 	case launcher.IssuerProxyVerb:
 		// The process a `network lan` start leaves running; never a person's.
 		code = launcher.IssuerProxy(rest)

@@ -1,22 +1,22 @@
 package launcher
 
 // identitysync.go — `semiont identity sync`: reconcile a realm's
-// service-account clients against `serviceClients`.
+// service-account clients against `secretClients` and the machine's worker.
 //
 // The repair half of the preflight. A realm is imported on its FIRST boot and
 // never again, so a deployment that predates a client simply does not have it,
 // and `preflightIdentity` correctly refuses to start. Re-importing would mean
 // deleting the realm, and the realm holds the accounts; this reconciles it in
 // place, so the refusal names a command, and a new client costs a line in
-// `serviceClients` rather than a paragraph of console steps.
+// `stackServices` rather than a paragraph of console steps.
 //
 // CONFIGURATION ONLY, NEVER ACCOUNTS. It creates what is missing and removes
 // nothing. That is the property that makes it safe to run against a deployment
 // with real users, and it is asserted rather than merely intended
 // (`TestIdentitySyncTouchesNoAccounts`).
 //
-// The client it creates comes from `serviceAccountClient` — the same renderer
-// the realm import uses. Restating the shape here would be a mirror of the
+// The client it creates comes from `serviceAccountClient` or `workerClient` —
+// the same renderers the realm import uses. Restating the shape here would be a mirror of the
 // realm document, and the flat `roles` claim plus the audience mapper are
 // exactly what a hand-created client gets wrong.
 
@@ -52,13 +52,13 @@ type syncReport struct {
 // Additive. It creates absent clients, ADDS absent redirect URIs, and
 // turns off a flow that should be off. It deletes no client, drops no redirect
 // URI a deployment added, and never reads or writes an account.
-func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan, browserPort int, secretFor func(svc string) string) (syncReport, error) {
+func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan, browserPort int, accounts realmAccounts) (syncReport, error) {
 	base := strings.TrimSuffix(adminBase, "/")
 	token, err := adminToken(base, adminUser, adminPass)
 	if err != nil {
 		return syncReport{}, err
 	}
-	rep, err := reconcileServiceClients(base, realm, token, audience, secretFor)
+	rep, err := reconcileServiceClients(base, realm, token, audience, accounts)
 	if err != nil {
 		return rep, err
 	}
@@ -275,49 +275,105 @@ func updateClientMapper(base, realm, token, uuid, mapperID string, mapper map[st
 	return nil
 }
 
-// syncServiceClients reconciles `realm` against `serviceClients`.
+// syncServiceClients reconciles `realm`'s service accounts.
 //
 // `adminBase` is Keycloak's root as this process can reach it (the launcher's
 // own localhost form), not the issuer URL a token carries.
-func syncServiceClients(adminBase, realm, adminUser, adminPass, audience string, secretFor func(svc string) string) (syncReport, error) {
+func syncServiceClients(adminBase, realm, adminUser, adminPass, audience string, accounts realmAccounts) (syncReport, error) {
 	base := strings.TrimSuffix(adminBase, "/")
 	token, err := adminToken(base, adminUser, adminPass)
 	if err != nil {
 		return syncReport{}, err
 	}
-	return reconcileServiceClients(base, realm, token, audience, secretFor)
+	return reconcileServiceClients(base, realm, token, audience, accounts)
 }
 
-func reconcileServiceClients(base, realm, token, audience string, secretFor func(svc string) string) (syncReport, error) {
+func reconcileServiceClients(base, realm, token, audience string, accounts realmAccounts) (syncReport, error) {
 	have, err := existingClients(base, realm, token)
 	if err != nil {
 		return syncReport{}, err
 	}
 	var rep syncReport
-	for _, svc := range serviceClients {
+	// Present — but the client the import WOULD render may carry a role this
+	// one was created without (the worker's job-claim role), and the preflight
+	// refuses a realm whose mapper lacks it. A secret is never reconciled: sync
+	// cannot know it. The worker's key it does.
+	reconcile := func(svc string, client map[string]any, alsoKey bool) error {
 		id := serviceClientID(svc)
-		if c, ok := have[id]; ok {
-			// Present — but the client the import WOULD render may carry a
-			// role this one was created without (the worker's job-claim
-			// role), and the preflight refuses a realm whose mapper lacks it.
-			// The secret is never reconciled: sync cannot know it.
-			change, err := reconcileRolesMapper(base, realm, token, svc, c)
+		c, ok := have[id]
+		if !ok {
+			if err := createClient(base, realm, token, client); err != nil {
+				return fmt.Errorf("creating %s: %w", id, err)
+			}
+			rep.created = append(rep.created, id)
+			return nil
+		}
+		var changes []string
+		change, err := reconcileRolesMapper(base, realm, token, svc, c)
+		if err != nil {
+			return fmt.Errorf("updating %s: %w", id, err)
+		}
+		if change != "" {
+			changes = append(changes, change)
+		}
+		if alsoKey {
+			change, err := reconcileWorkerKey(base, realm, token, c, accounts.worker)
 			if err != nil {
-				return rep, fmt.Errorf("updating %s: %w", id, err)
+				return fmt.Errorf("updating %s: %w", id, err)
 			}
 			if change != "" {
-				rep.updated = append(rep.updated, id+": "+change)
-			} else {
-				rep.present = append(rep.present, id)
+				changes = append(changes, change)
 			}
-			continue
 		}
-		if err := createClient(base, realm, token, serviceAccountClient(svc, secretFor(svc), audience)); err != nil {
-			return rep, fmt.Errorf("creating %s: %w", id, err)
+		if len(changes) == 0 {
+			rep.present = append(rep.present, id)
+		} else {
+			rep.updated = append(rep.updated, id+": "+strings.Join(changes, "; "))
 		}
-		rep.created = append(rep.created, id)
+		return nil
+	}
+	for _, svc := range secretClients {
+		if err := reconcile(svc, serviceAccountClient(svc, accounts.secrets[svc], audience), false); err != nil {
+			return rep, err
+		}
+	}
+	if err := reconcile("worker", workerClient(accounts.worker, audience), true); err != nil {
+		return rep, err
 	}
 	return rep, nil
+}
+
+// reconcileWorkerKey brings the worker's client to this machine's key: its
+// public half is no secret, so sync knows what the realm should hold. Another
+// machine's launcher syncing the same realm takes the client over, so the
+// change names both keys, and the machine that lost it is refused at its next
+// start rather than left to fail at a sign-in.
+//
+// Returns what changed, for the report; "" when the client already holds it.
+func reconcileWorkerKey(base, realm, token string, c existingClient, k workerKey) (string, error) {
+	want := workerKeyAttributes(k)
+	attributes, _ := c.rep["attributes"].(map[string]any)
+	authenticator, _ := c.rep["clientAuthenticatorType"].(string)
+	agrees := authenticator == clientJWT
+	for name, value := range want {
+		if have, _ := attributes[name].(string); have != value {
+			agrees = false
+		}
+	}
+	if agrees {
+		return "", nil
+	}
+	if err := updateClient(base, realm, token, c.uuid, map[string]any{
+		"clientAuthenticatorType": clientJWT,
+		"attributes":              want,
+	}); err != nil {
+		return "", err
+	}
+	was, _ := attributes["jwt.credential.kid"].(string)
+	if was == "" {
+		was = "none"
+	}
+	return fmt.Sprintf("key now %s (was %s)", k.thumbprint, was), nil
 }
 
 // adminToken: the bootstrap admin's password grant against the MASTER realm,

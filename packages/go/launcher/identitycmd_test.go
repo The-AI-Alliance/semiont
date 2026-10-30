@@ -32,8 +32,12 @@ func syncFixture(t *testing.T, admin *stubAdmin) string {
 	}
 	t.Setenv("KEYCLOAK_PORT", origin.Port())
 	t.Setenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "pw")
-	for _, svc := range serviceClients {
+	for _, svc := range secretClients {
 		t.Setenv(serviceClientSecretEnv(svc), secretForTest(svc))
+	}
+	// This machine's worker key, kept where the launcher keeps it.
+	if !machineCustody().put(NewUI(true), custodyWorkerKey, testWorkerKey().private) {
+		t.Fatal("keeping the test worker key")
 	}
 	t.Chdir(t.TempDir())
 	return root
@@ -57,13 +61,13 @@ func TestIdentitySyncCreatesWhatTheRealmLacks(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	for _, svc := range serviceClients {
+	for _, svc := range accountServices() {
 		harness.MustContainAll(t, "stdout", stdout, "created "+serviceClientID(svc))
 	}
 	harness.MustContainAll(t, "stdout", stdout, "Reconciling realm semiont", "created,")
 	harness.MustContainAll(t, "stderr", stderr, "Run `semiont start` again")
-	if len(admin.created) != len(serviceClients) {
-		t.Errorf("%d clients created, want one per service (%d)", len(admin.created), len(serviceClients))
+	if len(admin.created) != len(stackServices) {
+		t.Errorf("%d clients created, want one per service (%d)", len(admin.created), len(stackServices))
 	}
 }
 
@@ -123,5 +127,5 @@ func TestIdentitySyncUsesTheConfigAStartRecorded(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	harness.MustContainAll(t, "stdout", stdout, "Config: anthropic", "created "+serviceClientID(serviceClients[0]))
+	harness.MustContainAll(t, "stdout", stdout, "Config: anthropic", "created "+serviceClientID(secretClients[0]))
 }

@@ -30,9 +30,11 @@ cannot authenticate, or a worker that can never claim a job. This adds and
 updates what the import would have rendered.
 
 It reconciles CONFIGURATION ONLY. It creates clients, updates an existing
-client's roles mapper, and changes nothing else: no secret is touched, and no
-accounts are read, written or deleted, so it is safe to run against a realm
-with real users. It is idempotent — run it again to confirm it worked.
+client's roles mapper and the worker's client's key — this machine's, which
+` + "`semiont worker key`" + ` prints — and changes nothing else: no secret is
+touched, and no accounts are read, written or deleted, so it is safe to run
+against a realm with real users. It is idempotent — run it again to confirm it
+worked.
 
 Needs Keycloak's bootstrap admin password, the same one ` + "`semiont start`" + `
 reports: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the value persisted for this root.
@@ -154,13 +156,9 @@ func Identity(args []string) int {
 	}
 	u.Log("Keycloak admin password: %s", u.Dim(source))
 
-	secrets := map[string]string{}
-	for _, svc := range serviceClients {
-		secret, ok := loadOrCreateServiceClientSecret(u, kb.key(), svc)
-		if !ok {
-			return 1
-		}
-		secrets[svc] = secret
+	accounts, ok := realmAccountsOf(&liveExec{u: u}, kb)
+	if !ok {
+		return 1
 	}
 
 	realm := keycloakRealm(issuerPath(rp.Issuer))
@@ -168,8 +166,7 @@ func Identity(args []string) int {
 	u.Log("Reconciling realm %s at %s", u.Bold(realm), base)
 
 	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,
-		kb.ident.resource(), rp.AccessTokenLifespan, runningBrowserPort(),
-		func(svc string) string { return secrets[svc] })
+		kb.ident.resource(), rp.AccessTokenLifespan, runningBrowserPort(), accounts)
 	if err != nil {
 		u.Fail("%v", err)
 		return 1

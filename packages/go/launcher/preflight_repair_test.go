@@ -11,8 +11,8 @@ import (
 // The refusal must name the repair that applies to THIS issuer.
 //
 // `semiont identity sync` reaches a realm the launcher runs and nothing else:
-// it needs the admin password this root persisted, and it reconciles against
-// `serviceClients`. Offering it for an issuer somebody else runs sends an
+// it needs the admin password this root persisted, and it reconciles the
+// accounts this root's realm would import. Offering it for an issuer somebody else runs sends an
 // operator to a command that cannot help them; withholding it for a realm the
 // launcher runs leaves them to infer the one command that fixes it. The two
 // branches are one bool apart, which is exactly how they come to be collapsed
@@ -56,7 +56,7 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := captureStderr(t, func() {
 				x := &liveExec{u: NewUI(true)}
-				if x.preflightIdentity(srv.URL, testAudience, testSecrets(), 0, tc.managed) {
+				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, tc.managed) {
 					t.Fatal("a realm missing a service client passed the preflight")
 				}
 			})
@@ -79,7 +79,7 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 // client and what it cannot do, and — for a realm this launcher runs — that
 // `semiont identity sync` reconciles the client's roles mapper, then `semiont
 // start`. For an issuer somebody else runs the role is theirs to grant, and
-// sync must not be named. (The role string equals the worker's client id, so
+// sync must not be named. (The worker's client id carries the role string, so
 // the text is asserted on "claim", not on the role.)
 func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
@@ -111,7 +111,7 @@ func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := captureStderr(t, func() {
 				x := &liveExec{u: NewUI(true)}
-				if x.preflightIdentity(srv.URL, testAudience, testSecrets(), 0, tc.managed) {
+				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, tc.managed) {
 					t.Fatal("a realm whose worker cannot claim passed the preflight")
 				}
 			})
@@ -123,6 +123,59 @@ func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
 			for _, s := range tc.absent {
 				if strings.Contains(got, s) {
 					t.Errorf("refusal names %q, which does not apply to this issuer:\n%s", s, got)
+				}
+			}
+		})
+	}
+}
+
+// A worker's key the realm refuses is a client sync repairs in a realm this
+// launcher runs — it knows the key, as it never knows a secret — so the
+// paragraph sending the operator to delete a client with a different secret
+// does not apply. At an issuer somebody else runs, the operator registers the
+// key `semiont worker key` prints; no secret is theirs to supply.
+func TestPreflightIdentityNamesTheRepairForARefusedWorkerKey(t *testing.T) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		if clientID == serviceClientID("worker") {
+			return http.StatusUnauthorized, `{"error":"invalid_client"}`
+		}
+		return http.StatusOK, grantBody(map[string]any{"roles": stampedRoles(clientID), "aud": testAudience})
+	})
+
+	for _, tc := range []struct {
+		name    string
+		managed bool
+		want    []string
+		absent  []string
+	}{
+		{
+			name:    "a realm this launcher runs",
+			managed: true,
+			want:    []string{serviceClientID("worker"), "semiont identity sync", "the worker's key", "semiont start"},
+			absent:  []string{"DIFFERENT secret", "SEMIONT_OIDC_CLIENT_SECRET_"},
+		},
+		{
+			name:    "an issuer somebody else runs",
+			managed: false,
+			want:    []string{serviceClientID("worker"), "signed-JWT", "semiont worker key"},
+			absent:  []string{"semiont identity sync", "SEMIONT_OIDC_CLIENT_SECRET_"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := captureStderr(t, func() {
+				x := &liveExec{u: NewUI(true)}
+				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, tc.managed) {
+					t.Fatal("a realm refusing the worker's key passed the preflight")
+				}
+			})
+			for _, s := range tc.want {
+				if !strings.Contains(got, s) {
+					t.Errorf("refusal does not name %q:\n%s", s, got)
+				}
+			}
+			for _, s := range tc.absent {
+				if strings.Contains(got, s) {
+					t.Errorf("refusal names %q, which does not apply to this cause:\n%s", s, got)
 				}
 			}
 		})

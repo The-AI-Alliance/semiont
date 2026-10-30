@@ -7,6 +7,7 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -107,27 +108,35 @@ func keycloakBase(e exposure, port int) string {
 	return fmt.Sprintf("http://%s:%d", host, p)
 }
 
-// serviceClients: the realm's view of `stackServices` — every process that
-// PRESENTS a token to another Semiont service, and so needs an account. The
-// Browser presents none: it is a viewer, and the only one of ours without an
-// account.
+// secretClients: the realm's view of `stackServices` that proves itself with a
+// secret — every process that PRESENTS a token to another Semiont service, and
+// so needs an account, but the worker, which proves itself with this machine's
+// key (workerkey.go). The Browser presents none: it is a viewer, and the only
+// one of ours without an account.
 //
 // The gateway is among them. "It verifies tokens, it never presents one" is
 // true of the agent exchange and false in general: the gateway dials the
 // Archivist for content, events and the working tree's branch, and has to
 // prove who it is like anyone else.
 //
-// Sorted, which is the only thing that differs from stackServices: the
-// rendered realm document is compared against a golden, and alphabetical is
-// the stable presentation for a list a human reads in a JSON file.
-var serviceClients = func() []string {
-	out := append([]string(nil), stackServices...)
+// Sorted: the rendered realm document is compared against a golden, and
+// alphabetical is the stable presentation for a list a human reads in a JSON
+// file.
+var secretClients = func() []string {
+	out := slices.DeleteFunc(append([]string(nil), stackServices...), func(svc string) bool { return svc == "worker" })
 	sort.Strings(out)
 	return out
 }()
 
-// serviceClientID: the realm client id for one service's account.
-func serviceClientID(svc string) string { return "semiont-" + svc }
+// serviceClientID: the realm client id for one service's account. The
+// worker's is the machine's, not the root's: one key here serves every realm
+// this launcher runs, so one name does.
+func serviceClientID(svc string) string {
+	if svc == "worker" {
+		return "semiont-worker-local"
+	}
+	return "semiont-" + svc
+}
 
 // serviceRoles: the flat `roles` a service client's token carries. Every
 // service client gets serviceRole; the worker ALSO gets workerRole, so a
@@ -169,13 +178,20 @@ const serviceRoleMapperName = "semiont service role"
 // that this process may mint agent identities, and a hardcoded claim says that
 // without needing a realm role created and assigned in the same import.
 func serviceAccountClient(svc, secret, audience string) map[string]any {
-	return map[string]any{
-		"clientId":                  serviceClientID(svc),
-		"name":                      "Semiont " + svc,
+	return accountClient(serviceClientID(svc), "Semiont "+svc, map[string]any{"secret": secret}, audience, serviceRolesClaim(svc))
+}
+
+// accountClient: a confidential client that obtains a token for itself and
+// nothing else, proving itself as proof says (a secret, or a key: workerClient),
+// with the audience mapper and the hardcoded roles every service account
+// carries.
+func accountClient(clientID, name string, proof map[string]any, audience, rolesClaim string) map[string]any {
+	client := map[string]any{
+		"clientId":                  clientID,
+		"name":                      name,
 		"enabled":                   true,
 		"protocol":                  "openid-connect",
 		"publicClient":              false,
-		"secret":                    secret,
 		"serviceAccountsEnabled":    true,
 		"standardFlowEnabled":       false,
 		"implicitFlowEnabled":       false,
@@ -199,7 +215,7 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 				"consentRequired": false,
 				"config": map[string]string{
 					"claim.name":         "roles",
-					"claim.value":        serviceRolesClaim(svc),
+					"claim.value":        rolesClaim,
 					"jsonType.label":     "JSON",
 					"access.token.claim": "true",
 					"id.token.claim":     "false",
@@ -207,6 +223,10 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 			},
 		},
 	}
+	for k, v := range proof {
+		client[k] = v
+	}
+	return client
 }
 
 // natsConfPath: where the staged broker config is mounted. Fixed, so the plan
@@ -354,24 +374,25 @@ func cliClient(audience string) map[string]any {
 // keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
 // realm itself, two public clients — the Browser's (authorization code
 // with PKCE) and the launcher's (the device grant) — and a service account
-// for each of serviceClients, every one with an audience mapper that stamps
-// audience, the KB's resource identifier, into every access token: the value
-// the gateway's verifier checks.
+// for each of secretClients and for the machine's worker, every one with an
+// audience mapper that stamps audience, the KB's resource identifier, into
+// every access token: the value the gateway's verifier checks.
 //
 // Import SKIPS a realm that already exists, so a second start changes nothing —
 // including the values here. A deployment whose realm predates a change to this
 // function keeps the settings it was created with; `semiont identity sync`
 // reconciles clients, roles, redirect URIs, web origins and lifetime, and the
 // rest is a console or admin-API job, not a restart.
-func keycloakRealmJSON(realm, audience string, browserPort, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
+func keycloakRealmJSON(realm, audience string, browserPort, accessTokenLifespan int, accounts realmAccounts) []byte {
 	browser := browserClient(audience, browserPort)
 	cli := cliClient(audience)
 	clients := []map[string]any{browser, cli}
-	// Ordered by `serviceClients`, not by map iteration: the rendered document
+	// Ordered by `secretClients`, not by map iteration: the rendered document
 	// is compared against a golden, and Go randomises map order.
-	for _, svc := range serviceClients {
-		clients = append(clients, serviceAccountClient(svc, sidecarSecrets[svc], audience))
+	for _, svc := range secretClients {
+		clients = append(clients, serviceAccountClient(svc, accounts.secrets[svc], audience))
 	}
+	clients = append(clients, workerClient(accounts.worker, audience))
 	doc := map[string]any{
 		"realm":               realm,
 		"enabled":             true,
@@ -495,19 +516,30 @@ func masterRealmOverHTTP() []string {
 	}
 }
 
-// serviceClientSecrets: the per-root credential for every service client.
-// Resolved once per start — the realm import needs them, and so does the
-// preflight that checks the realm honoured them.
-func serviceClientSecrets(x keeper, kb kbRoot) (map[string]string, bool) {
+// realmAccounts: what the realm's service accounts prove themselves with —
+// the root's secret for each of secretClients, and the machine's worker key.
+type realmAccounts struct {
+	secrets map[string]string
+	worker  workerKey
+}
+
+// realmAccountsOf: every service account's credential. Resolved once per
+// start — the realm import needs them, and so does the preflight that checks
+// the realm honoured them.
+func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 	secrets := map[string]string{}
-	for _, svc := range serviceClients {
+	for _, svc := range secretClients {
 		secret, ok := x.serviceClientSecret(kb, svc)
 		if !ok {
-			return nil, false
+			return realmAccounts{}, false
 		}
 		secrets[svc] = secret
 	}
-	return secrets, true
+	worker, ok := x.workerKey()
+	if !ok {
+		return realmAccounts{}, false
+	}
+	return realmAccounts{secrets: secrets, worker: worker}, true
 }
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
@@ -517,7 +549,7 @@ func serviceClientSecrets(x keeper, kb kbRoot) (map[string]string, bool) {
 // persisted: Keycloak creates the admin on its FIRST boot only, so a
 // regenerated value would lock the console out of a realm that already
 // exists.
-func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, string, bool) {
+func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAccounts, string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
 	dbName := fc.stack.Issuer.Spec.Database.Name
@@ -528,33 +560,34 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	if mayConfigure(db) {
 		dbHost = addr
 		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), dbName) {
-			return nil, nil, "", false
+			return nil, realmAccounts{}, "", false
 		}
 	} else {
 		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, dbName)
 		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, dbName)
 	}
 	realm := keycloakRealm(issuerPath(rp.Issuer))
-	// Resolved here and persisted per root, so the container that must PRESENT
-	// each secret reads the same value out of the same file rather than having
-	// it threaded through the start flow. Returned as well, because the
-	// preflight checks these same values against the realm that imports them.
-	secrets, ok := serviceClientSecrets(x, fc.kb)
+	// Resolved here and kept (per root, and the worker's key per machine), so
+	// the container that must PRESENT each credential reads the same value out
+	// of the same file rather than having it threaded through the start flow.
+	// Returned as well, because the preflight checks these same values against
+	// the realm that imports them.
+	accounts, ok := realmAccountsOf(x, fc.kb)
 	if !ok {
-		return nil, nil, "", false
+		return nil, realmAccounts{}, "", false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), browserPort(fc.opts), rp.AccessTokenLifespan, accounts))
 	if !ok {
-		return nil, nil, "", false
+		return nil, realmAccounts{}, "", false
 	}
 	password, ok := x.identityAdminPassword(fc.kb)
 	if !ok {
-		return nil, nil, "", false
+		return nil, realmAccounts{}, "", false
 	}
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
 		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
 		"-e", "KC_HOSTNAME=" + placementOf(fc, x.exposure(addr)).keycloakHostname(),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
-	}, secrets, password, true
+	}, accounts, password, true
 }
