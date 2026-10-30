@@ -39,6 +39,14 @@ class TypesTest {
         serializer(Class.forName(if (name in kindNames) "semiont.identifiers.$name" else "semiont.types.$name"))
 
     @Test
+    fun aUnionMemberNamedAsItsTypeHoldsThatType() {
+        // A target that is a resource's id is the union's ResourceId member, which holds the id itself.
+        val target = wireJson.decodeFromString(AnnotationTargetValue.serializer(), "\"res-1\"")
+        assertEquals(ResourceId("res-1"), (target as AnnotationTargetValue.ResourceId).value)
+        assertEquals("\"res-1\"", wireJson.encodeToString(AnnotationTargetValue.serializer(), target))
+    }
+
+    @Test
     fun everySchemaTheSpecNamesIsATypeHere() {
         assertTrue(schemas.size > 250)
         val missing = schemas.filterNot(::isPlainText).filter { runCatching { typeOf(it) }.isFailure }

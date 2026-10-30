@@ -70,14 +70,13 @@ private fun <P> decode(serializer: KSerializer<P>, stamps: Set<String>, payload:
 
 private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.encodeToJsonElement(channel.payload, payload).jsonObject
 
-/** What is said of a payload on `channel` that was refused as not that channel's: what it lacks, and none of what it holds. */
+/** What a value refused as not of its shape lacks, and none of what it holds: nothing, when what it lacks is not known. */
 @OptIn(ExperimentalSerializationApi::class)
+internal fun lacks(error: IllegalArgumentException): String? = (error as? MissingFieldException)?.missingFields?.joinToString(", ")
+
+/** What is said of a payload on `channel` that was refused as not that channel's. */
 private fun refused(channel: String, error: IllegalArgumentException): String =
-    if (error is MissingFieldException) {
-        "a payload on $channel is not that channel's: it lacks ${error.missingFields.joinToString(", ")}"
-    } else {
-        "a payload on $channel is not that channel's"
-    }
+    lacks(error)?.let { "a payload on $channel is not that channel's: it lacks $it" } ?: "a payload on $channel is not that channel's"
 
 /**
  * Send `payload` as the request of `operation`, and wait up to `timeoutMs`

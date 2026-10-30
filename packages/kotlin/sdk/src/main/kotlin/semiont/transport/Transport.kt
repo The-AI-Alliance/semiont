@@ -76,6 +76,9 @@ public class Watched<T : Any> internal constructor(private val state: StateFlow<
 internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
     private val listeners = CopyOnWriteArrayList<Channel<T>>()
     private val early = mutableListOf<T>()
+
+    /** How many listen now. */
+    val listening: Int get() = listeners.size
     private var listened = false
     private var closed = false
 
