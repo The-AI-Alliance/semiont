@@ -68,9 +68,11 @@ async def work(gateway: str, issuer: str, secret: str) -> None:
 
 A service account proves itself to its issuer with its client secret
 (`SecretCredential`), or with a key (`KeyCredential`, whose `private_key` is an
-RSA key from `cryptography`): each grant then carries an assertion signed for it
-alone (RFC 7523, `private_key_jwt`), which the issuer checks with the public half
-registered on the client, and no secret is sent.
+RSA key from `cryptography`; `private_key_from_pem` reads one from its PKCS#8
+PEM, as a worker is handed it in `SEMIONT_OIDC_CLIENT_KEY`): each grant then
+carries an assertion signed for it alone (RFC 7523, `private_key_jwt`), which
+the issuer checks with the public half registered on the client, and no secret
+is sent. A worker signs in by its key; Semiont's own services by their secrets.
 
 **A person** is signed in at the issuer the knowledge base trusts, and the
 sign-in is kept. [`semiont login`][launcher] keeps one for each stack, and a
@@ -427,7 +429,7 @@ from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
+from semiont.http import AgentToken, HttpTransport, KeyCredential, ServiceToken, private_key_from_pem
 from semiont.identifiers import AnnotationId
 from semiont.types import (
     Agent,
@@ -465,9 +467,9 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
     return MarkJobDone(found=len(quoted), persisted=len(highlights))
 
 
-async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process signs in at its issuer as its account: the agent its work is attributed to.
-    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
+async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
+    # The process signs in at its issuer as its account, by its key: the agent its work is attributed to.
+    service = ServiceToken(KeyCredential(issuer=issuer, client_id=client_id, private_key=private_key_from_pem(key)))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
         AgentToken(gateway, service=service) as agent,

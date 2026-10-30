@@ -10,9 +10,12 @@ import importlib
 import re
 from collections.abc import Callable, Mapping
 from pathlib import Path
+from urllib.parse import parse_qs
 
 import pytest
 from aio import hurried, run, settle, soon
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from gateway_server import GatewayServer
 from issuer import ALICE, ME, PENDING, SECRET, TOKEN, agent_named, issuer_of, minted, says, trusting
 from kb import answer, asked_for, knowing_content, recorded, silent
@@ -31,7 +34,7 @@ from readme import (
     the_bus,
     the_client,
 )
-from spec import PACKAGE, ROOT, SPEC, JsonObject, objects, read
+from spec import PACKAGE, ROOT, SPEC, JsonObject, objects, read, strings
 from tokens import token
 
 from semiont.annotations import QuotedText, target_selector
@@ -425,7 +428,9 @@ def test_a_worker_says_what_it_is_called_claims_as_its_agent_commits_a_highlight
                     gateway.send(None, {"channel": "mark:commit-ok", "payload": held, "correlationId": emit["correlationId"]})
 
             gateway.on_emit = dispatching
-            working = asyncio.ensure_future(a_worker.work(gateway.origin, issuer_of(gateway), "my-worker", SECRET))
+            key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+            pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+            working = asyncio.ensure_future(a_worker.work(gateway.origin, issuer_of(gateway), "my-worker", pem))
 
             def said() -> list[str]:
                 return [str(emit["channel"]) for emit in gateway.emits]
@@ -471,6 +476,10 @@ def test_a_worker_says_what_it_is_called_claims_as_its_agent_commits_a_highlight
             ]
             # And it reports what it proposed and what the record holds, established by the record's acknowledgement.
             assert complete["payload"] == {**identity, "result": {"found": 1, "persisted": 1}, "durability": "acknowledged"}
+            # It signs in by its key: the grant carries the client assertion's fields, and no secret.
+            (granted,) = gateway.of("POST", TOKEN)
+            form = strings(read(SPEC / "session/client-assertion-cases.json")["form"], "the client assertion's form")
+            assert sorted(parse_qs(granted.body.decode(), strict_parsing=True)) == sorted(form)
             # It works as its account, on a stream that names what claiming and committing read and nothing else.
             (named,) = gateway.of("GET", ME)
             (subscribed,) = gateway.of("POST", "/bus/subscribe")

@@ -47,7 +47,8 @@ Every suspending member has a twin for Java that returns a `CompletableFuture` (
   ```
 
 - **A person** signs in from a process with no browser through the device grant: `signInDevice(kb, kept) { code -> ... }` shows the code, and keeps the sign-in once it is approved. `signOut(kept)` revokes it at the issuer and forgets it.
-- **A service** signs in as itself with `ServiceToken(SecretCredential(...))`. An agent is an account, as a person is: `AgentToken` signs it in with its account's token, learns the DID the gateway names it by from `GET /api/users/me`, and renews by a new grant at its issuer, when the token is due and at once when the gateway refuses it. A transport takes it as its token and its refresher. An agent whose renewal fails keeps the token it has and tries again.
+- **A service** signs in as itself with `ServiceToken(credential)`, proving itself with its client secret (`SecretCredential`) or with a key (`KeyCredential`). With a key, each grant carries an assertion signed for it alone (RFC 7523, `private_key_jwt`), which the issuer checks with the public half registered on the client, and no secret is sent. A worker signs in by key: the launcher hands it its client id in `SEMIONT_OIDC_CLIENT_ID` and its RSA key as PKCS#8 PEM in `SEMIONT_OIDC_CLIENT_KEY`, and the worker reads them itself, into `ServiceToken(KeyCredential.fromPem(issuer, clientId, pem))`. A PEM that is not an RSA key in PKCS#8 throws `IllegalArgumentException`, which never says the key.
+- **An agent** is an account, as a person is: `AgentToken` signs it in with its account's token, learns the DID the gateway names it by from `GET /api/users/me`, and renews by a new grant at its issuer, when the token is due and at once when the gateway refuses it. A transport takes it as its token and its refresher. An agent whose renewal fails keeps the token it has and tries again.
 
 ## Live queries
 

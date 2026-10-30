@@ -261,7 +261,7 @@ Create the client yourself. It is the same client:
 - **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
 - **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, a **`kind`** of `agent`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
 
-The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json).
+The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
 
 To revoke, delete the client.
 

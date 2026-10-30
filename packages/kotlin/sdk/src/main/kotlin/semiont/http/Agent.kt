@@ -34,7 +34,12 @@ import java.io.IOException
 import java.net.URI
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.security.KeyFactory
+import java.security.interfaces.RSAPrivateCrtKey
+import java.security.spec.InvalidKeySpecException
+import java.security.spec.PKCS8EncodedKeySpec
 import java.time.Duration
+import java.util.Base64
 import java.util.concurrent.CompletableFuture
 
 /** A service account at an issuer, by how it proves itself. */
@@ -55,9 +60,58 @@ public class SecretCredential(
     override fun toString(): String = "SecretCredential(issuer=$issuer, clientId=$clientId)"
 }
 
-/** The client-credentials grant's form for `credential`. */
-private fun proof(credential: Credential): List<Pair<String, String>> = when (credential) {
+/**
+ * A service account at an issuer, which proves itself with a key: each grant
+ * carries an assertion signed with `privateKey`, which the issuer checks with
+ * the public half registered on the client. The key never leaves the process,
+ * and what the credential says of itself never says it.
+ */
+public class KeyCredential(
+    override val issuer: String,
+    override val clientId: String,
+    /** The account's RSA key, which carries its public half: the assertion names the key by that half's thumbprint. */
+    public val privateKey: RSAPrivateCrtKey,
+) : Credential {
+    override fun toString(): String = "KeyCredential(issuer=$issuer, clientId=$clientId)"
+
+    public companion object {
+        private val PEM = Regex("""-----BEGIN PRIVATE KEY-----([A-Za-z0-9+/=\s]*)-----END PRIVATE KEY-----""")
+
+        /**
+         * The account whose key is `pem`: an RSA key in PKCS#8 PEM
+         * (`-----BEGIN PRIVATE KEY-----`), as the launcher hands a worker its
+         * key in `SEMIONT_OIDC_CLIENT_KEY`. Anything else throws
+         * `IllegalArgumentException`, saying what it is not and nothing of
+         * what it holds.
+         */
+        @JvmStatic
+        public fun fromPem(issuer: String, clientId: String, pem: String): KeyCredential {
+            val body = PEM.matchEntire(pem.trim())?.groupValues?.get(1)
+                ?: throw IllegalArgumentException("the key for $clientId is not a PKCS#8 PEM, one `-----BEGIN PRIVATE KEY-----` block")
+            val der = try {
+                Base64.getDecoder().decode(body.filterNot(Char::isWhitespace))
+            } catch (_: IllegalArgumentException) {
+                throw IllegalArgumentException("the key for $clientId is not a PKCS#8 PEM: its body is not base64")
+            }
+            val key = try {
+                KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(der))
+            } catch (_: InvalidKeySpecException) {
+                throw IllegalArgumentException("the key for $clientId is not an RSA private key")
+            }
+            require(key is RSAPrivateCrtKey) { "the key for $clientId is an RSA private key without its public half" }
+            return KeyCredential(issuer, clientId, key)
+        }
+    }
+}
+
+/** The client-credentials grant's form for `credential` at `tokenEndpoint`: the secret itself, or an assertion signed for this grant alone. */
+private fun proof(credential: Credential, tokenEndpoint: String): List<Pair<String, String>> = when (credential) {
     is SecretCredential -> listOf("grant_type" to "client_credentials", "client_id" to credential.clientId, "client_secret" to credential.clientSecret)
+    is KeyCredential -> listOf(
+        "grant_type" to "client_credentials",
+        "client_assertion_type" to JWT_BEARER,
+        "client_assertion" to clientAssertion(credential.privateKey, credential.clientId, tokenEndpoint, issuedAt = System.currentTimeMillis() / 1000, jti = freshJti()),
+    )
 }
 
 /**
@@ -65,7 +119,7 @@ private fun proof(credential: Credential): List<Pair<String, String>> = when (cr
  * it is kept until it is due for renewal by the schedule every Semiont client
  * keeps, half its lifetime before it expires and at most
  * `refreshBeforeExpMs`. A service reaches another as itself with this token.
- * A failure names the issuer and the client, and never the secret.
+ * A failure names the issuer and the client, and never the secret or the key.
  */
 public class ServiceToken(private val credential: Credential) {
     // One grant at a time: those who ask while one is under way are given what it brings.
@@ -108,11 +162,11 @@ public class ServiceToken(private val credential: Credential) {
         val clientId = credential.clientId
         val endpoint = endpoint()
         val answer = try {
-            postForm(endpoint, proof(credential))
+            postForm(endpoint, proof(credential, endpoint))
         } catch (_: SignInError) {
             throw SignInError(SignInErrorCode.Exchange, "Client-credentials grant for $clientId at $issuer got no answer")
         }
-        // The status, never the body: an error body can echo the secret.
+        // The status, never the body: an error body can echo what it was sent.
         if (answer.status !in 200..299) throw SignInError(SignInErrorCode.Exchange, "Client-credentials grant for $clientId at $issuer failed (HTTP ${answer.status})", answer.status)
         val token = answer.text("access_token") ?: throw SignInError(SignInErrorCode.Exchange, "Token endpoint for $issuer returned no `access_token`", answer.status)
         val lifetime = answer.seconds("expires_in")

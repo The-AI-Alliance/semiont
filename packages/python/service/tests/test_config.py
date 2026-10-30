@@ -289,6 +289,9 @@ def _pem(key: rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey, encryption: serial
 
 
 _KEY: Final = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+_PKCS1: Final = _KEY.private_bytes(
+    serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()
+).decode()
 
 
 def test_a_key_account_is_the_client_id_and_the_rsa_key_its_variable_holds() -> None:
@@ -322,9 +325,10 @@ def test_a_secret_is_no_key_account() -> None:
     [
         ("not a key at all", "is not an unencrypted PEM private key"),
         (_pem(_KEY, serialization.BestAvailableEncryption(b"a passphrase")), "is not an unencrypted PEM private key"),
+        (_PKCS1, "is not an unencrypted PEM private key"),
         (_pem(ec.generate_private_key(ec.SECP256R1())), "is not an RSA key: a worker signs its assertions with RS256"),
     ],
-    ids=["not PEM", "encrypted", "not RSA"],
+    ids=["not PEM", "encrypted", "PKCS#1", "not RSA"],
 )
 def test_a_key_that_is_not_an_unencrypted_rsa_key_is_refused_and_never_said(held: str, saying: str) -> None:
     with pytest.raises(Refused) as refused:

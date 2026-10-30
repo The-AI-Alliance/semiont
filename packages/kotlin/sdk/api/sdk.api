@@ -806,6 +806,20 @@ public final class semiont/http/IssuerKt {
 	public static final fun signOutFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
 }
 
+public final class semiont/http/KeyCredential : semiont/http/Credential {
+	public static final field Companion Lsemiont/http/KeyCredential$Companion;
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/security/interfaces/RSAPrivateCrtKey;)V
+	public static final fun fromPem (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/KeyCredential;
+	public fun getClientId ()Ljava/lang/String;
+	public fun getIssuer ()Ljava/lang/String;
+	public final fun getPrivateKey ()Ljava/security/interfaces/RSAPrivateCrtKey;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/http/KeyCredential$Companion {
+	public final fun fromPem (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Lsemiont/http/KeyCredential;
+}
+
 public final class semiont/http/PendingAuthorization {
 	public static final field Companion Lsemiont/http/PendingAuthorization$Companion;
 	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/types/HttpEndpoint;Lsemiont/http/IssuerEndpoints;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V

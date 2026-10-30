@@ -17,10 +17,7 @@ package launcher
 // token without trusting it.
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -103,10 +100,10 @@ func verifyServiceAccounts(issuerBase, audience string, accounts realmAccounts) 
 		}
 	}
 	for _, svc := range secretClients {
-		claims, err := serviceAccountClaims(endpoint, serviceClientID(svc), accounts.secrets[svc])
+		claims, err := clientCredentialsClaims(endpoint, semiont.SecretCredential{Issuer: issuerBase, ClientID: serviceClientID(svc), ClientSecret: accounts.secrets[svc]})
 		check(svc, claims, err, "the realm has no such client, or its secret differs")
 	}
-	claims, err := keyAccountClaims(endpoint, serviceClientID("worker"), accounts.worker.signer)
+	claims, err := clientCredentialsClaims(endpoint, semiont.KeyCredential{Issuer: issuerBase, ClientID: serviceClientID("worker"), PrivateKey: accounts.worker.signer})
 	check("worker", claims, err, "the realm has no such client, or it holds another key than this machine's")
 	return findings, observedLifespan
 }
@@ -640,41 +637,17 @@ func discoverEndpoints(issuerBase string) (oidcEndpoints, error) {
 	return oidcEndpoints{token: doc.TokenEndpoint, authorization: doc.AuthEndpoint, device: doc.DeviceEnder}, nil
 }
 
-// serviceAccountClaims: the grant for a client that proves itself with a
-// secret.
-func serviceAccountClaims(tokenEndpoint, clientID, clientSecret string) (map[string]any, error) {
-	return clientCredentialsClaims(tokenEndpoint, url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-	})
-}
-
-// keyAccountClaims: the same grant for a client that proves itself with a
-// key — an assertion signed with it, made for this one request, in place of a
-// secret.
-func keyAccountClaims(tokenEndpoint, clientID string, key *rsa.PrivateKey) (map[string]any, error) {
-	jti := make([]byte, 16)
-	if _, err := rand.Read(jti); err != nil {
-		return nil, err
-	}
-	assertion, err := clientAssertion(key, clientID, tokenEndpoint, time.Now().Unix(), hex.EncodeToString(jti))
-	if err != nil {
-		return nil, fmt.Errorf("signing the client assertion: %v", err)
-	}
-	return clientCredentialsClaims(tokenEndpoint, url.Values{
-		"grant_type":            {"client_credentials"},
-		"client_assertion_type": {jwtBearer},
-		"client_assertion":      {assertion},
-	})
-}
-
-// clientCredentialsClaims runs the grant the form asks for and decodes what
-// comes back.
+// clientCredentialsClaims runs the client-credentials grant of the account
+// credential names — by its secret, or by an assertion signed with its key for
+// this one request — and decodes what comes back.
 //
 // Errors carry the STATUS and never the body: a token endpoint's error body
 // can echo the request, and the request carried the client's proof.
-func clientCredentialsClaims(tokenEndpoint string, form url.Values) (map[string]any, error) {
+func clientCredentialsClaims(tokenEndpoint string, credential semiont.Credential) (map[string]any, error) {
+	form, err := credential.GrantForm(tokenEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("making the client-credentials grant: %v", err)
+	}
 	resp, err := preflightHTTP.PostForm(tokenEndpoint, form)
 	if err != nil {
 		return nil, fmt.Errorf("client-credentials grant failed: %v", err)

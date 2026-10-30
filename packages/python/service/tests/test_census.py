@@ -158,11 +158,9 @@ def test_what_the_manifest_requires_is_what_the_source_imports() -> None:
     roots = {module.split(".")[0] for module in everything}
     # Every module imported from outside the standard library is declared, and nothing declared goes unused.
     assert roots - set(sys.stdlib_module_names) - {"semiont_service"} == declared
-    assert declared == {"cryptography", "httpx", "opentelemetry", "pydantic", "semiont"}
+    assert declared == {"httpx", "opentelemetry", "pydantic", "semiont"}
     # The one request a service makes itself is for a resource's bytes, of the Archivist.
     assert modules({"httpx"}) == ["archivist.py"]
-    # The one key a service reads is the one it signs in with.
-    assert modules({"cryptography"}) == ["config.py"]
     assert names >= set(part_of_opentelemetry)
     for distribution, part in part_of_opentelemetry.items():
         assert any(module == part or module.startswith(f"{part}.") for module in everything), f"nothing imports {distribution}"

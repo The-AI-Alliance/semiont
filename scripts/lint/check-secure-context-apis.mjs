@@ -25,6 +25,11 @@ const ALLOWED = {
   'packages/typescript/react-ui/src/lib/clipboard.ts': [
     'the one read of navigator.clipboard, returned as absent where the page has none: a copy control renders only where it is present',
   ],
+  'packages/typescript/core/src/client-assertion.ts': [
+    "privateKeyFromPem's import of a service account's PKCS#8 key: a worker's key, which no page holds",
+    "clientAssertion's export of the key's public members, which name it by its thumbprint",
+    "clientAssertion's RS256 signature over a worker's assertion",
+  ],
 };
 
 const SOURCE = /\.(ts|tsx|mts|cts)$/;

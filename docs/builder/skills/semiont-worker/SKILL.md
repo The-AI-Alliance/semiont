@@ -34,7 +34,7 @@ Two more channels go to the dispatcher: `job:checkpoint` records the units a job
 
 ## Who a worker is
 
-A worker does not sign in as a person. It is an agent, and an agent is an account, as a person is: a service account at the knowledge base's issuer, proved with the OAuth client-credentials grant. Its client id and secret are `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, the same variables Semiont's own services read.
+A worker does not sign in as a person. It is an agent, and an agent is an account, as a person is: a service account at the knowledge base's issuer, proved with the OAuth client-credentials grant. It proves itself with a key, not a secret: its client id is `SEMIONT_OIDC_CLIENT_ID`, and `SEMIONT_OIDC_CLIENT_KEY` holds its RSA private key, PKCS#8 PEM. The issuer holds the key's public half, registered on the worker's client by the knowledge base's operator (`semiont worker key` prints it on the machine that runs the worker, and `semiont identity grant` registers it), and each grant carries an assertion signed with the key (OpenID Connect's `private_key_jwt`), so no secret is sent. Every SDK reads such a PEM in a line and signs the assertion itself.
 
 The token the issuer grants is the worker's bearer at the gateway, and the gateway names the worker by that account: `did:web:<domain>:agents:<subject>`, an agent's DID, because the realm marks every agent's account as one (its tokens carry the claim `kind`, holding `agent`). That DID is what the work is attributed to. The model a worker runs is no part of who it is: each annotation it commits names the engine that made it. A process signs in once, whatever models it runs.
 
@@ -47,23 +47,23 @@ The account needs the `semiont-worker` role at the issuer. The gateway passes on
 ```typescript
 import {
   HttpContentTransport, HttpTransport, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, SemiontClient,
-  discoverIssuer, startAgentSession, type AgentSession, type HttpEndpoint,
+  discoverIssuer, privateKeyFromPem, startAgentSession, type AgentSession, type HttpEndpoint,
 } from '@semiont/sdk';
 import { baseUrl } from '@semiont/core';
 
 async function signIn(endpoint: HttpEndpoint, gatewayUrl: string): Promise<{ agent: AgentSession; client: SemiontClient }> {
   const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
-  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required');
+  const clientKey = process.env.SEMIONT_OIDC_CLIENT_KEY;
+  if (!clientId || !clientKey) {
+    throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_KEY are required');
   }
 
   // The knowledge base names its issuer. The worker signs in there as its
-  // account, and the gateway names it by that account.
+  // account, by its key, and the gateway names it by that account.
   const { issuer } = await discoverIssuer(endpoint);
   const agent = await startAgentSession({
     baseUrl: gatewayUrl,
-    credential: { issuer, clientId, clientSecret },
+    credential: { issuer, clientId, privateKey: await privateKeyFromPem(clientKey) },
     logger: console,
   });
 
@@ -180,7 +180,7 @@ Semiont's own worker is the [Worker service](../../../../images/worker/README.md
 ```typescript
 import {
   HttpContentTransport, HttpTransport, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, SemiontClient,
-  annotationOfSpan, discoverIssuer, reconcile, startAgentSession,
+  annotationOfSpan, discoverIssuer, privateKeyFromPem, reconcile, startAgentSession,
   type Annotation, type HeldMarkJob, type HttpEndpoint, type QuotedText,
 } from '@semiont/sdk';
 import { baseUrl, type components } from '@semiont/core';
@@ -225,15 +225,15 @@ async function highlight(
 
 async function main(): Promise<void> {
   const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
-  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required');
+  const clientKey = process.env.SEMIONT_OIDC_CLIENT_KEY;
+  if (!clientId || !clientKey) {
+    throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_KEY are required');
   }
 
   const { issuer } = await discoverIssuer(endpoint);
   const agent = await startAgentSession({
     baseUrl: gatewayUrl,
-    credential: { issuer, clientId, clientSecret },
+    credential: { issuer, clientId, privateKey: await privateKeyFromPem(clientKey) },
     logger: console,
   });
   console.log(`working as ${agent.did}`);
@@ -314,13 +314,21 @@ Let a job in hand finish before shutting down, or stop the claims, which fails i
 The Rust SDK is two crates: `semiont`, whose client has `job.claim`, and `semiont-http-transport`, which signs the worker in. `AgentToken::sign_in` signs the worker in as [its account](#who-a-worker-is), learns the DID the gateway names it by, and keeps its token fresh for as long as the process holds it.
 
 ```rust
+// Its account at the issuer proves itself with the worker's key, the
+// PKCS#8 PEM in `SEMIONT_OIDC_CLIENT_KEY`: each grant carries an
+// assertion signed with it, and no secret.
+let credential = KeyCredential {
+    issuer,
+    client_id,
+    private_key: private_key_from_pem(key)?,
+};
 // What the agent says it is called: here, its client id.
 let called = credential.client_id.clone();
 // A worker signs in as a daemon does: as itself, the agent its work is
 // attributed to.
 let agent = AgentToken::sign_in(
     gateway,
-    ServiceToken::new(credential, http.clone()),
+    ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
     http.clone(),
 )
 .await?;
@@ -433,7 +441,7 @@ while let Some(handed) = claims.next().await {
 claims.stop().await;
 ```
 
-`gateway` is the gateway's origin as text, `credential` is the service account (a `Credential`: its issuer, client id and client secret), and `http` is the process's `reqwest::Client`. `passages` stands for your model: given the text, the passages it would highlight, each as the words it quoted (a `Vec<QuotedText>`). [The transport's README](../../../../packages/rust/http-transport/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/rust/sdk/README.md#a-worker) has the rules it keeps.
+`gateway` is the gateway's origin as text, `issuer` the issuer the knowledge base trusts, `client_id` the worker's client there (`SEMIONT_OIDC_CLIENT_ID`), `key` the PKCS#8 PEM of its key (`SEMIONT_OIDC_CLIENT_KEY`), and `http` the process's `reqwest::Client`. `passages` stands for your model: given the text, the passages it would highlight, each as the words it quoted (a `Vec<QuotedText>`). [The transport's README](../../../../packages/rust/http-transport/README.md#a-daemon) has what surrounds this block, and [the SDK's](../../../../packages/rust/sdk/README.md#a-worker) has the rules it keeps.
 
 What differs from TypeScript is what the language gives:
 
@@ -453,7 +461,7 @@ from semiont.annotations import QuotedText, annotation_of_span, reconcile
 from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
+from semiont.http import AgentToken, HttpTransport, KeyCredential, ServiceToken, private_key_from_pem
 from semiont.identifiers import AnnotationId
 from semiont.types import (
     Agent,
@@ -491,9 +499,9 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
     return MarkJobDone(found=len(quoted), persisted=len(highlights))
 
 
-async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process signs in at its issuer as its account: the agent its work is attributed to.
-    service = ServiceToken(SecretCredential(issuer=issuer, client_id=client_id, client_secret=secret))
+async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
+    # The process signs in at its issuer as its account, by its key: the agent its work is attributed to.
+    service = ServiceToken(KeyCredential(issuer=issuer, client_id=client_id, private_key=private_key_from_pem(key)))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
         AgentToken(gateway, service=service) as agent,
@@ -532,7 +540,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
                                 await job.complete(result)
 ```
 
-`gateway` is the gateway's origin and `issuer` is the issuer the knowledge base trusts. Nothing in the package reads the environment: the process reads its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, and passes what it found. [The package's README](../../../../packages/python/sdk/README.md#a-worker) has the rules this program keeps.
+`gateway` is the gateway's origin and `issuer` is the issuer the knowledge base trusts. Nothing in the package reads the environment: the process reads its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY`, and passes what it found; `private_key_from_pem` reads the key. [The package's README](../../../../packages/python/sdk/README.md#a-worker) has the rules this program keeps.
 
 What differs from TypeScript is what the language gives:
 

@@ -43,7 +43,7 @@ func stubIssuer(t *testing.T, grant func(clientID string) (int, string)) *httpte
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		clientID := r.PostFormValue("client_id")
-		if r.PostFormValue("client_assertion_type") == jwtBearer {
+		if r.PostFormValue("client_assertion_type") == semiont.JWTBearer {
 			clientID = assertedClient(r.PostFormValue("client_assertion"), srv.URL+"/token", testWorkerKey())
 		}
 		code, body := 401, `{"error":"invalid_client"}`
@@ -134,7 +134,7 @@ func assertedClient(assertion, tokenEndpoint string, k workerKey) string {
 		}
 	}
 	if header.Alg != "RS256" || header.Kid != k.thumbprint || claims.Iss != claims.Sub ||
-		claims.Aud != tokenEndpoint || claims.Jti == "" || claims.Exp != claims.Iat+assertionLifetimeSeconds {
+		claims.Aud != tokenEndpoint || claims.Jti == "" || claims.Exp != claims.Iat+semiont.AssertionLifetimeSeconds {
 		return ""
 	}
 	return claims.Iss
