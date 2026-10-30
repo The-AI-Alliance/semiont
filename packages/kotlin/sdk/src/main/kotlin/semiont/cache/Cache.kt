@@ -8,6 +8,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -209,8 +210,13 @@ internal class Cache<K : Any, V : Any>(
      * is. Concurrent asks for one key share one fetch.
      */
     suspend fun fetch(key: K): V {
+        val caller = currentCoroutineContext()
         val fetch = synchronized(lock) {
-            if (disposed) throw closed()
+            if (disposed) {
+                // A caller that has stopped waiting is not told the client closed: its end is its own, as in `joined`.
+                caller.ensureActive()
+                throw closed()
+            }
             fetching(key)
         }
         return joined(fetch)
