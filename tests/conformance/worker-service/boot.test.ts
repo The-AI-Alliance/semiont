@@ -3,7 +3,7 @@
  * (WORKER-SERVICE.md § Configuration): the one document it reads, the two
  * variables of its service account, and the provider keys the document names.
  */
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -134,24 +134,41 @@ eachWorkerService("the worker's boot", (world) => {
     expect(dialled(world())).toEqual(before);
   });
 
-  it.each(['SEMIONT_OIDC_CLIENT_ID', 'SEMIONT_OIDC_CLIENT_SECRET'])('refuses to start without %s, or with it empty', async (variable) => {
+  it.each(['SEMIONT_OIDC_CLIENT_ID', 'SEMIONT_OIDC_CLIENT_KEY'])('refuses to start without %s, or with it empty', async (variable) => {
     const before = dialled(world());
     for (const value of [undefined, '']) {
       const refusal = await world().refused({ env: { ...world().env, [variable]: value } });
       expect(refusal.code).toBe(1);
       expect(fatal(refusal.stderr)).toEqual([`[fatal] ${variable} is not set in the worker's environment: a worker signs in as a service account`]);
-      expect(refusal.output).not.toContain(world().env.SEMIONT_OIDC_CLIENT_SECRET!);
+      expect(refusal.output).not.toContain(world().env.SEMIONT_OIDC_CLIENT_KEY!);
+    }
+    expect(dialled(world())).toEqual(before);
+  });
+
+  it('refuses to start with a key it cannot read, or one that is not RSA, and does not repeat it', async () => {
+    const before = dialled(world());
+    const ec = generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    for (const [held, said] of [
+      ['not a key at all', 'is not an unencrypted PEM private key'],
+      [ec, 'is not an RSA key: a worker signs its assertions with RS256'],
+    ] as const) {
+      const refusal = await world().refused({ env: { ...world().env, SEMIONT_OIDC_CLIENT_KEY: held } });
+      expect(refusal.code).toBe(1);
+      expect(fatal(refusal.stderr)).toEqual([`[fatal] SEMIONT_OIDC_CLIENT_KEY in the worker's environment ${said}`]);
+      expect(refusal.output).not.toContain(held);
     }
     expect(dialled(world())).toEqual(before);
   });
 
   it('exits 1, having served nothing, when the issuer refuses its service account, saying why once on stderr', async () => {
-    const refusal = await world().refused({ env: { ...world().env, SEMIONT_OIDC_CLIENT_SECRET: 'not-the-secret' } });
+    // A key the issuer holds no public half of: its assertion is refused.
+    const unregistered = generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const refusal = await world().refused({ env: { ...world().env, SEMIONT_OIDC_CLIENT_KEY: unregistered } });
     expect(refusal.code).toBe(1);
     const said = fatal(refusal.stderr);
     expect(said).toHaveLength(1);
     expect(said[0]!.length).toBeGreaterThan('[fatal] '.length);
-    expect(refusal.output).not.toContain('not-the-secret');
+    expect(refusal.output).not.toContain(unregistered);
     expect(world().claims).toEqual([]);
   });
 
@@ -166,7 +183,7 @@ eachWorkerService("the worker's boot", (world) => {
       const said = fatal(refusal.stderr);
       expect(said).toHaveLength(1);
       expect(said[0]).toContain(String(settings.port));
-      expect(refusal.output).not.toContain(world().env.SEMIONT_OIDC_CLIENT_SECRET!);
+      expect(refusal.output).not.toContain(world().env.SEMIONT_OIDC_CLIENT_KEY!);
     } finally {
       await new Promise((resolve) => holder.close(resolve));
     }

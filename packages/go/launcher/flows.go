@@ -497,15 +497,15 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			}
 			extra = append(extra, "-v", conf+":"+natsConfPath+":ro")
 		}
-		var svcSecrets map[string]string
+		var accounts realmAccounts
 		var adminPassword string
 		if role == "identity" {
-			kc, secrets, password, ok := identityRunExtras(x, fc, addr)
+			kc, held, password, ok := identityRunExtras(x, fc, addr)
 			if !ok {
 				return 1
 			}
 			extra = append(extra, kc...)
-			svcSecrets, adminPassword = secrets, password
+			accounts, adminPassword = held, password
 		}
 		creds, err := daemonLaunchEnv(fc, role, rp)
 		if err != nil {
@@ -548,7 +548,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `keycloakEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightIdentity(keycloakEndpoint(rp, e), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, true) {
+			if !x.preflightIdentity(keycloakEndpoint(rp, e), fc.kb.ident.resource(), accounts, rp.AccessTokenLifespan, true) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
@@ -618,11 +618,11 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// The base is the CONFIGURED issuer, not identityEndpoint's localhost
 		// form — nothing of this one is on this host.
 		if role == "identity" {
-			secrets, ok := serviceClientSecrets(x, fc.kb)
+			accounts, ok := realmAccountsOf(x, fc.kb)
 			if !ok {
 				return 1
 			}
-			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), secrets, 0, false) {
+			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), accounts, 0, false) {
 				return 1
 			}
 		}
@@ -852,18 +852,28 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	x.banner(startBanner(fc, sc.noun))
 	// No sidecar mounts a store: the Smelter keeps its anchored text on the
 	// Archivist's surface, and the worker and the Weaver keep nothing.
-	clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
-	if !ok {
-		return 1
-	}
-	// Each reads its own configuration document, staged for it.
+	// Each reads its own configuration document, staged for it, and proves
+	// itself with its own credential: the worker with this machine's key, the
+	// others with the root's secret for them.
 	var args []string
 	switch sc.svc {
 	case "worker":
-		args = workerArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		key, ok := x.workerKey()
+		if !ok {
+			return 1
+		}
+		args = workerArgs(stage, x.exposure(addr), key.private, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "smelter":
+		clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
+		if !ok {
+			return 1
+		}
 		args = smelterArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "weaver":
+		clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
+		if !ok {
+			return 1
+		}
 		args = weaverArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	}
 	id, ok := x.runDetached(args)

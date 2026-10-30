@@ -234,7 +234,7 @@ export class LibrarianWorld {
       if (said !== undefined) signals.violations.push(`${frame.channel} carried a payload that is ${said}: ${JSON.stringify(frame.payload).slice(0, 400)}`);
     });
 
-    const graph = { uri: `bolt://${graphDatabase.host}:7687`, username: 'neo4j', database: 'neo4j', passwordEnv: GRAPH_PASSWORD };
+    const graph: components['schemas']['Neo4jGraphConfig'] = { type: 'neo4j', uri: `bolt://${graphDatabase.host}:7687`, username: 'neo4j', database: 'neo4j', passwordEnv: GRAPH_PASSWORD };
     const gatewayUrl = kb.world.origin;
     const issuer = kb.world.issuer.origin;
     const archivist = { host: '127.0.0.1', port: kb.settings.port };
@@ -245,7 +245,7 @@ export class LibrarianWorld {
         gatewayUrl,
         issuer,
         archivist,
-        graph: { type: 'neo4j', ...graph },
+        graph,
         vectors: { type: 'qdrant', host: vectorDatabase.host, port: QDRANT_PORT },
         embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: embedder.origin },
         matcher: { type: 'ollama', model: MATCHER_MODEL, baseUrl: matcher.origin },

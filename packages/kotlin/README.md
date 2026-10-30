@@ -6,7 +6,7 @@ The Kotlin SDK, which Java programs call too.
 
 | Package | Published | Coverage | What it is |
 |---|---|---|---|
-| [kotlin/sdk](./sdk/README.md) | Not published | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=kotlin-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | The Kotlin SDK, one artifact for Kotlin and Java programs. Its build, its toolchain and the gates it is held to are in place; its client is not yet written |
+| [kotlin/sdk](./sdk/README.md) | Not published | [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=kotlin-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components) | The Kotlin SDK, one artifact for Kotlin and Java programs: the protocol's types, generated from the spec at build time, its build and the gates it is held to. Its client is not yet written |
 
 ## Where things are
 

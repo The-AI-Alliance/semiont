@@ -21,7 +21,7 @@ export type WorkerSettings = components['schemas']['WorkerConfig'];
 
 export interface WorkerEnvironment {
   SEMIONT_OIDC_CLIENT_ID?: string;
-  SEMIONT_OIDC_CLIENT_SECRET?: string;
+  SEMIONT_OIDC_CLIENT_KEY?: string;
   OTEL_EXPORTER_OTLP_ENDPOINT?: string;
   [name: string]: string | undefined;
 }
@@ -34,7 +34,7 @@ export interface WorkerEnvironment {
  */
 export const READ_FROM_THE_ENVIRONMENT = [
   'SEMIONT_OIDC_CLIENT_ID',
-  'SEMIONT_OIDC_CLIENT_SECRET',
+  'SEMIONT_OIDC_CLIENT_KEY',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
   'OTEL_SERVICE_NAME',
   'OTEL_SDK_DISABLED',

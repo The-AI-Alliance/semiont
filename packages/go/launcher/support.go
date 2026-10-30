@@ -188,7 +188,7 @@ func (u *UI) Stamp(event string) {
 // anyone diagnosing an authentication failure wants. A census
 // (TestInjectedCredentialsAreClassified) makes a credential-looking injected
 // name fail until it is classified here.
-var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true}
+var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true, "SEMIONT_OIDC_CLIENT_KEY": true}
 
 // publicEnv: launcher-set variables whose values are not secrets — paths,
 // switches, database and user names — beyond the injected client id.
@@ -204,7 +204,7 @@ var publicEnv = map[string]bool{
 // injectedVars: the variables the launcher sets in a service's environment
 // itself, so it neither demands nor forwards them from the user's.
 var injectedVars = map[string]bool{
-	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
+	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true, "SEMIONT_OIDC_CLIENT_KEY": true,
 }
 
 // onCommandLine: whether a variable's value may ride a container's command

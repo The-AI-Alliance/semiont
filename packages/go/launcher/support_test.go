@@ -93,26 +93,29 @@ func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 // (KEYCLOAK_PORT, after a codespace's issuer had moved). The credentials
 // themselves leave argv, for the runtime command's environment.
 func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
+	const pemValue = "-----BEGIN PRIVATE KEY-----\nMIIEvQ==\n-----END PRIVATE KEY-----\n"
 	argv, env := offCommandLine([]string{"run",
 		"--env", "OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318",
-		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-worker",
+		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-worker-local",
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET=s3cret",
+		"--env", "SEMIONT_OIDC_CLIENT_KEY=" + pemValue,
 		"--env", "JWT_SECRET=jwt-value",
 		"--env", "ANTHROPIC_API_KEY=sk-value",
 		"-e", "POSTGRES_PASSWORD=pg-value",
 	})
 	got := strings.Join(argv, " ")
-	for _, shown := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318", "SEMIONT_OIDC_CLIENT_ID=semiont-worker"} {
+	for _, shown := range []string{"OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318", "SEMIONT_OIDC_CLIENT_ID=semiont-worker-local"} {
 		if !strings.Contains(got, shown) {
 			t.Errorf("%s was hidden:\n%s", shown, got)
 		}
 	}
-	for _, secret := range []string{"s3cret", "jwt-value", "sk-value", "pg-value"} {
+	for _, secret := range []string{"s3cret", "PRIVATE KEY", "jwt-value", "sk-value", "pg-value"} {
 		if strings.Contains(got, secret) {
 			t.Errorf("a credential reached the command line (%s):\n%s", secret, got)
 		}
 	}
-	want := []string{"SEMIONT_OIDC_CLIENT_SECRET=s3cret", "JWT_SECRET=jwt-value", "ANTHROPIC_API_KEY=sk-value", "POSTGRES_PASSWORD=pg-value"}
+	// The key is a PEM, lines and padding and all: it crosses whole.
+	want := []string{"SEMIONT_OIDC_CLIENT_SECRET=s3cret", "SEMIONT_OIDC_CLIENT_KEY=" + pemValue, "JWT_SECRET=jwt-value", "ANTHROPIC_API_KEY=sk-value", "POSTGRES_PASSWORD=pg-value"}
 	if strings.Join(env, " ") != strings.Join(want, " ") {
 		t.Errorf("the runtime's environment carries %v, want %v", env, want)
 	}

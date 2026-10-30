@@ -179,19 +179,17 @@ stored, served, and turned into a selector.
 
 ## DID Utilities
 
-Generate and parse W3C Decentralized Identifiers for humans and software peers:
+A knowledge base's own identity, from its committed `site.domain`:
 
 ```typescript
-import { userToDid, agentToDid, softwareToAgent, didToAgent } from '@semiont/core';
+import { kbDid, kbResource } from '@semiont/core';
 
-// A person is named by the issuer claim the knowledge base's `subjectClaim`
-// selects, under its `site.domain`.
-userToDid({ subject: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', domain: 'example.com' });
-// => 'did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'
-
-didToAgent('did:web:example.com:agents:ollama:gemma2%3A27b');
-// => { '@type': 'Software', '@id': ..., name: 'ollama gemma2:27b', provider: 'ollama', model: 'gemma2:27b' }
+kbDid('example.com:kb');       // => 'did:web:example.com:kb'
+kbResource('example.com:kb');  // => 'https://example.com/kb', the audience its tokens carry
 ```
+
+A principal's DID is not made here: the gateway mints it from the token it verified, and the record
+reads its kind (`specs/src/principals/cases.json`, `specs/src/principals/kind-cases.json`).
 
 ## Error Classes
 

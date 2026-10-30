@@ -14,7 +14,7 @@ from typing import Final
 import pytest
 from pydantic import JsonValue
 from semiont.channels import PERSISTED_EVENT_TYPES
-from semiont.http import Credential
+from semiont.http import SecretCredential
 from semiont_graph.memory import MemoryGraphDatabase
 from semiont_service.config import Refused
 
@@ -56,7 +56,9 @@ def without(member: str) -> dict[str, JsonValue]:
 def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> None:
     started = boot(["--config", written(tmp_path)], {**ACCOUNT, **PASSWORD})
     assert started.config.gateway_url == "http://127.0.0.1:1"
-    assert started.credential == Credential(issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-weaver", client_secret="s3cret")
+    assert started.credential == SecretCredential(
+        issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-weaver", client_secret="s3cret"
+    )
     # A store is made and not connected: nothing at that address was asked anything.
     assert not started.graph.is_connected()
     assert not isinstance(started.graph, MemoryGraphDatabase)

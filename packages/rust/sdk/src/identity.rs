@@ -1,8 +1,9 @@
 //! How a knowledge base is named, and the principals who act in it.
 //!
-//! Every function here is held to a shared case table that TypeScript and Go
-//! run too: `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, the rest to
-//! specs/src/principals/cases.json (tests/tables.rs).
+//! Every function here is held to a shared case table (tests/tables.rs):
+//! `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, `kind_of`
+//! to specs/src/principals/kind-cases.json, the rest to
+//! specs/src/principals/cases.json, which Python and Go run too.
 
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 
@@ -69,13 +70,26 @@ pub fn agent_name(provider: &str, model: &str) -> String {
     format!("{provider} {model}")
 }
 
-/// Whether a DID names a software agent: its kind segment, read from the
-/// right past any `host:port` colons, is `agents` with a provider and model
-/// after it. Anything else names a person.
-pub fn names_software(did: &str) -> bool {
+/// What kind of principal a DID names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Person,
+    Software,
+}
+
+/// What kind of principal a DID names, from the DID alone: the last segment
+/// that is exactly `users` or `agents`, with a segment after it, says which.
+/// A DID with no such segment names a person. What follows the kind segment is
+/// the principal's subject, and nothing here reads it.
+pub fn kind_of(did: &str) -> Kind {
     let parts: Vec<&str> = did.split(':').collect();
-    matches!(
-        (parts.iter().rposition(|p| *p == "agents"), parts.len().checked_sub(3)),
-        (Some(at), Some(expected)) if at == expected
-    )
+    let before_last = &parts[..parts.len().saturating_sub(1)];
+    match before_last
+        .iter()
+        .rev()
+        .find(|part| matches!(**part, "users" | "agents"))
+    {
+        Some(&"agents") => Kind::Software,
+        _ => Kind::Person,
+    }
 }

@@ -4,9 +4,9 @@
     "typescript": ["packages/typescript/core/src/__tests__/offset-cases.test.ts", "packages/typescript/react-ui/src/lib/__tests__/code-point-offsets.test.ts"],
     "rust": ["packages/rust/sdk/src/text_offsets.rs"],
     "python": ["packages/python/sdk/tests/test_offsets.py"],
-    "go": ["packages/go/sdk/annotations/offsets_test.go"]
+    "go": ["packages/go/sdk/annotations/offsets_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/OffsetCasesTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's text offsets, counted in code points."},
   "cases": [
     {
       "why": "a text of the basic plane: every count agrees, and the offset is the position",

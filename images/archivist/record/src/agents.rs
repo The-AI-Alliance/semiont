@@ -3,6 +3,7 @@
 
 use crate::Object;
 use percent_encoding::percent_decode_str;
+use semiont::identity::{Kind, kind_of};
 use serde_json::{Value, json};
 
 fn decoded(part: &str) -> String {
@@ -20,8 +21,9 @@ fn uri_shaped(value: &str) -> bool {
         && rest.chars().next().is_some_and(|c| !c.is_whitespace())
 }
 
-/// The agent a DID names: software for `…:agents:<provider>:<model>`, a
-/// person otherwise.
+/// The agent a DID names, its kind by `kind_of` (held to
+/// specs/src/principals/kind-cases.json). An agent DID that carries a provider
+/// and a model is named by them; a DID with no kind segment, by its last part.
 pub fn did_to_agent(did: &str) -> Object {
     let mut agent = Object::new();
     if did.is_empty() {
@@ -29,28 +31,33 @@ pub fn did_to_agent(did: &str) -> Object {
         agent.insert("name".into(), json!("unknown"));
         return agent;
     }
-    let parts: Vec<&str> = did.split(':').collect();
-    let last = |name: &str| parts.iter().rposition(|part| *part == name);
-    let software = last("agents").filter(|at| *at + 3 == parts.len());
-    let person = last("users").filter(|at| *at + 2 == parts.len());
+    let kind = kind_of(did);
     agent.insert(
         "@type".into(),
-        json!(if software.is_some() {
-            "Software"
-        } else {
-            "Person"
+        json!(match kind {
+            Kind::Software => "Software",
+            Kind::Person => "Person",
         }),
     );
     if uri_shaped(did) {
         agent.insert("@id".into(), json!(did));
     }
-    if let Some(at) = software {
-        let (provider, model) = (decoded(parts[at + 1]), decoded(parts[at + 2]));
-        agent.insert("name".into(), json!(format!("{provider} {model}")));
-        agent.insert("provider".into(), json!(provider));
-        agent.insert("model".into(), json!(model));
-    } else if person.is_none() {
-        agent.insert("name".into(), json!(decoded(parts[parts.len() - 1])));
+    let parts: Vec<&str> = did.split(':').collect();
+    let last = |name: &str| parts.iter().rposition(|part| *part == name);
+    match kind {
+        Kind::Software => {
+            if let Some(at) = last("agents").filter(|at| *at + 3 == parts.len()) {
+                let (provider, model) = (decoded(parts[at + 1]), decoded(parts[at + 2]));
+                agent.insert("name".into(), json!(format!("{provider} {model}")));
+                agent.insert("provider".into(), json!(provider));
+                agent.insert("model".into(), json!(model));
+            }
+        }
+        Kind::Person => {
+            if last("users").filter(|at| *at + 2 == parts.len()).is_none() {
+                agent.insert("name".into(), json!(decoded(parts[parts.len() - 1])));
+            }
+        }
     }
     agent
 }
@@ -106,4 +113,36 @@ pub fn attribution(
         generator,
         was_attributed_to,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::did_to_agent;
+    use serde_json::Value;
+
+    /// The record reads a DID's kind as specs/src/principals/kind-cases.json
+    /// states it.
+    #[test]
+    fn kind_cases() {
+        let table: Value = serde_json::from_str(include_str!(
+            "../../../../specs/src/principals/kind-cases.json"
+        ))
+        .expect("principals/kind-cases.json is JSON");
+        let cases = table["cases"]
+            .as_array()
+            .expect("principals/kind-cases.json has cases");
+        assert!(!cases.is_empty(), "principals/kind-cases.json has no case");
+        for case in cases {
+            let (did, why) = (
+                case["did"].as_str().expect("a case has a did"),
+                case["why"].as_str().expect("a case says why"),
+            );
+            let want = match case["kind"].as_str() {
+                Some("person") => "Person",
+                Some("software") => "Software",
+                other => panic!("{why}: a case names no kind the rule has: {other:?}"),
+            };
+            assert_eq!(did_to_agent(did)["@type"], want, "{why}");
+        }
+    }
 }
