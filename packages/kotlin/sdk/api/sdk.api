@@ -176,6 +176,7 @@ public final class semiont/annotations/AnnotationsKt {
 	public static final fun isResolvedReference (Lsemiont/types/Annotation;)Z
 	public static final fun isStubReference (Lsemiont/types/Annotation;)Z
 	public static final fun isTag (Lsemiont/types/Annotation;)Z
+	public static final fun reconcile (Ljava/lang/String;Lsemiont/annotations/QuotedText;)Lsemiont/annotations/ReconciledSpan;
 	public static final fun tagCategory (Lsemiont/types/Annotation;)Ljava/lang/String;
 	public static final fun tagSchemaId (Lsemiont/types/Annotation;)Ljava/lang/String;
 	public static final fun targetSelector (Lsemiont/types/AnnotationTargetValue;)Lsemiont/types/AnnotationSelector;
@@ -222,10 +223,6 @@ public final class semiont/annotations/ReconciledSpan {
 	public final fun getSpan ()Lsemiont/annotations/TextSpan;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
-}
-
-public final class semiont/annotations/SpansKt {
-	public static final fun reconcile (Ljava/lang/String;Lsemiont/annotations/QuotedText;)Lsemiont/annotations/ReconciledSpan;
 }
 
 public final class semiont/annotations/TextSpan {

@@ -113,6 +113,32 @@ public fun tagCategory(annotation: Annotation): String? = if (isTag(annotation))
 /** The id of the schema a tag's category is of: the text of its body item that classifies. Nothing for an annotation that is not a tag. */
 public fun tagSchemaId(annotation: Annotation): String? = if (isTag(annotation)) textsFor(annotation, BodyPurpose.Classifying).firstOrNull() else null
 
+/**
+ * Find the words a model quoted in `text`. The span answered is the text's
+ * own: its `exact` is the text between its offsets, and its `prefix` and
+ * `suffix` are what the text has on either side; it goes to
+ * `annotationOfSpan` as it is. Nothing is answered for a quote that is empty
+ * or only white space, and for words the text has nowhere, by any of the
+ * searches.
+ */
+public fun reconcile(text: String, quoted: QuotedText): ReconciledSpan? {
+    if (trimmed(quoted.exact).isEmpty()) return null
+    val points = codePointsOf(text)
+    val exact = codePointsOf(quoted.exact)
+    val prefix = hint(quoted.prefix)
+    val suffix = hint(quoted.suffix)
+
+    val found = places(points, exact).map { it to it + exact.size }
+    if (found.size == 1) return reconciled(points, found.single(), AnchorMethod.UniqueMatch)
+    if (found.isNotEmpty()) {
+        return hinted(points, found, prefix, suffix)?.let { reconciled(points, it, AnchorMethod.ContextRecovered) }
+            ?: reconciled(points, found.first(), AnchorMethod.FirstOfMany)
+    }
+
+    val (loosely, quality) = looser(points, quoted.exact) ?: return null
+    return reconciled(points, hinted(points, loosely, prefix, suffix) ?: loosely.first(), AnchorMethod.FuzzyMatch(quality))
+}
+
 /** What a PDF's fragment conforms to. */
 private const val PDF_FRAGMENTS = "http://tools.ietf.org/rfc/rfc3778"
 

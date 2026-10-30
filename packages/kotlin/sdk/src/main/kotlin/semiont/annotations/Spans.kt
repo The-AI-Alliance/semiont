@@ -245,7 +245,7 @@ internal fun nearestStretch(text: IntArray, exact: IntArray): Pair<Int, Int>? {
 }
 
 /** The places the first looser search that finds any finds, in the text's order, and which search it was. */
-private fun looser(text: IntArray, exact: String): Pair<List<Place>, MatchQuality>? {
+internal fun looser(text: IntArray, exact: String): Pair<List<Place>, MatchQuality>? {
     val normal = normalized(text)
     val wanted = normalized(codePointsOf(exact)).points
     places(normal.points, wanted).takeIf { it.isNotEmpty() }?.let { return cameFrom(normal, it, wanted.size) to MatchQuality.Normalized }
@@ -258,7 +258,7 @@ private fun looser(text: IntArray, exact: String): Pair<List<Place>, MatchQualit
 }
 
 /** What a model says stands beside the words, when it is more than white space: a hint of where. */
-private fun hint(given: String?): String? = given?.takeIf { trimmed(it).isNotEmpty() }
+internal fun hint(given: String?): String? = given?.takeIf { trimmed(it).isNotEmpty() }
 
 /**
  * Whether the text around a place carries every hint given. A hint is looked
@@ -278,38 +278,12 @@ private fun fits(text: IntArray, place: Place, prefix: String?, suffix: String?)
 }
 
 /** The first of several places that fits every hint given. Nothing when no hint was given, and when no place fits. */
-private fun hinted(text: IntArray, found: List<Place>, prefix: String?, suffix: String?): Place? =
+internal fun hinted(text: IntArray, found: List<Place>, prefix: String?, suffix: String?): Place? =
     if (prefix == null && suffix == null) null else found.firstOrNull { fits(text, it, prefix, suffix) }
 
 /** A place as the span it is: its words and its context are the text's, never the model's spelling of them. */
-private fun reconciled(text: IntArray, place: Place, anchorMethod: AnchorMethod): ReconciledSpan {
+internal fun reconciled(text: IntArray, place: Place, anchorMethod: AnchorMethod): ReconciledSpan {
     val (start, end) = place
     val (prefix, suffix) = contextOf(text, place)
     return ReconciledSpan(TextSpan(start.toLong(), end.toLong(), text.text(start, end), prefix, suffix), anchorMethod)
-}
-
-/**
- * Find the words a model quoted in `text`. The span answered is the text's
- * own: its `exact` is the text between its offsets, and its `prefix` and
- * `suffix` are what the text has on either side; it goes to
- * `annotationOfSpan` as it is. Nothing is answered for a quote that is empty
- * or only white space, and for words the text has nowhere, by any of the
- * searches.
- */
-public fun reconcile(text: String, quoted: QuotedText): ReconciledSpan? {
-    if (trimmed(quoted.exact).isEmpty()) return null
-    val points = codePointsOf(text)
-    val exact = codePointsOf(quoted.exact)
-    val prefix = hint(quoted.prefix)
-    val suffix = hint(quoted.suffix)
-
-    val found = places(points, exact).map { it to it + exact.size }
-    if (found.size == 1) return reconciled(points, found.single(), AnchorMethod.UniqueMatch)
-    if (found.isNotEmpty()) {
-        return hinted(points, found, prefix, suffix)?.let { reconciled(points, it, AnchorMethod.ContextRecovered) }
-            ?: reconciled(points, found.first(), AnchorMethod.FirstOfMany)
-    }
-
-    val (loosely, quality) = looser(points, quoted.exact) ?: return null
-    return reconciled(points, hinted(points, loosely, prefix, suffix) ?: loosely.first(), AnchorMethod.FuzzyMatch(quality))
 }
