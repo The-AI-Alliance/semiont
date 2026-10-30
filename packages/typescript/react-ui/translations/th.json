@@ -97,7 +97,7 @@
     "reconnecting": "กำลังเชื่อมต่อเซิร์ฟเวอร์ใหม่...",
     "sharing": "การแชร์",
     "collaborationComingSoon": "ฟีเจอร์การทำงานร่วมกันจะมาเร็ว ๆ นี้",
-    "collaborators": "ผู้ร่วมงาน",
+    "engines": "เอนจิน",
     "ceilings": "เข้า {{contextTokens}} / ออก {{maxOutputTokens}}",
     "sharedWindow": "หน้าต่าง {{contextTokens}}"
   },

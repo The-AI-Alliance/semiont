@@ -14,7 +14,7 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It is one agent (`semiont_worker.agent`): it signs in once, as its account,
-and runs an engine for each entry of its document's `agents`. It answers
+and runs an engine for each entry of its document's `engines`. It answers
 `GET /health` once the agent has signed in and opened its stream. Told to
 stop, each engine fails the job it holds, and the process exits with status 0.
 """
@@ -61,18 +61,18 @@ def _client_of(config: WorkerConfig, index: int, environment: Mapping[str, str])
     the model catalogue where the file the document names cannot be read or
     lacks the model.
     """
-    entry = config.agents[index]
-    member = f"agents[{index}]"
+    entry = config.engines[index]
+    member = f"engines[{index}]"
     try:
         return create_inference_client(
-            provider=entry.agent.provider,
-            model=entry.agent.model,
+            provider=entry.engine.provider,
+            model=entry.engine.model,
             base_url=entry.base_url,
             api_key=api_key_of(config, index, environment),
             catalogue=Path(config.model_catalogue),
         )
     except KeyRequired as keyless:
-        raise Refused(f"{member}.apiKeyEnv is not stated, and {member}.agent.provider is {entry.agent.provider}: {keyless}") from keyless
+        raise Refused(f"{member}.apiKeyEnv is not stated, and {member}.engine.provider is {entry.engine.provider}: {keyless}") from keyless
     except CatalogueRequired as lacking:
         raise Refused(f"modelCatalogue names {config.model_catalogue}, which does not serve {member}: {lacking}") from lacking
 
@@ -83,7 +83,7 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     # What is written from the document's level: the service's own code, the inference drivers' and the SDK's.
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_inference", "semiont"))
     credential = key_account_of(SERVICE, config.identity.issuer, environment)
-    clients = [_client_of(config, index, environment) for index in range(len(config.agents))]
+    clients = [_client_of(config, index, environment) for index in range(len(config.engines))]
     return _Started(config=config, credential=credential, clients=clients)
 
 
@@ -96,7 +96,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         loop.add_signal_handler(told, told_to_stop.set)
 
     agent = AgentWorker(
-        list(zip(config.agents, started.clients, strict=True)), gateway_url=config.gateway_url, service=ServiceToken(started.credential)
+        list(zip(config.engines, started.clients, strict=True)), gateway_url=config.gateway_url, service=ServiceToken(started.credential)
     )
     # The port is taken before anything is dialled, and answers nothing yet: a service that cannot listen on it has
     # signed in nowhere and opened no stream.
@@ -106,7 +106,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
         raise Refused(f"Cannot listen on port {config.port}: {unheard}") from unheard
 
     try:
-        LOG.info("Starting the agent", extra={"baseUrl": config.gateway_url, "engines": [engine_of(entry) for entry in config.agents]})
+        LOG.info("Starting the agent", extra={"baseUrl": config.gateway_url, "engines": [engine_of(entry) for entry in config.engines]})
         # A sign-in the issuer or the gateway refuses ends a service that has opened no stream.
         async with agent:
             await agent.open()

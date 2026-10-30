@@ -16,8 +16,8 @@ A vector index or a model that fails does not: it is logged, and the search
 is answered without it.
 
 Everything read is handed in: the graph, the record, the index, the provider
-that makes the term's vector, the model, what the knowledge base calls the
-people its reply names, and the clock recency is counted by.
+that makes the term's vector, the model, the profiles of the persons its
+reply names, and the clock recency is counted by.
 """
 
 import asyncio
@@ -48,7 +48,7 @@ from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
 from semiont_librarian.naming import name
 from semiont_librarian.prompts import score_prompt
-from semiont_librarian.reads import GraphReads, People, Record
+from semiont_librarian.reads import GraphReads, Profiles, Record
 from semiont_librarian.replies import SCORE_ELEMENT, ask_for_elements, read_scores
 from semiont_librarian.score import Score, Source, score_of, with_model_score
 from semiont_librarian.views import GraphViews, derive_views
@@ -201,12 +201,12 @@ async def search(
     vectors: VectorReader,
     embedding: EmbeddingProvider,
     inference: InferenceClient,
-    people: People,
+    profiles: Profiles,
     now: Callable[[], datetime],
 ) -> MatchSearchResult:
     """The reply to a reference search: its candidates by score, the highest first, and no more of them than the request's limit.
 
-    The reply's people are asked after once, after the search, and named
+    The reply's persons are asked after once, after the search, and named
     (`semiont_librarian.naming.name`).
 
     Raises `FocusNotAnAnnotation`, before any source is asked, where the
@@ -334,4 +334,4 @@ async def search(
 
     limited = ordered if request.limit is None else ordered[: request.limit]
     reply = MatchSearchResult(reference_id=request.reference_id, response=[_candidate(resource, score) for resource, score in limited])
-    return MatchSearchResult.model_validate(await name(written(reply), people))
+    return MatchSearchResult.model_validate(await name(written(reply), profiles))

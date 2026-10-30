@@ -50,7 +50,7 @@ const otlp = (): OtlpReceiver => {
 const claude = (w: WorkerServiceWorld): Engine => w.anthropicEngines[0]!;
 
 /** Start a worker with one engine, the Anthropic one, serving every job. */
-const started = (w: WorkerServiceWorld): Promise<Served> => w.start({ agents: [w.entry(claude(w), everyJob())] });
+const started = (w: WorkerServiceWorld): Promise<Served> => w.start({ engines: [w.entry(claude(w), everyJob())] });
 
 /** An answer of the model: its text, and the tokens the provider says it read and wrote. */
 const answer = (text: string, stopReason?: string): ScriptedMessage => ({ text, usage: { input: 412, output: 57 }, ...(stopReason === undefined ? {} : { stopReason }) });
@@ -546,7 +546,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const job = markJob(w, 'anthropic-telemetry', { motivation: 'highlighting' });
     // The generation is refused once and then answered: it is one generation all the same.
     w.anthropic.script(refused(429, 'rate_limit_error', 'the account is over its rate'), { text: JSON.stringify([{ exact: 'the first program' }]), usage: { input: 4127, output: 571 } });
-    const served = await w.start({ agents: [w.entry(engine, everyJob())], env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
+    const served = await w.start({ engines: [w.entry(engine, everyJob())], env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
     await settled(served, job);
 
     // The generation's span names who was asked, and for how much.

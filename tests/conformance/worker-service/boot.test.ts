@@ -12,7 +12,7 @@ import { errorsOf, spec } from '../harness/spec';
 import { eachWorkerService, WORKER_CLIENT, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { startWorkerService, type WorkerSettings } from '../harness/worker-service-process';
 
-type Document = Record<string, unknown> & { identity: Record<string, unknown>; agents: Array<Record<string, unknown>> };
+type Document = Record<string, unknown> & { identity: Record<string, unknown>; engines: Array<Record<string, unknown>> };
 
 /** The world's document, as a plain object a case may break. */
 async function documentOf(world: WorkerServiceWorld): Promise<Document> {
@@ -70,14 +70,14 @@ eachWorkerService("the worker's boot", (world) => {
     ['the gateway', (d: Document) => delete d['gatewayUrl'], 'gatewayUrl'],
     ['the issuer', (d: Document) => delete d.identity['issuer'], 'issuer'],
     ['its identity', (d: Document) => delete (d as Record<string, unknown>)['identity'], 'identity'],
-    ['its engines', (d: Document) => delete (d as Record<string, unknown>)['agents'], 'agents'],
+    ['its engines', (d: Document) => delete (d as Record<string, unknown>)['engines'], 'engines'],
     ['its model catalogue', (d: Document) => delete d['modelCatalogue'], 'modelCatalogue'],
     ['its port', (d: Document) => delete d['port'], 'port'],
     ['its log level', (d: Document) => delete d['logLevel'], 'logLevel'],
     ['its log format', (d: Document) => delete d['logFormat'], 'logFormat'],
-    ["an engine's provider and model", (d: Document) => delete d.agents[0]!['agent'], 'agent'],
-    ["the jobs an engine serves", (d: Document) => delete d.agents[0]!['accepts'], 'accepts'],
-    ["the address of an engine's provider", (d: Document) => delete d.agents[0]!['baseUrl'], 'baseUrl'],
+    ["an engine's provider and model", (d: Document) => delete d.engines[0]!['engine'], 'engine'],
+    ['the jobs an engine is used for', (d: Document) => delete d.engines[0]!['jobs'], 'jobs'],
+    ["the address of an engine's provider", (d: Document) => delete d.engines[0]!['baseUrl'], 'baseUrl'],
   ])('refuses a document missing %s, naming the member', async (_what, breakIt, member) => {
     const before = dialled(world());
     const document = await documentOf(world());
@@ -93,12 +93,12 @@ eachWorkerService("the worker's boot", (world) => {
   });
 
   it.each([
-    ['no engine at all', (d: Document) => (d.agents = []), /agents/],
-    ['an engine that serves no job', (d: Document) => (d.agents[0]!['accepts'] = []), /accepts/],
-    ['a provider it does not know', (d: Document) => (d.agents[0]!['agent'] = { provider: 'mistral', model: 'm' }), /provider/],
+    ['no engine at all', (d: Document) => (d.engines = []), /engines/],
+    ['an engine used for no job', (d: Document) => (d.engines[0]!['jobs'] = []), /jobs/],
+    ['a provider it does not know', (d: Document) => (d.engines[0]!['engine'] = { provider: 'mistral', model: 'm' }), /provider/],
     ['a port that is not one', (d: Document) => (d['port'] = 70_000), /port/],
     ['a member the schema does not have', (d: Document) => (d['dispatcherUrl'] = 'http://dispatcher'), /dispatcherUrl/],
-    ["a provider's key as a value", (d: Document) => (d.agents[0]!['apiKey'] = 'hunter2-not-a-name'), /apiKey/],
+    ["a provider's key as a value", (d: Document) => (d.engines[0]!['apiKey'] = 'hunter2-not-a-name'), /apiKey/],
   ])('refuses a document with %s, naming the member and no value found in it', async (_what, breakIt, member) => {
     const before = dialled(world());
     const document = await documentOf(world());
@@ -115,11 +115,11 @@ eachWorkerService("the worker's boot", (world) => {
   it("refuses to start when a variable the document names for a provider's key is not set, or is empty", async () => {
     const before = dialled(world());
     const settings: WorkerSettings = (await world().launch()).settings;
-    const named: WorkerSettings = { ...settings, agents: [{ ...settings.agents[0]!, apiKeyEnv: 'WORKER_SERVICE_PROVIDER_KEY' }] };
+    const named: WorkerSettings = { ...settings, engines: [{ ...settings.engines[0]!, apiKeyEnv: 'WORKER_SERVICE_PROVIDER_KEY' }] };
     for (const env of [world().env, { ...world().env, WORKER_SERVICE_PROVIDER_KEY: '' }]) {
       const refusal = await world().refused({ settings: named, env });
       expect(refusal.code).toBe(1);
-      expect(fatal(refusal.stderr)).toEqual(["[fatal] agents[0].apiKeyEnv names a variable that is not set in the worker's environment"]);
+      expect(fatal(refusal.stderr)).toEqual(["[fatal] engines[0].apiKeyEnv names a variable that is not set in the worker's environment"]);
     }
     expect(dialled(world())).toEqual(before);
   });
@@ -127,9 +127,9 @@ eachWorkerService("the worker's boot", (world) => {
   it("refuses a document that has a key's value where the name of its variable belongs, and does not repeat it", async () => {
     const before = dialled(world());
     const settings: WorkerSettings = (await world().launch()).settings;
-    const refusal = await world().refused({ settings: { ...settings, agents: [{ ...settings.agents[0]!, apiKeyEnv: 'sk-conformance-0123456789abcdef' }] } });
+    const refusal = await world().refused({ settings: { ...settings, engines: [{ ...settings.engines[0]!, apiKeyEnv: 'sk-conformance-0123456789abcdef' }] } });
     expect(refusal.code).toBe(1);
-    expect(fatal(refusal.stderr)).toEqual(["[fatal] agents[0].apiKeyEnv names a variable that is not set in the worker's environment"]);
+    expect(fatal(refusal.stderr)).toEqual(["[fatal] engines[0].apiKeyEnv names a variable that is not set in the worker's environment"]);
     expect(refusal.output).not.toContain('sk-conformance-0123456789abcdef');
     expect(dialled(world())).toEqual(before);
   });

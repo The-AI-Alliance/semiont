@@ -276,7 +276,7 @@ var calls = map[string]call{
 	},
 	"browse.entityTypes": func(ctx context.Context, c *semiont.Client, a args) { fresh(ctx, c.Browse.EntityTypes()) },
 	"browse.tagSchemas":  func(ctx context.Context, c *semiont.Client, a args) { fresh(ctx, c.Browse.TagSchemas()) },
-	"browse.agents":      func(ctx context.Context, c *semiont.Client, a args) { fresh(ctx, c.Browse.Agents()) },
+	"browse.engines":     func(ctx context.Context, c *semiont.Client, a args) { fresh(ctx, c.Browse.Engines()) },
 	"browse.events": func(ctx context.Context, c *semiont.Client, a args) {
 		fresh(ctx, c.Browse.Events(a.rid("resourceId")))
 	},

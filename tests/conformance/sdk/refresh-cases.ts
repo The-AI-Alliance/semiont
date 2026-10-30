@@ -55,7 +55,7 @@ const OTHER = annotation('a2', 'r2', 'highlighting');
 const LIST = { resources: [], total: 0, offset: 0, limit: 100 };
 const FOUND = { resources: [], total: 0, offset: 0, limit: 100, matchKind: 'semantic' };
 
-/** The operations a refresh of the roster asks beside its own: each key holder's limits. */
+/** The operations a refresh of the engines asks beside its own: each key holder's limits. */
 const limitsOperations = (): string[] => registry().operations.map((operation) => operation.request).filter((request) => request.endsWith(':limits-requested'));
 
 /** One request a query makes: on the bus, with the answer the suite gives it; or a read over HTTP, which the stand-in Archivist answers from what `seeded` gave it. */
@@ -124,10 +124,10 @@ function held(): Held[] {
     { observer: 'types', query: 'entityTypes', observe: { query: 'entityTypes' }, asks: [{ operation: 'browse:entity-types-requested', response: { entityTypes: ['Person'] } }], value: ['Person'] },
     { observer: 'schemas', query: 'tagSchemas', observe: { query: 'tagSchemas' }, asks: [{ operation: 'browse:tag-schemas-requested', response: { tagSchemas: [] } }], value: [] },
     {
-      observer: 'directory',
-      query: 'agents',
-      observe: { query: 'agents' },
-      asks: [{ operation: 'browse:agents-requested', response: { agents: [] } }, ...limitsOperations().map((operation) => ({ operation, response: { limits: [] } }))],
+      observer: 'engines',
+      query: 'engines',
+      observe: { query: 'engines' },
+      asks: [{ operation: 'browse:engines-requested', response: { engines: [] } }, ...limitsOperations().map((operation) => ({ operation, response: { limits: [] } }))],
       value: [],
     },
   ];

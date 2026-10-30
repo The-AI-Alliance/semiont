@@ -281,7 +281,7 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("browse", "annotation"): lambda client, args: client.browse.annotation(rid(args), aid(args)).fresh(),
     ("browse", "entityTypes"): lambda client, _: client.browse.entity_types().fresh(),
     ("browse", "tagSchemas"): lambda client, _: client.browse.tag_schemas().fresh(),
-    ("browse", "agents"): lambda client, _: client.browse.agents().fresh(),
+    ("browse", "engines"): lambda client, _: client.browse.engines().fresh(),
     ("browse", "events"): lambda client, args: client.browse.events(rid(args)).fresh(),
     ("browse", "resourceContent"): lambda client, args: client.browse.resource_content(rid(args)),
     ("browse", "resourceGraph"): lambda client, args: client.browse.resource_graph(rid(args)),

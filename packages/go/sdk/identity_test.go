@@ -73,8 +73,8 @@ func TestAnEngineIsNamedAsTheTableNamesOne(t *testing.T) {
 		t.Fatalf("the table names %d engines: a runner that reads too few passes on silence", len(table.Engines))
 	}
 	for _, row := range table.Engines {
-		if name := semiont.AgentName(row.Provider, row.Model); name != row.Name {
-			t.Errorf("%s: AgentName = %q, want %q", row.Why, name, row.Name)
+		if name := semiont.EngineName(row.Provider, row.Model); name != row.Name {
+			t.Errorf("%s: EngineName = %q, want %q", row.Why, name, row.Name)
 		}
 	}
 }

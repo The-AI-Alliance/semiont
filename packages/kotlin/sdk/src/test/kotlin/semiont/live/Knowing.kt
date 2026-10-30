@@ -81,7 +81,7 @@ internal val ASKS: Map<CacheQuery, List<String>> = mapOf(
     CacheQuery.MatchedResources to listOf("match:resources-requested"),
     CacheQuery.EntityTypes to listOf("browse:entity-types-requested"),
     CacheQuery.TagSchemas to listOf("browse:tag-schemas-requested"),
-    CacheQuery.Agents to listOf("browse:agents-requested") + LIMITS,
+    CacheQuery.Engines to listOf("browse:engines-requested") + LIMITS,
 )
 
 internal fun json(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
@@ -106,7 +106,7 @@ private val ANSWERS: Map<String, JsonElement> = mapOf(
     "match:resources-requested" to JsonObject(PAGE + ("matchKind" to JsonPrimitive("lexical"))),
     "browse:entity-types-requested" to json("""{"entityTypes":["Person"]}"""),
     "browse:tag-schemas-requested" to json("""{"tagSchemas":[]}"""),
-    "browse:agents-requested" to json("""{"agents":[]}"""),
+    "browse:engines-requested" to json("""{"engines":[]}"""),
 ) + LIMITS.associateWith { json("""{"limits":[]}""") }
 
 /**

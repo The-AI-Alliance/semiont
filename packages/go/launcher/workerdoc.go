@@ -26,10 +26,10 @@ const workerDocumentFile = "worker.json"
 // the two together.
 const workerDocumentTarget = "/etc/semiont/worker.json"
 
-// jobFilter: the filter naming one job of the roster, as a claim states it:
-// "mark.<motivation>" is the `mark` jobs of that motivation, and "yield" the
-// `yield` jobs. TestEveryRosterJobHasAFilter holds it to every job the roster
-// has a worker role for.
+// jobFilter: the filter naming one job of the engines' `jobs`, as a claim
+// states it: "mark.<motivation>" is the `mark` jobs of that motivation, and
+// "yield" the `yield` jobs. TestEveryEngineJobHasAFilter holds it to every job
+// the engines can give an engine.
 func jobFilter(job string) (filter api.JobFilter, err error) {
 	jobType, motivation, _ := strings.Cut(job, ".")
 	switch {
@@ -40,7 +40,7 @@ func jobFilter(job string) (filter api.JobFilter, err error) {
 	case job == string(api.YieldJobFilterJobTypeYield):
 		err = filter.FromYieldJobFilter(api.YieldJobFilter{})
 	default:
-		err = fmt.Errorf("the roster has a worker role for %q, and no job filter names that job", job)
+		err = fmt.Errorf("the engines can give %q an engine, and no job filter names that job", job)
 	}
 	return filter, err
 }
@@ -51,15 +51,15 @@ func jobFilter(job string) (filter api.JobFilter, err error) {
 // reached where the launcher itself reaches Anthropic (remoteProviderAddress).
 // Every other provider states one: the launcher keeps no vendor's address but
 // Anthropic's, and runs no server but Ollama's. ONE decider, for the worker's
-// agents and the Librarian's two models. who names the service in a refusal.
-func providerAddress(p placement, provider api.ArchivistRosterRoleProvider, who string) (string, error) {
+// engines and the Librarian actors'. who names the service in a refusal.
+func providerAddress(p placement, provider api.EngineProvider, who string) (string, error) {
 	baseURL := p.st.Inference.Spec.Providers[provider].BaseURL
 	switch {
-	case provider == api.ArchivistRosterRoleProviderOllama:
+	case provider == api.EngineProviderOllama:
 		return p.ollama(baseURL), nil
 	case baseURL != nil:
 		return *baseURL, nil
-	case provider == api.ArchivistRosterRoleProviderAnthropic:
+	case provider == api.EngineProviderAnthropic:
 		return saasBase(remoteProviderAddress(p.st, string(provider))), nil
 	}
 	return "", planErr(p.st.Files.Inference, "spec.providers."+string(provider)+".baseURL", "is not stated: %s has no address to reach %s at", who, provider)
@@ -67,7 +67,7 @@ func providerAddress(p placement, provider api.ArchivistRosterRoleProvider, who 
 
 // providerKeyName: the variable holding a provider's key, as its entry in the
 // Inference document names it; none when it names none.
-func providerKeyName(p placement, provider api.ArchivistRosterRoleProvider) *string {
+func providerKeyName(p placement, provider api.EngineProvider) *string {
 	if key := p.st.Inference.Spec.Providers[provider].ApiKey; key != nil {
 		return &key.FromEnv
 	}
@@ -82,79 +82,80 @@ func providerKeyName(p placement, provider api.ArchivistRosterRoleProvider) *str
 const modelCatalogueTarget = "/usr/share/semiont/model-catalogue.json"
 
 // workerSecrets: the variables the worker's document names, and so the ones
-// the worker is handed — the key of each provider that serves a job.
+// the worker is handed — the key of each provider a job's engine names.
 func workerSecrets(p placement) []string {
 	var names []string
-	for _, s := range servedJobs(p.st.Inference.Spec.Roster) {
-		if name := providerKeyName(p, s.role.Provider); name != nil && !contains(names, *name) {
+	for _, j := range jobEngines(p.st.Inference.Spec.Engines) {
+		if name := providerKeyName(p, j.engine.Provider); name != nil && !contains(names, *name) {
 			names = append(names, *name)
 		}
 	}
 	return names
 }
 
-// workerBinding: where a roster binds jobs to a worker, as the launcher names
-// it for an operator to add one.
-func workerBinding(inference string) string {
-	return inference + " spec.roster.workers"
+// jobEnginesAt: where the Inference document at inference gives jobs an
+// engine, as the launcher names it for an operator to give one.
+func jobEnginesAt(inference string) string {
+	return inference + " spec.engines.jobs"
 }
 
-// errNoWorkerJob: the refusal of a worker for a roster, in the Inference
-// document at inference, that binds it no job.
-func errNoWorkerJob(inference string) error {
-	return fmt.Errorf("the roster binds no job to a worker: the worker has no job to serve — bind one in %s", workerBinding(inference))
+// errNoJobEngine: the refusal of a worker for an Inference document, at
+// inference, that gives no job an engine.
+func errNoJobEngine(inference string) error {
+	return fmt.Errorf("no job has an engine: the worker has no job to do — give one an engine in %s", jobEnginesAt(inference))
 }
 
-// workerAgents: the agents the worker works as, projected from the roles the
-// roster binds to jobs (servedJobs). An agent is an engine — a provider and a
-// model, at one address, under one key — and accepts every job that engine
-// serves: agents are in the order of the first job that needs each, and an
-// agent's filters in workerJobs' order. A roster that binds no job has no
-// agents, and is refused: the document's `agents` is never empty. A start of
-// such a roster runs no worker and writes no document (workerPlan), and a
-// worker asked for by name is refused before anything runs (flowOneService).
-func workerAgents(p placement) ([]api.WorkerAgentConfig, error) {
-	served := servedJobs(p.st.Inference.Spec.Roster)
-	if len(served) == 0 {
-		return nil, errNoWorkerJob(p.st.Files.Inference)
+// workerEngines: the engines the worker does its jobs with, projected from
+// the engines the Inference document gives jobs (jobEngines). Each is a
+// provider and a model, at one address, under one key, and takes every job
+// given it: they are in the order of the first job that needs each, and each
+// one's jobs in engineJobs' order. An Inference document that gives no job an
+// engine has none, and is refused: the document's `engines` is never empty. A
+// start of such a document runs no worker and writes no document (workerPlan),
+// and a worker asked for by name is refused before anything runs
+// (flowOneService).
+func workerEngines(p placement) ([]api.WorkerEngineConfig, error) {
+	given := jobEngines(p.st.Inference.Spec.Engines)
+	if len(given) == 0 {
+		return nil, errNoJobEngine(p.st.Files.Inference)
 	}
-	var agents []api.WorkerAgentConfig
-	for _, s := range served {
-		filter, err := jobFilter(s.job.name)
+	var engines []api.WorkerEngineConfig
+	for _, j := range given {
+		filter, err := jobFilter(j.job.name)
 		if err != nil {
 			return nil, err
 		}
-		engine := api.WorkerAgentConfig{Agent: *s.role, ApiKeyEnv: providerKeyName(p, s.role.Provider)}
-		if engine.BaseUrl, err = providerAddress(p, s.role.Provider, "the worker"); err != nil {
+		engine := api.WorkerEngineConfig{Engine: *j.engine, ApiKeyEnv: providerKeyName(p, j.engine.Provider)}
+		if engine.BaseUrl, err = providerAddress(p, j.engine.Provider, "the worker"); err != nil {
 			return nil, err
 		}
 		at := 0
-		for at < len(agents) && !sameEngine(agents[at], engine) {
+		for at < len(engines) && !sameEngine(engines[at], engine) {
 			at++
 		}
-		if at == len(agents) {
-			agents = append(agents, engine)
+		if at == len(engines) {
+			engines = append(engines, engine)
 		}
-		agents[at].Accepts = append(agents[at].Accepts, filter)
+		engines[at].Jobs = append(engines[at].Jobs, filter)
 	}
-	return agents, nil
+	return engines, nil
 }
 
-// sameEngine: whether two agents are one — the same provider and model, at
-// the same address, under the same key.
-func sameEngine(a, b api.WorkerAgentConfig) bool {
-	return a.Agent == b.Agent && a.BaseUrl == b.BaseUrl && reflect.DeepEqual(a.ApiKeyEnv, b.ApiKeyEnv)
+// sameEngine: whether two of the worker's engines are one — the same
+// provider and model, at the same address, under the same key.
+func sameEngine(a, b api.WorkerEngineConfig) bool {
+	return a.Engine == b.Engine && a.BaseUrl == b.BaseUrl && reflect.DeepEqual(a.ApiKeyEnv, b.ApiKeyEnv)
 }
 
 // workerDocument renders the document from the start's placement. It is
-// staged only for a worker the plan runs, and derivePlan refuses a roster that
-// binds the worker a job when there is no WorkerPool document.
+// staged only for a worker the plan runs, and derivePlan refuses an Inference
+// document that gives a job an engine when there is no WorkerPool document.
 func workerDocument(p placement) ([]byte, error) {
 	var doc api.WorkerConfig
 	var err error
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
-	if doc.Agents, err = workerAgents(p); err != nil {
+	if doc.Engines, err = workerEngines(p); err != nil {
 		return nil, err
 	}
 	doc.ModelCatalogue = modelCatalogueTarget

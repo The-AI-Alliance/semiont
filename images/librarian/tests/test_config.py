@@ -32,7 +32,7 @@ VOYAGE: Final[dict[str, JsonValue]] = {
     "endpoint": "http://127.0.0.1:1/v1/embeddings",
     "apiKeyEnv": "VOYAGE_API_KEY",
 }
-MODEL: Final[dict[str, JsonValue]] = {"agent": {"provider": "ollama", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
+ENGINE: Final[dict[str, JsonValue]] = {"engine": {"provider": "ollama", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://127.0.0.1:1",
@@ -41,8 +41,8 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
     "graph": NEO4J,
     "vectors": QDRANT,
     "embedding": OLLAMA,
-    "matcher": MODEL,
-    "gatherer": MODEL,
+    "matcher": ENGINE,
+    "gatherer": ENGINE,
     "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "gather": {"settleTimeoutMs": 15000},
     "search": {"semanticFloor": 0.6},
@@ -138,7 +138,7 @@ def test_the_embedding_providers_key_is_read_from_the_variable_the_document_name
 
 
 def test_each_actors_key_is_read_from_the_variable_its_part_of_the_document_names() -> None:
-    keyed = stating(matcher={**MODEL, "apiKeyEnv": "MATCHER_KEY"}, gatherer={**MODEL, "apiKeyEnv": "GATHERER_KEY"})
+    keyed = stating(matcher={**ENGINE, "apiKeyEnv": "MATCHER_KEY"}, gatherer={**ENGINE, "apiKeyEnv": "GATHERER_KEY"})
     environment = {"MATCHER_KEY": "m-key", "GATHERER_KEY": "g-key"}
     assert api_key_of("matcher", keyed.matcher, environment) == "m-key"
     assert api_key_of("gatherer", keyed.gatherer, environment) == "g-key"

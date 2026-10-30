@@ -61,10 +61,10 @@ what its schema says; and a case fails otherwise, whatever it was about.
   resource and for a body that is no write; and each operation admitted only
   as a service.
 - **Browse** (`browse.test.ts`): the knowledge base, the vocabulary and its
-  seeding, tag schemas, the listing, a resource's events, people named by
-  their profile, the profiles of the people asked after, a directory of the
-  working tree, an answer larger than the largest bus message answered as a
-  failure at once, and the roster; and, over
+  seeding, tag schemas, the listing, a resource's events, persons named by
+  their profile, the profiles of the principals asked after, a directory of
+  the working tree, an answer larger than the largest bus message answered as
+  a failure at once, and the engines; and, over
   HTTP, anchored text as it is stored, under the stamp its writer states and
   in the store's version only, `no-map` at once for a media type whose text
   is not derived, whatever the store holds, a read held until the Smelter has

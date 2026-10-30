@@ -97,7 +97,7 @@
     "reconnecting": "Kobler til serveren på nytt...",
     "sharing": "Deling",
     "collaborationComingSoon": "Samarbeidsfunksjoner kommer snart",
-    "collaborators": "Samarbeidspartnere",
+    "engines": "Motorer",
     "ceilings": "{{contextTokens}} inn / {{maxOutputTokens}} ut",
     "sharedWindow": "{{contextTokens}} vindu"
   },

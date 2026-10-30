@@ -215,7 +215,7 @@ async def _work(
     held = {"jobType": job.job_type, "params": written(job.params)}
     if not any(job_matches_filter(written(accepted), held) for accepted in accepts):
         # The dispatcher hands out only what the claim accepts, so this is a job the two disagree about. No second
-        # attempt changes what this engine serves.
+        # attempt changes the jobs this engine is claimed for.
         raise DeterministicJobError(f"Worker not configured for job: {_what(job)}")
     if isinstance(job, HeldMarkJob):
         return await _mark(job, client, inference, generator, reports, stood)

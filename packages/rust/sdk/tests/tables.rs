@@ -98,7 +98,7 @@ fn principal_cases() {
     assert!(!engines.is_empty(), "principals/cases.json has no engine");
     for case in engines {
         assert_eq!(
-            identity::agent_name(&text(case, "provider"), &text(case, "model")),
+            identity::engine_name(&text(case, "provider"), &text(case, "model")),
             text(case, "name"),
             "{}",
             text(case, "why")

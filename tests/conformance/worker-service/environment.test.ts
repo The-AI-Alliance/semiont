@@ -207,7 +207,7 @@ eachWorkerService("the worker's environment", (world) => {
         await w.announce(unclaimed);
         await eventually(`the ${QUEUED} it received, within 2 s`, 2_000, () => otlp.spans.find(got(QUEUED)));
       },
-      { agents: [w.entry(w.engines[0]!, [marks('highlighting')])] },
+      { engines: [w.entry(w.engines[0]!, [marks('highlighting')])] },
     );
   });
 

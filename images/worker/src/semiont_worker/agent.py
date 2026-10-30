@@ -6,10 +6,11 @@ is who the agent is. It is used as answered and derived from nothing else:
 derived from the address the service happens to dial, one agent would have
 two.
 
-An engine is a provider and a model, the jobs it serves and where its provider
-is reached: an entry of the document's `agents`. Each engine claims for
-itself, one job at a time, under the agent's sign-in and over its one stream,
-and what a job makes names the agent by its DID and the engine that made it.
+An engine is a provider and a model. Each entry of the document's `engines`
+names one, the jobs the agent does with it and where its provider is reached,
+and the agent claims those jobs for it, one at a time, under the agent's
+sign-in and over its one stream. What a job makes names the agent by its DID
+and the engine that made it.
 
 The agent's stream names what a worker reads and no more. The replies of
 every operation a client can ask reach every stream that names them, and a
@@ -31,11 +32,11 @@ from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, HttpTransport, ServiceToken
 from semiont.identifiers import UserId
-from semiont.identity import agent_name
+from semiont.identity import engine_name
 from semiont.model import written
 from semiont.operations import BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
 from semiont.transport import Transport
-from semiont.types import Agent, AgentSoftware, JobFilter, WorkerAgentConfig
+from semiont.types import Agent, AgentSoftware, JobFilter, WorkerEngineConfig
 from semiont_inference.interface import InferenceClient
 from semiont_inference.limits_report import answer_limits_requests
 
@@ -48,7 +49,7 @@ WORKER_CHANNELS: Final[tuple[str, ...]] = (
     *JOB_COMMIT_CHANNELS,
     # What this service itself awaits: a resource's description.
     *reply_channels_for(BROWSE_RESOURCE_REQUESTED),
-    # What this service answers: the limits of its engines' models.
+    # What this service answers: the limits of its engines.
     JOB_LIMITS_REQUESTED.request.name,
 )
 """What the agent's stream names: what the SDK's claiming and committing read, the replies of what it asks, and the request it answers."""
@@ -70,13 +71,13 @@ def _instant(at: datetime | None) -> str | None:
 
 
 def _as_claimed(accepts: Sequence[JobFilter]) -> list[JsonValue]:
-    """The jobs an engine serves, as a claim states them."""
+    """Filters of jobs, as a claim states them."""
     return [written(accepted) for accepted in accepts]
 
 
-def engine_of(entry: WorkerAgentConfig) -> dict[str, JsonValue]:
-    """An engine as the log says one: its provider and model, and what it serves."""
-    return {"provider": entry.agent.provider, "model": entry.agent.model, "serves": _as_claimed(entry.accepts)}
+def engine_of(entry: WorkerEngineConfig) -> dict[str, JsonValue]:
+    """An engine as the log says one: its provider and model, and the jobs the agent does with it."""
+    return {"provider": entry.engine.provider, "model": entry.engine.model, "jobs": _as_claimed(entry.jobs)}
 
 
 async def run_what_is_claimed(
@@ -129,27 +130,27 @@ async def watch_for_a_stall(claims: Claims, agent: UserId) -> None:
 
 
 @final
-class Engine:
+class EngineAtWork:
     """One engine at work: its entry of the configuration document, the client of its provider and model, and its claims.
 
-    It claims with its entry's `accepts` and no other filter, and runs each
-    job it is handed on its own model, one at a time.
+    It claims with its entry's `jobs` and no other filter, and runs each job
+    it is handed with its engine, one at a time.
     """
 
-    def __init__(self, entry: WorkerAgentConfig, inference: InferenceClient, claims: Claims) -> None:
+    def __init__(self, entry: WorkerEngineConfig, inference: InferenceClient, claims: Claims) -> None:
         self._entry: Final = entry
         self.inference: Final = inference
         self._claims: Final = claims
         self._stopping = False
 
     def vitals(self) -> dict[str, JsonValue]:
-        """What the engine says of itself to the health endpoint: which it is, what it serves, and what its claims say of themselves."""
+        """What the engine says of itself to the health endpoint: which it is, the jobs it does, and what its claims say of themselves."""
         said = self._claims.vitals()
         active = said.active_job
         return {
-            "provider": self._entry.agent.provider,
-            "model": self._entry.agent.model,
-            "serves": _as_claimed(self._entry.accepts),
+            "provider": self._entry.engine.provider,
+            "model": self._entry.engine.model,
+            "jobs": _as_claimed(self._entry.jobs),
             "lastQueuedEventAt": _instant(said.last_queued_event_at),
             "lastClaimAt": _instant(said.last_claim_at),
             "lastFinishedAt": _instant(said.last_finished_at),
@@ -159,20 +160,20 @@ class Engine:
         }
 
     async def work(self, client: SemiontClient[Transport], agent: UserId) -> None:
-        """Claim the jobs the engine serves and run each, one at a time, until it is stopped.
+        """Claim the engine's jobs and run each, one at a time, until it is stopped.
 
         It returns once `stop` has ended the claiming. Anything else that
         ends it is raised: an engine that cannot claim does not stay up.
         """
-        engine = self._entry.agent
+        engine = self._entry.engine
         # What everything the engine makes says made it: the agent, by the DID the gateway named it with, and the engine.
         generator: Agent = AgentSoftware(
-            type="Software", id=agent, name=agent_name(engine.provider, engine.model), provider=engine.provider, model=engine.model
+            type="Software", id=agent, name=engine_name(engine.provider, engine.model), provider=engine.provider, model=engine.model
         )
         try:
             async with asyncio.TaskGroup() as working:
                 watching = working.create_task(watch_for_a_stall(self._claims, agent))
-                await run_what_is_claimed(client, self._claims, inference=self.inference, generator=generator, accepts=self._entry.accepts)
+                await run_what_is_claimed(client, self._claims, inference=self.inference, generator=generator, accepts=self._entry.jobs)
                 watching.cancel()
         except* Exception as failed:
             # What ended the engine's work, as itself: the watching ended because it did.
@@ -199,13 +200,13 @@ class AgentWorker:
     claims are then the agent's until the way out.
     """
 
-    def __init__(self, engines: Sequence[tuple[WorkerAgentConfig, InferenceClient]], *, gateway_url: str, service: ServiceToken) -> None:
+    def __init__(self, engines: Sequence[tuple[WorkerEngineConfig, InferenceClient]], *, gateway_url: str, service: ServiceToken) -> None:
         self._engines: Final = tuple(engines)
         self._gateway_url: Final = gateway_url
         self._service: Final = service
         self._held: Final = AsyncExitStack()
         self._token: AgentToken | None = None
-        self._opened: tuple[SemiontClient[HttpTransport], tuple[Engine, ...]] | None = None
+        self._opened: tuple[SemiontClient[HttpTransport], tuple[EngineAtWork, ...]] | None = None
 
     async def __aenter__(self) -> Self:
         self._token = await self._held.enter_async_context(AgentToken(self._gateway_url, service=self._service))
@@ -227,9 +228,9 @@ class AgentWorker:
             HttpTransport(self._gateway_url, token=token.token, refresher=token.refresh, channels=WORKER_CHANNELS)
         )
         client = await self._held.enter_async_context(SemiontClient(transport, transport.content, transport))
-        self._opened = (client, tuple(Engine(entry, inference, client.job.claim(entry.accepts)) for entry, inference in self._engines))
+        self._opened = (client, tuple(EngineAtWork(entry, inference, client.job.claim(entry.jobs)) for entry, inference in self._engines))
 
-    def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], tuple[Engine, ...]]:
+    def _at_work(self) -> tuple[UserId, SemiontClient[HttpTransport], tuple[EngineAtWork, ...]]:
         if self._opened is None:
             raise RuntimeError("the agent's stream is not open: `open` it")
         client, engines = self._opened
@@ -238,10 +239,10 @@ class AgentWorker:
     def vitals(self) -> dict[str, JsonValue]:
         """What the agent says of itself to the health endpoint: who it is, and what each engine says of itself."""
         did, _, engines = self._at_work()
-        return {"did": did, "workers": [engine.vitals() for engine in engines]}
+        return {"did": did, "engines": [engine.vitals() for engine in engines]}
 
     async def work(self) -> None:
-        """Answer for the limits of every engine's model, and claim for each engine and run what it is handed, until the agent is stopped.
+        """Answer for the limits of every engine, and claim for each engine and run what it is handed, until the agent is stopped.
 
         It returns once `stop` has ended every engine's claiming. Anything
         else that ends one engine's is raised, and ends the others'.

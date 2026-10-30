@@ -575,9 +575,9 @@ every client, on no scope, and so carry no position. One published while
 the stream is down is lost, and nothing replays it. So when the stream is
 open again **after a drop**, the cache asks again for everything those
 events feed and it holds: every list of resources, every text search of
-them, every resource, the entity types and the tag schemas. The roster, which no
-event feeds, is asked for again here too: a gateway restarted with a
-changed roster presents as a drop.
+them, every resource, the entity types and the tag schemas. The knowledge base's engines, which
+no event feeds, are asked for again here too: a gateway restarted with
+changed engines presents as a drop.
 
 **A handoff is not a drop.** A changed subscription is handed from the old
 stream to a new one, and the old delivers until the new is open: nothing
@@ -685,7 +685,7 @@ over it: a projection or wrapper built per call returns a new
 observable from every live-query call, breaking B4. Confirm each is
 memoized on its key or on its source. In `BrowseNamespace` they are
 `annotationListObs` (the `annotations()` projection), `scopedSources`
-(`withScope`) and the one `collaborators$`; `CacheObservable.from`
+(`withScope`) and the one `engines$`; `CacheObservable.from`
 memoizes its wrapper per source.
 
 ### A5 — Bus-event subscriptions are made once and detached only at disposal

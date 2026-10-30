@@ -52,8 +52,8 @@ func AgentDid(domain, subject string) (api.UserId, error) {
 	return api.ParseUserId("did:web:" + domain + ":agents:" + EncodeUriComponent(subject))
 }
 
-// AgentName is an engine's name — a provider and a model, which is no
-// principal — as a worker states it of itself unless it says otherwise.
-func AgentName(provider, model string) string {
+// EngineName is an engine's name: a provider and a model, which is no
+// principal, as a worker states it of itself unless it says otherwise.
+func EngineName(provider, model string) string {
 	return provider + " " + model
 }

@@ -21,7 +21,7 @@ from semiont_service.config import Refused
 from semiont_vectors.ollama import OllamaEmbeddingProvider
 from semiont_vectors.qdrant import QdrantVectorReader
 from semiont_vectors.voyage import VoyageEmbeddingProvider
-from test_config import DOCUMENT, MODEL, VOYAGE, written
+from test_config import DOCUMENT, ENGINE, VOYAGE, written
 
 from semiont_librarian.service import CHANNELS, boot, health, main
 
@@ -33,8 +33,8 @@ PASSWORD: Final = {"NEO4J_PASSWORD": "n30"}
 KEYED: Final[dict[str, JsonValue]] = {
     **DOCUMENT,
     "embedding": VOYAGE,
-    "matcher": {**MODEL, "apiKeyEnv": "MATCHER_KEY"},
-    "gatherer": {**MODEL, "apiKeyEnv": "GATHERER_KEY"},
+    "matcher": {**ENGINE, "apiKeyEnv": "MATCHER_KEY"},
+    "gatherer": {**ENGINE, "apiKeyEnv": "GATHERER_KEY"},
 }
 """A document that names a variable for every secret a Librarian can be told."""
 
@@ -83,8 +83,8 @@ def test_its_stream_names_the_eight_requests_it_answers_the_two_signals_it_follo
             "browse:resource-failed",
             "browse:annotation-result",
             "browse:annotation-failed",
-            "browse:people-result",
-            "browse:people-failed",
+            "browse:profiles-result",
+            "browse:profiles-failed",
         ]
     )
     assert len(CHANNELS) == len(set(CHANNELS))
@@ -185,16 +185,17 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_each_
 
 
 def test_a_provider_that_takes_a_key_is_refused_by_the_member_where_the_document_names_no_variable_for_one(tmp_path: Path) -> None:
-    anthropic: dict[str, JsonValue] = {"agent": {"provider": "anthropic", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
+    anthropic: dict[str, JsonValue] = {"engine": {"provider": "anthropic", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
     environment = {**ACCOUNT, **PASSWORD}
 
     keyless_matcher = written(tmp_path, {**DOCUMENT, "matcher": anthropic})
     assert refusal(["--config", keyless_matcher], environment) == (
-        "matcher.apiKeyEnv is not stated, and matcher.agent.provider is anthropic: api_key is required for the Anthropic inference client"
+        "matcher.apiKeyEnv is not stated, and matcher.engine.provider is anthropic: api_key is required for the Anthropic inference client"
     )
     keyless_gatherer = written(tmp_path, {**DOCUMENT, "gatherer": anthropic})
     assert refusal(["--config", keyless_gatherer], environment) == (
-        "gatherer.apiKeyEnv is not stated, and gatherer.agent.provider is anthropic: api_key is required for the Anthropic inference client"
+        "gatherer.apiKeyEnv is not stated, and gatherer.engine.provider is anthropic: "
+        "api_key is required for the Anthropic inference client"
     )
 
 
@@ -203,7 +204,7 @@ def test_a_model_whose_facts_are_a_catalogue_s_is_refused_by_the_member_without_
 ) -> None:
     environment = {**ACCOUNT, **PASSWORD, "OPENAI_KEY": "sk-test"}
     openai: dict[str, JsonValue] = {
-        "agent": {"provider": "openai", "model": "gpt-listed"},
+        "engine": {"provider": "openai", "model": "gpt-listed"},
         "baseUrl": "http://127.0.0.1:1/v1",
         "apiKeyEnv": "OPENAI_KEY",
     }
@@ -212,7 +213,7 @@ def test_a_model_whose_facts_are_a_catalogue_s_is_refused_by_the_member_without_
     assert absent.startswith(f"modelCatalogue names {nowhere}, which does not serve the gatherer: the model catalogue cannot be read: ")
 
     # The document names a catalogue file that is not there, as every document here does: nothing reads it for these.
-    vllm: dict[str, JsonValue] = {"agent": {"provider": "vllm", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1/v1"}
+    vllm: dict[str, JsonValue] = {"engine": {"provider": "vllm", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1/v1"}
     started = boot(["--config", written(tmp_path, {**DOCUMENT, "matcher": vllm, "gatherer": vllm})], environment)
     assert (started.matcher.provider, started.gatherer.provider) == ("vllm", "vllm")
 

@@ -1,15 +1,15 @@
-"""The limits report: how a service that holds inference clients tells everyone else what its models can take.
+"""The limits report: how a service that holds inference clients tells everyone else what its engines can take.
 
 A service with a provider's key is the only one that can ask the provider
 about a model. It answers a request for limits with the discovered limits of
-its own providers and models, and a client reads them beside the
-knowledge base's list of who works in it.
+its own engines, and a client reads them beside the knowledge base's
+engines.
 
 Nothing is kept here. A client keeps the limits it learned, shares one asking
 among the callers that ask at once, and forgets a failure, so a provider that
 was down for a moment is asked again at the next report. A report never fails
-and never waits on a provider: a pair whose limits could not be learned, or
-were not learned in time, is left out of it.
+and never waits on a provider: an engine whose limits could not be learned,
+or were not learned in time, is left out of it.
 
 The request is one of the bus's limits operations, one for each service that
 holds a key: the Worker answers `job:limits-requested`, and the Librarian
@@ -27,11 +27,12 @@ from semiont.errors import SemiontError
 from semiont.model import stated
 from semiont.types import (
     CommandError,
+    Engine,
+    EngineLimits,
     InferenceLimits,
     InferenceLimitsRequest,
     InferenceLimitsResult,
     InferenceLimitsResultResponse,
-    InferencePairLimits,
 )
 
 from semiont_inference._log import LOG
@@ -48,16 +49,18 @@ _BUDGET: Final = 1.5
 
 async def _consult(client: InferenceClient) -> InferenceLimits | None:
     """One client's limits as the wire carries them (the SDK's `InferenceLimits`), or None where they were not learned in time."""
-    pair = f"{client.provider} {client.model_id}"
+    engine = f"{client.provider} {client.model_id}"
     budget = asyncio.timeout(_BUDGET)
     try:
         async with budget:
             discovered = await client.limits()
     except Exception as failed:
         if budget.expired():
-            LOG.debug("Limits report: consult exceeded budget — pair left out", extra={"pair": pair, "budgetMs": round(_BUDGET * 1000)})
+            LOG.debug(
+                "Limits report: consult exceeded budget — engine left out", extra={"engine": engine, "budgetMs": round(_BUDGET * 1000)}
+            )
         else:
-            LOG.debug("Limits report: consult failed — pair left out", extra={"pair": pair, "reason": str(failed)})
+            LOG.debug("Limits report: consult failed — engine left out", extra={"engine": engine, "reason": str(failed)})
         return None
     # What the wire's schema declares, and no more: a driver's limits also carry the provider's
     # rate, which is for a worker's own budget and has no reader on the wire. Whether the model
@@ -71,20 +74,16 @@ async def _consult(client: InferenceClient) -> InferenceLimits | None:
     )
 
 
-async def report_limits(clients: Sequence[InferenceClient]) -> list[InferencePairLimits]:
-    """The discovered limits of each distinct provider and model among `clients`, in the order given.
+async def report_limits(clients: Sequence[InferenceClient]) -> list[EngineLimits]:
+    """The discovered limits of each distinct engine among `clients`, in the order given.
 
-    A pair whose limits could not be learned, or were not learned in time, is left out.
+    An engine whose limits could not be learned, or were not learned in time, is left out.
     """
-    distinct: dict[tuple[str, str], InferenceClient] = {}
+    distinct: dict[Engine, InferenceClient] = {}
     for client in clients:
-        distinct.setdefault((client.provider, client.model_id), client)
+        distinct.setdefault(Engine(provider=client.provider, model=client.model_id), client)
     consulted = await asyncio.gather(*(_consult(client) for client in distinct.values()))
-    return [
-        InferencePairLimits(provider=provider, model=model, limits=limits)
-        for (provider, model), limits in zip(distinct, consulted, strict=True)
-        if limits is not None
-    ]
+    return [EngineLimits(engine=engine, limits=limits) for engine, limits in zip(distinct, consulted, strict=True) if limits is not None]
 
 
 async def _answer(

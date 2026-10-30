@@ -77,10 +77,10 @@ type live struct {
 	annotationMu sync.Mutex
 	annotationOf map[api.AnnotationId]api.ResourceId
 
-	// directoryAsked is closed, and replaced, each time the directory is
-	// asked for: the key holders are asked for their limits after it.
-	askedMu        sync.Mutex
-	directoryAsked chan struct{}
+	// enginesAsked is closed, and replaced, each time the engines are asked
+	// for: the key holders are asked for their limits after them.
+	askedMu      sync.Mutex
+	enginesAsked chan struct{}
 
 	resource     *Cache[api.ResourceId, api.ResourceDescriptor]
 	lists        *Cache[filterKey, api.ListResourcesResponse]
@@ -88,8 +88,8 @@ type live struct {
 	annotation   *Cache[api.AnnotationId, api.Annotation]
 	entityTypes  *Cache[whole, []string]
 	tagSchemas   *Cache[whole, []api.TagSchema]
-	agents       *Cache[whole, []api.RosterEntry]
-	limits       *Cache[bus.Channel, []api.InferencePairLimits]
+	engines      *Cache[whole, []api.EngineEntry]
+	limits       *Cache[bus.Channel, []api.EngineLimits]
 	events       *Cache[api.ResourceId, []api.AttributedEvent]
 	referencedBy *Cache[api.ResourceId, []api.GetReferencedByResponseReferencedByItem]
 	searches     *Cache[searchKey, api.MatchResourcesResponse]
@@ -105,7 +105,7 @@ func keptBy[K comparable, V any](persistence *CachePersistence, name string, max
 }
 
 func newLive(l *links, content ContentTransport, persistence *CachePersistence) *live {
-	v := &live{links: l, annotationOf: map[api.AnnotationId]api.ResourceId{}, directoryAsked: make(chan struct{})}
+	v := &live{links: l, annotationOf: map[api.AnnotationId]api.ResourceId{}, enginesAsked: make(chan struct{})}
 	save, most := l.timing.SaveDebounce, l.timing.MaxStoredBytesCount
 	v.resource = NewCache(func(ctx context.Context, id api.ResourceId) (api.ResourceDescriptor, error) {
 		answer, err := ask(ctx, l, bus.BrowseResourceRequested, api.BrowseResourceRequest{ResourceId: id})
@@ -137,11 +137,11 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 		answer, err := ask(ctx, l, bus.BrowseTagSchemasRequested, api.BrowseTagSchemasRequest{})
 		return answer.Response.TagSchemas, err
 	}, l.run, keptBy[whole, []api.TagSchema](persistence, "tag-schemas", most), save)
-	v.agents = NewCache(func(ctx context.Context, _ whole) ([]api.RosterEntry, error) {
-		answer, err := requestAsking(ctx, l.wire, bus.BrowseAgentsRequested, api.BrowseAgentsRequest{}, l.timing.BusRequestTimeout, v.askedTheDirectory)
-		return answer.Response.Agents, err
+	v.engines = NewCache(func(ctx context.Context, _ whole) ([]api.EngineEntry, error) {
+		answer, err := requestAsking(ctx, l.wire, bus.BrowseEnginesRequested, api.BrowseEnginesRequest{}, l.timing.BusRequestTimeout, v.askedForTheEngines)
+		return answer.Response.Engines, err
 	}, l.run, nil, 0)
-	v.limits = NewCache(func(ctx context.Context, holder bus.Channel) ([]api.InferencePairLimits, error) {
+	v.limits = NewCache(func(ctx context.Context, holder bus.Channel) ([]api.EngineLimits, error) {
 		return v.limitsOf(ctx, holder), nil
 	}, l.run, nil, 0)
 	v.events = NewCache(func(ctx context.Context, id api.ResourceId) ([]api.AttributedEvent, error) {
@@ -160,10 +160,10 @@ func newLive(l *links, content ContentTransport, persistence *CachePersistence) 
 	return v
 }
 
-// limitsOf is the models one key holder reports the limits of. A holder that
-// is down, silent or mistaken reports none: its models show no limits, and
-// the directory is not held up by it for longer than a request waits.
-func (v *live) limitsOf(ctx context.Context, holder bus.Channel) []api.InferencePairLimits {
+// limitsOf is the engines one key holder reports the limits of. A holder
+// that is down, silent or mistaken reports none: its engines show no limits,
+// and the engines are not held up by it for longer than a request waits.
+func (v *live) limitsOf(ctx context.Context, holder bus.Channel) []api.EngineLimits {
 	for _, operation := range bus.LimitsOperations {
 		if operation.Request().Channel() != holder {
 			continue
@@ -177,19 +177,19 @@ func (v *live) limitsOf(ctx context.Context, holder bus.Channel) []api.Inference
 	return nil
 }
 
-// askedTheDirectory says the directory's request is being sent.
-func (v *live) askedTheDirectory() {
+// askedForTheEngines says the engines' request is being sent.
+func (v *live) askedForTheEngines() {
 	v.askedMu.Lock()
 	defer v.askedMu.Unlock()
-	close(v.directoryAsked)
-	v.directoryAsked = make(chan struct{})
+	close(v.enginesAsked)
+	v.enginesAsked = make(chan struct{})
 }
 
-// nextDirectoryAsk is closed the next time the directory is asked for.
-func (v *live) nextDirectoryAsk() <-chan struct{} {
+// nextEnginesAsk is closed the next time the engines are asked for.
+func (v *live) nextEnginesAsk() <-chan struct{} {
 	v.askedMu.Lock()
 	defer v.askedMu.Unlock()
-	return v.directoryAsked
+	return v.enginesAsked
 }
 
 // annotationOn notes the resource an annotation is of, for its request.
@@ -222,27 +222,27 @@ func holders() []bus.Channel {
 	return keys
 }
 
-// invalidateAgents says the directory is out of date, and so is what each
+// invalidateEngines says the engines are out of date, and so is what each
 // key holder reported.
-func (v *live) invalidateAgents() {
-	v.agents.Invalidate(whole{})
+func (v *live) invalidateEngines() {
+	v.engines.Invalidate(whole{})
 	for _, holder := range holders() {
 		v.limits.Invalidate(holder)
 	}
 }
 
-// collaborators is the directory, asked for first, with each model's limits
-// as the services holding its credentials report them.
-func (v *live) collaborators() *Cached[[]Collaborator] {
-	return &Cached[[]Collaborator]{
-		fresh: func(ctx context.Context) ([]Collaborator, error) {
-			asked := v.nextDirectoryAsk()
-			directory := make(chan outcome[[]api.RosterEntry], 1)
+// enginesWithLimits is the engines, asked for first, with each model's
+// limits as the services holding its credentials report them.
+func (v *live) enginesWithLimits() *Cached[[]EngineWithLimits] {
+	return &Cached[[]EngineWithLimits]{
+		fresh: func(ctx context.Context) ([]EngineWithLimits, error) {
+			asked := v.nextEnginesAsk()
+			listed := make(chan outcome[[]api.EngineEntry], 1)
 			go func() {
-				entries, err := v.agents.Fetch(ctx, whole{})
-				directory <- outcome[[]api.RosterEntry]{entries, err}
+				entries, err := v.engines.Fetch(ctx, whole{})
+				listed <- outcome[[]api.EngineEntry]{entries, err}
 			}()
-			reports := make(chan []api.InferencePairLimits, len(bus.LimitsOperations))
+			reports := make(chan []api.EngineLimits, len(bus.LimitsOperations))
 			startHolders := func() {
 				for _, holder := range holders() {
 					go func() {
@@ -251,12 +251,12 @@ func (v *live) collaborators() *Cached[[]Collaborator] {
 					}()
 				}
 			}
-			// The key holders are asked after the directory is: when it is sent, or when it has been answered.
-			var answered *outcome[[]api.RosterEntry]
+			// The key holders are asked after the engines are: when their request is sent, or when it has been answered.
+			var answered *outcome[[]api.EngineEntry]
 			select {
 			case <-asked:
 				startHolders()
-			case got := <-directory:
+			case got := <-listed:
 				answered = &got
 				startHolders()
 			case <-ctx.Done():
@@ -264,17 +264,17 @@ func (v *live) collaborators() *Cached[[]Collaborator] {
 			}
 			if answered == nil {
 				select {
-				case got := <-directory:
+				case got := <-listed:
 					answered = &got
 				case <-ctx.Done():
 					return nil, ctx.Err()
 				}
 			}
-			// A directory that could not be had fails the read at once: nothing the holders say can be shown without it.
+			// Engines that could not be had fail the read at once: nothing the holders say can be shown without them.
 			if answered.err != nil {
 				return nil, answered.err
 			}
-			var reported []api.InferencePairLimits
+			var reported []api.EngineLimits
 			for range bus.LimitsOperations {
 				select {
 				case limits := <-reports:
@@ -285,15 +285,15 @@ func (v *live) collaborators() *Cached[[]Collaborator] {
 			}
 			return joined(answered.value, reported), nil
 		},
-		watch:      v.collaboratorStates,
-		invalidate: v.invalidateAgents,
+		watch:      v.engineStates,
+		invalidate: v.invalidateEngines,
 	}
 }
 
-// collaboratorStates is the directory's state, joined with what each key
-// holder has reported: a holder that has not answered delays only its own
-// models' limits. A state is given when it differs from the one before.
-func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
+// engineStates is the engines' state, joined with what each key holder has
+// reported: a holder that has not answered delays only its own engines'
+// limits. A state is given when it differs from the one before.
+func (v *live) engineStates(ctx context.Context) iter.Seq[CacheState] {
 	return func(yield func(CacheState) bool) {
 		ctx, stop := context.WithCancel(ctx)
 		defer stop()
@@ -305,9 +305,9 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 			default:
 			}
 		}
-		var directory CacheState
+		var engines CacheState
 		keyHolders := holders()
-		reported := make([][]api.InferencePairLimits, len(keyHolders))
+		reported := make([][]api.EngineLimits, len(keyHolders))
 		ended := false
 		end := func() {
 			mu.Lock()
@@ -315,17 +315,17 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 			mu.Unlock()
 			tell()
 		}
-		asked := v.nextDirectoryAsk()
+		asked := v.nextEnginesAsk()
 		held := make(chan struct{})
 		go func() {
 			defer end()
 			first := true
-			for state := range v.agents.Observe(ctx, whole{}) {
+			for state := range v.engines.Observe(ctx, whole{}) {
 				mu.Lock()
-				directory = state
+				engines = state
 				mu.Unlock()
-				// A directory already held is asked for no more: its holders need not wait for an ask.
-				if _, ready := state.(Ready[[]api.RosterEntry]); ready && first {
+				// Engines already held are asked for no more: their holders need not wait for an ask.
+				if _, ready := state.(Ready[[]api.EngineEntry]); ready && first {
 					close(held)
 					first = false
 				}
@@ -333,7 +333,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 			}
 		}()
 		go func() {
-			// The key holders are watched once the directory has been asked for, or is held already.
+			// The key holders are watched once the engines have been asked for, or are held already.
 			select {
 			case <-asked:
 			case <-held:
@@ -344,7 +344,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 				go func() {
 					defer end()
 					for state := range v.limits.Observe(ctx, holder) {
-						if ready, ok := state.(Ready[[]api.InferencePairLimits]); ok {
+						if ready, ok := state.(Ready[[]api.EngineLimits]); ok {
 							mu.Lock()
 							reported[i] = ready.Value
 							mu.Unlock()
@@ -362,8 +362,8 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 				return
 			}
 			mu.Lock()
-			state, done := directory, ended
-			var limits []api.InferencePairLimits
+			state, done := engines, ended
+			var limits []api.EngineLimits
 			for _, report := range reported {
 				limits = append(limits, report...)
 			}
@@ -374,7 +374,7 @@ func (v *live) collaboratorStates(ctx context.Context) iter.Seq[CacheState] {
 			if state == nil {
 				continue
 			}
-			now := shown(state, func(entries []api.RosterEntry) []Collaborator { return joined(entries, limits) })
+			now := shown(state, func(entries []api.EngineEntry) []EngineWithLimits { return joined(entries, limits) })
 			if reflect.DeepEqual(now, last) {
 				continue
 			}
@@ -448,7 +448,7 @@ func (v *live) dispose() {
 	v.annotation.Close()
 	v.entityTypes.Close()
 	v.tagSchemas.Close()
-	v.agents.Close()
+	v.engines.Close()
 	v.limits.Close()
 	v.events.Close()
 	v.referencedBy.Close()

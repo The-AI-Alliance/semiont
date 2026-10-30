@@ -15,7 +15,11 @@ from pydantic import JsonValue
 
 from semiont_service.health import Health, bind_health
 
-SAID: JsonValue = {"status": "ok", "agents": 1, "workers": [{"provider": "ollama", "model": "gemma2:27b", "jobsCompleted": 0}]}
+SAID: JsonValue = {
+    "status": "ok",
+    "did": "did:web:example.org:agents:worker",
+    "engines": [{"provider": "ollama", "model": "gemma2:27b", "jobsCompleted": 0}],
+}
 
 
 async def serve_health(port: int, health: Health) -> asyncio.Server:

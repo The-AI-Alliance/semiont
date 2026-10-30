@@ -93,7 +93,7 @@ type launchPlan struct {
 	// messages that name it.
 	Inference string
 	// OllamaModels: every model the documents ask the MACHINE'S Ollama to
-	// serve — the ollama bindings when the Inference document states no
+	// serve — the ollama engines when the Inference document states no
 	// providers.ollama.baseURL, plus an ollama embedding with no endpoint.
 	// Distinct from the per-role Models (which list what a role uses whoever
 	// serves it): only these are pulled, into the machine's Ollama; an Ollama
@@ -130,10 +130,11 @@ type modelNeed struct {
 }
 
 // servedModel: one model a role uses and the provider that serves it — the
-// config `type` of the binding or section that names it. A role's driver does
-// not say this: a config can point workers at Anthropic and one job type at
-// Ollama, and the inference row then lists Claude under a driver of "ollama".
-// The pair is also how key holders report limits.
+// provider of the engine, or the `type` of the section, that names it. A
+// role's driver does not say this: a config can give most jobs Anthropic's
+// engines and one job type Ollama's, and the inference row then lists Claude
+// under a driver of "ollama". Key holders report limits by the same provider
+// and model: an engine.
 type servedModel struct {
 	Model    string `json:"model"`
 	Provider string `json:"provider"`
@@ -150,46 +151,45 @@ func servedBy(models []servedModel, provider string) []string {
 	return out
 }
 
-// boundRole: a role a roster binds, at its place in the roster ("actors.gatherer",
-// "workers.mark.tagging").
-type boundRole struct {
-	at   string
-	role api.ArchivistRosterRole
+// boundEngine: an engine the Inference document's engines name, at its place
+// in them ("actors.gatherer", "jobs.mark.tagging").
+type boundEngine struct {
+	at     string
+	engine api.Engine
 }
 
-// rosterRoles: every role a roster binds — each actor's, then each job's, in
-// the roster's own order.
-func rosterRoles(roster api.ArchivistRoster) []boundRole {
-	var bound []boundRole
+// boundEngines: every engine the engines name — each actor's, then each
+// job's, in the engines' own order.
+func boundEngines(engines api.ArchivistEngines) []boundEngine {
+	var bound []boundEngine
 	for _, actor := range []struct {
-		name string
-		role *api.ArchivistRosterRole
-	}{{"gatherer", roster.Actors.Gatherer}, {"matcher", roster.Actors.Matcher}} {
-		if actor.role != nil {
-			bound = append(bound, boundRole{at: "actors." + actor.name, role: *actor.role})
+		name   string
+		engine *api.Engine
+	}{{"gatherer", engines.Actors.Gatherer}, {"matcher", engines.Actors.Matcher}} {
+		if actor.engine != nil {
+			bound = append(bound, boundEngine{at: "actors." + actor.name, engine: *actor.engine})
 		}
 	}
-	for _, s := range servedJobs(roster) {
-		bound = append(bound, boundRole{at: "workers." + s.job.name, role: *s.role})
+	for _, j := range jobEngines(engines) {
+		bound = append(bound, boundEngine{at: "jobs." + j.job.name, engine: *j.engine})
 	}
 	return bound
 }
 
-// servedJobs: each job the roster binds a worker role to, in workerJobs'
-// order.
-func servedJobs(roster api.ArchivistRoster) []servedJob {
-	var served []servedJob
-	workers := reflect.ValueOf(roster.Workers)
-	for _, job := range workerJobs() {
-		if role := job.bound(workers); role != nil {
-			served = append(served, servedJob{job: job, role: role})
+// jobEngines: each job the engines give an engine, in engineJobs' order.
+func jobEngines(engines api.ArchivistEngines) []jobEngine {
+	var given []jobEngine
+	jobs := reflect.ValueOf(engines.Jobs)
+	for _, job := range engineJobs() {
+		if engine := job.engine(jobs); engine != nil {
+			given = append(given, jobEngine{job: job, engine: engine})
 		}
 	}
-	return served
+	return given
 }
 
 // ollamaModels: the models this stack asks the machine's Ollama to serve —
-// bindings whose provider is ollama, when the Inference document places that
+// engines whose provider is ollama, when the Inference document places that
 // Ollama nowhere else, plus an ollama-typed embedding with no endpoint. These
 // are exactly the models a "pull" is defined for.
 func ollamaModels(st *stack.Stack) []modelNeed {
@@ -212,13 +212,13 @@ func ollamaModels(st *stack.Stack) []modelNeed {
 		}
 		m.Roles = append(m.Roles, role)
 	}
-	// Every actor/worker binding is the INFERENCE role however many bindings
-	// name the same model; the embedding role is added last, so Roles ends up
-	// in one order.
-	if st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama].BaseURL == nil {
-		for _, b := range rosterRoles(st.Inference.Spec.Roster) {
-			if b.role.Provider == api.ArchivistRosterRoleProviderOllama {
-				add(b.role.Model, roleInference)
+	// Every actor's and job's engine is the INFERENCE role however many
+	// engines name the same model; the embedding role is added last, so Roles
+	// ends up in one order.
+	if st.Inference.Spec.Providers[api.EngineProviderOllama].BaseURL == nil {
+		for _, b := range boundEngines(st.Inference.Spec.Engines) {
+			if b.engine.Provider == api.EngineProviderOllama {
+				add(b.engine.Model, roleInference)
 			}
 		}
 	}
@@ -260,14 +260,14 @@ func modelRoles(models []modelNeed) []string {
 	return out
 }
 
-// remoteInferenceDriver: the (sorted-first) non-ollama provider the bindings
-// name. With one remote provider — the real case — this is it; a mixed-remote
-// roster gets the alphabetically first, and its models still all list
-// (bindingModels is unfiltered).
+// remoteInferenceDriver: the (sorted-first) non-ollama provider the engines
+// name. With one remote provider — the real case — this is it; engines of
+// several remote providers get the alphabetically first, and their models
+// still all list (engineModels is unfiltered).
 func remoteInferenceDriver(st *stack.Stack) string {
 	set := map[string]bool{}
-	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
-		if p := string(b.role.Provider); p != "ollama" {
+	for _, b := range boundEngines(st.Inference.Spec.Engines) {
+		if p := string(b.engine.Provider); p != "ollama" {
 			set[p] = true
 		}
 	}
@@ -285,9 +285,9 @@ func remoteInferenceDriver(st *stack.Stack) string {
 // remoteProviderAddress: where a remote inference provider's API is — the
 // baseURL its entry states, else the provider's own. ONE decider: the
 // inference role the remote-model check dials (saasBase), and the address a
-// worker's document gives an agent whose provider states none (workerdoc.go).
+// worker's document gives an engine whose provider states none (workerdoc.go).
 func remoteProviderAddress(st *stack.Stack, driver string) (host string, port int) {
-	if p, ok := st.Inference.Spec.Providers[api.ArchivistRosterRoleProvider(driver)]; ok && p.BaseURL != nil {
+	if p, ok := st.Inference.Spec.Providers[api.EngineProvider(driver)]; ok && p.BaseURL != nil {
 		host, port = parseHostPort(*p.BaseURL)
 		if port == 0 && strings.HasPrefix(*p.BaseURL, "https://") {
 			port = 443
@@ -305,15 +305,15 @@ func remoteProviderAddress(st *stack.Stack, driver string) (host string, port in
 	return host, port
 }
 
-// bindingModels: every model the roster's actors and workers bind for
+// engineModels: every model the engines of the actors and the jobs name for
 // inference, with its provider, sorted and deduped. Deliberately NOT filtered
 // by provider: these are the models this stack performs inference with,
-// whoever serves them — a mixed roster lists all of them.
-func bindingModels(st *stack.Stack) []servedModel {
+// whoever serves them — engines of mixed providers list all of them.
+func engineModels(st *stack.Stack) []servedModel {
 	seen := map[servedModel]bool{}
 	var out []servedModel
-	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
-		m := servedModel{Model: b.role.Model, Provider: string(b.role.Provider)}
+	for _, b := range boundEngines(st.Inference.Spec.Engines) {
+		m := servedModel{Model: b.engine.Model, Provider: string(b.engine.Provider)}
 		if !seen[m] {
 			seen[m] = true
 			out = append(out, m)
@@ -362,7 +362,7 @@ func providedRunArgs(e exposure, role string, rp rolePlan, extra ...string) []st
 
 // ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
 // providedRunArgs because the OWNING role varies (inference, or embedding
-// when the bindings are all-remote) while the container, image and port
+// when the engines are all remote) while the container, image and port
 // shape do not — the OWNER's descriptor would be wrong for embedding, whose
 // row carries no container precisely because it never runs one.
 func ollamaRunArgs(e exposure, rp rolePlan, extra ...string) []string {
@@ -462,13 +462,13 @@ func parseHostPort(s string) (host string, port int) {
 }
 
 // workerPlan: the worker's row of the plan. The launcher runs a worker when
-// the roster binds a job to one, and the stack has none when it binds none.
-// ONE decision, read from the roster the worker's document and the
-// Archivist's are written from (servedJobs); everything that enumerates the
+// the engines give a job an engine, and the stack has none when they give
+// none. ONE decision, read from the engines the worker's document and the
+// Archivist's are written from (jobEngines); everything that enumerates the
 // stack follows it (launchPlan.runs).
 func workerPlan(st *stack.Stack) rolePlan {
 	worker := rolePlan{Role: "worker", Driver: driverSemiont, Presence: presenceLauncher}
-	if len(servedJobs(st.Inference.Spec.Roster)) == 0 {
+	if len(jobEngines(st.Inference.Spec.Engines)) == 0 {
 		worker.Presence = presenceAbsent
 	}
 	return worker
@@ -501,21 +501,21 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 		},
 	}
 
-	// Every provider a role names is one the Inference document says how to
-	// reach.
+	// Every provider an engine names is one the Inference document says how
+	// to reach.
 	providers := st.Inference.Spec.Providers
-	bindingsUseOllama := false
-	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
-		if _, stated := providers[b.role.Provider]; !stated {
-			return nil, planErr(files.Inference, "spec.roster."+b.at+".provider", "is %q, and spec.providers says nothing of it — add spec.providers.%s", b.role.Provider, b.role.Provider)
+	enginesUseOllama := false
+	for _, b := range boundEngines(st.Inference.Spec.Engines) {
+		if _, stated := providers[b.engine.Provider]; !stated {
+			return nil, planErr(files.Inference, "spec.engines."+b.at+".provider", "is %q, and spec.providers says nothing of it — add spec.providers.%s", b.engine.Provider, b.engine.Provider)
 		}
-		if b.role.Provider == api.ArchivistRosterRoleProviderOllama {
-			bindingsUseOllama = true
+		if b.engine.Provider == api.EngineProviderOllama {
+			enginesUseOllama = true
 		}
 	}
 	// inferenceOllama: where the Ollama that performs inference is — the
 	// Inference document's to say, and nil for the machine's.
-	inferenceOllama := providers[api.ArchivistRosterRoleProviderOllama].BaseURL
+	inferenceOllama := providers[api.EngineProviderOllama].BaseURL
 
 	// graph
 	{
@@ -699,11 +699,11 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 		// WHO runs the machine's Ollama an ollama embedding needs? If inference
 		// runs on the machine's Ollama too, the inference role runs it and the
 		// embedding rides along (SharesOllamaWith names that, so both rows
-		// report the one process the same way). If not — the bindings are
+		// report the one process the same way). If not — the engines are
 		// remote, or name somebody else's Ollama — EMBEDDING owns the
 		// host-process dance itself.
 		if ownOllama {
-			if bindingsUseOllama && inferenceOllama == nil {
+			if enginesUseOllama && inferenceOllama == nil {
 				rp.SharesOllamaWith = "inference"
 			} else {
 				rp.Presence = presenceHostPreferred
@@ -714,30 +714,30 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 		plan.Roles["embedding"] = rp
 	}
 
-	// inference — the driver is WHO PERFORMS INFERENCE per the roster, not
-	// which process the launcher happens to run. Any ollama binding → the
+	// inference — the driver is WHO PERFORMS INFERENCE per the engines, not
+	// which process the launcher happens to run. Any ollama engine → the
 	// local-Ollama shape (host-process dance, or external at its address).
-	// All-remote bindings → an external SaaS role: participates in status,
+	// All-remote engines → an external SaaS role: participates in status,
 	// launches nothing — even when an Ollama runs locally for the embedding,
-	// because that Ollama is the embedding's. No bindings → not configured.
+	// because that Ollama is the embedding's. No engines → not configured.
 	switch {
-	case !bindingsUseOllama && len(bindingModels(st)) > 0:
+	case !enginesUseOllama && len(engineModels(st)) > 0:
 		driver := remoteInferenceDriver(st)
 		host, port := remoteProviderAddress(st, driver)
 		rp := rolePlan{
 			Role: "inference", Presence: presenceExternal,
 			Driver: driver, Address: host, Port: port,
-			Models: bindingModels(st),
+			Models: engineModels(st),
 		}
-		if key := providers[api.ArchivistRosterRoleProvider(driver)].ApiKey; key != nil {
+		if key := providers[api.EngineProvider(driver)].ApiKey; key != nil {
 			rp.APIKey = key.FromEnv
 		}
 		plan.Roles["inference"] = rp
-	case !bindingsUseOllama:
+	case !enginesUseOllama:
 		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}
 	default:
 		spec := descriptorFor("inference", "ollama")
-		rp := rolePlan{Role: "inference", Driver: "ollama", Port: spec.defaultPort, Image: spec.image, Models: bindingModels(st)}
+		rp := rolePlan{Role: "inference", Driver: "ollama", Port: spec.defaultPort, Image: spec.image, Models: engineModels(st)}
 		if inferenceOllama == nil {
 			rp.Presence = presenceHostPreferred
 		} else {
@@ -751,11 +751,11 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 	}
 
 	// worker — the one of Semiont's own services the documents decide: run
-	// when the roster binds a job to it, from the WorkerPool document.
+	// when the engines give a job an engine, from the WorkerPool document.
 	worker := workerPlan(st)
 	if worker.Presence == presenceLauncher {
 		if st.Workers == nil {
-			return nil, planErr(files.Inference, "spec.roster.workers", "binds jobs to a worker, and the knowledge base has no %s to say how one runs", files.Workers)
+			return nil, planErr(files.Inference, "spec.engines.jobs", "gives jobs an engine, and the knowledge base has no %s to say how a worker runs", files.Workers)
 		}
 		plan.Images["worker"] = st.Workers.Spec.Worker.Image
 		plan.Memory["worker"] = st.Workers.Spec.Worker.Resources.Limits.Memory

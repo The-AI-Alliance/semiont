@@ -117,33 +117,33 @@ function reopen(state$: BehaviorSubject<ConnectionState>): void {
 }
 
 /**
- * The Archivist's reply to `browse:agents-requested`, verbatim shape:
- * `{ agents: RosterEntry[] }` where an entry is `{ engine, serves? }`. The
- * roster carries no limits: the services holding the inference credentials
+ * The Archivist's reply to `browse:engines-requested`, verbatim shape:
+ * `{ engines: EngineEntry[] }` where an entry is `{ engine, jobs? }`. The
+ * engines carry no limits: the services holding the inference credentials
  * report those (MOCK_LIMITS below) and the sdk joins them onto the entries.
- * One engine serving jobs, one serving actors only — both pass through as-is.
+ * One engine used for jobs, one only actors ask — both pass through as-is.
  */
-const MOCK_COLLABORATORS = [
+const MOCK_ENGINES = [
   {
     engine: { provider: 'anthropic', model: 'claude-haiku-4-5' },
-    serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
+    jobs: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
   },
   {
     engine: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
-    // actors-only (gatherer/matcher): no serves — must stay absent.
+    // actors-only (gatherer/matcher): no jobs — must stay absent.
   },
 ];
 
 /**
- * What each key holder reports: the worker for the model its jobs use, the
- * librarian's matcher for the actor-only model, and a gatherer that reports
+ * What each key holder reports: the worker for the engine its jobs use, the
+ * librarian's matcher for the actor-only engine, and a gatherer that reports
  * nothing.
  */
 const HAIKU_LIMITS = { contextTokens: 200_000, maxOutputTokens: 64_000 };
 const SONNET_LIMITS = { contextTokens: 200_000, maxOutputTokens: 32_000 };
 const MOCK_LIMITS: Record<string, unknown[]> = {
-  'job:limits-requested': [{ provider: 'anthropic', model: 'claude-haiku-4-5', limits: HAIKU_LIMITS }],
-  'match:limits-requested': [{ provider: 'anthropic', model: 'claude-sonnet-4-5', limits: SONNET_LIMITS }],
+  'job:limits-requested': [{ engine: { provider: 'anthropic', model: 'claude-haiku-4-5' }, limits: HAIKU_LIMITS }],
+  'match:limits-requested': [{ engine: { provider: 'anthropic', model: 'claude-sonnet-4-5' }, limits: SONNET_LIMITS }],
   'gather:limits-requested': [],
 };
 
@@ -209,9 +209,9 @@ function createHarness(opts: HarnessOptions = {}) {
         response = { events: [], total: 0, resourceId: (payload.resourceId as string) ?? 'res-1' };
         break;
       }
-      case 'browse:agents-requested': {
-        resultChannel = 'browse:agents-result';
-        response = { agents: MOCK_COLLABORATORS };
+      case 'browse:engines-requested': {
+        resultChannel = 'browse:engines-result';
+        response = { engines: MOCK_ENGINES };
         break;
       }
       case 'job:limits-requested':
@@ -1018,27 +1018,27 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     });
   });
 
-  // The roster.
-  // `agents()` is the third KB-wide singleton (tagSchemas pattern): unscoped,
-  // sentinel-keyed, entries passed through UNRESHAPED (`serves` is the field
-  // the `RosterEntry` wrapper exists for — a flattening implementation must
+  // The engines.
+  // `engines()` is the third KB-wide singleton (tagSchemas pattern): unscoped,
+  // sentinel-keyed, entries passed through UNRESHAPED (`jobs` is the field
+  // the `EngineEntry` wrapper exists for — a flattening implementation must
   // fail here).
-  describe('browse.agents() — the roster', () => {
-    it('serves RosterEntry[] unreshaped — serves intact, absent stays absent — and caches (one fetch)', async () => {
+  describe('browse.engines()', () => {
+    it('returns EngineEntry[] unreshaped — jobs intact, absent stays absent — and caches (one fetch)', async () => {
       const { browse, emitSpy } = createHarness();
 
-      const entries = await firstDefined(browse.agents());
-      expect(entries).toEqual(MOCK_COLLABORATORS);
+      const entries = await firstDefined(browse.engines());
+      expect(entries).toEqual(MOCK_ENGINES);
 
-      await firstDefined(browse.agents());
-      const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;
-      expect(agentFetches).toBe(1);
+      await firstDefined(browse.engines());
+      const engineFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:engines-requested').length;
+      expect(engineFetches).toBe(1);
     });
 
-    it('B16: browse.dispose() completes an agents() subscriber — the agents cache is in the dispose list', async () => {
+    it('B16: browse.dispose() completes an engines() subscriber — the engines cache is in the dispose list', async () => {
       const { browse } = createHarness();
       const events: string[] = [];
-      browse.agents().subscribe({
+      browse.engines().subscribe({
         next: (s) => { if (s.status !== 'pending') events.push('next'); },
         error: () => events.push('error'),
         complete: () => events.push('complete'),
@@ -1047,31 +1047,31 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
 
       browse.dispose();
 
-      // The directory, then the directory with the limits joined: each
+      // The engines, then the engines with the limits joined: each
       // arrival is a value. Disposal completes the subscriber either way.
       expect(events.at(-1)).toBe('complete');
       expect(events).not.toContain('error');
       expect(events.filter((e) => e === 'next').length).toBeGreaterThan(0);
     });
 
-    it('a stream that reopens refetches the roster alongside the other KB-wide singletons', async () => {
+    it('a stream that reopens refetches the engines alongside the other KB-wide singletons', async () => {
       const state$ = new BehaviorSubject<ConnectionState>('open');
       const { browse, emitSpy } = createHarness({ state$ });
-      await firstDefined(browse.agents());
+      await firstDefined(browse.engines());
 
-      // The roster's one real staleness event — a gateway restart with a
-      // changed TOML — presents as a dropped stream.
+      // The engines' one real staleness event — a gateway restart with a
+      // changed Inference document — presents as a dropped stream.
       reopen(state$);
       await flush();
 
-      const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;
-      expect(agentFetches).toBe(2);
+      const engineFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:engines-requested').length;
+      expect(engineFetches).toBe(2);
     });
 
-    it('joins each key holder\'s limits onto the entries for its model', async () => {
+    it('joins each key holder\'s limits onto the entries for its engine', async () => {
       const { browse } = createHarness();
 
-      const entries = await firstValueFrom(browse.agents().pipe(
+      const entries = await firstValueFrom(browse.engines().pipe(
         filter(isReady),
         map((s) => s.value),
         filter((es) => es.every((e) => e.limits !== undefined)),
@@ -1081,18 +1081,18 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
         ['claude-haiku-4-5', HAIKU_LIMITS],
         ['claude-sonnet-4-5', SONNET_LIMITS],
       ]);
-      // The entry is otherwise the directory's, unreshaped.
-      expect(entries[0]!.serves).toEqual([{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }]);
+      // The entry is otherwise the Archivist's, unreshaped.
+      expect(entries[0]!.jobs).toEqual([{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }]);
     });
 
-    it('a silent key holder does not hold the directory, and leaves only its models without limits', async () => {
+    it('a silent key holder does not hold the engines, and leaves only its engines without limits', async () => {
       const { browse } = createHarness({ silentChannels: ['job:limits-requested'], busTimeoutMs: 60_000 });
 
-      const first = await firstDefined(browse.agents());
+      const first = await firstDefined(browse.engines());
       expect(first.map((e) => e.engine.model)).toEqual(['claude-haiku-4-5', 'claude-sonnet-4-5']);
 
       await flush();
-      const entries = await firstDefined(browse.agents());
+      const entries = await firstDefined(browse.engines());
       expect(entries.find((e) => e.engine.model === 'claude-sonnet-4-5')?.limits).toEqual(SONNET_LIMITS);
       expect(entries.find((e) => e.engine.model === 'claude-haiku-4-5')).not.toHaveProperty('limits');
     });
@@ -1100,7 +1100,7 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     it('a stream that reopens asks the key holders again', async () => {
       const state$ = new BehaviorSubject<ConnectionState>('open');
       const { browse, emitSpy } = createHarness({ state$ });
-      await firstDefined(browse.agents());
+      await firstDefined(browse.engines());
       await flush();
 
       reopen(state$);
@@ -1111,15 +1111,15 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       }
     });
 
-    it('threads busTimeoutMs: an unanswered roster request rejects bus.timeout at the configured deadline', async () => {
+    it('threads busTimeoutMs: an unanswered engines request rejects bus.timeout at the configured deadline', async () => {
       // Silence the B14 breadcrumbs this deliberately-failing chain emits.
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       try {
         const { browse } = createHarness({
-          silentChannels: ['browse:agents-requested'],
+          silentChannels: ['browse:engines-requested'],
           busTimeoutMs: 60,
         });
-        await expect(browse.agents().fresh()).rejects.toMatchObject({ code: 'bus.timeout' });
+        await expect(browse.engines().fresh()).rejects.toMatchObject({ code: 'bus.timeout' });
       } finally {
         warnSpy.mockRestore();
       }

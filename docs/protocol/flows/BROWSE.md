@@ -15,7 +15,7 @@ A live query is asked for once and then kept current: when something it shows ch
 | `browse.events` | live query | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.entityTypes` | live query | `browse:entity-types-requested` | The entity-type vocabulary |
 | `browse.tagSchemas` | live query | `browse:tag-schemas-requested` | The registered tag schemas |
-| `browse.agents` | live query | `browse:agents-requested` | The roster: each engine (a provider and a model) the knowledge base's Inference document names, and the jobs it serves. It also asks each service that runs a model for that model's limits, which for the librarian is `match:limits-requested` and `gather:limits-requested` ([Limits](../LIBRARIAN.md#limits)) |
+| `browse.engines` | live query | `browse:engines-requested` | The knowledge base's engines: each engine (a provider and a model) its Inference document names, and the jobs the document has it used for. It also asks each service that runs a model for that model's limits, which for the librarian is `match:limits-requested` and `gather:limits-requested` ([Limits](../LIBRARIAN.md#limits)) |
 | `browse.resourceEvents` | one-shot | `browse:events-requested` | A resource's event history, each event with who did it |
 | `browse.annotationHistory` | one-shot | `browse:annotation-history-requested` | The event history of one annotation the resource holds: its creation and the changes to its body, each with who did it |
 | `browse.files` | one-shot | `browse:directory-requested` | A listing of a directory in the working tree |
@@ -42,7 +42,7 @@ Driving another participant's viewer is [Beckon](BECKON.md): `beckon.openResourc
 
 **A read is answered from what exists.** No `browse:` request appends to the log.
 
-**A history says who did each thing.** An event names its actor by DID and nothing else. A history reply carries each event as the log holds it and, beside it, the `agent` that DID identifies: a person, or a software peer named by its DID alone. A person's `name` is filled in from the knowledge base's record of what its people are called, and a person it has no name for carries none. The agent is made when the reply is made. It is in no log, and no name is written into an event's payload.
+**A history says who did each thing.** An event names its actor by DID and nothing else. A history reply carries each event as the log holds it and, beside it, the `agent` that DID identifies: a person, or a software peer named by its DID alone. A person's `name` is filled in from the knowledge base's profiles, and a person it has no name for carries none. The agent is made when the reply is made. It is in no log, and no name is written into an event's payload.
 
 **Browse answers from the record.** The event log, the views made from it and the working tree are all a `browse:` read draws on. A question that needs the graph, the vector index or an embedding is retrieval, and belongs to the other two reading verbs: searching resources by text is [Match](MATCH.md), and what refers to a resource is [Gather](GATHER.md).
 

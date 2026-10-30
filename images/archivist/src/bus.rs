@@ -9,13 +9,13 @@ use crate::archivist::{Archivist, Refusal};
 use crate::{browse, commands};
 use semiont::bus::{Bus, operation};
 use semiont::channels::{
-    BindUpdateBody, BrowseAgentsRequested, BrowseAnnotationHistoryRequested,
-    BrowseAnnotationRequested, BrowseDirectoryRequested, BrowseEntityTypesRequested,
-    BrowseEventsRequested, BrowseKbRequested, BrowsePeopleRequested, BrowseResourceRequested,
+    BindUpdateBody, BrowseAnnotationHistoryRequested, BrowseAnnotationRequested,
+    BrowseDirectoryRequested, BrowseEnginesRequested, BrowseEntityTypesRequested,
+    BrowseEventsRequested, BrowseKbRequested, BrowseProfilesRequested, BrowseResourceRequested,
     BrowseResourcesRequested, BrowseTagSchemasRequested, Channel, FrameAddEntityType,
     FrameAddTagSchema, JobAssign, JobComplete, JobFail, JobStart, MarkArchive,
     MarkBodyUpdateFailed, MarkCommit, MarkCreateRequest, MarkDelete, MarkUnarchive, MarkUpdateBody,
-    MarkUpdateEntityTypes, PersonProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
+    MarkUpdateEntityTypes, PrincipalProfile, SmeltSettled, YieldCloneCreate, YieldClonePersist,
     YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCreate, YieldUpdate,
 };
 use semiont::errors::TransportError;
@@ -44,7 +44,7 @@ pub const COMMANDS: [&str; 19] = [
     MarkUpdateEntityTypes::NAME,
     FrameAddEntityType::NAME,
     FrameAddTagSchema::NAME,
-    PersonProfile::NAME,
+    PrincipalProfile::NAME,
     JobStart::NAME,
     JobAssign::NAME,
     JobComplete::NAME,
@@ -61,8 +61,8 @@ pub const READS: [&str; 14] = [
     BrowseEventsRequested::NAME,
     BrowseEntityTypesRequested::NAME,
     BrowseTagSchemasRequested::NAME,
-    BrowseAgentsRequested::NAME,
-    BrowsePeopleRequested::NAME,
+    BrowseEnginesRequested::NAME,
+    BrowseProfilesRequested::NAME,
     BrowseKbRequested::NAME,
     BrowseDirectoryRequested::NAME,
     YieldCloneTokenRequested::NAME,
@@ -105,13 +105,13 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
                 }),
             };
         }
-        PersonProfile::NAME
+        PrincipalProfile::NAME
         | JobStart::NAME
         | JobAssign::NAME
         | JobComplete::NAME
         | JobFail::NAME => {
             let outcome = match channel {
-                PersonProfile::NAME => commands::person_profile(archivist, payload).await,
+                PrincipalProfile::NAME => commands::principal_profile(archivist, payload).await,
                 _ => commands::job(archivist, channel, payload).await,
             };
             if let Err(refusal) = outcome {
@@ -163,8 +163,8 @@ async fn handle(archivist: &Archivist, channel: &str, payload: &Object) -> Optio
         BrowseEventsRequested::NAME => browse::events(archivist, payload).await,
         BrowseEntityTypesRequested::NAME => browse::entity_types(archivist, payload).await,
         BrowseTagSchemasRequested::NAME => browse::tag_schemas(archivist, payload).await,
-        BrowseAgentsRequested::NAME => browse::agents(archivist, payload).await,
-        BrowsePeopleRequested::NAME => browse::people(archivist, payload).await,
+        BrowseEnginesRequested::NAME => browse::engines(archivist, payload).await,
+        BrowseProfilesRequested::NAME => browse::profiles(archivist, payload).await,
         BrowseKbRequested::NAME => browse::knowledge_base(archivist, payload).await,
         _ => return None,
     };

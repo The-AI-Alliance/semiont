@@ -199,9 +199,9 @@ is its mechanism over HTTP.
 - **The count.** `subscribers` is how many connections the frame's channel
   and scope reached, and is present only when the signal plane can count.
 - **Profile.** When the channel is one whose registry `effect` writes and
-  the principal is a person whose token carries `name`, the gateway also
-  publishes `person:profile` `{_userId, name}` — how the record learns
-  what a person is called.
+  the principal's token carries `name`, a person's or an agent's, the
+  gateway also publishes `principal:profile` `{_userId, name}` — how the
+  record learns what a principal is called.
 - **An unanswerable request fails fast.** When the plane can count
   observers (the in-process plane) and a request with a `correlationId`
   reaches none, the gateway publishes the operation's own failure channel

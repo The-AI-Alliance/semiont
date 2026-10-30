@@ -40,7 +40,7 @@ from semiont_librarian.grace import resource_with_view_grace
 from semiont_librarian.limit import refuse_limit_below_least
 from semiont_librarian.log import LOG
 from semiont_librarian.naming import name
-from semiont_librarian.reads import GraphReads, People, Record
+from semiont_librarian.reads import GraphReads, Profiles, Record
 from semiont_librarian.resource_text import preview_of
 
 __all__ = ["Page", "answer", "search_resources", "with_previews"]
@@ -222,12 +222,12 @@ async def answer(
     embedding: EmbeddingProvider,
     semantic_floor: float,
     content: ContentReads,
-    people: People,
+    profiles: Profiles,
 ) -> MatchResourcesResult:
-    """The reply to `match:resources-requested`: the page, the offset and the limit the search was made with, and its people named.
+    """The reply to `match:resources-requested`: the page, the offset and the limit the search was made with, and its persons named.
 
     Each resource of a lexical page is given a preview. A semantic page's
-    `content` is the passage that matched, and is left as it is. Its people
+    `content` is the passage that matched, and is left as it is. Its persons
     are asked after once, after the search (`semiont_librarian.naming.name`).
     A graph that fails to list is raised, and is the request's failure.
     """
@@ -237,4 +237,4 @@ async def answer(
     reply = MatchResourcesResult(
         response=MatchResourcesResponse(resources=resources, total=page.total, offset=offset, limit=limit, match_kind=page.match_kind)
     )
-    return MatchResourcesResult.model_validate(await name(written(reply), people))
+    return MatchResourcesResult.model_validate(await name(written(reply), profiles))

@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "description": "The discovered limits of one engine.",
+  "properties": {
+    "engine": {
+      "$ref": "./Engine.json"
+    },
+    "limits": {
+      "$ref": "./InferenceLimits.json"
+    }
+  },
+  "required": [
+    "engine",
+    "limits"
+  ],
+  "additionalProperties": false
+}

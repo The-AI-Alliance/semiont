@@ -35,9 +35,9 @@ const annotationsRead = "getAnnotations"
 // asks is what each live query asks: the requests it makes, by channel, or the
 // read of the content transport it makes.
 var asks = func() map[semiont.CacheQuery][]string {
-	agents := []string{string(bus.BrowseAgentsRequested.Request().Channel())}
+	engines := []string{string(bus.BrowseEnginesRequested.Request().Channel())}
 	for _, holder := range bus.LimitsOperations {
-		agents = append(agents, string(holder.Request().Channel()))
+		engines = append(engines, string(holder.Request().Channel()))
 	}
 	return map[semiont.CacheQuery][]string{
 		semiont.CacheQueryResource:         {string(bus.BrowseResourceRequested.Request().Channel())},
@@ -49,7 +49,7 @@ var asks = func() map[semiont.CacheQuery][]string {
 		semiont.CacheQueryMatchedResources: {string(bus.MatchResourcesRequested.Request().Channel())},
 		semiont.CacheQueryEntityTypes:      {string(bus.BrowseEntityTypesRequested.Request().Channel())},
 		semiont.CacheQueryTagSchemas:       {string(bus.BrowseTagSchemasRequested.Request().Channel())},
-		semiont.CacheQueryAgents:           agents,
+		semiont.CacheQueryEngines:          engines,
 	}
 }()
 
@@ -93,7 +93,7 @@ func knowing() semionttest.MakeResponse {
 		bus.MatchResourcesRequested.Request().Channel():     `{` + page + `,"matchKind":"lexical"}`,
 		bus.BrowseEntityTypesRequested.Request().Channel():  `{"entityTypes":["Person"]}`,
 		bus.BrowseTagSchemasRequested.Request().Channel():   `{"tagSchemas":[]}`,
-		bus.BrowseAgentsRequested.Request().Channel():       `{"agents":[]}`,
+		bus.BrowseEnginesRequested.Request().Channel():      `{"engines":[]}`,
 	}
 	for _, holder := range bus.LimitsOperations {
 		answers[holder.Request().Channel()] = `{"limits":[]}`
@@ -249,9 +249,9 @@ func (w *liveWorld) asksCome(t *testing.T, m askedMark, want map[string]int) {
 	}
 }
 
-// everyHolderAsked waits until each key holder has been asked for its models'
-// limits. The collaborators are ready as soon as the directory answers, and
-// the holders' requests may still be on their way.
+// everyHolderAsked waits until each key holder has been asked for its
+// engines' limits. The engines are ready as soon as their request is
+// answered, and the holders' requests may still be on their way.
 func (w *liveWorld) everyHolderAsked(t *testing.T) {
 	t.Helper()
 	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
@@ -330,7 +330,7 @@ func everything(t *testing.T, c *semiont.Client) []aQuery {
 		queryOf("a search", c.Match.Resources("a search", semiont.ResourceFilters{})),
 		queryOf("entity types", c.Browse.EntityTypes()),
 		queryOf("tag schemas", c.Browse.TagSchemas()),
-		queryOf("agents", c.Browse.Agents()),
+		queryOf("engines", c.Browse.Engines()),
 	)
 }
 
@@ -349,7 +349,7 @@ func eachQuery(t *testing.T, c *semiont.Client) map[semiont.CacheQuery]aQuery {
 		semiont.CacheQueryMatchedResources: queryOf("a search", c.Match.Resources("text", semiont.ResourceFilters{})),
 		semiont.CacheQueryEntityTypes:      queryOf("entity types", c.Browse.EntityTypes()),
 		semiont.CacheQueryTagSchemas:       queryOf("tag schemas", c.Browse.TagSchemas()),
-		semiont.CacheQueryAgents:           queryOf("agents", c.Browse.Agents()),
+		semiont.CacheQueryEngines:          queryOf("engines", c.Browse.Engines()),
 	}
 }
 
@@ -567,7 +567,7 @@ func TestWatchingAQueryOfAResourceHoldsItsScopeUntilTheWatcherLeaves(t *testing.
 		queryOf("a search", c.Match.Resources("text", semiont.ResourceFilters{})),
 		queryOf("entity types", c.Browse.EntityTypes()),
 		queryOf("tag schemas", c.Browse.TagSchemas()),
-		queryOf("agents", c.Browse.Agents()),
+		queryOf("engines", c.Browse.Engines()),
 	} {
 		watch(t, of.query).now(t)
 		if holds := w.transport.Holds(res1) + w.transport.Holds(res2); holds != 0 {
@@ -691,20 +691,20 @@ func TestAResourcesAnnotationsAreTheListAndAListOrASearchIsOneQueryPerSetOfFilte
 }
 
 // namesOf is each engine as "<provider> <model>".
-func namesOf(t *testing.T, collaborators []semiont.Collaborator) []string {
+func namesOf(t *testing.T, engines []semiont.EngineWithLimits) []string {
 	t.Helper()
 	var names []string
-	for _, each := range collaborators {
+	for _, each := range engines {
 		names = append(names, string(each.Entry.Engine.Provider)+" "+each.Entry.Engine.Model)
 	}
 	return names
 }
 
-// limitsOf is the context each collaborator's model was reported to hold;
-// "none" for one with no report.
-func limitsOf(collaborators []semiont.Collaborator) []string {
+// limitsOf is the context each engine was reported to hold; "none" for one
+// with no report.
+func limitsOf(engines []semiont.EngineWithLimits) []string {
 	var limits []string
-	for _, each := range collaborators {
+	for _, each := range engines {
 		if each.Limits == nil {
 			limits = append(limits, "none")
 			continue
@@ -714,15 +714,15 @@ func limitsOf(collaborators []semiont.Collaborator) []string {
 	return limits
 }
 
-func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItReportsThem(t *testing.T) {
+func TestTheEnginesAreShownAsTheirRequestIsAnsweredAndEachHoldersLimitsAsItReportsThem(t *testing.T) {
 	gemma := `{"provider":"ollama","model":"gemma2:27b"}`
 	claude := `{"provider":"anthropic","model":"claude-opus-5-5"}`
 	w := newLiveWorld(t, liveSetup{silent: true})
-	live := watch(t, w.client.Browse.Agents())
+	live := watch(t, w.client.Browse.Engines())
 	isPending(t, live.now(t))
-	// The directory is asked for, and each key holder. The holders are asked as the directory's request is sent, so which reaches the transport first is not stated.
+	// The engines are asked for, and each key holder. The holders are asked as the engines' request is sent, so which reaches the transport first is not stated.
 	once := map[string]int{}
-	for _, channel := range asks[semiont.CacheQueryAgents] {
+	for _, channel := range asks[semiont.CacheQueryEngines] {
 		once[channel] = 1
 	}
 	w.asksCome(t, askedMark{}, once)
@@ -731,25 +731,25 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 	for _, request := range requests {
 		byChannel[request.Channel] = request
 	}
-	directory := byChannel[bus.BrowseAgentsRequested.Request().Channel()]
+	engines := byChannel[bus.BrowseEnginesRequested.Request().Channel()]
 	gather := byChannel[bus.GatherLimitsRequested.Request().Channel()]
 	job := byChannel[bus.JobLimitsRequested.Request().Channel()]
 	match := byChannel[bus.MatchLimitsRequested.Request().Channel()]
 
-	// A holder that answers before the directory has nothing to be shown on yet.
-	answerRequest(w.transport, job, `{"limits":[{"provider":"ollama","model":"gemma2:27b","limits":{"contextTokens":8192,"maxOutputTokens":1}}]}`)
+	// A holder that answers before the engines have nothing to be shown on yet.
+	answerRequest(w.transport, job, `{"limits":[{"engine":`+gemma+`,"limits":{"contextTokens":8192,"maxOutputTokens":1}}]}`)
 	live.nothingMore(t)
 
-	// The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-	answerRequest(w.transport, directory, `{"agents":[{"engine":`+gemma+`},{"engine":`+claude+`}]}`)
-	shown := valueIn[[]semiont.Collaborator](t, live.now(t))
+	// The engines are shown when their request is answered, with what has been reported so far: they wait for no holder.
+	answerRequest(w.transport, engines, `{"engines":[{"engine":`+gemma+`},{"engine":`+claude+`}]}`)
+	shown := valueIn[[]semiont.EngineWithLimits](t, live.now(t))
 	if names, limits := namesOf(t, shown), limitsOf(shown); !slices.Equal(names, []string{"ollama gemma2:27b", "anthropic claude-opus-5-5"}) || !slices.Equal(limits, []string{"8192", "none"}) {
 		t.Fatalf("shown %v with limits %v", names, limits)
 	}
 
-	// A holder that reports later delays only its own models' limits.
-	answerRequest(w.transport, gather, `{"limits":[{"provider":"anthropic","model":"claude-opus-5-5","limits":{"contextTokens":9,"maxOutputTokens":1}}]}`)
-	if limits := limitsOf(valueIn[[]semiont.Collaborator](t, live.now(t))); !slices.Equal(limits, []string{"8192", "9"}) {
+	// A holder that reports later delays only its own engines' limits.
+	answerRequest(w.transport, gather, `{"limits":[{"engine":`+claude+`,"limits":{"contextTokens":9,"maxOutputTokens":1}}]}`)
+	if limits := limitsOf(valueIn[[]semiont.EngineWithLimits](t, live.now(t))); !slices.Equal(limits, []string{"8192", "9"}) {
 		t.Fatalf("shown limits %v", limits)
 	}
 
@@ -758,40 +758,40 @@ func TestTheCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItRe
 	live.nothingMore(t)
 	w.asksCome(t, askedMark{}, once)
 
-	// Asking again asks the directory and every holder again, and shows what there is meanwhile.
+	// Asking again asks for the engines and every holder again, and shows what there is meanwhile.
 	again := w.mark()
-	w.client.Browse.Agents().Invalidate()
+	w.client.Browse.Engines().Invalidate()
 	w.asksCome(t, again, once)
 	live.nothingMore(t)
-	var redirectory semionttest.RequestLogEntry
+	var reasked semionttest.RequestLogEntry
 	requests = w.transport.RequestLog()
 	for _, request := range requests[again.requests:] {
-		if request.Channel == directory.Channel {
-			redirectory = request
+		if request.Channel == engines.Channel {
+			reasked = request
 		}
 	}
-	answerRequest(w.transport, redirectory, `{"agents":[{"engine":`+claude+`}]}`)
-	shown = valueIn[[]semiont.Collaborator](t, live.now(t))
+	answerRequest(w.transport, reasked, `{"engines":[{"engine":`+claude+`}]}`)
+	shown = valueIn[[]semiont.EngineWithLimits](t, live.now(t))
 	if names, limits := namesOf(t, shown), limitsOf(shown); !slices.Equal(names, []string{"anthropic claude-opus-5-5"}) || !slices.Equal(limits, []string{"9"}) {
 		t.Fatalf("shown %v with limits %v", names, limits)
 	}
 }
 
-func TestADirectoryThatFailsIsAFailedStateWhateverItsHoldersReportAndAReadOfItFails(t *testing.T) {
+func TestEnginesThatFailAreAFailedStateWhateverTheirHoldersReportAndAReadOfThemFails(t *testing.T) {
 	w := newLiveWorld(t, liveSetup{})
-	directory := bus.BrowseAgentsRequested.Request().Channel()
-	w.refuse(directory)
-	if _, err := w.client.Browse.Agents().Fresh(context.Background()); err == nil || codeOf(err) != string(semiont.BusRequestErrorCodeRejected) {
-		t.Fatalf("the read failed with %v, want the directory's refusal", err)
+	engines := bus.BrowseEnginesRequested.Request().Channel()
+	w.refuse(engines)
+	if _, err := w.client.Browse.Engines().Fresh(context.Background()); err == nil || codeOf(err) != string(semiont.BusRequestErrorCodeRejected) {
+		t.Fatalf("the read failed with %v, want the engines' refusal", err)
 	}
-	live := watch(t, w.client.Browse.Agents())
+	live := watch(t, w.client.Browse.Engines())
 	if failed := untilFailed(t, live); codeOf(failed.Err) != string(semiont.BusRequestErrorCodeRejected) {
-		t.Fatalf("the directory failed with %v, want its refusal", failed.Err)
+		t.Fatalf("the engines failed with %v, want their refusal", failed.Err)
 	}
 	live.close()
-	// A closed client's collaborators are nobody's to watch.
+	// A closed client's engines are nobody's to watch.
 	w.client.Close()
-	watch(t, w.client.Browse.Agents()).ended(t)
+	watch(t, w.client.Browse.Engines()).ended(t)
 }
 
 // keptOf is the one entry of the document a client keeps of the query
@@ -851,7 +851,7 @@ func TestAClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThe
 	for _, name := range []string{"resource", "annotations", "annotation-detail", "entity-types", "tag-schemas"} {
 		keptOf(t, storage, name)
 	}
-	for _, name := range []string{"lists", "resources", "events", "referenced-by", "matched-resources", "searches", "agents", "limits"} {
+	for _, name := range []string{"lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits"} {
 		if _, ok := storage.Get("semiont.cache.kb." + name); ok {
 			t.Fatalf("%s is kept", name)
 		}

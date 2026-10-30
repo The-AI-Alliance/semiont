@@ -23,10 +23,10 @@ def api_key_of(config: WorkerConfig, index: int, environment: Mapping[str, str])
     An engine whose provider takes no key names no variable and has none. The
     refusal says which member named the variable and never what it named.
     """
-    name = config.agents[index].api_key_env
+    name = config.engines[index].api_key_env
     if name is None:
         return None
     key = set_in(environment, name)
     if key is None:
-        raise Refused(f"agents[{index}].apiKeyEnv names a variable that is not set in the worker's environment")
+        raise Refused(f"engines[{index}].apiKeyEnv names a variable that is not set in the worker's environment")
     return key

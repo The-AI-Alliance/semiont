@@ -3411,9 +3411,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 
 // Each service is handed only the variables its configuration document names.
 // The anthropic config names ANTHROPIC_API_KEY in [inference], which the
-// Librarian's document names as its models' key and the worker's as its
-// agents', and nothing else does: the Archivist lists the collaborator roster
-// without it. The worker and the librarian are the only two images that get
+// Librarian's document names as its engines' key and the worker's as its
+// engines', and nothing else does: the Archivist lists the engines without
+// it. The worker and the librarian are the only two images that get
 // inference secrets.
 func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	s := newScenario(t, "container")
@@ -5412,48 +5412,49 @@ func TestStartExternalGraphBoot(t *testing.T) {
 
 // --- a stack without a worker ---
 
-// noWorkerRoster: an Inference document, no-worker, that binds a model to
-// each actor and no job to a worker.
-const noWorkerRoster = `apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+// noJobEngines: an Inference document, no-worker, that gives each actor an
+// engine and no job one.
+const noJobEngines = `apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
 kind: Inference
 metadata:
   name: no-worker
 spec:
   providers:
     ollama: {}
-  roster:
+  engines:
     actors:
       gatherer: { provider: ollama, model: "gemma4:26b" }
       matcher: { provider: ollama, model: "gemma4:26b" }
-    workers: {}
+    jobs: {}
 `
 
-// noWorkerBinding: where a start names binding a job, for that roster.
-var noWorkerBinding = filepath.FromSlash(".semiont/stack/inference/no-worker.yaml") + " spec.roster.workers"
+// noJobEnginesAt: where a start names giving a job an engine, for that
+// document.
+var noJobEnginesAt = filepath.FromSlash(".semiont/stack/inference/no-worker.yaml") + " spec.engines.jobs"
 
-// A worker asked for by name, of a roster that binds it no job, is refused
-// before anything is pulled or run, naming where a job is bound: the plan
-// names no image for a worker it does not run.
-func TestStartServiceWorkerRefusesARosterThatBindsNoJob(t *testing.T) {
+// A worker asked for by name, when no job has an engine, is refused before
+// anything is pulled or run, naming where a job is given one: the plan names
+// no image for a worker it does not run.
+func TestStartServiceWorkerRefusesWhenNoJobHasAnEngine(t *testing.T) {
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
+	writeDocument(t, s, "inference/no-worker.yaml", noJobEngines)
 	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "no-worker")
 	if code != 1 {
 		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "output", stdout+stderr, "the roster binds no job to a worker", noWorkerBinding)
+	mustContain(t, "output", stdout+stderr, "no job has an engine", noJobEnginesAt)
 	mustNotContain(t, "argv", s.argv(t), "pull", "semiont-worker")
 }
 
-// A roster that binds no job to a worker starts everything else and no
-// worker: none is pulled, staged a document, given a port or run, and the
-// start says so once, naming where a job is bound. What reads the stack
+// An Inference document that gives no job an engine starts everything else
+// and no worker: none is pulled, staged a document, given a port or run, and
+// the start says so once, naming where a job is given one. What reads the stack
 // afterwards reads it as it is: status reports the worker as not configured
 // and the stack as healthy, logs follow the services that run, and stop sweeps
 // no worker.
 func TestStartWithoutAWorkerBoot(t *testing.T) {
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
+	writeDocument(t, s, "inference/no-worker.yaml", noJobEngines)
 	stdout, stderr, code := s.run(t, "start", "--config", "no-worker")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -5462,10 +5463,10 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	checkGolden(t, "start-no-worker-boot.argv", started)
 
 	mustContain(t, "stdout", stdout,
-		"worker — the roster binds no job to a worker; skipping (bind one in "+noWorkerBinding+" to run one)",
+		"worker — no job has an engine; skipping (give one an engine in "+noJobEnginesAt+" to run one)",
 		"🚀 Semiont stack is up")
-	if n := strings.Count(stdout+stderr, noWorkerBinding); n != 1 {
-		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noWorkerBinding, n, stdout, stderr)
+	if n := strings.Count(stdout+stderr, noJobEnginesAt); n != 1 {
+		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noJobEnginesAt, n, stdout, stderr)
 	}
 	mustNotContain(t, "start argv", started, "run -d --name semiont-worker", "semiont-worker:", "24100")
 	mustContain(t, "start argv", started, "run -d --name semiont-smelter", "run -d --name semiont-weaver")
@@ -5478,15 +5479,15 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 		t.Errorf("a document was staged for a worker that does not run (stat: %v)", err)
 	}
 	var archivist struct {
-		Roster struct {
-			Workers map[string]any `json:"workers"`
-		} `json:"roster"`
+		Engines struct {
+			Jobs map[string]any `json:"jobs"`
+		} `json:"engines"`
 	}
 	if err := json.Unmarshal([]byte(stagedFile(t, s, "archivist.json")), &archivist); err != nil {
 		t.Fatalf("the staged archivist.json: %v", err)
 	}
-	if len(archivist.Roster.Workers) != 0 {
-		t.Errorf("the Archivist's roster names workers the stack does not run: %v", archivist.Roster.Workers)
+	if len(archivist.Engines.Jobs) != 0 {
+		t.Errorf("the Archivist's engines give jobs engines the stack runs no worker for: %v", archivist.Engines.Jobs)
 	}
 
 	rec, err := os.ReadFile(statePathFor(s.home))
@@ -5515,7 +5516,7 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	}
 
 	// Naming one stack makes status's exit its health: a stack that runs no
-	// worker by its roster is not short of one.
+	// worker, no job having an engine, is not short of one.
 	before := s.argv(t)
 	stdout, stderr, code = s.run(t, "status", "--root", s.kb)
 	if code != 0 {
@@ -5561,33 +5562,33 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 // container and no health wait for a worker, and one line saying why.
 func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
+	writeDocument(t, s, "inference/no-worker.yaml", noJobEngines)
 	stdout, stderr, code := s.run(t, "start", "--config", "no-worker", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
 	plan := s.norm(stdout)
 	mustContain(t, "plan", plan,
-		"# worker: the roster binds no job to a worker — nothing to launch (bind one in "+noWorkerBinding+" to run one)",
+		"# worker: no job has an engine — nothing to launch (give one an engine in "+noJobEnginesAt+" to run one)",
 		"run -d --name semiont-smelter", "wait: http://<host-addr>:24101/health (30s)")
-	if n := strings.Count(plan, noWorkerBinding); n != 1 {
-		t.Errorf("the plan names %s %d times, want once:\n%s", noWorkerBinding, n, plan)
+	if n := strings.Count(plan, noJobEnginesAt); n != 1 {
+		t.Errorf("the plan names %s %d times, want once:\n%s", noJobEnginesAt, n, plan)
 	}
 	// The preflight sweep still names semiont-worker: it removes whatever an
-	// earlier start of another roster left, by name.
+	// earlier start of another Inference document left, by name.
 	mustNotContain(t, "plan", plan, "run -d --name semiont-worker", "semiont-worker:", "worker.json", "24100")
 }
 
-// Asked for by name, a worker with no job to serve is refused, naming where a
-// job is bound, and nothing is run.
-func TestStartServiceWorkerIsRefusedWhenNoJobIsBound(t *testing.T) {
+// Asked for by name, a worker with no job to do is refused, naming where a
+// job is given an engine, and nothing is run.
+func TestStartServiceWorkerIsRefusedWhenNoJobHasAnEngine(t *testing.T) {
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/no-worker.yaml", noWorkerRoster)
+	writeDocument(t, s, "inference/no-worker.yaml", noJobEngines)
 	stdout, stderr, code := s.run(t, "start", "--service", "worker", "--config", "no-worker")
 	if code != 1 {
 		t.Fatalf("exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stderr", stderr, "the roster binds no job to a worker", noWorkerBinding)
+	mustContain(t, "stderr", stderr, "no job has an engine", noJobEnginesAt)
 	mustNotContain(t, "stdout", stdout, "nothing to launch", "is up")
 	mustNotContain(t, "argv", s.argv(t), "run -d --name semiont-worker")
 }
@@ -5603,7 +5604,7 @@ func voyageEmbedding(t *testing.T, s *scenario) {
 
 func TestStartNoInferenceBoot(t *testing.T) {
 	// A stack that names no ollama anywhere: nothing local is launched for
-	// inference — but its Claude-bound worker means inference IS configured,
+	// inference — but its jobs' Claude engines mean inference IS configured,
 	// as an external SaaS role.
 	s := newScenario(t, "container")
 	voyageEmbedding(t, s)
@@ -7867,8 +7868,8 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	// start and marked in status, instead of surfacing as a failed job.
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929") // haiku deliberately absent
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/anthropic-meta.yaml", rosterDocument("anthropic-meta", anthropicAt(anthPort), sonnet,
-		map[string]string{"workers.mark.tagging": "{ provider: anthropic, model: claude-haiku-4-5-20251001 }"}))
+	writeDocument(t, s, "inference/anthropic-meta.yaml", inferenceDocument("anthropic-meta", anthropicAt(anthPort), sonnet,
+		map[string]string{"jobs.mark.tagging": "{ provider: anthropic, model: claude-haiku-4-5-20251001 }"}))
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic-meta")
 	if code != 0 {
@@ -7888,30 +7889,30 @@ func TestRemoteModelMetadataAndAvailability(t *testing.T) {
 	}
 }
 
-// rosterDocument: an Inference document named name, with providers (YAML
-// lines under spec.providers), every role bound to role (a flow mapping)
-// except those overrides names ("workers.mark.tagging").
-func rosterDocument(name, providers, role string, overrides map[string]string) string {
+// inferenceDocument: an Inference document named name, with providers (YAML
+// lines under spec.providers), engine (a flow mapping) the engine of every job
+// and actor except those overrides names ("jobs.mark.tagging").
+func inferenceDocument(name, providers, engine string, overrides map[string]string) string {
 	at := func(path string) string {
-		if bound, ok := overrides[path]; ok {
-			return bound
+		if given, ok := overrides[path]; ok {
+			return given
 		}
-		return role
+		return engine
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Inference\nmetadata:\n  name: %s\nspec:\n  providers:\n%s  roster:\n    actors:\n", name, providers)
+	fmt.Fprintf(&b, "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Inference\nmetadata:\n  name: %s\nspec:\n  providers:\n%s  engines:\n    actors:\n", name, providers)
 	for _, actor := range []string{"gatherer", "matcher"} {
 		fmt.Fprintf(&b, "      %s: %s\n", actor, at("actors."+actor))
 	}
-	b.WriteString("    workers:\n      mark:\n")
+	b.WriteString("    jobs:\n      mark:\n")
 	for _, motivation := range []string{"linking", "highlighting", "assessing", "commenting", "tagging"} {
-		fmt.Fprintf(&b, "        %s: %s\n", motivation, at("workers.mark."+motivation))
+		fmt.Fprintf(&b, "        %s: %s\n", motivation, at("jobs.mark."+motivation))
 	}
-	fmt.Fprintf(&b, "      yield: %s\n", at("workers.yield"))
+	fmt.Fprintf(&b, "      yield: %s\n", at("jobs.yield"))
 	return b.String()
 }
 
-// sonnet: a role bound to Claude Sonnet.
+// sonnet: Claude Sonnet, as an engine.
 const sonnet = "{ provider: anthropic, model: claude-sonnet-4-5-20250929 }"
 
 // anthropicAt: the anthropic provider, reached at a local fake's port, its
@@ -7978,22 +7979,22 @@ func mustNotContain(t *testing.T, label, haystack string, needles ...string) {
 	}
 }
 
-// limitsReply scripts the worker's job:limits-result payload: the pairs it
+// limitsReply scripts the worker's job:limits-result payload: the engines it
 // reports, each with the limits it discovered.
-func limitsReply(pairs ...string) string {
-	return `FAKERT_BUS_REPLY_job_limits_requested={"limits":[` + strings.Join(pairs, ",") + `]}`
+func limitsReply(engines ...string) string {
+	return `FAKERT_BUS_REPLY_job_limits_requested={"limits":[` + strings.Join(engines, ",") + `]}`
 }
 
-func reportedPair(provider, model, limits string) string {
-	return fmt.Sprintf(`{"provider":"%s","model":"%s","limits":%s}`, provider, model, limits)
+func reportedEngine(provider, model, limits string) string {
+	return fmt.Sprintf(`{"engine":{"provider":"%s","model":"%s"},"limits":%s}`, provider, model, limits)
 }
 
 func TestStatusShowsPlatformCeilings(t *testing.T) {
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
 		limitsReply(
-			reportedPair("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
-			reportedPair("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
+			reportedEngine("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
+			reportedEngine("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
 		))
 	stdout, stderr, code := s.run(t, "status")
 	if code != 0 {
@@ -8032,7 +8033,7 @@ func TestStatusCeilingsNeedASession(t *testing.T) {
 	// placeholder. (Ignorance is not a finding.)
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
-		limitsReply(reportedPair("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`)))
+		limitsReply(reportedEngine("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`)))
 	if _, stderr, code := s.run(t, "logout"); code != 0 {
 		t.Fatalf("logout: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -8066,7 +8067,7 @@ func TestStatusCeilingsAbsentWhenNoKeyHolderReportsThem(t *testing.T) {
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
 		limitsReply(
-			reportedPair("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
+			reportedEngine("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
 		))
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
@@ -8089,7 +8090,7 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 	t.Helper()
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/mixed.yaml", rosterDocument("mixed", anthropicAt(anthPort), sonnet, nil))
+	writeDocument(t, s, "inference/mixed.yaml", inferenceDocument("mixed", anthropicAt(anthPort), sonnet, nil))
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
 	s.extraEnv = append(s.extraEnv, env...)
 	if _, stderr, code := s.run(t, "start", "--config", "mixed"); code != 0 {
@@ -8107,7 +8108,7 @@ func TestStatusNeverShowsACrossProviderCeiling(t *testing.T) {
 	// the model NAME alone would print one here — a wrong number, which is
 	// worse than a missing one.
 	s := mixedStackScenario(t,
-		limitsReply(reportedPair("ollama", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
+		limitsReply(reportedEngine("ollama", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
@@ -8117,21 +8118,21 @@ func TestStatusNeverShowsACrossProviderCeiling(t *testing.T) {
 }
 
 func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
-	// Workers default to Anthropic while one motivation's jobs run on Ollama, so the
-	// inference row's driver is ollama and lists Claude beside gemma. Each
-	// binding names its provider, so each model's ceiling is keyed by its own
+	// Jobs default to Anthropic's engine while one motivation's jobs have Ollama's,
+	// so the inference row's driver is ollama and lists Claude beside gemma. Each
+	// engine names its provider, so each model's ceiling is keyed by its own
 	// provider, not by the row's: keyed by the row's, Claude's row would be
 	// bare although the worker reports its limits.
 	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
 	s := newScenario(t, "container")
-	writeDocument(t, s, "inference/mixed-ollama.yaml", rosterDocument("mixed-ollama", anthropicAt(anthPort)+"    ollama: {}\n", sonnet,
-		map[string]string{"workers.mark.highlighting": `{ provider: ollama, model: "gemma4:26b" }`}))
+	writeDocument(t, s, "inference/mixed-ollama.yaml", inferenceDocument("mixed-ollama", anthropicAt(anthPort)+"    ollama: {}\n", sonnet,
+		map[string]string{"jobs.mark.highlighting": `{ provider: ollama, model: "gemma4:26b" }`}))
 	s.extraEnv = append(s.extraEnv,
 		"ANTHROPIC_API_KEY=test-key",
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
 		limitsReply(
-			reportedPair("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`),
-			reportedPair("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
+			reportedEngine("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`),
+			reportedEngine("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
 		))
 	if _, stderr, code := s.run(t, "start", "--config", "mixed-ollama"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -8160,7 +8161,7 @@ func TestStatusPlatformCeilingReplacesTheProbedWindow(t *testing.T) {
 	// figure, from the platform, never two from two sources. The probe keeps
 	// rendering what only it knows (identity, release, key visibility).
 	s := mixedStackScenario(t,
-		limitsReply(reportedPair("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
+		limitsReply(reportedEngine("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
@@ -8801,7 +8802,7 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 	// The generative document builder. The strongest possible assertion is
 	// the round trip — the generated documents must pass the REAL loader and
 	// deriver: `start --dry-run --config <name>` succeeds from the newborn KB.
-	// The roster binds both actors and every job to the one model chosen;
+	// Both actors and every job are given one engine, the model chosen;
 	// per-job refinement is the user's edit, not ours.
 	s := newScenario(t, "container")
 	s.cwd = t.TempDir()
@@ -8826,7 +8827,7 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 		"model: claude-sonnet-4-5-20250929", "provider: anthropic",
 		"fromEnv: ANTHROPIC_API_KEY")
 	if n := strings.Count(string(inference), "model: "); n != 8 {
-		t.Errorf("the roster binds %d roles, want both actors and every job (8):\n%s", n, inference)
+		t.Errorf("the document names %d engines, want both actors' and every job's (8):\n%s", n, inference)
 	}
 	index, err := os.ReadFile(filepath.Join(stackDir, "index.yaml"))
 	if err != nil {

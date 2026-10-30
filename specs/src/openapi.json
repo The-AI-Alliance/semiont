@@ -90,7 +90,7 @@
         "type": "apiKey",
         "in": "query",
         "name": "token",
-        "description": "A media token from `POST /api/tokens/media`: HS256 under the same key ring as agent tokens, naming one resource (`purpose: \"media\"`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}`, and only for the resource it names — for `<img>`, PDF.js and download links, which cannot send a header."
+        "description": "A media token from `POST /api/tokens/media`: HS256 under the gateway's own key ring (`JWT_SECRET`), which signs nothing else, naming one resource (`purpose: \"media\"`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}`, and only for the resource it names — for `<img>`, PDF.js and download links, which cannot send a header."
       }
     },
     "responses": {
@@ -189,17 +189,17 @@
       "BodyPurpose": {
         "$ref": "components/schemas/BodyPurpose.json"
       },
-      "BrowseAgentsRequest": {
-        "$ref": "components/schemas/BrowseAgentsRequest.json"
+      "BrowseEnginesRequest": {
+        "$ref": "components/schemas/BrowseEnginesRequest.json"
       },
-      "BrowseAgentsResult": {
-        "$ref": "components/schemas/BrowseAgentsResult.json"
+      "BrowseEnginesResult": {
+        "$ref": "components/schemas/BrowseEnginesResult.json"
       },
-      "BrowsePeopleRequest": {
-        "$ref": "components/schemas/BrowsePeopleRequest.json"
+      "BrowseProfilesRequest": {
+        "$ref": "components/schemas/BrowseProfilesRequest.json"
       },
-      "BrowsePeopleResult": {
-        "$ref": "components/schemas/BrowsePeopleResult.json"
+      "BrowseProfilesResult": {
+        "$ref": "components/schemas/BrowseProfilesResult.json"
       },
       "BrowseAnnotationHistoryRequest": {
         "$ref": "components/schemas/BrowseAnnotationHistoryRequest.json"
@@ -321,8 +321,8 @@
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
       },
-      "RosterEntry": {
-        "$ref": "components/schemas/RosterEntry.json"
+      "EngineEntry": {
+        "$ref": "components/schemas/EngineEntry.json"
       },
       "CommandError": {
         "$ref": "components/schemas/CommandError.json"
@@ -468,8 +468,8 @@
       "InferenceLimitsResult": {
         "$ref": "components/schemas/InferenceLimitsResult.json"
       },
-      "InferencePairLimits": {
-        "$ref": "components/schemas/InferencePairLimits.json"
+      "EngineLimits": {
+        "$ref": "components/schemas/EngineLimits.json"
       },
       "GraphAnnotationNode": {
         "$ref": "components/schemas/GraphAnnotationNode.json"
@@ -582,11 +582,11 @@
       "JobAssignedPayload": {
         "$ref": "components/schemas/JobAssignedPayload.json"
       },
-      "PersonProfileCommand": {
-        "$ref": "components/schemas/PersonProfileCommand.json"
+      "PrincipalProfileCommand": {
+        "$ref": "components/schemas/PrincipalProfileCommand.json"
       },
-      "PersonProfiledPayload": {
-        "$ref": "components/schemas/PersonProfiledPayload.json"
+      "PrincipalProfiledPayload": {
+        "$ref": "components/schemas/PrincipalProfiledPayload.json"
       },
       "JobStatusRequest": {
         "$ref": "components/schemas/JobStatusRequest.json"
@@ -981,8 +981,8 @@
       "WorkerConfig": {
         "$ref": "components/schemas/WorkerConfig.json"
       },
-      "WorkerAgentConfig": {
-        "$ref": "components/schemas/WorkerAgentConfig.json"
+      "WorkerEngineConfig": {
+        "$ref": "components/schemas/WorkerEngineConfig.json"
       },
       "CursorsPath": {
         "$ref": "components/schemas/CursorsPath.json"
@@ -1011,8 +1011,8 @@
       "LibrarianConfig": {
         "$ref": "components/schemas/LibrarianConfig.json"
       },
-      "LibrarianModelConfig": {
-        "$ref": "components/schemas/LibrarianModelConfig.json"
+      "LibrarianEngineConfig": {
+        "$ref": "components/schemas/LibrarianEngineConfig.json"
       },
       "EmbeddingConfig": {
         "$ref": "components/schemas/EmbeddingConfig.json"
@@ -1050,11 +1050,11 @@
       "TagSchemasProjection": {
         "$ref": "components/schemas/TagSchemasProjection.json"
       },
-      "PeopleProjection": {
-        "$ref": "components/schemas/PeopleProjection.json"
+      "ProfilesProjection": {
+        "$ref": "components/schemas/ProfilesProjection.json"
       },
-      "PersonProfile": {
-        "$ref": "components/schemas/PersonProfile.json"
+      "Profile": {
+        "$ref": "components/schemas/Profile.json"
       },
       "StorageUriEntry": {
         "$ref": "components/schemas/StorageUriEntry.json"
@@ -1077,11 +1077,11 @@
       "AnchoredTextWrite": {
         "$ref": "components/schemas/AnchoredTextWrite.json"
       },
-      "ArchivistRoster": {
-        "$ref": "components/schemas/ArchivistRoster.json"
+      "ArchivistEngines": {
+        "$ref": "components/schemas/ArchivistEngines.json"
       },
-      "ArchivistRosterRole": {
-        "$ref": "components/schemas/ArchivistRosterRole.json"
+      "Engine": {
+        "$ref": "components/schemas/Engine.json"
       },
       "GatherFailed": {
         "$ref": "components/schemas/GatherFailed.json"

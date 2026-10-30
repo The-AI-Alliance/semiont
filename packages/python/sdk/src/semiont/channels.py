@@ -35,8 +35,6 @@ from semiont.types import (
     BindBodyUpdated,
     BindInitiateCommand,
     BindUpdateBodyCommand,
-    BrowseAgentsRequest,
-    BrowseAgentsResult,
     BrowseAnnotationHistoryRequest,
     BrowseAnnotationHistoryResult,
     BrowseAnnotationRequest,
@@ -45,6 +43,8 @@ from semiont.types import (
     BrowseDirectoryFailed,
     BrowseDirectoryRequest,
     BrowseDirectoryResult,
+    BrowseEnginesRequest,
+    BrowseEnginesResult,
     BrowseEntityTypeClickedEvent,
     BrowseEntityTypesRequest,
     BrowseEntityTypesResult,
@@ -56,8 +56,8 @@ from semiont.types import (
     BrowseLinkClickedEvent,
     BrowsePanelOpenEvent,
     BrowsePanelToggleEvent,
-    BrowsePeopleRequest,
-    BrowsePeopleResult,
+    BrowseProfilesRequest,
+    BrowseProfilesResult,
     BrowseResourceCloseEvent,
     BrowseResourceOpenEvent,
     BrowseResourceReorderEvent,
@@ -128,8 +128,8 @@ from semiont.types import (
     MatchSearchFailed,
     MatchSearchRequest,
     MatchSearchResult,
-    PersonProfileCommand,
-    PersonProfiledPayload,
+    PrincipalProfileCommand,
+    PrincipalProfiledPayload,
     RepresentationAddedPayload,
     RepresentationRemovedPayload,
     ResourceArchivedPayload,
@@ -177,9 +177,6 @@ __all__ = [
     "BIND_BODY_UPDATE_FAILED",
     "BIND_INITIATE",
     "BIND_UPDATE_BODY",
-    "BROWSE_AGENTS_FAILED",
-    "BROWSE_AGENTS_REQUESTED",
-    "BROWSE_AGENTS_RESULT",
     "BROWSE_ANNOTATION_FAILED",
     "BROWSE_ANNOTATION_HISTORY_FAILED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
@@ -190,6 +187,9 @@ __all__ = [
     "BROWSE_DIRECTORY_FAILED",
     "BROWSE_DIRECTORY_REQUESTED",
     "BROWSE_DIRECTORY_RESULT",
+    "BROWSE_ENGINES_FAILED",
+    "BROWSE_ENGINES_REQUESTED",
+    "BROWSE_ENGINES_RESULT",
     "BROWSE_ENTITY_TYPES_FAILED",
     "BROWSE_ENTITY_TYPES_REQUESTED",
     "BROWSE_ENTITY_TYPES_RESULT",
@@ -200,9 +200,9 @@ __all__ = [
     "BROWSE_KB_FAILED",
     "BROWSE_KB_REQUESTED",
     "BROWSE_KB_RESULT",
-    "BROWSE_PEOPLE_FAILED",
-    "BROWSE_PEOPLE_REQUESTED",
-    "BROWSE_PEOPLE_RESULT",
+    "BROWSE_PROFILES_FAILED",
+    "BROWSE_PROFILES_REQUESTED",
+    "BROWSE_PROFILES_RESULT",
     "BROWSE_RESOURCES_FAILED",
     "BROWSE_RESOURCES_REQUESTED",
     "BROWSE_RESOURCES_RESULT",
@@ -312,8 +312,8 @@ __all__ = [
     "PANEL_CLOSE",
     "PANEL_OPEN",
     "PANEL_TOGGLE",
-    "PERSON_PROFILE",
-    "PERSON_PROFILED",
+    "PRINCIPAL_PROFILE",
+    "PRINCIPAL_PROFILED",
     "SESSION_JOINED",
     "SESSION_LEFT",
     "SETTINGS_HOVER_DELAY_CHANGED",
@@ -427,8 +427,8 @@ type ChannelName = Literal[
     "frame:entity-type-add-failed",
     "frame:tag-schema-add-ok",
     "frame:tag-schema-add-failed",
-    "person:profiled",
-    "person:profile",
+    "principal:profiled",
+    "principal:profile",
     "bind:initiate",
     "bind:update-body",
     "bind:body-updated",
@@ -478,12 +478,12 @@ type ChannelName = Literal[
     "browse:tag-schemas-requested",
     "browse:tag-schemas-result",
     "browse:tag-schemas-failed",
-    "browse:agents-requested",
-    "browse:agents-result",
-    "browse:agents-failed",
-    "browse:people-requested",
-    "browse:people-result",
-    "browse:people-failed",
+    "browse:engines-requested",
+    "browse:engines-result",
+    "browse:engines-failed",
+    "browse:profiles-requested",
+    "browse:profiles-result",
+    "browse:profiles-failed",
     "browse:kb-requested",
     "browse:kb-result",
     "browse:kb-failed",
@@ -617,8 +617,8 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "frame:entity-type-add-failed",
     "frame:tag-schema-add-ok",
     "frame:tag-schema-add-failed",
-    "person:profiled",
-    "person:profile",
+    "principal:profiled",
+    "principal:profile",
     "bind:initiate",
     "bind:update-body",
     "bind:body-updated",
@@ -668,12 +668,12 @@ CHANNEL_NAMES: Final[tuple[ChannelName, ...]] = (
     "browse:tag-schemas-requested",
     "browse:tag-schemas-result",
     "browse:tag-schemas-failed",
-    "browse:agents-requested",
-    "browse:agents-result",
-    "browse:agents-failed",
-    "browse:people-requested",
-    "browse:people-result",
-    "browse:people-failed",
+    "browse:engines-requested",
+    "browse:engines-result",
+    "browse:engines-failed",
+    "browse:profiles-requested",
+    "browse:profiles-result",
+    "browse:profiles-failed",
     "browse:kb-requested",
     "browse:kb-result",
     "browse:kb-failed",
@@ -806,8 +806,8 @@ FRAME_ENTITY_TYPE_ADD_OK: Final = Channel[Empty]("frame:entity-type-add-ok", Emp
 FRAME_ENTITY_TYPE_ADD_FAILED: Final = Channel[CommandError]("frame:entity-type-add-failed", CommandError)
 FRAME_TAG_SCHEMA_ADD_OK: Final = Channel[Empty]("frame:tag-schema-add-ok", Empty)
 FRAME_TAG_SCHEMA_ADD_FAILED: Final = Channel[CommandError]("frame:tag-schema-add-failed", CommandError)
-PERSON_PROFILED: Final = RecordedChannel[StoredEventResponse, PersonProfiledPayload]("person:profiled", StoredEventResponse, PersonProfiledPayload)
-PERSON_PROFILE: Final = Channel[PersonProfileCommand]("person:profile", PersonProfileCommand)
+PRINCIPAL_PROFILED: Final = RecordedChannel[StoredEventResponse, PrincipalProfiledPayload]("principal:profiled", StoredEventResponse, PrincipalProfiledPayload)
+PRINCIPAL_PROFILE: Final = Channel[PrincipalProfileCommand]("principal:profile", PrincipalProfileCommand)
 BIND_INITIATE: Final = Channel[BindInitiateCommand]("bind:initiate", BindInitiateCommand)
 BIND_UPDATE_BODY: Final = Channel[BindUpdateBodyCommand]("bind:update-body", BindUpdateBodyCommand)
 BIND_BODY_UPDATED: Final = Channel[BindBodyUpdated]("bind:body-updated", BindBodyUpdated)
@@ -857,12 +857,12 @@ BROWSE_ENTITY_TYPES_FAILED: Final = Channel[CommandError]("browse:entity-types-f
 BROWSE_TAG_SCHEMAS_REQUESTED: Final = Channel[BrowseTagSchemasRequest]("browse:tag-schemas-requested", BrowseTagSchemasRequest)
 BROWSE_TAG_SCHEMAS_RESULT: Final = Channel[BrowseTagSchemasResult]("browse:tag-schemas-result", BrowseTagSchemasResult)
 BROWSE_TAG_SCHEMAS_FAILED: Final = Channel[CommandError]("browse:tag-schemas-failed", CommandError)
-BROWSE_AGENTS_REQUESTED: Final = Channel[BrowseAgentsRequest]("browse:agents-requested", BrowseAgentsRequest)
-BROWSE_AGENTS_RESULT: Final = Channel[BrowseAgentsResult]("browse:agents-result", BrowseAgentsResult)
-BROWSE_AGENTS_FAILED: Final = Channel[CommandError]("browse:agents-failed", CommandError)
-BROWSE_PEOPLE_REQUESTED: Final = Channel[BrowsePeopleRequest]("browse:people-requested", BrowsePeopleRequest)
-BROWSE_PEOPLE_RESULT: Final = Channel[BrowsePeopleResult]("browse:people-result", BrowsePeopleResult)
-BROWSE_PEOPLE_FAILED: Final = Channel[CommandError]("browse:people-failed", CommandError)
+BROWSE_ENGINES_REQUESTED: Final = Channel[BrowseEnginesRequest]("browse:engines-requested", BrowseEnginesRequest)
+BROWSE_ENGINES_RESULT: Final = Channel[BrowseEnginesResult]("browse:engines-result", BrowseEnginesResult)
+BROWSE_ENGINES_FAILED: Final = Channel[CommandError]("browse:engines-failed", CommandError)
+BROWSE_PROFILES_REQUESTED: Final = Channel[BrowseProfilesRequest]("browse:profiles-requested", BrowseProfilesRequest)
+BROWSE_PROFILES_RESULT: Final = Channel[BrowseProfilesResult]("browse:profiles-result", BrowseProfilesResult)
+BROWSE_PROFILES_FAILED: Final = Channel[CommandError]("browse:profiles-failed", CommandError)
 BROWSE_KB_REQUESTED: Final = Channel[BrowseKbRequest]("browse:kb-requested", BrowseKbRequest)
 BROWSE_KB_RESULT: Final = Channel[BrowseKbResult]("browse:kb-result", BrowseKbResult)
 BROWSE_KB_FAILED: Final = Channel[CommandError]("browse:kb-failed", CommandError)
@@ -997,8 +997,8 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "frame:entity-type-add-failed": FRAME_ENTITY_TYPE_ADD_FAILED,
         "frame:tag-schema-add-ok": FRAME_TAG_SCHEMA_ADD_OK,
         "frame:tag-schema-add-failed": FRAME_TAG_SCHEMA_ADD_FAILED,
-        "person:profiled": PERSON_PROFILED,
-        "person:profile": PERSON_PROFILE,
+        "principal:profiled": PRINCIPAL_PROFILED,
+        "principal:profile": PRINCIPAL_PROFILE,
         "bind:initiate": BIND_INITIATE,
         "bind:update-body": BIND_UPDATE_BODY,
         "bind:body-updated": BIND_BODY_UPDATED,
@@ -1048,12 +1048,12 @@ CHANNELS: Final[Mapping[str, AnyChannel]] = MappingProxyType(
         "browse:tag-schemas-requested": BROWSE_TAG_SCHEMAS_REQUESTED,
         "browse:tag-schemas-result": BROWSE_TAG_SCHEMAS_RESULT,
         "browse:tag-schemas-failed": BROWSE_TAG_SCHEMAS_FAILED,
-        "browse:agents-requested": BROWSE_AGENTS_REQUESTED,
-        "browse:agents-result": BROWSE_AGENTS_RESULT,
-        "browse:agents-failed": BROWSE_AGENTS_FAILED,
-        "browse:people-requested": BROWSE_PEOPLE_REQUESTED,
-        "browse:people-result": BROWSE_PEOPLE_RESULT,
-        "browse:people-failed": BROWSE_PEOPLE_FAILED,
+        "browse:engines-requested": BROWSE_ENGINES_REQUESTED,
+        "browse:engines-result": BROWSE_ENGINES_RESULT,
+        "browse:engines-failed": BROWSE_ENGINES_FAILED,
+        "browse:profiles-requested": BROWSE_PROFILES_REQUESTED,
+        "browse:profiles-result": BROWSE_PROFILES_RESULT,
+        "browse:profiles-failed": BROWSE_PROFILES_FAILED,
         "browse:kb-requested": BROWSE_KB_REQUESTED,
         "browse:kb-result": BROWSE_KB_RESULT,
         "browse:kb-failed": BROWSE_KB_FAILED,
@@ -1140,10 +1140,10 @@ BRIDGED_CHANNELS: Final[tuple[ChannelName, ...]] = (
     "browse:entity-types-failed",
     "browse:tag-schemas-result",
     "browse:tag-schemas-failed",
-    "browse:agents-result",
-    "browse:agents-failed",
-    "browse:people-result",
-    "browse:people-failed",
+    "browse:engines-result",
+    "browse:engines-failed",
+    "browse:profiles-result",
+    "browse:profiles-failed",
     "browse:kb-result",
     "browse:kb-failed",
     "browse:directory-result",
@@ -1262,7 +1262,7 @@ PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
     "mark:unarchived",
     "frame:entity-type-added",
     "frame:tag-schema-added",
-    "person:profiled",
+    "principal:profiled",
     "job:started",
     "job:assigned",
     "job:completed",

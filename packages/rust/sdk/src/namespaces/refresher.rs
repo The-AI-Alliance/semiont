@@ -15,7 +15,7 @@
 //! asked for inside a window are one refetch
 //! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
-use super::browse::{self, BrowseNamespace, WHOLE, invalidate_agents};
+use super::browse::{self, BrowseNamespace, WHOLE, invalidate_engines};
 use super::gather::{GatherNamespace, ReferencedBy};
 use super::match_::{MatchNamespace, ResourceSearch};
 use crate::bus::StreamError;
@@ -428,12 +428,12 @@ impl Refresher {
                     "tag-schemas".to_owned(),
                 );
             }
-            CacheQuery::Agents => {
-                if browse.agents.known(&WHOLE.to_owned()) {
-                    let (agents, limits) = (browse.agents.clone(), browse.limits.clone());
+            CacheQuery::Engines => {
+                if browse.engines.known(&WHOLE.to_owned()) {
+                    let (engines, limits) = (browse.engines.clone(), browse.limits.clone());
                     self.windows.run(
-                        "agents".to_owned(),
-                        Box::new(move || invalidate_agents(&agents, &limits)),
+                        "engines".to_owned(),
+                        Box::new(move || invalidate_engines(&engines, &limits)),
                     );
                 }
             }

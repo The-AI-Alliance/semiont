@@ -1,14 +1,14 @@
 {
   "type": "object",
-  "description": "One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.",
+  "description": "One engine a worker runs: which it is, the jobs the worker claims to do with it, and where its provider is reached.",
   "properties": {
-    "agent": {
-      "$ref": "./ArchivistRosterRole.json"
+    "engine": {
+      "$ref": "./Engine.json"
     },
-    "accepts": {
+    "jobs": {
       "type": "array",
       "minItems": 1,
-      "description": "The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.",
+      "description": "The jobs the worker claims to do with this engine, as a claim names them (`job:claim`'s `accepts`): it claims with these filters and no other.",
       "items": {
         "$ref": "./JobFilter.json"
       }
@@ -25,8 +25,8 @@
     }
   },
   "required": [
-    "agent",
-    "accepts",
+    "engine",
+    "jobs",
     "baseUrl"
   ],
   "additionalProperties": false

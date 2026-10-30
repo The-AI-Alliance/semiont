@@ -17,7 +17,7 @@ The reply is `match:search-results`, or `match:search-failed`. Each candidate ca
 
 The reply is `match:resources-result`, or `match:resources-failed`. It carries the page of resources, the `total` of everything the text found, and a `matchKind`.
 
-The librarian also answers `match:limits-requested`, with the [limits](../LIBRARIAN.md#limits) of the model that scores candidates. `browse.agents` asks it.
+The librarian also answers `match:limits-requested`, with the [limits](../LIBRARIAN.md#limits) of the engine that scores candidates. `browse.engines` asks it.
 
 ## How candidates are found and ranked
 

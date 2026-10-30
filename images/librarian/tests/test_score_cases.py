@@ -26,7 +26,7 @@ from typing import Final, final, override
 
 import pytest
 from aio import run
-from rig import FakeEmbedding, FakeInference, FakePeople, FakeVectors
+from rig import FakeEmbedding, FakeInference, FakeProfiles, FakeVectors
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
 from semiont.types import Annotation, MatchSearchRequest, MatchSearchResult, Motivation, ResourceDescriptor
@@ -253,7 +253,7 @@ async def searched(case: JsonObject, world: World) -> MatchSearchResult:
         vectors=world.vectors,
         embedding=world.embedding,
         inference=world.inference,
-        people=FakePeople(),
+        profiles=FakeProfiles(),
         now=lambda: moment,
     )
 

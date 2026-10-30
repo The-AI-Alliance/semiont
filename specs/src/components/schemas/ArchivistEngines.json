@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "description": "The engine for each job and each Librarian actor, behind `browse:engines`: a provider and a model, and no credential. It is the knowledge base's Inference document's `engines` as they stand, with no fallback, so a job or an actor absent here has no engine.",
+  "properties": {
+    "jobs": {
+      "type": "object",
+      "description": "The engine each job is done with when software does it, keyed as a job description is: by `jobType`, and for `mark` by motivation.",
+      "properties": {
+        "mark": {
+          "type": "object",
+          "description": "The engine for `mark` jobs of each motivation.",
+          "properties": {
+            "highlighting": {
+              "$ref": "./Engine.json"
+            },
+            "commenting": {
+              "$ref": "./Engine.json"
+            },
+            "assessing": {
+              "$ref": "./Engine.json"
+            },
+            "linking": {
+              "$ref": "./Engine.json"
+            },
+            "tagging": {
+              "$ref": "./Engine.json"
+            }
+          },
+          "additionalProperties": false
+        },
+        "yield": {
+          "$ref": "./Engine.json"
+        }
+      },
+      "additionalProperties": false
+    },
+    "actors": {
+      "type": "object",
+      "description": "The engine each Librarian actor that calls a model asks.",
+      "properties": {
+        "gatherer": {
+          "$ref": "./Engine.json"
+        },
+        "matcher": {
+          "$ref": "./Engine.json"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "jobs",
+    "actors"
+  ],
+  "additionalProperties": false
+}

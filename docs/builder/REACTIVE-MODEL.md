@@ -221,7 +221,7 @@ The authority for this list is [`specs/src/client/surface.json`](../../specs/src
 - `browse.events`
 - `browse.entityTypes`
 - `browse.tagSchemas`
-- `browse.agents`
+- `browse.engines`
 - `match.resources`
 - `gather.referencedBy`
 

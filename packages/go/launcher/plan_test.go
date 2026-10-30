@@ -121,9 +121,9 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				Presence: presenceLauncher, Driver: "qdrant",
 				Image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", Memory: "2G", Port: 6333,
 			})
-			// embedding: with ollama bindings, the inference role runs the
+			// embedding: with ollama engines, the inference role runs the
 			// Ollama and embedding rides along (external, sharing it). With
-			// all-remote bindings, embedding OWNS the host-process dance —
+			// all-remote engines, embedding OWNS the host-process dance —
 			// that Ollama exists for it alone.
 			if name == "anthropic" {
 				checkRole(t, plan, "embedding", rolePlan{
@@ -146,9 +146,9 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				Image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", Memory: "1G", Port: 5432,
 				Env: []string{"POSTGRES_DB=keycloak"},
 			})
-			// The inference driver is WHO PERFORMS INFERENCE per the roster,
-			// not which process the launcher runs. ollama-gemma binds ollama →
-			// the local-Ollama shape. anthropic binds Claude throughout → an
+			// The inference driver is WHO PERFORMS INFERENCE per the engines,
+			// not which process the launcher runs. ollama-gemma's are ollama's →
+			// the local-Ollama shape. anthropic's are Claude throughout → an
 			// external SaaS role, whose key the remote-model check reads; the
 			// Ollama it still needs exists solely for the embedding, and the
 			// embedding owns it (above).
@@ -174,7 +174,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 					},
 				})
 			}
-			// Only what OLLAMA can serve is pullable — the anthropic roster's
+			// Only what OLLAMA can serve is pullable — the anthropic engines'
 			// Claude models are not in this list.
 			wantPull := []string{"gemma4:26b", "gemma4:e2b", "nomic-embed-text"}
 			if name == "anthropic" {
@@ -184,7 +184,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				t.Errorf("ollama models: got %v want %v", modelNames(plan.OllamaModels), wantPull)
 			}
 			// Each model carries the ROLE that asked for it, so a failed pull
-			// can name what stops working. The anthropic roster's inference
+			// can name what stops working. The anthropic engines' inference
 			// runs on Claude, so its ONE ollama-served model is embedding-only
 			// — a set that crosses no role boundary, unlike ollama-gemma's.
 			wantRoles := map[string][]string{
@@ -270,7 +270,7 @@ func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
 // document names, with the memory its document states: the plan carries one
 // of each for every such service and for nothing else, and a change to one
 // service's document changes that service alone. (A stack that runs no
-// worker: TestPlanRunsAWorkerOnlyWhenAJobIsBound.)
+// worker: TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine.)
 func TestThePlanRunsEachServiceAsItsDocumentSays(t *testing.T) {
 	before := mustPlan(t, fixtureStack(t, "anthropic"))
 	for what, services := range map[string]map[string]string{"an image": before.Images, "a memory": before.Memory} {
@@ -310,7 +310,7 @@ func TestThePlanRunsEachServiceAsItsDocumentSays(t *testing.T) {
 	}
 }
 
-// A voyage embedding and no ollama binding: nothing asks for the local
+// A voyage embedding and no ollama engine: nothing asks for the local
 // Ollama, so the launcher launches nothing for either role. Voyage is remote
 // SaaS — still external, still a role. No endpoint is normal there, so the
 // driver's own host and TLS port stand in.
@@ -324,7 +324,7 @@ func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
 		Address: voyageHost, Port: 443,
 		Models: []servedModel{{Model: "voyage-3", Provider: "voyage"}}, // voyage is remote: nothing to install
 	})
-	// The roster binds Claude, so inference is a configured EXTERNAL role, not
+	// The engines are Claude's, so inference is a configured EXTERNAL role, not
 	// an absent one, and a voyage embedding must not drag Ollama in either.
 	checkRole(t, plan, "inference", rolePlan{
 		Presence: presenceExternal, Driver: "anthropic",
@@ -344,14 +344,14 @@ func TestDerivePlanNoOllamaAnywhere(t *testing.T) {
 	}
 }
 
-// A roster that binds nothing performs no inference, and the Ollama an ollama
-// embedding still needs is the embedding's own, run from the catalog's image.
-func TestDerivePlanWithNothingBoundRunsNoInference(t *testing.T) {
+// No engine performs no inference, and the Ollama an ollama embedding still
+// needs is the embedding's own, run from the catalog's image.
+func TestDerivePlanWithNoEngineRunsNoInference(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	st.Inference.Spec.Roster = api.ArchivistRoster{}
+	st.Inference.Spec.Engines = api.ArchivistEngines{}
 	plan := mustPlan(t, st)
 	if got := plan.Roles["inference"].Presence; got != presenceAbsent {
-		t.Errorf("no bindings: inference should be absent, got %v", got)
+		t.Errorf("no engines: inference should be absent, got %v", got)
 	}
 	checkRole(t, plan, "embedding", rolePlan{
 		Presence: presenceHostPreferred, Driver: "ollama",
@@ -460,23 +460,23 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 }
 
 // The worker is a role of the plan like any other the documents decide: run
-// by the launcher when the roster binds a job to one, from the image and with
-// the memory the WorkerPool states; absent when it binds none. An actor's
-// binding binds no job.
-func TestPlanRunsAWorkerOnlyWhenAJobIsBound(t *testing.T) {
-	claude := &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
+// by the launcher when the engines give a job an engine, from the image and
+// with the memory the WorkerPool states; absent when they give none. An
+// actor's engine is no job's.
+func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
+	claude := &api.Engine{Provider: api.EngineProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
 	for _, c := range []struct {
-		why  string
-		bind func(r *api.ArchivistRoster)
-		want presence
+		why     string
+		engines func(e *api.ArchivistEngines)
+		want    presence
 	}{
-		{"every job is bound", func(r *api.ArchivistRoster) {}, presenceLauncher},
-		{"one job is bound", func(r *api.ArchivistRoster) { *r = api.ArchivistRoster{}; r.Workers.Yield = claude }, presenceLauncher},
-		{"only an actor is bound", func(r *api.ArchivistRoster) { *r = api.ArchivistRoster{}; r.Actors.Gatherer = claude }, presenceAbsent},
-		{"nothing is bound", func(r *api.ArchivistRoster) { *r = api.ArchivistRoster{} }, presenceAbsent},
+		{"every job has an engine", func(e *api.ArchivistEngines) {}, presenceLauncher},
+		{"one job has an engine", func(e *api.ArchivistEngines) { *e = api.ArchivistEngines{}; e.Jobs.Yield = claude }, presenceLauncher},
+		{"only an actor has an engine", func(e *api.ArchivistEngines) { *e = api.ArchivistEngines{}; e.Actors.Gatherer = claude }, presenceAbsent},
+		{"nothing has an engine", func(e *api.ArchivistEngines) { *e = api.ArchivistEngines{} }, presenceAbsent},
 	} {
 		st := fixtureStack(t, "anthropic")
-		c.bind(&st.Inference.Spec.Roster)
+		c.engines(&st.Inference.Spec.Engines)
 		plan := mustPlan(t, st)
 		worker, planned := plan.Roles["worker"]
 		if !planned {
@@ -496,39 +496,39 @@ func TestPlanRunsAWorkerOnlyWhenAJobIsBound(t *testing.T) {
 	}
 }
 
-// A knowledge base with no workers.yaml runs no worker, so a roster that binds
-// a job to one is refused, naming both documents.
-func TestPlanRefusesAJobBoundToAWorkerTheKnowledgeBaseHasNot(t *testing.T) {
+// A knowledge base with no workers.yaml runs no worker, so an Inference
+// document that gives a job an engine is refused, naming both documents.
+func TestPlanRefusesAJobEngineWithNoWorkerPool(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
 	st.Workers = nil
-	mustRefuse(t, st, st.Files.Inference+": spec.roster.workers", st.Files.Workers)
+	mustRefuse(t, st, st.Files.Inference+": spec.engines.jobs", st.Files.Workers)
 
 	st = fixtureStack(t, "anthropic")
 	st.Workers = nil
-	st.Inference.Spec.Roster.Workers = api.ArchivistRoster{}.Workers
+	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
 	if got := mustPlan(t, st).Roles["worker"].Presence; got != presenceAbsent {
-		t.Errorf("a roster binding no job, with no workers.yaml, plans the worker %s", got)
+		t.Errorf("engines giving no job an engine, with no workers.yaml, plan the worker %s", got)
 	}
 }
 
 // A stack without a worker claims everything a stack with one does but the
 // worker's port, in the same order.
 func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
-	bound := mustPlan(t, fixtureStack(t, "anthropic"))
+	withWorker := mustPlan(t, fixtureStack(t, "anthropic"))
 	st := fixtureStack(t, "anthropic")
-	st.Inference.Spec.Roster.Workers = api.ArchivistRoster{}.Workers
-	unbound := mustPlan(t, st)
+	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
+	withoutWorker := mustPlan(t, st)
 	var want []int
-	for _, port := range portNumbers(planPortChecks(bound, true, exposure{})) {
+	for _, port := range portNumbers(planPortChecks(withWorker, true, exposure{})) {
 		if !slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
 			want = append(want, port)
 		}
 	}
-	got := portNumbers(planPortChecks(unbound, true, exposure{}))
+	got := portNumbers(planPortChecks(withoutWorker, true, exposure{}))
 	if !slices.Equal(got, want) {
 		t.Errorf("a stack without a worker requires %v free\nwant %v", got, want)
 	}
-	if len(want) == len(planPortChecks(bound, true, exposure{})) {
+	if len(want) == len(planPortChecks(withWorker, true, exposure{})) {
 		t.Fatal("a stack with a worker claims no worker port: this test would prove nothing")
 	}
 }
@@ -569,7 +569,7 @@ func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 // placed lines and the models the machine's Ollama pulls agree on where each is.
 func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 	somewhere := "http://ollama.example.org:11500"
-	ollama := api.ArchivistRosterRoleProviderOllama
+	ollama := api.EngineProviderOllama
 
 	t.Run("the embedding's is somebody else's", func(t *testing.T) {
 		st := fixtureStack(t, "ollama-gemma")
@@ -589,7 +589,7 @@ func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 			t.Errorf("the placed lines are %q", lines)
 		}
 		if got := modelNames(p.plan.OllamaModels); !slices.Equal(got, []string{"gemma4:26b", "gemma4:e2b"}) {
-			t.Errorf("the machine's Ollama pulls %v: the roster's models, and not the embedding's, which somebody else's Ollama serves", got)
+			t.Errorf("the machine's Ollama pulls %v: the engines' models, and not the embedding's, which somebody else's Ollama serves", got)
 		}
 	})
 
@@ -613,7 +613,7 @@ func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 			t.Errorf("the placed lines are %q", lines)
 		}
 		if got := modelNames(p.plan.OllamaModels); !slices.Equal(got, []string{"nomic-embed-text"}) {
-			t.Errorf("the machine's Ollama pulls %v: the embedding's model, and none of the roster's, which somebody else's Ollama serves", got)
+			t.Errorf("the machine's Ollama pulls %v: the embedding's model, and none of the engines', which somebody else's Ollama serves", got)
 		}
 	})
 }

@@ -4,7 +4,7 @@ from functools import cache
 from pathlib import Path
 from typing import Never, NoReturn, final
 
-from semiont.types import ArchivistRosterRoleProvider
+from semiont.types import EngineProvider
 
 from semiont_inference.catalogue import Catalogue, CatalogueFacts, CatalogueProvider, catalogue_facts, read_catalogue
 from semiont_inference.interface import InferenceClient
@@ -65,7 +65,7 @@ def _facts(path: Path | None, provider: CatalogueProvider, model: str) -> Catalo
 
 
 def create_inference_client(
-    *, provider: ArchivistRosterRoleProvider, model: str, base_url: str, api_key: str | None, catalogue: Path | None
+    *, provider: EngineProvider, model: str, base_url: str, api_key: str | None, catalogue: Path | None
 ) -> InferenceClient:
     """A client of `provider`'s `model`, reached at `base_url`.
 

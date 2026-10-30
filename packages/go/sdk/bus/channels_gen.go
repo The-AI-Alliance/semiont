@@ -65,8 +65,8 @@ var (
 	FrameEntityTypeAddFailed      = Emittable[api.CommandError]{"frame:entity-type-add-failed"}
 	FrameTagSchemaAddOk           = Of[Empty]{"frame:tag-schema-add-ok"}
 	FrameTagSchemaAddFailed       = Emittable[api.CommandError]{"frame:tag-schema-add-failed"}
-	PersonProfiled                = Recorded[api.StoredEventResponse, api.PersonProfiledPayload]{"person:profiled"}
-	PersonProfile                 = Emittable[api.PersonProfileCommand]{"person:profile"}
+	PrincipalProfiled             = Recorded[api.StoredEventResponse, api.PrincipalProfiledPayload]{"principal:profiled"}
+	PrincipalProfile              = Emittable[api.PrincipalProfileCommand]{"principal:profile"}
 	BindInitiate                  = Emittable[api.BindInitiateCommand]{"bind:initiate"}
 	BindBodyUpdated               = Emittable[api.BindBodyUpdated]{"bind:body-updated"}
 	BindBodyUpdateFailed          = Emittable[api.CommandError]{"bind:body-update-failed"}
@@ -100,10 +100,10 @@ var (
 	BrowseEntityTypesFailed       = Of[api.CommandError]{"browse:entity-types-failed"}
 	BrowseTagSchemasResult        = Emittable[api.BrowseTagSchemasResult]{"browse:tag-schemas-result"}
 	BrowseTagSchemasFailed        = Of[api.CommandError]{"browse:tag-schemas-failed"}
-	BrowseAgentsResult            = Emittable[api.BrowseAgentsResult]{"browse:agents-result"}
-	BrowseAgentsFailed            = Of[api.CommandError]{"browse:agents-failed"}
-	BrowsePeopleResult            = Emittable[api.BrowsePeopleResult]{"browse:people-result"}
-	BrowsePeopleFailed            = Of[api.CommandError]{"browse:people-failed"}
+	BrowseEnginesResult           = Emittable[api.BrowseEnginesResult]{"browse:engines-result"}
+	BrowseEnginesFailed           = Of[api.CommandError]{"browse:engines-failed"}
+	BrowseProfilesResult          = Emittable[api.BrowseProfilesResult]{"browse:profiles-result"}
+	BrowseProfilesFailed          = Of[api.CommandError]{"browse:profiles-failed"}
 	BrowseKbResult                = Emittable[api.BrowseKbResult]{"browse:kb-result"}
 	BrowseKbFailed                = Of[api.CommandError]{"browse:kb-failed"}
 	BrowseDirectoryResult         = Emittable[api.BrowseDirectoryResult]{"browse:directory-result"}

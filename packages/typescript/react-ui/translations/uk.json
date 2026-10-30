@@ -97,7 +97,7 @@
     "reconnecting": "Повторне з'єднання з сервером...",
     "sharing": "Спільний доступ",
     "collaborationComingSoon": "Функції співпраці незабаром",
-    "collaborators": "Співавтори",
+    "engines": "Рушії",
     "ceilings": "{{contextTokens}} вхід / {{maxOutputTokens}} вихід",
     "sharedWindow": "Вікно {{contextTokens}}"
   },

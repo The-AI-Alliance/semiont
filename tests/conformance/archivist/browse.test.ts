@@ -1,18 +1,18 @@
 /**
  * Browse (ARCHIVIST.md § Browse, § The HTTP surface): the reads the Archivist
- * answers from its views, its log, the working tree and the roster, on the
- * bus; and from the anchored-text store, over HTTP.
+ * answers from its views, its log, the working tree and the knowledge base's
+ * engines, on the bus; and from the anchored-text store, over HTTP.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { anchoredEntry, sha256, shardOf, withArchivist, type Roster } from '../harness/archivist-world';
+import { anchoredEntry, sha256, shardOf, withArchivist, type Engines } from '../harness/archivist-world';
 import { spec } from '../harness/spec';
 
-// Written out of the order the roster's schema states its roles in: the
-// answer is in the schema's.
-const ROSTER: Roster = {
-  workers: {
+// Written out of the order the engines' schema states them in: the answer is
+// in the schema's.
+const ENGINES: Engines = {
+  jobs: {
     yield: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
     mark: {
       tagging: { provider: 'ollama', model: 'gemma2:27b' },
@@ -118,17 +118,17 @@ withArchivist('browsing', (world) => {
     expect(answer.payload).toEqual({ code: 'not-found', message: 'Resource not found' });
   });
 
-  it('names the people a reply mentions by their profile', async () => {
+  it('names each person a reply mentions by their profile', async () => {
     const lovelace = await world().person('lovelace');
     const reader = await world().person('reader');
     const id = await world().created(lovelace.did, { name: 'Named', storageUri: 'file://listed/named.md', content: 'named\n' });
 
     // The gateway profiles a person, from their token, when they first write.
     await lovelace.ask('mark:update-entity-types', { resourceId: id, currentEntityTypes: [], updatedEntityTypes: ['Person'] });
-    const profiled = await reader.fact('person:profiled', (e) => e.userId === lovelace.did);
+    const profiled = await reader.fact('principal:profiled', (e) => e.userId === lovelace.did);
     expect(profiled).not.toHaveProperty('resourceId');
     const name = profiled.payload['name'] as string;
-    expect(world().projection<{ people: Record<string, { name: string; since: string }> }>('people.json')!.people[lovelace.did]).toEqual({ name, since: profiled.timestamp });
+    expect(world().projection<{ profiles: Record<string, { name: string; since: string }> }>('profiles.json')!.profiles[lovelace.did]).toEqual({ name, since: profiled.timestamp });
 
     const described = await reader.ask('browse:resource-requested', { resourceId: id });
     expect((described['resource'] as { wasAttributedTo: unknown[] }).wasAttributedTo).toEqual([{ '@type': 'Person', '@id': lovelace.did, name }]);
@@ -138,31 +138,31 @@ withArchivist('browsing', (world) => {
     expect(world().stored(id)[0]!.payload['wasAttributedTo']).toEqual([{ '@type': 'Person', '@id': lovelace.did }]);
   });
 
-  it('answers the profiles of the people asked after, and leaves out one who has none', async () => {
+  it('answers the profiles of the principals asked after, and leaves out one who has none', async () => {
     const lovelace = await world().person('lovelace-asked');
     const reader = await world().person('reader');
     const id = await world().created(lovelace.did, { name: 'Asked after', storageUri: 'file://listed/asked.md', content: 'asked\n' });
     // The gateway profiles a person, from their token, when they first write.
     await lovelace.ask('mark:update-entity-types', { resourceId: id, currentEntityTypes: [], updatedEntityTypes: ['Person'] });
-    const profiled = await reader.fact('person:profiled', (e) => e.userId === lovelace.did);
+    const profiled = await reader.fact('principal:profiled', (e) => e.userId === lovelace.did);
 
     const nobody = world().world.personDid('nobody-profiled');
-    const answer = await reader.ask('browse:people-requested', { dids: [lovelace.did, nobody] });
-    expect(answer).toEqual({ people: { [lovelace.did]: { name: profiled.payload['name'], since: profiled.timestamp } } });
+    const answer = await reader.ask('browse:profiles-requested', { dids: [lovelace.did, nobody] });
+    expect(answer).toEqual({ profiles: { [lovelace.did]: { name: profiled.payload['name'], since: profiled.timestamp } } });
   });
 
   it('records a profile when the name is new, and not when it is the name last recorded', async () => {
     const namer = await world().sidecar('namer');
-    const mine = () => world().stored('__system__').filter((e) => e.type === 'person:profiled' && e.userId === namer.did).map((e) => e.payload['name']);
+    const mine = () => world().stored('__system__').filter((e) => e.type === 'principal:profiled' && e.userId === namer.did).map((e) => e.payload['name']);
 
-    await namer.emit('person:profile', { name: 'First' });
-    await namer.fact('person:profiled', (e) => e.userId === namer.did && e.payload['name'] === 'First');
-    await namer.emit('person:profile', { name: 'First' });
-    await namer.emit('person:profile', { name: 'Second' });
-    const second = await namer.fact('person:profiled', (e) => e.userId === namer.did && e.payload['name'] === 'Second');
+    await namer.emit('principal:profile', { name: 'First' });
+    await namer.fact('principal:profiled', (e) => e.userId === namer.did && e.payload['name'] === 'First');
+    await namer.emit('principal:profile', { name: 'First' });
+    await namer.emit('principal:profile', { name: 'Second' });
+    const second = await namer.fact('principal:profiled', (e) => e.userId === namer.did && e.payload['name'] === 'Second');
 
     expect(mine()).toEqual(['First', 'Second']);
-    expect(world().projection<{ people: Record<string, { name: string; since: string }> }>('people.json')!.people[namer.did]).toEqual({ name: 'Second', since: second.timestamp });
+    expect(world().projection<{ profiles: Record<string, { name: string; since: string }> }>('profiles.json')!.profiles[namer.did]).toEqual({ name: 'Second', since: second.timestamp });
   });
 
   it('lists a directory of the working tree, and nothing outside it', async () => {
@@ -353,25 +353,25 @@ withArchivist('browsing', (world) => {
   });
 });
 
-withArchivist('the roster', (world) => {
-  it('lists each engine once, in the order of its first role, with the jobs it serves as a claim would name them, and no identity of its own', async () => {
+withArchivist('the engines', (world) => {
+  it('lists each engine once, in the order it is first named, with the jobs it is used for as a claim would name them, and no identity of its own', async () => {
     const reader = await world().person('reader');
     const engine = (provider: string, model: string) => ({ provider, model });
-    expect(await reader.ask('browse:agents-requested', {})).toEqual({
-      agents: [
-        { engine: engine('anthropic', 'claude-haiku-4-5'), serves: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'mark', params: { motivation: 'linking' } }] },
-        { engine: engine('ollama', 'gemma2:27b'), serves: [{ jobType: 'mark', params: { motivation: 'tagging' } }] },
-        { engine: engine('anthropic', 'claude-sonnet-4-5'), serves: [{ jobType: 'yield' }] },
+    expect(await reader.ask('browse:engines-requested', {})).toEqual({
+      engines: [
+        { engine: engine('anthropic', 'claude-haiku-4-5'), jobs: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'mark', params: { motivation: 'linking' } }] },
+        { engine: engine('ollama', 'gemma2:27b'), jobs: [{ jobType: 'mark', params: { motivation: 'tagging' } }] },
+        { engine: engine('anthropic', 'claude-sonnet-4-5'), jobs: [{ jobType: 'yield' }] },
         { engine: engine('ollama', 'llama3') },
       ],
     });
   });
-}, { roster: ROSTER });
+}, { engines: ENGINES });
 
-withArchivist('a knowledge base no one serves, that does not sync git', (world) => {
-  it('lists no agents, and names no branch', async () => {
+withArchivist('a knowledge base with no engines, that does not sync git', (world) => {
+  it('lists no engines, and names no branch', async () => {
     const reader = await world().person('reader');
-    expect(await reader.ask('browse:agents-requested', {})).toEqual({ agents: [] });
+    expect(await reader.ask('browse:engines-requested', {})).toEqual({ engines: [] });
     expect(await reader.ask('browse:kb-requested', {})).toEqual({ name: world().world.kb.name, domain: world().world.kb.domain });
   });
 }, { gitSync: false });

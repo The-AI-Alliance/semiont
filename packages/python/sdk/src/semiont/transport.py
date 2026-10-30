@@ -506,7 +506,7 @@ class ContentTransport(Protocol):
         ...
 
     async def get_annotations(self, resource_id: ResourceId) -> GetAnnotationsResponse:
-        """A resource's annotations, with the people they mention named, and how many there are."""
+        """A resource's annotations, with the principals they mention named, and how many there are."""
         ...
 
     async def get_anchored_text(self, resource_id: ResourceId) -> AnchoredTextAnswer:

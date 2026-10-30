@@ -17,8 +17,8 @@ var (
 	BrowseEventsRequested            = Operation[api.BrowseEventsRequest, api.BrowseEventsResult, api.CommandError]{"browse:events-requested", "browse:events-result", "browse:events-failed"}
 	BrowseEntityTypesRequested       = Operation[api.BrowseEntityTypesRequest, api.BrowseEntityTypesResult, api.CommandError]{"browse:entity-types-requested", "browse:entity-types-result", "browse:entity-types-failed"}
 	BrowseTagSchemasRequested        = Operation[api.BrowseTagSchemasRequest, api.BrowseTagSchemasResult, api.CommandError]{"browse:tag-schemas-requested", "browse:tag-schemas-result", "browse:tag-schemas-failed"}
-	BrowseAgentsRequested            = Operation[api.BrowseAgentsRequest, api.BrowseAgentsResult, api.CommandError]{"browse:agents-requested", "browse:agents-result", "browse:agents-failed"}
-	BrowsePeopleRequested            = Operation[api.BrowsePeopleRequest, api.BrowsePeopleResult, api.CommandError]{"browse:people-requested", "browse:people-result", "browse:people-failed"}
+	BrowseEnginesRequested           = Operation[api.BrowseEnginesRequest, api.BrowseEnginesResult, api.CommandError]{"browse:engines-requested", "browse:engines-result", "browse:engines-failed"}
+	BrowseProfilesRequested          = Operation[api.BrowseProfilesRequest, api.BrowseProfilesResult, api.CommandError]{"browse:profiles-requested", "browse:profiles-result", "browse:profiles-failed"}
 	BrowseKbRequested                = Operation[api.BrowseKbRequest, api.BrowseKbResult, api.CommandError]{"browse:kb-requested", "browse:kb-result", "browse:kb-failed"}
 	BrowseDirectoryRequested         = Operation[api.BrowseDirectoryRequest, api.BrowseDirectoryResult, api.BrowseDirectoryFailed]{"browse:directory-requested", "browse:directory-result", "browse:directory-failed"}
 	FrameAddEntityType               = Operation[api.FrameAddEntityTypeCommand, Empty, api.CommandError]{"frame:add-entity-type", "frame:entity-type-add-ok", "frame:entity-type-add-failed"}
@@ -83,8 +83,8 @@ var Operations = map[Channel]Replies{
 	"browse:events-requested":             {Result: "browse:events-result", Failure: "browse:events-failed"},
 	"browse:entity-types-requested":       {Result: "browse:entity-types-result", Failure: "browse:entity-types-failed"},
 	"browse:tag-schemas-requested":        {Result: "browse:tag-schemas-result", Failure: "browse:tag-schemas-failed"},
-	"browse:agents-requested":             {Result: "browse:agents-result", Failure: "browse:agents-failed"},
-	"browse:people-requested":             {Result: "browse:people-result", Failure: "browse:people-failed"},
+	"browse:engines-requested":            {Result: "browse:engines-result", Failure: "browse:engines-failed"},
+	"browse:profiles-requested":           {Result: "browse:profiles-result", Failure: "browse:profiles-failed"},
 	"browse:kb-requested":                 {Result: "browse:kb-result", Failure: "browse:kb-failed"},
 	"browse:directory-requested":          {Result: "browse:directory-result", Failure: "browse:directory-failed"},
 	"frame:add-entity-type":               {Result: "frame:entity-type-add-ok", Failure: "frame:entity-type-add-failed"},

@@ -1,5 +1,5 @@
 //! The reads the Archivist answers: from its views, its log, the working
-//! tree and the roster.
+//! tree and the knowledge base's engines.
 
 use crate::archivist::{Archivist, Refusal, primary_representation, text};
 use semiont::channels::{Channel, MarkAdded, MarkBodyUpdated, MarkRemoved};
@@ -30,40 +30,40 @@ fn annotations_of(view: &Object) -> Vec<Value> {
         .unwrap_or_default()
 }
 
-/// Name the people a reply mentions: every person whose DID has a profile
+/// Name the persons a reply mentions: every `Person` whose DID has a profile
 /// carries that profile's name. With no readable projection, no one is named.
 fn named(archivist: &Archivist, mut reply: Value) -> Value {
-    let people = match tokio::task::block_in_place(|| archivist.record().projections.people()) {
-        Ok(people) => people,
+    let profiles = match tokio::task::block_in_place(|| archivist.record().projections.profiles()) {
+        Ok(profiles) => profiles,
         Err(error) => {
             semiont_observability::logging::warn(
-                "People projection unreadable — this reply names no one",
+                "Profiles projection unreadable — this reply names no one",
                 json!({ "component": "browser", "error": error.to_string() }),
             );
             return reply;
         }
     };
-    fn walk(value: &mut Value, people: &Object) {
+    fn walk(value: &mut Value, profiles: &Object) {
         match value {
-            Value::Array(items) => items.iter_mut().for_each(|item| walk(item, people)),
+            Value::Array(items) => items.iter_mut().for_each(|item| walk(item, profiles)),
             Value::Object(object) => {
                 if object.get("@type") == Some(&json!("Person"))
                     && let Some(name) = object
                         .get("@id")
                         .and_then(Value::as_str)
-                        .and_then(|did| people.get(did))
+                        .and_then(|did| profiles.get(did))
                         .and_then(|profile| profile.get("name"))
                         .cloned()
                 {
                     object.insert("name".into(), name);
                 }
-                object.values_mut().for_each(|inner| walk(inner, people));
+                object.values_mut().for_each(|inner| walk(inner, profiles));
             }
             _ => {}
         }
     }
-    if !people.is_empty() {
-        walk(&mut reply, &people);
+    if !profiles.is_empty() {
+        walk(&mut reply, &profiles);
     }
     reply
 }
@@ -152,8 +152,8 @@ pub async fn resources(archivist: &Archivist, request: &Object) -> Answered {
     ))
 }
 
-/// Every annotation on a resource, its people named, and how many there
-/// are: what the annotations route answers. None for a resource with no
+/// Every annotation on a resource, the persons it mentions named, and how
+/// many there are: what the annotations route answers. None for a resource with no
 /// events.
 pub fn resource_annotations(
     archivist: &Archivist,
@@ -170,13 +170,13 @@ pub fn resource_annotations(
     )))
 }
 
-/// The profiles of the people asked after, by DID. One with no profile is
-/// left out.
-pub async fn people(archivist: &Archivist, request: &Object) -> Answered {
+/// The profiles of the principals asked after, by DID. One with no profile
+/// is left out.
+pub async fn profiles(archivist: &Archivist, request: &Object) -> Answered {
     let Some(dids) = request.get("dids").and_then(Value::as_array) else {
         return Err(Refusal::from("dids is required"));
     };
-    let profiles = tokio::task::block_in_place(|| archivist.record().projections.people())?;
+    let profiles = tokio::task::block_in_place(|| archivist.record().projections.profiles())?;
     let asked: Object = dids
         .iter()
         .filter_map(Value::as_str)
@@ -186,7 +186,7 @@ pub async fn people(archivist: &Archivist, request: &Object) -> Answered {
                 .map(|profile| (did.to_owned(), profile.clone()))
         })
         .collect();
-    Ok(json!({ "people": asked }))
+    Ok(json!({ "profiles": asked }))
 }
 
 fn annotation_in(view: &Object, annotation_id: &str) -> Result<Value, Refusal> {
@@ -301,39 +301,39 @@ pub async fn tag_schemas(archivist: &Archivist, _: &Object) -> Answered {
     Ok(json!({ "tagSchemas": schemas }))
 }
 
-/// The roster: each engine once, in the order its first role appears, with
-/// the jobs it serves, each named as a claim would name it. The roles are the
-/// roster's own, in its order: a `mark` job of each motivation it names, a
-/// `yield` job, then the actors. An engine is a provider and a model, not a
-/// principal: it carries no identity of its own.
-pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
+/// The knowledge base's engines: each once, in the order it is first named,
+/// with the jobs it is used for, each named as a claim would name it. The
+/// order is the engines document's own: a `mark` job of each motivation it
+/// names, a `yield` job, then the actors. An engine is a provider and a
+/// model, not a principal: it carries no identity of its own.
+pub async fn engines(archivist: &Archivist, _: &Object) -> Answered {
     const ACTORS: [&str; 2] = ["gatherer", "matcher"];
     let unreadable = |error: serde_json::Error| Refusal::from(error.to_string());
-    let roster = &archivist.config.roster;
-    let mut roles: Vec<(Value, Option<JobFilter>)> = Vec::new();
-    let marking = serde_json::to_value(&roster.workers.mark).map_err(unreadable)?;
-    for (motivation, serving) in marking.as_object().into_iter().flatten() {
+    let engines = &archivist.config.engines;
+    let mut uses: Vec<(Value, Option<JobFilter>)> = Vec::new();
+    let marking = serde_json::to_value(&engines.jobs.mark).map_err(unreadable)?;
+    for (motivation, engine) in marking.as_object().into_iter().flatten() {
         let motivation =
             serde_json::from_value(Value::String(motivation.clone())).map_err(unreadable)?;
         let filter = MarkJobFilter::new(MarkJobFilterParams { motivation });
-        roles.push((serving.clone(), Some(filter.into())));
+        uses.push((engine.clone(), Some(filter.into())));
     }
-    if let Some(serving) = &roster.workers.r#yield {
-        roles.push((
-            serde_json::to_value(serving).map_err(unreadable)?,
+    if let Some(engine) = &engines.jobs.r#yield {
+        uses.push((
+            serde_json::to_value(engine).map_err(unreadable)?,
             Some(YieldJobFilter::new().into()),
         ));
     }
-    let actors = serde_json::to_value(&roster.actors).map_err(unreadable)?;
+    let actors = serde_json::to_value(&engines.actors).map_err(unreadable)?;
     for actor in ACTORS {
-        if let Some(serving) = actors.get(actor) {
-            roles.push((serving.clone(), None));
+        if let Some(engine) = actors.get(actor) {
+            uses.push((engine.clone(), None));
         }
     }
 
     let mut entries: Vec<(Value, Vec<JobFilter>)> = Vec::new();
-    for (serving, job) in roles {
-        let engine = json!({ "provider": serving["provider"], "model": serving["model"] });
+    for (engine, job) in uses {
+        let engine = json!({ "provider": engine["provider"], "model": engine["model"] });
         let at = match entries.iter().position(|(held, _)| *held == engine) {
             Some(at) => at,
             None => {
@@ -343,17 +343,17 @@ pub async fn agents(archivist: &Archivist, _: &Object) -> Answered {
         };
         entries[at].1.extend(job);
     }
-    let agents: Vec<Value> = entries
+    let listed: Vec<Value> = entries
         .into_iter()
-        .map(|(engine, serves)| {
-            if serves.is_empty() {
+        .map(|(engine, jobs)| {
+            if jobs.is_empty() {
                 json!({ "engine": engine })
             } else {
-                json!({ "engine": engine, "serves": serves })
+                json!({ "engine": engine, "jobs": jobs })
             }
         })
         .collect();
-    Ok(json!({ "agents": agents }))
+    Ok(json!({ "engines": listed }))
 }
 
 pub async fn knowledge_base(archivist: &Archivist, _: &Object) -> Answered {

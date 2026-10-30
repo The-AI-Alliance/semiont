@@ -84,7 +84,7 @@ export interface WorkerProcess {
  * them.
  */
 function checkEnvironment(env: WorkerEnvironment, settings: WorkerSettings, unlisted: Record<string, string>): void {
-  const named = settings.agents.flatMap((agent) => (agent.apiKeyEnv === undefined ? [] : [agent.apiKeyEnv]));
+  const named = settings.engines.flatMap((engine) => (engine.apiKeyEnv === undefined ? [] : [engine.apiKeyEnv]));
   const read = new Set<string>([...READ_FROM_THE_ENVIRONMENT, ...named, 'PATH']);
   const strays = Object.keys(env).filter((name) => env[name] !== undefined && !read.has(name));
   if (strays.length > 0) throw new Error(`the suite set ${strays.join(', ')}, which docs/protocol/WORKER-SERVICE.md § Environment does not say a worker reads and its document does not name`);

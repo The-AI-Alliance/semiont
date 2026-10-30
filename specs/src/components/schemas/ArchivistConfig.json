@@ -37,8 +37,8 @@
       "minLength": 1,
       "description": "The anchored-text store, which only the Archivist mounts: the Smelter stores each entry in it over HTTP, and the Archivist serves it."
     },
-    "roster": {
-      "$ref": "./ArchivistRoster.json"
+    "engines": {
+      "$ref": "./ArchivistEngines.json"
     },
     "port": {
       "type": "integer",
@@ -84,7 +84,7 @@
     "root",
     "stateHome",
     "anchoredTextDir",
-    "roster",
+    "engines",
     "port",
     "skipRebuild",
     "staging",

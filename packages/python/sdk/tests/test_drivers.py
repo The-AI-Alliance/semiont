@@ -40,7 +40,7 @@ def test_the_live_driver_answers_each_operation_once_and_disposes_of_its_client_
             {"id": 9, "op": "observe", "observer": "a", "query": resource},
             {"id": 10, "op": "observe", "observer": "a", "query": resource},
             {"id": 11, "op": "unobserve", "observer": "b"},
-            {"id": 12, "op": "observe", "observer": "b", "query": {"query": "agents"}},
+            {"id": 12, "op": "observe", "observer": "b", "query": {"query": "engines"}},
             {"id": 13, "op": "invalidate", "query": resource},
             {"id": 14, "op": "markDelegate", "observer": "c", "resource": "res-1", "params": {"motivation": "applauding"}},
             {"id": 15, "op": "yieldDelegate", "observer": "c", "params": {}, "stallDeadlineMs": 5},

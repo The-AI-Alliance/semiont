@@ -22,7 +22,7 @@ import { collectLines } from './gateway';
 import { call } from './http';
 import { MODEL_CATALOGUE, runEnvironment } from './paths';
 
-/** Who serves a model: the provider's kind, the model and the provider's address. */
+/** A model and where its provider is reached: the provider's kind, the model and the provider's address. */
 export interface ModelSettings {
   type: 'ollama';
   model: string;
@@ -99,9 +99,9 @@ type WrittenDocument = {
   [Member in keyof LibrarianDocument]: (Member extends 'identity' ? { issuer: string | undefined } : LibrarianDocument[Member]) | undefined;
 };
 
-/** An actor's model as the document states it: who the agent is, and where its provider is reached. */
+/** An actor's engine as the document states it: which it is, and where its provider is reached. */
 const actor = (settings: ModelSettings | undefined): LibrarianDocument['matcher'] | undefined =>
-  settings === undefined ? undefined : { agent: { provider: settings.type, model: settings.model }, baseUrl: settings.baseUrl };
+  settings === undefined ? undefined : { engine: { provider: settings.type, model: settings.model }, baseUrl: settings.baseUrl };
 
 /**
  * The settings as the protocol's configuration document states them

@@ -1,19 +1,19 @@
 {
   "type": "object",
-  "description": "Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves",
+  "description": "The knowledge base's engines: those its Inference document names, and the jobs it has each used for",
   "properties": {
     "response": {
       "type": "object",
       "properties": {
-        "agents": {
+        "engines": {
           "type": "array",
           "items": {
-            "$ref": "./RosterEntry.json"
+            "$ref": "./EngineEntry.json"
           }
         }
       },
       "required": [
-        "agents"
+        "engines"
       ]
     }
   },

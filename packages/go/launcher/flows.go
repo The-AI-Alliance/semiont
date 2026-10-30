@@ -835,15 +835,15 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	return 0
 }
 
-// flowNoWorker: the worker's place in a full start of a roster that binds it
-// no job (workerPlan). Nothing is launched: the start says why, naming where a
-// job is bound, and records the role as not here — which is how status, logs
-// and stop read a stack without it.
+// flowNoWorker: the worker's place in a full start of an Inference document
+// that gives no job an engine (workerPlan). Nothing is launched: the start
+// says why, naming where a job is given one, and records the role as not
+// here — which is how status, logs and stop read a stack without it.
 func flowNoWorker(x executor, fc flowCtx, noun string) {
-	binding := workerBinding(fc.plan.Inference)
+	at := jobEnginesAt(fc.plan.Inference)
 	x.banner(noun)
-	x.say(sayLog, "worker — the roster binds no job to a worker; skipping %s", x.dim("(bind one in "+binding+" to run one)"))
-	x.note("worker: the roster binds no job to a worker — nothing to launch (bind one in %s to run one)", binding)
+	x.say(sayLog, "worker — no job has an engine; skipping %s", x.dim("(give one an engine in "+at+" to run one)"))
+	x.note("worker: no job has an engine — nothing to launch (give one an engine in %s to run one)", at)
 	x.record("worker", "", "", providedNone, "", "")
 }
 
@@ -1011,9 +1011,9 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.note("%s: not referenced by the documents — nothing to launch", svc)
 		return 0
 	}
-	// A worker the plan does not run has no image to pull and no job to serve.
+	// A worker the plan does not run has no image to pull and no job to do.
 	if svc == "worker" && !fc.plan.runs("worker") {
-		x.say(sayFail, "%v", errNoWorkerJob(fc.stack.Files.Inference))
+		x.say(sayFail, "%v", errNoJobEngine(fc.stack.Files.Inference))
 		return 1
 	}
 
@@ -1168,8 +1168,8 @@ func flowOneService(x executor, fc flowCtx) int {
 // nothingToLaunch: whether `start --service svc` is a no-op — a dependency the
 // documents hand to somebody else, or do not reference. ONE decider for the
 // flow's gate and the summary that follows it. Never one of Semiont's own
-// services: a worker the roster binds no job is refused before anything runs
-// (flowOneService), not passed over.
+// services: a worker asked for when no job has an engine is refused before
+// anything runs (flowOneService), not passed over.
 func nothingToLaunch(plan *launchPlan, svc string) (rolePlan, bool) {
 	if plan == nil {
 		return rolePlan{}, false

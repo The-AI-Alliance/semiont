@@ -95,7 +95,7 @@ def alone(program: str) -> str:
 
 
 def test_the_package_an_ollama_client_and_a_mock_import_no_part_of_a_providers_own_library() -> None:
-    assert alone(ASKING_FOR_NEITHER) == "ollama mock [] False False\n"
+    assert alone(ASKING_FOR_NEITHER) == "ollama ollama [] False False\n"
 
 
 def test_asking_for_an_anthropic_client_is_what_imports_the_library() -> None:

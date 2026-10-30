@@ -195,7 +195,7 @@ func TestTheFixtureDocumentsReadIntoTheirTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	anthropic, named := inference.Spec.Providers["anthropic"]
-	if !named || anthropic.ApiKey == nil || anthropic.ApiKey.FromEnv != "ANTHROPIC_API_KEY" || inference.Spec.Roster.Workers.Yield == nil {
+	if !named || anthropic.ApiKey == nil || anthropic.ApiKey.FromEnv != "ANTHROPIC_API_KEY" || inference.Spec.Engines.Jobs.Yield == nil {
 		t.Errorf("the Inference did not read into its type: %+v", inference.Spec)
 	}
 	project, err := Read[ProjectConfig](filepath.Join(semiont, "config.yaml"), "ProjectConfig")

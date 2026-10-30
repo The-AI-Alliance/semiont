@@ -133,8 +133,8 @@ macro_rules! with_query {
                 let $cached = browse.tag_schemas();
                 $then
             }
-            CacheQuery::Agents => {
-                let $cached = browse.agents();
+            CacheQuery::Engines => {
+                let $cached = browse.engines();
                 $then
             }
         }

@@ -1,5 +1,5 @@
 /**
- * Jobs in the record (ARCHIVIST.md § Attribution, § Vocabulary, people and
+ * Jobs in the record (ARCHIVIST.md § Attribution, § Vocabulary, profiles and
  * jobs): the lifecycle the dispatcher and a worker report, recorded in the
  * resource's stream, and a worker's writes attributed to whoever the job was
  * assigned for.

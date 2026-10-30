@@ -110,7 +110,7 @@ if (namedHere.length === 0) {
 if (namedElsewhere.length > 0) {
   console.error('✗ lint:attribution — a Person Agent is named outside the read-side resolver:');
   for (const h of namedElsewhere) console.error(`    ${h.file}:${h.line}  ${h.text}`);
-  console.error(`  A name is resolved when a record is READ, in ${NAMES_A_PERSON}, from the people projection.`);
+  console.error(`  A name is resolved when a record is READ, in ${NAMES_A_PERSON}, from the profiles projection.`);
   failed = true;
 }
 
