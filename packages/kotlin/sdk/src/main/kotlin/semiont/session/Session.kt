@@ -229,21 +229,31 @@ public class SemiontSession internal constructor(
                 signedOut(SessionEndReason.REFUSED, SessionError(SessionErrorCode.CredentialRefused, JUST_ISSUED_AND_REFUSED, kb.id))
                 return
             }
-            // The token is no longer the one asked about: the stream was refused with it too, and `refresh` renewed it meanwhile.
-            // That token is the just-issued one, and is not renewed again.
-            val current = tokens.value
-            if (current != token) {
-                token = current ?: return
+            // Seen, and renewed, under the lock a refusal is answered under: a renewal `refresh` makes meanwhile is seen here,
+            // and one made here is seen there, so neither renews what the other already has.
+            val (now, renewal) = answering.withLock {
+                val now = tokens.value
+                if (now != token) {
+                    now to null
+                } else {
+                    val renewal = tryRefresh()
+                    renewal.first?.let { if (!closing) tokens.value = it }
+                    now to renewal
+                }
+            }
+            if (renewal == null) {
+                // The token is no longer the one asked about: the stream was refused with it too, and `refresh` renewed it
+                // meanwhile. That token is the just-issued one, and is not renewed again.
+                token = now ?: return
                 justIssued = true
                 continue
             }
-            val (renewed, failure) = tryRefresh()
             if (closing) return
+            val (renewed, failure) = renewal
             if (renewed == null) {
                 signedOut(SessionEndReason.EXPIRED, SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id))
                 return
             }
-            tokens.value = renewed
             token = renewed
             justIssued = true
         }
