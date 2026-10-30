@@ -25,8 +25,9 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 			return http.StatusUnauthorized, `{"error":"invalid_client"}`
 		}
 		return http.StatusOK, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   testAudience,
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     testAudience,
 		})
 	})
 
@@ -87,7 +88,7 @@ func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
 		if clientID == serviceClientID("worker") {
 			roles = []string{serviceRole} // the mapper value from before the worker role
 		}
-		return http.StatusOK, grantBody(map[string]any{"roles": roles, "aud": testAudience})
+		return http.StatusOK, grantBody(map[string]any{"roles": roles, "aud": testAudience, kindClaim: agentKind})
 	})
 
 	for _, tc := range []struct {
@@ -139,7 +140,7 @@ func TestPreflightIdentityNamesTheRepairForARefusedWorkerKey(t *testing.T) {
 		if clientID == serviceClientID("worker") {
 			return http.StatusUnauthorized, `{"error":"invalid_client"}`
 		}
-		return http.StatusOK, grantBody(map[string]any{"roles": stampedRoles(clientID), "aud": testAudience})
+		return http.StatusOK, grantBody(map[string]any{"roles": stampedRoles(clientID), "aud": testAudience, kindClaim: agentKind})
 	})
 
 	for _, tc := range []struct {

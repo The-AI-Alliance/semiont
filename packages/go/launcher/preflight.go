@@ -132,8 +132,9 @@ func tokenLifespan(claims map[string]any) int {
 	return exp - iat
 }
 
-// checkServiceAccountClaims: the two assertions that decide whether a token
-// this realm mints will be ACCEPTED by the services that receive it.
+// checkServiceAccountClaims: what decides whether a token this realm mints
+// will be ACCEPTED by the services that receive it — its roles and its
+// audience — and named as what it is: an agent's (kindClaim).
 func checkServiceAccountClaims(svc string, claims map[string]any, audience string) (serviceAccountFinding, bool) {
 	if !flatRolesContain(claims["roles"], serviceRole) {
 		reason := fmt.Sprintf("token carries no flat `roles` array containing %q", serviceRole)
@@ -171,6 +172,15 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 			svc:    svc,
 			reason: fmt.Sprintf("token's `aud` does not carry this knowledge base's resource identity (%s)", audience),
 			fix:    "the realm's audience mapper names a different knowledge base",
+		}, true
+	}
+	// The account's kind: without it the token reads as a person's, and the
+	// service is named as one.
+	if kind, _ := claims[kindClaim].(string); kind != agentKind {
+		return serviceAccountFinding{
+			svc:    svc,
+			reason: fmt.Sprintf("token carries no `%s` of %q, which the realm document stamps on every service's account and no person's", kindClaim, agentKind),
+			fix:    "the realm's hardcoded-claim mapper for this client — a realm imported before the claim",
 		}, true
 	}
 	return serviceAccountFinding{}, false

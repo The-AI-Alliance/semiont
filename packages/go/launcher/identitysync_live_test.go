@@ -76,6 +76,9 @@ func TestIdentitySyncLive(t *testing.T) {
 	if !audienceContains(claims["aud"], audience) {
 		t.Fatalf("token's `aud` does not carry %q — got %#v", audience, claims["aud"])
 	}
+	if claims[kindClaim] != agentKind {
+		t.Fatalf("token's `%s` is %#v, not %q: the account would read as a person's", kindClaim, claims[kindClaim], agentKind)
+	}
 
 	//    And for the worker, by the assertion the preflight signs: Keycloak
 	//    checks it with the key sync registered, and stamps the worker role.
@@ -98,6 +101,43 @@ func TestIdentitySyncLive(t *testing.T) {
 	}
 	if len(rep2.present) != len(stackServices) {
 		t.Fatalf("second run saw %d present, want %d: updated %v", len(rep2.present), len(stackServices), rep2.updated)
+	}
+
+	// 4. A client of a realm imported before the kind claim — its mapper
+	//    removed here — gets it back from sync, as Keycloak takes a mapper
+	//    POSTed onto a client, and its next token says it is an agent's.
+	have, err := existingClients(base, realm, tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := have[serviceClientID(svc)]
+	mappers, _ := c.rep["protocolMappers"].([]any)
+	removed := false
+	for _, m := range mappers {
+		mapper, _ := m.(map[string]any)
+		if mapper["name"] == agentKindMapperName {
+			id, _ := mapper["id"].(string)
+			if code := liveAdmin(t, tok, http.MethodDelete, base+"/admin/realms/"+realm+"/clients/"+c.uuid+"/protocol-mappers/models/"+id, nil); code != http.StatusNoContent {
+				t.Fatalf("removing the kind mapper: HTTP %d", code)
+			}
+			removed = true
+		}
+	}
+	if !removed {
+		t.Fatalf("Keycloak lists %s with no %q mapper to remove", serviceClientID(svc), agentKindMapperName)
+	}
+	if claims := liveClientCredentials(t, base, realm, serviceClientID(svc), secretForTest(svc)); claims[kindClaim] != nil {
+		t.Fatalf("a token minted without the mapper still carries `%s`", kindClaim)
+	}
+	rep3, err := syncServiceClients(base, realm, "admin", pw, audience, testAccounts())
+	if err != nil {
+		t.Fatalf("third sync: %v", err)
+	}
+	if len(rep3.updated) != 1 || !strings.Contains(rep3.updated[0], "kind mapper added") {
+		t.Fatalf("third run updated %v, want the kind mapper added to %s alone", rep3.updated, serviceClientID(svc))
+	}
+	if claims := liveClientCredentials(t, base, realm, serviceClientID(svc), secretForTest(svc)); claims[kindClaim] != agentKind {
+		t.Fatalf("after sync, the token's `%s` is %#v, not %q", kindClaim, claims[kindClaim], agentKind)
 	}
 }
 

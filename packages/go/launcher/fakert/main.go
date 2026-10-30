@@ -2414,11 +2414,15 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						if client == "semiont-worker-local" {
 							roles = append(roles, "semiont-worker")
 						}
+						// Every service's account is an agent's, as the realm
+						// marks it. Held to the launcher's by lint:service-role.
+						kindClaim, agentKind := "kind", "agent"
 						jsonOut(200, map[string]any{
 							"access_token": unsignedJWT(map[string]any{
-								"roles": roles,
-								"aud":   []string{aud, "account"},
-								"azp":   client,
+								"roles":   roles,
+								"aud":     []string{aud, "account"},
+								"azp":     client,
+								kindClaim: agentKind,
 							}),
 							"token_type": "Bearer", "expires_in": 300,
 						})

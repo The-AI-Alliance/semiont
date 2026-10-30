@@ -36,11 +36,11 @@ sync
   and updates what the import would have rendered.
 
   It reconciles CONFIGURATION ONLY. It creates clients, updates an existing
-  client's roles mapper and the worker's client's key — this machine's, which
-  ` + "`semiont worker key`" + ` prints — and changes nothing else: no secret
-  is touched, and no accounts are read, written or deleted, so it is safe to
-  run against a realm with real users. It is idempotent — run it again to
-  confirm it worked.
+  client's roles and kind mappers and the worker's client's key — this
+  machine's, which ` + "`semiont worker key`" + ` prints — and changes nothing
+  else: no secret is touched, and no accounts are read, written or deleted, so
+  it is safe to run against a realm with real users. It is idempotent — run
+  it again to confirm it worked.
 
 grant
   Admit a worker someone else runs, by its key: the public half that
