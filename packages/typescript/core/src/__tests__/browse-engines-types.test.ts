@@ -1,13 +1,13 @@
 /**
- * Type-level guard — the roster's bus operation.
+ * Type-level guard — the engines' bus operation.
  *
- * Pins the `browse:agents` OPERATION, not just its schemas: the request
+ * Pins the `browse:engines` OPERATION, not just its schemas: the request
  * channel must be a registered `BusOperationKey` (which transitively requires
  * the EventMap + CHANNEL_SCHEMAS entries and derives the replies into
  * `BRIDGED_CHANNELS`), and `BusReply` must infer the reply-shape-standard
- * payload `{ agents: RosterEntry[] }` from the result channel. An entry is an
- * engine — a provider and a model — with the jobs it serves, or without them
- * when it is declared only under actor roles. It carries no identity.
+ * payload `{ engines: EngineEntry[] }` from the result channel. An entry is an
+ * engine — a provider and a model — with the jobs it is used for, or without
+ * them when only Librarian actors ask it. It carries no identity.
  *
  * Enforced by `tsc --noEmit` (core `typecheck`), not vitest runtime.
  */
@@ -16,24 +16,24 @@ import type { components } from '../types';
 import type { BusOperationKey } from '../bus-operations';
 import type { BusReply } from '../bus-request';
 
-type RosterEntry = components['schemas']['RosterEntry'];
+type EngineEntry = components['schemas']['EngineEntry'];
 
-describe('browse:agents — operation + reply-shape guard', () => {
+describe('browse:engines — operation + reply-shape guard', () => {
   it('the request channel is a registered bus operation', () => {
-    const op: BusOperationKey = 'browse:agents-requested';
-    expect(op).toBe('browse:agents-requested');
+    const op: BusOperationKey = 'browse:engines-requested';
+    expect(op).toBe('browse:engines-requested');
   });
 
-  it('the reply infers as { agents: RosterEntry[] } via the registry', () => {
-    const reply: BusReply<'browse:agents-requested'> = { agents: [] };
-    const entries: RosterEntry[] = reply.agents;
+  it('the reply infers as { engines: EngineEntry[] } via the registry', () => {
+    const reply: BusReply<'browse:engines-requested'> = { engines: [] };
+    const entries: EngineEntry[] = reply.engines;
     expect(entries).toEqual([]);
   });
 
-  it('an entry is an engine, a provider and a model, with the jobs it serves', () => {
-    const entry: RosterEntry = {
+  it('an entry is an engine, a provider and a model, with the jobs it is used for', () => {
+    const entry: EngineEntry = {
       engine: { provider: 'anthropic', model: 'claude-haiku-4-5' },
-      serves: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'yield' }],
+      jobs: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'yield' }],
     };
     expect(entry.engine.provider).toBe('anthropic');
   });
@@ -53,8 +53,8 @@ describe('browse:agents — operation + reply-shape guard', () => {
     expect(person['@type']).toBe('Person');
   });
 
-  it('an engine declared only under actor roles serves no job', () => {
-    const entry: RosterEntry = { engine: { provider: 'ollama', model: 'llama3' } };
-    expect(entry.serves).toBeUndefined();
+  it('an engine only Librarian actors ask is used for no job', () => {
+    const entry: EngineEntry = { engine: { provider: 'ollama', model: 'llama3' } };
+    expect(entry.jobs).toBeUndefined();
   });
 });

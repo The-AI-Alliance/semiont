@@ -24,36 +24,36 @@ const librarianDocumentFile = "librarian.json"
 // holds the two together.
 const librarianDocumentTarget = "/etc/semiont/librarian.json"
 
-// librarianActors: the two actors the Librarian works as, each asking a model
-// of its own, with where the roster binds each.
+// librarianActors: the two actors the Librarian works as, each asking an
+// engine of its own, with where the engines give each one.
 var librarianActors = []struct {
-	name string
-	role func(api.ArchivistRoster) *api.ArchivistRosterRole
+	name   string
+	engine func(api.ArchivistEngines) *api.Engine
 }{
-	{"matcher", func(r api.ArchivistRoster) *api.ArchivistRosterRole { return r.Actors.Matcher }},
-	{"gatherer", func(r api.ArchivistRoster) *api.ArchivistRosterRole { return r.Actors.Gatherer }},
+	{"matcher", func(e api.ArchivistEngines) *api.Engine { return e.Actors.Matcher }},
+	{"gatherer", func(e api.ArchivistEngines) *api.Engine { return e.Actors.Gatherer }},
 }
 
-// librarianModel: the model one actor asks, as the Librarian's document states
-// it. Who serves the actor is the roster's `actors.<actor>`, and nothing else:
-// the binding the Archivist's roster names. Where its provider is reached and
-// which variable holds its key are decided as a worker's agent's are
-// (providerAddress, providerKeyName). An actor the roster binds no model to is
-// refused: the Librarian cannot start without both.
-func librarianModel(p placement, actor string, bound *api.ArchivistRosterRole) (model api.LibrarianModelConfig, err error) {
-	if bound == nil {
-		return model, planErr(p.st.Files.Inference, "spec.roster.actors."+actor, "is not bound: the Librarian has no model to ask — bind a provider and a model")
+// librarianEngine: the engine one actor asks, as the Librarian's document
+// states it. The actor's engine is the engines' `actors.<actor>`, and nothing
+// else: the one the Archivist's engines name. Where its provider is reached
+// and which variable holds its key are decided as the worker's engines' are
+// (providerAddress, providerKeyName). An actor given no engine is refused: the
+// Librarian cannot start without both.
+func librarianEngine(p placement, actor string, engine *api.Engine) (config api.LibrarianEngineConfig, err error) {
+	if engine == nil {
+		return config, planErr(p.st.Files.Inference, "spec.engines.actors."+actor, "is not stated: the Librarian has no engine to ask — give it a provider and a model")
 	}
-	model.Agent = *bound
-	model.ApiKeyEnv = providerKeyName(p, bound.Provider)
-	model.BaseUrl, err = providerAddress(p, bound.Provider, "the Librarian")
-	return model, err
+	config.Engine = *engine
+	config.ApiKeyEnv = providerKeyName(p, engine.Provider)
+	config.BaseUrl, err = providerAddress(p, engine.Provider, "the Librarian")
+	return config, err
 }
 
 // librarianSecrets: the variables the Librarian's document names, and so the
 // ones it is handed — the graph database's password, where somebody else runs
 // it; Voyage's key, where Voyage makes the vectors; and the key of each
-// provider an actor asks.
+// provider an actor's engine names.
 func librarianSecrets(p placement) []string {
 	var names []string
 	add := func(found ...string) {
@@ -66,8 +66,8 @@ func librarianSecrets(p placement) []string {
 	add(graphSecrets(p)...)
 	add(embeddingSecrets(p)...)
 	for _, actor := range librarianActors {
-		if bound := actor.role(p.st.Inference.Spec.Roster); bound != nil {
-			if name := providerKeyName(p, bound.Provider); name != nil {
+		if engine := actor.engine(p.st.Inference.Spec.Engines); engine != nil {
+			if name := providerKeyName(p, engine.Provider); name != nil {
 				add(*name)
 			}
 		}
@@ -94,11 +94,11 @@ func librarianDocument(p placement) ([]byte, error) {
 	if doc.Embedding, err = embeddingConfig(p, "the Librarian"); err != nil {
 		return nil, err
 	}
-	roster := p.st.Inference.Spec.Roster
-	if doc.Matcher, err = librarianModel(p, "matcher", roster.Actors.Matcher); err != nil {
+	engines := p.st.Inference.Spec.Engines
+	if doc.Matcher, err = librarianEngine(p, "matcher", engines.Actors.Matcher); err != nil {
 		return nil, err
 	}
-	if doc.Gatherer, err = librarianModel(p, "gatherer", roster.Actors.Gatherer); err != nil {
+	if doc.Gatherer, err = librarianEngine(p, "gatherer", engines.Actors.Gatherer); err != nil {
 		return nil, err
 	}
 	doc.ModelCatalogue = modelCatalogueTarget

@@ -1,5 +1,5 @@
 {
-  "$comment": "How the people a reply mentions are named, as every implementation must name them. No stored thing carries a person's name: a person is identified by an id, and what the knowledge base calls them is filled in when a reply is read. Every implementation runs every case and fails on a difference, in whatever language it is written. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `people` is what the knowledge base calls its people: each person's `name` and the moment they gave it (`since`), by their id, as the people projection holds them. `named` is the reply with its people named. THE RULE. A person is an object whose `@type` is `Person`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another person. A person whose `@id` is in `people` has its `name` set to the name stated there, in place of any name it carried. A person whose `@id` is not in `people` is left as it is, with the name it carried or with none. Nothing else of a person changes, and nothing else of the reply does: an object whose `@type` is anything else is no person, though its `@id` is in `people`, and `since` is put nowhere. Add a case here before changing an implementation.",
+  "$comment": "How the people a reply mentions are named, as every implementation must name them. No stored thing carries a person's name: a person is identified by an id, and what the knowledge base calls them is filled in when a reply is read. Every implementation runs every case and fails on a difference, in whatever language it is written. WHAT A CASE STATES. `reply` is a reply, which is any JSON. `profiles` is what the knowledge base calls its principals: each one's `name` and the moment it gave it (`since`), by its id, as the profiles projection holds them. `named` is the reply with its people named. THE RULE. A person is an object whose `@type` is `Person`, wherever in the reply it is: the reply itself, a member of an object at any depth, an item of a list at any depth, or a member of another person. A person whose `@id` is in `profiles` has its `name` set to the name stated there, in place of any name it carried. A person whose `@id` is not in `profiles` is left as it is, with the name it carried or with none. Nothing else of a person changes, and nothing else of the reply does: an object whose `@type` is anything else is no person, though its `@id` is in `profiles`, and `since` is put nowhere. Add a case here before changing an implementation.",
   "runBy": {
     "librarian": ["images/librarian/tests/test_naming_cases.py"]
   },
@@ -7,7 +7,7 @@
     {
       "why": "a person with a profile, identified and not named, is given the name",
       "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
@@ -15,7 +15,7 @@
     {
       "why": "a reply that is itself a person is named",
       "reply": { "@type": "Person", "@id": "did:web:example.org:users:ada" },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" }
@@ -31,7 +31,7 @@
           }
         }
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -52,7 +52,7 @@
           { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "anthropic model", "provider": "anthropic", "model": "model" }
         ]
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -68,7 +68,7 @@
         { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } },
         { "id": "ann-2", "creator": { "@type": "Person", "@id": "did:web:example.org:users:grace" } }
       ],
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
         "did:web:example.org:users:grace": { "name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z" }
       },
@@ -88,7 +88,7 @@
           [7, null, true]
         ]
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -114,7 +114,7 @@
           { "id": "ann-1", "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" }, "wasAttributedTo": { "@type": "Person", "@id": "did:web:example.org:users:ada" } }
         ]
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -138,7 +138,7 @@
           { "@type": "Person", "@id": "did:web:example.org:users:ada" }
         ]
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
         "did:web:example.org:users:grace": { "name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z" }
       },
@@ -153,7 +153,7 @@
     {
       "why": "a person with no profile is left as it is, with no name",
       "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger" } },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger" } }
@@ -161,7 +161,7 @@
     {
       "why": "a person with no profile keeps the name it carried",
       "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger", "name": "A name it carried" } },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:stranger", "name": "A name it carried" } }
@@ -174,7 +174,7 @@
           { "@type": "Person", "@id": "did:web:example.org:users:ada" }
         ]
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -187,13 +187,13 @@
     {
       "why": "where the knowledge base calls no one anything, no one is named",
       "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } },
-      "people": {},
+      "profiles": {},
       "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada" } }
     },
     {
       "why": "a name a person carried is replaced by the name of their profile: here the carried one was an id written where a name belongs",
       "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd" } },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
@@ -201,7 +201,7 @@
     {
       "why": "a person who already carries the name of their profile is as they were",
       "reply": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" } }
@@ -211,7 +211,7 @@
       "reply": {
         "creator": { "@type": "Person", "@id": "did:web:example.org:users:ada", "nickname": "ada", "homepage": "https://example.org/ada" }
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -223,7 +223,7 @@
       "reply": {
         "generator": { "@type": "Software", "@id": "did:web:example.org:users:ada", "name": "ollama gemma", "provider": "ollama", "model": "gemma" }
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -236,7 +236,7 @@
         "publisher": { "@type": "Organization", "@id": "did:web:example.org:users:ada", "name": "An organization" },
         "about": { "@id": "did:web:example.org:users:ada" }
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -253,7 +253,7 @@
           "knows": [{ "@type": "Person", "@id": "did:web:example.org:users:ada" }]
         }
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" },
         "did:web:example.org:users:grace": { "name": "Grace Hopper", "since": "2020-03-04T05:06:08.000Z" }
       },
@@ -275,7 +275,7 @@
           "knows": { "@type": "Person", "@id": "did:web:example.org:users:ada" }
         }
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -296,7 +296,7 @@
         "nextCursor": null,
         "complete": true
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -315,7 +315,7 @@
         "did:web:example.org:users:ada": { "role": "editor" },
         "@type": "Annotation"
       },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": {
@@ -327,7 +327,7 @@
     {
       "why": "a reply that is a string is as it was",
       "reply": "did:web:example.org:users:ada",
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": "did:web:example.org:users:ada"
@@ -335,7 +335,7 @@
     {
       "why": "a reply that is null is null",
       "reply": null,
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": null
@@ -343,7 +343,7 @@
     {
       "why": "an empty object and an empty list are as they were",
       "reply": { "empty": {}, "none": [] },
-      "people": {
+      "profiles": {
         "did:web:example.org:users:ada": { "name": "Ada Lovelace", "since": "2020-03-04T05:06:07.000Z" }
       },
       "named": { "empty": {}, "none": [] }

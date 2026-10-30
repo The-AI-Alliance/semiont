@@ -15,10 +15,10 @@ use crate::bus::{LIMITS_OPERATIONS, Operation, operation};
 use crate::cache::{Cache, CacheKey, CachePersister, CacheState, CacheValue, StoragePersister};
 use crate::cached::{Cached, Keyed, Observed, Source};
 use crate::channels::{
-    BrowseAgentsRequested, BrowseAnnotationHistoryRequested, BrowseAnnotationRequested,
-    BrowseClick, BrowseDirectoryRequested, BrowseEntityTypesRequested, BrowseEventsRequested,
-    BrowseKbRequested, BrowseResourceOpen, BrowseResourceRequested, BrowseResourceViewed,
-    BrowseResourcesRequested, BrowseTagSchemasRequested,
+    BrowseAnnotationHistoryRequested, BrowseAnnotationRequested, BrowseClick,
+    BrowseDirectoryRequested, BrowseEnginesRequested, BrowseEntityTypesRequested,
+    BrowseEventsRequested, BrowseKbRequested, BrowseResourceOpen, BrowseResourceRequested,
+    BrowseResourceViewed, BrowseResourcesRequested, BrowseTagSchemasRequested,
 };
 use crate::client::{CachePersistence, Links};
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
@@ -29,20 +29,20 @@ use crate::state_unit::StateUnit;
 use crate::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
 use crate::transport::{BoxFuture, Content, ContentStream, ContentTransport, Envelope};
 use crate::types::{
-    AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAgentsRequest,
-    BrowseAnnotationHistoryRequest, BrowseAnnotationRequest, BrowseClickEvent,
-    BrowseDirectoryRequest, BrowseDirectoryRequestSort, BrowseDirectoryResultResponse,
-    BrowseEntityTypesRequest, BrowseEventsRequest, BrowseKbRequest, BrowseResourceOpenEvent,
-    BrowseResourceRequest, BrowseResourceViewedEvent, BrowseResourcesRequest,
-    BrowseTagSchemasRequest, GetAnnotationHistoryResponse, GetAnnotationsResponse,
-    GetResourceResponse, InferenceLimits, InferenceLimitsResultResponse, InferencePairLimits,
-    KbDescription, ListResourcesResponse, ResourceDescriptor, RosterEntry, TagSchema,
+    AnchoredTextAnswer, Annotation, AttributedEvent, BrowseAnnotationHistoryRequest,
+    BrowseAnnotationRequest, BrowseClickEvent, BrowseDirectoryRequest, BrowseDirectoryRequestSort,
+    BrowseDirectoryResultResponse, BrowseEnginesRequest, BrowseEntityTypesRequest,
+    BrowseEventsRequest, BrowseKbRequest, BrowseResourceOpenEvent, BrowseResourceRequest,
+    BrowseResourceViewedEvent, BrowseResourcesRequest, BrowseTagSchemasRequest, EngineEntry,
+    EngineLimits, GetAnnotationHistoryResponse, GetAnnotationsResponse, GetResourceResponse,
+    InferenceLimits, InferenceLimitsResultResponse, KbDescription, ListResourcesResponse,
+    ResourceDescriptor, TagSchema,
 };
 use crate::types::{AnnotationId, ResourceId};
 use futures_core::Stream;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Map;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -87,32 +87,27 @@ impl ResourceFilters {
     }
 }
 
-/// One engine on the knowledge base's roster: its entry, and its model's
-/// limits when the service holding that model's credentials reported them. As
-/// JSON the limits sit beside the entry's own fields.
+/// One of the knowledge base's engines: its entry, and its limits when the
+/// service holding its credentials reported them. As JSON the limits sit
+/// beside the entry's own fields.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct Collaborator {
+pub struct EngineWithLimits {
     #[serde(flatten)]
-    pub entry: RosterEntry,
+    pub entry: EngineEntry,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<InferenceLimits>,
 }
 
-/// The roster with each reported model's limits on its entries.
-fn joined(roster: Vec<RosterEntry>, reported: &[InferencePairLimits]) -> Vec<Collaborator> {
-    roster
+/// The engines, each with the limits reported of it.
+fn joined(engines: Vec<EngineEntry>, reported: &[EngineLimits]) -> Vec<EngineWithLimits> {
+    engines
         .into_iter()
         .map(|entry| {
-            // The provider as the wire names it, which is how a report names it.
-            let provider = serde_json::to_value(entry.engine.provider).ok();
             let limits = reported
                 .iter()
-                .find(|pair| {
-                    provider.as_ref().and_then(Value::as_str) == Some(pair.provider.as_str())
-                        && pair.model == *entry.engine.model
-                })
-                .map(|pair| pair.limits.clone());
-            Collaborator { entry, limits }
+                .find(|report| report.engine == entry.engine)
+                .map(|report| report.limits.clone());
+            EngineWithLimits { entry, limits }
         })
         .collect()
 }
@@ -141,10 +136,10 @@ async fn all<'a, T>(futures: Vec<BoxFuture<'a, T>>) -> Vec<T> {
     done.into_iter().flatten().collect()
 }
 
-/// The models one key holder reports the limits of. A holder that is down,
-/// silent or mistaken reports none: its models show no limits, and the
-/// directory is not held up by it for longer than a request waits.
-async fn limits_reported(links: &Links, operation: &Operation) -> Vec<InferencePairLimits> {
+/// The engines one key holder reports the limits of. A holder that is down,
+/// silent or mistaken reports none: its engines show no limits, and the
+/// engines are not held up by it for longer than a request waits.
+async fn limits_reported(links: &Links, operation: &Operation) -> Vec<EngineLimits> {
     let Ok(Some(response)) = links
         .wire
         .request_of(operation, Map::new(), links.timing.bus_request)
@@ -170,10 +165,10 @@ pub(super) struct Live {
     pub(super) annotation_of: Arc<Mutex<HashMap<AnnotationId, ResourceId>>>,
     pub(super) entity_types: Cache<String, Vec<String>>,
     pub(super) tag_schemas: Cache<String, Vec<TagSchema>>,
-    pub(super) agents: Cache<String, Vec<RosterEntry>>,
-    /// Each key holder's report of its models' limits, by the operation
+    pub(super) engines: Cache<String, Vec<EngineEntry>>,
+    /// Each key holder's report of its engines' limits, by the operation
     /// that asks it.
-    pub(super) limits: Cache<&'static str, Vec<InferencePairLimits>>,
+    pub(super) limits: Cache<&'static str, Vec<EngineLimits>>,
     pub(super) events: Cache<ResourceId, Vec<AttributedEvent>>,
 }
 
@@ -303,15 +298,15 @@ impl Live {
                 }
             }
         });
-        let agents = Cache::new({
+        let engines = Cache::new({
             let links = asking(links);
             move |_: String| {
                 let links = links.clone();
                 async move {
                     let answer = links
-                        .request::<BrowseAgentsRequested>(&BrowseAgentsRequest {})
+                        .request::<BrowseEnginesRequested>(&BrowseEnginesRequest {})
                         .await?;
-                    Ok(answer.response.agents)
+                    Ok(answer.response.engines)
                 }
             }
         });
@@ -348,7 +343,7 @@ impl Live {
             annotation_of,
             entity_types,
             tag_schemas,
-            agents,
+            engines,
             limits,
             events,
         })
@@ -412,7 +407,7 @@ impl Live {
         self.annotation.dispose();
         self.entity_types.dispose();
         self.tag_schemas.dispose();
-        self.agents.dispose();
+        self.engines.dispose();
         self.limits.dispose();
         self.events.dispose();
         locked(&self.annotation_of).clear();
@@ -425,12 +420,12 @@ impl Drop for Live {
     }
 }
 
-/// The directory is out of date, and so is what each key holder reported.
-pub(super) fn invalidate_agents(
-    agents: &Cache<String, Vec<RosterEntry>>,
-    limits: &Cache<&'static str, Vec<InferencePairLimits>>,
+/// The engines are out of date, and so is what each key holder reported.
+pub(super) fn invalidate_engines(
+    engines: &Cache<String, Vec<EngineEntry>>,
+    limits: &Cache<&'static str, Vec<EngineLimits>>,
 ) {
-    agents.invalidate(&WHOLE.to_owned());
+    engines.invalidate(&WHOLE.to_owned());
     for holder in LIMITS_OPERATIONS {
         limits.invalidate(holder);
     }
@@ -438,29 +433,29 @@ pub(super) fn invalidate_agents(
 
 // ── What a query answers from ───────────────────────────────────────────
 
-/// The roster with each key holder's limits joined on.
-struct Collaborators {
-    agents: Cache<String, Vec<RosterEntry>>,
-    limits: Cache<&'static str, Vec<InferencePairLimits>>,
+/// The engines with each key holder's limits joined on.
+struct Engines {
+    engines: Cache<String, Vec<EngineEntry>>,
+    limits: Cache<&'static str, Vec<EngineLimits>>,
 }
 
-/// The directory's state, with what the key holders have reported so far:
-/// a holder that has not answered delays only its own models' limits.
+/// The engines' state, with what the key holders have reported so far: a
+/// holder that has not answered delays only its own engines' limits.
 struct Joined {
-    directory: WatchStream<CacheState<Vec<RosterEntry>>>,
-    reports: Vec<WatchStream<CacheState<Vec<InferencePairLimits>>>>,
-    entries: Option<CacheState<Vec<RosterEntry>>>,
-    reported: Vec<Vec<InferencePairLimits>>,
+    engines: WatchStream<CacheState<Vec<EngineEntry>>>,
+    reports: Vec<WatchStream<CacheState<Vec<EngineLimits>>>>,
+    entries: Option<CacheState<Vec<EngineEntry>>>,
+    reported: Vec<Vec<EngineLimits>>,
 }
 
 impl Stream for Joined {
-    type Item = CacheState<Vec<Collaborator>>;
+    type Item = CacheState<Vec<EngineWithLimits>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = &mut *self;
         let mut changed = false;
         loop {
-            match Pin::new(&mut this.directory).poll_next(cx) {
+            match Pin::new(&mut this.engines).poll_next(cx) {
                 Poll::Ready(Some(state)) => {
                     this.entries = Some(state);
                     changed = true;
@@ -486,16 +481,16 @@ impl Stream for Joined {
     }
 }
 
-impl Source<Vec<Collaborator>> for Collaborators {
-    fn fresh(&self) -> BoxFuture<'static, Result<Vec<Collaborator>, SemiontError>> {
+impl Source<Vec<EngineWithLimits>> for Engines {
+    fn fresh(&self) -> BoxFuture<'static, Result<Vec<EngineWithLimits>, SemiontError>> {
         enum Answer {
-            Directory(Result<Vec<RosterEntry>, SemiontError>),
-            Limits(Vec<InferencePairLimits>),
+            Engines(Result<Vec<EngineEntry>, SemiontError>),
+            Limits(Vec<EngineLimits>),
         }
-        // The directory is asked for first; each key holder's limits after it.
+        // The engines are asked for first; each key holder's limits after them.
         let mut asked: Vec<BoxFuture<'static, Answer>> = vec![Box::pin({
-            let directory = self.agents.fetch(&WHOLE.to_owned());
-            async move { Answer::Directory(directory.await) }
+            let engines = self.engines.fetch(&WHOLE.to_owned());
+            async move { Answer::Engines(engines.await) }
         })];
         for holder in LIMITS_OPERATIONS {
             let limits = self.limits.fetch(holder);
@@ -504,22 +499,22 @@ impl Source<Vec<Collaborator>> for Collaborators {
             }));
         }
         Box::pin(async move {
-            let mut directory = Vec::new();
+            let mut engines = Vec::new();
             let mut reported = Vec::new();
             for answer in all(asked).await {
                 match answer {
-                    Answer::Directory(entries) => directory = entries?,
+                    Answer::Engines(entries) => engines = entries?,
                     Answer::Limits(limits) => reported.extend(limits),
                 }
             }
-            Ok(joined(directory, &reported))
+            Ok(joined(engines, &reported))
         })
     }
 
-    fn watch(&self) -> Observed<Vec<Collaborator>> {
+    fn watch(&self) -> Observed<Vec<EngineWithLimits>> {
         Observed::new(
             Joined {
-                directory: self.agents.observe(&WHOLE.to_owned()),
+                engines: self.engines.observe(&WHOLE.to_owned()),
                 reports: LIMITS_OPERATIONS
                     .iter()
                     .map(|holder| self.limits.observe(holder))
@@ -532,7 +527,7 @@ impl Source<Vec<Collaborator>> for Collaborators {
     }
 
     fn invalidate(&self) {
-        invalidate_agents(&self.agents, &self.limits);
+        invalidate_engines(&self.engines, &self.limits);
     }
 }
 
@@ -651,12 +646,11 @@ impl BrowseNamespace {
         self.of_the_whole(&self.live.tag_schemas)
     }
 
-    /// The knowledge base's collaborators: the directory, asked for first,
-    /// with each model's limits as the services holding its credentials
-    /// report them.
-    pub fn agents(&self) -> Cached<Vec<Collaborator>> {
-        Cached::of(Collaborators {
-            agents: self.live.agents.clone(),
+    /// The knowledge base's engines, asked for first, each with its limits
+    /// as the service holding its credentials reports them.
+    pub fn engines(&self) -> Cached<Vec<EngineWithLimits>> {
+        Cached::of(Engines {
+            engines: self.live.engines.clone(),
             limits: self.live.limits.clone(),
         })
     }

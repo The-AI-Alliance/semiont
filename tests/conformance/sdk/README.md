@@ -159,7 +159,7 @@ A `query` names what is observed: `{"query": "resource", "resource": id}`,
 and likewise `annotations`, `events`, `referencedBy`; `annotation` with
 `resource` and `annotation`; `resources` with optional `filters`;
 `matchedResources` with `search` and optional `filters`; `entityTypes`;
-`tagSchemas`; `agents`. Each is a query of specs/src/client/refresh.json, by
+`tagSchemas`; `engines`. Each is a query of specs/src/client/refresh.json, by
 its name there.
 
 A job's follower is reported as an observer is: each event it is given is a

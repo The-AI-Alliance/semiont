@@ -97,7 +97,7 @@
     "reconnecting": "در حال اتصال مجدد به سرور...",
     "sharing": "اشتراک‌گذاری",
     "collaborationComingSoon": "ویژگی‌های همکاری به‌زودی ارائه خواهند شد",
-    "collaborators": "همکاران",
+    "engines": "موتورها",
     "ceilings": "{{contextTokens}} ورودی / {{maxOutputTokens}} خروجی",
     "sharedWindow": "پنجره {{contextTokens}}"
   },

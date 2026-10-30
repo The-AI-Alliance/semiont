@@ -329,7 +329,7 @@ println!("working as {}", agent.did());
 let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
-    name: Some(agent_name(provider, model)),
+    name: Some(engine_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
     ..AgentSoftware::new()
@@ -441,7 +441,7 @@ from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal
 from semiont.client import SemiontClient
 from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.identifiers import AnnotationId
-from semiont.identity import agent_name
+from semiont.identity import engine_name
 from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
@@ -485,7 +485,7 @@ async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
     ):
         print(f"working as {agent.did}")
         # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran.
-        generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
+        generator = AgentSoftware(type="Software", id=agent.did, name=engine_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
         # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
         async for handed in claims:
             match handed:

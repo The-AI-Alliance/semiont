@@ -1,20 +1,20 @@
 {
   "type": "object",
-  "description": "What the knowledge base calls the people asked after: the profile of each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.",
+  "description": "The profiles of the principals asked after: each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.",
   "properties": {
     "response": {
       "type": "object",
       "properties": {
-        "people": {
+        "profiles": {
           "type": "object",
           "description": "Each profile, keyed by DID.",
           "additionalProperties": {
-            "$ref": "./PersonProfile.json"
+            "$ref": "./Profile.json"
           }
         }
       },
       "required": [
-        "people"
+        "profiles"
       ],
       "additionalProperties": false
     }

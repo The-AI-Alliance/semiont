@@ -33,7 +33,7 @@ import { PARTICIPANT_CLIENT, World } from './world';
 /** The Archivist's service account at the issuer. */
 export const ARCHIVIST_CLIENT = 'semiont-archivist';
 
-export type Roster = ArchivistSettings['roster'];
+export type Engines = ArchivistSettings['engines'];
 export type Annotation = components['schemas']['Annotation'];
 export type ResourceView = components['schemas']['ResourceView'];
 type ExtractedText = components['schemas']['ExtractedText'];
@@ -53,8 +53,8 @@ export interface StoredEvent {
 export interface ArchivistWorldOptions {
   /** Whether the knowledge base syncs git, and is a checkout. Default: it does, and is. */
   gitSync?: boolean;
-  /** Who serves each role. Default: no one. */
-  roster?: Roster;
+  /** The engine for each job and each Librarian actor. Default: none. */
+  engines?: Engines;
   /** The staging bounds, over a quarter of a second and two seconds. */
   staging?: Partial<ArchivistSettings['staging']>;
   /** Prepare the tree, the state volume or the store before the Archivist first boots. */
@@ -252,7 +252,7 @@ export class ArchivistWorld {
       root: dirs.root,
       stateHome: dirs.stateHome,
       anchoredTextDir: dirs.anchoredTextDir,
-      roster: options.roster ?? { workers: {}, actors: {} },
+      engines: options.engines ?? { jobs: {}, actors: {} },
       port: await freePort(),
       skipRebuild: false,
       staging: { flushMs: 250, maxWaitMs: 2_000, ...options.staging },
@@ -420,8 +420,8 @@ export class ArchivistWorld {
   }
 
   /** A `__system__` projection, held to its schema; undefined when there is none. */
-  projection<T = Record<string, unknown>>(file: 'entitytypes.json' | 'tagschemas.json' | 'people.json'): T | undefined {
-    const schema = { 'entitytypes.json': 'EntityTypesProjection', 'tagschemas.json': 'TagSchemasProjection', 'people.json': 'PeopleProjection' }[file];
+  projection<T = Record<string, unknown>>(file: 'entitytypes.json' | 'tagschemas.json' | 'profiles.json'): T | undefined {
+    const schema = { 'entitytypes.json': 'EntityTypesProjection', 'tagschemas.json': 'TagSchemasProjection', 'profiles.json': 'ProfilesProjection' }[file];
     return this.document<T>(join(this.dirs.stateDir, 'projections', '__system__', file), schema);
   }
 

@@ -219,7 +219,7 @@ println!("working as {}", agent.did());
 let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
-    name: Some(agent_name(provider, model)),
+    name: Some(engine_name(provider, model)),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
     ..AgentSoftware::new()

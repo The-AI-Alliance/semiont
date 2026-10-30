@@ -263,39 +263,6 @@ func (e ArchivistHealthStatus) Valid() bool {
 	}
 }
 
-// Defines values for ArchivistRosterRoleProvider.
-const (
-	ArchivistRosterRoleProviderAnthropic ArchivistRosterRoleProvider = "anthropic"
-	ArchivistRosterRoleProviderGoogle    ArchivistRosterRoleProvider = "google"
-	ArchivistRosterRoleProviderLlamacpp  ArchivistRosterRoleProvider = "llamacpp"
-	ArchivistRosterRoleProviderOllama    ArchivistRosterRoleProvider = "ollama"
-	ArchivistRosterRoleProviderOpenai    ArchivistRosterRoleProvider = "openai"
-	ArchivistRosterRoleProviderTogether  ArchivistRosterRoleProvider = "together"
-	ArchivistRosterRoleProviderVllm      ArchivistRosterRoleProvider = "vllm"
-)
-
-// Valid indicates whether the value is a known member of the ArchivistRosterRoleProvider enum.
-func (e ArchivistRosterRoleProvider) Valid() bool {
-	switch e {
-	case ArchivistRosterRoleProviderAnthropic:
-		return true
-	case ArchivistRosterRoleProviderGoogle:
-		return true
-	case ArchivistRosterRoleProviderLlamacpp:
-		return true
-	case ArchivistRosterRoleProviderOllama:
-		return true
-	case ArchivistRosterRoleProviderOpenai:
-		return true
-	case ArchivistRosterRoleProviderTogether:
-		return true
-	case ArchivistRosterRoleProviderVllm:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AssessingJobParamsMotivation.
 const (
 	AssessingJobParamsMotivationAssessing AssessingJobParamsMotivation = "assessing"
@@ -710,6 +677,39 @@ func (e DurabilityEvidence) Valid() bool {
 	case DurabilityEvidenceProbeRefused:
 		return true
 	case DurabilityEvidenceProbeUnreachable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EngineProvider.
+const (
+	EngineProviderAnthropic EngineProvider = "anthropic"
+	EngineProviderGoogle    EngineProvider = "google"
+	EngineProviderLlamacpp  EngineProvider = "llamacpp"
+	EngineProviderOllama    EngineProvider = "ollama"
+	EngineProviderOpenai    EngineProvider = "openai"
+	EngineProviderTogether  EngineProvider = "together"
+	EngineProviderVllm      EngineProvider = "vllm"
+)
+
+// Valid indicates whether the value is a known member of the EngineProvider enum.
+func (e EngineProvider) Valid() bool {
+	switch e {
+	case EngineProviderAnthropic:
+		return true
+	case EngineProviderGoogle:
+		return true
+	case EngineProviderLlamacpp:
+		return true
+	case EngineProviderOllama:
+		return true
+	case EngineProviderOpenai:
+		return true
+	case EngineProviderTogether:
+		return true
+	case EngineProviderVllm:
 		return true
 	default:
 		return false
@@ -2544,6 +2544,9 @@ type ArchivistConfig struct {
 	// AnchoredTextDir The anchored-text store, which only the Archivist mounts: the Smelter stores each entry in it over HTTP, and the Archivist serves it.
 	AnchoredTextDir string `json:"anchoredTextDir"`
 
+	// Engines The engine for each job and each Librarian actor, behind `browse:engines`: a provider and a model, and no credential. It is the knowledge base's Inference document's `engines` as they stand, with no fallback, so a job or an actor absent here has no engine.
+	Engines ArchivistEngines `json:"engines"`
+
 	// GatewayUrl The URL the Archivist reaches the gateway at: its only route to the bus.
 	GatewayUrl string `json:"gatewayUrl"`
 
@@ -2565,9 +2568,6 @@ type ArchivistConfig struct {
 	// Root The knowledge base's working tree: the directory holding `.semiont/`. The event log, the content and the committed config are under it.
 	Root string `json:"root"`
 
-	// Roster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. It is the knowledge base's Inference document's roster as it stands, with no fallback, so a role absent here is served by no one.
-	Roster ArchivistRoster `json:"roster"`
-
 	// SkipRebuild Whether the Archivist serves the views it finds at boot instead of rebuilding them from the event log first.
 	SkipRebuild bool `json:"skipRebuild"`
 
@@ -2582,6 +2582,42 @@ type ArchivistConfig struct {
 
 	// StateHome The state volume. The Archivist keeps the knowledge base's views and projections under `semiont/<name>` in it, where the name is the knowledge base's.
 	StateHome string `json:"stateHome"`
+}
+
+// ArchivistEngines The engine for each job and each Librarian actor, behind `browse:engines`: a provider and a model, and no credential. It is the knowledge base's Inference document's `engines` as they stand, with no fallback, so a job or an actor absent here has no engine.
+type ArchivistEngines struct {
+	// Actors The engine each Librarian actor that calls a model asks.
+	Actors struct {
+		// Gatherer An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+		Gatherer *Engine `json:"gatherer,omitempty"`
+
+		// Matcher An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+		Matcher *Engine `json:"matcher,omitempty"`
+	} `json:"actors"`
+
+	// Jobs The engine each job is done with when software does it, keyed as a job description is: by `jobType`, and for `mark` by motivation.
+	Jobs struct {
+		// Mark The engine for `mark` jobs of each motivation.
+		Mark *struct {
+			// Assessing An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+			Assessing *Engine `json:"assessing,omitempty"`
+
+			// Commenting An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+			Commenting *Engine `json:"commenting,omitempty"`
+
+			// Highlighting An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+			Highlighting *Engine `json:"highlighting,omitempty"`
+
+			// Linking An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+			Linking *Engine `json:"linking,omitempty"`
+
+			// Tagging An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+			Tagging *Engine `json:"tagging,omitempty"`
+		} `json:"mark,omitempty"`
+
+		// Yield An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+		Yield *Engine `json:"yield,omitempty"`
+	} `json:"jobs"`
 }
 
 // ArchivistEventsResponse A page of one stream's events from one sequence number, inclusive, in log order, and the sequence number of the stream's last event: the Archivist's answer to `GET /events/{resourceId}`.
@@ -2601,54 +2637,6 @@ type ArchivistHealth struct {
 
 // ArchivistHealthStatus defines model for ArchivistHealth.Status.
 type ArchivistHealthStatus string
-
-// ArchivistRoster Who serves each role, behind `browse:agents`: a provider and a model, and no credential. It is the knowledge base's Inference document's roster as it stands, with no fallback, so a role absent here is served by no one.
-type ArchivistRoster struct {
-	// Actors The agent serving each actor that calls a model.
-	Actors struct {
-		// Gatherer The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-		Gatherer *ArchivistRosterRole `json:"gatherer,omitempty"`
-
-		// Matcher The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-		Matcher *ArchivistRosterRole `json:"matcher,omitempty"`
-	} `json:"actors"`
-
-	// Workers The agent serving each job, keyed as a job description is: by `jobType`, and for `mark` by motivation.
-	Workers struct {
-		// Mark The agent serving `mark` jobs of each motivation.
-		Mark *struct {
-			// Assessing The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-			Assessing *ArchivistRosterRole `json:"assessing,omitempty"`
-
-			// Commenting The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-			Commenting *ArchivistRosterRole `json:"commenting,omitempty"`
-
-			// Highlighting The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-			Highlighting *ArchivistRosterRole `json:"highlighting,omitempty"`
-
-			// Linking The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-			Linking *ArchivistRosterRole `json:"linking,omitempty"`
-
-			// Tagging The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-			Tagging *ArchivistRosterRole `json:"tagging,omitempty"`
-		} `json:"mark,omitempty"`
-
-		// Yield The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-		Yield *ArchivistRosterRole `json:"yield,omitempty"`
-	} `json:"workers"`
-}
-
-// ArchivistRosterRole The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-type ArchivistRosterRole struct {
-	// Model The model identifier, as the provider names it.
-	Model string `json:"model"`
-
-	// Provider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
-	Provider ArchivistRosterRoleProvider `json:"provider"`
-}
-
-// ArchivistRosterRoleProvider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
-type ArchivistRosterRoleProvider string
 
 // ArchivistStream One stream of the event log, and where it stands: the resource it is of, or `__system__` for the knowledge base's own, and the sequence number of its last event.
 type ArchivistStream struct {
@@ -2841,16 +2829,6 @@ type BodyOperationReplaceOp string
 // BodyPurpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
 type BodyPurpose string
 
-// BrowseAgentsRequest Request to browse the knowledge base's roster: the engines its Inference document names
-type BrowseAgentsRequest = map[string]interface{}
-
-// BrowseAgentsResult Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves
-type BrowseAgentsResult struct {
-	Response struct {
-		Agents []RosterEntry `json:"agents"`
-	} `json:"response"`
-}
-
 // BrowseAnnotationHistoryRequest Request to browse the history of an annotation
 type BrowseAnnotationHistoryRequest struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
@@ -2921,6 +2899,16 @@ type BrowseDirectoryResult struct {
 type BrowseDirectoryResultResponse struct {
 	Entries []DirectoryEntry `json:"entries"`
 	Path    string           `json:"path"`
+}
+
+// BrowseEnginesRequest Request for the knowledge base's engines: those its Inference document names
+type BrowseEnginesRequest = map[string]interface{}
+
+// BrowseEnginesResult The knowledge base's engines: those its Inference document names, and the jobs it has each used for
+type BrowseEnginesResult struct {
+	Response struct {
+		Engines []EngineEntry `json:"engines"`
+	} `json:"response"`
 }
 
 // BrowseEntityTypeClickedEvent Emitted when an entity type is clicked in the browse panel
@@ -2998,17 +2986,17 @@ type BrowsePanelToggleEvent struct {
 	Panel string `json:"panel"`
 }
 
-// BrowsePeopleRequest Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
-type BrowsePeopleRequest struct {
-	// Dids The people asked after.
+// BrowseProfilesRequest Request for the profiles of some principals: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
+type BrowseProfilesRequest struct {
+	// Dids The principals asked after.
 	Dids []UserId `json:"dids"`
 }
 
-// BrowsePeopleResult What the knowledge base calls the people asked after: the profile of each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
-type BrowsePeopleResult struct {
+// BrowseProfilesResult The profiles of the principals asked after: each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
+type BrowseProfilesResult struct {
 	Response struct {
-		// People Each profile, keyed by DID.
-		People map[string]PersonProfile `json:"people"`
+		// Profiles Each profile, keyed by DID.
+		Profiles map[string]Profile `json:"profiles"`
 	} `json:"response"`
 }
 
@@ -3423,6 +3411,36 @@ type DurabilityEvidence string
 // EmbeddingConfig The embedding provider a service asks for vectors, and what that kind of provider needs to be asked: one of the providers `semiont-vectors` has, told apart by `type`. Two services that share an index name the same provider and the same model: a vector is compared only with vectors of the model that made it. A secret is never a value here: a provider's key is named by the environment variable that holds it.
 type EmbeddingConfig struct {
 	union json.RawMessage
+}
+
+// Engine An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+type Engine struct {
+	// Model The model identifier, as the provider names it.
+	Model string `json:"model"`
+
+	// Provider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
+	Provider EngineProvider `json:"provider"`
+}
+
+// EngineProvider The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software.
+type EngineProvider string
+
+// EngineEntry One of the knowledge base's engines: a provider and a model its Inference document names, and the jobs the document has it used for. An engine is not a principal: whichever worker claims a job does it, under its own account, and names on each write the engine it used, if any. Carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+type EngineEntry struct {
+	// Engine An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+	Engine Engine `json:"engine"`
+
+	// Jobs The jobs the knowledge base's Inference document has this engine used for, as a claim names them. Absent for an engine only Librarian actors ask.
+	Jobs *[]JobFilter `json:"jobs,omitempty"`
+}
+
+// EngineLimits The discovered limits of one engine.
+type EngineLimits struct {
+	// Engine An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+	Engine Engine `json:"engine"`
+
+	// Limits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
+	Limits InferenceLimits `json:"limits"`
 }
 
 // EnrichedResourceEvent defines model for EnrichedResourceEvent.
@@ -4165,7 +4183,7 @@ type HttpEndpointProtocol string
 
 // InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
 type InferenceLimits struct {
-	// AcceptsTemperature Whether this agent's model accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim.
+	// AcceptsTemperature Whether this engine accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim.
 	AcceptsTemperature *bool `json:"acceptsTemperature,omitempty"`
 
 	// ContextTokens The context window in tokens. Anthropic: maximum input tokens (output has its own ceiling). Ollama: the shared input+output window.
@@ -4175,26 +4193,14 @@ type InferenceLimits struct {
 	MaxOutputTokens float64 `json:"maxOutputTokens"`
 }
 
-// InferenceLimitsRequest Request for the inference limits of the (provider, model) pairs one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own pairs, so no other service needs one.
+// InferenceLimitsRequest Request for the inference limits of the engines one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own engines, so no other service needs one.
 type InferenceLimitsRequest = map[string]interface{}
 
-// InferenceLimitsResult The inference limits one service discovered for its own (provider, model) pairs. A pair whose discovery is currently unavailable is absent.
+// InferenceLimitsResult The inference limits one service discovered for the engines it holds a client for. An engine whose discovery is currently unavailable is absent.
 type InferenceLimitsResult struct {
 	Response struct {
-		Limits []InferencePairLimits `json:"limits"`
+		Limits []EngineLimits `json:"limits"`
 	} `json:"response"`
-}
-
-// InferencePairLimits The discovered limits of one (provider, model) pair.
-type InferencePairLimits struct {
-	// Limits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
-	Limits InferenceLimits `json:"limits"`
-
-	// Model The model identifier, as the KB config names it.
-	Model string `json:"model"`
-
-	// Provider The inference provider, as the KB config names it (e.g. anthropic, ollama).
-	Provider string `json:"provider"`
 }
 
 // JanusGraphConfig A graph kept in a JanusGraph server, asked in Gremlin. No service has been run against one.
@@ -5005,8 +5011,8 @@ type LibrarianConfig struct {
 		SettleTimeoutMs int `json:"settleTimeoutMs"`
 	} `json:"gather"`
 
-	// Gatherer One model a Librarian asks: who it is, and where its provider is reached.
-	Gatherer LibrarianModelConfig `json:"gatherer"`
+	// Gatherer The engine a Librarian actor asks: which it is, and where its provider is reached.
+	Gatherer LibrarianEngineConfig `json:"gatherer"`
 
 	// Graph The graph database a service writes or reads, and what that kind of database needs to be reached: one of the kinds `semiont-graph` has a store for, told apart by `type`. A secret is never a value here: a database's password is named by the environment variable that holds it.
 	Graph GraphConfig `json:"graph"`
@@ -5023,8 +5029,8 @@ type LibrarianConfig struct {
 	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
 	LogLevel LogLevel `json:"logLevel"`
 
-	// Matcher One model a Librarian asks: who it is, and where its provider is reached.
-	Matcher LibrarianModelConfig `json:"matcher"`
+	// Matcher The engine a Librarian actor asks: which it is, and where its provider is reached.
+	Matcher LibrarianEngineConfig `json:"matcher"`
 
 	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A Librarian whose matcher or gatherer is of one of those providers refuses to start where the file cannot be read, and where it states nothing of that model. A Librarian with no such model does not read it.
 	ModelCatalogue string `json:"modelCatalogue"`
@@ -5042,16 +5048,16 @@ type LibrarianConfig struct {
 	Vectors VectorsConfig `json:"vectors"`
 }
 
-// LibrarianModelConfig One model a Librarian asks: who it is, and where its provider is reached.
-type LibrarianModelConfig struct {
-	// Agent The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-	Agent ArchivistRosterRole `json:"agent"`
-
+// LibrarianEngineConfig The engine a Librarian actor asks: which it is, and where its provider is reached.
+type LibrarianEngineConfig struct {
 	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
 	ApiKeyEnv *string `json:"apiKeyEnv,omitempty"`
 
 	// BaseUrl The address the provider's API is reached at.
 	BaseUrl string `json:"baseUrl"`
+
+	// Engine An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+	Engine Engine `json:"engine"`
 }
 
 // LimitRefusal defines model for LimitRefusal.
@@ -5564,37 +5570,37 @@ type PdfTextItem struct {
 	Y     float64 `json:"y"`
 }
 
-// PeopleProjection What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
-type PeopleProjection struct {
-	// People Each person's current profile, keyed by their DID.
-	People map[string]PersonProfile `json:"people"`
-}
-
 // PersistedEventId `p-<scope>-<sequenceNumber>` — the id of a persisted event delivered on a scoped subscription. Resumable: send it back as that scope's `lastEventId`. Stable across connections, so a client dedups by it.
 type PersistedEventId = string
 
-// PersonProfile What a person last said they are called, and when: the profile a `person:profiled` event gives.
-type PersonProfile struct {
-	// Name The name the person last gave.
-	Name string `json:"name"`
-
-	// Since The timestamp of the event that gave it.
-	Since string `json:"since"`
-}
-
-// PersonProfileCommand Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.
-type PersonProfileCommand struct {
-	// UnderscoreUserId The person's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.
+// PrincipalProfileCommand Bus command the gateway emits when a principal ACTS, carrying the display name it just verified on its token. The Stower persists it as principal:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a principal has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the profiles projection. Emitted for a person and for an agent alike; never for a request that merely reads.
+type PrincipalProfileCommand struct {
+	// UnderscoreUserId The principal's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.
 	UnderscoreUserId *UserId `json:"_userId,omitempty"`
 
 	// Name The display name from the issuer's `name` claim, as verified on the token that carried this act. A token with no name produces no command at all — the issuer is where a name is set, and absence is recorded as absence.
 	Name string `json:"name"`
 }
 
-// PersonProfiledPayload Payload for person:profiled — what the knowledge base's issuer said this subject is called, recorded once per change (system-level, no resourceId). The event's `userId` is the person's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into people.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
-type PersonProfiledPayload struct {
+// PrincipalProfiledPayload Payload for principal:profiled — what the knowledge base's issuer said this principal is called, recorded once per change (system-level, no resourceId). The event's `userId` is the principal's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into profiles.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
+type PrincipalProfiledPayload struct {
 	// Name The display name as of this event, from the issuer's verified `name` claim.
 	Name string `json:"name"`
+}
+
+// Profile What a principal last said it is called, and when: the profile a `principal:profiled` event gives.
+type Profile struct {
+	// Name The name the principal last gave.
+	Name string `json:"name"`
+
+	// Since The timestamp of the event that gave it.
+	Since string `json:"since"`
+}
+
+// ProfilesProjection What the principals of a knowledge base are called: the file `projections/__system__/profiles.json` under the state directory, the sum of the `principal:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the principals a reply mentions. Written as JSON indented by two spaces.
+type ProfilesProjection struct {
+	// Profiles Each principal's current profile, keyed by its DID.
+	Profiles map[string]Profile `json:"profiles"`
 }
 
 // ProtectedResourceMetadata OAuth 2.0 Protected Resource Metadata (RFC 9728): which authorization server this knowledge base trusts, served at /.well-known/oauth-protected-resource so a client — the Browser, an MCP client — learns where to send a user to sign in without configuration. A 401 from any protected route points here in its WWW-Authenticate challenge.
@@ -6095,15 +6101,6 @@ type ResourceView struct {
 
 	// Resource Metadata about a resource (1:1 with its URI). JSON-LD subject is @id. Link to concrete bytes via representations.
 	Resource ResourceDescriptor `json:"resource"`
-}
-
-// RosterEntry One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
-type RosterEntry struct {
-	// Engine The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-	Engine ArchivistRosterRole `json:"engine"`
-
-	// Serves The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles.
-	Serves *[]JobFilter `json:"serves,omitempty"`
 }
 
 // ScoredResource defines model for ScoredResource.
@@ -6721,25 +6718,10 @@ type WeaverConfig struct {
 	Port int `json:"port"`
 }
 
-// WorkerAgentConfig One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.
-type WorkerAgentConfig struct {
-	// Accepts The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.
-	Accepts []JobFilter `json:"accepts"`
-
-	// Agent The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
-	Agent ArchivistRosterRole `json:"agent"`
-
-	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
-	ApiKeyEnv *string `json:"apiKeyEnv,omitempty"`
-
-	// BaseUrl The address the provider's API is reached at.
-	BaseUrl string `json:"baseUrl"`
-}
-
 // WorkerConfig Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its environment: its client id and the RSA key it signs in with. A document that does not validate is refused at boot, naming each failing field.
 type WorkerConfig struct {
-	// Agents The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. They are the knowledge base's Inference document's roster as it stands, with no fallback, so a job no agent here accepts is not claimed by this worker.
-	Agents []WorkerAgentConfig `json:"agents"`
+	// Engines The engines this worker runs, and the jobs it does with each. The worker signs in once, as its own account, and claims each engine's jobs for it. They are the knowledge base's Inference document's engines as they stand, with no fallback, so a job no engine here is used for is not claimed by this worker.
+	Engines []WorkerEngineConfig `json:"engines"`
 
 	// GatewayUrl The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.
 	GatewayUrl string `json:"gatewayUrl"`
@@ -6756,11 +6738,26 @@ type WorkerConfig struct {
 	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
 	LogLevel LogLevel `json:"logLevel"`
 
-	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.
+	// ModelCatalogue The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an engine of one of those providers refuses to start where the file cannot be read, and where it states nothing of that engine's model. A worker with no such engine does not read it.
 	ModelCatalogue string `json:"modelCatalogue"`
 
 	// Port The port the worker answers `/health` on.
 	Port int `json:"port"`
+}
+
+// WorkerEngineConfig One engine a worker runs: which it is, the jobs the worker claims to do with it, and where its provider is reached.
+type WorkerEngineConfig struct {
+	// ApiKeyEnv The environment variable holding the provider's API key, when the provider requires one.
+	ApiKeyEnv *string `json:"apiKeyEnv,omitempty"`
+
+	// BaseUrl The address the provider's API is reached at.
+	BaseUrl string `json:"baseUrl"`
+
+	// Engine An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
+	Engine Engine `json:"engine"`
+
+	// Jobs The jobs the worker claims to do with this engine, as a claim names them (`job:claim`'s `accepts`): it claims with these filters and no other.
+	Jobs []JobFilter `json:"jobs"`
 }
 
 // YieldCloneCreateCommand Bus command to create a cloned resource from a clone token. Bytes are stored by the upload path BEFORE this command is emitted, because bytes travel over HTTP and never over the bus — the command carries the storage coordinates, never content.

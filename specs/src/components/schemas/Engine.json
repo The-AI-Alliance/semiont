@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.",
+  "description": "An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.",
   "properties": {
     "provider": {
       "type": "string",

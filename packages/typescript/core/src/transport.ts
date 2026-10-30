@@ -319,7 +319,7 @@ export interface IContentTransport {
   ): Promise<GetResourceResponse>;
 
   /**
-   * Fetch the resource's annotations, with the people they mention named,
+   * Fetch the resource's annotations, with the principals they mention named,
    * and how many there are. The HTTP transport asks the gateway's
    * `GET /resources/:id/annotations`, which grows without a bound and so is
    * never a bus message.

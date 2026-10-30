@@ -77,7 +77,7 @@ attention. Each is a namespace of the client.
 | | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.updateEntityTypes`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.addEntityTypes`, `frame.addTagSchema` |
-| Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| Reading | `browse` | Navigate, read and observe, including the knowledge base's engines | `browse.resource`, `browse.annotations`, `browse.engines`, `browse.click` |
 | | `match` | Search the corpus: resources by text, and candidates for a reference | `match.resources`, `match.search` |
 | | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referencedBy` |
 | Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |

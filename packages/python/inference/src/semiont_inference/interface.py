@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol, final
 
 from pydantic import JsonValue
+from semiont.types import EngineProvider
 
 __all__ = [
     "ElementSchema",
@@ -228,8 +229,8 @@ class InferenceClient(Protocol):
     """
 
     @property
-    def provider(self) -> str:
-        """The provider's name, as a knowledge base's config has it: `anthropic`, `ollama`."""
+    def provider(self) -> EngineProvider:
+        """The provider, as the protocol names it and a knowledge base's config has it: `anthropic`, `ollama`."""
         ...
 
     @property

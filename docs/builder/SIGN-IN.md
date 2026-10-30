@@ -10,7 +10,7 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 |---|---|---|---|---|---|
 | A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` |
 | A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` |
-| A service or a worker | [A service account](#a-service-or-a-worker), exchanged for the token of the agent its work runs as | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` |
+| A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` |
 | A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` |
 | A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README |
 
@@ -64,9 +64,9 @@ A program in a container sees the machine's state directory only if it is mounte
 
 ## A service or a worker
 
-A process with no person behind it signs in with a service account: a client id and a secret the identity provider holds. The gateway exchanges the service's token for the token of an agent, named by its provider and its model, and what the process writes is attributed to that agent.
+A process with no person behind it signs in with a service account: a client id and a secret the identity provider holds. The account is an agent's, as a person's is a person's: the program sends the identity provider's token to the gateway as its bearer, and its DID is `did:web:<domain>:agents:<subject>`, which it learns from `GET /api/users/me`. What the process writes is attributed to it. A write a model produced also names, in its `generator`, the engine it used: the provider and the model.
 
-An agent whose renewal fails keeps the token it has and tries again. [`semiont-worker`](./skills/semiont-worker/SKILL.md) is a worker built this way.
+An agent renews its token by a new grant when the token is due, and at once when the gateway refuses it. A gateway or an identity provider it cannot reach is tried again; a refusal by the identity provider is final. [`semiont-worker`](./skills/semiont-worker/SKILL.md) is a worker built this way.
 
 ## An application
 

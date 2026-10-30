@@ -54,7 +54,7 @@ afterEach(async () => {
  */
 
 function createTestBrowser(): SemiontBrowser {
-  // A REAL `SemiontBrowser` over real in-memory collaborators — not a
+  // A REAL `SemiontBrowser` over real in-memory transports — not a
   // look-alike. `SemiontBrowserConfig` is only `{storage, sessionFactory}`
   // and the class is transport-agnostic by design ("every HTTP-vs-local
   // construction concern lives in the factory"), so the double stops at the

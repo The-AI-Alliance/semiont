@@ -86,9 +86,8 @@ and anyone else to the same schema.
 
 ## What it follows
 
-A Smelter signs in as its service account and works as an agent named by its
-embedding provider and its model, so that two Smelters that embed with
-different models are different agents. It reaches the bus through the
+A Smelter signs in as its service account, and is that one agent, whatever
+model it embeds with. It reaches the bus through the
 gateway, and reads bytes, annotations and the record by position from the
 Archivist.
 

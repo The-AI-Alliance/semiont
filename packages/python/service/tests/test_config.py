@@ -24,14 +24,14 @@ from semiont_service.config import Refused, config_path_of, key_account_of, read
 DOCUMENT: Final[dict[str, JsonValue]] = {
     "gatewayUrl": "http://gateway:4000",
     "identity": {"issuer": "http://issuer:8080/realms/semiont"},
-    "agents": [
+    "engines": [
         {
-            "agent": {"provider": "anthropic", "model": "claude-test"},
-            "accepts": [{"jobType": "mark", "params": {"motivation": "highlighting"}}, {"jobType": "yield"}],
+            "engine": {"provider": "anthropic", "model": "claude-test"},
+            "jobs": [{"jobType": "mark", "params": {"motivation": "highlighting"}}, {"jobType": "yield"}],
             "baseUrl": "https://api.anthropic.com",
             "apiKeyEnv": "ANTHROPIC_API_KEY",
         },
-        {"agent": {"provider": "ollama", "model": "gemma2:27b"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama:11434"},
+        {"engine": {"provider": "ollama", "model": "gemma2:27b"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama:11434"},
     ],
     "modelCatalogue": "/usr/share/semiont/model-catalogue.json",
     "port": 24100,
@@ -40,9 +40,9 @@ DOCUMENT: Final[dict[str, JsonValue]] = {
 }
 
 
-DOCUMENT_AGENT: Final[dict[str, JsonValue]] = {
-    "agent": {"provider": "ollama", "model": "m"},
-    "accepts": [{"jobType": "yield"}],
+DOCUMENT_ENGINE: Final[dict[str, JsonValue]] = {
+    "engine": {"provider": "ollama", "model": "m"},
+    "jobs": [{"jobType": "yield"}],
     "baseUrl": "http://ollama",
 }
 
@@ -95,7 +95,7 @@ def test_the_document_is_read_as_the_protocol_s_shape(tmp_path: Path) -> None:
     config = read(written(tmp_path, DOCUMENT))
     assert config == WorkerConfig.model_validate(DOCUMENT)
     assert (config.gateway_url, config.port, config.log_level, config.log_format) == ("http://gateway:4000", 24100, "info", "json")
-    assert [(entry.agent.provider, entry.agent.model, entry.api_key_env) for entry in config.agents] == [
+    assert [(entry.engine.provider, entry.engine.model, entry.api_key_env) for entry in config.engines] == [
         ("anthropic", "claude-test", "ANTHROPIC_API_KEY"),
         ("ollama", "gemma2:27b", None),
     ]
@@ -133,8 +133,8 @@ def test_bytes_that_are_no_text_are_refused_as_not_json(tmp_path: Path) -> None:
         ("gatewayUrl", {name: value for name, value in DOCUMENT.items() if name != "gatewayUrl"}),
         ("port", {name: value for name, value in DOCUMENT.items() if name != "port"}),
         ("issuer", changed(identity={})),
-        ("accepts", changed(agents=[{"agent": {"provider": "ollama", "model": "m"}, "baseUrl": "http://ollama"}])),
-        ("model", changed(agents=[{"agent": {"provider": "ollama"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama"}])),
+        ("jobs", changed(engines=[{"engine": {"provider": "ollama", "model": "m"}, "baseUrl": "http://ollama"}])),
+        ("model", changed(engines=[{"engine": {"provider": "ollama"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama"}])),
     ],
 )
 def test_a_member_the_document_lacks_is_named_on_a_line_of_its_own(tmp_path: Path, member: str, document: dict[str, JsonValue]) -> None:
@@ -173,8 +173,8 @@ def test_a_member_is_known_by_the_name_the_document_gives_it_and_by_no_other(tmp
         (changed(gatewayUrl=4000), "gatewayUrl"),
         (changed(logLevel="verbose"), "logLevel"),
         (changed(logFormat="pretty"), "logFormat"),
-        (changed(agents=[]), "agents"),
-        (changed(agents={}), "agents"),
+        (changed(engines=[]), "engines"),
+        (changed(engines={}), "engines"),
         (changed(identity="http://issuer"), "identity"),
     ],
 )
@@ -186,11 +186,11 @@ def test_a_value_that_is_not_the_kind_the_schema_states_is_refused_naming_its_me
     assert reasons[0].startswith(f"  {member}: ")
 
 
-def test_a_member_inside_an_agent_is_named_by_its_place_in_the_document(tmp_path: Path) -> None:
-    second: dict[str, JsonValue] = {**DOCUMENT_AGENT, "accepts": [], "apiKey": "hunter2-not-a-name"}
-    reasons = refusal_of(tmp_path, changed(agents=[DOCUMENT_AGENT, second])).split("\n")[1:]
-    assert sorted(reason.split(": ", 1)[0] for reason in reasons) == ["  agents[1]", "  agents[1].accepts"]
-    assert "  agents[1]: unknown property apiKey" in reasons
+def test_a_member_inside_an_engine_is_named_by_its_place_in_the_document(tmp_path: Path) -> None:
+    second: dict[str, JsonValue] = {**DOCUMENT_ENGINE, "jobs": [], "apiKey": "hunter2-not-a-name"}
+    reasons = refusal_of(tmp_path, changed(engines=[DOCUMENT_ENGINE, second])).split("\n")[1:]
+    assert sorted(reason.split(": ", 1)[0] for reason in reasons) == ["  engines[1]", "  engines[1].jobs"]
+    assert "  engines[1]: unknown property apiKey" in reasons
 
 
 SECRET: Final = "sk-conformance-0123456789abcdef"
@@ -200,21 +200,21 @@ SECRET: Final = "sk-conformance-0123456789abcdef"
     "document",
     [
         # A key written where a member the schema does not have was invented for it.
-        changed(agents=[{**DOCUMENT_AGENT, "apiKey": SECRET}]),
+        changed(engines=[{**DOCUMENT_ENGINE, "apiKey": SECRET}]),
         # A value of every wrong kind, each of them the secret.
         changed(port=SECRET),
         changed(logLevel=SECRET),
         changed(logFormat=SECRET),
         changed(identity=SECRET),
-        changed(agents=SECRET),
-        changed(agents=[SECRET]),
-        changed(agents=[{"agent": {"provider": SECRET, "model": "m"}, "accepts": [{"jobType": "yield"}], "baseUrl": "http://ollama"}]),
-        changed(agents=[{"agent": {"provider": "ollama", "model": "m"}, "accepts": [{"jobType": SECRET}], "baseUrl": "http://ollama"}]),
+        changed(engines=SECRET),
+        changed(engines=[SECRET]),
+        changed(engines=[{"engine": {"provider": SECRET, "model": "m"}, "jobs": [{"jobType": "yield"}], "baseUrl": "http://ollama"}]),
+        changed(engines=[{"engine": {"provider": "ollama", "model": "m"}, "jobs": [{"jobType": SECRET}], "baseUrl": "http://ollama"}]),
         changed(
-            agents=[
+            engines=[
                 {
-                    "agent": {"provider": "ollama", "model": "m"},
-                    "accepts": [{"jobType": "mark", "params": {"motivation": SECRET}}],
+                    "engine": {"provider": "ollama", "model": "m"},
+                    "jobs": [{"jobType": "mark", "params": {"motivation": SECRET}}],
                     "baseUrl": "http://ollama",
                 }
             ]
@@ -229,9 +229,9 @@ def test_no_refusal_repeats_a_value_the_document_held(tmp_path: Path, document: 
 
 
 def test_a_filter_that_states_no_job_type_the_protocol_has_is_refused_by_what_was_expected(tmp_path: Path) -> None:
-    agent: dict[str, JsonValue] = {**DOCUMENT_AGENT, "accepts": [{"jobType": "smelt"}]}
-    (reason,) = refusal_of(tmp_path, changed(agents=[agent])).split("\n")[1:]
-    assert reason.startswith("  agents[0].accepts[0]: ")
+    engine: dict[str, JsonValue] = {**DOCUMENT_ENGINE, "jobs": [{"jobType": "smelt"}]}
+    (reason,) = refusal_of(tmp_path, changed(engines=[engine])).split("\n")[1:]
+    assert reason.startswith("  engines[0].jobs[0]: ")
     assert "smelt" not in reason
 
 

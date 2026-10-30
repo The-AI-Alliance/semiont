@@ -68,8 +68,8 @@
       "frame:entity-type-add-failed",
       "frame:tag-schema-add-ok",
       "frame:tag-schema-add-failed",
-      "person:profiled",
-      "person:profile",
+      "principal:profiled",
+      "principal:profile",
       "bind:initiate",
       "bind:update-body",
       "bind:body-updated",
@@ -119,12 +119,12 @@
       "browse:tag-schemas-requested",
       "browse:tag-schemas-result",
       "browse:tag-schemas-failed",
-      "browse:agents-requested",
-      "browse:agents-result",
-      "browse:agents-failed",
-      "browse:people-requested",
-      "browse:people-result",
-      "browse:people-failed",
+      "browse:engines-requested",
+      "browse:engines-result",
+      "browse:engines-failed",
+      "browse:profiles-requested",
+      "browse:profiles-result",
+      "browse:profiles-failed",
       "browse:kb-requested",
       "browse:kb-result",
       "browse:kb-failed",
@@ -251,8 +251,8 @@
       "frame:entity-type-add-failed",
       "frame:tag-schema-add-ok",
       "frame:tag-schema-add-failed",
-      "person:profiled",
-      "person:profile",
+      "principal:profiled",
+      "principal:profile",
       "mark:requested",
       "mark:submit",
       "mark:delegate-timeout",
@@ -308,12 +308,12 @@
       "browse:tag-schemas-requested",
       "browse:tag-schemas-result",
       "browse:tag-schemas-failed",
-      "browse:agents-requested",
-      "browse:agents-result",
-      "browse:agents-failed",
-      "browse:people-requested",
-      "browse:people-result",
-      "browse:people-failed",
+      "browse:engines-requested",
+      "browse:engines-result",
+      "browse:engines-failed",
+      "browse:profiles-requested",
+      "browse:profiles-result",
+      "browse:profiles-failed",
       "browse:kb-requested",
       "browse:kb-result",
       "browse:kb-failed",
@@ -1418,17 +1418,17 @@
       }
     },
     {
-      "channel": "person:profiled",
+      "channel": "principal:profiled",
       "shape": "storedEvent",
-      "event": "person:profiled",
-      "payload": "PersonProfiledPayload",
+      "event": "principal:profiled",
+      "payload": "PrincipalProfiledPayload",
       "system": true,
       "validate": null,
       "docs": {
         "lead": [
           "",
           "  // ========================================================================",
-          "  // PERSON FLOW — who a subject is. One line per NAME a person has had,",
+          "  // PRINCIPAL FLOW — who a principal is. One line per NAME it has had,",
           "  // system-level like the frame vocabulary. Never read by provenance: every",
           "  // artifact joins on the DID, and names are resolved from the projection",
           "  // when a record is READ.",
@@ -1444,10 +1444,10 @@
       }
     },
     {
-      "channel": "person:profile",
+      "channel": "principal:profile",
       "shape": "schema",
-      "schema": "PersonProfileCommand",
-      "validate": "PersonProfileCommand",
+      "schema": "PrincipalProfileCommand",
+      "validate": "PrincipalProfileCommand",
       "docs": {
         "lead": [
           "",
@@ -2217,10 +2217,10 @@
       }
     },
     {
-      "channel": "browse:agents-requested",
+      "channel": "browse:engines-requested",
       "shape": "schema",
-      "schema": "BrowseAgentsRequest",
-      "validate": "BrowseAgentsRequest",
+      "schema": "BrowseEnginesRequest",
+      "validate": "BrowseEnginesRequest",
       "docs": {
         "lead": [
           ""
@@ -2233,10 +2233,10 @@
       }
     },
     {
-      "channel": "browse:agents-result",
+      "channel": "browse:engines-result",
       "shape": "schema",
-      "schema": "BrowseAgentsResult",
-      "validate": "BrowseAgentsResult",
+      "schema": "BrowseEnginesResult",
+      "validate": "BrowseEnginesResult",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2247,7 +2247,7 @@
       }
     },
     {
-      "channel": "browse:agents-failed",
+      "channel": "browse:engines-failed",
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
@@ -2261,10 +2261,10 @@
       }
     },
     {
-      "channel": "browse:people-requested",
+      "channel": "browse:profiles-requested",
       "shape": "schema",
-      "schema": "BrowsePeopleRequest",
-      "validate": "BrowsePeopleRequest",
+      "schema": "BrowseProfilesRequest",
+      "validate": "BrowseProfilesRequest",
       "docs": {
         "lead": [
           ""
@@ -2277,10 +2277,10 @@
       }
     },
     {
-      "channel": "browse:people-result",
+      "channel": "browse:profiles-result",
       "shape": "schema",
-      "schema": "BrowsePeopleResult",
-      "validate": "BrowsePeopleResult",
+      "schema": "BrowseProfilesResult",
+      "validate": "BrowseProfilesResult",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2291,7 +2291,7 @@
       }
     },
     {
-      "channel": "browse:people-failed",
+      "channel": "browse:profiles-failed",
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
@@ -3396,18 +3396,18 @@
       }
     },
     {
-      "request": "browse:agents-requested",
-      "result": "browse:agents-result",
-      "failure": "browse:agents-failed",
+      "request": "browse:engines-requested",
+      "result": "browse:engines-result",
+      "failure": "browse:engines-failed",
       "docs": {
         "lead": [],
         "trailing": ""
       }
     },
     {
-      "request": "browse:people-requested",
-      "result": "browse:people-result",
-      "failure": "browse:people-failed",
+      "request": "browse:profiles-requested",
+      "result": "browse:profiles-result",
+      "failure": "browse:profiles-failed",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3779,7 +3779,7 @@
       "job:start",
       "job:assign",
       "mark:update-body",
-      "person:profile"
+      "principal:profile"
     ],
     "event": [
       "job:report-progress",
@@ -3816,7 +3816,7 @@
       "job:completed",
       "job:failed",
       "mark:body-update-failed",
-      "person:profiled"
+      "principal:profiled"
     ]
   },
   "audience": {
@@ -3865,12 +3865,12 @@
       "mark:update-body",
       "weave:applied",
       "mark:body-update-failed",
-      "person:profiled",
-      "person:profile"
+      "principal:profiled",
+      "principal:profile"
     ]
   },
   "effect": {
-    "doc": "/**\n * Does emitting this channel CHANGE the knowledge base, or only ask it\n * something?\n *\n * A WRITE is an act: it appends to the event log, or it enqueues or\n * transitions durable work the log will later cite. A READ answers from\n * state that already exists and leaves nothing behind — every `browse:*`\n * request, and the three lookups that merely resolve a token or a summary.\n *\n * The domain is exactly the EMITTABLE set: an operation's request, or a\n * `kind: command`. Inbound replies, broadcast events and in-process UI\n * signals are absent because nobody emits them at the gateway, so the\n * question does not arise. Every emittable channel names one side or the\n * other and the generator refuses — there is no default.\n *\n * The gateway reads this to decide when the record learns a person's name:\n * a `_userId` stamp is NOT the test, because a read carries one too.\n * Someone who signs in and only browses is never named, and the profile\n * publish rate is the WRITE rate rather than the emit rate — orders of\n * magnitude apart.\n */",
+    "doc": "/**\n * Does emitting this channel CHANGE the knowledge base, or only ask it\n * something?\n *\n * A WRITE is an act: it appends to the event log, or it enqueues or\n * transitions durable work the log will later cite. A READ answers from\n * state that already exists and leaves nothing behind — every `browse:*`\n * request, and the three lookups that merely resolve a token or a summary.\n *\n * The domain is exactly the EMITTABLE set: an operation's request, or a\n * `kind: command`. Inbound replies, broadcast events and in-process UI\n * signals are absent because nobody emits them at the gateway, so the\n * question does not arise. Every emittable channel names one side or the\n * other and the generator refuses — there is no default.\n *\n * The gateway reads this to decide when the record learns a principal's name:\n * a `_userId` stamp is NOT the test, because a read carries one too.\n * Someone who signs in and only browses is never named, and the profile\n * publish rate is the WRITE rate rather than the emit rate — orders of\n * magnitude apart.\n */",
     "writes": [
       "bind:update-body",
       "frame:add-entity-type",
@@ -3889,7 +3889,7 @@
       "mark:unarchive",
       "mark:update-body",
       "mark:update-entity-types",
-      "person:profile",
+      "principal:profile",
       "smelt:rebuild-anchors",
       "weave:rebuild",
       "yield:clone-create",
@@ -3898,14 +3898,14 @@
       "yield:update"
     ],
     "reads": [
-      "browse:agents-requested",
+      "browse:engines-requested",
       "browse:annotation-history-requested",
       "browse:annotation-requested",
       "browse:directory-requested",
       "browse:entity-types-requested",
       "browse:events-requested",
       "browse:kb-requested",
-      "browse:people-requested",
+      "browse:profiles-requested",
       "browse:resource-requested",
       "browse:resources-requested",
       "browse:tag-schemas-requested",

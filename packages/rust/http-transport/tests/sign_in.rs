@@ -25,7 +25,7 @@ use semiont::discovery::{
 use semiont::errors::{
     BusRequestErrorCode, IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode,
 };
-use semiont::identity::{agent_did, agent_name};
+use semiont::identity::{agent_did, engine_name};
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
 use semiont::session::{
     OpenedSession, SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason,
@@ -2805,7 +2805,7 @@ async fn a_worker(
     let (provider, model) = ("ollama", "gemma3:4b");
     let generator = AgentSoftware {
         id: Some(agent.did().to_string()),
-        name: Some(agent_name(provider, model)),
+        name: Some(engine_name(provider, model)),
         provider: Some(provider.to_owned()),
         model: Some(model.to_owned()),
         ..AgentSoftware::new()

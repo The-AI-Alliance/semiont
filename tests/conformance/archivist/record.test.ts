@@ -47,9 +47,9 @@ withArchivist('the record, across restarts', (world) => {
     const { id, annotationId } = await annotated(world(), 'rebuilt');
     const curator = await world().person('curator');
     await curator.ask('frame:add-tag-schema', { schema: { id: 'rebuilt', name: 'Rebuilt', description: 'Survives', domain: 'general', tags: [] } });
-    await curator.emit('person:profile', { name: 'The Curator' });
-    await curator.fact('person:profiled', (e) => e.payload['name'] === 'The Curator');
-    const before = { view: world().view(id), types: world().projection('entitytypes.json'), schemas: world().projection('tagschemas.json'), people: world().projection('people.json'), entry: world().storageUriEntry('file://survives/rebuilt.md') };
+    await curator.emit('principal:profile', { name: 'The Curator' });
+    await curator.fact('principal:profiled', (e) => e.payload['name'] === 'The Curator');
+    const before = { view: world().view(id), types: world().projection('entitytypes.json'), schemas: world().projection('tagschemas.json'), profiles: world().projection('profiles.json'), entry: world().storageUriEntry('file://survives/rebuilt.md') };
     expect(before.entry).toEqual({ uri: 'file://survives/rebuilt.md', resourceId: id });
 
     await world().archivist.stop();
@@ -59,7 +59,7 @@ withArchivist('the record, across restarts', (world) => {
     expect(world().view(id)).toEqual(before.view);
     expect(world().projection('entitytypes.json')).toEqual(before.types);
     expect(world().projection('tagschemas.json')).toEqual(before.schemas);
-    expect(world().projection('people.json')).toEqual(before.people);
+    expect(world().projection('profiles.json')).toEqual(before.profiles);
     expect(world().storageUriEntry('file://survives/rebuilt.md')).toEqual(before.entry);
 
     const reader = await world().person('reader');

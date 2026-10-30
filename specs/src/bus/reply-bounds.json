@@ -26,13 +26,13 @@
         "grows": "with the knowledge base's tag schemas"
       }
     },
-    "browse:agents-requested": {
-      "response.agents": {
-        "grows": "with the knowledge base's collaborators"
+    "browse:engines-requested": {
+      "response.engines": {
+        "grows": "with the knowledge base's engines"
       }
     },
-    "browse:people-requested": {
-      "response.people": {
+    "browse:profiles-requested": {
+      "response.profiles": {
         "by": "dids"
       }
     },
@@ -100,17 +100,17 @@
     },
     "gather:limits-requested": {
       "response.limits": {
-        "grows": "with the (provider, model) pairs the service serves"
+        "grows": "with the engines the service holds a client for"
       }
     },
     "job:limits-requested": {
       "response.limits": {
-        "grows": "with the (provider, model) pairs the service serves"
+        "grows": "with the engines the service holds a client for"
       }
     },
     "match:limits-requested": {
       "response.limits": {
-        "grows": "with the (provider, model) pairs the service serves"
+        "grows": "with the engines the service holds a client for"
       }
     },
     "job:status-requested": {

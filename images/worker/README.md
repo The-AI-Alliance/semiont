@@ -40,7 +40,7 @@ commits what the answer gives, and reports where the job stands.
 
 **It pulls.** At every moment it becomes idle (start, settle, a matching `job:queued` while
 parked, reconnect) it asks the [dispatcher](../dispatcher/README.md) for the next job among
-those it serves, and parks when told nothing is pending. `job:queued` is a wake-up with no
+those it claims, and parks when told nothing is pending. `job:queued` is a wake-up with no
 memory, not a reservation. Claims are atomic, so several workers can run against one queue
 without coordination.
 
@@ -54,9 +54,9 @@ The worker is **one agent**: its service account at the knowledge base's issuer,
 once. The token the issuer grants is its bearer at the gateway, and the DID the gateway names
 it by (`GET /api/users/me`) is what the bus stamps on every event it emits.
 
-It runs **one engine for each entry of `agents`** in its
-[configuration document](#configuration): a provider and a model, and the jobs that engine
-serves. The engines of one service work at once, over the agent's one stream, and each holds
+It runs **one engine for each entry of `engines`** in its
+[configuration document](#configuration): a provider and a model, and the jobs it does with
+that engine. The engines of one service work at once, over the agent's one stream, and each holds
 one job at a time. An engine is no part of who the agent is: the `generator` on everything a
 job makes names the agent by its DID and the engine that made it, so `_userId` on the bus and
 the `generator` on every annotation refer to the same agent.
@@ -99,7 +99,7 @@ defaults nothing in it.
 | --- | --- |
 | `gatewayUrl` | the gateway's URL |
 | `identity.issuer` | the issuer its service account signs in at |
-| `agents` | the engines: each a provider and a model, the jobs it claims, the provider's address, and the variable holding its key |
+| `engines` | the engines: each a provider and a model, the jobs it claims with it, the provider's address, and the variable holding its key |
 | `modelCatalogue` | the path of the model catalogue |
 | `port` | the health port |
 | `logLevel`, `logFormat` | how it logs |
@@ -140,7 +140,7 @@ image is built with every extra, so it is not rebuilt to be pointed at another p
 
 **The service can be configured for any of the seven providers the protocol names:**
 `anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An engine of its
-document ([`WorkerAgentConfig`](../../specs/src/components/schemas/WorkerAgentConfig.json))
+document ([`WorkerEngineConfig`](../../specs/src/components/schemas/WorkerEngineConfig.json))
 names one of them, and a document that names another is refused when the service starts. A
 model of `google`, `openai` or `together` is asked with what the model catalogue says of it,
 which the image carries at `/usr/share/semiont/model-catalogue.json` and the document names

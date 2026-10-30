@@ -1,6 +1,6 @@
 'use client';
 
-import type { Collaborator, ConnectionState } from '@semiont/core';
+import type { ConnectionState, EngineWithLimits } from '@semiont/core';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
 
@@ -43,15 +43,15 @@ interface Props {
   lastEventTimestamp?: string;
   knowledgeBaseName?: string;
   /**
-   * The KB's collaborator roster (`client.browse.agents()`, typically via
-   * `useCollaborators`). Optional so hosts that never wire it — including
-   * external consumers of this package — render without the roster section.
+   * The KB's engines (`client.browse.engines()`, typically via
+   * `useEngines`). Optional so hosts that never wire it — including
+   * external consumers of this package — render without the engines section.
    *
    * Each entry's `limits` is absent whenever discovery could not answer *right
    * now*, so a missing ceiling is normal and shows as no ceiling rather than as
    * an error.
    */
-  collaborators?: Collaborator[];
+  engines?: EngineWithLimits[];
 }
 
 export function CollaborationPanel({
@@ -59,13 +59,9 @@ export function CollaborationPanel({
   eventCount,
   lastEventTimestamp,
   knowledgeBaseName,
-  collaborators
+  engines = []
 }: Props) {
   const t = useTranslations('CollaborationPanel');
-
-  // The roster's engines: each a provider and a model, with the inference
-  // ceilings its key holder reported.
-  const engines = collaborators ?? [];
 
   // Healthy = live, or briefly flapping. Only genuinely sustained
   // disconnects surface as "Disconnected" in the UI.
@@ -153,11 +149,11 @@ export function CollaborationPanel({
         </div>
       </div>
 
-      {/* Collaborators roster — software agents and their discovered ceilings */}
+      {/* Engines — each a provider and a model, with its discovered ceilings */}
       {engines.length > 0 && (
         <div className="semiont-collaboration-panel__section semiont-collaboration-panel__section--bordered">
           <h3 className="semiont-collaboration-panel__heading">
-            {t('collaborators')}
+            {t('engines')}
           </h3>
           {engines.map((entry) => {
             const { provider, model } = entry.engine;
@@ -178,24 +174,24 @@ export function CollaborationPanel({
             return (
               <div
                 key={`${provider}:${model}`}
-                className="semiont-collaboration-panel__collaborator"
-                data-testid="semiont-collaborator-row"
+                className="semiont-collaboration-panel__engine"
+                data-testid="semiont-engine-row"
               >
-                <div className="semiont-collaboration-panel__collaborator-id">
-                  <span className="semiont-collaboration-panel__collaborator-provider">
+                <div className="semiont-collaboration-panel__engine-id">
+                  <span className="semiont-collaboration-panel__engine-provider">
                     {provider}
                   </span>
-                  <span className="semiont-collaboration-panel__collaborator-model">
+                  <span className="semiont-collaboration-panel__engine-model">
                     {model}
                   </span>
                 </div>
-                {entry.serves && entry.serves.length > 0 && (
-                  <div className="semiont-collaboration-panel__collaborator-jobs">
-                    {entry.serves.map((filter) => (filter.jobType === 'mark' ? filter.params.motivation : filter.jobType)).join(', ')}
+                {entry.jobs && entry.jobs.length > 0 && (
+                  <div className="semiont-collaboration-panel__engine-jobs">
+                    {entry.jobs.map((filter) => (filter.jobType === 'mark' ? filter.params.motivation : filter.jobType)).join(', ')}
                   </div>
                 )}
                 {ceiling && (
-                  <div className="semiont-collaboration-panel__collaborator-limits">
+                  <div className="semiont-collaboration-panel__engine-limits">
                     {ceiling}
                   </div>
                 )}

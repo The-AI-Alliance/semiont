@@ -43,7 +43,7 @@ class IdentityTest {
     @TestFactory
     fun anEngineIsNamedAsTheTableNamesOne(): List<DynamicTest> = principals.getValue("engines").jsonArray.map { it.jsonObject }.map { case ->
         DynamicTest.dynamicTest(case.text("why")) {
-            assertEquals(case.text("name"), agentName(case.text("provider"), case.text("model")))
+            assertEquals(case.text("name"), engineName(case.text("provider"), case.text("model")))
         }
     }
 

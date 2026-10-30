@@ -44,7 +44,7 @@ private fun everything(world: KbWorld): List<Cached<*>> {
         world.client.match.resources("a search"),
         browse.entityTypes(),
         browse.tagSchemas(),
-        browse.agents(),
+        browse.engines(),
     )
 }
 

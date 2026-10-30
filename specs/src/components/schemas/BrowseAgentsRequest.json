@@ -1,5 +1,0 @@
-{
-  "type": "object",
-  "description": "Request to browse the knowledge base's roster: the engines its Inference document names",
-  "properties": {}
-}

@@ -97,7 +97,7 @@
     "reconnecting": "Menghubungkan kembali ke server...",
     "sharing": "Berbagi",
     "collaborationComingSoon": "Fitur kolaborasi segera hadir",
-    "collaborators": "Kolaborator",
+    "engines": "Mesin",
     "ceilings": "{{contextTokens}} masuk / {{maxOutputTokens}} keluar",
     "sharedWindow": "Jendela {{contextTokens}}"
   },

@@ -12,9 +12,9 @@ extra. It reads only: of the vector index it names what searches, and never
 what writes. One module names the logger, one names OpenTelemetry, and one
 reads the process's environment and its arguments, through the package every
 Python service is built on. It opens no file of the record: what it reads of
-the record and of its people it asks the Archivist on the bus. Every channel
-its stream names is answered, followed or a reply to what it asks, and it
-answers and follows no other. The variables its code reads
+the record and of the principals' profiles it asks the Archivist on the bus.
+Every channel its stream names is answered, followed or a reply to what it
+asks, and it answers and follows no other. The variables its code reads
 by name are the ones the protocol's page lists.
 
 How its document is read, how its log is written and what exports its
@@ -54,8 +54,8 @@ HANDED = [
     "Degraded",
     "Described",
     "GraphReads",
-    "People",
-    "PeopleUnread",
+    "Profiles",
+    "ProfilesUnread",
     "Projection",
     "Record",
     "Settled",
@@ -324,7 +324,7 @@ def test_it_reads_only() -> None:
 
 
 def test_it_opens_no_file_of_the_record() -> None:
-    # What it reads of the record and of its people it asks the Archivist on the bus (`record.py`). The one module that
+    # What it reads of the record and of the principals' profiles it asks the Archivist on the bus (`record.py`). The one module that
     # names a path is the one that reads its document, which names the path of the model catalogue.
     assert importing("pathlib") == ["service.py"]
     for opening in ("open(", ".read_bytes(", ".read_text(", "to_thread("):

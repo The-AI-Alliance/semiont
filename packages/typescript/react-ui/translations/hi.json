@@ -97,7 +97,7 @@
     "reconnecting": "सर्वर से पुनः कनेक्ट हो रहा है...",
     "sharing": "साझाकरण",
     "collaborationComingSoon": "सहयोग सुविधाएं जल्द आ रही हैं",
-    "collaborators": "सहयोगी",
+    "engines": "इंजन",
     "ceilings": "{{contextTokens}} इनपुट / {{maxOutputTokens}} आउटपुट",
     "sharedWindow": "{{contextTokens}} विंडो"
   },

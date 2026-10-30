@@ -9,9 +9,9 @@ use semiont::channels::{
     JobAssign, JobAssigned, JobComplete, JobCompleted, JobFailed, JobStart, JobStarted, MarkAdded,
     MarkArchive, MarkArchived, MarkBodyUpdated, MarkCommit, MarkCreateRequest, MarkDelete,
     MarkEntityTagAdded, MarkEntityTagRemoved, MarkRemoved, MarkUnarchive, MarkUnarchived,
-    MarkUpdateEntityTypes, PersonProfile, PersonProfiled, YieldCloneCreate, YieldClonePersist,
-    YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCloned, YieldCreate, YieldCreated,
-    YieldUpdate, YieldUpdated,
+    MarkUpdateEntityTypes, PrincipalProfile, PrincipalProfiled, YieldCloneCreate,
+    YieldClonePersist, YieldCloneResourceRequested, YieldCloneTokenRequested, YieldCloned,
+    YieldCreate, YieldCreated, YieldUpdate, YieldUpdated,
 };
 use semiont::media_types::{AnchoringModel, capabilities_of};
 use semiont::roles::WORKER_ROLE;
@@ -544,16 +544,16 @@ pub async fn mark_update_entity_types(archivist: &Archivist, command: &Object) -
     Ok(json!({}))
 }
 
-/// `person:profile`: record the sender's name, when it is new.
-pub async fn person_profile(archivist: &Archivist, command: &Object) -> Answered {
-    let user = sender(PersonProfile::NAME, command)?;
-    let people = tokio::task::block_in_place(|| archivist.record().projections.people())?;
-    if people.get(user).and_then(|profile| profile.get("name")) == command.get("name") {
+/// `principal:profile`: record the sender's name, when it is new.
+pub async fn principal_profile(archivist: &Archivist, command: &Object) -> Answered {
+    let user = sender(PrincipalProfile::NAME, command)?;
+    let profiles = tokio::task::block_in_place(|| archivist.record().projections.profiles())?;
+    if profiles.get(user).and_then(|profile| profile.get("name")) == command.get("name") {
         return Ok(json!({}));
     }
     let mut payload = Object::new();
     carry(&mut payload, "name", command.get("name"));
-    archivist.append(event(PersonProfiled::NAME, None, user, payload))?;
+    archivist.append(event(PrincipalProfiled::NAME, None, user, payload))?;
     Ok(json!({}))
 }
 

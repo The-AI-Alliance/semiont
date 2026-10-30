@@ -201,7 +201,7 @@
       "verdict": "accepted"
     },
     {
-      "why": "a provider the roster does not name",
+      "why": "a provider no engine can name",
       "schema": "Inference",
       "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
       "patch": { "spec": { "providers": { "mistral": {} } } },
@@ -210,21 +210,21 @@
       "reason": "not-allowed"
     },
     {
-      "why": "a roster with no actors",
+      "why": "engines with none for the actors",
       "schema": "Inference",
       "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
-      "patch": { "spec": { "roster": { "actors": null } } },
+      "patch": { "spec": { "engines": { "actors": null } } },
       "verdict": "refused",
-      "at": "/spec/roster/actors",
+      "at": "/spec/engines/actors",
       "reason": "missing-required"
     },
     {
-      "why": "a role served by a provider the roster does not name",
+      "why": "a job's engine of a provider no engine can name",
       "schema": "Inference",
       "base": "packages/go/launcher/testdata/kb/.semiont/stack/inference/anthropic.yaml",
-      "patch": { "spec": { "roster": { "workers": { "yield": { "provider": "mistral" } } } } },
+      "patch": { "spec": { "engines": { "jobs": { "yield": { "provider": "mistral" } } } } },
       "verdict": "refused",
-      "at": "/spec/roster/workers/yield/provider",
+      "at": "/spec/engines/jobs/yield/provider",
       "reason": "not-allowed"
     },
     {

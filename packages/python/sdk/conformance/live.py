@@ -21,7 +21,7 @@ from semiont.events import Events
 from semiont.http import HttpTransport, Timing
 from semiont.identifiers import AnnotationId, InvalidIdentifier, ResourceId
 from semiont.model import WireModel
-from semiont.namespaces.browse import Collaborator
+from semiont.namespaces.browse import EngineWithLimits
 from semiont.namespaces.follow import Delegation
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
@@ -29,7 +29,7 @@ from semiont.transport import ConnectionState
 from semiont.types import GenerationJobParams, JobCompleteCommand, MarkJobParams
 from semiont.watched import Variable
 
-type _Shown = WireModel | Collaborator | str | Sequence[_Shown]
+type _Shown = WireModel | EngineWithLimits | str | Sequence[_Shown]
 """What a live query's value is made of."""
 
 _MARK_PARAMS: Final = TypeAdapter[MarkJobParams](MarkJobParams)
@@ -55,7 +55,7 @@ def _as_the_wire_had_it(value: _Shown) -> JsonValue:
         return value
     if isinstance(value, WireModel):
         return value.model_dump(mode="json", exclude_unset=True)
-    if isinstance(value, Collaborator):
+    if isinstance(value, EngineWithLimits):
         # The limits sit beside the entry's own fields.
         entry: dict[str, JsonValue] = value.entry.model_dump(mode="json", exclude_unset=True)
         if value.limits is not None:
@@ -133,8 +133,8 @@ def _query(client: SemiontClient[HttpTransport], query: Arguments) -> Cached[_Sh
             return client.browse.entity_types()
         case "tagSchemas":
             return client.browse.tag_schemas()
-        case "agents":
-            return client.browse.agents()
+        case "engines":
+            return client.browse.engines()
         case _:
             assert_never(named)
 

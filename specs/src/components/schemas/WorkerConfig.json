@@ -22,18 +22,18 @@
       ],
       "additionalProperties": false
     },
-    "agents": {
+    "engines": {
       "type": "array",
       "minItems": 1,
-      "description": "The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. They are the knowledge base's Inference document's roster as it stands, with no fallback, so a job no agent here accepts is not claimed by this worker.",
+      "description": "The engines this worker runs, and the jobs it does with each. The worker signs in once, as its own account, and claims each engine's jobs for it. They are the knowledge base's Inference document's engines as they stand, with no fallback, so a job no engine here is used for is not claimed by this worker.",
       "items": {
-        "$ref": "./WorkerAgentConfig.json"
+        "$ref": "./WorkerEngineConfig.json"
       }
     },
     "modelCatalogue": {
       "type": "string",
       "minLength": 1,
-      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it."
+      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an engine of one of those providers refuses to start where the file cannot be read, and where it states nothing of that engine's model. A worker with no such engine does not read it."
     },
     "port": {
       "type": "integer",
@@ -51,7 +51,7 @@
   "required": [
     "gatewayUrl",
     "identity",
-    "agents",
+    "engines",
     "modelCatalogue",
     "port",
     "logLevel",

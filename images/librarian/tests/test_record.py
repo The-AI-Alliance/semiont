@@ -1,4 +1,4 @@
-"""What a Librarian reads of the record and of its people, each asked of the Archivist over the bus.
+"""What a Librarian reads of the record and of the profiles of the principals, each asked of the Archivist over the bus.
 
 Each read is answered here as the Archivist answers it, through a transport
 whose stream names the replies of `READ` and no other: an operation the
@@ -20,8 +20,8 @@ from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
 from semiont.testing import DropReply, FaultAction, FaultyTransport, Refuse
 
-from semiont_librarian.reads import Described, PeopleUnread
-from semiont_librarian.record import READ, BusPeople, BusRecord
+from semiont_librarian.reads import Described, ProfilesUnread
+from semiont_librarian.record import READ, BusProfiles, BusRecord
 
 R1: Final = ResourceId("res-1")
 NOTE_ID: Final = AnnotationId("ann-1")
@@ -37,8 +37,8 @@ def archivist(operation: str, payload: Mapping[str, JsonValue]) -> JsonValue:
         return {"resource": written(HELD), "lastSequence": 3}
     if operation == "browse:annotation-requested":
         return {"annotation": written(NOTE), "resource": written(HELD), "resolvedResource": None}
-    if operation == "browse:people-requested":
-        return {"people": {ADA_ID: {"name": "Ada Lovelace", "since": RECORDED}}}
+    if operation == "browse:profiles-requested":
+        return {"profiles": {ADA_ID: {"name": "Ada Lovelace", "since": RECORDED}}}
     raise AssertionError(f"the Librarian asked {operation}, which it is not to")
 
 
@@ -146,11 +146,11 @@ def test_an_annotation_read_the_archivist_does_not_answer_is_raised() -> None:
     run(scenario())
 
 
-def test_the_people_are_asked_by_the_dids_given_and_each_that_has_a_profile_is_answered() -> None:
+def test_the_profiles_are_asked_by_the_dids_given_and_each_that_has_one_is_answered() -> None:
     async def scenario() -> None:
         transport = wire()
-        assert await BusPeople(Bus(transport)).of([ADA_ID, GRACE_ID]) == LOVELACE
-        assert asked(transport) == [("browse:people-requested", {"dids": [ADA_ID, GRACE_ID]})]
+        assert await BusProfiles(Bus(transport)).of([ADA_ID, GRACE_ID]) == LOVELACE
+        assert asked(transport) == [("browse:profiles-requested", {"dids": [ADA_ID, GRACE_ID]})]
         await transport.close()
 
     run(scenario())
@@ -159,39 +159,39 @@ def test_the_people_are_asked_by_the_dids_given_and_each_that_has_a_profile_is_a
 def test_no_one_is_asked_after_for_no_dids_nor_for_a_text_that_is_no_did() -> None:
     async def scenario() -> None:
         transport = wire()
-        people = BusPeople(Bus(transport))
-        assert await people.of([]) == {}
-        assert await people.of(["constructor", "an id with spaces"]) == {}
+        profiles = BusProfiles(Bus(transport))
+        assert await profiles.of([]) == {}
+        assert await profiles.of(["constructor", "an id with spaces"]) == {}
         assert asked(transport) == []
-        assert await people.of(["constructor", ADA_ID]) == LOVELACE
-        assert asked(transport) == [("browse:people-requested", {"dids": [ADA_ID]})]
+        assert await profiles.of(["constructor", ADA_ID]) == LOVELACE
+        assert asked(transport) == [("browse:profiles-requested", {"dids": [ADA_ID]})]
         await transport.close()
 
     run(scenario())
 
 
-def test_more_people_than_one_request_may_ask_after_are_asked_after_in_parts_each_once() -> None:
+def test_more_principals_than_one_request_may_ask_after_are_asked_after_in_parts_each_once() -> None:
     async def scenario() -> None:
         transport = wire()
         many = [f"did:web:example.org:users:person-{n}" for n in range(501)]
-        assert await BusPeople(Bus(transport)).of([*many, ADA_ID, ADA_ID]) == LOVELACE
+        assert await BusProfiles(Bus(transport)).of([*many, ADA_ID, ADA_ID]) == LOVELACE
         assert asked(transport) == [
-            ("browse:people-requested", {"dids": many[:500]}),
-            ("browse:people-requested", {"dids": [many[500], ADA_ID]}),
+            ("browse:profiles-requested", {"dids": many[:500]}),
+            ("browse:profiles-requested", {"dids": [many[500], ADA_ID]}),
         ]
         await transport.close()
 
     run(scenario())
 
 
-def test_people_that_cannot_be_read_are_unread() -> None:
+def test_profiles_that_cannot_be_read_are_unread() -> None:
     def refuse(operation: str, payload: Mapping[str, JsonValue]) -> Mapping[str, JsonValue] | None:
         return {"code": "peer-unavailable", "message": "nothing answers"}
 
     async def scenario() -> None:
         transport = wire(refuse)
-        with pytest.raises(PeopleUnread) as unread:
-            await BusPeople(Bus(transport)).of([ADA_ID])
+        with pytest.raises(ProfilesUnread) as unread:
+            await BusProfiles(Bus(transport)).of([ADA_ID])
         assert isinstance(unread.value.__cause__, BusRequestError)
         await transport.close()
 

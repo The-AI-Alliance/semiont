@@ -1,0 +1,5 @@
+{
+  "type": "object",
+  "description": "Request for the knowledge base's engines: those its Inference document names",
+  "properties": {}
+}

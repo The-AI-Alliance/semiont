@@ -97,7 +97,7 @@
     "reconnecting": "Återansluter till servern...",
     "sharing": "Delning",
     "collaborationComingSoon": "Samarbetsfunktioner kommer snart",
-    "collaborators": "Medarbetare",
+    "engines": "Motorer",
     "ceilings": "{{contextTokens}} in / {{maxOutputTokens}} ut",
     "sharedWindow": "{{contextTokens}} fönster"
   },

@@ -225,7 +225,7 @@ class Silent:
     """A model that is asked and never answers, until its test lets it."""
 
     def __init__(self) -> None:
-        self.provider: Final = "mock"
+        self.provider: Final = "ollama"
         self.model_id: Final = "mock-model"
         self.max_concurrency: Final = 1
         self.verify_detection_yield: Final = False

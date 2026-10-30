@@ -72,7 +72,7 @@ def test_each_driver_says_who_it_is_and_how_it_is_to_be_used() -> None:
         ("openai", "gpt-x", 4),
         ("together", "acme/Model-X", 4),
         ("vllm", "served-x", 4),
-        ("mock", "mock-model", 1),
+        ("ollama", "mock-model", 1),
     ]
     # Every real provider's detections are count-verified. The mock's are not: a count call takes a reply off its list.
     assert [driver.verify_detection_yield for driver in every_driver()] == [True, True, True, True, True, True, True, False]

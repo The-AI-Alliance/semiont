@@ -32,7 +32,7 @@ These are appended to the event log. Everything else on this page is transient.
 | A resource's own facts | `mark:entity-tag-added`, `mark:entity-tag-removed`, `mark:archived`, `mark:unarchived` | the resource's viewers |
 | Vocabulary | `frame:entity-type-added`, `frame:tag-schema-added` | everyone |
 | Jobs | `job:started`, `job:assigned`, `job:completed`, `job:failed` | the resource's viewers |
-| People | `person:profiled` | the services that name it |
+| Profiles | `principal:profiled` | the services that name it |
 
 `mark:added` and `mark:body-updated` are delivered with the annotation as it stands, so a client holding it updates in place.
 
@@ -53,7 +53,7 @@ These are appended to the event log. Everything else on this page is transient.
 
 ## Commands
 
-Directives with no reply, each owned by one handler: `job:start`, `job:assign`, `job:checkpoint`, `job:cancel`, `mark:update-body` and `person:profile`.
+Directives with no reply, each owned by one handler: `job:start`, `job:assign`, `job:checkpoint`, `job:cancel`, `mark:update-body` and `principal:profile`.
 
 ## Operations
 

@@ -67,7 +67,7 @@ eachWorkerService('a job a worker does not do', (world) => {
     const job = markJob(w, 'not-served', { motivation: 'assessing' });
     // No dispatcher does this: the claim asks for highlighting jobs, and is handed an assessing one.
     w.hooks.handAnyJob = true;
-    const served = await w.start({ agents: [w.entry(w.engines[0]!, [marks('highlighting')])] });
+    const served = await w.start({ engines: [w.entry(w.engines[0]!, [marks('highlighting')])] });
     const failure = await settled(served, job, 'job:fail');
 
     const { error, ...rest } = failure;

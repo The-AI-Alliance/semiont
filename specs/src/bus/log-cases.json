@@ -235,13 +235,13 @@
     {
       "why": "a name that only contains one of the names is another name, and is shown: the member that names the environment variable a credential is read from, an issuer's endpoint, who a request is authenticated as, and where authorization is had",
       "payload": {
-        "agents": [{ "baseUrl": "https://api.example", "apiKeyEnv": "PROVIDER_API_KEY" }],
+        "engines": [{ "baseUrl": "https://api.example", "apiKeyEnv": "PROVIDER_API_KEY" }],
         "broker": { "passwordEnv": "BROKER_PASSWORD" },
         "signIn": { "tokenEndpoint": "https://issuer.example/realms/kb/token" },
         "status": { "authenticatedAs": "did:web:example.org:users:alice", "authorization_servers": ["https://issuer.example/realms/kb"] }
       },
       "shown": {
-        "agents": [{ "baseUrl": "https://api.example", "apiKeyEnv": "PROVIDER_API_KEY" }],
+        "engines": [{ "baseUrl": "https://api.example", "apiKeyEnv": "PROVIDER_API_KEY" }],
         "broker": { "passwordEnv": "BROKER_PASSWORD" },
         "signIn": { "tokenEndpoint": "https://issuer.example/realms/kb/token" },
         "status": { "authenticatedAs": "did:web:example.org:users:alice", "authorization_servers": ["https://issuer.example/realms/kb"] }

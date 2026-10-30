@@ -22,18 +22,18 @@ import semiont.identifiers.ResourceId
 import semiont.transport.ContentTransport
 import semiont.types.Annotation
 import semiont.types.AttributedEvent
-import semiont.types.BrowseAgentsRequest
 import semiont.types.BrowseAnnotationRequest
+import semiont.types.BrowseEnginesRequest
 import semiont.types.BrowseEntityTypesRequest
 import semiont.types.BrowseEventsRequest
 import semiont.types.BrowseResourceRequest
 import semiont.types.BrowseResourcesRequest
 import semiont.types.BrowseTagSchemasRequest
+import semiont.types.EngineLimits
 import semiont.types.GatherReferencedByRequest
 import semiont.types.GetAnnotationsResponse
 import semiont.types.GetReferencedByResponseReferencedByItem
 import semiont.types.InferenceLimitsRequest
-import semiont.types.InferencePairLimits
 import semiont.types.ListResourcesResponse
 import semiont.types.MatchResourcesRequest
 import semiont.types.MatchResourcesResponse
@@ -50,7 +50,7 @@ private const val KEPT_VERSION = 1L
 /** How many resources a list asks for when its caller states no limit. Every SDK asks for as many: client/surface.json's cases hold each to it. */
 internal const val LIST_LIMIT = 100L
 
-/** The key of each key holder's report of its models' limits: the name of the operation that asks it. */
+/** The key of each key holder's report of its engines' limits: the name of the operation that asks it. */
 internal val LIMITS_HOLDERS: List<String> = LIMITS_OPERATIONS.map { it.request.name }
 
 private val HOLDERS = LIMITS_OPERATIONS.associateBy { it.request.name }
@@ -93,9 +93,9 @@ internal class Live(private val links: Links, private val content: ContentTransp
         links.scope,
         kept("tag-schemas", String.serializer(), ListSerializer(TagSchema.serializer())),
     )
-    val agents = Cache({ _: String -> links.request(Operations.BROWSE_AGENTS_REQUESTED, BrowseAgentsRequest).response.agents }, links.scope)
+    val engines = Cache({ _: String -> links.request(Operations.BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest).response.engines }, links.scope)
 
-    /** Each key holder's report of its models' limits, by the operation that asks it. */
+    /** Each key holder's report of its engines' limits, by the operation that asks it. */
     val limits = Cache(::limitsOf, links.scope)
     val events = Cache(::eventsOf, links.scope)
     val referencedBy = Cache(::referencedByOf, links.scope)
@@ -130,11 +130,11 @@ internal class Live(private val links: Links, private val content: ContentTransp
     }
 
     /**
-     * The models one key holder reports the limits of. A holder that is down,
-     * silent or mistaken reports none: its models show no limits, and the
-     * directory is not held up by it for longer than a request waits.
+     * The engines one key holder reports the limits of. A holder that is down,
+     * silent or mistaken reports none: its engines show no limits, and the
+     * engines are not held up by it for longer than a request waits.
      */
-    private suspend fun limitsOf(holder: String): List<InferencePairLimits> = try {
+    private suspend fun limitsOf(holder: String): List<EngineLimits> = try {
         links.request(HOLDERS.getValue(holder), InferenceLimitsRequest).response.limits
     } catch (_: SemiontError) {
         emptyList()
@@ -186,9 +186,9 @@ internal class Live(private val links: Links, private val content: ContentTransp
         }
     }
 
-    /** The directory is out of date, and so is what each key holder reported. */
-    fun invalidateAgents() {
-        agents.invalidate(WHOLE)
+    /** The engines are out of date, and so is what each key holder reported. */
+    fun invalidateEngines() {
+        engines.invalidate(WHOLE)
         LIMITS_HOLDERS.forEach(limits::invalidate)
     }
 
@@ -200,7 +200,7 @@ internal class Live(private val links: Links, private val content: ContentTransp
         annotation.close()
         entityTypes.close()
         tagSchemas.close()
-        agents.close()
+        engines.close()
         limits.close()
         events.close()
         referencedBy.close()

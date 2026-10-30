@@ -639,7 +639,7 @@ pub trait ContentTransport: Send + Sync + 'static {
         resource_id: &'a ResourceId,
     ) -> BoxFuture<'a, Result<GetResourceResponse, TransportError>>;
 
-    /// A resource's annotations, with the people they mention named, and how
+    /// A resource's annotations, with the persons they mention named, and how
     /// many there are.
     fn get_annotations<'a>(
         &'a self,

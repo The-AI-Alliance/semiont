@@ -95,7 +95,7 @@ class Unasked:
     """A provider nothing is asked of: what a processor calls is stood in for, and a stand-in asks no model."""
 
     def __init__(self, max_concurrency: int) -> None:
-        self.provider: Final = "test"
+        self.provider: Final = "ollama"
         self.model_id: Final = "test"
         self.max_concurrency: Final = max_concurrency
         self.verify_detection_yield: Final = False

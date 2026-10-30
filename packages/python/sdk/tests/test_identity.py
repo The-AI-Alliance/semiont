@@ -10,7 +10,7 @@ import pytest
 from spec import SPEC, JsonObject, objects, read, text
 
 from semiont.identifiers import UserId
-from semiont.identity import agent_did, agent_name, kb_did, kb_resource, person_did
+from semiont.identity import agent_did, engine_name, kb_did, kb_resource, person_did
 
 PRINCIPALS = read(SPEC / "principals/cases.json")
 PEOPLE = objects(PRINCIPALS["people"], "people")
@@ -39,7 +39,7 @@ def test_an_agent_is_named_as_the_table_names_one(case: JsonObject) -> None:
 
 @pytest.mark.parametrize("case", ENGINES, ids=why)
 def test_an_engine_is_named_as_the_table_names_one(case: JsonObject) -> None:
-    assert agent_name(text(case["provider"], "provider"), text(case["model"], "model")) == case["name"]
+    assert engine_name(text(case["provider"], "provider"), text(case["model"], "model")) == case["name"]
 
 
 @pytest.mark.parametrize("case", KNOWLEDGE_BASES, ids=why)

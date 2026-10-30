@@ -97,7 +97,7 @@
     "reconnecting": "Opětovné připojování k serveru...",
     "sharing": "Sdílení",
     "collaborationComingSoon": "Funkce spolupráce budou brzy k dispozici",
-    "collaborators": "Spolupracovníci",
+    "engines": "Enginy",
     "ceilings": "{{contextTokens}} vstup / {{maxOutputTokens}} výstup",
     "sharedWindow": "Okno {{contextTokens}}"
   },

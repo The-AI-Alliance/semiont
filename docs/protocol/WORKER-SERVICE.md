@@ -74,12 +74,12 @@ holds the count.
 - **B4.** A provider's key is named, not stated: an engine's `apiKeyEnv` is the
   name of the environment variable that holds it. When the variable an engine
   names is unset or empty, the service writes `[fatal]
-  agents[<index>].apiKeyEnv names a variable that is not set in the worker's
+  engines[<index>].apiKeyEnv names a variable that is not set in the worker's
   environment` and exits with status 1. The line says which member named the
   variable and never what it named: a key written where the name belongs is a
   value found in the document, and nothing the service writes carries it. An
   engine whose provider takes a key and names no variable for one is refused by
-  `agents[<index>].apiKeyEnv` too. An engine of `google`, `openai` or
+  `engines[<index>].apiKeyEnv` too. An engine of `google`, `openai` or
   `together` is made with what a model catalogue says of its model, which
   those providers' APIs do not: the document's `modelCatalogue` is the
   catalogue file's path, which every document states, and the service
@@ -100,12 +100,13 @@ holds the count.
 ## The agent
 
 A Worker service is one **agent**: its service account at the issuer, signed
-in once. It runs one **engine** for each entry of its document's `agents`: a
-provider and a model, the jobs that engine serves, and where the provider is
-reached. An engine is no part of who the agent is. Each engine is a worker of
-its own under [WORKER-CONTRACT.md](./WORKER-CONTRACT.md): it holds one job at
-a time, and the engines of one service work at once, under the agent's one
-sign-in.
+in once, holding the worker role. It runs one **engine** for each entry of its
+document's `engines`: a provider and a model, the jobs it does with that
+engine, and where the provider is reached. An engine is no part of who the
+agent is. The service claims for each engine on its own, as
+[WORKER-CONTRACT.md](./WORKER-CONTRACT.md) has a worker claim: each engine's
+claims hold one job at a time, and the engines of one service work at once,
+under the agent's one sign-in.
 
 - **G1.** The service signs in once, as its account: it is granted a token
   for its service account at the issuer the document names, and that token is
@@ -121,8 +122,8 @@ sign-in.
   `job:cancel-requested`. It also names `job:limits-requested`
   ([Limits](#limits)). It names no scope.
   *Held by `worker-service/started`.*
-- **G3.** Each engine claims with its own entry's `accepts`, as given, and
-  with no other filter.
+- **G3.** Each engine's claims name its entry's `jobs` as their `accepts`, as
+  given, and no other filter.
   *Held by `worker-service/started`.*
 - **G4.** A job is run by the engine whose claim it answered, on that engine's
   provider and model, and every message about it is sent under the agent's
@@ -136,9 +137,9 @@ sign-in.
 - **H1.** The service answers `GET /health` on the document's `port`, with no
   token asked, once the agent has signed in and opened its stream: `200`,
   `application/json`, and `{"status": "ok", "did": <the agent's DID>,
-  "workers": [...]}`. `workers` has one entry for each engine, in the order of
-  the document: its `provider` and `model`, the filters it `serves`, and what
-  a worker can say of itself
+  "engines": [...]}`. `engines` has one entry for each engine, in the order of
+  the document: its `provider` and `model`, its `jobs`, and what a worker can
+  say of itself
   ([WORKER-CONTRACT V1](./WORKER-CONTRACT.md#liveness)):
   `lastQueuedEventAt`, `lastClaimAt`, `lastFinishedAt` and `lastActivityAt`,
   each an instant or `null`; `activeJob`, `null` or the held job's `jobId`,
@@ -155,8 +156,8 @@ each of its models can take.
 
 - **M1.** The service answers `job:limits-requested` with one
   `job:limits-result`, carrying the request's correlation id: `limits`, an
-  entry for each distinct provider and model among its engines, in the order
-  of the document, each with `contextTokens`, `maxOutputTokens` and
+  entry for each distinct engine it runs, in the order of the document, each
+  its `engine` and its `limits`: `contextTokens`, `maxOutputTokens` and
   `acceptsTemperature`.
   *Held by `worker-service/limits`.*
 - **M2.** An Ollama model's limits are asked of its provider: `POST

@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { WizardFooter } from './WizardFooter';
-import type { Collaborator, GatheredContext, GenerationJobParams, SupportedMediaType } from '@semiont/core';
+import type { EngineWithLimits, GatheredContext, GenerationJobParams, SupportedMediaType } from '@semiont/core';
 import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } from '@semiont/core';
 
 /**
@@ -139,13 +139,13 @@ export interface ConfigureGenerationStepProps {
     generate: string;
   };
   /**
-   * The roster entry serving `generation` (from `useCollaborators`). When its
+   * The engine used for `yield` jobs (from `useEngines`). When its
    * `limits` are known the max-length control is hard-bounded by the model's
    * output ceiling; absent — or present without `limits`, which is normal when
    * discovery could not answer right now — the control keeps its default
    * bounds and generation still submits.
    */
-  generationAgent?: Collaborator;
+  generationEngine?: EngineWithLimits;
 }
 
 export function ConfigureGenerationStep({
@@ -157,7 +157,7 @@ export function ConfigureGenerationStep({
   onGenerate,
   defaultFolder = '',
   translations: t,
-  generationAgent,
+  generationEngine,
 }: ConfigureGenerationStepProps) {
   // CONTROLLED: Back unmounts the step, and local `useState`s would throw away
   // every typed instruction, the save path and both sliders with it.
@@ -186,14 +186,14 @@ export function ConfigureGenerationStep({
     effectivePath !== '' &&
     !effectivePath.toLowerCase().endsWith(requiredExtension.toLowerCase());
 
-  const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
+  const ceiling = generationEngine?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
   // claude-sonnet-5 refuses EVERY non-default temperature — the untouched 0.7
   // default included — so a rejecting model gets neither the control nor the
   // field, and no control silently does nothing. Only an explicit false hides
   // it: absent discovery means no claim, and the inference client suppresses
   // as the second line of defense either way.
-  const temperatureAccepted = generationAgent?.limits?.acceptsTemperature !== false;
+  const temperatureAccepted = generationEngine?.limits?.acceptsTemperature !== false;
 
   /**
    * The value that will actually be submitted: always finite, always inside
@@ -205,7 +205,7 @@ export function ConfigureGenerationStep({
   const submittedMaxTokens = clamp(parseInt(maxTokensText, 10));
 
   // Re-clamp whenever the ceiling changes — which INCLUDES its first arrival.
-  // `browse.agents()` is asynchronous, so `generationAgent` is undefined on the
+  // `browse.engines()` is asynchronous, so `generationEngine` is undefined on the
   // first render and lands later; clamping only in the `useState` initializer
   // would satisfy a mount-time test and do nothing in the running app.
   useEffect(() => {
@@ -213,7 +213,7 @@ export function ConfigureGenerationStep({
     // An empty/mid-edit field is left alone; submission clamps it anyway.
     if (Number.isFinite(n) && n > ceiling) set({ maxTokensText: String(ceiling) });
     // `set` and the draft are intentionally out of the dep list: this reacts to the
-    // CEILING arriving (browse.agents() is async), not to the user typing.
+    // CEILING arriving (browse.engines() is async), not to the user typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ceiling]);
 
@@ -397,10 +397,10 @@ export function ConfigureGenerationStep({
           never inside the 5.5rem Max Length column: a sentence in that box
           wraps one word per line and its height taxes the whole flex row. */}
       <p className="semiont-form__help semiont-form__help--row">
-        {generationAgent?.limits
+        {generationEngine?.limits
           ? t.maxLengthCeiling
               .replace('{{maxOutputTokens}}', String(ceiling))
-              .replace('{{model}}', generationAgent.engine.model)
+              .replace('{{model}}', generationEngine.engine.model)
           : t.maxLengthHelp}
       </p>
 

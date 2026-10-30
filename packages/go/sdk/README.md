@@ -215,7 +215,7 @@ attention. Each is a namespace of the client, a field of `*semiont.Client`.
 | | `Mark` | Annotate a resource | `Mark.Annotation`, `Mark.Delegate`, `Mark.UpdateEntityTypes`, `Mark.Archive` |
 | | `Bind` | Resolve an ambiguous reference to a specific resource | `Bind.Body`, `Bind.Initiate` |
 | | `Frame` | Define and grow the schema vocabulary | `Frame.AddEntityTypes`, `Frame.AddTagSchema` |
-| Reading | `Browse` | Navigate, read and observe, including who is here | `Browse.Resource`, `Browse.Annotations`, `Browse.Agents`, `Browse.Click` |
+| Reading | `Browse` | Navigate, read and observe, including the knowledge base's engines | `Browse.Resource`, `Browse.Annotations`, `Browse.Engines`, `Browse.Click` |
 | | `Match` | Search the corpus: resources by text, and candidates for a reference | `Match.Resources`, `Match.Search` |
 | | `Gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `Gather.Resource`, `Gather.Annotation`, `Gather.ReferencedBy` |
 | Attention | `Beckon` | Direct attention across participants | `Beckon.Hover`, `Beckon.Sparkle`, `Beckon.OpenResource` |

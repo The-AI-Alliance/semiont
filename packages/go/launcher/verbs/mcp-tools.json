@@ -305,7 +305,7 @@
   ],
   "leftOut": {
     "browse.annotation": "browse_annotations gives every annotation on a resource in full.",
-    "browse.agents": "Not yet asked for.",
+    "browse.engines": "Not yet asked for.",
     "browse.events": "Not yet asked for.",
     "browse.resourceAnchoredText": "Not yet asked for.",
     "browse.resourceRepresentation": "Not yet asked for.",

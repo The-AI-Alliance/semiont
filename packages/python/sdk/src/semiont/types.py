@@ -45,14 +45,12 @@ __all__ = [
     "ArchivistConfig",
     "ArchivistConfigIdentity",
     "ArchivistConfigStaging",
+    "ArchivistEngines",
+    "ArchivistEnginesActors",
+    "ArchivistEnginesJobs",
+    "ArchivistEnginesJobsMark",
     "ArchivistEventsResponse",
     "ArchivistHealth",
-    "ArchivistRoster",
-    "ArchivistRosterActors",
-    "ArchivistRosterRole",
-    "ArchivistRosterRoleProvider",
-    "ArchivistRosterWorkers",
-    "ArchivistRosterWorkersMark",
     "ArchivistStream",
     "ArchivistStreamsResponse",
     "AssessingJobParams",
@@ -70,9 +68,6 @@ __all__ = [
     "BodyOperationRemove",
     "BodyOperationReplace",
     "BodyPurpose",
-    "BrowseAgentsRequest",
-    "BrowseAgentsResult",
-    "BrowseAgentsResultResponse",
     "BrowseAnnotationHistoryRequest",
     "BrowseAnnotationHistoryResult",
     "BrowseAnnotationRequest",
@@ -83,6 +78,9 @@ __all__ = [
     "BrowseDirectoryRequestSort",
     "BrowseDirectoryResult",
     "BrowseDirectoryResultResponse",
+    "BrowseEnginesRequest",
+    "BrowseEnginesResult",
+    "BrowseEnginesResultResponse",
     "BrowseEntityTypeClickedEvent",
     "BrowseEntityTypesRequest",
     "BrowseEntityTypesResult",
@@ -95,9 +93,9 @@ __all__ = [
     "BrowseLinkClickedEvent",
     "BrowsePanelOpenEvent",
     "BrowsePanelToggleEvent",
-    "BrowsePeopleRequest",
-    "BrowsePeopleResult",
-    "BrowsePeopleResultResponse",
+    "BrowseProfilesRequest",
+    "BrowseProfilesResult",
+    "BrowseProfilesResultResponse",
     "BrowseResourceCloseEvent",
     "BrowseResourceOpenEvent",
     "BrowseResourceReorderEvent",
@@ -147,6 +145,10 @@ __all__ = [
     "DispatcherHealth",
     "DurabilityEvidence",
     "EmbeddingConfig",
+    "Engine",
+    "EngineEntry",
+    "EngineLimits",
+    "EngineProvider",
     "EnrichedResourceEvent",
     "EntityTagChangedPayload",
     "EntityTypeAddedPayload",
@@ -217,7 +219,6 @@ __all__ = [
     "InferenceLimitsRequest",
     "InferenceLimitsResult",
     "InferenceLimitsResultResponse",
-    "InferencePairLimits",
     "JanusGraphConfig",
     "Job",
     "JobAssignCommand",
@@ -291,7 +292,7 @@ __all__ = [
     "LibrarianConfigGather",
     "LibrarianConfigIdentity",
     "LibrarianConfigSearch",
-    "LibrarianModelConfig",
+    "LibrarianEngineConfig",
     "LimitRefusal",
     "LimitRefusalCode",
     "LinkingJobParams",
@@ -341,11 +342,11 @@ __all__ = [
     "NewKnowledgeBase",
     "OllamaEmbeddingConfig",
     "PdfTextItem",
-    "PeopleProjection",
     "PersistedEventId",
-    "PersonProfile",
-    "PersonProfileCommand",
-    "PersonProfiledPayload",
+    "PrincipalProfileCommand",
+    "PrincipalProfiledPayload",
+    "Profile",
+    "ProfilesProjection",
     "ProtectedResourceMetadata",
     "QdrantVectorsConfig",
     "ReplyEventId",
@@ -373,7 +374,6 @@ __all__ = [
     "ResourceUpdatedPayload",
     "ResourceUpload",
     "ResourceView",
-    "RosterEntry",
     "ScoredResource",
     "Selector",
     "SemanticMatch",
@@ -417,9 +417,9 @@ __all__ = [
     "WeaverConfig",
     "WeaverConfigArchivist",
     "WeaverConfigIdentity",
-    "WorkerAgentConfig",
     "WorkerConfig",
     "WorkerConfigIdentity",
+    "WorkerEngineConfig",
     "YieldCloneCreateCommand",
     "YieldCloneCreated",
     "YieldCloneCreatedResponse",
@@ -605,20 +605,20 @@ type BodyPurpose = Annotated[
 ]
 
 
-class BrowseAgentsRequest(WireModel, frozen=True):
+class BrowseEnginesRequest(WireModel, frozen=True):
     """
-    Request to browse the knowledge base's roster: the engines its Inference document names
+    Request for the knowledge base's engines: those its Inference document names
     """
 
 
-class BrowsePeopleRequest(WireModel, frozen=True, extra="forbid"):
+class BrowseProfilesRequest(WireModel, frozen=True, extra="forbid"):
     """
-    Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
+    Request for the profiles of some principals: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.
     """
 
     dids: Annotated[
         list[UserId],
-        Field(description="The people asked after.", max_length=500, min_length=1),
+        Field(description="The principals asked after.", max_length=500, min_length=1),
     ]
 
 
@@ -1164,28 +1164,15 @@ class InferenceLimits(WireModel, frozen=True):
         bool | None,
         Field(
             alias="acceptsTemperature",
-            description="Whether this agent's model accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim.",
+            description="Whether this engine accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim.",
         ),
     ] = None
 
 
 class InferenceLimitsRequest(WireModel, frozen=True):
     """
-    Request for the inference limits of the (provider, model) pairs one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own pairs, so no other service needs one.
+    Request for the inference limits of the engines one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own engines, so no other service needs one.
     """
-
-
-class InferencePairLimits(WireModel, frozen=True):
-    """
-    The discovered limits of one (provider, model) pair.
-    """
-
-    provider: Annotated[
-        str,
-        Field(description="The inference provider, as the KB config names it (e.g. anthropic, ollama)."),
-    ]
-    model: Annotated[str, Field(description="The model identifier, as the KB config names it.")]
-    limits: InferenceLimits
 
 
 class GraphResourceNode(WireModel, frozen=True):
@@ -1417,16 +1404,16 @@ class MarkJobDone(WireModel, frozen=True, extra="forbid"):
     ] = None
 
 
-class PersonProfileCommand(WireModel, frozen=True):
+class PrincipalProfileCommand(WireModel, frozen=True):
     """
-    Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.
+    Bus command the gateway emits when a principal ACTS, carrying the display name it just verified on its token. The Stower persists it as principal:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a principal has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the profiles projection. Emitted for a person and for an agent alike; never for a request that merely reads.
     """
 
     user_id: Annotated[
         UserId | None,
         Field(
             alias="_userId",
-            description="The person's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.",
+            description="The principal's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.",
         ),
     ] = None
     name: Annotated[
@@ -1437,9 +1424,9 @@ class PersonProfileCommand(WireModel, frozen=True):
     ]
 
 
-class PersonProfiledPayload(WireModel, frozen=True):
+class PrincipalProfiledPayload(WireModel, frozen=True):
     """
-    Payload for person:profiled — what the knowledge base's issuer said this subject is called, recorded once per change (system-level, no resourceId). The event's `userId` is the person's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into people.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
+    Payload for principal:profiled — what the knowledge base's issuer said this principal is called, recorded once per change (system-level, no resourceId). The event's `userId` is the principal's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into profiles.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
     """
 
     name: Annotated[
@@ -2861,12 +2848,12 @@ class TagSchemasProjection(WireModel, frozen=True, extra="forbid"):
     ]
 
 
-class PersonProfile(WireModel, frozen=True, extra="forbid"):
+class Profile(WireModel, frozen=True, extra="forbid"):
     """
-    What a person last said they are called, and when: the profile a `person:profiled` event gives.
+    What a principal last said it is called, and when: the profile a `principal:profiled` event gives.
     """
 
-    name: Annotated[str, Field(description="The name the person last gave.")]
+    name: Annotated[str, Field(description="The name the principal last gave.")]
     since: Annotated[str, Field(description="The timestamp of the event that gave it.")]
 
 
@@ -2953,8 +2940,8 @@ class WeaveApplied(WireModel, frozen=True):
 type BindBodyOperationOp = Annotated[Literal["add", "remove", "replace"], Field(description="The type of body operation")]
 
 
-class BrowsePeopleResultResponse(WireModel, frozen=True, extra="forbid"):
-    people: Annotated[dict[str, PersonProfile], Field(description="Each profile, keyed by DID.")]
+class BrowseProfilesResultResponse(WireModel, frozen=True, extra="forbid"):
+    profiles: Annotated[dict[str, Profile], Field(description="Each profile, keyed by DID.")]
 
 
 type BrowseDirectoryRequestSort = Literal["name", "mtime", "annotationCount"]
@@ -3120,10 +3107,6 @@ class GatheredContextMetadata(WireModel, frozen=True):
 
 class GetReferencedByResponseReferencedByItemTargetSelector(WireModel, frozen=True):
     exact: Annotated[str, Field(description="The selected text that references this resource")]
-
-
-class InferenceLimitsResultResponse(WireModel, frozen=True):
-    limits: list[InferencePairLimits]
 
 
 type JobDeclinedReason = Annotated[
@@ -3719,7 +3702,7 @@ type AnchoredTextEntriesChecksumsItem = Annotated[
 ]
 
 
-type ArchivistRosterRoleProvider = Annotated[
+type EngineProvider = Annotated[
     Literal["anthropic", "google", "llamacpp", "ollama", "openai", "together", "vllm"],
     Field(
         description="The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software."
@@ -3756,7 +3739,7 @@ type AnnotationBody = Annotated[
 
 class AttributedEvent(StoredEventResponse, frozen=True):
     """
-    A persisted event as a history reply carries it: the stored event, and the agent its `userId` identifies. The agent is derived when the reply is made — the DID read into a Person or a Software agent, and a Person's name filled in from the knowledge base's record of who its people are — and is stored nowhere. A Person the record does not name carries no `name`.
+    A persisted event as a history reply carries it: the stored event, and the agent its `userId` identifies. The agent is derived when the reply is made — the DID read into a Person or a Software agent, and a Person's name filled in from the knowledge base's profiles — and is stored nowhere. A Person the record does not name carries no `name`.
     """
 
     agent: Annotated[Agent, Field(description="Who `userId` is.")]
@@ -3824,12 +3807,12 @@ class BodyOperationReplace(WireModel, frozen=True):
     new_item: Annotated[TextualBody | SpecificResource, Field(alias="newItem")]
 
 
-class BrowsePeopleResult(WireModel, frozen=True):
+class BrowseProfilesResult(WireModel, frozen=True):
     """
-    What the knowledge base calls the people asked after: the profile of each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
+    The profiles of the principals asked after: each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.
     """
 
-    response: BrowsePeopleResultResponse
+    response: BrowseProfilesResultResponse
 
 
 class BrowseDirectoryRequest(WireModel, frozen=True):
@@ -4081,14 +4064,6 @@ class GetEventsResponse(WireModel, frozen=True):
 
 class GetTagSchemasResponse(WireModel, frozen=True):
     tag_schemas: Annotated[list[TagSchema], Field(alias="tagSchemas")]
-
-
-class InferenceLimitsResult(WireModel, frozen=True):
-    """
-    The inference limits one service discovered for its own (provider, model) pairs. A pair whose discovery is currently unavailable is absent.
-    """
-
-    response: InferenceLimitsResultResponse
 
 
 class JobCancelCommand(WireModel, frozen=True):
@@ -5179,14 +5154,14 @@ type VectorsConfig = Annotated[
 ]
 
 
-class PeopleProjection(WireModel, frozen=True, extra="forbid"):
+class ProfilesProjection(WireModel, frozen=True, extra="forbid"):
     """
-    What the people of a knowledge base are called: the file `projections/__system__/people.json` under the state directory, the sum of the `person:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the people a reply mentions. Written as JSON indented by two spaces.
+    What the principals of a knowledge base are called: the file `projections/__system__/profiles.json` under the state directory, the sum of the `principal:profiled` events. The Archivist writes it; the Archivist and the Librarian read it to name the principals a reply mentions. Written as JSON indented by two spaces.
     """
 
-    people: Annotated[
-        dict[str, PersonProfile],
-        Field(description="Each person's current profile, keyed by their DID."),
+    profiles: Annotated[
+        dict[str, Profile],
+        Field(description="Each principal's current profile, keyed by its DID."),
     ]
 
 
@@ -5214,12 +5189,12 @@ class AnchoredTextEntries(WireModel, frozen=True, extra="forbid"):
     checksums: list[AnchoredTextEntriesChecksumsItem]
 
 
-class ArchivistRosterRole(WireModel, frozen=True, extra="forbid"):
+class Engine(WireModel, frozen=True, extra="forbid"):
     """
-    The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.
+    An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.
     """
 
-    provider: ArchivistRosterRoleProvider
+    provider: EngineProvider
     model: Annotated[
         str,
         Field(description="The model identifier, as the provider names it.", min_length=1),
@@ -5424,25 +5399,25 @@ class AnchoredTextExtractedEntryLinesItem(WireModel, frozen=True, extra="forbid"
     ]
 
 
-class ArchivistRosterWorkersMark(WireModel, frozen=True, extra="forbid"):
+class ArchivistEnginesJobsMark(WireModel, frozen=True, extra="forbid"):
     """
-    The agent serving `mark` jobs of each motivation.
-    """
-
-    highlighting: ArchivistRosterRole | None = None
-    commenting: ArchivistRosterRole | None = None
-    assessing: ArchivistRosterRole | None = None
-    linking: ArchivistRosterRole | None = None
-    tagging: ArchivistRosterRole | None = None
-
-
-class ArchivistRosterActors(WireModel, frozen=True, extra="forbid"):
-    """
-    The agent serving each actor that calls a model.
+    The engine for `mark` jobs of each motivation.
     """
 
-    gatherer: ArchivistRosterRole | None = None
-    matcher: ArchivistRosterRole | None = None
+    highlighting: Engine | None = None
+    commenting: Engine | None = None
+    assessing: Engine | None = None
+    linking: Engine | None = None
+    tagging: Engine | None = None
+
+
+class ArchivistEnginesActors(WireModel, frozen=True, extra="forbid"):
+    """
+    The engine each Librarian actor that calls a model asks.
+    """
+
+    gatherer: Engine | None = None
+    matcher: Engine | None = None
 
 
 type AnnotationBodies = Annotated[
@@ -5613,6 +5588,15 @@ class GetResourceByTokenResponse(WireModel, frozen=True):
         str,
         Field(alias="expiresAt", description="ISO 8601 timestamp when token expires"),
     ]
+
+
+class EngineLimits(WireModel, frozen=True, extra="forbid"):
+    """
+    The discovered limits of one engine.
+    """
+
+    engine: Engine
+    limits: InferenceLimits
 
 
 type JobCompleteCommand = Annotated[
@@ -5865,16 +5849,16 @@ type JobFilter = Annotated[
 ]
 
 
-class WorkerAgentConfig(WireModel, frozen=True, extra="forbid"):
+class WorkerEngineConfig(WireModel, frozen=True, extra="forbid"):
     """
-    One agent a worker works as: who it is, the jobs it claims, and where its provider is reached.
+    One engine a worker runs: which it is, the jobs the worker claims to do with it, and where its provider is reached.
     """
 
-    agent: ArchivistRosterRole
-    accepts: Annotated[
+    engine: Engine
+    jobs: Annotated[
         list[JobFilter],
         Field(
-            description="The jobs this agent serves, as a claim names them (`job:claim`): the worker claims with these filters and no other.",
+            description="The jobs the worker claims to do with this engine, as a claim names them (`job:claim`'s `accepts`): it claims with these filters and no other.",
             min_length=1,
         ),
     ]
@@ -5956,12 +5940,12 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
     log_format: Annotated[LogFormat, Field(alias="logFormat")]
 
 
-class LibrarianModelConfig(WireModel, frozen=True, extra="forbid"):
+class LibrarianEngineConfig(WireModel, frozen=True, extra="forbid"):
     """
-    One model a Librarian asks: who it is, and where its provider is reached.
+    The engine a Librarian actor asks: which it is, and where its provider is reached.
     """
 
-    agent: ArchivistRosterRole
+    engine: Engine
     base_url: Annotated[
         str,
         Field(
@@ -6010,13 +5994,17 @@ class AnchoredTextExtractedEntry(WireModel, frozen=True, extra="forbid"):
     ] = None
 
 
-class ArchivistRosterWorkers(WireModel, frozen=True, extra="forbid"):
+class InferenceLimitsResultResponse(WireModel, frozen=True):
+    limits: list[EngineLimits]
+
+
+class ArchivistEnginesJobs(WireModel, frozen=True, extra="forbid"):
     """
-    The agent serving each job, keyed as a job description is: by `jobType`, and for `mark` by motivation.
+    The engine each job is done with when software does it, keyed as a job description is: by `jobType`, and for `mark` by motivation.
     """
 
-    mark: ArchivistRosterWorkersMark | None = None
-    yield_: Annotated[ArchivistRosterRole | None, Field(alias="yield")] = None
+    mark: ArchivistEnginesJobsMark | None = None
+    yield_: Annotated[Engine | None, Field(alias="yield")] = None
 
 
 class Annotation(WireModel, frozen=True):
@@ -6098,16 +6086,16 @@ class BrowseResourcesResult(WireModel, frozen=True):
     response: ListResourcesResponse
 
 
-class RosterEntry(WireModel, frozen=True, extra="forbid"):
+class EngineEntry(WireModel, frozen=True, extra="forbid"):
     """
-    One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
+    One of the knowledge base's engines: a provider and a model its Inference document names, and the jobs the document has it used for. An engine is not a principal: whichever worker claims a job does it, under its own account, and names on each write the engine it used, if any. Carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
     """
 
-    engine: ArchivistRosterRole
-    serves: Annotated[
+    engine: Engine
+    jobs: Annotated[
         list[JobFilter] | None,
         Field(
-            description="The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles."
+            description="The jobs the knowledge base's Inference document has this engine used for, as a claim names them. Absent for an engine only Librarian actors ask."
         ),
     ] = None
 
@@ -6147,6 +6135,14 @@ class GetResourceResponse(WireModel, frozen=True):
         list[Annotation],
         Field(description="All annotations for the resource (highlights, references, assessments, etc.)"),
     ]
+
+
+class InferenceLimitsResult(WireModel, frozen=True):
+    """
+    The inference limits one service discovered for the engines it holds a client for. An engine whose discovery is currently unavailable is absent.
+    """
+
+    response: InferenceLimitsResultResponse
 
 
 class GraphAnnotationNode(WireModel, frozen=True):
@@ -6409,10 +6405,10 @@ class WorkerConfig(WireModel, frozen=True, extra="forbid"):
         ),
     ]
     identity: WorkerConfigIdentity
-    agents: Annotated[
-        list[WorkerAgentConfig],
+    engines: Annotated[
+        list[WorkerEngineConfig],
         Field(
-            description="The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. They are the knowledge base's Inference document's roster as it stands, with no fallback, so a job no agent here accepts is not claimed by this worker.",
+            description="The engines this worker runs, and the jobs it does with each. The worker signs in once, as its own account, and claims each engine's jobs for it. They are the knowledge base's Inference document's engines as they stand, with no fallback, so a job no engine here is used for is not claimed by this worker.",
             min_length=1,
         ),
     ]
@@ -6420,7 +6416,7 @@ class WorkerConfig(WireModel, frozen=True, extra="forbid"):
         str,
         Field(
             alias="modelCatalogue",
-            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it.",
+            description="The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an engine of one of those providers refuses to start where the file cannot be read, and where it states nothing of that engine's model. A worker with no such engine does not read it.",
             min_length=1,
         ),
     ]
@@ -6450,8 +6446,8 @@ class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
     graph: GraphConfig
     vectors: VectorsConfig
     embedding: EmbeddingConfig
-    matcher: LibrarianModelConfig
-    gatherer: LibrarianModelConfig
+    matcher: LibrarianEngineConfig
+    gatherer: LibrarianEngineConfig
     model_catalogue: Annotated[
         str,
         Field(
@@ -6536,17 +6532,17 @@ class AnchoredTextWrite(WireModel, frozen=True, extra="forbid"):
     entry: AnchoredTextEntry
 
 
-class ArchivistRoster(WireModel, frozen=True, extra="forbid"):
+class ArchivistEngines(WireModel, frozen=True, extra="forbid"):
     """
-    Who serves each role, behind `browse:agents`: a provider and a model, and no credential. It is the knowledge base's Inference document's roster as it stands, with no fallback, so a role absent here is served by no one.
+    The engine for each job and each Librarian actor, behind `browse:engines`: a provider and a model, and no credential. It is the knowledge base's Inference document's `engines` as they stand, with no fallback, so a job or an actor absent here has no engine.
     """
 
-    workers: ArchivistRosterWorkers
-    actors: ArchivistRosterActors
+    jobs: ArchivistEnginesJobs
+    actors: ArchivistEnginesActors
 
 
-class BrowseAgentsResultResponse(WireModel, frozen=True):
-    agents: list[RosterEntry]
+class BrowseEnginesResultResponse(WireModel, frozen=True):
+    engines: list[EngineEntry]
 
 
 class GatheredContextFocusAnnotation(WireModel, frozen=True):
@@ -6581,12 +6577,12 @@ class GatheredContextFocusAnnotation(WireModel, frozen=True):
 type KnowledgeGraphNodesItem = Annotated[GraphResourceNode | GraphAnnotationNode, Field(discriminator="type")]
 
 
-class BrowseAgentsResult(WireModel, frozen=True):
+class BrowseEnginesResult(WireModel, frozen=True):
     """
-    Result of browsing the knowledge base's roster: the engines its Inference document names, and the jobs each serves
+    The knowledge base's engines: those its Inference document names, and the jobs it has each used for
     """
 
-    response: BrowseAgentsResultResponse
+    response: BrowseEnginesResultResponse
 
 
 class BrowseAnnotationResult(WireModel, frozen=True):
@@ -6679,7 +6675,7 @@ class ArchivistConfig(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ]
-    roster: ArchivistRoster
+    engines: ArchivistEngines
     port: Annotated[
         int,
         Field(

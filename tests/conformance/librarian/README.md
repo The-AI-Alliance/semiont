@@ -94,7 +94,7 @@ at the path its `--config` flag names. The harness writes the document
 ([harness/librarian-process.ts](../harness/librarian-process.ts)) into a home
 directory of the world's own. It states no state volume: a Librarian mounts
 none, and reads what the world's Archivist records of each resource, and the
-people it names, on the bus. It states the health port, a free port the
+profiles of the principals it names, on the bus. It states the health port, a free port the
 harness chooses for each world. It states the two numbers a
 deployment may leave to their defaults too: how long a gather waits for a
 resource's vectors, and the floor of the semantic fallback. The Librarian's
@@ -125,9 +125,9 @@ the stand-in answers what the real Archivist answers when it is asked.
   with previews and by meaning with the passage that matched, a later page,
   blank text, its filters by name and by meaning, the floor a hit by meaning
   must reach, and a PDF's empty preview; what refers to a resource, and the
-  failure for a resource nobody made; the names of the people a page and a
+  failure for a resource nobody made; the names of the persons a page and a
   candidate mention; and the limits each
-  actor reports of its own model, with a provider that does not answer left
+  actor reports of its own engine, with a provider that does not answer left
   out.
 - **Gathering** (`gather.test.ts`): around an annotation, the annotation and
   its resource, the text selected with what is before and after it, a linked

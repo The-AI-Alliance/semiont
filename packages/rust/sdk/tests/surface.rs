@@ -172,7 +172,7 @@ const METHODS: &[(&str, &[&str])] = &[
             "annotation",
             "entityTypes",
             "tagSchemas",
-            "agents",
+            "engines",
             "events",
             "resourceContent",
             "resourceGraph",
@@ -287,7 +287,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
             .fresh()),
         ("browse", "entityTypes") => go!(client.browse.entity_types().fresh()),
         ("browse", "tagSchemas") => go!(client.browse.tag_schemas().fresh()),
-        ("browse", "agents") => go!(client.browse.agents().fresh()),
+        ("browse", "engines") => go!(client.browse.engines().fresh()),
         ("browse", "events") => go!(client
             .browse
             .events(&as_id(&args.text("resourceId")))

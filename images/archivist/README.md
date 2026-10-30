@@ -73,7 +73,7 @@ globally, and once scoped to its resource when it names one. See [EVENT-BUS.md](
 | `POST /resources` | stores an upload, multipart as the client sent it, and records the resource for the principal named in `Semiont-Principal` (its roles in `Semiont-Roles`), as a copy when the upload carries `cloneToken`; answers `{resourceId}`. 400 names what is wrong with the upload; 500 carries the record's reason for refusing it | the gateway, for `POST /resources` |
 | `GET /resources/:id/content` | a resource's bytes, streamed, with its stored media type | the gateway, for `GET /resources/:id`; the Librarian, the Smelter and the workers, directly |
 | `GET /resources/:id/jsonld` | a resource's linked-data description (the answer to `browse:resource-requested`); 404 when there is no such resource | the gateway, for `GET /resources/:id/jsonld` |
-| `GET /resources/:id/annotations` | a resource's annotations, people named, and how many there are; 404 when there is no such resource | the gateway, for `GET /resources/:id/annotations`; the Smelter, directly |
+| `GET /resources/:id/annotations` | a resource's annotations, the persons they mention named, and how many there are; 404 when there is no such resource | the gateway, for `GET /resources/:id/annotations`; the Smelter, directly |
 | `GET /resources/:id/anchored-text` | a resource's anchored text, from the anchored-text store: the text and where each piece of it sits on the page, or why there is none. Never 404: a resource the Archivist does not hold is `unknown`; a media type with no derived text (an image, a text file) is `no-map` at once; for one that has (a PDF), it waits up to 15 seconds for the Smelter to settle content the store lacks, then answers `not-yet` | the gateway, for `GET /resources/:id/anchored-text` |
 | `PUT /resources/:id/anchored-text` | stores the entry the Smelter derived from the resource's content, under its checksum; 409 when the resource's content has another | the Smelter |
 | `GET /resources/:id/anchored-text/stored?contentChecksum=…` | the entry stored for the resource's content, as stored, at once; 404 when there is none, 409 when the resource's content has another checksum | the Smelter, before it derives a text |
@@ -133,8 +133,8 @@ which is what makes that ordering enforceable.
 It reads one configuration document, an
 [`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json), from the path its
 `--config` flag names; the image passes `/etc/semiont/archivist.json`. The document names the
-gateway, the issuer, the knowledge base's root, the state volume, the anchored-text store, who
-serves each role, the port, and the staging bounds. Mount the knowledge base, the state volume and
+gateway, the issuer, the knowledge base's root, the state volume, the anchored-text store, the
+engine for each job and each Librarian actor, the port, and the staging bounds. Mount the knowledge base, the state volume and
 the anchored-text store where the document says they are.
 
 **Its own service account.** Set `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` to its

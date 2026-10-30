@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 from semiont.identifiers import UserId
 
-__all__ = ["agent_did", "agent_name", "encode_uri_component", "kb_did", "kb_resource", "person_did"]
+__all__ = ["agent_did", "encode_uri_component", "engine_name", "kb_did", "kb_resource", "person_did"]
 
 # What ECMAScript's `encodeURIComponent` leaves alone, beside letters and digits.
 _UNRESERVED: Final = "-_.!~*'()"
@@ -41,6 +41,6 @@ def agent_did(domain: str, subject: str) -> UserId:
     return UserId(f"did:web:{domain}:agents:{encode_uri_component(subject)}")
 
 
-def agent_name(provider: str, model: str) -> str:
+def engine_name(provider: str, model: str) -> str:
     """An engine's name — a provider and a model, which is no principal — as a worker states it of itself."""
     return f"{provider} {model}"

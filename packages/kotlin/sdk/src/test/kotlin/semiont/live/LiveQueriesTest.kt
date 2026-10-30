@@ -22,7 +22,7 @@ import org.junit.jupiter.api.TestFactory
 import semiont.cache.CacheQuery
 import semiont.cache.CacheState
 import semiont.errors.BusRequestError
-import semiont.namespaces.Collaborator
+import semiont.namespaces.EngineWithLimits
 import semiont.sameJson
 import semiont.storage.CachePersistence
 import semiont.storage.MemoryStorage
@@ -66,7 +66,7 @@ class LiveQueriesTest {
         }
 
         // A query of the knowledge base holds no scope, and neither does a read of any query.
-        val ofTheKb = listOf(client.browse.resources(), client.match.resources("text"), client.browse.entityTypes(), client.browse.tagSchemas(), client.browse.agents())
+        val ofTheKb = listOf(client.browse.resources(), client.match.resources("text"), client.browse.entityTypes(), client.browse.tagSchemas(), client.browse.engines())
             .map { world.watch(it) }
         ofTheKb.forEach { it.next() }
         assertEquals(emptyList<Any>(), kb.scopes())
@@ -140,42 +140,42 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun theCollaboratorsAreShownAsTheDirectoryAnswersAndEachHoldersLimitsAsItReportsThem() = runBlocking {
-        val gemma = """{"engine":{"provider":"ollama","model":"gemma2:27b"}}"""
-        val claude = """{"engine":{"provider":"anthropic","model":"claude-opus-5-5"}}"""
+    fun theEnginesAreShownAsTheyAreAnsweredAndEachHoldersLimitsAsItReportsThem() = runBlocking {
+        val gemma = """{"provider":"ollama","model":"gemma2:27b"}"""
+        val claude = """{"provider":"anthropic","model":"claude-opus-5-5"}"""
         val world = KbWorld(answered = false)
         val kb = world.kb
-        fun limitsOf(collaborators: List<Collaborator>) = collaborators.map { it.limits?.contextTokens }
+        fun limitsOf(engines: List<EngineWithLimits>) = engines.map { it.limits?.contextTokens }
 
-        val live = world.watch(world.client.browse.agents())
+        val live = world.watch(world.client.browse.engines())
         assertEquals(CacheState.Pending, live.next())
-        // The directory is asked for first, and each key holder after it.
+        // The engines are asked for first, and each key holder after it.
         eventually { kb.emitted.size == 4 }
-        assertEquals(listOf("browse:agents-requested") + LIMITS, kb.emitted.map { it.channel })
-        val (directory, gather, job, match) = kb.emitted.toList()
+        assertEquals(listOf("browse:engines-requested") + LIMITS, kb.emitted.map { it.channel })
+        val (engines, gather, job, match) = kb.emitted.toList()
 
-        // A holder that answers before the directory has nothing to be shown on yet. A model is its provider's: one of
-        // the same name under another is another model. What is reported first stands, and a model not listed is shown nowhere.
+        // A holder that answers first has nothing to be shown on yet. An engine is its provider and its model: a model of
+        // the same name under another provider is another engine. What is reported first stands, and an engine not listed is shown nowhere.
         kb.answer(
             job,
             json(
                 """{"limits":[
-                {"provider":"elsewhere","model":"claude-opus-5-5","limits":{"contextTokens":7,"maxOutputTokens":1}},
-                {"provider":"ollama","model":"gemma2:27b","limits":{"contextTokens":8192,"maxOutputTokens":1}},
-                {"provider":"ollama","model":"gemma2:27b","limits":{"contextTokens":9999,"maxOutputTokens":1}},
-                {"provider":"ollama","model":"unlisted","limits":{"contextTokens":1,"maxOutputTokens":1}}]}""",
+                {"engine":{"provider":"ollama","model":"claude-opus-5-5"},"limits":{"contextTokens":7,"maxOutputTokens":1}},
+                {"engine":$gemma,"limits":{"contextTokens":8192,"maxOutputTokens":1}},
+                {"engine":$gemma,"limits":{"contextTokens":9999,"maxOutputTokens":1}},
+                {"engine":{"provider":"ollama","model":"unlisted"},"limits":{"contextTokens":1,"maxOutputTokens":1}}]}""",
             ),
         )
         live.nothingFor()
 
-        // The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-        kb.answer(directory, json("""{"agents":[$gemma,$claude]}"""))
+        // The engines are shown when they are answered, with what has been reported so far: they wait for no holder.
+        kb.answer(engines, json("""{"engines":[{"engine":$gemma},{"engine":$claude}]}"""))
         var shown = live.ready().value
         assertEquals(listOf("gemma2:27b", "claude-opus-5-5"), shown.map { it.entry.engine.model })
         assertEquals(listOf(8192.0, null), limitsOf(shown))
 
-        // A holder that reports later delays only its own models' limits.
-        kb.answer(gather, json("""{"limits":[{"provider":"anthropic","model":"claude-opus-5-5","limits":{"contextTokens":9,"maxOutputTokens":1}}]}"""))
+        // A holder that reports later delays only its own engines' limits.
+        kb.answer(gather, json("""{"limits":[{"engine":$claude,"limits":{"contextTokens":9,"maxOutputTokens":1}}]}"""))
         shown = live.ready().value
         assertEquals(listOf(8192.0, 9.0), limitsOf(shown))
 
@@ -184,12 +184,12 @@ class LiveQueriesTest {
         live.nothingFor()
         assertEquals(4, kb.emitted.size)
 
-        // Asking again asks the directory and every holder again, and shows what there is meanwhile.
-        world.client.browse.agents().invalidate()
+        // Asking again asks for the engines and every holder again, and shows what there is meanwhile.
+        world.client.browse.engines().invalidate()
         eventually { kb.emitted.size == 8 }
-        assertEquals(listOf("browse:agents-requested") + LIMITS, kb.emitted.drop(4).map { it.channel })
+        assertEquals(listOf("browse:engines-requested") + LIMITS, kb.emitted.drop(4).map { it.channel })
         live.nothingFor()
-        kb.answer(kb.emitted[4], json("""{"agents":[$claude]}"""))
+        kb.answer(kb.emitted[4], json("""{"engines":[{"engine":$claude}]}"""))
         shown = live.ready().value
         assertEquals(listOf("claude-opus-5-5"), shown.map { it.entry.engine.model })
         assertEquals(listOf(9.0), limitsOf(shown))
@@ -197,18 +197,18 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun aDirectoryThatFailsIsAFailedStateWhateverItsHoldersReportAndAReadOfItThrows() = runBlocking {
+    fun enginesThatFailAreAFailedStateWhateverTheirHoldersReportAndAReadOfThemThrows() = runBlocking {
         val world = KbWorld()
-        world.kb.refuse("browse:agents-requested")
-        val refused = runCatching { world.client.browse.agents().fresh() }.exceptionOrNull()
+        world.kb.refuse("browse:engines-requested")
+        val refused = runCatching { world.client.browse.engines().fresh() }.exceptionOrNull()
         assertEquals("bus.rejected", (refused as BusRequestError).code)
-        val live = world.watch(world.client.browse.agents())
+        val live = world.watch(world.client.browse.engines())
         var state = live.next()
         while (state !is CacheState.Failed) state = live.next()
         assertEquals("bus.rejected", state.error.code)
         world.client.close()
-        // A closed client's collaborators are nobody's to collect.
-        val closed = world.watch(world.client.browse.agents())
+        // A closed client's engines are nobody's to collect.
+        val closed = world.watch(world.client.browse.engines())
         closed.ends()
         assertFalse(closed.ended.isCancelled)
         world.close()
@@ -233,7 +233,7 @@ class LiveQueriesTest {
             client.gather.referencedBy(RESOURCE).fresh()
             client.browse.resources().fresh()
             client.match.resources("text").fresh()
-            client.browse.agents().fresh()
+            client.browse.engines().fresh()
         }
         // What it knows is owed to storage until it has stopped changing.
         assertFalse(client.persistenceSettled)
@@ -251,7 +251,7 @@ class LiveQueriesTest {
         for (name in listOf("resource", "annotations", "annotation-detail", "entity-types", "tag-schemas")) {
             assertEquals(1L, checkNotNull(kept(name)) { name }.getValue("version").jsonPrimitive.long)
         }
-        for (unkept in listOf("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "agents", "limits")) assertNull(kept(unkept), unkept)
+        for (unkept in listOf("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits")) assertNull(kept(unkept), unkept)
         // As the wire had it: by the wire's names, and without what the knowledge base never said.
         val (resource) = checkNotNull(kept("resource")).getValue("entries").jsonArray.map { it.jsonArray }
         assertTrue(sameJson(JsonArray(listOf(JsonPrimitive(RESOURCE.value), descriptor(RESOURCE))), JsonArray(resource.take(2))))
@@ -305,7 +305,7 @@ class LiveQueriesTest {
                     CacheQuery.MatchedResources to client.match.resources("text"),
                     CacheQuery.EntityTypes to client.browse.entityTypes(),
                     CacheQuery.TagSchemas to client.browse.tagSchemas(),
-                    CacheQuery.Agents to client.browse.agents(),
+                    CacheQuery.Engines to client.browse.engines(),
                 )
                 assertEquals(CacheQuery.entries.toSet(), named.keys)
                 val reading = async { named.getValue(query).fresh() }

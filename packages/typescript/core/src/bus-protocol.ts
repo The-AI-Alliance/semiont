@@ -213,17 +213,17 @@ export type EventMap = {
   'frame:tag-schema-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
-  // PERSON FLOW — who a subject is. One line per NAME a person has had,
+  // PRINCIPAL FLOW — who a principal is. One line per NAME it has had,
   // system-level like the frame vocabulary. Never read by provenance: every
   // artifact joins on the DID, and names are resolved from the projection
   // when a record is READ.
   // ========================================================================
 
   // Domain event (branded — system of record). System-level: no resourceId.
-  'person:profiled': StoredEvent<EventOfType<'person:profiled'>>;
+  'principal:profiled': StoredEvent<EventOfType<'principal:profiled'>>;
 
   // Command — gateway-emitted, never client-set.
-  'person:profile': components['schemas']['PersonProfileCommand'];
+  'principal:profile': components['schemas']['PrincipalProfileCommand'];
 
   // ========================================================================
   // BIND FLOW — reference linking
@@ -331,13 +331,13 @@ export type EventMap = {
   'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
   'browse:tag-schemas-failed': components['schemas']['CommandError'];
 
-  'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
-  'browse:agents-result': components['schemas']['BrowseAgentsResult'];
-  'browse:agents-failed': components['schemas']['CommandError'];
+  'browse:engines-requested': components['schemas']['BrowseEnginesRequest'];
+  'browse:engines-result': components['schemas']['BrowseEnginesResult'];
+  'browse:engines-failed': components['schemas']['CommandError'];
 
-  'browse:people-requested': components['schemas']['BrowsePeopleRequest'];
-  'browse:people-result': components['schemas']['BrowsePeopleResult'];
-  'browse:people-failed': components['schemas']['CommandError'];
+  'browse:profiles-requested': components['schemas']['BrowseProfilesRequest'];
+  'browse:profiles-result': components['schemas']['BrowseProfilesResult'];
+  'browse:profiles-failed': components['schemas']['CommandError'];
 
   'browse:kb-requested': components['schemas']['BrowseKbRequest'];
   'browse:kb-result': components['schemas']['BrowseKbResult'];
@@ -606,8 +606,8 @@ export const CHANNEL_SCHEMAS = {
   'frame:entity-type-add-failed':     'CommandError',
   'frame:tag-schema-add-ok':          null,
   'frame:tag-schema-add-failed':      'CommandError',
-  'person:profiled':                  null,
-  'person:profile':                   'PersonProfileCommand',
+  'principal:profiled':               null,
+  'principal:profile':                'PrincipalProfileCommand',
   'mark:requested':                   'MarkRequestedEvent',
   'mark:submit':                      'MarkSubmitEvent',
   'mark:delegate-timeout':            null, // { resourceId; motivation } — client-local UI signal
@@ -671,12 +671,12 @@ export const CHANNEL_SCHEMAS = {
   'browse:tag-schemas-requested':     'BrowseTagSchemasRequest',
   'browse:tag-schemas-result':        'BrowseTagSchemasResult',
   'browse:tag-schemas-failed':        null,
-  'browse:agents-requested':          'BrowseAgentsRequest',
-  'browse:agents-result':             'BrowseAgentsResult',
-  'browse:agents-failed':             null,
-  'browse:people-requested':          'BrowsePeopleRequest',
-  'browse:people-result':             'BrowsePeopleResult',
-  'browse:people-failed':             null,
+  'browse:engines-requested':         'BrowseEnginesRequest',
+  'browse:engines-result':            'BrowseEnginesResult',
+  'browse:engines-failed':            null,
+  'browse:profiles-requested':        'BrowseProfilesRequest',
+  'browse:profiles-result':           'BrowseProfilesResult',
+  'browse:profiles-failed':           null,
   'browse:kb-requested':              'BrowseKbRequest',
   'browse:kb-result':                 'BrowseKbResult',
   'browse:kb-failed':                 null,
@@ -835,8 +835,8 @@ export const CHANNEL_STAMPS = {
   'frame:entity-type-add-failed':     [],
   'frame:tag-schema-add-ok':          [],
   'frame:tag-schema-add-failed':      [],
-  'person:profiled':                  [],
-  'person:profile':                   ['_userId'],
+  'principal:profiled':               [],
+  'principal:profile':                ['_userId'],
   'bind:initiate':                    [],
   'bind:update-body':                 ['_userId'],
   'bind:body-updated':                [],
@@ -886,12 +886,12 @@ export const CHANNEL_STAMPS = {
   'browse:tag-schemas-requested':     [],
   'browse:tag-schemas-result':        [],
   'browse:tag-schemas-failed':        [],
-  'browse:agents-requested':          [],
-  'browse:agents-result':             [],
-  'browse:agents-failed':             [],
-  'browse:people-requested':          [],
-  'browse:people-result':             [],
-  'browse:people-failed':             [],
+  'browse:engines-requested':         [],
+  'browse:engines-result':            [],
+  'browse:engines-failed':            [],
+  'browse:profiles-requested':        [],
+  'browse:profiles-result':           [],
+  'browse:profiles-failed':           [],
   'browse:kb-requested':              [],
   'browse:kb-result':                 [],
   'browse:kb-failed':                 [],

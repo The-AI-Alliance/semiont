@@ -30,7 +30,7 @@ ASKS: Final[dict[CacheQuery, tuple[str, ...]]] = {
     "matchedResources": ("match:resources-requested",),
     "entityTypes": ("browse:entity-types-requested",),
     "tagSchemas": ("browse:tag-schemas-requested",),
-    "agents": ("browse:agents-requested", *LIMITS),
+    "engines": ("browse:engines-requested", *LIMITS),
 }
 """The operations each live query asks, or the read of the content transport it makes, as `surface.json` names that read."""
 
@@ -63,7 +63,7 @@ _ANSWERS: Final[dict[str, JsonValue]] = {
     "match:resources-requested": {**_PAGE, "matchKind": "lexical"},
     "browse:entity-types-requested": {"entityTypes": ["Person"]},
     "browse:tag-schemas-requested": {"tagSchemas": []},
-    "browse:agents-requested": {"agents": []},
+    "browse:engines-requested": {"engines": []},
     **{holder: {"limits": []} for holder in LIMITS},
 }
 

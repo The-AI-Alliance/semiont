@@ -2,8 +2,8 @@
 
 A Librarian owns no store (`docs/protocol/LIBRARIAN.md`), and mounts no state
 volume. It asks the Archivist, on the bus, for what it needs of the record and
-for what the knowledge base calls its people (§ Names), each read bounded by
-its question. It reads the graph the Weaver writes and the index the Smelter
+for the profiles of the knowledge base's principals (§ Names), each read
+bounded by its question. It reads the graph the Weaver writes and the index the Smelter
 writes, and it waits, within a bound, for the two that are written after the
 record (§ The two waits). What reads each is behind a protocol here. A
 Librarian is handed these, and knows no address, no directory and no database.
@@ -27,7 +27,7 @@ from semiont.types import (
     AnchoredTextAnswer,
     Annotation,
     Motivation,
-    PersonProfile,
+    Profile,
     ResourceDescriptor,
     SmeltSettledOutcome,
 )
@@ -38,8 +38,8 @@ __all__ = [
     "Degraded",
     "Described",
     "GraphReads",
-    "People",
-    "PeopleUnread",
+    "Profiles",
+    "ProfilesUnread",
     "Projection",
     "Record",
     "Settled",
@@ -69,10 +69,10 @@ resource; `summary`, the summary of the resource an annotation links to; and
 
 
 @final
-class PeopleUnread(Exception):
-    """What the knowledge base calls some people could not be read: the Archivist refused the read, or did not answer it.
+class ProfilesUnread(Exception):
+    """The profiles of some principals could not be read: the Archivist refused the read, or did not answer it.
 
-    A person with no profile is not this: they are named by no one.
+    A principal with no profile is not this: it is named by no one.
     """
 
 
@@ -110,13 +110,13 @@ class Record(Protocol):
         ...
 
 
-class People(Protocol):
-    """What the people of a knowledge base are called (`PersonProfile`). Every reader of it has this member and no other."""
+class Profiles(Protocol):
+    """What the principals of a knowledge base last said they are called (`Profile`). Every reader of it has this member and no other."""
 
-    async def of(self, dids: Sequence[str]) -> Mapping[str, PersonProfile]:
+    async def of(self, dids: Sequence[str]) -> Mapping[str, Profile]:
         """The profile of each of `dids` that has one, by their DID.
 
-        Raises `PeopleUnread` where they cannot be read.
+        Raises `ProfilesUnread` where they cannot be read.
         """
         ...
 

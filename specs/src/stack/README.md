@@ -15,7 +15,7 @@ deployment elsewhere edits its own copy.
 | `KnowledgeIndex` | [`KnowledgeIndex.json`](KnowledgeIndex.json) | the graph store, the vector store, the embedding model, and the Librarian, the Smelter and the Weaver |
 | `Issuer` | [`Issuer.json`](Issuer.json) | an issuer the launcher runs, and the database it keeps its realm in |
 | `WorkerPool` | [`WorkerPool.json`](WorkerPool.json) | the Worker |
-| `Inference` | [`Inference.json`](Inference.json) | the providers a machine reaches, and which provider and model serve each role ([`ArchivistRoster`](../components/schemas/ArchivistRoster.json)) |
+| `Inference` | [`Inference.json`](Inference.json) | the providers a machine reaches, and the engine for each job and each Librarian actor ([`ArchivistEngines`](../components/schemas/ArchivistEngines.json)) |
 
 Every kind's `apiVersion` is [`ApiVersion.json`](ApiVersion.json)'s:
 `semiont.the-ai-alliance.github.io/v1alpha1`. The objects the kinds share are

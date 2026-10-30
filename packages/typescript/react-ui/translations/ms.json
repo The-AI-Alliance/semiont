@@ -97,7 +97,7 @@
     "reconnecting": "Menyambung semula ke pelayan...",
     "sharing": "Perkongsian",
     "collaborationComingSoon": "Ciri kolaborasi akan datang tidak lama lagi",
-    "collaborators": "Kolaborator",
+    "engines": "Enjin",
     "ceilings": "{{contextTokens}} masuk / {{maxOutputTokens}} keluar",
     "sharedWindow": "Tetingkap {{contextTokens}}"
   },

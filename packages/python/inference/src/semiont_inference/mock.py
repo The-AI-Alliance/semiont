@@ -36,7 +36,9 @@ class MockInferenceClient:
     """Answers each call with the next of `responses`, and with the last of them once they are used up.
 
     Each response has its stop reason, in `stop_reasons`. `limits` is what
-    `limits()` answers. `calls` is every call made, in order.
+    `limits()` answers. `calls` is every call made, in order. It says it is
+    Ollama's `mock-model`: a client is of a provider the protocol names, and
+    the protocol names no mock.
 
     A structured call reads its response as a driver reads a provider's
     reply: a response that is not a JSON array raises `StructuredReadError`,
@@ -44,7 +46,7 @@ class MockInferenceClient:
     """
 
     def __init__(self, responses: Sequence[str], *, stop_reasons: Sequence[str], limits: InferenceLimits) -> None:
-        self.provider: Final = "mock"
+        self.provider: Final = "ollama"
         self.model_id: Final = "mock-model"
         # One at a time: a test's responses are then taken in the order its calls are made.
         self.max_concurrency: Final = 1

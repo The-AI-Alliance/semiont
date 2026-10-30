@@ -53,20 +53,20 @@ export type GenerationJobParams = components['schemas']['GenerationJobParams'];
 export type JobType = components['schemas']['JobType'];
 
 /**
- * One engine on the knowledge base's roster (`browse:agents-result`): a
- * provider and a model, and the jobs it is declared to serve, each named as a
- * claim names it. An engine declared only under actor roles omits `serves`.
- * An engine is not a principal: it carries no identity of its own.
+ * One of the knowledge base's engines (`browse:engines-result`): a provider and
+ * a model its Inference document names, and the jobs the document has it used
+ * for, each named as a claim names it. An engine only Librarian actors ask
+ * omits `jobs`. An engine is not a principal: it carries no identity of its own.
  */
-export type RosterEntry = components['schemas']['RosterEntry'];
+export type EngineEntry = components['schemas']['EngineEntry'];
 
 /**
- * A roster entry with its model's discovered limits, as the SDK joins them:
- * the roster lists the engine serving each role, and the services holding the
- * inference credentials report the limits (`LIMITS_OPERATIONS`). Absent
- * `limits` means no key holder reported that model.
+ * An engine with the inference limits its key holder reported, as the SDK
+ * joins them: the knowledge base names its engines, and the services holding
+ * the inference credentials report the limits (`LIMITS_OPERATIONS`). Absent
+ * `limits` means no key holder reported that engine.
  */
-export type Collaborator = RosterEntry & { limits?: components['schemas']['InferenceLimits'] };
+export type EngineWithLimits = EngineEntry & { limits?: components['schemas']['InferenceLimits'] };
 
 /**
  * What a knowledge base says of itself (`browse:kb-result`): its committed

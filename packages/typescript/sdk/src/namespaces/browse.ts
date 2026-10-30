@@ -11,8 +11,8 @@ import type {
   AnnotationId,
   AttributedEvent,
   TagSchema,
-  Collaborator,
-  RosterEntry,
+  EngineEntry,
+  EngineWithLimits,
   KbDescription,
   LimitsOperation,
   components,
@@ -46,25 +46,25 @@ const ENTITY_TYPES_KEY = '_';
 /** Sentinel key for the singleton tag-schemas cache. */
 const TAG_SCHEMAS_KEY = '_';
 
-/** Sentinel key for the singleton collaborator-directory cache. */
-const AGENTS_KEY = '_';
+/** Sentinel key for the singleton engines cache. */
+const ENGINES_KEY = '_';
 
-type InferencePairLimits = components['schemas']['InferencePairLimits'];
+type EngineLimits = components['schemas']['EngineLimits'];
 
 /**
  * The live queries of specs/src/client/refresh.json this namespace answers.
  * `client.ts` holds the namespaces to answering every one between them.
  */
 export const BROWSE_QUERIES = [
-  'resource', 'annotations', 'annotation', 'events', 'resources', 'entityTypes', 'tagSchemas', 'agents',
+  'resource', 'annotations', 'annotation', 'events', 'resources', 'entityTypes', 'tagSchemas', 'engines',
 ] as const satisfies readonly CacheQuery[];
 type BrowseQuery = (typeof BROWSE_QUERIES)[number];
 
-/** The roster with each reported model's limits on its entries. */
-function joinLimits(roster: RosterEntry[], reported: InferencePairLimits[]): Collaborator[] {
-  return roster.map((entry) => {
-    const pair = reported.find((r) => r.provider === entry.engine.provider && r.model === entry.engine.model);
-    return pair ? { ...entry, limits: pair.limits } : entry;
+/** The engines, each with the limits reported for it. */
+function joinLimits(engines: EngineEntry[], reported: EngineLimits[]): EngineWithLimits[] {
+  return engines.map((entry) => {
+    const report = reported.find((r) => r.engine.provider === entry.engine.provider && r.engine.model === entry.engine.model);
+    return report ? { ...entry, limits: report.limits } : entry;
   });
 }
 
@@ -92,11 +92,11 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
   private readonly entityTypesCache: Cache<string, string[]>;
   private readonly tagSchemasCache: Cache<string, TagSchema[]>;
-  private readonly agentsCache: Cache<string, RosterEntry[]>;
+  private readonly enginesCache: Cache<string, EngineEntry[]>;
   /** Each key holder's limits report, by the operation it answers. */
-  private readonly limitsCache: Cache<LimitsOperation, InferencePairLimits[]>;
-  /** The directory, joined with the limits reports as each arrives. */
-  private readonly collaborators$: Observable<CacheState<Collaborator[]>>;
+  private readonly limitsCache: Cache<LimitsOperation, EngineLimits[]>;
+  /** The engines, joined with the limits reports as each arrives. */
+  private readonly engines$: Observable<CacheState<EngineWithLimits[]>>;
   private readonly resourceEventsCache: Cache<ResourceId, AttributedEvent[]>;
 
   /** Filter-blob memory so `invalidateResourceLists` can replay per-key. */
@@ -178,7 +178,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     // The opt-in table: the small, first-paint caches persist (a resource,
     // its annotations, one annotation, the vocabulary); resource lists, event
-    // histories, referenced-by and the roster stay in-memory.
+    // histories, referenced-by and the engines stay in-memory.
     const persistence = options?.cachePersistence;
     const persisted = <K, V>(name: string): { persister: CachePersister<K, V> } | undefined =>
       persistence
@@ -259,31 +259,31 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.tagSchemas;
     }, persisted<string, TagSchema[]>('tag-schemas')));
 
-    this.agentsCache = createCache<string, RosterEntry[]>(async () => {
+    this.enginesCache = createCache<string, EngineEntry[]>(async () => {
       const result = await this.wire.request(
-        'browse:agents-requested',
+        'browse:engines-requested',
         {},
         this.busTimeoutMs,
       );
-      // Entries pass through unreshaped: `{ engine, serves? }` — the jobs
-      // served are the point of the wrapper.
-      return result.agents;
+      // Entries pass through unreshaped: `{ engine, jobs? }` — the jobs are
+      // the point of the wrapper.
+      return result.engines;
     });
 
     // The services holding the inference credentials report their models'
     // limits; nothing else can discover them. One that is down or silent
-    // reports nothing, so its models show no limits, and it delays only its
-    // own report, never the directory.
-    this.limitsCache = createCache<LimitsOperation, InferencePairLimits[]>(async (operation) =>
+    // reports nothing, so its engines show no limits, and it delays only its
+    // own report, never the engines.
+    this.limitsCache = createCache<LimitsOperation, EngineLimits[]>(async (operation) =>
       this.wire.request(operation, {}, this.busTimeoutMs).then((result) => result.limits, () => []));
 
-    this.collaborators$ = combineLatest([
-      this.agentsCache.observe(AGENTS_KEY),
+    this.engines$ = combineLatest([
+      this.enginesCache.observe(ENGINES_KEY),
       ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.observe(operation)),
-    ]).pipe(map(([directory, ...reports]): CacheState<Collaborator[]> =>
-      directory.status === 'ready'
-        ? { status: 'ready', value: joinLimits(directory.value, reports.flatMap((r) => (r.status === 'ready' ? r.value : []))) }
-        : directory));
+    ]).pipe(map(([engines, ...reports]): CacheState<EngineWithLimits[]> =>
+      engines.status === 'ready'
+        ? { status: 'ready', value: joinLimits(engines.value, reports.flatMap((r) => (r.status === 'ready' ? r.value : []))) }
+        : engines));
 
     this.resourceEventsCache = createCache<ResourceId, AttributedEvent[]>(async (resourceId) => {
       const result = await this.wire.request(
@@ -342,20 +342,20 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   /**
-   * The KB's roster: each engine (a provider and a model) its worker/actor
-   * config names, with the jobs it serves. An engine is not a principal, and
-   * carries no identity. KB-wide singleton, cached for the
-   * client's lifetime; no membership-change event exists, so the only refresh
-   * triggers are the stream reopening after a drop (a gateway restart with a
-   * changed roster presents as one) and `.fresh()` (which always fetches).
+   * The KB's engines: each a provider and a model its Inference document
+   * names, with the jobs the document has it used for. An engine is not a
+   * principal, and carries no identity. KB-wide singleton, cached for the
+   * client's lifetime; no event says the engines changed, so the only refresh
+   * triggers are the stream reopening after a drop (a gateway restart with
+   * changed engines presents as one) and `.fresh()` (which always fetches).
    */
-  agents(): CacheObservable<Collaborator[]> {
-    return CacheObservable.from(this.collaborators$, async () => {
-      const [directory, ...reports] = await Promise.all([
-        this.agentsCache.fetch(AGENTS_KEY),
+  engines(): CacheObservable<EngineWithLimits[]> {
+    return CacheObservable.from(this.engines$, async () => {
+      const [engines, ...reports] = await Promise.all([
+        this.enginesCache.fetch(ENGINES_KEY),
         ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.fetch(operation)),
       ]);
-      return joinLimits(directory, reports.flat());
+      return joinLimits(engines, reports.flat());
     });
   }
 
@@ -516,8 +516,8 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.tagSchemasCache.invalidate(TAG_SCHEMAS_KEY);
   }
 
-  invalidateAgents(): void {
-    this.agentsCache.invalidate(AGENTS_KEY);
+  invalidateEngines(): void {
+    this.enginesCache.invalidate(ENGINES_KEY);
     for (const operation of LIMITS_OPERATIONS) this.limitsCache.invalidate(operation);
   }
 
@@ -575,7 +575,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.annotationDetailCache.dispose();
     this.entityTypesCache.dispose();
     this.tagSchemasCache.dispose();
-    this.agentsCache.dispose();
+    this.enginesCache.dispose();
     this.limitsCache.dispose();
     this.resourceEventsCache.dispose();
     this.annotationResources.clear();
@@ -622,7 +622,7 @@ export class BrowseNamespace implements IBrowseNamespace {
       resources: { refetch: () => this.refresher.windowed('resource-lists', () => this.invalidateResourceLists()) },
       entityTypes: { refetch: () => this.refresher.held(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes()) },
       tagSchemas: { refetch: () => this.refresher.held(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas()) },
-      agents: { refetch: () => this.refresher.held(this.agentsCache, AGENTS_KEY, 'agents', () => this.invalidateAgents()) },
+      engines: { refetch: () => this.refresher.held(this.enginesCache, ENGINES_KEY, 'engines', () => this.invalidateEngines()) },
     };
   }
 

@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Request for what the knowledge base calls some people: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.",
+  "description": "Request for the profiles of some principals: the DIDs a reply mentions. Bounded by the question: a reader that has more asks in parts.",
   "properties": {
     "dids": {
       "type": "array",
@@ -10,7 +10,7 @@
       "items": {
         "$ref": "./UserId.json"
       },
-      "description": "The people asked after."
+      "description": "The principals asked after."
     }
   },
   "required": [

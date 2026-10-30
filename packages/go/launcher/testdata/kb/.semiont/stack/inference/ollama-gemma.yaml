@@ -5,11 +5,11 @@ metadata:
 spec:
   providers:
     ollama: {}
-  roster:
+  engines:
     actors:
       gatherer: { provider: ollama, model: "gemma4:26b" }
       matcher: { provider: ollama, model: "gemma4:26b" }
-    workers:
+    jobs:
       mark:
         linking: { provider: ollama, model: "gemma4:26b" }
         highlighting: { provider: ollama, model: "gemma4:e2b" }

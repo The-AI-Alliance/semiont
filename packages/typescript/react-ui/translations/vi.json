@@ -97,7 +97,7 @@
     "reconnecting": "Đang kết nối lại với máy chủ...",
     "sharing": "Chia sẻ",
     "collaborationComingSoon": "Tính năng cộng tác sắp ra mắt",
-    "collaborators": "Cộng tác viên",
+    "engines": "Động cơ",
     "ceilings": "{{contextTokens}} vào / {{maxOutputTokens}} ra",
     "sharedWindow": "Cửa sổ {{contextTokens}}"
   },

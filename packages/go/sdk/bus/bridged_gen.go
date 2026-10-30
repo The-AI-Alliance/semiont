@@ -91,7 +91,7 @@ var PersistedEventTypes = []Channel{
 	"mark:unarchived",
 	"frame:entity-type-added",
 	"frame:tag-schema-added",
-	"person:profiled",
+	"principal:profiled",
 	"job:started",
 	"job:assigned",
 	"job:completed",
