@@ -1389,7 +1389,7 @@ func (x *planExec) serviceClientSecret(_ kbRoot, svc string) (string, bool) {
 }
 
 func (x *planExec) workerKey() (workerKey, bool) {
-	return workerKey{private: "<worker-key>", public: "<worker-public-key>", thumbprint: "<worker-key-thumbprint>"}, true
+	return workerKey{registeredKey: registeredKey{public: "<worker-public-key>", thumbprint: "<worker-key-thumbprint>"}, private: "<worker-key>"}, true
 }
 
 func (x *planExec) daemonPassword(_ kbRoot, role string) (string, bool) {

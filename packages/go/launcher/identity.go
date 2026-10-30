@@ -130,10 +130,11 @@ var secretClients = func() []string {
 
 // serviceClientID: the realm client id for one service's account. The
 // worker's is the machine's, not the root's: one key here serves every realm
-// this launcher runs, so one name does.
+// this launcher runs, so one name does — the worker admitted under
+// localWorkerLabel.
 func serviceClientID(svc string) string {
 	if svc == "worker" {
-		return "semiont-worker-local"
+		return workerClientID(localWorkerLabel)
 	}
 	return "semiont-" + svc
 }
@@ -392,7 +393,7 @@ func keycloakRealmJSON(realm, audience string, browserPort, accessTokenLifespan 
 	for _, svc := range secretClients {
 		clients = append(clients, serviceAccountClient(svc, accounts.secrets[svc], audience))
 	}
-	clients = append(clients, workerClient(accounts.worker, audience))
+	clients = append(clients, workerClient(localWorkerLabel, accounts.worker.registeredKey, audience))
 	doc := map[string]any{
 		"realm":               realm,
 		"enabled":             true,

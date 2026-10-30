@@ -31,6 +31,7 @@ type stubAdmin struct {
 	created   []map[string]any
 	updated   map[string]map[string]any // clientId -> the patch PUT to it
 	mappers   map[string]map[string]any // clientId -> the mapper PUT to /clients/<uuid>/protocol-mappers/models/<id>
+	deleted   []string                  // clientIds DELETEd
 	realmCfg  map[string]any            // realm-level settings this realm reports
 	badLogin  bool
 	httpsOnly bool // the master realm's sslRequired refusing this caller's address
@@ -133,6 +134,15 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+		// One client deleted: /admin/realms/<realm>/clients/<uuid>
+		if strings.Contains(r.URL.Path, "/clients/") && r.Method == http.MethodDelete {
+			id := strings.TrimPrefix(r.URL.Path[strings.LastIndex(r.URL.Path, "/clients/")+len("/clients/"):], "uuid-")
+			s.mu.Lock()
+			s.deleted = append(s.deleted, id)
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		// One client: /admin/realms/<realm>/clients/<uuid>
 		if strings.Contains(r.URL.Path, "/clients/") && r.Method == http.MethodPut {
 			body, _ := io.ReadAll(r.Body)
@@ -230,7 +240,7 @@ func TestIdentitySyncCreatesTheClientTheImportWOULDHave(t *testing.T) {
 	}
 	for i, want := range map[int]map[string]any{
 		0:                  serviceAccountClient(secretClients[0], secretForTest(secretClients[0]), "semiont-gateway"),
-		len(s.created) - 1: workerClient(testWorkerKey(), "semiont-gateway"),
+		len(s.created) - 1: workerClient(localWorkerLabel, testWorkerKey().registeredKey, "semiont-gateway"),
 	} {
 		got, _ := json.Marshal(s.created[i])
 		want, _ := json.Marshal(want)
@@ -345,7 +355,7 @@ func allServiceClientReps() []map[string]any {
 func serviceClientRep(svc, rolesValue string) map[string]any {
 	rendered := serviceAccountClient(svc, "unused", "unused")
 	if svc == "worker" {
-		rendered = workerClient(testWorkerKey(), "unused")
+		rendered = workerClient(localWorkerLabel, testWorkerKey().registeredKey, "unused")
 	}
 	mappers := []map[string]any{}
 	for _, m := range rendered["protocolMappers"].([]map[string]any) {
@@ -440,7 +450,7 @@ func TestIdentitySyncBringsTheWorkersClientToThisMachinesKey(t *testing.T) {
 	for _, svc := range accountServices() {
 		r := serviceClientRep(svc, serviceRolesClaim(svc))
 		if svc == "worker" {
-			r["attributes"] = workerKeyAttributes(theirs)
+			r["attributes"] = workerKeyAttributes(theirs.registeredKey)
 		}
 		reps = append(reps, r)
 	}
@@ -458,7 +468,7 @@ func TestIdentitySyncBringsTheWorkersClientToThisMachinesKey(t *testing.T) {
 		t.Errorf("clientAuthenticatorType = %v, want %s", patch["clientAuthenticatorType"], clientJWT)
 	}
 	attributes, _ := patch["attributes"].(map[string]any)
-	for name, want := range workerKeyAttributes(testWorkerKey()) {
+	for name, want := range workerKeyAttributes(testWorkerKey().registeredKey) {
 		if attributes[name] != want {
 			t.Errorf("attribute %s = %v, want %s", name, attributes[name], want)
 		}

@@ -17,8 +17,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
@@ -6153,6 +6157,19 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 	if err := os.WriteFile(p, []byte(rec), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A grant reads its key before the record, so it is given one to read.
+	workerKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKIXPublicKey(&workerKey.PublicKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "worker.pem")
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	// Every command that draws a conclusion from the record. A new one that
 	// reads stack.json belongs in this list.
@@ -6167,6 +6184,8 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 		{"clean", "--dry-run"},
 		{"roots"},
 		{"identity", "sync"},
+		{"identity", "grant", "alice", "--key", keyFile},
+		{"identity", "revoke", "alice"},
 		{"export", "--repo", "owner/kb"},
 		{"logout"},
 	} {

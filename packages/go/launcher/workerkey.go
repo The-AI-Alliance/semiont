@@ -37,15 +37,30 @@ func machineStateDir() string {
 	return filepath.Join(d, "machine")
 }
 
-// workerKey: the machine's worker key as the launcher hands it on — its
-// private half for the worker's container, its public half and thumbprint for
-// the realm's client, and the key itself for the preflight to sign with. A
-// plan holds placeholders and no key.
+// registeredKey: what a realm holds of a worker's key — its public half, and
+// the thumbprint it is named by.
+type registeredKey struct {
+	public     string // base64 DER SubjectPublicKeyInfo: jwt.credential.public.key
+	thumbprint string // RFC 7638: jwt.credential.kid, and the kid each assertion names
+}
+
+// registeredKeyOf: what a realm holds of pub.
+func registeredKeyOf(pub *rsa.PublicKey) (registeredKey, error) {
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return registeredKey{}, err
+	}
+	return registeredKey{public: base64.StdEncoding.EncodeToString(der), thumbprint: jwkThumbprint(pub)}, nil
+}
+
+// workerKey: the machine's worker key as the launcher hands it on — what the
+// realm's client holds of it, its private half for the worker's container, and
+// the key itself for the preflight to sign with. A plan holds placeholders and
+// no key.
 type workerKey struct {
-	private    string          // PKCS#8 PEM: SEMIONT_OIDC_CLIENT_KEY
-	public     string          // base64 DER SubjectPublicKeyInfo: jwt.credential.public.key
-	thumbprint string          // RFC 7638: jwt.credential.kid, and the kid each assertion names
-	signer     *rsa.PrivateKey // nil in a plan
+	registeredKey
+	private string          // PKCS#8 PEM: SEMIONT_OIDC_CLIENT_KEY
+	signer  *rsa.PrivateKey // nil in a plan
 }
 
 // workerKeyOf: what the launcher hands on of key.
@@ -54,15 +69,14 @@ func workerKeyOf(key *rsa.PrivateKey) (workerKey, error) {
 	if err != nil {
 		return workerKey{}, err
 	}
-	public, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
+	registered, err := registeredKeyOf(&key.PublicKey)
 	if err != nil {
 		return workerKey{}, err
 	}
 	return workerKey{
-		private:    string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private})),
-		public:     base64.StdEncoding.EncodeToString(public),
-		thumbprint: jwkThumbprint(&key.PublicKey),
-		signer:     key,
+		registeredKey: registered,
+		private:       string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private})),
+		signer:        key,
 	}, nil
 }
 
@@ -125,13 +139,14 @@ func loadOrCreateWorkerKey(u *UI) (workerKey, bool) {
 	return k, true
 }
 
-// workerClient: the realm client of the machine's worker. It proves itself
+// workerClient: the realm client of the worker admitted under label — this
+// machine's own (localWorkerLabel), or one a grant admitted. It proves itself
 // with a signed assertion (client-jwt) the realm checks with the key's public
 // half: no secret. The realm names the key by its thumbprint, which each
 // assertion's header names too: Keycloak refuses an assertion naming a key the
 // client does not.
-func workerClient(k workerKey, audience string) map[string]any {
-	return accountClient(serviceClientID("worker"), "Semiont worker (this machine)", map[string]any{
+func workerClient(label string, k registeredKey, audience string) map[string]any {
+	return accountClient(workerClientID(label), "Semiont worker "+label, map[string]any{
 		"clientAuthenticatorType": clientJWT,
 		"attributes":              workerKeyAttributes(k),
 	}, audience, serviceRolesClaim("worker"))
@@ -144,7 +159,7 @@ const clientJWT = "client-jwt"
 // workerKeyAttributes: the attributes by which a client-jwt client holds the
 // key it checks assertions with: the key itself, not a JWKS URL to fetch it
 // from, and the thumbprint each assertion names it by.
-func workerKeyAttributes(k workerKey) map[string]string {
+func workerKeyAttributes(k registeredKey) map[string]string {
 	return map[string]string{
 		"use.jwks.url":              "false",
 		"jwt.credential.public.key": k.public,
