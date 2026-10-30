@@ -2173,6 +2173,32 @@ public final class semiont/testing/TestClient {
 	public final fun getTransport ()Lsemiont/testing/FaultyTransport;
 }
 
+public final class semiont/testing/TestSession {
+	public final fun getClient ()Lsemiont/SemiontClient;
+	public final fun getContent ()Lsemiont/testing/InMemoryContent;
+	public final fun getGateway ()Lsemiont/testing/StubGateway;
+	public final fun getKept ()Lsemiont/signin/SignInKept;
+	public final fun getSession ()Lsemiont/session/SemiontSession;
+	public final fun getTransport ()Lsemiont/testing/FaultyTransport;
+	public final fun setToken (Ljava/lang/String;)V
+}
+
+public final class semiont/testing/TestSessionKt {
+	public static final fun createTestSession (Lsemiont/testing/TestSessionOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun createTestSessionFuture (Lsemiont/testing/TestSessionOptions;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/testing/TestSessionOptions {
+	public fun <init> ()V
+	public fun <init> (Lsemiont/testing/TestClient;)V
+	public fun <init> (Lsemiont/testing/TestClient;Lsemiont/types/KbTarget;)V
+	public fun <init> (Lsemiont/testing/TestClient;Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;)V
+	public synthetic fun <init> (Lsemiont/testing/TestClient;Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getClient ()Lsemiont/testing/TestClient;
+	public final fun getKb ()Lsemiont/types/KbTarget;
+	public final fun getKept ()Lsemiont/signin/SignInKept;
+}
+
 public final class semiont/transport/ConnectionState : java/lang/Enum {
 	public static final field Closed Lsemiont/transport/ConnectionState;
 	public static final field Connecting Lsemiont/transport/ConnectionState;
