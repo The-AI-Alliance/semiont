@@ -292,7 +292,7 @@ Create the client yourself. It is the same client:
 - **Confidential**, authenticating by a **signed JWT**: RFC 7523's client assertion, RS256. Keycloak calls this authenticator "Signed JWT".
 - **The worker's public key registered on it**, under the key id each assertion names: the `kid` of the JWK Set that `semiont worker key` prints. An issuer given the PEM must be given that key id too; Keycloak refuses an assertion naming a key id its client does not hold.
 - **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
-- **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
+- **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, a **`kind`** of `agent`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
 
 The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json).
 
@@ -331,13 +331,15 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **A service account's token also needs** a flat `roles` array containing `semiont-service` — an array of strings at the top level, deliberately not Keycloak's nested `realm_access.roles`. An issuer with its own group model maps it into that claim.
 
+**And a `kind` claim holding `agent`**, a string at the top level. It marks the account an agent's rather than a person's: every service's account and every worker's carries it, and a person's never does. It is a kind, not a role, because roles are capabilities that people and agents can both be granted.
+
 **A worker's token also needs `semiont-worker`** in that same array. The gateway stamps it onto the agent token a worker mints, and the dispatcher admits a `job:claim` only from a token carrying it — `semiont-service` is what every sidecar has, so it cannot be what distinguishes a worker. A worker that is not yours is admitted by its key: see [Admitting a worker someone else runs](#admitting-a-worker-someone-else-runs).
 
 **For people to sign in at all**, the issuer needs a public client that supports the device grant (for `semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
 **Each Semiont service needs its own client**, not one shared between them: the archivist, dispatcher, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them mint any other's identity. For the Keycloak the launcher runs, named by `spec.issuer.ref`, the launcher creates all seven. For an issuer at `spec.issuer.external` you create them there and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — but the worker's: the worker proves itself with a key, signing each sign-in (a JWT client assertion, RFC 7523), so its client, `semiont-worker-local`, authenticates by signed JWT and holds the public key `semiont worker key` prints. See [Maintenance](./MAINTENANCE.md) for rotation.
 
-`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm imported before the worker role existed) and the worker's client's key (this machine's), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the Issuer document. It reconciles configuration only and never touches accounts.
+`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, reconciles an existing client's roles mapper (a realm imported before the worker role existed) and its kind mapper (a realm imported before the `kind` claim), and the worker's client's key (this machine's), adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the Issuer document. It reconciles configuration only and never touches accounts.
 
 ### API
 

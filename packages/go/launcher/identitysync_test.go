@@ -32,6 +32,7 @@ type stubAdmin struct {
 	updated   map[string]map[string]any // clientId -> the patch PUT to it
 	mappers   map[string]map[string]any // clientId -> the mapper PUT to /clients/<uuid>/protocol-mappers/models/<id>
 	deleted   []string                  // clientIds DELETEd
+	added     map[string]map[string]any // clientId -> the mapper POSTed to /clients/<uuid>/protocol-mappers/models
 	realmCfg  map[string]any            // realm-level settings this realm reports
 	badLogin  bool
 	httpsOnly bool // the master realm's sslRequired refusing this caller's address
@@ -49,7 +50,7 @@ func clientReps(ids ...string) []map[string]any {
 
 func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAdmin {
 	t.Helper()
-	s := &stubAdmin{updated: map[string]map[string]any{}, mappers: map[string]map[string]any{}, realmCfg: map[string]any{}}
+	s := &stubAdmin{updated: map[string]map[string]any{}, mappers: map[string]map[string]any{}, added: map[string]map[string]any{}, realmCfg: map[string]any{}}
 	mux := http.NewServeMux()
 	s.srv = httptest.NewServer(mux)
 	t.Cleanup(s.srv.Close)
@@ -119,6 +120,19 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 		s.mu.Lock()
 		s.paths = append(s.paths, r.Method+" "+r.URL.Path)
 		s.mu.Unlock()
+		// A mapper added: /admin/realms/<realm>/clients/<uuid>/protocol-mappers/models.
+		if strings.HasSuffix(r.URL.Path, "/protocol-mappers/models") && r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			var mapper map[string]any
+			_ = json.Unmarshal(body, &mapper)
+			rest := r.URL.Path[strings.LastIndex(r.URL.Path, "/clients/")+len("/clients/"):]
+			id := strings.TrimPrefix(rest[:strings.Index(rest, "/")], "uuid-")
+			s.mu.Lock()
+			s.added[id] = mapper
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
 		// One mapper: /admin/realms/<realm>/clients/<uuid>/protocol-mappers/models/<id>.
 		// A sub-resource with its own endpoint — a client-level PUT does not
 		// reach it — so it is recorded apart from the client patches.
@@ -428,6 +442,88 @@ func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 	}
 	if len(rep.created) != 0 {
 		t.Errorf("created = %v, want nothing — every client exists", rep.created)
+	}
+}
+
+// withoutMapper: a client as Keycloak lists it, less the mapper named name — a
+// client of a realm imported before that mapper existed.
+func withoutMapper(rep map[string]any, name string) map[string]any {
+	out := map[string]any{}
+	for k, v := range rep {
+		out[k] = v
+	}
+	var kept []map[string]any
+	for _, m := range rep["protocolMappers"].([]map[string]any) {
+		if m["name"] != name {
+			kept = append(kept, m)
+		}
+	}
+	out["protocolMappers"] = kept
+	return out
+}
+
+// A realm imported before the kind claim holds every account's client without
+// the mapper that stamps it. Sync adds it to each — the mapper the realm
+// document renders, POSTed as a sub-resource of the client — and nothing else.
+func TestIdentitySyncAddsTheKindMapperToAnOlderRealm(t *testing.T) {
+	reps := []map[string]any{}
+	for _, svc := range accountServices() {
+		reps = append(reps, withoutMapper(serviceClientRep(svc, serviceRolesClaim(svc)), agentKindMapperName))
+	}
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if len(s.added) != len(stackServices) {
+		t.Fatalf("kind mapper added to %d clients, want every account's (%d): %v", len(s.added), len(stackServices), s.added)
+	}
+	want, _ := renderedMapper(serviceAccountClient("gateway", "unused", "semiont-gateway"), agentKindMapperName)
+	got, _ := json.Marshal(s.added[serviceClientID("gateway")])
+	wantJSON, _ := json.Marshal(want)
+	if string(got) != string(wantJSON) {
+		t.Errorf("the added mapper is not the one the realm renders:\n got: %s\nwant: %s", got, wantJSON)
+	}
+	if len(s.created)+len(s.updated)+len(s.mappers)+len(s.deleted) != 0 {
+		t.Errorf("sync changed more than the kind mapper: POST %v, PUT %v, mapper PUT %v, DELETE %v", s.created, s.updated, s.mappers, s.deleted)
+	}
+	if len(rep.updated) != len(stackServices) || !strings.Contains(rep.updated[0], "kind mapper added") {
+		t.Errorf("updated = %v, want each client named with the mapper added", rep.updated)
+	}
+}
+
+// A kind mapper that stamps something else is brought back to the claim, in
+// place, by its id: one `kind` claim on the token, not two.
+func TestIdentitySyncReconcilesAKindMapperThatSaysOtherwise(t *testing.T) {
+	reps := []map[string]any{}
+	for _, svc := range accountServices() {
+		r := serviceClientRep(svc, serviceRolesClaim(svc))
+		if svc == "weaver" {
+			for _, m := range r["protocolMappers"].([]map[string]any) {
+				if m["name"] == agentKindMapperName {
+					m["config"] = map[string]string{"claim.name": kindClaim, "claim.value": "person"}
+				}
+			}
+		}
+		reps = append(reps, r)
+	}
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	mapper, ok := s.mappers[serviceClientID("weaver")]
+	if !ok || len(s.mappers) != 1 || len(s.added) != 0 {
+		t.Fatalf("mapper PUTs %v, POSTs %v; want the weaver's kind mapper updated alone", s.mappers, s.added)
+	}
+	cfg, _ := mapper["config"].(map[string]any)
+	if mapper["id"] != "mapper-weaver-semiont-agent-kind" || cfg["claim.value"] != agentKind {
+		t.Errorf("the mapper was not brought back in place: %v", mapper)
+	}
+	if len(rep.updated) != 1 || !strings.Contains(rep.updated[0], serviceClientID("weaver")) {
+		t.Errorf("updated = %v, want the weaver alone", rep.updated)
 	}
 }
 

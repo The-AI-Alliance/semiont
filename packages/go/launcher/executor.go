@@ -882,7 +882,7 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, accounts realm
 		workerFinding := slices.ContainsFunc(findings, func(f serviceAccountFinding) bool { return f.svc == "worker" })
 		if managed {
 			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.Bold("semiont identity sync"))
-			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("Adds the missing clients, and reconciles an existing one's roles mapper and the worker's key. Touches no accounts."))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("Adds the missing clients, and reconciles an existing one's roles and kind mappers and the worker's key. Touches no accounts."))
 			fmt.Fprintln(os.Stderr, "")
 			fmt.Fprintf(os.Stderr, "  Then:    %s\n", x.u.Bold("semiont start"))
 			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("This start again, which will then get past this gate."))

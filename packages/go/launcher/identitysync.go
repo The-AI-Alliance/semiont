@@ -253,6 +253,87 @@ func reconcileRolesMapper(base, realm, token, svc string, c existingClient) (str
 	return "", nil
 }
 
+// reconcileKindMapper brings an existing account's client to want, the kind
+// mapper the realm document renders for it (agentKindMapperName): added when
+// the client has none — every client of a realm imported before the claim —
+// and brought back to what it renders when it says otherwise. Unlike the roles
+// mapper, an absent one is not a hand-built client's: the launcher made every
+// client of a realm it runs, and only the claim is newer than they are.
+//
+// Returns what changed, for the report; "" when the mapper already agrees.
+func reconcileKindMapper(base, realm, token string, c existingClient, want map[string]any) (string, error) {
+	wantCfg, _ := want["config"].(map[string]string)
+	mappers, _ := c.rep["protocolMappers"].([]any)
+	for _, m := range mappers {
+		mapper, _ := m.(map[string]any)
+		if mapper["name"] != agentKindMapperName {
+			continue
+		}
+		cfg, _ := mapper["config"].(map[string]any)
+		agrees := true
+		for k, v := range wantCfg {
+			if have, _ := cfg[k].(string); have != v {
+				agrees = false
+			}
+		}
+		if agrees {
+			return "", nil
+		}
+		id, _ := mapper["id"].(string)
+		if id == "" {
+			return "", fmt.Errorf("the %q mapper carries no id to update it by", agentKindMapperName)
+		}
+		updated := map[string]any{}
+		for k, v := range want {
+			updated[k] = v
+		}
+		updated["id"] = id
+		if err := updateClientMapper(base, realm, token, c.uuid, id, updated); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("kind mapper now stamps %s %q", kindClaim, agentKind), nil
+	}
+	if err := createClientMapper(base, realm, token, c.uuid, want); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("kind mapper added (%s %q)", kindClaim, agentKind), nil
+}
+
+// renderedMapper: the mapper named name on client, a client the realm
+// document renders.
+func renderedMapper(client map[string]any, name string) (map[string]any, bool) {
+	mappers, _ := client["protocolMappers"].([]map[string]any)
+	for _, m := range mappers {
+		if m["name"] == name {
+			return m, true
+		}
+	}
+	return nil, false
+}
+
+// createClientMapper: POST one protocol mapper onto a client.
+func createClientMapper(base, realm, token, uuid string, mapper map[string]any) error {
+	b, err := json.Marshal(mapper)
+	if err != nil {
+		return err
+	}
+	req, _ := http.NewRequest(http.MethodPost,
+		base+"/admin/realms/"+realm+"/clients/"+uuid+"/protocol-mappers/models", bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("content-type", "application/json")
+	resp, err := adminHTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	// 409 is success for our purposes, as createClient's: the mapper appeared
+	// between the list and the create.
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusConflict {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // updateClientMapper: PUT one protocol mapper by id. Keycloak wants the whole
 // representation back, id included.
 func updateClientMapper(base, realm, token, uuid, mapperID string, mapper map[string]any) error {
@@ -309,9 +390,10 @@ func reconcileServiceClients(base, realm, token, audience string, accounts realm
 // reconcileAccount brings one account's client to client, the client the
 // realm document renders for it, with the roles serviceRoles(rolesOf) states:
 // created when the realm lacks it. Present, it may still carry a role it was
-// created without (the worker's job-claim role), which the preflight refuses,
-// so its roles mapper is reconciled. A secret is never reconciled: sync cannot
-// know it. A key it does know, and reconciles when key is given.
+// created without (the worker's job-claim role), or lack the kind mapper,
+// either of which the preflight refuses, so both mappers are reconciled. A
+// secret is never reconciled: sync cannot know it. A key it does know, and
+// reconciles when key is given.
 func reconcileAccount(base, realm, token string, have map[string]existingClient, rolesOf string, client map[string]any, key *registeredKey, rep *syncReport) error {
 	id := client["clientId"].(string)
 	c, ok := have[id]
@@ -324,6 +406,17 @@ func reconcileAccount(base, realm, token string, have map[string]existingClient,
 	}
 	var changes []string
 	change, err := reconcileRolesMapper(base, realm, token, rolesOf, c)
+	if err != nil {
+		return fmt.Errorf("updating %s: %w", id, err)
+	}
+	if change != "" {
+		changes = append(changes, change)
+	}
+	kind, ok := renderedMapper(client, agentKindMapperName)
+	if !ok {
+		return fmt.Errorf("the realm document renders %s with no %q mapper", id, agentKindMapperName)
+	}
+	change, err = reconcileKindMapper(base, realm, token, c, kind)
 	if err != nil {
 		return fmt.Errorf("updating %s: %w", id, err)
 	}

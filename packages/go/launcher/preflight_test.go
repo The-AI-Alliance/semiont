@@ -169,8 +169,9 @@ func TestPreflightRefusesWhenGrantIsRefused(t *testing.T) {
 			return 401, `{"error":"invalid_client"}`
 		}
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{testAudience, "account"},
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
 		})
 	})
 
@@ -211,8 +212,9 @@ func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 func TestPreflightRefusesWrongAudience(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{"https://example.invalid/other-kb", "account"},
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{"https://example.invalid/other-kb", "account"},
 		})
 	})
 
@@ -232,9 +234,10 @@ func TestPreflightRefusesWrongAudience(t *testing.T) {
 func TestPreflightPassesOnTheLiveShape(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{testAudience, "account"},
-			"azp":   clientID,
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
+			"azp":     clientID,
 		})
 	})
 
@@ -257,8 +260,9 @@ func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 	// exactly the service role.
 	srv := stubIssuer(t, func(string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": []string{serviceRole},
-			"aud":   []string{testAudience, "account"},
+			"roles":   []string{serviceRole},
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
 		})
 	})
 
@@ -296,8 +300,9 @@ func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 func TestPreflightSignsInAsTheWorkerWithTheMachinesKey(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   []string{testAudience, "account"},
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     []string{testAudience, "account"},
 		})
 	})
 	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts()); len(findings) != 0 {
@@ -321,13 +326,37 @@ func TestPreflightSignsInAsTheWorkerWithTheMachinesKey(t *testing.T) {
 	}
 }
 
+// Every service's account is an agent's, and its token says so: a realm
+// imported before the claim mints tokens without it, which read as a person's.
+// A finding per client, naming the claim, with the realm's mapper as the fix.
+func TestPreflightRefusesATokenThatDoesNotSayItsAnAgents(t *testing.T) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		return 200, grantBody(map[string]any{
+			"roles": stampedRoles(clientID),
+			"aud":   []string{testAudience, "account"},
+		})
+	})
+
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
+
+	if len(findings) != len(stackServices) {
+		t.Fatalf("want a finding per client, got %d: %v", len(findings), findings)
+	}
+	for _, f := range findings {
+		if !strings.Contains(f.reason, "`"+kindClaim+"`") || !strings.Contains(f.reason, agentKind) || !strings.Contains(f.fix, "mapper") {
+			t.Errorf("the finding does not name the claim and the mapper: %q", f)
+		}
+	}
+}
+
 // A single-string aud is legal OIDC and some issuers emit it. An operator
 // federating their own issuer must not be refused for that.
 func TestPreflightAcceptsScalarAudience(t *testing.T) {
 	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": stampedRoles(clientID),
-			"aud":   testAudience,
+			"roles":   stampedRoles(clientID),
+			kindClaim: agentKind,
+			"aud":     testAudience,
 		})
 	})
 
@@ -710,10 +739,11 @@ func TestFlagProbesSendNoCredential(t *testing.T) {
 func lifespanToken(t *testing.T, clientID string, seconds int) string {
 	t.Helper()
 	return grantBody(map[string]any{
-		"roles": stampedRoles(clientID),
-		"aud":   []string{testAudience, "account"},
-		"iat":   1700000000,
-		"exp":   1700000000 + seconds,
+		"roles":   stampedRoles(clientID),
+		kindClaim: agentKind,
+		"aud":     []string{testAudience, "account"},
+		"iat":     1700000000,
+		"exp":     1700000000 + seconds,
 	})
 }
 
