@@ -36,11 +36,11 @@ sync
   and updates what the import would have rendered.
 
   It reconciles CONFIGURATION ONLY. It creates clients, updates an existing
-  client's roles mapper and the worker's client's key — this machine's, which
-  ` + "`semiont worker key`" + ` prints — and changes nothing else: no secret
-  is touched, and no accounts are read, written or deleted, so it is safe to
-  run against a realm with real users. It is idempotent — run it again to
-  confirm it worked.
+  client's roles and kind mappers and the worker's client's key — this
+  machine's, which ` + "`semiont worker key`" + ` prints — and changes nothing
+  else: no secret is touched, and no accounts are read, written or deleted, so
+  it is safe to run against a realm with real users. It is idempotent — run
+  it again to confirm it worked.
 
 grant
   Admit a worker someone else runs, by its key: the public half that
@@ -54,8 +54,9 @@ grant
 
 revoke
   Delete the client granted under <label>, and no other. The worker's next
-  sign-in is refused; a token it already holds stays good until it expires,
-  within the realm's access-token lifetime.
+  sign-in is refused. Tokens it already holds stay good until they expire: its
+  issuer token within the realm's access-token lifetime, and an agent token
+  the gateway minted it within that token's own.
 
 Each needs Keycloak's bootstrap admin password, the same one ` + "`semiont start`" + `
 reports: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the value persisted for this root.
@@ -349,10 +350,6 @@ func identityRevoke(u *UI, args []string) int {
 		return 1
 	}
 	u.Ok("identity — revoked %s (deleted %s)", u.Bold(label), workerClientID(label))
-	if lifespan := r.rp.AccessTokenLifespan; lifespan > 0 {
-		fmt.Fprintf(os.Stderr, "  A token it already holds stays good until it expires, within %ds.\n", lifespan)
-	} else {
-		fmt.Fprintln(os.Stderr, "  A token it already holds stays good until it expires, within the realm's access-token lifetime.")
-	}
+	fmt.Fprintf(os.Stderr, "  Tokens it already holds stay good until they expire: its issuer token within %ds, and an agent token the gateway minted it within that token's own lifetime.\n", r.rp.AccessTokenLifespan)
 	return 0
 }

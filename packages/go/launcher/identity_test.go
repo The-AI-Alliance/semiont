@@ -7,11 +7,13 @@ package launcher
 // plan, naming the document and the field.
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // trustExternalIssuer: st trusting an issuer somebody else runs, with no
@@ -141,6 +143,45 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		if !strings.Contains(doc, want) {
 			t.Errorf("realm document missing %s", want)
 		}
+	}
+}
+
+// Every agent account's client stamps the kind claim, and no person's does:
+// the public clients people sign in through carry no such mapper, so a
+// person's token never says it is an agent's.
+func TestTheRealmMarksEveryAgentsAccountAndNoPersons(t *testing.T) {
+	var doc struct {
+		Clients []map[string]any `json:"clients"`
+	}
+	if err := json.Unmarshal(keycloakRealmJSON("semiont", "aud", 3000, keycloakAccessTokenLifespan, realmAccounts{worker: testWorkerKey()}), &doc); err != nil {
+		t.Fatal(err)
+	}
+	stamps := func(client map[string]any) bool {
+		mappers, _ := client["protocolMappers"].([]any)
+		for _, m := range mappers {
+			cfg, _ := m.(map[string]any)["config"].(map[string]any)
+			if cfg["claim.name"] == kindClaim {
+				return cfg["claim.value"] == agentKind && cfg["jsonType.label"] == "String"
+			}
+		}
+		return false
+	}
+	accounts := 0
+	for _, c := range doc.Clients {
+		switch c["clientId"] {
+		case semiont.BrowserClientID, semiont.ScriptClientID:
+			if stamps(c) {
+				t.Errorf("%v, a client people sign in through, stamps the agent kind", c["clientId"])
+			}
+		default:
+			accounts++
+			if !stamps(c) {
+				t.Errorf("%v, an agent's account, does not stamp %s %q", c["clientId"], kindClaim, agentKind)
+			}
+		}
+	}
+	if accounts != len(stackServices) {
+		t.Errorf("%d agent accounts in the realm, want one per stack service (%d)", accounts, len(stackServices))
 	}
 }
 

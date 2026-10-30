@@ -3355,6 +3355,71 @@ jobs:
           verbose: true
         continue-on-error: true
 
+  # The launcher against a real Keycloak: the one the launcher starts for an
+  # operator, whose image scripts/ci/keycloak-image.sh reads from the
+  # launcher's own descriptor. A stub admits whatever it is shown, so only
+  # Keycloak proves that the realm sync's clients and a granted worker's are
+  # ones it admits a sign-in at, that a token it mints carries the flat
+  # `roles` and the audience the gateway checks, and that a new key and a
+  # revoke do what they say. The live tests skip without a Keycloak to run
+  # against; here one that skips fails the job.
+  test-launcher-keycloak:
+    name: Launcher Tests (Go, Keycloak)
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.go == 'true'
+    env:
+      # Where the tests find the issuer, and the admin password it was started
+      # with below: a container this job makes and discards.
+      SEMIONT_LIVE_KEYCLOAK: http://localhost:8080
+      KC_BOOTSTRAP_ADMIN_PASSWORD: launcher-keycloak-ci
+    defaults:
+      run:
+        working-directory: packages/go/launcher
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+          cache-dependency-path: |
+            apps/launcher/go.sum
+            packages/go/launcher/go.sum
+
+      - name: Start Keycloak
+        working-directory: .
+        run: |
+          image=$(scripts/ci/keycloak-image.sh)
+          docker run -d --name keycloak -p 8080:8080 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD" \
+            "$image" start-dev
+          for attempt in $(seq 1 90); do
+            if curl -sf -o /dev/null "$SEMIONT_LIVE_KEYCLOAK/realms/master"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs keycloak
+          echo "Keycloak did not answer within three minutes"
+          exit 1
+
+      - name: Run the live tests against it
+        run: |
+          go test -count=1 -v -run 'Live$' . | tee live.out
+          if grep -q -- '--- SKIP' live.out; then
+            echo "::error::a live test skipped, so it was not run against Keycloak"
+            exit 1
+          fi
+          for test in TestIdentitySyncLive TestWorkerGrantLive; do
+            if ! grep -q -- "--- PASS: $test " live.out; then
+              echo "::error::$test did not run and pass"
+              exit 1
+            fi
+          done
+
   test-launcher-windows:
     name: Launcher Tests (Go, Windows)
     runs-on: windows-latest
@@ -3456,6 +3521,7 @@ jobs:
       - generated-artifacts
       - check-launcher
       - test-launcher
+      - test-launcher-keycloak
       - test-launcher-windows
     steps:
       - name: What each job did

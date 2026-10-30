@@ -25,6 +25,10 @@
  * The spec names roles too: a limit on a principal states a coefficient per
  * role (`x-semiont-limits`, `roles`). A role named there that is none of these
  * would bind no one, silently, so every one must be an agreed role.
+ *
+ * The claim that marks an agent's account is held the same way, its name and
+ * the value it holds: the launcher writes it into the realm, and its fake
+ * runtime emits it. It is a kind, not a role, so a limit cannot name it.
  */
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
@@ -67,6 +71,38 @@ const ROLES = [
         file: 'packages/rust/sdk/src/roles.rs',
         what: 'the grant the Rust SDK holds, which the gateway delegates to a worker\'s agent token and the dispatcher authorizes a job:claim by',
         pattern: /WORKER_ROLE:\s*&str\s*=\s*"([^"]+)"/,
+      },
+    ],
+  },
+  {
+    label: 'kind claim',
+    role: false,
+    sites: [
+      {
+        file: 'packages/go/launcher/identity.go',
+        what: "the claim the realm's kind mapper stamps",
+        pattern: /kindClaim\s*=\s*"([^"]+)"/,
+      },
+      {
+        file: 'packages/go/launcher/fakert/main.go',
+        what: "the fake runtime's emitted kind claim",
+        pattern: /kindClaim, agentKind := "([^"]+)"/,
+      },
+    ],
+  },
+  {
+    label: 'agent kind',
+    role: false,
+    sites: [
+      {
+        file: 'packages/go/launcher/identity.go',
+        what: "the value the realm's kind mapper stamps on an agent's account",
+        pattern: /agentKind\s*=\s*"([^"]+)"/,
+      },
+      {
+        file: 'packages/go/launcher/fakert/main.go',
+        what: "the fake runtime's emitted agent kind",
+        pattern: /kindClaim, agentKind := "[^"]+", "([^"]+)"/,
       },
     ],
   },
@@ -123,7 +159,7 @@ for (const role of ROLES) {
   }
 
   console.log(`✅ ${role.label}: ${found.length} sites agree on "${values[0]}"`);
-  agreed.push(values[0]);
+  if (role.role !== false) agreed.push(values[0]);
 }
 
 const PATHS = 'specs/src/paths';

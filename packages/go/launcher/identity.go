@@ -35,6 +35,15 @@ const (
 	// WORKER_ROLE in packages/rust/sdk/src/roles.rs (held by lint:service-role).
 	workerRole = "semiont-worker"
 
+	// kindClaim, agentKind: the claim that marks an agent's account, and what
+	// it holds there. Every service's account and every worker's carries it;
+	// a person's never does. It is a kind, not a role: roles are capabilities,
+	// granted to people and agents alike, so none can say which an account is.
+	// The realm stamps it, so it is the issuer's word, checked as the token is.
+	// Held to the fake runtime's issuer by lint:service-role.
+	kindClaim = "kind"
+	agentKind = "agent"
+
 	// keycloakAccessTokenLifespan: how long an access token the realm mints
 	// stays valid, in seconds.
 	//
@@ -169,23 +178,28 @@ func serviceRolesClaim(svc string) string {
 // that already exists.
 const serviceRoleMapperName = "semiont service role"
 
+// agentKindMapperName: the mapper stamping kindClaim on every service client,
+// under the name the admin API lists it by.
+const agentKindMapperName = "semiont agent kind"
+
 // serviceAccountClient: a confidential client that can obtain a token for
 // ITSELF (the client-credentials grant) and nothing else — no browser flow, no
 // password grant, no user behind it.
 //
-// Two mappers ride on it. The audience mapper is the same one the public
+// Three mappers ride on it. The audience mapper is the same one the public
 // clients carry, so the gateway's audience check passes. The roles mapper
 // hardcodes the agent role: an operator creating this client IS the assertion
 // that this process may mint agent identities, and a hardcoded claim says that
-// without needing a realm role created and assigned in the same import.
+// without needing a realm role created and assigned in the same import. The
+// kind mapper marks the account an agent's (kindClaim).
 func serviceAccountClient(svc, secret, audience string) map[string]any {
 	return accountClient(serviceClientID(svc), "Semiont "+svc, map[string]any{"secret": secret}, audience, serviceRolesClaim(svc))
 }
 
 // accountClient: a confidential client that obtains a token for itself and
 // nothing else, proving itself as proof says (a secret, or a key: workerClient),
-// with the audience mapper and the hardcoded roles every service account
-// carries.
+// with the audience mapper, the hardcoded roles and the agent kind every service
+// account carries.
 func accountClient(clientID, name string, proof map[string]any, audience, rolesClaim string) map[string]any {
 	client := map[string]any{
 		"clientId":                  clientID,
@@ -218,6 +232,19 @@ func accountClient(clientID, name string, proof map[string]any, audience, rolesC
 					"claim.name":         "roles",
 					"claim.value":        rolesClaim,
 					"jsonType.label":     "JSON",
+					"access.token.claim": "true",
+					"id.token.claim":     "false",
+				},
+			},
+			{
+				"name":            agentKindMapperName,
+				"protocol":        "openid-connect",
+				"protocolMapper":  "oidc-hardcoded-claim-mapper",
+				"consentRequired": false,
+				"config": map[string]string{
+					"claim.name":         kindClaim,
+					"claim.value":        agentKind,
+					"jsonType.label":     "String",
 					"access.token.claim": "true",
 					"id.token.claim":     "false",
 				},
