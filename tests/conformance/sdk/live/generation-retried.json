@@ -115,9 +115,6 @@
             "_userId": {
               "$var": "_"
             },
-            "_roles": {
-              "$var": "_"
-            },
             "resourceId": "res-one",
             "jobId": "job-1",
             "jobType": "yield",
@@ -178,9 +175,6 @@
           "kind": "complete",
           "data": {
             "_userId": {
-              "$var": "_"
-            },
-            "_roles": {
               "$var": "_"
             },
             "resourceId": "res-one",

@@ -94,9 +94,6 @@
             "_userId": {
               "$var": "_"
             },
-            "_roles": {
-              "$var": "_"
-            },
             "resourceId": {
               "$var": "r1"
             },

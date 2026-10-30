@@ -20,7 +20,7 @@
 
 import { Observable, firstValueFrom, merge, race, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
-import type { EventMap } from './bus-protocol';
+import { CHANNEL_STAMPS, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame, TraceCarrier } from './event-bus';
 import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
@@ -130,10 +130,23 @@ export interface Delivered<T> {
 /** The field the gateway stamps a payload's emitter in. */
 const EMITTED_BY = '_userId';
 
-function delivered<T>(frame: BusFrame<T>): Delivered<T> {
+/**
+ * `payload` as `channel` types it. A stamp the gateway put on it that the
+ * channel's payload type does not declare (`CHANNEL_STAMPS`) is the bus's, not
+ * the payload's, and is left out: the rule every SDK's typed read keeps.
+ */
+export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K]): EventMap[K] {
+  if (typeof payload !== 'object' || payload === null) return payload;
+  const declared: readonly string[] = CHANNEL_STAMPS[channel];
+  return Object.fromEntries(
+    Object.entries(payload).filter(([name]) => !name.startsWith('_') || declared.includes(name)),
+  ) as EventMap[K];
+}
+
+function delivered<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]>): Delivered<EventMap[K]> {
   const stamped = (frame.payload as Record<string, unknown>)[EMITTED_BY];
   return {
-    payload: frame.payload,
+    payload: asDeclared(channel, frame.payload),
     ...(frame.correlationId !== undefined ? { correlationId: frame.correlationId } : {}),
     ...(frame.scope !== undefined ? { scope: frame.scope } : {}),
     ...(typeof stamped === 'string' ? { userId: userId(stamped) } : {}),
@@ -185,7 +198,7 @@ export class Bus {
           `${channel} is delivered on a resource's scope, so a read of it names the resource: frames(channel, resourceId)`,
         );
       }
-      return this.#transport.frames(channel).pipe(map(delivered));
+      return this.#transport.frames(channel).pipe(map((frame) => delivered(channel, frame)));
     }
     if (!isResourceScopedChannel(channel)) {
       throw new TypeError(`${channel} is no resource's channel: frames(channel)`);
@@ -199,7 +212,7 @@ export class Bus {
         .frames(channel)
         .pipe(
           filter((frame) => frame.scope === resourceId),
-          map(delivered),
+          map((frame) => delivered(channel, frame)),
         )
         .subscribe(subscriber);
       return () => {

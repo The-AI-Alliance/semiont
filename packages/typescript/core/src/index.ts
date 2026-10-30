@@ -223,7 +223,7 @@ export {
 
 // Request/reply over the bus — the transport-neutral primitive.
 export { replyChannelsFor, BusRequestError } from './bus-request';
-export { Bus, type BusPrimitive, type Delivered } from './bus';
+export { Bus, asDeclared, type BusPrimitive, type Delivered } from './bus';
 // The client's deadlines, retry budgets and stream cadence, generated from
 // specs/src/client/timing.json — the table every SDK generates from.
 export * from './generated/client-timing';

@@ -558,6 +558,28 @@ describe('HttpTransport — HTTP wire shape', () => {
     });
   });
 
+  describe('bridgeInto', () => {
+    test("a bridged bus is given each payload as its channel types it, while the transport's own frames are the wire's", async () => {
+      const { EventBus } = await import('@semiont/core');
+      const bus = new EventBus();
+      transport.bridgeInto(bus);
+
+      const wire: unknown[] = [];
+      transport.frames('job:fail').subscribe((frame) => wire.push(frame.payload));
+      const bridged: unknown[] = [];
+      bus.on('job:fail').subscribe((payload) => bridged.push(payload));
+
+      // job:fail's payload declares `_userId` and not `_roles`.
+      const failed = { resourceId: 'res-1', jobId: 'job-1', jobType: 'mark', error: 'the model did not answer', _userId: 'did:web:example.org:agents:worker' };
+      actorHarness.pushEvent('job:fail', { ...failed, _roles: ['semiont-service'] });
+
+      expect(wire).toEqual([{ ...failed, _roles: ['semiont-service'] }]);
+      expect(bridged).toEqual([failed]);
+
+      bus.destroy();
+    });
+  });
+
   describe('token$', () => {
     test('accepts a BehaviorSubject token source and constructs without error', async () => {
       const { BehaviorSubject } = await import('rxjs');
