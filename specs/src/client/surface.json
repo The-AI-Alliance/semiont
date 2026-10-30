@@ -39,7 +39,6 @@
     {
       "namespace": "frame",
       "docs": "The knowledge base's vocabulary: what kinds of things exist.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's frame namespace, on its client." },
       "methods": [
         {
           "method": "addEntityType",
@@ -77,16 +76,17 @@
     {
       "namespace": "browse",
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's browse namespace, on its client." },
       "methods": [
         {
           "method": "resource",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:resource-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resources",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:resources-requested" },
           "cases": [
@@ -104,42 +104,49 @@
         },
         {
           "method": "annotations",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "content": "getAnnotations" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "annotation",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:annotation-requested" },
           "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
         },
         {
           "method": "entityTypes",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:entity-types-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "tagSchemas",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:tag-schemas-requested" },
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
           "method": "agents",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:agents-requested" },
           "cases": [{ "why": "the directory is asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
         },
         {
           "method": "events",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "browse:events-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resourceContent",
+          "notYetReached": { "kotlin": "The Kotlin SDK's reading of a resource's bytes as its text (text/decode-cases.json)." },
           "shape": "promise",
           "via": { "content": "getBinary" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -218,7 +225,6 @@
     {
       "namespace": "mark",
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's mark namespace, on its client." },
       "methods": [
         {
           "method": "annotation",
@@ -263,6 +269,7 @@
         },
         {
           "method": "delegate",
+          "notYetReached": { "kotlin": "The Kotlin SDK's Delegation, and the following of the job it creates." },
           "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
@@ -329,7 +336,6 @@
     {
       "namespace": "bind",
       "docs": "Linking a reference to what it refers to.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's bind namespace, on its client." },
       "methods": [
         {
           "method": "body",
@@ -369,10 +375,10 @@
     {
       "namespace": "gather",
       "docs": "Assembling the context a model is given, and what refers to a resource.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's gather namespace, on its client." },
       "methods": [
         {
           "method": "annotation",
+          "notYetReached": { "kotlin": "The Kotlin SDK's Running, the stream a request of it answers in." },
           "shape": "stream",
           "via": { "request": "gather:requested" },
           "cases": [
@@ -419,6 +425,7 @@
         },
         {
           "method": "referencedBy",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "gather:referenced-by-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -428,10 +435,10 @@
     {
       "namespace": "match",
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's match namespace, on its client." },
       "methods": [
         {
           "method": "search",
+          "notYetReached": { "kotlin": "The Kotlin SDK's Running, the stream a request of it answers in." },
           "shape": "stream",
           "via": { "request": "match:search-requested" },
           "cases": [
@@ -461,6 +468,7 @@
         },
         {
           "method": "resources",
+          "notYetReached": { "kotlin": "The Kotlin SDK's cache, which a query of it is (Cached), with the live layer." },
           "shape": "cache",
           "via": { "request": "match:resources-requested" },
           "cases": [
@@ -481,7 +489,6 @@
     {
       "namespace": "yield",
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's yield namespace, on its client." },
       "methods": [
         {
           "method": "resource",
@@ -496,6 +503,7 @@
         },
         {
           "method": "delegate",
+          "notYetReached": { "kotlin": "The Kotlin SDK's Delegation, and the following of the job it creates." },
           "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
@@ -525,6 +533,7 @@
         },
         {
           "method": "createFromToken",
+          "notYetReached": { "kotlin": "The Kotlin SDK's media types, which make the clone's format and name." },
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [
@@ -561,7 +570,6 @@
     {
       "namespace": "beckon",
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's beckon namespace, on its client." },
       "methods": [
         {
           "method": "attention",
@@ -607,7 +615,6 @@
     {
       "namespace": "job",
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's job namespace, on its client." },
       "methods": [
         {
           "method": "queued",
@@ -664,6 +671,7 @@
         },
         {
           "method": "claim",
+          "notYetReached": { "kotlin": "The Kotlin SDK's claims, with the worker surface." },
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [
@@ -679,7 +687,6 @@
     {
       "namespace": "auth",
       "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's auth namespace, on its client." },
       "methods": [
         {
           "method": "me",
@@ -704,7 +711,6 @@
     {
       "namespace": "system",
       "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
-      "notYetReached": { "kotlin": "The Kotlin SDK's system namespace, on its client." },
       "methods": [
         {
           "method": "healthCheck",
@@ -941,7 +947,6 @@
   ],
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
-    "notYetReached": { "kotlin": "The Kotlin SDK's bus over its client's transport, which its client hands out as `wire`." },
     "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
       { "member": "emit" },

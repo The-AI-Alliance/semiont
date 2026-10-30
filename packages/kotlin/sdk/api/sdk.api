@@ -1,3 +1,44 @@
+public final class semiont/ClientTiming {
+	public fun <init> ()V
+	public fun <init> (J)V
+	public fun <init> (JJ)V
+	public fun <init> (JJJ)V
+	public synthetic fun <init> (JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()J
+	public final fun component2 ()J
+	public final fun component3 ()J
+	public final fun copy (JJJ)Lsemiont/ClientTiming;
+	public static synthetic fun copy$default (Lsemiont/ClientTiming;JJJILjava/lang/Object;)Lsemiont/ClientTiming;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBusRequestMs ()J
+	public final fun getJobSilenceMs ()J
+	public final fun getJobStatusPollMs ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/SemiontClient : java/lang/AutoCloseable {
+	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;)V
+	public fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;)V
+	public synthetic fun <init> (Lsemiont/transport/Transport;Lsemiont/transport/ContentTransport;Lsemiont/transport/GatewayOperations;Lsemiont/ClientTiming;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun getAuth ()Lsemiont/namespaces/AuthNamespace;
+	public final fun getBeckon ()Lsemiont/namespaces/BeckonNamespace;
+	public final fun getBind ()Lsemiont/namespaces/BindNamespace;
+	public final fun getBrowse ()Lsemiont/namespaces/BrowseNamespace;
+	public final fun getBus ()Lsemiont/bus/EventBus;
+	public final fun getFrame ()Lsemiont/namespaces/FrameNamespace;
+	public final fun getGather ()Lsemiont/namespaces/GatherNamespace;
+	public final fun getJob ()Lsemiont/namespaces/JobNamespace;
+	public final fun getMark ()Lsemiont/namespaces/MarkNamespace;
+	public final fun getMatch ()Lsemiont/namespaces/MatchNamespace;
+	public final fun getSystem ()Lsemiont/namespaces/SystemNamespace;
+	public final fun getTiming ()Lsemiont/ClientTiming;
+	public final fun getTransport ()Lsemiont/transport/Transport;
+	public final fun getWire ()Lsemiont/bus/Bus;
+	public final fun getYield ()Lsemiont/namespaces/YieldNamespace;
+}
+
 public final class semiont/bus/Bus {
 	public fun <init> (Lsemiont/transport/Transport;)V
 	public final fun emit-6b3uWpE (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -41,6 +82,22 @@ public final class semiont/bus/Delivered {
 	public final fun getUserId-1KRECTw ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/bus/EventBus : semiont/transport/FrameSink {
+	public fun <init> ()V
+	public fun deliver (Lsemiont/transport/Frame;)V
+	public final fun destroy ()V
+	public final fun emit (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
+	public final fun emit-NOvym2Y (Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun frames (Lsemiont/channels/Channel;Lsemiont/identifiers/ResourceId;)Lsemiont/bus/Typed;
+	public final fun frames-n4-Erus (Lsemiont/channels/Channel;Ljava/lang/String;)Lsemiont/bus/Typed;
+	public final fun framesAmong (Ljava/util/Collection;)Lsemiont/transport/Events;
+	public final fun framesOn (Ljava/lang/String;Lsemiont/identifiers/ResourceId;)Lsemiont/transport/Events;
+	public final fun framesOn-n4-Erus (Ljava/lang/String;Ljava/lang/String;)Lsemiont/transport/Events;
+	public final fun isDestroyed ()Z
+	public final fun publish (Lsemiont/channels/Channel;Ljava/lang/Object;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
+	public final fun publish-NOvym2Y (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V
 }
 
 public final class semiont/bus/Operation {
@@ -289,6 +346,150 @@ public final class semiont/identity/IdentityKt {
 	public static final fun personDid (Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
 }
 
+public final class semiont/namespaces/AuthNamespace {
+	public final fun me (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun meFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun mediaToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun mediaTokenFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun mediaTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun protectedResourceMetadata (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun protectedResourceMetadataFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/BeckonNamespace {
+	public final fun attention-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun attentionFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun attentionFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun click-iUDtbMI (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun clickFuture (Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun clickFuture-2VybQ2U (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun hover (Lsemiont/identifiers/AnnotationId;)V
+	public final fun hover-KdeD-Ww (Ljava/lang/String;)V
+	public final fun openResource-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun openResourceFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun openResourceFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun sparkle (Lsemiont/identifiers/AnnotationId;)V
+	public final fun sparkle-2VybQ2U (Ljava/lang/String;)V
+	public final fun sparkleAll-iUDtbMI (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun sparkleAllFuture (Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun sparkleAllFuture-2VybQ2U (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/BindNamespace {
+	public final fun body-SAPwhrY (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun bodyFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun bodyFuture-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun initiate (Lsemiont/types/BindInitiateCommand;)V
+	public final fun reportBodyError (Lsemiont/types/ResourceErrorEvent;)V
+}
+
+public final class semiont/namespaces/BrowseNamespace {
+	public final fun annotationHistory-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun annotationHistoryFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun annotationHistoryFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun click (Lsemiont/identifiers/AnnotationId;)V
+	public final fun click-2VybQ2U (Ljava/lang/String;)V
+	public final fun files (Ljava/lang/String;Lsemiont/types/BrowseDirectoryRequestSort;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun files$default (Lsemiont/namespaces/BrowseNamespace;Ljava/lang/String;Lsemiont/types/BrowseDirectoryRequestSort;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun filesFuture (Ljava/lang/String;Lsemiont/types/BrowseDirectoryRequestSort;)Ljava/util/concurrent/CompletableFuture;
+	public final fun kb (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun kbFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun openResource (Lsemiont/identifiers/ResourceId;)V
+	public final fun openResource--Xm7VB4 (Ljava/lang/String;)V
+	public final fun resourceAnchoredText-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resourceAnchoredTextFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceAnchoredTextFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceEvents-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resourceEventsFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceEventsFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceGraph-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resourceGraphFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceGraphFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceRepresentation-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resourceRepresentationFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceRepresentationFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceRepresentationStream-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun resourceRepresentationStreamFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceRepresentationStreamFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceViewed (Lsemiont/identifiers/ResourceId;)V
+	public final fun resourceViewed--Xm7VB4 (Ljava/lang/String;)V
+}
+
+public final class semiont/namespaces/FrameNamespace {
+	public final fun addEntityType (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun addEntityTypeFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun addEntityTypes (Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun addEntityTypesFuture (Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun addTagSchema (Lsemiont/types/TagSchema;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun addTagSchemaFuture (Lsemiont/types/TagSchema;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/GatherNamespace {
+	public final fun resource-Z9ojSc8 (Ljava/lang/String;JJZZLjava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun resource-Z9ojSc8$default (Lsemiont/namespaces/GatherNamespace;Ljava/lang/String;JJZZLjava/util/List;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun resourceFuture (Lsemiont/identifiers/ResourceId;JJZZLjava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resourceFuture-0-slNOc (Ljava/lang/String;JJZZLjava/util/List;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/JobNamespace {
+	public final fun cancel-PSXEM9Q (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun cancelFuture (Lsemiont/identifiers/JobId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun cancelFuture--cCJ8JM (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun complete ()Lsemiont/bus/Typed;
+	public final fun fail ()Lsemiont/bus/Typed;
+	public final fun pollUntilComplete-U24uh8E (Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun pollUntilComplete-U24uh8E$default (Lsemiont/namespaces/JobNamespace;Ljava/lang/String;JJLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun pollUntilCompleteFuture (Lsemiont/identifiers/JobId;JJLjava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public final fun pollUntilCompleteFuture-VMfirKA (Ljava/lang/String;JJLjava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public final fun progress ()Lsemiont/bus/Typed;
+	public final fun queued ()Lsemiont/bus/Typed;
+	public final fun status-PSXEM9Q (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun statusFuture (Lsemiont/identifiers/JobId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun statusFuture--cCJ8JM (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/MarkNamespace {
+	public final fun annotation (Lsemiont/types/CreateAnnotationRequest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun annotationFuture (Lsemiont/types/CreateAnnotationRequest;)Ljava/util/concurrent/CompletableFuture;
+	public final fun archive-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun archiveFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun archiveFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun delete-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun deleteFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun deleteFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun reportDeleteError (Lsemiont/types/ResourceErrorEvent;)V
+	public final fun request (Lsemiont/identifiers/ResourceId;Lsemiont/types/AnnotationSelector;Lsemiont/types/Motivation;)V
+	public final fun request-ogcqSrQ (Ljava/lang/String;Lsemiont/types/AnnotationSelector;Lsemiont/types/Motivation;)V
+	public final fun submit (Lsemiont/types/MarkSubmitEvent;)V
+	public final fun unarchive-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun unarchiveFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun unarchiveFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun updateEntityTypes-cLomD_0 (Ljava/lang/String;Ljava/util/List;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun updateEntityTypesFuture (Lsemiont/identifiers/ResourceId;Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+	public final fun updateEntityTypesFuture-ogcqSrQ (Ljava/lang/String;Ljava/util/List;Ljava/util/List;)Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/MatchNamespace {
+	public final fun requestSearch (Lsemiont/types/MatchSearchRequest;Ljava/lang/String;)V
+}
+
+public final class semiont/namespaces/SystemNamespace {
+	public final fun healthCheck (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun healthCheckFuture ()Ljava/util/concurrent/CompletableFuture;
+	public final fun status (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun statusFuture ()Ljava/util/concurrent/CompletableFuture;
+}
+
+public final class semiont/namespaces/YieldNamespace {
+	public final fun clone ()V
+	public final fun cloneToken-k2J_C-I (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun cloneTokenFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
+	public final fun cloneTokenFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun fromToken (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun fromTokenFuture (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun resource (Lsemiont/transport/PutBinaryRequest;)Lsemiont/transport/Upload;
+}
+
 public final class semiont/retry/RetryFacts {
 	public fun <init> ()V
 	public fun <init> (Ljava/lang/Integer;Ljava/lang/String;)V
@@ -500,12 +701,15 @@ public final class semiont/transport/PendingReply : java/lang/AutoCloseable {
 
 public final class semiont/transport/PutBinaryRequest {
 	public static final field Companion Lsemiont/transport/PutBinaryRequest$Companion;
-	public synthetic fun <init> (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public static final fun builder (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun component1 ()Ljava/lang/String;
-	public final fun component10-jnM91lI ()Ljava/lang/String;
-	public final fun component11 ()Ljava/lang/Boolean;
+	public final fun component10 ()Ljava/util/List;
+	public final fun component11-jnM91lI ()Ljava/lang/String;
+	public final fun component12 ()Ljava/lang/Boolean;
+	public final fun component13 ()Ljava/lang/String;
+	public final fun component14 ()Ljava/lang/Boolean;
 	public final fun component2 ()[B
 	public final fun component3 ()Ljava/lang/String;
 	public final fun component4 ()Ljava/lang/String;
@@ -514,13 +718,16 @@ public final class semiont/transport/PutBinaryRequest {
 	public final fun component7-C0ARYTo ()Ljava/lang/String;
 	public final fun component8-Au_5XH8 ()Ljava/lang/String;
 	public final fun component9 ()Ljava/lang/String;
-	public final fun copy-eAR4XUQ (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;)Lsemiont/transport/PutBinaryRequest;
-	public static synthetic fun copy-eAR4XUQ$default (Lsemiont/transport/PutBinaryRequest;Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;ILjava/lang/Object;)Lsemiont/transport/PutBinaryRequest;
+	public final fun copy-K6POUZY (Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;)Lsemiont/transport/PutBinaryRequest;
+	public static synthetic fun copy-K6POUZY$default (Lsemiont/transport/PutBinaryRequest;Ljava/lang/String;[BLjava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/Boolean;ILjava/lang/Object;)Lsemiont/transport/PutBinaryRequest;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArchiveOriginal ()Ljava/lang/Boolean;
+	public final fun getCloneToken ()Ljava/lang/String;
 	public final fun getEntityTypes ()Ljava/util/List;
 	public final fun getFile ()[B
 	public final fun getFormat ()Ljava/lang/String;
 	public final fun getGenerationPrompt ()Ljava/lang/String;
+	public final fun getGenerator ()Ljava/util/List;
 	public final fun getJobId ()Lsemiont/identifiers/JobId;
 	public final fun getJobId-jnM91lI ()Ljava/lang/String;
 	public final fun getLanguage ()Ljava/lang/String;
@@ -536,9 +743,12 @@ public final class semiont/transport/PutBinaryRequest {
 }
 
 public final class semiont/transport/PutBinaryRequest$Builder {
+	public final fun archiveOriginal (Ljava/lang/Boolean;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun build ()Lsemiont/transport/PutBinaryRequest;
+	public final fun cloneToken (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun entityTypes (Ljava/util/List;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun generationPrompt (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;
+	public final fun generator (Ljava/util/List;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun isDraft (Ljava/lang/Boolean;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun jobId (Lsemiont/identifiers/JobId;)Lsemiont/transport/PutBinaryRequest$Builder;
 	public final fun jobId-dAF7pZU (Ljava/lang/String;)Lsemiont/transport/PutBinaryRequest$Builder;

@@ -10,6 +10,7 @@ import kotlinx.coroutines.jdk9.asPublisher
 import semiont.identifiers.AnnotationId
 import semiont.identifiers.JobId
 import semiont.identifiers.ResourceId
+import semiont.types.Agent
 import semiont.types.AnchoredTextAnswer
 import semiont.types.CreateResourceResponse
 import semiont.types.GetAnnotationsResponse
@@ -36,18 +37,27 @@ public data class PutBinaryRequest(
     @get:JvmExposeBoxed
     public val sourceResourceId: ResourceId? = null,
     public val generationPrompt: String? = null,
+    /** Who made it, when it was made for someone. */
+    public val generator: List<Agent> = emptyList(),
     /** The job this resource fulfils, when a worker is creating it. */
     @get:JvmExposeBoxed
     public val jobId: JobId? = null,
     public val isDraft: Boolean? = null,
+    /** The token a clone's source was read by, when this resource is that clone. */
+    public val cloneToken: String? = null,
+    /** Whether the clone's source is archived once the clone exists. */
+    public val archiveOriginal: Boolean? = null,
 ) {
     // Bytes are compared by what they hold, not by which array holds them.
     override fun equals(other: Any?): Boolean =
         other is PutBinaryRequest && name == other.name && file.contentEquals(other.file) && format == other.format && storageUri == other.storageUri &&
             entityTypes == other.entityTypes && language == other.language && sourceAnnotationId == other.sourceAnnotationId &&
-            sourceResourceId == other.sourceResourceId && generationPrompt == other.generationPrompt && jobId == other.jobId && isDraft == other.isDraft
+            sourceResourceId == other.sourceResourceId && generationPrompt == other.generationPrompt && generator == other.generator && jobId == other.jobId &&
+            isDraft == other.isDraft && cloneToken == other.cloneToken && archiveOriginal == other.archiveOriginal
 
-    override fun hashCode(): Int = listOf(name, file.contentHashCode(), format, storageUri, entityTypes, language, sourceAnnotationId, sourceResourceId, generationPrompt, jobId, isDraft).hashCode()
+    override fun hashCode(): Int =
+        listOf(name, file.contentHashCode(), format, storageUri, entityTypes, language, sourceAnnotationId, sourceResourceId, generationPrompt, generator, jobId, isDraft, cloneToken, archiveOriginal)
+            .hashCode()
 
     /** How Java makes a `PutBinaryRequest`: `builder` takes what it must state, a setter each thing it may, and `build` makes it. */
     public class Builder internal constructor(
@@ -61,8 +71,11 @@ public data class PutBinaryRequest(
         private var sourceAnnotationId: AnnotationId? = null
         private var sourceResourceId: ResourceId? = null
         private var generationPrompt: String? = null
+        private var generator: List<Agent> = emptyList()
         private var jobId: JobId? = null
         private var isDraft: Boolean? = null
+        private var cloneToken: String? = null
+        private var archiveOriginal: Boolean? = null
 
         public fun entityTypes(entityTypes: List<String>): Builder = apply { this.entityTypes = entityTypes }
 
@@ -81,8 +94,15 @@ public data class PutBinaryRequest(
 
         public fun isDraft(isDraft: Boolean?): Builder = apply { this.isDraft = isDraft }
 
-        public fun build(): PutBinaryRequest =
-            PutBinaryRequest(name, file, format, storageUri, entityTypes, language, sourceAnnotationId, sourceResourceId, generationPrompt, jobId, isDraft)
+        public fun generator(generator: List<Agent>): Builder = apply { this.generator = generator }
+
+        public fun cloneToken(cloneToken: String?): Builder = apply { this.cloneToken = cloneToken }
+
+        public fun archiveOriginal(archiveOriginal: Boolean?): Builder = apply { this.archiveOriginal = archiveOriginal }
+
+        public fun build(): PutBinaryRequest = PutBinaryRequest(
+            name, file, format, storageUri, entityTypes, language, sourceAnnotationId, sourceResourceId, generationPrompt, generator, jobId, isDraft, cloneToken, archiveOriginal,
+        )
     }
 
     public companion object {
