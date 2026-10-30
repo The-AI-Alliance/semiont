@@ -2,6 +2,10 @@
 
 package semiont.http
 
+import semiont.types.wireJson
+import semiont.types.Agent
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonObject
 import semiont.bus.Logged
 import semiont.bus.BusLog
@@ -57,25 +61,32 @@ private class Form(request: PutBinaryRequest) {
     val size: Long
 
     init {
-        val values = mapOf(
-            "name" to request.name,
-            "format" to request.format,
-            "storageUri" to request.storageUri,
-            "language" to request.language?.takeIf { it.isNotEmpty() },
-            "entityTypes" to request.entityTypes.takeIf { it.isNotEmpty() }?.let { names -> JsonArray(names.map(::JsonPrimitive)).toString() },
-            "sourceAnnotationId" to request.sourceAnnotationId?.value,
-            "sourceResourceId" to request.sourceResourceId?.value,
-            "generationPrompt" to request.generationPrompt?.takeIf { it.isNotEmpty() },
-            "jobId" to request.jobId?.value,
-            "isDraft" to request.isDraft?.toString(),
-        )
+        // Every field the spec's form states, made from the request through the generated form: a field the
+        // request has no value for is left out, and one the form gains is a compile error here until it is set.
+        val form = wireJson.encodeToJsonElement(
+            ResourceUpload.serializer(),
+            ResourceUpload(
+                name = request.name,
+                file = "",
+                format = request.format,
+                storageUri = request.storageUri,
+                language = request.language?.takeIf { it.isNotEmpty() },
+                entityTypes = request.entityTypes.takeIf { it.isNotEmpty() }?.let { names -> JsonArray(names.map(::JsonPrimitive)).toString() },
+                sourceAnnotationId = request.sourceAnnotationId,
+                sourceResourceId = request.sourceResourceId,
+                generationPrompt = request.generationPrompt?.takeIf { it.isNotEmpty() },
+                generator = request.generator.takeIf { it.isNotEmpty() }?.let { wireJson.encodeToString(ListSerializer(Agent.serializer()), it) },
+                jobId = request.jobId,
+                isDraft = request.isDraft?.toString(),
+                cloneToken = request.cloneToken?.takeIf { it.isNotEmpty() },
+                archiveOriginal = request.archiveOriginal?.toString(),
+            ),
+        ).jsonObject
         val before = StringBuilder()
         val after = StringBuilder()
-        val form = ResourceUpload.serializer().descriptor
-        for (index in 0 until form.elementsCount) {
-            val field = form.getElementName(index)
+        for ((field, stated) in form) {
             if (field == "file") continue
-            val value = values[field] ?: continue
+            val value = (stated as JsonPrimitive).content
             val part = "--$boundary\r\nContent-Disposition: form-data; name=\"${quoted(field)}\"\r\n\r\n$value\r\n"
             // The fields that come before the bytes, so whatever reads the form knows what the bytes are before it meets them.
             if (field in setOf("name", "format", "storageUri")) before.append(part) else after.append(part)

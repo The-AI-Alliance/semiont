@@ -5,9 +5,9 @@
     "rust": ["packages/rust/sdk/src/annotations/id.rs"],
     "python": ["packages/python/sdk/tests/test_annotation_ids.py", "packages/python/sdk/tests/test_readme.py"],
     "conformance": ["tests/conformance/worker-service/yield.test.ts"],
-    "go": ["packages/go/sdk/annotations/id_test.go"]
+    "go": ["packages/go/sdk/annotations/id_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationIdsTest.kt"]
   },
-  "notYetReached": {"kotlin": "The Kotlin SDK's annotations module: the id its builders derive for an annotation."},
   "cases": [
     {
       "why": "an annotation with no body, a highlight: three members go into its id",
