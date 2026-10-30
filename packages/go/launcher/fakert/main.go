@@ -2407,9 +2407,8 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						}
 						// Every service client carries the service role; the worker
 						// client ALSO carries the worker role, mirroring the realm's
-						// grant so a worker's agent-token mint gets the capability
-						// to claim jobs. Held to the same literal by
-						// lint:service-role.
+						// grant, by which the dispatcher admits its claims. Held to
+						// the same literal by lint:service-role.
 						roles := []string{"semiont-service"}
 						if client == "semiont-worker-local" {
 							roles = append(roles, "semiont-worker")

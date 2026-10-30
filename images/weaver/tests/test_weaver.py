@@ -337,7 +337,7 @@ def test_a_graph_the_weaver_has_just_built_is_not_divergent() -> None:
                     "ann-1",
                     tag("Person"),
                     link("res-2"),
-                    generator={"@type": "Software", "@id": "did:web:x:agents:a:b", "name": "a b"},
+                    generator={"@type": "Software", "@id": "did:web:x:agents:a", "name": "a b"},
                 ),
                 body_updated("res-1", 3, "ann-1", {"op": "add", "item": tag("Place")}, at="2021-01-02T03:04:05.000Z"),
                 archived("res-2", 2),

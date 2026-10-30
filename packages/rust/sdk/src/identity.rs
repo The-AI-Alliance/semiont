@@ -41,31 +41,14 @@ pub fn person_did(domain: &str, subject: &str) -> String {
     format!("did:web:{domain}:users:{}", encode_uri_component(subject))
 }
 
-/// A software agent: one per (provider, model) under the knowledge base's domain.
-pub fn agent_did(domain: &str, provider: &str, model: &str) -> String {
-    format!(
-        "did:web:{domain}:agents:{}:{}",
-        encode_uri_component(provider),
-        encode_uri_component(model)
-    )
+/// An agent, named by the subject its issuer asserted for its account, as a
+/// person is.
+pub fn agent_did(domain: &str, subject: &str) -> String {
+    format!("did:web:{domain}:agents:{}", encode_uri_component(subject))
 }
 
-/// An agent's address: `<provider>:<model>` with every run of characters
-/// outside `[A-Za-z0-9-]` one hyphen and none at either end, at
-/// `agents.<the domain up to its first colon>`.
-pub fn agent_address(domain: &str, provider: &str, model: &str) -> String {
-    let host = domain.split(':').next().unwrap_or(domain);
-    let mut slug = String::new();
-    for c in format!("{provider}:{model}").chars() {
-        let c = if c.is_ascii_alphanumeric() { c } else { '-' };
-        if !(c == '-' && slug.ends_with('-')) {
-            slug.push(c);
-        }
-    }
-    format!("{}@agents.{host}", slug.trim_matches('-'))
-}
-
-/// An agent's name.
+/// An engine's name — a provider and a model, which is no principal — as a
+/// worker states it of itself unless it says otherwise.
 pub fn agent_name(provider: &str, model: &str) -> String {
     format!("{provider} {model}")
 }

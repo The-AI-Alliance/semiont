@@ -201,8 +201,8 @@ def test_a_resources_annotations_are_the_list_and_a_list_or_a_search_is_one_quer
 
 def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_limits_as_it_reports_them() -> None:
     async def scenario() -> None:
-        gemma: JsonObject = {"@type": "Software", "name": "gemma", "provider": "ollama", "model": "gemma2:27b"}
-        claude: JsonObject = {"@type": "Software", "name": "claude", "provider": "anthropic", "model": "claude-opus-5-5"}
+        gemma: JsonObject = {"provider": "ollama", "model": "gemma2:27b"}
+        claude: JsonObject = {"provider": "anthropic", "model": "claude-opus-5-5"}
         client, transport = world(answered=False)
 
         def limits_of(collaborators: list[Collaborator]) -> list[float | None]:
@@ -226,10 +226,13 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
             assert not reading.done()
 
             # The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-            answer(transport, directory, {"agents": [{"agent": gemma}, {"agent": claude}]})
+            answer(transport, directory, {"agents": [{"engine": gemma}, {"engine": claude}]})
             shown = await soon(reading)
             assert isinstance(shown, Ready)
-            assert [each.entry.agent.name for each in shown.value] == ["gemma", "claude"]
+            assert [(each.entry.engine.provider, each.entry.engine.model) for each in shown.value] == [
+                ("ollama", "gemma2:27b"),
+                ("anthropic", "claude-opus-5-5"),
+            ]
             assert limits_of(shown.value) == [8192, None]
 
             # A holder that reports later delays only its own models' limits.
@@ -254,10 +257,10 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
             await turns()
             assert [frame.channel for frame in transport.emitted[4:]] == ["browse:agents-requested", *LIMITS]
             assert not reading.done()
-            answer(transport, transport.emitted[4], {"agents": [{"agent": claude}]})
+            answer(transport, transport.emitted[4], {"agents": [{"engine": claude}]})
             shown = await soon(reading)
             assert isinstance(shown, Ready)
-            assert [each.entry.agent.name for each in shown.value] == ["claude"]
+            assert [(each.entry.engine.provider, each.entry.engine.model) for each in shown.value] == [("anthropic", "claude-opus-5-5")]
             assert limits_of(shown.value) == [9]
 
     run(scenario())

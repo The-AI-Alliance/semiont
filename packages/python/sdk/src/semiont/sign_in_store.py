@@ -227,15 +227,14 @@ class _Entry(SignInKept):
             raise ValueError(
                 f"the sign-in store keeps what the client {SCRIPT_CLIENT_ID} was issued, and this was issued to {sign_in.client_id}"
             )
-        # A gateway admits no token that names no address, and none from an
-        # issuer it does not trust: a token that lacks either is no sign-in.
-        email, issuer = text_claim(sign_in.access, "email"), text_claim(sign_in.access, "iss")
-        if email is None or issuer is None:
-            lacking = "email" if email is None else "issuer"
-            raise SignInError("exchange", f"The sign-in to {self._key} was not kept: its access token names no {lacking}")
+        # A gateway admits no token from an issuer it does not trust: a token
+        # that names no issuer is no sign-in.
+        issuer = text_claim(sign_in.access, "iss")
+        if issuer is None:
+            raise SignInError("exchange", f"The sign-in to {self._key} was not kept: its access token names no issuer")
         learned = SignIn(
             token=sign_in.access,
-            email=email,
+            email=text_claim(sign_in.access, "email"),
             obtained_at=_rfc3339(time.time()),
             issuer=issuer,
             token_endpoint=sign_in.token_endpoint,

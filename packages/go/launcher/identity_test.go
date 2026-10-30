@@ -119,9 +119,9 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		// good until it expires. A realm imported without this would take whatever
 		// Keycloak defaults to that release.
 		`"accessTokenLifespan": 300`,
-		// Each sidecar that exchanges a service-account token for an agent token
-		// needs a confidential client of its own. A shared one would be a
-		// static secret wearing a realm's clothes.
+		// Each service signs in as its own account, so each needs a
+		// confidential client of its own. A shared one would be a static
+		// secret wearing a realm's clothes.
 		`"clientId": "semiont-archivist"`,
 		`"clientId": "semiont-weaver"`,
 		`"serviceAccountsEnabled": true`,

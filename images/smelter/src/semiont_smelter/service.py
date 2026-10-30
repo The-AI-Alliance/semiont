@@ -14,16 +14,16 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
-as the agent its embedding provider and its model name, reaches its vector
-index, which asks its provider how wide a vector is where the index has to be
-made, makes the index again where it was made by another model or cut another
-way, and forgets its cursors where it did, follows the record, and opens its
-health port. Once its stream first opens it starts following, and a resource
-no cursor names is started by a reconcile. A reconcile that fails is said, in
-the log and at the health port, and does not end the service: ending it would
-make the index no fresher, and would take away the one thing still applying
-what arrives. The follower starts it again. Told to stop, it stops applying,
-closes what it holds open, writes its cursors, and exits with status 0.
+as its account, reaches its vector index, which asks its provider how wide a
+vector is where the index has to be made, makes the index again where it was
+made by another model or cut another way, and forgets its cursors where it
+did, follows the record, and opens its health port. Once its stream first
+opens it starts following, and a resource no cursor names is started by a
+reconcile. A reconcile that fails is said, in the log and at the health port,
+and does not end the service: ending it would make the index no fresher, and
+would take away the one thing still applying what arrives. The follower
+starts it again. Told to stop, it stops applying, closes what it holds open,
+writes its cursors, and exits with status 0.
 """
 
 import asyncio
@@ -140,8 +140,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     # The stamp is read from what is installed. A Smelter with no OCR engine to ask says so here, before it follows anything.
     anchored_stamp = await current_stamp(reader, engine)
 
-    # It works as the agent its embedding provider and its model name: two Smelters that embed with different models are two agents.
-    async with AgentToken(config.gateway_url, provider=config.embedding.type, model=config.embedding.model, service=account) as agent:
+    async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         stamp = stamp_of(config)
         made_anew = await connected("vector index and the embedding provider", _reached(started.index, stamp))

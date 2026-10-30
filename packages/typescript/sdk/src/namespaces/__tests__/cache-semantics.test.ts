@@ -117,34 +117,20 @@ function reopen(state$: BehaviorSubject<ConnectionState>): void {
 }
 
 /**
- * The Browser's reply to `browse:agents-requested`, verbatim shape:
- * `{ agents: CollaboratorEntry[] }` where an entry is
- * `{ agent, servesJobTypes? }`. The directory carries no limits: the
- * services holding the inference credentials report those (MOCK_LIMITS
- * below) and the sdk joins them onto the entries. One worker agent WITH
- * capabilities, one actors-only agent WITHOUT — both pass through as-is
- * (no flattening to Agent[]).
+ * The Archivist's reply to `browse:agents-requested`, verbatim shape:
+ * `{ agents: RosterEntry[] }` where an entry is `{ engine, serves? }`. The
+ * roster carries no limits: the services holding the inference credentials
+ * report those (MOCK_LIMITS below) and the sdk joins them onto the entries.
+ * One engine serving jobs, one serving actors only — both pass through as-is.
  */
 const MOCK_COLLABORATORS = [
   {
-    agent: {
-      '@type': 'Software',
-      '@id': 'did:web:kb.test:agents:anthropic:claude-haiku-4-5',
-      name: 'anthropic claude-haiku-4-5',
-      provider: 'anthropic',
-      model: 'claude-haiku-4-5',
-    },
+    engine: { provider: 'anthropic', model: 'claude-haiku-4-5' },
     serves: [{ jobType: 'mark', params: { motivation: 'linking' } }, { jobType: 'yield' }],
   },
   {
-    agent: {
-      '@type': 'Software',
-      '@id': 'did:web:kb.test:agents:anthropic:claude-sonnet-4-5',
-      name: 'anthropic claude-sonnet-4-5',
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-5',
-    },
-    // actors-only (gatherer/matcher): no servesJobTypes — must stay absent.
+    engine: { provider: 'anthropic', model: 'claude-sonnet-4-5' },
+    // actors-only (gatherer/matcher): no serves — must stay absent.
   },
 ];
 
@@ -1032,13 +1018,13 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
     });
   });
 
-  // The collaborator directory.
+  // The roster.
   // `agents()` is the third KB-wide singleton (tagSchemas pattern): unscoped,
-  // sentinel-keyed, entries passed through UNRESHAPED (`servesJobTypes` is the
-  // field the `CollaboratorEntry` wrapper exists for — a flattening
-  // implementation must fail here).
-  describe('browse.agents() — collaborator directory', () => {
-    it('serves CollaboratorEntry[] unreshaped — servesJobTypes intact, absent stays absent — and caches (one fetch)', async () => {
+  // sentinel-keyed, entries passed through UNRESHAPED (`serves` is the field
+  // the `RosterEntry` wrapper exists for — a flattening implementation must
+  // fail here).
+  describe('browse.agents() — the roster', () => {
+    it('serves RosterEntry[] unreshaped — serves intact, absent stays absent — and caches (one fetch)', async () => {
       const { browse, emitSpy } = createHarness();
 
       const entries = await firstDefined(browse.agents());
@@ -1091,7 +1077,7 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
         filter((es) => es.every((e) => e.limits !== undefined)),
       ));
 
-      expect(entries.map((e) => [e.agent.model, e.limits])).toEqual([
+      expect(entries.map((e) => [e.engine.model, e.limits])).toEqual([
         ['claude-haiku-4-5', HAIKU_LIMITS],
         ['claude-sonnet-4-5', SONNET_LIMITS],
       ]);
@@ -1103,12 +1089,12 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       const { browse } = createHarness({ silentChannels: ['job:limits-requested'], busTimeoutMs: 60_000 });
 
       const first = await firstDefined(browse.agents());
-      expect(first.map((e) => e.agent.model)).toEqual(['claude-haiku-4-5', 'claude-sonnet-4-5']);
+      expect(first.map((e) => e.engine.model)).toEqual(['claude-haiku-4-5', 'claude-sonnet-4-5']);
 
       await flush();
       const entries = await firstDefined(browse.agents());
-      expect(entries.find((e) => e.agent.model === 'claude-sonnet-4-5')?.limits).toEqual(SONNET_LIMITS);
-      expect(entries.find((e) => e.agent.model === 'claude-haiku-4-5')).not.toHaveProperty('limits');
+      expect(entries.find((e) => e.engine.model === 'claude-sonnet-4-5')?.limits).toEqual(SONNET_LIMITS);
+      expect(entries.find((e) => e.engine.model === 'claude-haiku-4-5')).not.toHaveProperty('limits');
     });
 
     it('a stream that reopens asks the key holders again', async () => {

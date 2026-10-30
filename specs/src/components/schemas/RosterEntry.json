@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "description": "One engine on the knowledge base's roster: a provider and a model its Inference document names, and the jobs it is declared to serve. An engine is not a principal: the work is done by the worker that runs it, under the worker's own account, which names the engine it used on each write. The roster carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).",
+  "properties": {
+    "engine": {
+      "$ref": "./ArchivistRosterRole.json"
+    },
+    "serves": {
+      "type": "array",
+      "items": {
+        "$ref": "./JobFilter.json"
+      },
+      "description": "The jobs this engine is declared to serve (from the knowledge base's workers.* config sections), as a claim would name them. Absent for an engine declared only under actor roles."
+    }
+  },
+  "required": [
+    "engine"
+  ],
+  "additionalProperties": false
+}

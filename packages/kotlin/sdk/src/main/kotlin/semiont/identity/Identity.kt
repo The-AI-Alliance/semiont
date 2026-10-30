@@ -5,8 +5,6 @@ import semiont.identifiers.UserId
 /** What ECMAScript's `encodeURIComponent` leaves alone, beside ASCII letters and digits. */
 private const val UNRESERVED = "-_.!~*'()"
 
-private val notOfAnAddress = Regex("[^A-Za-z0-9]+")
-
 /** `value` as `encodeURIComponent` writes it: each UTF-8 byte of every other character as `%XX`, in uppercase hex. */
 public fun encodeUriComponent(value: String): String = buildString {
     for (byte in value.toByteArray(Charsets.UTF_8)) {
@@ -24,19 +22,8 @@ public fun kbResource(domain: String): String = "https://${domain.replace(':', '
 /** A person, named by the subject the issuer asserted (principals/cases.json). */
 public fun personDid(domain: String, subject: String): UserId = UserId("did:web:$domain:users:${encodeUriComponent(subject)}")
 
-/** A software agent: one per provider and model, under the knowledge base's domain. */
-public fun agentDid(domain: String, provider: String, model: String): UserId =
-    UserId("did:web:$domain:agents:${encodeUriComponent(provider)}:${encodeUriComponent(model)}")
+/** An agent, named by the subject its issuer asserted for its account, as a person is (principals/cases.json). */
+public fun agentDid(domain: String, subject: String): UserId = UserId("did:web:$domain:agents:${encodeUriComponent(subject)}")
 
-/**
- * An agent's address: `provider:model` with every run of characters other
- * than ASCII letters and digits one hyphen, a hyphen of its own included, and
- * none at either end, at `agents.` and the domain up to its first colon.
- */
-public fun agentAddress(domain: String, provider: String, model: String): String {
-    val slug = notOfAnAddress.replace("$provider:$model", "-").trim('-')
-    return "$slug@agents.${domain.substringBefore(':')}"
-}
-
-/** An agent's name. */
+/** An engine's name: a provider and a model, which is no principal, as a worker states it of itself unless it says otherwise. */
 public fun agentName(provider: String, model: String): String = "$provider $model"

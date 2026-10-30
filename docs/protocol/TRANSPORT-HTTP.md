@@ -182,8 +182,8 @@ is its mechanism over HTTP.
   which sends every string the table says a kind accepts and every one it
   refuses: in a payload and as a `scope` (`gateway/emit.test.ts`), in a
   subscription's `scoped` entry (`gateway/stream.test.ts`), to
-  `POST /api/tokens/media` and as an agent token's `did`
-  (`gateway/tokens.test.ts`), and in the path of a resource's routes, where
+  `POST /api/tokens/media` (`gateway/tokens.test.ts`), and in the path of
+  a resource's routes, where
   what is not an id names no resource and is a 404
   (`gateway/content.test.ts`).
 - **Claims.** A registry operation's request carrying a `correlationId`

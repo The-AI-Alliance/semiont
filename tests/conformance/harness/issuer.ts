@@ -14,7 +14,7 @@ import { verify, type KeyObject } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { fixtureIssuer, type FixtureIssuer, type TokenOptions } from '@semiont/core/testing/issuer';
-import { SERVICE_ROLE, WORKER_ROLE } from './roles';
+import { AGENT_KIND, KIND_CLAIM, SERVICE_ROLE, WORKER_ROLE } from './roles';
 
 /** A service account the issuer grants: by its client secret, or by the key whose public half is registered. */
 export type ServiceAccount = { secret: string; roles: string[] } | { publicKey: KeyObject; roles: string[] };
@@ -73,8 +73,10 @@ export interface IssuerServer {
   readonly keys: { fetches: number; answer: 'published' | 'failing' | 'silent' };
   /** A person's token. `sub` names them; the claims default to a verified email and a name. */
   person(sub: string, claims?: Record<string, unknown>, options?: Omit<TokenOptions, 'claims'>): Promise<string>;
-  /** A service account's token, as the token endpoint would issue it. */
+  /** A service account's token, as the token endpoint would issue it: an agent's account, which says so. */
   service(clientId: string, roles?: string[]): Promise<string>;
+  /** The subject a service account's token names it by. */
+  subjectOf(clientId: string): string;
   close(): Promise<void>;
 }
 
@@ -96,8 +98,9 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
     return account !== undefined && 'secret' in account && account.secret === form.get('client_secret') ? clientId : undefined;
   };
 
+  const subjectOf = (clientId: string) => `service-account-${clientId}`;
   const serviceToken = (clientId: string, roles: string[]) =>
-    fixture!.token({ claims: { sub: `service-account-${clientId}`, azp: clientId, roles } });
+    fixture!.token({ claims: { sub: subjectOf(clientId), azp: clientId, roles, [KIND_CLAIM]: AGENT_KIND } });
 
   const server: Server = createServer((req, res) => {
     void (async () => {
@@ -154,6 +157,7 @@ export async function startIssuer(audience: string, accounts: Record<string, Ser
     service(clientId, roles = [SERVICE_ROLE]) {
       return serviceToken(clientId, roles);
     },
+    subjectOf,
     // Kept-alive connections too: a client holding one could otherwise still
     // reach an issuer that has closed.
     close: () =>

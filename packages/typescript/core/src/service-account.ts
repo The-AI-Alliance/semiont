@@ -1,12 +1,10 @@
 /**
  * The client-credentials grant, for a process authenticating as ITSELF.
  *
- * A sidecar holds its own account at the knowledge base's issuer and exchanges
- * that credential for a short-lived token. It then presents that token to the
- * gateway to obtain a software-agent token — two different identities on
- * purpose: this is the PROCESS, and the agent DID is the WORK it is doing.
- * One worker process legitimately holds several agent identities at once, so
- * the two could never have been the same credential.
+ * A service or a worker holds its own account at the knowledge base's
+ * issuer and exchanges that credential for a short-lived token. That token is
+ * its bearer at the gateway, which names it by that account: an agent is an
+ * account, as a person is.
  *
  * This replaced a single shared secret that every sidecar carried and that the
  * gateway compared by string equality. That secret granted any agent identity
@@ -18,6 +16,7 @@
  */
 
 import { HTTP_REQUEST_TIMEOUT_MS } from './generated/client-timing';
+import { SignInError } from './sign-in-error';
 import { isObject, isString } from './type-guards';
 import { UnansweredError, jsonOf } from './unanswered';
 
@@ -61,11 +60,11 @@ async function tokenEndpoint(issuer: string): Promise<string> {
         throw unanswered(error);
       });
       if (!response.ok) {
-        throw new Error(`OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`);
+        throw new SignInError('discovery', `OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`, response.status);
       }
       const document = await jsonOf(response, unanswered);
       if (!isObject(document) || !isString(document['token_endpoint'])) {
-        throw new Error(`OIDC discovery for ${issuer} returned no \`token_endpoint\``);
+        throw new SignInError('discovery', `OIDC discovery for ${issuer} returned no \`token_endpoint\``);
       }
       return document['token_endpoint'];
     })().catch((error: unknown) => {
@@ -80,23 +79,30 @@ async function tokenEndpoint(issuer: string): Promise<string> {
 }
 
 /**
- * Obtain an access token for this service account.
+ * The service account's access token: the one held until it is due for
+ * renewal, and a new grant after it, or at once when `renewed` (the gateway
+ * refused the one held, or it is due by the holder's own schedule).
  *
  * Throws on refusal rather than returning null: a sidecar that cannot prove who
  * it is has nothing useful to do, and the caller's retry policy decides whether
- * this is worth attempting again.
+ * this is worth attempting again. A refusal is a `SignInError` carrying the
+ * status the issuer answered with; a request that got no answer is an
+ * `UnansweredError`.
  *
  * Both requests, the issuer's discovery and the grant, are bounded by
  * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
  * accepts a connection and never answers would otherwise hold a process's
  * start, and every renewal after it, for as long as the process lives.
  */
-export async function serviceAccountToken(credential: ServiceAccountCredential): Promise<string> {
+export async function serviceAccountToken(
+  credential: ServiceAccountCredential,
+  { renewed }: { renewed: boolean },
+): Promise<string> {
   const { issuer, clientId, clientSecret } = credential;
 
   const key = `${issuer}\u0000${clientId}`;
   const cached = tokens.get(key);
-  if (cached && cached.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
+  if (!renewed && cached && cached.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
     return cached.token;
   }
 
@@ -119,14 +125,16 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
   if (!response.ok) {
     // The status, not the body: a token endpoint's error body can echo the
     // request, and this one carried a secret.
-    throw new Error(
+    throw new SignInError(
+      'exchange',
       `Client-credentials grant for ${clientId} at ${issuer} failed (HTTP ${response.status})`,
+      response.status,
     );
   }
 
   const body = await jsonOf(response, unanswered);
   if (!isObject(body) || !isString(body['access_token'])) {
-    throw new Error(`Token endpoint for ${issuer} returned no \`access_token\``);
+    throw new SignInError('exchange', `Token endpoint for ${issuer} returned no \`access_token\``);
   }
 
   const token = body['access_token'];

@@ -12,7 +12,7 @@ import type {
   AttributedEvent,
   TagSchema,
   Collaborator,
-  CollaboratorEntry,
+  RosterEntry,
   KbDescription,
   LimitsOperation,
   components,
@@ -60,12 +60,10 @@ export const BROWSE_QUERIES = [
 ] as const satisfies readonly CacheQuery[];
 type BrowseQuery = (typeof BROWSE_QUERIES)[number];
 
-/** The directory with each reported model's limits on its entries. */
-function joinLimits(directory: CollaboratorEntry[], reported: InferencePairLimits[]): Collaborator[] {
-  return directory.map((entry) => {
-    const agent = entry.agent;
-    if (agent['@type'] !== 'Software') return entry;
-    const pair = reported.find((r) => r.provider === agent.provider && r.model === agent.model);
+/** The roster with each reported model's limits on its entries. */
+function joinLimits(roster: RosterEntry[], reported: InferencePairLimits[]): Collaborator[] {
+  return roster.map((entry) => {
+    const pair = reported.find((r) => r.provider === entry.engine.provider && r.model === entry.engine.model);
     return pair ? { ...entry, limits: pair.limits } : entry;
   });
 }
@@ -94,7 +92,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly annotationResources = new Map<AnnotationId, ResourceId>();
   private readonly entityTypesCache: Cache<string, string[]>;
   private readonly tagSchemasCache: Cache<string, TagSchema[]>;
-  private readonly agentsCache: Cache<string, CollaboratorEntry[]>;
+  private readonly agentsCache: Cache<string, RosterEntry[]>;
   /** Each key holder's limits report, by the operation it answers. */
   private readonly limitsCache: Cache<LimitsOperation, InferencePairLimits[]>;
   /** The directory, joined with the limits reports as each arrives. */
@@ -180,7 +178,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     // The opt-in table: the small, first-paint caches persist (a resource,
     // its annotations, one annotation, the vocabulary); resource lists, event
-    // histories, referenced-by and the collaborator directory stay in-memory.
+    // histories, referenced-by and the roster stay in-memory.
     const persistence = options?.cachePersistence;
     const persisted = <K, V>(name: string): { persister: CachePersister<K, V> } | undefined =>
       persistence
@@ -261,14 +259,14 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.tagSchemas;
     }, persisted<string, TagSchema[]>('tag-schemas')));
 
-    this.agentsCache = createCache<string, CollaboratorEntry[]>(async () => {
+    this.agentsCache = createCache<string, RosterEntry[]>(async () => {
       const result = await this.wire.request(
         'browse:agents-requested',
         {},
         this.busTimeoutMs,
       );
-      // Entries pass through unreshaped: `{ agent, servesJobTypes? }` — the
-      // capability field is the point of the wrapper.
+      // Entries pass through unreshaped: `{ engine, serves? }` — the jobs
+      // served are the point of the wrapper.
       return result.agents;
     });
 
@@ -344,9 +342,9 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   /**
-   * The KB's collaborator directory: its declared software agents (from the
-   * KB's worker/actor config, with `servesJobTypes` capabilities). Its
-   * members (Persons) are not listed. KB-wide singleton, cached for the
+   * The KB's roster: each engine (a provider and a model) its worker/actor
+   * config names, with the jobs it serves. An engine is not a principal, and
+   * carries no identity. KB-wide singleton, cached for the
    * client's lifetime; no membership-change event exists, so the only refresh
    * triggers are the stream reopening after a drop (a gateway restart with a
    * changed roster presents as one) and `.fresh()` (which always fetches).

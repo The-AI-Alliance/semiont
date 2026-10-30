@@ -83,7 +83,7 @@ export class SmelterWorld {
     const provider = await startOllamaEmbed();
 
     // A standing stream of what the Smelter says it has decided, open before any Smelter is.
-    const { token } = await kb.world.agent('conformance', 'smelter-watch', [SERVICE_ROLE]);
+    const { token } = await kb.world.agent('smelter-watch', [SERVICE_ROLE]);
     const signals = await kb.world.subscribe(token, { clientId: randomUUID(), global: ['smelt:settled'] }, undefined, true);
     signals.on((message) => {
       const frame = message.frame;

@@ -148,9 +148,9 @@ pub fn from_environment(field: &str, name: &str) -> Result<String, ConfigError> 
 }
 
 /// The service's own account at the issuer, `SEMIONT_OIDC_CLIENT_ID` and
-/// `SEMIONT_OIDC_CLIENT_SECRET`: the credential it signs in with, before it
-/// asks the gateway for its agent token. Both are required; the refusal names
-/// each one missing, and never a value.
+/// `SEMIONT_OIDC_CLIENT_SECRET`: the credential it signs in with, whose token
+/// is its bearer at the gateway. Both are required; the refusal names each
+/// one missing, and never a value.
 pub fn service_account(document: &Document) -> Result<(String, String), ConfigError> {
     let id = std::env::var("SEMIONT_OIDC_CLIENT_ID")
         .ok()

@@ -28,7 +28,6 @@ package verbs
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -68,26 +67,6 @@ func (r *listenRenderer) resourceLabel(id string) string {
 	return id
 }
 
-// shortParticipant renders a DID as the part a human recognizes:
-// did:web:host:users:alice%40example.com → alice@example.com, and an agent's
-// did:web:host:agents:ollama:gemma4 → ollama:gemma4. Anything that is not a
-// DID passes through unchanged rather than being mangled into a guess.
-func shortParticipant(did string) string {
-	if did == "" {
-		return "(unknown)"
-	}
-	for _, seg := range []string{":users:", ":agents:"} {
-		if i := strings.Index(did, seg); i >= 0 {
-			tail := did[i+len(seg):]
-			if decoded, err := url.QueryUnescape(tail); err == nil {
-				return decoded
-			}
-			return tail
-		}
-	}
-	return did
-}
-
 // line renders ONE event for a human and folds it into the renderer's state.
 // Returns the text to print; callers print it verbatim.
 func (r *listenRenderer) line(u *launcher.UI, frame semiont.Frame) string {
@@ -107,7 +86,8 @@ func (r *listenRenderer) line(u *launcher.UI, frame semiont.Frame) string {
 	// the state, and both belong on the line.
 	switch frame.Channel {
 	case bus.SessionJoined.Channel(), bus.SessionLeft.Channel():
-		who := shortParticipant(p.Participant)
+		// A participant is its DID: the subject in it is an identifier, not a name.
+		who := p.Participant
 		verb, mark := "joined", u.Wrap(launcher.AnsiGreen, "●")
 		if frame.Channel == bus.SessionLeft.Channel() {
 			verb, mark = "left", u.Dim("○")

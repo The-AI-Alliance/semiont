@@ -15,7 +15,7 @@ const WINDOW = 1467;
 eachWorkerService('a job whose model is cut off', (world) => {
   it('asks the piece again in halves of its own size, takes what the halves find together, and cuts the rest of the text at the size the halves were cut at', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     w.ollama.show = { contextLength: WINDOW };
     const job = markJob(w, 'halved', { motivation: 'highlighting' }, {}, LONG_TEXT);
     const resourceId = String(job.params.resourceId);
@@ -35,7 +35,7 @@ eachWorkerService('a job whose model is cut off', (world) => {
     const served = await w.start();
     const completion = await settled(served, job);
 
-    const asked = (name: string, num_ctx: number) => generation(agent.model, name, { num_predict: 800, num_ctx, temperature: 0 }, FORMATS.highlighting);
+    const asked = (name: string, num_ctx: number) => generation(engine.model, name, { num_predict: 800, num_ctx, temperature: 0 }, FORMATS.highlighting);
     expectGenerations(w.ollama.generations, [
       asked('halved-first', WINDOW),
       asked('halved-half-1', 1329),

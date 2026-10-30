@@ -33,28 +33,28 @@ const ASKED: Array<[string, Record<string, unknown>, { num_predict: number; num_
 eachWorkerService('what a mark job asks its model', (world) => {
   it.each(ASKED)('asks %s as its file says', async (name, params, budget, kind) => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, name, params);
     w.ollama.script({ response: '[]' });
     const served = await w.start();
     const completion = await settled(served, job);
 
-    expectGenerations(w.ollama.generations, [generation(agent.model, name, { ...budget, temperature: 0 }, FORMATS[kind])]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, name, { ...budget, temperature: 0 }, FORMATS[kind])]);
     expect(completion).toMatchObject({ ...identity(job), result: { found: 0, persisted: 0 } });
   });
 
   it('asks a linking job that takes descriptive references for them, and counts as it does any other', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'linking-descriptive', { motivation: 'linking', entityTypes: ['Person'], includeDescriptiveReferences: true, sourceLanguage: 'en' });
     w.ollama.script({ response: '[]' }, counting(0));
     const served = await w.start();
     await settled(served, job);
 
     expectGenerations(w.ollama.generations, [
-      generation(agent.model, 'linking-descriptive', { num_predict: 5179, num_ctx: 5869, temperature: 0 }, FORMATS.linking),
+      generation(engine.model, 'linking-descriptive', { num_predict: 5179, num_ctx: 5869, temperature: 0 }, FORMATS.linking),
       // The count is asked of the same text, of the same types, in the same words whatever the extraction was asked.
-      generation(agent.model, 'linking-person-count', { num_predict: 32, num_ctx: 272, temperature: 0 }, COUNT_FORMAT),
+      generation(engine.model, 'linking-person-count', { num_predict: 32, num_ctx: 272, temperature: 0 }, COUNT_FORMAT),
     ]);
   });
 });

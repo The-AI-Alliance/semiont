@@ -18,7 +18,7 @@ const entity = (type: string) => [{ type: 'TextualBody', value: type, purpose: '
 eachWorkerService('a linking job', (world) => {
   it('extracts and counts each entity type in turn, commits each type\'s references, and checkpoints each type as it finishes', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'linking', { motivation: 'linking', entityTypes: ['Person', 'Place'] });
     const resourceId = String(job.params.resourceId);
     w.ollama.script(
@@ -38,10 +38,10 @@ eachWorkerService('a linking job', (world) => {
 
     // An Ollama model is asked one thing at a time: the types run in the order the job names them.
     expectGenerations(w.ollama.generations, [
-      generation(agent.model, 'linking-person', EXTRACTION, FORMATS.linking),
-      generation(agent.model, 'linking-person-count', COUNT, COUNT_FORMAT),
-      generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking),
-      generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT),
+      generation(engine.model, 'linking-person', EXTRACTION, FORMATS.linking),
+      generation(engine.model, 'linking-person-count', COUNT, COUNT_FORMAT),
+      generation(engine.model, 'linking-place', EXTRACTION, FORMATS.linking),
+      generation(engine.model, 'linking-place-count', COUNT, COUNT_FORMAT),
     ]);
 
     expect(served.sequence()).toEqual([
@@ -216,7 +216,7 @@ eachWorkerService('a linking job', (world) => {
 
   it('keeps what a piece found when its count answers no count, and counts the piece in its result as unchecked', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'linking-unchecked', { motivation: 'linking', entityTypes: ['Place'] });
     w.ollama.script(
       { response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) },
@@ -227,7 +227,7 @@ eachWorkerService('a linking job', (world) => {
     const completion = await settled(served, job);
 
     // A count that answers no count is not asked again, and what the extraction found is committed.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(engine.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     expect(w.commits.map((c) => c.annotations.length)).toEqual([1]);
     // Nothing was counted: the reports state no expectation, and the type no under-report.
     const finished = served.progress(job.metadata.id).filter((p) => p['percentage'] === 100);
@@ -239,7 +239,7 @@ eachWorkerService('a linking job', (world) => {
 
   it('keeps what a piece too small to halve found, when the count says mentions were missed, and says so in its result and its reports', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'linking-under-reported', { motivation: 'linking', entityTypes: ['Place'] });
     w.ollama.script(
       { response: JSON.stringify([{ exact: 'London', entityType: 'Place', prefix: 'engine in ', suffix: ', but' }]) },
@@ -250,7 +250,7 @@ eachWorkerService('a linking job', (world) => {
     const completion = await settled(served, job);
 
     // The text is one piece, so there is no half to ask for instead: asked once, and counted once.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(agent.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'linking-place', EXTRACTION, FORMATS.linking), generation(engine.model, 'linking-place-count', COUNT, COUNT_FORMAT)]);
     expect(w.commits.map((c) => c.annotations.length)).toEqual([1]);
 
     const requestParams = [{ label: 'entity-types', value: 'Place' }];

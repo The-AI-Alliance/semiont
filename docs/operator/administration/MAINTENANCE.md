@@ -60,7 +60,7 @@ If the start refuses at the identity preflight, the realm was created by an olde
 
 [Secrets](../services/SECRETS.md) lists every secret a stack has and where each is kept. Rotating one is never free:
 
-**The token-signing key (`JWT_SECRET`)** signs the tokens the gateway mints for software agents and for media, and nothing else. People's tokens are the issuer's and are unaffected. Rotate it through its ring, new key first and old key behind it, so tokens already issued keep verifying until they expire: [Rotating `JWT_SECRET`](AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars). Replacing it outright invalidates every agent and media token at once. Each key is at least 32 characters, and the gateway refuses to start on a shorter one.
+**The token-signing key (`JWT_SECRET`)** signs the media tokens the gateway mints, and nothing else. People's and agents' tokens are the issuer's and are unaffected. Rotate it through its ring, new key first and old key behind it, so tokens already issued keep verifying until they expire: [Rotating `JWT_SECRET`](AUTHENTICATION.md#rotating-jwt_secret). Replacing it outright invalidates every media token in hand at once. Each key is at least 32 characters, and the gateway refuses to start on a shorter one.
 
 **A service account's secret (`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`)** is that service's own credential at the issuer. Each service has its own, so rotating one means changing it at the issuer and in the knowledge base's secrets store, then restarting that one service.
 

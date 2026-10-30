@@ -108,7 +108,7 @@ something that outlived the stack:
 **What you may set yourself.**
 - An exported `JWT_SECRET` wins. It is an ordered ring, `<new>,<old>`, which is how the key
   rotates without cutting off the sidecars. See
-  [Authentication](../administration/AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars).
+  [Authentication](../administration/AUTHENTICATION.md#rotating-jwt_secret).
 - An exported `KC_BOOTSTRAP_ADMIN_PASSWORD`, or `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`, wins:
   one variable per service, never one shared by all.
 - The daemons' names (`NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER`, `NATS_PASSWORD`) are
@@ -187,7 +187,7 @@ a value instead of pointing at one.
 document names, and no other. The
 Anthropic key an Inference document names reaches the librarian and the worker, and no other service. They are
 the only services that call a model, so they are also the ones that report each model's limits
-(context window, output ceiling); the archivist lists the collaborator directory from its configuration document, which names each role's provider and model and no key.
+(context window, output ceiling); the archivist lists the roster from its configuration document, which names each role's provider and model and no key.
 A daemon's password reaches the services that connect to that daemon: Neo4j's goes to the
 librarian and to the weaver, whose documents name it, and the broker's pair goes to
 the dispatcher and to the gateway when its signal plane is the broker. Voyage's key reaches the

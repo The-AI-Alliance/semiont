@@ -29,7 +29,8 @@ type KnowledgeBase struct {
 	Root string
 	// Repo is a codespace knowledge base's repository.
 	Repo string
-	// SignedInAs is whom `semiont login` signed in.
+	// SignedInAs is whom `semiont login` signed in: the address their token
+	// named, empty when it named none.
 	SignedInAs string
 	// Renews: the sign-in holds a refresh token.
 	Renews bool

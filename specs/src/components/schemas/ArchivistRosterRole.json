@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "The agent serving one role: an inference provider and a model. With the knowledge base's domain, the pair is the agent's identity.",
+  "description": "The engine serving one role: an inference provider and a model. An engine is not an identity: the worker that runs it does the work, under its own account.",
   "properties": {
     "provider": {
       "type": "string",

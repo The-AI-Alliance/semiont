@@ -116,7 +116,7 @@ describe('a service account whose issuer answers what is not HTTP', () => {
   it.each(NOT_HTTP)('to its discovery (%s): the failure says the kind of error, and holds nothing of the answer', async (_framing, raw) => {
     const credential = account(await farEnd(() => raw));
 
-    const failure = await failed(serviceAccountToken(credential));
+    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toMatch(new RegExp(`^OIDC discovery for ${credential.issuer} got no answer: [A-Za-z][A-Za-z0-9_]*$`));
@@ -127,7 +127,7 @@ describe('a service account whose issuer answers what is not HTTP', () => {
   it.each(NOT_HTTP)('to its grant (%s): the failure says the kind of error, and holds nothing of the answer', async (_framing, raw) => {
     const credential = account(await farEnd((path, origin) => (path.endsWith('/token') ? raw : discovered(origin))));
 
-    const failure = await failed(serviceAccountToken(credential));
+    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toMatch(
@@ -142,7 +142,7 @@ describe('a service account whose issuer answers what is not JSON', () => {
   it('to its discovery: the document names no token endpoint, and none of it is said', async () => {
     const credential = account(await farEnd(() => answering(`{"token_endpoint": ${CARRIED}}`)));
 
-    const failure = await failed(serviceAccountToken(credential));
+    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toBe(`OIDC discovery for ${credential.issuer} returned no \`token_endpoint\``);
@@ -153,7 +153,7 @@ describe('a service account whose issuer answers what is not JSON', () => {
   it('to its grant: the answer grants no token, and none of it is said', async () => {
     const credential = account(await farEnd((path, origin) => (path.endsWith('/token') ? answering(`{"access_token": ${CARRIED}}`) : discovered(origin))));
 
-    const failure = await failed(serviceAccountToken(credential));
+    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toBe(`Token endpoint for ${credential.issuer} returned no \`access_token\``);
@@ -165,7 +165,7 @@ describe('a service account whose issuer cannot be reached', () => {
   it('says so by the code the runtime gives the failed connection', async () => {
     const credential = account(await nowhere());
 
-    const failure = await failed(serviceAccountToken(credential));
+    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
 
     // What whoever runs the process needs, in the failure's own line: it is not left on a cause.
     expect(failure.message).toBe(`OIDC discovery for ${credential.issuer} got no answer: ECONNREFUSED`);

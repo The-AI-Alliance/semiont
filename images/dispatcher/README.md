@@ -65,11 +65,11 @@ Three things, and nothing else:
 ## A claim is authorized, not just authenticated
 
 `job:claim` is admitted only when the caller's token carries the `semiont-worker` role. The
-issuer's realm grants that role to worker clients; the gateway stamps it onto the agent token a
-worker mints at `/api/tokens/agent` and forwards it on the frame as `_roles` — set or cleared on
-every emit, so a caller cannot supply it. Every sidecar (a service with its own service
-account) carries `semiont-service`; that is the floor, not the discriminator, so the
-Archivist's or the Smelter's token is refused here exactly as a person's is.
+issuer's realm grants that role to worker clients; the gateway forwards the roles the caller's
+token carries on the frame as `_roles` — set or cleared on every emit, so a caller cannot supply
+it. Every sidecar (a service with its own service account) carries `semiont-service`; that is the
+floor, not the discriminator, so the Archivist's or the Smelter's token is refused here exactly as
+a person's is.
 
 That is what makes the seam foreign-worker-shaped: admitting a worker that is not ours means
 granting its client the role at the issuer, and nothing in this service changes.
@@ -109,8 +109,8 @@ Every other variable it reads, what sets it and what it changes, is in
 Among them:
 
 - **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — this process's own service
-  account at the knowledge base's issuer. It exchanges them for an issuer token, and that token
-  for an agent token from the gateway.
+  account at the knowledge base's issuer. It exchanges them for an issuer token, which is its
+  bearer at the gateway.
 - `SEMIONT_BUS_LOG`.
 - The telemetry variables.
 

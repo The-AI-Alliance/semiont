@@ -751,8 +751,8 @@ const kbMountTarget = "/kb"
 // broker credentials by variable).
 //
 // jwt is the token-signing key — gateway-only, deliberately handed to no
-// other service: each presents agent tokens the gateway minted and never
-// signs anything. No admin password rides in here: `semiont useradd`
+// other service: each presents its own account's token from the issuer and
+// never signs anything. No admin password rides in here: `semiont useradd`
 // administers the realm itself, so none sits in the container's inspectable
 // env.
 func gatewayArgs(stage string, e exposure, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
@@ -839,9 +839,8 @@ func librarianArgs(stage string, e exposure, clientSecret, img, mem string, user
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
-		// This process's own credential at the realm. It buys one agent token
-		// from the gateway, as the agent (semiont, librarian), whatever models its
-		// matcher and its gatherer ask.
+		// This process's own account at the realm: its token is its bearer at
+		// the gateway, whatever models its matcher and its gatherer ask.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
@@ -889,9 +888,8 @@ func workerArgs(stage string, e exposure, clientKey, img, mem string, userEnv, o
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
 		// This process's own account at the realm, and the machine's key it
-		// signs each sign-in with (workerkey.go): no secret is sent. It buys
-		// an agent token from the gateway; it is not the agent identity, which
-		// is per (provider, model) and named in the request.
+		// signs each sign-in with (workerkey.go): no secret is sent. Its token
+		// is its bearer at the gateway, whatever engines it runs.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("worker"),
 		"--env", "SEMIONT_OIDC_CLIENT_KEY="+clientKey)
 	a = append(a, superviseEnv()...)
@@ -919,8 +917,8 @@ func smelterArgs(stage string, e exposure, clientSecret, img, mem string, userEn
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
-		// This process's own credential at the realm. It buys the agent token
-		// of its embedding provider and model from the gateway.
+		// This process's own account at the realm: its token is its bearer at
+		// the gateway.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("smelter"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
@@ -946,8 +944,8 @@ func weaverArgs(stage string, e exposure, clientSecret, img, mem string, userEnv
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
 	a = append(a,
-		// This process's own credential at the realm. It buys the agent token
-		// of (semiont, weaver) from the gateway.
+		// This process's own account at the realm: its token is its bearer at
+		// the gateway.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("weaver"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)

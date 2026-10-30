@@ -137,8 +137,7 @@ func newIssuer(t *testing.T) *httptest.Server {
 	return issuer
 }
 
-// gateway is a stand-in gateway: it exchanges an agent's token, says who a
-// token is and how it is, holds streams, answers a resource's request on the
+// gateway is a stand-in gateway: it says who a token is and how it is, holds streams, answers a resource's request on the
 // newest one, and gives a stream that holds res-1's scope an annotation
 // added to it.
 type gateway struct {
@@ -152,8 +151,6 @@ func newGateway(t *testing.T) *gateway {
 	g := &gateway{}
 	g.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/tokens/agent":
-			writeJSON(w, http.StatusOK, fmt.Sprintf(`{"token":%q,"did":"did:web:kb.example:agents:ollama:gemma2"}`, signedToken(2)))
 		case "/api/users/me":
 			writeJSON(w, http.StatusOK, alice)
 		case "/api/status":

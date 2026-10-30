@@ -64,7 +64,7 @@ Every W3C annotation has these required fields:
 {
   "generator": {
     "@type": "Software",
-    "@id": "did:web:example.org:agents:anthropic:claude-sonnet-4-6",
+    "@id": "did:web:example.org:agents:semiont-worker",
     "name": "anthropic claude-sonnet-4-6",
     "provider": "anthropic",
     "model": "claude-sonnet-4-6",
@@ -75,7 +75,7 @@ Every W3C annotation has these required fields:
 
 `creator` is who requested the annotation; `generator` is the software that produced it; `wasAttributedTo` is every party responsible. All three are **derived by the knowledge base** at write time from identities the gateway verified: the write's emitter (`_userId`), and — when the write cites a job (`jobId`) — the emitter of the `job:create` that produced it, joined through the dispatcher's own `job:assigned` record. Nothing an emitter says about identity in a payload is honoured: a payload carrying `creator` is refused, as is a `generator` whose identity is not the emitter's. A person's own annotation carries no `generator`; a person's act and a software agent's act are described the same way.
 
-**A Person's `name` is not stored on the annotation — it is resolved when the annotation is read.** What is written is the `@id`: provenance joins on the DID and only the DID. What a person is called is a separate fact about that identity, taken from the issuer's verified `name` claim, recorded on the knowledge base's own log once per *change* rather than once per act, and filled in by the Archivist on the way out. Two consequences worth knowing: a correction or a change of name reaches **every** annotation its subject ever wrote, because none of them froze a copy; and a DID the knowledge base has no name for comes back with no `name` at all, which is the honest shape — never a placeholder, and never the DID's own subject, which is an opaque identifier and not a name. A Software agent is different: its name derives from its provider and model, which its DID carries, so it is named where it is built.
+**A Person's `name` is not stored on the annotation — it is resolved when the annotation is read.** What is written is the `@id`: provenance joins on the DID and only the DID. What a person is called is a separate fact about that identity, taken from the issuer's verified `name` claim, recorded on the knowledge base's own log once per *change* rather than once per act, and filled in by the Archivist on the way out. Two consequences worth knowing: a correction or a change of name reaches **every** annotation its subject ever wrote, because none of them froze a copy; and a DID the knowledge base has no name for comes back with no `name` at all, which is the honest shape — never a placeholder, and never the DID's own subject, which is an opaque identifier and not a name. A Software agent's `name`, `provider` and `model` are what it says of itself, in the `generator` it supplies. Its DID says who it is and nothing it runs, so a `generator` the knowledge base supplies for it carries its `@id` alone.
 
 ## Annotation Types
 

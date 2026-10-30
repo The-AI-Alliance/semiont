@@ -53,20 +53,20 @@ export type GenerationJobParams = components['schemas']['GenerationJobParams'];
 export type JobType = components['schemas']['JobType'];
 
 /**
- * One entry of the collaborator directory (`browse:agents-result`): a typed
- * `Agent` plus, for software agents drawn from the KB's worker config, the
- * jobs it serves, each named as a claim names it. Persons and actor-role-only
- * agents omit `serves`.
+ * One engine on the knowledge base's roster (`browse:agents-result`): a
+ * provider and a model, and the jobs it is declared to serve, each named as a
+ * claim names it. An engine declared only under actor roles omits `serves`.
+ * An engine is not a principal: it carries no identity of its own.
  */
-export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
+export type RosterEntry = components['schemas']['RosterEntry'];
 
 /**
- * A directory entry with its model's discovered limits, as the SDK joins them:
- * the directory lists who serves each role, and the services holding the
+ * A roster entry with its model's discovered limits, as the SDK joins them:
+ * the roster lists the engine serving each role, and the services holding the
  * inference credentials report the limits (`LIMITS_OPERATIONS`). Absent
  * `limits` means no key holder reported that model.
  */
-export type Collaborator = CollaboratorEntry & { limits?: components['schemas']['InferenceLimits'] };
+export type Collaborator = RosterEntry & { limits?: components['schemas']['InferenceLimits'] };
 
 /**
  * What a knowledge base says of itself (`browse:kb-result`): its committed

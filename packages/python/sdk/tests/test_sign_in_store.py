@@ -123,13 +123,27 @@ def test_what_is_no_sign_in_is_not_kept(tmp_path: Path) -> None:
     # What another client was issued would be renewed here as the wrong client.
     with pytest.raises(ValueError, match="semiont-browser"):
         run(kept.keep(HeldSignIn(access=signed_in(1), refresh="r", client_id="semiont-browser", token_endpoint=f"{ISSUER}/token")))
-    # A gateway admits no token that names no address, and none from an issuer it does not trust.
-    with pytest.raises(SignInError, match="names no email") as lacking:
-        run(kept.keep(held(jwt({"iss": ISSUER}))))
-    assert lacking.value.code == "exchange"
-    with pytest.raises(SignInError, match="names no issuer"):
+    # A gateway admits no token from an issuer it does not trust.
+    with pytest.raises(SignInError, match="names no issuer") as lacking:
         run(kept.keep(held(jwt({"email": "alice@example.org"}))))
+    assert lacking.value.code == "exchange"
     assert not path.exists()
+
+
+def test_a_token_that_names_no_address_is_kept_without_one(tmp_path: Path) -> None:
+    path = tmp_path / FILE_NAME
+    kept = SignInStore(path).entry("local")
+    unaddressed = held(jwt({"iss": ISSUER, "sub": "an-account"}))
+
+    run(kept.keep(unaddressed))
+
+    assert entry(path, "local")["issuer"] == ISSUER
+    assert "email" not in entry(path, "local")
+    assert run(kept.held()) == unaddressed
+    # A renewal whose token names an address keeps none: the sign-in learned none.
+    renewed = signed_in(2)
+    assert run(kept.renewed(unaddressed, renewed, "refresh-2")) == renewed
+    assert "email" not in entry(path, "local")
 
 
 def test_a_renewal_keeps_who_signed_in_and_where_and_changes_the_tokens(tmp_path: Path) -> None:

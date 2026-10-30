@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from aio import hurried, run, settle, soon
 from gateway_server import GatewayServer
-from issuer import AGENT, ALICE, ME, PENDING, SECRET, TOKEN, agent_token, issuer_of, minted, says, trusting
+from issuer import ALICE, ME, PENDING, SECRET, TOKEN, agent_named, issuer_of, minted, says, trusting
 from kb import answer, asked_for, knowing_content, recorded, silent
 from pydantic import JsonValue
 from readme import (
@@ -355,22 +355,23 @@ def test_state_units_shows_what_is_hovered_as_it_changes_until_the_unit_is_dispo
     assert capsys.readouterr().out.splitlines() == ["nothing hovered", "hovering ann-1", "nothing hovered"]
 
 
-def test_an_agent_opens_its_stream_as_the_agent_its_service_account_was_exchanged_for(capsys: pytest.CaptureFixture[str]) -> None:
+def test_an_agent_opens_its_stream_as_its_account_with_the_token_its_issuer_granted(capsys: pytest.CaptureFixture[str]) -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
-            gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
-            gateway.scripted[("POST", AGENT)] = [agent_token(1)]
+            issued = token(3600, 1)
+            gateway.answers[TOKEN] = {"access_token": issued}
+            gateway.answers[ME] = agent_named("semiont-smelter")
             await soon(an_agent.work(gateway.origin, issuer_of(gateway), SECRET))
-            (exchanged,) = gateway.of("POST", AGENT)
-            assert exchanged.json() == {"provider": "ollama", "model": "gemma2:27b"}
+            # The issuer's token is its bearer: the gateway is asked who it is with it, and its stream is opened with it.
+            (named,) = gateway.of("GET", ME)
             (subscribed,) = gateway.of("POST", "/bus/subscribe")
-            assert subscribed.headers["authorization"] != exchanged.headers["authorization"]
+            assert named.headers["authorization"] == subscribed.headers["authorization"] == f"Bearer {issued}"
             assert subscribed.json()["global"] == list(reply_channels_for(JOB_CLAIM))
 
     run(scenario())
     # It says who it works as, as the gateway named it, and then that its stream is open.
-    assert capsys.readouterr().out.splitlines() == [f"working as {agent_did('example.org', 'ollama', 'gemma2:27b')}", "open"]
+    assert capsys.readouterr().out.splitlines() == [f"working as {agent_did('example.org', 'semiont-smelter')}", "open"]
 
 
 def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_s_lifecycle_and_claims_again(
@@ -381,7 +382,7 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
     assert (stated["resourceId"], stated["motivation"], stated["anchor"]) == ("res-1", "highlighting", "0:12:Ada Lovelace")
     assert "body" not in stated
     page = "Ada Lovelace\nwrote the first algorithm.\n"
-    did = agent_did("example.org", "ollama", "gemma3:4b")
+    did = agent_did("example.org", "my-worker")
     job: JsonObject = {
         "status": "running",
         "metadata": {
@@ -400,9 +401,10 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
-            gateway.answers[TOKEN] = {"access_token": token(3600, 0)}
-            # The gateway's answer to the exchange: the agent's token, and who the agent is.
-            gateway.scripted[("POST", AGENT)] = [says({"token": token(3600, 1), "did": did})]
+            issued = token(3600, 1)
+            gateway.answers[TOKEN] = {"access_token": issued}
+            # Who the gateway says the bearer of the issuer's token is: the worker's account.
+            gateway.answers[ME] = agent_named("my-worker")
             gateway.stored["res-1"] = ("text/plain", page.encode())
             # The dispatcher: the first claim is handed a job, the second is refused, and no other is answered.
             answers: list[tuple[str, JsonObject]] = [
@@ -460,11 +462,10 @@ def test_a_worker_claims_as_its_agent_commits_a_highlight_it_built_says_the_job_
             ]
             # And it reports what it proposed and what the record holds, established by the record's acknowledgement.
             assert complete["payload"] == {**identity, "result": {"found": 1, "persisted": 1}, "durability": "acknowledged"}
-            # It works as the agent, on a stream that names what claiming and committing read and nothing else.
-            (exchanged,) = gateway.of("POST", AGENT)
-            assert exchanged.json() == {"provider": "ollama", "model": "gemma3:4b"}
+            # It works as its account, on a stream that names what claiming and committing read and nothing else.
+            (named,) = gateway.of("GET", ME)
             (subscribed,) = gateway.of("POST", "/bus/subscribe")
-            assert subscribed.headers["authorization"] != exchanged.headers["authorization"]
+            assert named.headers["authorization"] == subscribed.headers["authorization"] == f"Bearer {issued}"
             assert subscribed.json()["global"] == [*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS]
 
             # Stopped while it holds nothing, it says nothing more.

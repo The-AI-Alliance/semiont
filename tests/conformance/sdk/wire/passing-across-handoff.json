@@ -9,9 +9,9 @@
     {"driver": "subscribe-resource", "with": {"resource": {"$var": "r1"}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [{"scope": {"$var": "r1"}, "channels": {"$var": "resourceScopedChannels"}}], "pendingReplies": []}, "at": "live", "as": "new"},
     {"backend": "emit", "with": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}}}},
-    {"carried": "old", "is": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
-    {"carried": "new", "is": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
-    {"frame": "beckon:sparkle", "is": {"payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
+    {"carried": "old", "is": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}, "_roles": {"$var": "participantRoles"}}}},
+    {"carried": "new", "is": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}, "_roles": {"$var": "participantRoles"}}}},
+    {"frame": "beckon:sparkle", "is": {"payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}, "_roles": {"$var": "participantRoles"}}}},
     {"stays": "open"}
   ]
 }

@@ -3,6 +3,7 @@ package semiont.http
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
@@ -120,6 +121,17 @@ internal fun issued(access: String, refresh: String? = null): Said = Said(200, b
 
 private fun error(code: String, status: Int = 400): Said = Said(status, buildJsonObject { put("error", code) })
 
+/** The gateway's answer to `GET /api/users/me` for an agent's account: its DID, and no address, name or image. */
+private fun named(did: String): Said = Said(200, buildJsonObject {
+    put("did", did)
+    put("email", JsonNull)
+    put("name", JsonNull)
+    put("image", JsonNull)
+    put("domain", "kb.example")
+})
+
+private const val AGENT_DID = "did:web:kb.example:agents:worker"
+
 /** Signing in at the issuer a knowledge base trusts, over the device grant, signing out, and a service and its agent signing in. */
 class SignInTest {
     private val realms = mutableListOf<Realm>()
@@ -215,20 +227,23 @@ class SignInTest {
     }
 
     @Test
-    fun anAgentIsSignedInAsTheGatewayNamesItAndExchangesAgainWhenItsTokenIsRefused() = runBlocking {
+    fun anAgentSignsInAsItsAccountAndIsGrantedAnotherTokenWhenItsTokenIsRefused() = runBlocking {
         val realm = realm()
-        val service = tokenFor("service-1")
-        realm.script("/token", issued(service))
-        val did = "did:web:kb.example:agents:anthropic:claude"
-        realm.script("/api/tokens/agent", Said(200, buildJsonObject { put("token", "agent-1"); put("did", did) }), Said(200, buildJsonObject { put("token", "agent-2"); put("did", did) }))
-        AgentToken(realm.origin, "anthropic", "claude", ServiceToken(SecretCredential(realm.origin, "worker", "the-secret"))).use { agent ->
+        val first = tokenFor("service-1")
+        val second = tokenFor("service-2")
+        realm.script("/token", issued(first), issued(second))
+        realm.script("/api/users/me", named(AGENT_DID))
+        AgentToken(realm.origin, ServiceToken(SecretCredential(realm.origin, "worker", "the-secret"))).use { agent ->
             assertThrows(IllegalStateException::class.java) { agent.did }
             agent.signIn()
-            assertEquals(UserId.parse(did), agent.did)
-            assertEquals("agent-1", agent.token.value)
-            assertEquals("agent-2", agent.refresh("agent-1"))
-            assertEquals("agent-2", agent.token.value)
-            assertEquals(listOf("Bearer $service", "Bearer $service"), realm.of("/api/tokens/agent").map { it.authorization })
+            // The bearer is the issuer's token, and the gateway names its account.
+            assertEquals(UserId.parse(AGENT_DID), agent.did)
+            assertEquals(first, agent.token.value)
+            // A refused token is answered by a new grant, though the one held is not due, and the gateway is asked nothing more.
+            assertEquals(second, agent.refresh(first))
+            assertEquals(second, agent.token.value)
+            assertEquals(2, realm.of("/token").size)
+            assertEquals(listOf("Bearer $first"), realm.of("/api/users/me").map { it.authorization })
         }
     }
 
@@ -355,38 +370,50 @@ class SignInTest {
 
     private fun agent(realm: Realm): AgentToken {
         realm.script("/token", issued(tokenFor("service-1")))
-        return AgentToken(realm.origin, "anthropic", "claude", ServiceToken(SecretCredential(realm.origin, "worker", "s")))
+        return AgentToken(realm.origin, ServiceToken(SecretCredential(realm.origin, "worker", "s")))
     }
 
     @Test
-    fun anExchangeTheGatewayRefusesIsTheAgentsFailure() = runBlocking {
+    fun aGatewayThatRefusesTheAgentsTokenIsTheAgentsFailure() = runBlocking {
         val realm = realm()
-        realm.script("/api/tokens/agent", Said(403, buildJsonObject { put("error", "forbidden") }))
+        realm.script("/api/users/me", Said(401, buildJsonObject { put("error", "unauthorized") }))
         agent(realm).use { agent ->
             val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
-            assertEquals(403, failed.status)
+            assertEquals(401, failed.status)
         }
     }
 
     @Test
-    fun anExchangeAnsweredWithNoAgentTokenSaysSoAndNothingOfTheAnswer() = runBlocking {
+    fun aGatewayThatDoesNotSayWhoTheAgentIsSaysSoAndNothingOfTheAnswer() = runBlocking {
         val realm = realm()
-        realm.script("/api/tokens/agent", Said(200, buildJsonObject { put("secret", "not-a-token") }))
+        realm.script("/api/users/me", Said(200, buildJsonObject { put("secret", "not-a-principal") }))
         agent(realm).use { agent ->
             val failed = assertThrows(semiont.errors.TransportError::class.java) { runBlocking { agent.signIn() } }
-            assertTrue(!failed.message!!.contains("not-a-token"), failed.message)
+            assertTrue(!failed.message!!.contains("not-a-principal"), failed.message)
         }
     }
 
     @Test
-    fun anAgentWhoseRefreshFailsKeepsItsTokenAndSaysNone() = runBlocking {
+    fun anAgentWhoseAccountCannotSignInNeverAsksTheGateway() = runBlocking {
         val realm = realm()
-        val did = "did:web:kb.example:agents:anthropic:claude"
-        realm.script("/api/tokens/agent", Said(200, buildJsonObject { put("token", "agent-1"); put("did", did) }), Said(503, buildJsonObject { put("error", "down") }))
+        realm.script("/token", Said(401, buildJsonObject { put("error", "invalid_client") }))
+        AgentToken(realm.origin, ServiceToken(SecretCredential(realm.origin, "worker", "s"))).use { agent ->
+            val failed = assertThrows(SignInError::class.java) { runBlocking { agent.signIn() } }
+            assertEquals(SignInErrorCode.Exchange to 401, failed.reason to failed.status)
+        }
+        assertEquals(emptyList<Asked>(), realm.of("/api/users/me"))
+    }
+
+    @Test
+    fun anAgentWhoseRenewalFailsKeepsItsTokenAndSaysNone() = runBlocking {
+        val realm = realm()
+        realm.script("/api/users/me", named(AGENT_DID))
         agent(realm).use { agent ->
+            realm.script("/token", Said(503, buildJsonObject { put("error", "down") }))
             agent.signInFuture().get()
-            assertNull(agent.refresh("agent-1"))
-            assertEquals("agent-1", agent.token.value)
+            val held = agent.token.value
+            assertNull(agent.refresh(held))
+            assertEquals(held, agent.token.value)
         }
     }
 

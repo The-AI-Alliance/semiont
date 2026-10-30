@@ -13,7 +13,7 @@ const comment = (value: string) => [{ type: 'TextualBody', value, purpose: 'comm
 eachWorkerService('a commenting job', (world) => {
   it('asks as its instructions, tone, density and languages say, and commits each comment as the body of its span', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'commenting', {
       motivation: 'commenting',
       instructions: 'Explain who each person was.',
@@ -44,7 +44,7 @@ eachWorkerService('a commenting job', (world) => {
       'emit job:complete',
       'emit job:claim',
     ]);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'commenting', { num_predict: 5320, num_ctx: 5756, temperature: 0 }, FORMATS.commenting)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'commenting', { num_predict: 5320, num_ctx: 5756, temperature: 0 }, FORMATS.commenting)]);
 
     expect(served.payloads('mark:commit').map((p) => ({ ...p, annotations: withoutCreated(p['annotations']) }))).toEqual([
       {

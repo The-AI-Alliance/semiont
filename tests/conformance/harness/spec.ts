@@ -454,15 +454,13 @@ export interface PersonCase {
 
 export interface AgentCase {
   why: string;
-  provider: string;
-  model: string;
+  subject: string;
   did: string;
-  email: string;
-  name: string;
 }
 
 interface Principals {
   personDid(subject: string): string;
+  agentDid(subject: string): string;
   people: PersonCase[];
   agents: AgentCase[];
 }
@@ -481,11 +479,12 @@ export function principals(domain: string): Principals {
   const known = principalsByDomain.get(domain);
   if (known) return known;
   const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'principals/cases.json'), 'utf8'));
-  if (!isObject(table) || typeof table['person'] !== 'string' || !Array.isArray(table['people']) || !Array.isArray(table['agents'])) {
-    throw new Error('principals/cases.json has no person form, people or agents');
+  if (!isObject(table) || typeof table['person'] !== 'string' || typeof table['agent'] !== 'string' || !Array.isArray(table['people']) || !Array.isArray(table['agents'])) {
+    throw new Error('principals/cases.json has no person or agent form, people or agents');
   }
-  const form = table['person'];
-  const person = (d: string, subject: string) => form.replace('{domain}', d).replace('{subject}', encodeURIComponent(subject));
+  const named = (form: string) => (d: string, subject: string) => form.replace('{domain}', d).replace('{subject}', encodeURIComponent(subject));
+  const person = named(table['person']);
+  const agent = named(table['agent']);
   const people: PersonCase[] = [];
   for (const c of table['people']) {
     if (!isObject(c) || typeof c['why'] !== 'string' || typeof c['domain'] !== 'string' || typeof c['subject'] !== 'string' || typeof c['did'] !== 'string') {
@@ -496,16 +495,18 @@ export function principals(domain: string): Principals {
     }
     if (c['domain'] === domain) people.push({ why: c['why'], subject: c['subject'], did: c['did'] });
   }
-  const agents = table['agents'].flatMap((c): AgentCase[] => {
-    if (!isObject(c) || c['domain'] !== domain) return [];
-    const { why, provider, model, did, email, name } = c;
-    if (![why, provider, model, did, email, name].every((v) => typeof v === 'string')) {
+  const agents: AgentCase[] = [];
+  for (const c of table['agents']) {
+    if (!isObject(c) || typeof c['why'] !== 'string' || typeof c['domain'] !== 'string' || typeof c['subject'] !== 'string' || typeof c['did'] !== 'string') {
       throw new Error(`principals/cases.json: an agent case is malformed: ${JSON.stringify(c)}`);
     }
-    return [{ why: String(why), provider: String(provider), model: String(model), did: String(did), email: String(email), name: String(name) }];
-  });
+    if (agent(c['domain'], c['subject']) !== c['did']) {
+      throw new Error(`principals/cases.json: "${c['why']}" — the agent form gives ${agent(c['domain'], c['subject'])}, the case says ${c['did']}`);
+    }
+    if (c['domain'] === domain) agents.push({ why: c['why'], subject: c['subject'], did: c['did'] });
+  }
   if (people.length === 0 || agents.length === 0) throw new Error(`principals/cases.json needs person and agent cases under ${domain}, the suite's knowledge base`);
-  const loaded = { personDid: (subject: string) => person(domain, subject), people, agents };
+  const loaded = { personDid: (subject: string) => person(domain, subject), agentDid: (subject: string) => agent(domain, subject), people, agents };
   principalsByDomain.set(domain, loaded);
   return loaded;
 }

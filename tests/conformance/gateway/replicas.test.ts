@@ -200,7 +200,7 @@ eachPlane('two replicas on one broker', (world) => {
     // claim in the meantime: a request that reached nobody would be answered
     // at once with peer-unavailable.
     const channel = 'browse:kb-requested';
-    const silent = await world().agent('conformance', 'silent');
+    const silent = await world().agent('silent');
     await world().subscribe(silent.token, { clientId: randomUUID(), global: [channel] });
     const first = await world().emit(alice, { channel, payload: {}, correlationId, clientId: randomUUID() });
     expect(first.status).toBe(202);
@@ -214,7 +214,7 @@ eachPlane('two replicas on one broker', (world) => {
     const clientId = randomUUID();
     // Heard on one replica and answered by nobody, so every request stays
     // unanswered: one that reached nobody would be answered at once.
-    const silent = await world().agent('conformance', 'silent');
+    const silent = await world().agent('silent');
     await world().subscribe(silent.token, { clientId: randomUUID(), global: ['browse:kb-requested'] });
     for (let i = 0; i < max; i++) {
       const origin = i % 2 === 0 ? world().origin : b.origin;

@@ -22,7 +22,7 @@ from semiont_graph.interface import GraphDatabase, ResourceChange, ResourceQuery
 ADA: dict[str, JsonValue] = {"@type": "Person", "@id": "did:web:example.org:users:ada"}
 MODEL: dict[str, JsonValue] = {
     "@type": "Software",
-    "@id": "did:web:example.org:agents:anthropic:model",
+    "@id": "did:web:example.org:agents:semiont-worker",
     "name": "anthropic model",
     "provider": "anthropic",
     "model": "model",

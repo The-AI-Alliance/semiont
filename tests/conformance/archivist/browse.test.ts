@@ -354,22 +354,15 @@ withArchivist('browsing', (world) => {
 });
 
 withArchivist('the roster', (world) => {
-  it('lists each agent once, in the order of its first role, with the jobs it serves as a claim would name them', async () => {
+  it('lists each engine once, in the order of its first role, with the jobs it serves as a claim would name them, and no identity of its own', async () => {
     const reader = await world().person('reader');
-    const domain = world().world.kb.domain;
-    const agent = (provider: string, model: string) => ({
-      '@type': 'Software',
-      '@id': `did:web:${domain}:agents:${encodeURIComponent(provider)}:${encodeURIComponent(model)}`,
-      name: `${provider} ${model}`,
-      provider,
-      model,
-    });
+    const engine = (provider: string, model: string) => ({ provider, model });
     expect(await reader.ask('browse:agents-requested', {})).toEqual({
       agents: [
-        { agent: agent('anthropic', 'claude-haiku-4-5'), serves: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'mark', params: { motivation: 'linking' } }] },
-        { agent: agent('ollama', 'gemma2:27b'), serves: [{ jobType: 'mark', params: { motivation: 'tagging' } }] },
-        { agent: agent('anthropic', 'claude-sonnet-4-5'), serves: [{ jobType: 'yield' }] },
-        { agent: agent('ollama', 'llama3') },
+        { engine: engine('anthropic', 'claude-haiku-4-5'), serves: [{ jobType: 'mark', params: { motivation: 'highlighting' } }, { jobType: 'mark', params: { motivation: 'linking' } }] },
+        { engine: engine('ollama', 'gemma2:27b'), serves: [{ jobType: 'mark', params: { motivation: 'tagging' } }] },
+        { engine: engine('anthropic', 'claude-sonnet-4-5'), serves: [{ jobType: 'yield' }] },
+        { engine: engine('ollama', 'llama3') },
       ],
     });
   });

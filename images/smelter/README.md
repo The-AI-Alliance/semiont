@@ -130,9 +130,9 @@ It reads one document, the protocol's
 
 Nothing the document leaves out is supplied. Its environment is its service account,
 **`SEMIONT_OIDC_CLIENT_ID`** and **`SEMIONT_OIDC_CLIENT_SECRET`**, and, for a provider that
-takes a key, the one variable its document names for it. It signs in as itself and works as
-the agent its embedding provider and its model name, so two Smelters that embed with
-different models are two agents.
+takes a key, the one variable its document names for it. It signs in as itself, and the
+gateway names it by its account: `did:web:<the knowledge base's domain>:agents:<its subject at
+the issuer>`. The model it embeds with is no part of who it is.
 
 **No more PDFs are worked on at once than `pdfsAtOnce` says**, however many are waiting: a
 scanned page held in pixels, beside the `tesseract` process reading it, is what fills the

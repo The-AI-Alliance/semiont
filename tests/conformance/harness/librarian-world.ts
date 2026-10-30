@@ -225,7 +225,7 @@ export class LibrarianWorld {
     const smelterEmbedder = await startOllamaEmbed();
 
     // A standing stream of what the Weaver says it has applied and the Smelter says it has decided, open before either runs.
-    const { token } = await kb.world.agent('conformance', 'librarian-watch', [SERVICE_ROLE]);
+    const { token } = await kb.world.agent('librarian-watch', [SERVICE_ROLE]);
     const signals = await kb.world.subscribe(token, { clientId: randomUUID(), global: ['weave:applied', 'smelt:settled'] }, undefined, true);
     signals.on((message) => {
       const frame = message.frame;

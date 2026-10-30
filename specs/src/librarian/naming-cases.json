@@ -49,7 +49,7 @@
       "reply": {
         "wasAttributedTo": [
           { "@type": "Person", "@id": "did:web:example.org:users:ada" },
-          { "@type": "Software", "@id": "did:web:example.org:agents:anthropic:model", "name": "anthropic model", "provider": "anthropic", "model": "model" }
+          { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "anthropic model", "provider": "anthropic", "model": "model" }
         ]
       },
       "people": {
@@ -58,7 +58,7 @@
       "named": {
         "wasAttributedTo": [
           { "@type": "Person", "@id": "did:web:example.org:users:ada", "name": "Ada Lovelace" },
-          { "@type": "Software", "@id": "did:web:example.org:agents:anthropic:model", "name": "anthropic model", "provider": "anthropic", "model": "model" }
+          { "@type": "Software", "@id": "did:web:example.org:agents:semiont-worker", "name": "anthropic model", "provider": "anthropic", "model": "model" }
         ]
       }
     },

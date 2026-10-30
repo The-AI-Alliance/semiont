@@ -78,9 +78,9 @@ fn answers(
             "browse:entity-types-requested" => json!({ "entityTypes": [format!("Type{n}")] }),
             "browse:tag-schemas-requested" => json!({ "tagSchemas": [] }),
             "browse:agents-requested" => json!({ "agents": [
-                { "agent": { "@type": "Software", "name": "Reader", "provider": "anthropic", "model": "reader-1" },
+                { "engine": { "provider": "anthropic", "model": "reader-1" },
                   "serves": [{ "jobType": "mark", "params": { "motivation": "highlighting" } }, { "jobType": "yield" }] },
-                { "agent": { "@type": "Software", "name": "Writer", "provider": "anthropic", "model": "writer-1" } },
+                { "engine": { "provider": "anthropic", "model": "writer-1" } },
             ] }),
             "job:limits-requested" => json!({ "limits": [
                 { "provider": "anthropic", "model": "reader-1", "limits": { "contextTokens": 1000.0, "maxOutputTokens": 100.0 } },
@@ -1036,7 +1036,7 @@ async fn b13_a_gap_asks_again_for_what_refers_to_the_resource_it_names_and_to_no
     assert_eq!(asked(&transport, ["gather:referenced-by-requested"]), [3]);
 }
 
-// ── The collaborator directory ──────────────────────────────────────────
+// ── The roster ──────────────────────────────────────────
 
 fn limits_of(collaborators: &[semiont::namespaces::Collaborator]) -> Vec<Option<f64>> {
     collaborators

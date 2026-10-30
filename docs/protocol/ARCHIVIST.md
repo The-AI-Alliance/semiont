@@ -314,8 +314,8 @@ the requester is then whoever the job was assigned for.
 
 - `creator` is the requester, as an agent.
 - `generator` is the executor, when the executor is software (a DID of the form
-  `did:web:<domain>:agents:<provider>:<model>`). A command may supply the generator, to say more
-  about it; it must be the executor: `attribution: generator <id> is not the executor <did>`, and
+  `did:web:<domain>:agents:<subject>`). A command may supply the generator, to say more
+  about it — the engine it ran — and it must be the executor: `attribution: generator <id> is not the executor <did>`, and
   `attribution: a generator was supplied, but the executor <did> is not software`.
 - `wasAttributedTo` is the executor alone when it is also the requester, otherwise the creator then
   the executor.
@@ -450,14 +450,13 @@ names no one.
 **Anchored text** is not read on the bus. An answer is as large as its document, and a frame has a
 size limit, so it is a route of [the HTTP surface](#the-http-surface).
 
-**Agents.** The roster lists each agent once, in the order its first role appears: a `mark` job of
+**The roster.** It lists each engine once, in the order its first role appears: a `mark` job of
 each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), a `yield` job,
-then the actors `gatherer`, `matcher`. An entry is `{agent, serves?}`: the agent is
-`{"@type": "Software", "@id": "did:web:<domain>:agents:<provider>:<model>", name: "<provider>
-<model>", provider, model}`, and `serves` lists the jobs it serves, each a
+then the actors `gatherer`, `matcher`. An entry is `{engine, serves?}`: the engine is
+`{provider, model}`, with no identity of its own, and `serves` lists the jobs it serves, each a
 [`JobFilter`](../../specs/src/components/schemas/JobFilter.json) as a claim would name it
-(`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an agent that
-serves only actors. The domain is read from the tree when asked.
+(`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an engine that
+serves only actors.
 
 ## Enrichment
 
@@ -570,9 +569,9 @@ that follows the signal does not wait.
 The Archivist boots in this order, and a failure at any step ends the process with status 1:
 
 1. Read and validate the configuration document.
-2. Sign in: its service account's token at the issuer, exchanged at the gateway for the agent token
-   it reaches the bus with, as the software agent `semiont archivist`. The token is renewed before
-   it expires.
+2. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
+   names it by that account, as an agent, and answers its DID at `GET /api/users/me`. The token is
+   renewed before it expires.
 3. Read the project file ([Configuration](#configuration)).
 4. Ask staging whether it can work ([Staging](#staging)).
 5. Refuse to start without a `site.domain`.

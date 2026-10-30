@@ -43,7 +43,6 @@ import semiont.storage.MemoryStorage
 import semiont.transport.ConnectionState
 import semiont.types.Annotation
 import semiont.types.AttributedEvent
-import semiont.types.CollaboratorEntry
 import semiont.types.GenerationJobParams
 import semiont.types.GetReferencedByResponseReferencedByItem
 import semiont.types.InferenceLimits
@@ -55,6 +54,7 @@ import semiont.types.ListResourcesResponse
 import semiont.types.MarkJobParams
 import semiont.types.MatchResourcesResponse
 import semiont.types.ResourceDescriptor
+import semiont.types.RosterEntry
 import semiont.types.TagSchema
 
 /**
@@ -82,12 +82,12 @@ private fun <T> state(state: CacheState<T>, written: (T) -> JsonElement): JsonOb
     is CacheState.Failed -> Say.of("status" to JsonPrimitive("failed"), "error" to failure(state.error))
 }
 
-/** A collaborator as the suite reads one: its entry in the directory, with its limits beside its fields when it has them. */
+/** A collaborator as the suite reads one: its roster entry, with its limits beside its fields when it has them. */
 private object CollaboratorWritten : KSerializer<Collaborator> {
-    override val descriptor = CollaboratorEntry.serializer().descriptor
+    override val descriptor = RosterEntry.serializer().descriptor
 
     override fun serialize(encoder: kotlinx.serialization.encoding.Encoder, value: Collaborator) {
-        val entry = wire.encodeToJsonElement(CollaboratorEntry.serializer(), value.entry).jsonObject
+        val entry = wire.encodeToJsonElement(RosterEntry.serializer(), value.entry).jsonObject
         val limits = value.limits?.let { "limits" to wire.encodeToJsonElement(InferenceLimits.serializer(), it) }
         encoder.encodeSerializableValue(JsonObject.serializer(), JsonObject(entry + listOfNotNull(limits)))
     }

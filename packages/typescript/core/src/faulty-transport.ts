@@ -28,6 +28,7 @@ import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
 import { BRIDGED_CHANNELS } from './bridged-channels';
 import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
+import { asDeclared } from './bus';
 
 /** One wire behavior, applied to a single request-channel emit. */
 export type FaultAction =
@@ -310,7 +311,7 @@ export class FaultyTransport implements ITransport {
         // the envelope here would strip the correlation key on the way to the
         // application bus and strand the awaiting request.
         const { payload, ...envelope } = frame;
-        bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap], envelope);
+        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload as EventMap[keyof EventMap]), envelope);
       });
     }
   }

@@ -14,7 +14,6 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
-use semiont::identity;
 use semiont::transport::TraceCarrier;
 use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
 use semiont_core::spec::spec;
@@ -55,15 +54,12 @@ pub fn envelope(correlation_id: Option<&str>) -> Option<Meta> {
     (!meta.is_empty()).then_some(meta)
 }
 
-/// A person's name, for a write they are making: `person:profile`. Silent for
-/// an agent, and for a token that carries no name.
+/// A principal's name, for a write they are making: `person:profile`, a
+/// person's and an agent's alike. Silent for a token that carries no name.
 pub async fn publish_profile(app: &App, principal: &Principal) -> Result<(), Unavailable> {
     let Some(name) = principal.name.as_ref() else {
         return Ok(());
     };
-    if identity::kind_of(&principal.did) == identity::Kind::Software {
-        return Ok(());
-    }
     app.bus
         .plane
         .ingest(

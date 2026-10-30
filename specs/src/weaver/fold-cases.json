@@ -11,7 +11,7 @@
           "id": "evt-1",
           "type": "yield:created",
           "timestamp": "2020-03-04T05:06:01.000Z",
-          "userId": "did:web:example.org:agents:anthropic:model",
+          "userId": "did:web:example.org:agents:semiont-worker",
           "resourceId": "res-1",
           "version": 1,
           "payload": {
@@ -29,7 +29,7 @@
               },
               {
                 "@type": "Software",
-                "@id": "did:web:example.org:agents:anthropic:model",
+                "@id": "did:web:example.org:agents:semiont-worker",
                 "name": "anthropic model",
                 "provider": "anthropic",
                 "model": "model"
@@ -71,7 +71,7 @@
               },
               {
                 "@type": "Software",
-                "@id": "did:web:example.org:agents:anthropic:model",
+                "@id": "did:web:example.org:agents:semiont-worker",
                 "name": "anthropic model",
                 "provider": "anthropic",
                 "model": "model"
@@ -92,7 +92,7 @@
           "id": "evt-2",
           "type": "yield:created",
           "timestamp": "2020-03-04T05:06:01.000Z",
-          "userId": "did:web:example.org:agents:anthropic:model",
+          "userId": "did:web:example.org:agents:semiont-worker",
           "resourceId": "res-1",
           "version": 1,
           "payload": {
@@ -319,7 +319,7 @@
           "id": "evt-9",
           "type": "mark:added",
           "timestamp": "2020-03-04T05:06:09.000Z",
-          "userId": "did:web:example.org:agents:anthropic:model",
+          "userId": "did:web:example.org:agents:semiont-worker",
           "resourceId": "res-1",
           "version": 1,
           "payload": {
@@ -342,7 +342,7 @@
               "created": "2020-03-04T05:06:30.000Z",
               "generator": {
                 "@type": "Software",
-                "@id": "did:web:example.org:agents:anthropic:model",
+                "@id": "did:web:example.org:agents:semiont-worker",
                 "name": "anthropic model",
                 "provider": "anthropic",
                 "model": "model"
@@ -354,7 +354,7 @@
                 },
                 {
                   "@type": "Software",
-                  "@id": "did:web:example.org:agents:anthropic:model",
+                  "@id": "did:web:example.org:agents:semiont-worker",
                   "name": "anthropic model",
                   "provider": "anthropic",
                   "model": "model"
@@ -409,7 +409,7 @@
             "created": "2020-03-04T05:06:30.000Z",
             "generator": {
               "@type": "Software",
-              "@id": "did:web:example.org:agents:anthropic:model",
+              "@id": "did:web:example.org:agents:semiont-worker",
               "name": "anthropic model",
               "provider": "anthropic",
               "model": "model"

@@ -55,7 +55,7 @@ const after = (paragraph: number, sentence: number) => ` beside the Rhône. Para
 eachWorkerService('a job over a text with characters outside the Basic Multilingual Plane', (world) => {
   it('cuts, asks, anchors, checkpoints and reports by the text\'s code points', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     w.ollama.show = { contextLength: SMALL_CONTEXT_LENGTH };
     const job = markJob(w, 'code-points', { motivation: 'highlighting' }, {}, SURVEY);
     const resourceId = String(job.params.resourceId);
@@ -80,7 +80,7 @@ eachWorkerService('a job over a text with characters outside the Basic Multiling
     const request = { num_predict: 622, num_ctx: SMALL_CONTEXT_LENGTH, temperature: 0 };
     expectGenerations(
       w.ollama.generations,
-      ['code-points-1', 'code-points-2', 'code-points-3', 'code-points-4'].map((name) => generation(agent.model, name, request, FORMATS.highlighting)),
+      ['code-points-1', 'code-points-2', 'code-points-3', 'code-points-4'].map((name) => generation(engine.model, name, request, FORMATS.highlighting)),
     );
 
     expect(served.sequence()).toEqual([
@@ -162,7 +162,7 @@ eachWorkerService('a job over a text with characters outside the Basic Multiling
 
   it('anchors a comment after such a character, and on one, at a count of code points', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'code-points-commenting', { motivation: 'commenting' }, {}, ENGINE);
     const resourceId = String(job.params.resourceId);
     w.ollama.script({
@@ -184,8 +184,8 @@ eachWorkerService('a job over a text with characters outside the Basic Multiling
     // The prompt is 402 tokens, its 1,607 code points over four rounded up, and
     // the window is sized from that. Its 1,610 UTF-16 code units would be one
     // token more, and `num_ctx` 5794.
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'code-points-commenting', { num_predict: 5246, num_ctx: 5793, temperature: 0 }, FORMATS.commenting)]);
-    expect(w.ollama.shows).toEqual([{ model: agent.model }]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'code-points-commenting', { num_predict: 5246, num_ctx: 5793, temperature: 0 }, FORMATS.commenting)]);
+    expect(w.ollama.shows).toEqual([{ model: engine.model }]);
 
     const comment = (value: string) => [{ type: 'TextualBody', value, purpose: 'commenting', format: 'text/plain', language: 'en' }];
     expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([
