@@ -2280,6 +2280,12 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	if got := recordedStacks(t, s); !slices.Equal(got, []string{otherKey}) {
 		t.Errorf("after the first knowledge base's stop, stack.json records %v, want the second's alone", got)
 	}
+	// With the second's stack alone running, logs standing in the third,
+	// which nothing started, follows the third's names, not the second's.
+	s.kb = third
+	before := s.argv(t)
+	s.run(t, "logs", "--service", "gateway")
+	mustNotContain(t, "logs standing in a knowledge base nothing started", strings.TrimPrefix(s.argv(t), before), "other-kb-")
 
 	s.kb = other
 	argv, _, _ = run("the second knowledge base's stop", 0, "stop")
