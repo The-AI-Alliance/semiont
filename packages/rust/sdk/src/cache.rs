@@ -32,7 +32,7 @@
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::state_unit::StateUnit;
-use crate::storage::{SessionStorage, StorageSubscription};
+use crate::storage::SessionStorage;
 use crate::transport::BoxFuture;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -111,12 +111,6 @@ pub trait CachePersister<K, V>: Send + Sync + 'static {
     /// they could not be kept.
     fn save(&self, entries: &HashMap<K, V>)
     -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
-
-    /// Hear of what another context saved. `None` where there is no other.
-    fn subscribe(
-        &self,
-        on_external_change: Box<dyn Fn(HashMap<K, V>) + Send + Sync>,
-    ) -> Option<StorageSubscription>;
 }
 
 /// Save a cache's values; one that fails is a warning.
@@ -166,7 +160,6 @@ struct State<K, V> {
     fetches: u64,
     /// The wait before the next save, while one is owed.
     saving: Option<AbortHandle>,
-    external: Option<StorageSubscription>,
 }
 
 struct Inner<K, V>
@@ -421,33 +414,9 @@ where
                     .collect(),
                 fetches: 0,
                 saving: None,
-                external: None,
             }),
             persister,
         });
-        if let Some(persister) = &inner.persister {
-            let cache = Arc::downgrade(&inner);
-            let subscription = persister.subscribe(Box::new(move |entries| {
-                let Some(cache) = cache.upgrade() else {
-                    return;
-                };
-                // What another context saved is what this one now has. It is
-                // not saved back: a save answered with a save never ends.
-                let mut state = cache.state();
-                if state.disposed {
-                    return;
-                }
-                for (key, value) in entries {
-                    state
-                        .keys
-                        .entry(key)
-                        .or_insert_with(|| Key::new(CacheState::Pending))
-                        .state
-                        .send_replace(CacheState::Ready(value));
-                }
-            }));
-            inner.state().external = subscription;
-        }
         Cache { inner }
     }
 
@@ -620,7 +589,6 @@ where
                 waiting.abort();
                 Inner::values(&state)
             });
-            state.external = None;
             state.kept.clear();
             state.keys.clear();
             owed
@@ -658,7 +626,7 @@ pub struct StoragePersister<K, V> {
     max_bytes: usize,
     /// Each key's value as last written, and when: an entry whose value has
     /// not changed keeps its time.
-    written: Arc<Mutex<HashMap<String, (String, u64)>>>,
+    written: Mutex<HashMap<String, (String, u64)>>,
     of: PhantomData<fn() -> (K, V)>,
 }
 
@@ -674,7 +642,7 @@ impl<K, V> StoragePersister<K, V> {
             storage_key: storage_key.into(),
             version,
             max_bytes,
-            written: Arc::new(Mutex::new(HashMap::new())),
+            written: Mutex::new(HashMap::new()),
             of: PhantomData,
         }
     }
@@ -772,23 +740,5 @@ where
             .collect();
         drop(written);
         self.storage.set(&self.storage_key, &text)
-    }
-
-    fn subscribe(
-        &self,
-        on_external_change: Box<dyn Fn(HashMap<K, V>) + Send + Sync>,
-    ) -> Option<StorageSubscription> {
-        let storage_key = self.storage_key.clone();
-        let version = self.version;
-        let written = self.written.clone();
-        self.storage.subscribe(Arc::new(move |key, value| {
-            if key != storage_key {
-                return;
-            }
-            if let Some(document) = document(value, version) {
-                remembered(&written, &document);
-                on_external_change(entries(document));
-            }
-        }))
     }
 }

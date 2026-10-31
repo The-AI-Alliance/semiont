@@ -10,9 +10,7 @@ use futures_core::Stream;
 use semiont::cache::{Cache, CachePersister, CacheState, StoragePersister};
 use semiont::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use semiont::state_unit::StateUnit;
-use semiont::storage::{
-    InMemorySessionStorage, SessionStorage, StorageChange, StorageSubscription,
-};
+use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::axioms::{
     AxiomSubject, Fresh, StreamSurface, Surface, assert_state_unit_axioms,
 };
@@ -652,9 +650,6 @@ async fn b16_a_disposed_cache_asks_nothing_and_a_one_shot_read_of_it_fails_as_cl
 
 // ── B17, B18: persistence ───────────────────────────────────────────────
 
-/// What a persister calls with what another context saved.
-type Heard = Box<dyn Fn(HashMap<String, String>) + Send + Sync>;
-
 /// A persister that keeps what it is given, and counts; while it is full, it
 /// counts each save and keeps none.
 #[derive(Default)]
@@ -662,7 +657,6 @@ struct Kept {
     stored: Mutex<Option<HashMap<String, String>>>,
     saves: Mutex<Vec<HashMap<String, String>>>,
     full: AtomicBool,
-    external: Mutex<Option<Heard>>,
 }
 
 impl Kept {
@@ -681,17 +675,6 @@ impl Kept {
     fn saves(&self) -> Vec<HashMap<String, String>> {
         self.saves.lock().expect("saves").clone()
     }
-
-    /// Another context saved these.
-    fn externally(&self, entries: &[(&str, &str)]) {
-        let entries = entries
-            .iter()
-            .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
-            .collect();
-        if let Some(heard) = self.external.lock().expect("external").as_ref() {
-            heard(entries);
-        }
-    }
 }
 
 impl CachePersister<String, String> for Kept {
@@ -708,14 +691,6 @@ impl CachePersister<String, String> for Kept {
             return Err("the storage is full".into());
         }
         Ok(())
-    }
-
-    fn subscribe(
-        &self,
-        on_external_change: Box<dyn Fn(HashMap<String, String>) + Send + Sync>,
-    ) -> Option<StorageSubscription> {
-        *self.external.lock().expect("external") = Some(on_external_change);
-        Some(StorageSubscription::new(|| {}))
     }
 }
 
@@ -819,24 +794,6 @@ async fn b17_disposal_makes_the_save_that_was_owed_and_nothing_is_saved_after() 
     assert_eq!(kept.saves().len(), 1);
 }
 
-#[tokio::test(start_paused = true)]
-async fn b17_what_another_context_saved_is_shown_and_not_saved_back() {
-    let service = Service::default();
-    let kept = Arc::new(Kept::default());
-    let cache = persisted(&service, &kept);
-    cache.set(&key("a"), key("mine"));
-    let mut observer = cache.observe(&key("a"));
-    assert_eq!(holds(&mut observer).await, ready("mine"));
-    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
-    let saved = kept.saves().len();
-
-    kept.externally(&[("a", "theirs")]);
-    assert_eq!(next(&mut observer).await, Some(ready("theirs")));
-    tokio::time::sleep(SAVE_DEBOUNCE * 4).await;
-    assert_eq!(kept.saves().len(), saved, "an answer to a save is no save");
-    assert_eq!(service.asked(), 0);
-}
-
 // ── The persister over a storage ────────────────────────────────────────
 
 fn stored(
@@ -925,76 +882,6 @@ fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
             .len()
             <= 400
     );
-}
-
-/// A storage another context writes to.
-#[derive(Default)]
-struct Shared {
-    inner: InMemorySessionStorage,
-    heard: Mutex<Option<StorageChange>>,
-}
-
-impl Shared {
-    fn written_elsewhere(&self, key: &str, value: &str) {
-        self.inner.set(key, value).expect("stored");
-        if let Some(heard) = self.heard.lock().expect("heard").as_ref() {
-            heard(key, Some(value));
-        }
-    }
-}
-
-impl SessionStorage for Shared {
-    fn get(&self, key: &str) -> Option<String> {
-        self.inner.get(key)
-    }
-
-    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.inner.set(key, value)
-    }
-
-    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.inner.delete(key)
-    }
-
-    fn update(
-        &self,
-        key: &str,
-        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        self.inner.update(key, change)
-    }
-
-    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
-        *self.heard.lock().expect("heard") = Some(on_change);
-        Some(StorageSubscription::new(|| {}))
-    }
-}
-
-#[test]
-fn what_another_context_writes_under_the_caches_key_is_heard_and_under_another_key_is_not() {
-    let storage = Arc::new(Shared::default());
-    let persister: StoragePersister<String, String> = StoragePersister::new(
-        storage.clone(),
-        "semiont.cache.kb.test",
-        1,
-        MAX_STORED_BYTES_COUNT,
-    );
-    let heard: Arc<Mutex<Vec<HashMap<String, String>>>> = Arc::default();
-    let hearing = heard.clone();
-    let _subscription = persister
-        .subscribe(Box::new(move |entries| {
-            hearing.lock().expect("heard").push(entries);
-        }))
-        .expect("this storage has other contexts");
-
-    let theirs = r#"{"version":1,"writtenAt":5,"entries":[["a","theirs",5]]}"#;
-    storage.written_elsewhere("another.key", theirs);
-    storage.written_elsewhere("semiont.cache.kb.test", theirs);
-    storage.written_elsewhere(
-        "semiont.cache.kb.test",
-        r#"{"version":9,"writtenAt":5,"entries":[]}"#,
-    );
-    assert_eq!(*heard.lock().expect("heard"), [entries(&[("a", "theirs")])]);
 }
 
 // ── The cache as a state unit ───────────────────────────────────────────
