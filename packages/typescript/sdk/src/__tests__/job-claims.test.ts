@@ -389,22 +389,26 @@ describe('job.claim — a worker claims when it becomes idle, and at no other ti
   });
 
   // WORKER-CONTRACT C9. A worker must not run what it cannot read, and must
-  // not stop claiming because of it.
+  // not stop claiming because of it. A reply that lacks a member its schema
+  // requires is refused by the request it answers, naming the member; one
+  // whose members are all there but name a job type no verb has is refused
+  // by the worker.
   const whole = runningJob('j1');
+  const lacking = (way: string) => `a payload on job:claimed is not that channel's: it has no \`${way}\``;
   it.each([
-    ['nothing', undefined],
-    ['no metadata', { ...whole, metadata: undefined }],
-    ['no job id', { ...whole, metadata: { ...whole.metadata, id: undefined } }],
-    ['no job type', { ...whole, metadata: { ...whole.metadata, type: undefined } }],
-    ['a job type that is no verb', { ...whole, metadata: { ...whole.metadata, type: 'weave' } }],
-    ['no parameters', { ...whole, params: undefined }],
-  ])('a reply that names no job (%s) is refused here, never held, and the next announcement claims', async (_what, response) => {
+    ['nothing', undefined, lacking('response')],
+    ['no metadata', { ...whole, metadata: undefined }, lacking('response.metadata')],
+    ['no job id', { ...whole, metadata: { ...whole.metadata, id: undefined } }, lacking('response.metadata.id')],
+    ['no job type', { ...whole, metadata: { ...whole.metadata, type: undefined } }, lacking('response.metadata.type')],
+    ['a job type that is no verb', { ...whole, metadata: { ...whole.metadata, type: 'weave' } }, "a payload on job:claimed is not that channel's: it names no job type"],
+    ['no parameters', { ...whole, params: undefined }, lacking('response.params')],
+  ])('a reply that names no job (%s) is refused here, never held, and the next announcement claims', async (_what, response, message) => {
     const r = reading(h);
     h.grantMalformed(0, response);
     await tick();
 
     expect(r.refusals, 'reported, as a failure of this worker\'s own and under no bus code').toEqual([
-      { code: null, message: 'job:claimed names no job: it has no job id, no job type or no parameters' },
+      { code: null, message },
     ]);
     expect(r.held, 'never held, so never run').toEqual([]);
 

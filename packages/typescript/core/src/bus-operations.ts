@@ -166,3 +166,55 @@ export const REPLY_NAMES = {
   readonly [Op in BusOperationKey]: readonly (keyof EventMap[Op] &
     keyof EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName])[];
 };
+
+/**
+ * RESULT_PAYLOADS — what each operation's result carries: the payload of a
+ * component schema (`payload`), a `{ response }` whose response is one
+ * (`response`), or nothing a schema states (`{}`). `Bus.request` holds
+ * every result it reads to what the schema requires.
+ */
+export const RESULT_PAYLOADS = {
+  'bind:update-body':                    { payload: 'BindBodyUpdated' },
+  'browse:resource-requested':           { payload: 'BrowseResourceResult' },
+  'browse:resources-requested':          { payload: 'BrowseResourcesResult' },
+  'browse:annotation-requested':         { payload: 'BrowseAnnotationResult' },
+  'browse:annotation-history-requested': { payload: 'BrowseAnnotationHistoryResult' },
+  'browse:events-requested':             { payload: 'BrowseEventsResult' },
+  'browse:entity-types-requested':       { payload: 'BrowseEntityTypesResult' },
+  'browse:tag-schemas-requested':        { payload: 'BrowseTagSchemasResult' },
+  'browse:engines-requested':            { payload: 'BrowseEnginesResult' },
+  'browse:profiles-requested':           { payload: 'BrowseProfilesResult' },
+  'browse:kb-requested':                 { payload: 'BrowseKbResult' },
+  'browse:directory-requested':          { payload: 'BrowseDirectoryResult' },
+  'frame:add-entity-type':               {},
+  'frame:add-tag-schema':                {},
+  'gather:requested':                    { payload: 'GatherAnnotationComplete' },
+  'gather:resource-requested':           { payload: 'GatherResourceComplete' },
+  'gather:summary-requested':            { response: 'ContextualSummaryResponse' },
+  'gather:referenced-by-requested':      { payload: 'GatherReferencedByResult' },
+  'gather:limits-requested':             { payload: 'InferenceLimitsResult' },
+  'job:create':                          { payload: 'JobCreatedResult' },
+  'job:status-requested':                { payload: 'JobStatusResult' },
+  'job:limits-requested':                { payload: 'InferenceLimitsResult' },
+  'job:cancel-requested':                { response: 'JobCancelResult' },
+  'job:claim':                           { payload: 'JobClaimedResult' },
+  'mark:create-request':                 { payload: 'MarkCreateOk' },
+  'mark:commit':                         { payload: 'MarkCommitOk' },
+  'mark:delete':                         { payload: 'MarkDeleteOk' },
+  'mark:archive':                        {},
+  'mark:unarchive':                      {},
+  'mark:update-entity-types':            {},
+  'match:search-requested':              { payload: 'MatchSearchResult' },
+  'match:resources-requested':           { payload: 'MatchResourcesResult' },
+  'match:limits-requested':              { payload: 'InferenceLimitsResult' },
+  'weave:rebuild':                       {},
+  'smelt:rebuild-anchors':               {},
+  'yield:create':                        { payload: 'YieldCreateOk' },
+  'yield:clone-persist':                 { payload: 'YieldClonePersistOk' },
+  'yield:update':                        { payload: 'YieldUpdateOk' },
+  'yield:clone-create':                  { payload: 'YieldCloneCreated' },
+  'yield:clone-resource-requested':      { response: 'GetResourceByTokenResponse' },
+  'yield:clone-token-requested':         { response: 'CloneResourceWithTokenResponse' },
+} as const satisfies {
+  readonly [Op in BusOperationKey]: { readonly payload: string } | { readonly response: string } | Record<string, never>;
+};

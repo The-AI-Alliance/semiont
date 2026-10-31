@@ -321,9 +321,6 @@ func followed[C any](ctx context.Context, l *links, create api.JobCreateCommand,
 				return nil, created.err
 			}
 			creating = nil
-			if created.value.Response.JobId.IsZero() {
-				return nil, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: its `response.jobId` is missing", bus.JobCreate.Result().Channel()), TransportErrorCodeError)
-			}
 			jobID = created.value.Response.JobId
 			// Ahead of the frames held for it: the job's id is the first thing its follower gives.
 			report(JobCreated{Data: created.value.Response})

@@ -10641,8 +10641,8 @@ func busScenario(t *testing.T, env ...string) *scenario {
 // a bug in our own client.
 func TestBrowseListsResources(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_browse_resources_requested={"resources":[`+
-		`{"@id":"res-1","name":"Letter","entityTypes":["Letter"]},`+
-		`{"@id":"res-2","name":"Email","entityTypes":[]}],"total":2}`)
+		`{"@context":"https://schema.org","@id":"res-1","name":"Letter","entityTypes":["Letter"],"representations":[]},`+
+		`{"@context":"https://schema.org","@id":"res-2","name":"Email","entityTypes":[],"representations":[]}],"total":2,"offset":0,"limit":5}`)
 	stdout, stderr, code := s.run(t, "browse", "--limit", "5")
 	if code != 0 {
 		t.Fatalf("browse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -10660,7 +10660,7 @@ func TestBrowseListsResources(t *testing.T) {
 // saved for the next command.
 func TestBrowseAutoRefreshesExpiredToken(t *testing.T) {
 	s := busScenario(t, "FAKERT_STALE_TOKEN=1",
-		`FAKERT_BUS_REPLY_browse_resources_requested={"resources":[],"total":0}`)
+		`FAKERT_BUS_REPLY_browse_resources_requested={"resources":[],"total":0,"offset":0,"limit":20}`)
 	stdout, stderr, code := s.run(t, "browse")
 	if code != 0 {
 		t.Fatalf("browse with refreshable token: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -10698,7 +10698,7 @@ func TestGatherResourceSummarizes(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_gather_resource_requested=`+
 		`{"inferredRelationshipSummary":"A letter about X",`+
 		`"metadata":{"resourceType":"Letter","language":"en","entityTypes":["Letter","Contract"]},`+
-		`"focus":{"kind":"resource"},"graph":{}}`)
+		`"focus":{"kind":"resource","resource":{"@context":"https://schema.org","@id":"res-1","name":"Letter","representations":[]}},"graph":{"nodes":[],"edges":[]}}`)
 	stdout, stderr, code := s.run(t, "gather", "res-1")
 	if code != 0 {
 		t.Fatalf("gather: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -10760,7 +10760,7 @@ func TestBindAddsAndRemovesTarget(t *testing.T) {
 // resource search over HTTP and reads the reply it sends.
 func TestMatchSearchFindsResources(t *testing.T) {
 	s := busScenario(t, `FAKERT_BUS_REPLY_match_resources_requested={"resources":[`+
-		`{"@id":"res-7","name":"Acme MSA","entityTypes":["Contract"]}],`+
+		`{"@context":"https://schema.org","@id":"res-7","name":"Acme MSA","entityTypes":["Contract"],"representations":[]}],`+
 		`"total":1,"offset":0,"limit":5,"matchKind":"lexical"}`)
 	stdout, stderr, code := s.run(t, "match", "--search", "indemnity", "--limit", "5")
 	if code != 0 {
@@ -10777,13 +10777,16 @@ func TestMatchGathersThenSearches(t *testing.T) {
 	// match is TWO exchanges: the search requires a context payload, so a
 	// gather must precede it — not an optimization, a precondition.
 	s := busScenario(t,
-		`FAKERT_BUS_REPLY_gather_requested={"content":"surrounding text"}`,
+		`FAKERT_BUS_REPLY_gather_requested={"focus":{"kind":"annotation",`+
+			`"annotation":{"@context":"http://www.w3.org/ns/anno.jsonld","type":"Annotation","id":"ann-1","motivation":"linking","target":"res-1","created":"2026-10-06T00:00:00.000Z"},`+
+			`"sourceResource":{"@context":"https://schema.org","@id":"res-1","name":"A resource","representations":[]},"selected":{"text":"surrounding text"}},`+
+			`"graph":{"nodes":[],"edges":[]},"metadata":{}}`,
 		// The REAL shape: MatchSearchResult.response IS the candidate list,
 		// not a guessed {"candidates":[…]} wrapper. A fake that encodes an
 		// assumption tests the assumption.
 		`FAKERT_BUS_REPLY_match_search_requested=[`+
-			`{"@id":"res-7","name":"Acme MSA","score":0.91,"matchReason":"title match"},`+
-			`{"@id":"res-8","name":"Side Letter","score":0.44}]`)
+			`{"@context":"https://schema.org","@id":"res-7","name":"Acme MSA","representations":[],"score":0.91,"matchReason":"title match"},`+
+			`{"@context":"https://schema.org","@id":"res-8","name":"Side Letter","representations":[],"score":0.44}]`)
 	stdout, stderr, code := s.run(t, "match", "res-1", "ann-1", "--limit", "5")
 	if code != 0 {
 		t.Fatalf("match: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)

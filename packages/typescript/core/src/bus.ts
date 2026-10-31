@@ -23,8 +23,10 @@ import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/ope
 import { CHANNEL_STAMPS, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame, TraceCarrier } from './event-bus';
 import type { ConnectionState } from './transport';
-import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
+import { BUS_OPERATIONS, RESULT_PAYLOADS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
+import { SemiontError } from './errors';
+import { lackingOf, type Shape } from './required';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
 import { uuidV4 } from './id-generation';
@@ -154,6 +156,17 @@ function delivered<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMa
   };
 }
 
+/**
+ * What the result of `operation` must carry: the payload of the schema its
+ * registry entry names, or a `response` that is one.
+ */
+function resultShape(operation: BusOperationKey): Shape {
+  const declared = RESULT_PAYLOADS[operation];
+  if ('payload' in declared) return { ref: declared.payload };
+  if ('response' in declared) return { required: ['response'], members: { response: { ref: declared.response } } };
+  return {};
+}
+
 /** Fails with the signal's reason when its owner abandons the request; says nothing until then. */
 function abandonment(signal: AbortSignal): Observable<never> {
   return new Observable<never>((subscriber) => {
@@ -239,6 +252,8 @@ export class Bus {
    * A result reply is a frame whose envelope carries the request's
    * `correlationId` and whose payload is `{ response: T }` (data) or `{}`
    * (void); the request matches on the envelope and reads `payload.response`.
+   * A result that lacks a member its schema requires (`RESULT_PAYLOADS`)
+   * rejects, as a `SemiontError` coded `error` naming the member.
    *
    * `signal` lets the caller ABANDON the request. Abandoned, it rejects with
    * the signal's reason, as an abortable API does, and that is all it does:
@@ -274,14 +289,24 @@ export class Bus {
     }
 
     // Matched on the ENVELOPE. The payload is read only for what it means —
-    // the response, or the failure's message and code — never for routing.
+    // the response, or the failure's message and code — never for routing. A
+    // result that lacks a member its schema requires is refused, as every
+    // other SDK refuses it as it decodes it.
     const settled$ = merge(
       bus.frames(resultChannel as keyof EventMap).pipe(
         filter((frame) => frame.correlationId === correlationId),
-        map(({ payload: e }) => ({
-          ok: true as const,
-          response: (e as Record<string, unknown>).response as BusReply<Op>,
-        })),
+        map(({ payload: e }) => {
+          const lacks = lackingOf(resultShape(operation), e);
+          return lacks === undefined
+            ? { ok: true as const, response: (e as Record<string, unknown>).response as BusReply<Op> }
+            : {
+                ok: false as const,
+                error: new SemiontError(`a payload on ${resultChannel} is not that channel's: it has no \`${lacks}\``, 'error', {
+                  channel: resultChannel,
+                  correlationId,
+                }),
+              };
+        }),
       ),
       bus.frames(failureChannel as keyof EventMap).pipe(
         filter((frame) => frame.correlationId === correlationId),

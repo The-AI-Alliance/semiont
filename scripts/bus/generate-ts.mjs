@@ -4,7 +4,7 @@
 //
 //   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, TRACE_FIELD and CHANNEL_STAMPS)
 //   packages/typescript/core/src/persisted-events.ts    (the persisted-event catalog)
-//   packages/typescript/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
+//   packages/typescript/core/src/bus-operations.ts      (BUS_OPERATIONS, REPLY_NAMES from each reply's component schema, and RESULT_PAYLOADS)
 //   packages/typescript/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
 //   packages/rust/core/src/bus-classification.json (the same attributes, for the Rust services)
 //
@@ -280,6 +280,24 @@ const replyNameLines = reg.operations.map(
   (o) => pad(`  '${o.request}':`, VALUE_COL_OPS) + `[${namedBy.get(o.request).map((name) => `'${name}'`).join(', ')}],`,
 );
 
+// What each operation's result carries, READ from the shape the registry
+// gives its result channel: the payload a schema is, a `{ response }` whose
+// response is one, or nothing a schema states.
+function resultPayload(o) {
+  const c = channelOr(o.result, 'operations');
+  switch (c.shape) {
+    case 'schema':
+      return `{ payload: '${c.schema}' }`;
+    case 'envelope':
+      return `{ response: '${c.schema}' }`;
+    case 'empty':
+      return '{}';
+    default:
+      throw new Error(`registry: the result of "${o.request}", "${o.result}", has no payload a request reads for shape ${JSON.stringify(c.shape)}`);
+  }
+}
+const resultPayloadLines = reg.operations.map((o) => pad(`  '${o.request}':`, VALUE_COL_OPS) + `${resultPayload(o)},`);
+
 const operations =
   BANNER +
   reg.preamble.operationsHeader +
@@ -308,6 +326,20 @@ export const REPLY_NAMES = {
 } as const satisfies {
   readonly [Op in BusOperationKey]: readonly (keyof EventMap[Op] &
     keyof EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName])[];
+};
+
+/**
+ * RESULT_PAYLOADS — what each operation's result carries: the payload of a
+ * component schema (\`payload\`), a \`{ response }\` whose response is one
+ * (\`response\`), or nothing a schema states (\`{}\`). \`Bus.request\` holds
+ * every result it reads to what the schema requires.
+ */
+export const RESULT_PAYLOADS = {
+` +
+  resultPayloadLines.join('\n') +
+  `
+} as const satisfies {
+  readonly [Op in BusOperationKey]: { readonly payload: string } | { readonly response: string } | Record<string, never>;
 };
 `;
 

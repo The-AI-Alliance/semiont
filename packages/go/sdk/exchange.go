@@ -13,8 +13,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"sync/atomic"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // request is what one request is made of.
@@ -175,7 +178,8 @@ func pause(ctx context.Context, wait time.Duration) bool {
 }
 
 // answer is exchange, its answer read as the JSON the operation answers, the
-// reading bounded by the same deadline.
+// reading bounded by the same deadline. An answer that is not that JSON, or
+// lacks a member its schema requires, is refused.
 func answer[T any](ctx context.Context, s *transportShared, spec request) (T, error) {
 	var out T
 	got, err := s.exchange(ctx, spec)
@@ -198,6 +202,10 @@ func answer[T any](ctx context.Context, s *transportShared, spec request) (T, er
 	}
 	if err := json.Unmarshal(raw, &out); err != nil {
 		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: %v", spec.method, spec.path, err), status: got.response.StatusCode, hasStatus: true}
+		return out, s.failures.report(failure)
+	}
+	if lacks, ok := required.Lacking(raw, reflect.TypeFor[T]()); ok {
+		failure := &TransportError{Code: TransportErrorCodeError, Message: fmt.Sprintf("%s %s answered what is not its declared body: it has no `%s`", spec.method, spec.path, lacks), status: got.response.StatusCode, hasStatus: true}
 		return out, s.failures.report(failure)
 	}
 	return out, nil

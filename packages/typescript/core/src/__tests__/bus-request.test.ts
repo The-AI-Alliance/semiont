@@ -1,12 +1,14 @@
 /**
  * Unit tests for `Bus.request` and `BusRequestError`.
  *
- * Covers the three result paths a request has:
+ * Covers the result paths a request has:
  *   - success: result event with matching `correlationId` resolves with `response`
  *   - rejection: failure event resolves into a `BusRequestError` with code
  *     `bus.rejected` and structured `details`
  *   - timeout: an rxjs `TimeoutError` from the operator is wrapped in a
  *     `BusRequestError` with code `bus.timeout` and structured `details`
+ *   - refusal: a result that lacks a member its schema requires rejects as a
+ *     `SemiontError` coded `error`
  *
  * Plus correlation hygiene: a request writes a fresh `correlationId` onto
  * the emitted envelope, ignores result/failure events on the same channels
@@ -94,9 +96,9 @@ describe('Bus.request', () => {
   // request channel) and looks up result/failure from `BUS_OPERATIONS`. The mock
   // bus is keyed on the derived channel names, so the fixtures keep them as
   // constants for the stream wiring.
-  const EMIT = 'gather:resource-requested';
-  const RESULT = 'gather:resource-complete';
-  const FAILURE = 'gather:resource-failed';
+  const EMIT = 'job:cancel-requested';
+  const RESULT = 'job:cancel-ok';
+  const FAILURE = 'job:cancel-failed';
 
   it('emits the request with a generated correlationId and resolves on the matching result', async () => {
     const bus = makeBus(RESULT, FAILURE);
@@ -111,8 +113,8 @@ describe('Bus.request', () => {
     expect(typeof cid).toBe('string');
     expect(cid.length).toBeGreaterThan(0);
 
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 42 } } });
-    expect(await promise).toEqual({ value: 42 });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
+    expect(await promise).toEqual({ cancelled: true });
   });
 
   it('ignores result events with a non-matching correlationId', async () => {
@@ -122,10 +124,10 @@ describe('Bus.request', () => {
     const cid = bus.emitEnvelope!.correlationId as string;
 
     // Wrong correlationId: must be ignored.
-    bus.resultSubject.next({ correlationId: 'somebody-else', payload: { response: { value: 1 } } });
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 2 } } });
+    bus.resultSubject.next({ correlationId: 'somebody-else', payload: { response: { cancelled: true } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: false } } });
 
-    expect(await promise).toEqual({ value: 2 });
+    expect(await promise).toEqual({ cancelled: false });
   });
 
   it('rejects with BusRequestError(bus.rejected) when a failure event arrives', async () => {
@@ -327,10 +329,10 @@ describe('Bus.request', () => {
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 1 } } });
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 2 } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: false } } });
 
-    expect(await promise).toEqual({ value: 1 });
+    expect(await promise).toEqual({ cancelled: true });
   });
 
   it("re-throws emit's rejection without leaving the result subscription as an unhandled rejection", async () => {
@@ -421,9 +423,9 @@ describe('Bus.request attach gate', () => {
   // its existing timeout budget — for `state$` to report the one deliverable
   // state, `'open'` (`degraded` is a dropped stream by definition and waits
   // like the rest).
-  const EMIT = 'gather:resource-requested';
-  const RESULT = 'gather:resource-complete';
-  const FAILURE = 'gather:resource-failed';
+  const EMIT = 'job:cancel-requested';
+  const RESULT = 'job:cancel-ok';
+  const FAILURE = 'job:cancel-failed';
 
   it('does not emit while connecting; flip to open → exactly one emit, and the reply resolves', async () => {
     const bus = makeBus(RESULT, FAILURE, 'connecting');
@@ -437,8 +439,8 @@ describe('Bus.request attach gate', () => {
     await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
 
     const cid = bus.emitEnvelope!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 7 } } });
-    expect(await promise).toEqual({ value: 7 });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
+    expect(await promise).toEqual({ cancelled: true });
   });
 
   it('degraded waits — recovery via connecting → open releases the gate', async () => {
@@ -458,8 +460,8 @@ describe('Bus.request attach gate', () => {
     await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
 
     const cid = bus.emitEnvelope!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 8 } } });
-    expect(await promise).toEqual({ value: 8 });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
+    expect(await promise).toEqual({ cancelled: true });
   });
 
   it('closed rejects bus.closed without emitting and without burning the timeout', async () => {
@@ -558,8 +560,8 @@ describe('Bus.request attach gate', () => {
     expect(bus.emit).toHaveBeenCalledTimes(1);
 
     const cid = bus.emitEnvelope!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 9 } } });
-    expect(await promise).toEqual({ value: 9 });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
+    expect(await promise).toEqual({ cancelled: true });
   });
 });
 
@@ -584,9 +586,9 @@ describe('BusRequestError', () => {
 // ── Reply tracking: a reply lost in a connection drop is asked for again ──
 
 describe('Bus.request reply tracking (correlated-reply retention, client side)', () => {
-  const EMIT = 'gather:resource-requested';
-  const RESULT = 'gather:resource-complete';
-  const FAILURE = 'gather:resource-failed';
+  const EMIT = 'job:cancel-requested';
+  const RESULT = 'job:cancel-ok';
+  const FAILURE = 'job:cancel-failed';
 
   function makeTrackingBus(initialState: ConnectionState = 'open') {
     const bus = makeBus(RESULT, FAILURE, initialState);
@@ -625,7 +627,7 @@ describe('Bus.request reply tracking (correlated-reply retention, client side)',
     expect(tracked).toEqual([cid]);
     expect(released).toEqual([]);
 
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 1 } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
     await promise;
     expect(released).toEqual([cid]);
   });
@@ -691,9 +693,9 @@ describe('Bus.request reply tracking (correlated-reply retention, client side)',
 });
 
 describe('Bus.request subscription fail-fast gate', () => {
-  const EMIT = 'gather:resource-requested';
-  const RESULT = 'gather:resource-complete';
-  const FAILURE = 'gather:resource-failed';
+  const EMIT = 'job:cancel-requested';
+  const RESULT = 'job:cancel-ok';
+  const FAILURE = 'job:cancel-failed';
 
   it('rejects bus.unsubscribed without emitting when the result channel is outside the subscription set', async () => {
     const bus = makeBus(RESULT, FAILURE);
@@ -717,15 +719,15 @@ describe('Bus.request subscription fail-fast gate', () => {
     const promise = new Bus(bus).request(EMIT, {});
     await Promise.resolve();
     const cid = bus.emitEnvelope!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { ok: 1 } } });
-    expect(await promise).toEqual({ ok: 1 });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
+    expect(await promise).toEqual({ cancelled: true });
   });
 });
 
 describe('Bus.request abandoned by its caller', () => {
-  const EMIT = 'gather:resource-requested';
-  const RESULT = 'gather:resource-complete';
-  const FAILURE = 'gather:resource-failed';
+  const EMIT = 'job:cancel-requested';
+  const RESULT = 'job:cancel-ok';
+  const FAILURE = 'job:cancel-failed';
 
   /** A bus that records what is tracked and released, as a wire transport would. */
   function tracking(initialState: ConnectionState = 'open') {
@@ -764,7 +766,7 @@ describe('Bus.request abandoned by its caller', () => {
     await expect(promise).rejects.toBe(caller.signal.reason);
     expect(bus.resultSubject.observed).toBe(false);
     expect(bus.failureSubject.observed).toBe(false);
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { late: true } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { cancelled: true } } });
   });
 
   it('sends nothing when abandoned while it waits for the stream to open', async () => {
@@ -795,8 +797,8 @@ describe('Bus.request abandoned by its caller', () => {
     const answered = tracking();
     const first = new Bus(answered.bus).request(EMIT, {}, 5_000, new AbortController().signal);
     await Promise.resolve();
-    answered.bus.resultSubject.next({ correlationId: answered.bus.emitEnvelope!.correlationId, payload: { response: { ok: 1 } } });
-    expect(await first).toEqual({ ok: 1 });
+    answered.bus.resultSubject.next({ correlationId: answered.bus.emitEnvelope!.correlationId, payload: { response: { cancelled: true } } });
+    expect(await first).toEqual({ cancelled: true });
 
     const closed = tracking();
     const second = new Bus(closed.bus).request(EMIT, {}, 5_000, new AbortController().signal);

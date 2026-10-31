@@ -29,6 +29,7 @@ import {
 import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import { createActorStateUnit, renewedToken, type ActorStateUnit } from './actor-state-unit';
 import { APIError, refusalBody, refusesCredential } from './api-error';
+import { declaredBody } from './declared-body';
 import type {
   ConnectionState,
   IGatewayOperations,
@@ -196,8 +197,8 @@ const CURRENT_USER = '/api/users/me';
  * session asks this of a credential it found stored, before it trusts it.
  */
 export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<UserResponse> {
-  return asked('GET', CURRENT_USER, () =>
-    ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
+  return asked('GET', CURRENT_USER, async () =>
+    declaredBody('UserResponse', 'GET', CURRENT_USER, await ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: HTTP_REQUEST_TIMEOUT_MS,
       retry: RETRY,
@@ -210,7 +211,7 @@ export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<Use
           },
         ],
       },
-    }).json<UserResponse>());
+    })));
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -542,30 +543,36 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   async getCurrentUser(): Promise<UserResponse> {
-    return this.ask('GET', CURRENT_USER, (http) => http.get(`${this.baseUrl}${CURRENT_USER}`, { headers: this.authHeaders() }).json<UserResponse>());
+    return this.ask('GET', CURRENT_USER, async (http) =>
+      declaredBody('UserResponse', 'GET', CURRENT_USER, await http.get(`${this.baseUrl}${CURRENT_USER}`, { headers: this.authHeaders() }), (failure) =>
+        this.pushError(failure)));
   }
 
   async getProtectedResourceMetadata(): Promise<ProtectedResourceMetadata> {
     const path = '/.well-known/oauth-protected-resource';
-    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`).json<ProtectedResourceMetadata>());
+    return this.ask('GET', path, async (http) =>
+      declaredBody('ProtectedResourceMetadata', 'GET', path, await http.get(`${this.baseUrl}${path}`), (failure) => this.pushError(failure)));
   }
 
   async getMediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     const path = '/api/tokens/media';
-    return this.ask('POST', path, (http) =>
-      http.post(`${this.baseUrl}${path}`, { json: { resourceId }, headers: this.authHeaders() }).json<{ token: string }>());
+    return this.ask('POST', path, async (http) =>
+      declaredBody('MediaTokenResponse', 'POST', path, await http.post(`${this.baseUrl}${path}`, { json: { resourceId }, headers: this.authHeaders() }), (failure) =>
+        this.pushError(failure)));
   }
 
   // ── System status ─────────────────────────────────────────────────────
 
   async healthCheck(): Promise<HealthCheckResponse> {
     const path = '/api/health';
-    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }).json<HealthCheckResponse>());
+    return this.ask('GET', path, async (http) =>
+      declaredBody('HealthResponse', 'GET', path, await http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), (failure) => this.pushError(failure)));
   }
 
   async getStatus(): Promise<StatusResponse> {
     const path = '/api/status';
-    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }).json<StatusResponse>());
+    return this.ask('GET', path, async (http) =>
+      declaredBody('StatusResponse', 'GET', path, await http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), (failure) => this.pushError(failure)));
   }
 
   // ── Internal: how the content transport asks ──────────────────────────
