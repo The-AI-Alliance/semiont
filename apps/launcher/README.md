@@ -137,7 +137,7 @@ semiont stop
   KB's signals, each labelled with the KB that sent it, with Jaeger and
   Prometheus behind it. Their records live beside the stacks, as the
   Browser's and Ollama's do, and their configs (`collector.yaml`,
-  `prometheus.yml`) in `telemetry/` in the state home, written only as
+  `prometheus.yml`) in `machine/` in the state home, written only as
   their container (re)starts; their ports are never among a stack's claims.
   A start KEEPS a running one when it runs the image the start would, its
   record says this start's runtime and address, and its config is what this
@@ -154,6 +154,25 @@ semiont stop
   Browser's is (`semiont-worker:latest`, 2G, info) by the first start that
   runs a worker. A KB's repository holds none: its Inference document's
   `spec.engines.jobs` says which jobs a worker does, and with which engines.
+- **One worker serves the machine's list of KBs** (`semiont-worker`). A
+  KB's start puts it on the list when one of its jobs has an engine, as that
+  start places it, and takes it off when none does; `semiont worker kb add`,
+  run inside a KB on the list, adds a KB someone else runs, offered that
+  one's engines. The list is kept in `machine/worker-knowledge-bases.json`
+  in the data home, beside the worker's key, and the worker's document,
+  naming every KB on it, in `machine/worker.json` in the state home. Until
+  each local KB has a gateway port of its own, a start takes off the list
+  any other local KB whose gateway was on its port, and says so; a KB added
+  from one taken off goes unserved, and is said, until that one's next
+  start. A start resolves every provider key the list's engines name, and
+  refuses when one is missing, naming the KB that names it. The worker's
+  record lives beside the stacks and its port is never among a stack's
+  claims. A start KEEPS a running worker when it runs the image and memory
+  the start would, its record says this start's runtime and address, and
+  its document is what this start would write; it is restarted otherwise,
+  and stopped when its list is empty. `semiont start --service worker`
+  always restarts it; `semiont stop` stops it with the stack, and `semiont
+  stop --service worker` stops it alone.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
   own secrets come from (`secret`), the Browser's document (`browser`: its

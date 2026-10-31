@@ -50,9 +50,19 @@ func workerDocumentFrom(t *testing.T, b []byte) api.WorkerConfig {
 
 // workerDocumentOf: the worker's document for a start of the example
 // knowledge base, with none added to this machine's worker.
+// aloneWorkerDocument: the worker's document for a start of the fixture
+// knowledge base, placed at p, when the list holds it alone.
+func aloneWorkerDocument(p placement) ([]byte, error) {
+	entry, err := workerEntry(p, exampleKB.Domain)
+	if err != nil {
+		return nil, err
+	}
+	return workerDocument([]api.WorkerKnowledgeBaseConfig{entry}, p.plan.Worker)
+}
+
 func workerDocumentOf(t *testing.T, p placement) api.WorkerConfig {
 	t.Helper()
-	b, err := workerDocument(p, exampleKB.Domain, nil)
+	b, err := aloneWorkerDocument(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +193,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 // first job that needs each, each one's jobs in the jobs' order, and the same
 // documents are the same document every time.
 func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
-	b, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, nil)
+	b, err := aloneWorkerDocument(placed(t, threeEngines(t)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +206,7 @@ func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
 		t.Errorf("engines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
 	for i := 0; i < 50; i++ {
-		again, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, nil)
+		again, err := aloneWorkerDocument(placed(t, threeEngines(t)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +270,7 @@ func TestPlanRunsAWorkerExactlyWhenAJobHasAnEngine(t *testing.T) {
 		if got := p.plan.Roles["worker"].Presence; got != c.want {
 			t.Errorf("%s: the plan's worker is %s, want %s", c.why, got, c.want)
 		}
-		_, err := workerDocument(p, exampleKB.Domain, nil)
+		_, err := aloneWorkerDocument(p)
 		switch {
 		case c.want == presenceLauncher && err != nil:
 			t.Errorf("%s: the plan runs a worker, and its document is refused: %v", c.why, err)
@@ -324,7 +334,7 @@ func TestWorkerIsHandedOnlyTheKeysItsEnginesUse(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	withAnthropic(st)
 	p := placed(t, st)
-	b, err := workerDocument(p, exampleKB.Domain, nil)
+	b, err := aloneWorkerDocument(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,8 +435,8 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil), " ")
-	if want := "/stage/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
+	args := strings.Join(workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil), " ")
+	if want := "/state/machine/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}
 	for _, unread := range []string{"GATEWAY_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", stack.Dir} {

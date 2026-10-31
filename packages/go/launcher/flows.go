@@ -9,10 +9,12 @@ package launcher
 import (
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 type flowCtx struct {
@@ -165,7 +167,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 			services = append(services, svc)
 		}
 	}
-	if !verifyStackImages(x, fc, services) {
+	// The worker's is verified with them, and pulled by its own flow, only as
+	// it restarts.
+	verified := services
+	if fc.plan.workerRuns() {
+		verified = append(slices.Clone(services), "worker")
+	}
+	if !verifyStackImages(x, fc, verified) {
 		return 1
 	}
 
@@ -314,14 +322,16 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
+	// The machine's worker, from its list as this start leaves it: after the
+	// dispatcher, whose queue it claims from.
+	if code := flowWorker(x, fc, addr, otel); code != 0 {
+		return code
+	}
+
 	// The weaver note: the graph projection is standalone-only — without the
 	// weaver the graph stays empty and every gather 404s at the
 	// buildKnowledgeGraph barrier.
 	for _, sc := range sidecarSpecs {
-		if sc.svc == "worker" && !fc.plan.runs("worker") {
-			flowNoWorker(x, fc, sc.noun)
-			continue
-		}
 		if code := flowSidecar(x, fc, sc, addr, stage, otel); code != 0 {
 			return code
 		}
@@ -412,46 +422,64 @@ func recordedAs(rec *ServiceState, doc browserDocument) bool {
 	return rec != nil && rec.Endpoint == doc.endpoint() && rec.Memory == doc.spec.Resources.Limits.Memory
 }
 
-// machineRun: one of the telemetry containers the launcher runs for the
-// machine, as this start would run it.
+// machineRun: one of the containers the launcher runs for the machine — the
+// telemetry's and the worker — as this start would run it.
 type machineRun struct {
 	role, driver string
-	title        string // its banner
 	ready        string // what is said once it answers
+	// image: what it runs. memory: the ceiling it runs with, kept in its
+	// record; none for the telemetry, which runs with no ceiling of ours.
+	image, memory string
+	// pull: pulled as it (re)starts, as a Semiont image is, so it runs what
+	// was verified.
+	pull bool
 	// file and config: the launcher's own config for it, written to file
 	// only as it (re)starts; no file for one that reads none.
 	file, config string
 	args         func(e exposure, configPath string) []string
+	// notThisKB: it runs for the machine, and this start's knowledge base is
+	// not among what it serves, so the stack's record of the role is not its.
+	notThisKB bool
 }
 
-// flowMachine: the telemetry, which runs for the machine rather than for one
-// stack (each record is the machine's, in StackSet.Machine): one collector
-// takes every KB's signals, each labelled with the KB that sent it, with
-// Jaeger and Prometheus behind it. A start keeps a running one when its
-// record says it runs under this start's runtime and answers where this
-// start would probe it, its config file says what this start would write,
-// and it runs the image this start would; `start --service` restarts it.
-// Otherwise it is stopped wherever its record says it runs, and run afresh.
+// flowMachine: a container the launcher runs for the machine rather than for
+// one stack (each record is the machine's, in StackSet.Machine): the
+// telemetry — one collector takes every KB's signals, each labelled with the
+// KB that sent it, with Jaeger and Prometheus behind it — and the worker,
+// which serves every KB on its list. A start keeps a running one when its
+// record says it runs under this start's runtime, answers where this start
+// would probe it and has the memory this start would give it, its config file
+// says what this start would write, and it runs the image this start would;
+// `start --service` restarts it. Otherwise it is stopped wherever its record
+// says it runs, and run afresh. Its caller says what it is (banner).
 func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 	d := descriptorFor(m.role, m.driver)
-	x.banner(roleBanner(fc, m.title))
 	rec := x.machineRecord(d.container)
 	e := x.exposure(addr)
 	health := healthEndpoint(m.role, m.driver, fc.plan, e)
+	memoryClause := ""
+	if m.memory != "" {
+		memoryClause = " with " + m.memory
+	}
 	configClause := ""
 	if m.file != "" {
 		configClause = ", its " + m.file + " is what this start writes,"
 	}
-	x.note("%s: keep %s if its record says %s under %s%s and it runs %s; else stop/rm it, then run it",
-		m.role, d.container, health, x.rtName(), configClause, d.image)
+	x.note("%s: keep %s if its record says %s under %s%s%s and it runs %s; else stop/rm it, then run it",
+		m.role, d.container, health, x.rtName(), memoryClause, configClause, m.image)
+	served := func() {
+		if !m.notThisKB {
+			x.servedByMachine(m.role, d.container, health, m.driver)
+		}
+	}
 	return x.either(func() bool {
-		return !fc.restart && rec != nil && rec.Runtime == x.rtName() && rec.Endpoint == health &&
-			(m.file == "" || x.machineConfigCurrent(m.file, m.config)) && x.containerCurrent(d.container, d.image)
+		return !fc.restart && rec != nil && rec.Runtime == x.rtName() && rec.Endpoint == health && rec.Memory == m.memory &&
+			(m.file == "" || x.machineConfigCurrent(m.file, m.config)) && x.containerCurrent(d.container, m.image)
 	},
 		func() int {
 			x.say(sayOK, "%s — %s already running %s", m.role, d.display,
 				x.dim("(kept: it serves every KB here; semiont stop --service "+m.role+" stops it)"))
-			x.servedByMachine(m.role, d.container, health, m.driver)
+			served()
 			return 0
 		},
 		func() int {
@@ -460,6 +488,9 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 				x.settle(portNumbers(needs)...)
 			}
 			if !x.portChecks(needs) {
+				return 1
+			}
+			if m.pull && !locallyBuilt(m.image) && !x.pull(m.image) {
 				return 1
 			}
 			path := ""
@@ -481,23 +512,25 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "%s — %s %s", m.role, m.ready, x.dim("("+took(waited)+")"))
-			x.recordMachine(ServiceState{Container: d.container, ID: id, Image: d.image, Endpoint: health, Ports: portNumbers(needs)})
-			x.servedByMachine(m.role, d.container, health, m.driver)
+			x.recordMachine(ServiceState{Container: d.container, ID: id, Image: m.image, Endpoint: health, Memory: m.memory, Ports: portNumbers(needs)})
+			served()
 			return 0
 		})
 }
 
 func flowTraces(x executor, fc flowCtx, addr string) int {
+	x.banner(roleBanner(fc, "Traces (Jaeger)"))
 	return flowMachine(x, fc, machineRun{
-		role: "traces", driver: "jaeger", title: "Traces (Jaeger)",
+		role: "traces", driver: "jaeger", image: descriptorFor("traces", "jaeger").image,
 		ready: "Jaeger UI on " + healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)),
 		args:  func(e exposure, _ string) []string { return tracesArgs(e) },
 	}, addr)
 }
 
 func flowMetrics(x executor, fc flowCtx, addr string) int {
+	x.banner(roleBanner(fc, "Metrics (Prometheus)"))
 	return flowMachine(x, fc, machineRun{
-		role: "metrics", driver: "prometheus", title: "Metrics (Prometheus)",
+		role: "metrics", driver: "prometheus", image: descriptorFor("metrics", "prometheus").image,
 		ready: "Prometheus on http://localhost:9090",
 		file:  "prometheus.yml", config: prometheusConfig(addr),
 		args: prometheusArgs,
@@ -508,12 +541,91 @@ func flowMetrics(x executor, fc flowCtx, addr string) int {
 // one rule, whether a full start ran Jaeger just before it, --no-observe
 // left a running one alone, or `--service collector` finds one.
 func flowCollector(x executor, fc flowCtx, addr string) int {
+	x.banner(roleBanner(fc, "Telemetry (OTel Collector)"))
 	traces := x.tracesUp(healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)))
 	return flowMachine(x, fc, machineRun{
-		role: "collector", driver: "otel", title: "Telemetry (OTel Collector)",
+		role: "collector", driver: "otel", image: descriptorFor("collector", "otel").image,
 		ready: fmt.Sprintf("OTLP on %s:4318, metrics on %s", addr, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr))),
 		file:  "collector.yaml", config: collectorConfig(addr, traces),
 		args: collectorArgs,
+	}, addr)
+}
+
+// flowWorker: the machine's one worker, which serves every knowledge base on
+// its list (workerkbs.go). This start's knowledge base goes on the list when
+// one of its jobs has an engine, as this start places it, and off when none
+// does; the local ones whose gateway port this start takes are off it already
+// (planWorkerServing). An added one offered the engines of a knowledge base
+// not on the list goes unserved, and is said. With nothing to serve, the
+// worker is stopped. Else it runs as the list and the machine's worker
+// document say, kept or restarted as every machine container is
+// (flowMachine): so it restarts only when what it serves, or how the
+// machine's document runs it, changes.
+func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
+	x.banner(roleBanner(fc, "Worker"))
+	list := fc.plan.Serving.others
+	thisKB := fc.plan.runs("worker")
+	if thisKB {
+		served, err := fc.kb.served()
+		var entry api.WorkerKnowledgeBaseConfig
+		if err == nil {
+			entry, err = workerEntry(placementOf(fc, x.exposure(addr)), served.Domain)
+		}
+		if err != nil {
+			x.say(sayFail, "Writing the worker's entry for this knowledge base: %v", err)
+			return 1
+		}
+		list.put(entry)
+	} else {
+		at := jobEnginesAt(fc.plan.Inference)
+		x.say(sayLog, "worker — no job has an engine, so it does not serve this knowledge base %s", x.dim("(give one an engine in "+at+")"))
+		x.note("worker: no job has an engine — this knowledge base is not on its list (give one an engine in %s)", at)
+		x.record("worker", "", "", providedNone, "", "")
+	}
+	for _, domain := range fc.plan.Serving.displaced {
+		x.say(sayWarn, "worker — %s leaves its list: this start's gateway takes the port its gateway was on", domain)
+		x.note("worker: %s leaves its list — this start's gateway takes the port its gateway was on", domain)
+	}
+	entries, unserved := list.served()
+	for _, kb := range unserved {
+		x.say(sayWarn, "worker — %s goes unserved: it is offered the engines of %s, which is not on its list %s", kb.Domain, kb.EnginesOf, x.dim("(a start of "+kb.EnginesOf+" serves it again)"))
+		x.note("worker: %s goes unserved — it is offered the engines of %s, which is not on its list", kb.Domain, kb.EnginesOf)
+	}
+	if !x.keepWorkerList(list) {
+		return 1
+	}
+	name := roleContainer("worker")
+	if len(entries) == 0 {
+		x.note("worker: serves no knowledge base — stop/rm %s wherever its record says it runs", name)
+		if x.stopMachine(name, x.machineRecord(name)) {
+			x.say(sayOK, "worker — serves no knowledge base; stopped")
+		}
+		x.forgetMachine(name)
+		return 0
+	}
+	doc, err := workerDocument(entries, fc.plan.Worker)
+	if err != nil {
+		x.say(sayFail, "Writing the worker's configuration document: %v", err)
+		return 1
+	}
+	image := fc.plan.Images["worker"]
+	key, ok := x.workerKey()
+	if !ok {
+		return 1
+	}
+	memory := fc.plan.Memory["worker"]
+	var domains []string
+	for _, entry := range entries {
+		domains = append(domains, entry.Domain)
+	}
+	return flowMachine(x, fc, machineRun{
+		role: "worker", driver: driverSemiont, image: image, memory: memory, pull: true,
+		ready: "serves " + strings.Join(domains, ", "),
+		file:  workerDocumentFile, config: string(doc),
+		args: func(e exposure, path string) []string {
+			return workerArgs(path, e, key.private, image, memory, fc.envFor("worker"), otel)
+		},
+		notThisKB: !thisKB,
 	}, addr)
 }
 
@@ -926,34 +1038,15 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	return 0
 }
 
-// flowNoWorker: the worker's place in a full start of an Inference document
-// that gives no job an engine (workerPlan). Nothing is launched: the start
-// says why, naming where a job is given one, and records the role as not
-// here — which is how status, logs and stop read a stack without it.
-func flowNoWorker(x executor, fc flowCtx, noun string) {
-	at := jobEnginesAt(fc.plan.Inference)
-	x.banner(noun)
-	x.say(sayLog, "worker — no job has an engine; skipping %s", x.dim("(give one an engine in "+at+" to run one)"))
-	x.note("worker: no job has an engine — nothing to launch (give one an engine in %s to run one)", at)
-	x.record("worker", "", "", providedNone, "", "")
-}
-
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, otel []string) int {
 	spec := semiontDescriptor(sc.svc)
 	x.banner(startBanner(fc, sc.noun))
 	// No sidecar mounts a store: the Smelter keeps its anchored text on the
-	// Archivist's surface, and the worker and the Weaver keep nothing.
-	// Each reads its own configuration document, staged for it, and proves
-	// itself with its own credential: the worker with this machine's key, the
-	// others with the root's secret for them.
+	// Archivist's surface, and the Weaver keeps nothing. Each reads its own
+	// configuration document, staged for it, and proves itself with the
+	// root's secret for it.
 	var args []string
 	switch sc.svc {
-	case "worker":
-		key, ok := x.workerKey()
-		if !ok {
-			return 1
-		}
-		args = workerArgs(stage, x.exposure(addr), key.private, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "smelter":
 		clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
 		if !ok {
@@ -1108,9 +1201,10 @@ func flowOneService(x executor, fc flowCtx) int {
 		return 1
 	}
 
-	// A service's image is verified before its container is touched, so a
-	// refusal leaves the running one as it was.
-	if isConfigConsumer(svc) && !verifyStackImages(x, fc, []string{svc}) {
+	// An image of Semiont's, a stack service's or the worker's, is verified
+	// before its container is touched, so a refusal leaves the running one as
+	// it was.
+	if (isConfigConsumer(svc) || svc == "worker") && !verifyStackImages(x, fc, []string{svc}) {
 		return 1
 	}
 
@@ -1209,7 +1303,11 @@ func flowOneService(x executor, fc flowCtx) int {
 		if code := flowDispatcher(x, fc, addr, stage, otel); code != 0 {
 			return code
 		}
-	case "worker", "smelter", "weaver":
+	case "worker":
+		if code := flowWorker(x, fc, addr, x.otelDetect(addr)); code != 0 {
+			return code
+		}
+	case "smelter", "weaver":
 		for _, sc := range sidecarSpecs {
 			if sc.svc == svc {
 				if code := flowSidecar(x, fc, sc, addr, stage, otel); code != 0 {

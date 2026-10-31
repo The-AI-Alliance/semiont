@@ -161,7 +161,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// and its /health only turns on after its bus pumps attach — so this edge
 	// is what closes the startup race.
 	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
-		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
+		display: "Worker", needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
 	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
 		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
 	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
@@ -565,19 +565,21 @@ func probeDriver(role string) string {
 	return ""
 }
 
-// stackServices: Semiont's own services, in start order, minus the Browser.
+// stackServices: Semiont's own services, in start order, minus the machine's:
+// the worker and the Browser.
 //
 // ONE list for three jobs that coincide on it, and coincide for one reason —
-// the Browser is machine-level, not a stack member: the images a start
-// pulls, the configs it stages and mounts, and the realm accounts those
-// services present. Three hand-written lists drift: one an entry short
-// stages that service no config and passes it empty hosts. A start pulls and
-// stages the ones its plan runs (launchPlan.runs); the realm holds an account
-// for every one, whichever start imported it.
+// the worker and the Browser are machine-level, not stack members: the
+// images a start pulls, the configs it stages and mounts, and the realm
+// accounts those services present with a secret. Three hand-written lists
+// drift: one an entry short stages that service no config and passes it
+// empty hosts. A start pulls and stages the ones its plan runs
+// (launchPlan.runs); the realm holds an account for every one, whichever
+// start imported it, and one for the machine's worker (secretClients).
 var stackServices = func() []string {
 	var out []string
 	for _, role := range startOrder {
-		if role == "browser" {
+		if role == "browser" || role == "worker" {
 			continue
 		}
 		if _, ours := lookupDescriptor(role, driverSemiont); ours {
@@ -598,9 +600,10 @@ var telemetryRoles = []string{"collector", "metrics", "traces"}
 
 // machineRoles: the roles whose container the launcher runs for the machine
 // rather than for one stack, in the order a bare stop stops them after the
-// stack: the telemetry, the machine's Ollama, the Browser. Neither sweep
-// names them; each is kept, replaced and stopped from its own record.
-var machineRoles = slices.Concat(telemetryRoles, []string{"inference", "browser"})
+// stack: the worker, before the collector it exports to; the telemetry; the
+// machine's Ollama; the Browser. Neither sweep names them; each is kept,
+// replaced and stopped from its own record.
+var machineRoles = slices.Concat([]string{"worker"}, telemetryRoles, []string{"inference", "browser"})
 
 func sweepNames(exempt ...string) []string {
 	var out []string

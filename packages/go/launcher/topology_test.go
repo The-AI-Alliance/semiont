@@ -108,7 +108,7 @@ func TestNoAddressTravelsInAnEnvironment(t *testing.T) {
 	const addr = "192.168.64.1"
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
-		"worker":     workerArgs("/stage", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
+		"worker":     workerArgs("/state/machine/worker.json", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
 		"smelter":    smelterArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
 		"weaver":     weaverArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
 		"archivist":  archivistArgs("/kb", "/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),

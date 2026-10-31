@@ -78,6 +78,7 @@ type recorder interface {
 	machineRecord(name string) *ServiceState                  // a machine container's record, by name
 	recordMachine(rec ServiceState)                           // a machine container this start ran, under this runtime
 	forgetMachine(name string)                                // the machine runs no such container of the launcher's
+	keepWorkerList(list workerList) bool                      // the knowledge bases the machine's worker serves, as this start leaves them
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
@@ -395,8 +396,7 @@ const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // serviceDocuments: each stack service's configuration document — the file it
 // is staged as, the name a refusal gives it, and its writer, handed the
-// knowledge base the service serves. The worker's names it among the
-// knowledge bases it serves, by its domain; the Archivist's names none: the
+// knowledge base the service serves. The Archivist's names none: the
 // Archivist reads its knowledge base's identity from the tree it keeps.
 var serviceDocuments = map[string]struct {
 	file, noun string
@@ -405,21 +405,14 @@ var serviceDocuments = map[string]struct {
 	"gateway":    {gatewayDocumentFile, "the gateway's", gatewayDocument},
 	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", dispatcherDocument},
 	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ api.KbIdentity) ([]byte, error) { return archivistDocument(p) }},
-	"worker": {workerDocumentFile, "the worker's", func(p placement, served api.KbIdentity) ([]byte, error) {
-		added, err := loadAddedKBs()
-		if err != nil {
-			return nil, err
-		}
-		return workerDocument(p, served.Domain, added)
-	}},
-	"smelter":   {smelterDocumentFile, "the Smelter's", smelterDocument},
-	"weaver":    {weaverDocumentFile, "the Weaver's", weaverDocument},
-	"librarian": {librarianDocumentFile, "the Librarian's", librarianDocument},
+	"smelter":    {smelterDocumentFile, "the Smelter's", smelterDocument},
+	"weaver":     {weaverDocumentFile, "the Weaver's", weaverDocument},
+	"librarian":  {librarianDocumentFile, "the Librarian's", librarianDocument},
 }
 
 // stageService writes one service's configuration document into the stage:
-// the gateway's, the dispatcher's, the Archivist's, the worker's, the
-// Smelter's, the Weaver's or the Librarian's. Every stack service has one.
+// the gateway's, the dispatcher's, the Archivist's, the Smelter's, the
+// Weaver's or the Librarian's. Every stack service has one.
 func (x *liveExec) stageService(stage, svc string, fc flowCtx, addr string) bool {
 	document, ok := serviceDocuments[svc]
 	if !ok {
@@ -458,10 +451,11 @@ func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
 }
 
 // machineConfigDir: where the configs of the machine's own containers live,
-// beside the record. A stack's staging dir goes with its stop, and a machine
-// container outlives every stack, so its live bind mount cannot be there.
+// beside the record: the telemetry's and the worker's. A stack's staging dir
+// goes with its stop, and a machine container outlives every stack, so its
+// live bind mount cannot be there.
 func machineConfigDir() string {
-	return filepath.Join(StateDir(), "telemetry")
+	return filepath.Join(StateDir(), "machine")
 }
 
 func (x *liveExec) machineConfigCurrent(file, want string) bool {
@@ -1035,6 +1029,14 @@ func (x *liveExec) recordMachine(rec ServiceState) {
 
 func (x *liveExec) forgetMachine(name string) { forgetMachine(name) }
 
+func (x *liveExec) keepWorkerList(list workerList) bool {
+	if err := saveWorkerList(list); err != nil {
+		x.u.Fail("Keeping the knowledge bases this machine's worker serves: %v", err)
+		return false
+	}
+	return true
+}
+
 func (x *liveExec) ensureModels(base string, models []modelNeed) {
 	ensureOllamaModels(x.u, base, models)
 }
@@ -1249,7 +1251,7 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 func (x *planExec) machineConfigCurrent(string, string) bool { return false }
 
 func (x *planExec) writeMachineConfig(file, _ string) (string, bool) {
-	path := "<state-home>/telemetry/" + file
+	path := "<state-home>/machine/" + file
 	x.c("write %s (the launcher's own; only as its container (re)starts)", path)
 	return path, true
 }
@@ -1258,9 +1260,6 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
 	x.c("write <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 	x.c("write <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
-	if fc.plan.runs("worker") {
-		x.c("write <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
-	}
 	x.c("write <config-stage>/%s (the Smelter's configuration document: SmelterConfig, resolved)", smelterDocumentFile)
 	x.c("write <config-stage>/%s (the Weaver's configuration document: WeaverConfig, resolved)", weaverDocumentFile)
 	x.c("write <config-stage>/%s (the Librarian's configuration document: LibrarianConfig, resolved)", librarianDocumentFile)
@@ -1282,10 +1281,6 @@ func (x *planExec) stageOne(svc string, _ flowCtx, _ string) (string, bool) {
 	}
 	if svc == "archivist" {
 		x.c("write a fresh <config-stage>/%s (the Archivist's configuration document: ArchivistConfig, resolved)", archivistDocumentFile)
-		return "<config-stage>", true
-	}
-	if svc == "worker" {
-		x.c("write a fresh <config-stage>/%s (the worker's configuration document: WorkerConfig, resolved)", workerDocumentFile)
 		return "<config-stage>", true
 	}
 	if svc == "smelter" {
@@ -1470,6 +1465,22 @@ func (x *planExec) containerCurrent(string, string) bool { return false }
 func (x *planExec) machineRecord(string) *ServiceState   { return nil }
 func (x *planExec) recordMachine(ServiceState)           {}
 func (x *planExec) forgetMachine(string)                 {}
+
+func (x *planExec) keepWorkerList(list workerList) bool {
+	var domains []string
+	for _, kb := range list.Local {
+		domains = append(domains, kb.Domain+" (local)")
+	}
+	for _, kb := range list.Added {
+		domains = append(domains, kb.Domain+" (added, offered "+kb.EnginesOf+"'s engines)")
+	}
+	if len(domains) == 0 {
+		x.c("remove <data-home>/machine/%s: the worker's list is empty", workerListFile)
+		return true
+	}
+	x.c("write <data-home>/machine/%s: the worker's list, %s", workerListFile, strings.Join(domains, ", "))
+	return true
+}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the

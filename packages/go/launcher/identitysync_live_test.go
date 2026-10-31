@@ -61,8 +61,8 @@ func TestIdentitySyncLive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if len(rep.created) != len(stackServices) {
-		t.Fatalf("created %d clients, want %d: %v", len(rep.created), len(stackServices), rep.created)
+	if len(rep.created) != len(accountServices()) {
+		t.Fatalf("created %d clients, want %d: %v", len(rep.created), len(accountServices()), rep.created)
 	}
 
 	// 2. Keycloak MINTS for what sync created, and the token is the shape the
@@ -100,8 +100,8 @@ func TestIdentitySyncLive(t *testing.T) {
 	if len(rep2.created) != 0 {
 		t.Fatalf("second run created %v, want nothing", rep2.created)
 	}
-	if len(rep2.present) != len(stackServices) {
-		t.Fatalf("second run saw %d present, want %d: updated %v", len(rep2.present), len(stackServices), rep2.updated)
+	if len(rep2.present) != len(accountServices()) {
+		t.Fatalf("second run saw %d present, want %d: updated %v", len(rep2.present), len(accountServices()), rep2.updated)
 	}
 
 	// 4. A client of a realm imported before the kind claim — its mapper

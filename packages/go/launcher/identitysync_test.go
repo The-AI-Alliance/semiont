@@ -269,8 +269,8 @@ func TestIdentitySyncCreatesTheClientTheImportWOULDHave(t *testing.T) {
 	if _, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if len(s.created) != len(stackServices) {
-		t.Fatalf("created %d clients, want %d", len(s.created), len(stackServices))
+	if len(s.created) != len(accountServices()) {
+		t.Fatalf("created %d clients, want %d", len(s.created), len(accountServices()))
 	}
 	for i, want := range map[int]map[string]any{
 		0:                  serviceAccountClient(secretClients[0], secretForTest(secretClients[0]), "semiont-gateway"),
@@ -496,8 +496,8 @@ func TestIdentitySyncAddsTheKindMapperToAnOlderRealm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if len(s.added) != len(stackServices) {
-		t.Fatalf("kind mapper added to %d clients, want every account's (%d): %v", len(s.added), len(stackServices), s.added)
+	if len(s.added) != len(accountServices()) {
+		t.Fatalf("kind mapper added to %d clients, want every account's (%d): %v", len(s.added), len(accountServices()), s.added)
 	}
 	want, _ := renderedMapper(serviceAccountClient("gateway", "unused", "semiont-gateway"), agentKindMapperName)
 	got, _ := json.Marshal(s.added[serviceClientID("gateway")])
@@ -508,7 +508,7 @@ func TestIdentitySyncAddsTheKindMapperToAnOlderRealm(t *testing.T) {
 	if len(s.created)+len(s.updated)+len(s.mappers)+len(s.deleted) != 0 {
 		t.Errorf("sync changed more than the kind mapper: POST %v, PUT %v, mapper PUT %v, DELETE %v", s.created, s.updated, s.mappers, s.deleted)
 	}
-	if len(rep.updated) != len(stackServices) || !strings.Contains(rep.updated[0], "kind mapper added") {
+	if len(rep.updated) != len(accountServices()) || !strings.Contains(rep.updated[0], "kind mapper added") {
 		t.Errorf("updated = %v, want each client named with the mapper added", rep.updated)
 	}
 }

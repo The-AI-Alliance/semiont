@@ -284,10 +284,10 @@ func TestThePlanRunsEachServiceAsItsDocumentSays(t *testing.T) {
 			got = append(got, svc)
 		}
 		sort.Strings(got)
-		want := slices.Clone(stackServices)
+		want := append(slices.Clone(stackServices), "worker")
 		sort.Strings(want)
 		if !slices.Equal(got, want) {
-			t.Errorf("the plan gives %s to %v, want each service the stack runs: %v", what, got, want)
+			t.Errorf("the plan gives %s to %v, want each service the stack runs, and the machine's worker: %v", what, got, want)
 		}
 	}
 
@@ -514,25 +514,26 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	}
 }
 
-// A stack without a worker claims everything a stack with one does but the
-// worker's port, in the same order.
-func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
+// A stack claims no port of the worker's, with a worker or without: the
+// worker is the machine's, and its port is checked as it (re)starts
+// (flowMachine), never held by a stack.
+func TestAStackClaimsNoPortOfTheWorkers(t *testing.T) {
 	withWorker := mustPlan(t, fixtureStack(t, "anthropic"))
 	st := fixtureStack(t, "anthropic")
 	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
 	withoutWorker := mustPlan(t, st)
-	var want []int
-	for _, port := range portNumbers(planPortChecks(withWorker, exposure{})) {
-		if !slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
-			want = append(want, port)
+	if !withWorker.runs("worker") || withoutWorker.runs("worker") {
+		t.Fatal("the fixtures do not differ in their worker: this test would prove nothing")
+	}
+	for _, plan := range []*launchPlan{withWorker, withoutWorker} {
+		for _, port := range portNumbers(planPortChecks(plan, exposure{})) {
+			if slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
+				t.Errorf("a stack claims %d, the worker's", port)
+			}
 		}
 	}
-	got := portNumbers(planPortChecks(withoutWorker, exposure{}))
-	if !slices.Equal(got, want) {
-		t.Errorf("a stack without a worker requires %v free\nwant %v", got, want)
-	}
-	if len(want) == len(planPortChecks(withWorker, exposure{})) {
-		t.Fatal("a stack with a worker claims no worker port: this test would prove nothing")
+	if got, want := portNumbers(planPortChecks(withoutWorker, exposure{})), portNumbers(planPortChecks(withWorker, exposure{})); !slices.Equal(got, want) {
+		t.Errorf("a stack without a worker claims %v, one with %v: the same, since neither claims the worker's", got, want)
 	}
 }
 

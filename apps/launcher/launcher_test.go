@@ -1029,9 +1029,10 @@ func TestStartNetworkLANBoot(t *testing.T) {
 		"http://192.168.2.10:8080/realms/semiont",
 		"Plain HTTP")
 	mustContain(t, "argv", s.argv(t), "--publish 4000:4000", "-p 192.168.64.1:18080:8080", "KC_HOSTNAME=http://192.168.2.10:8080")
-	for _, staged := range []string{"librarian.json", "worker.json", "gateway.json"} {
+	for _, staged := range []string{"librarian.json", "gateway.json"} {
 		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/semiont")
 	}
+	mustContain(t, "the worker's document", machineFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/semiont")
 	status := func(url string) int {
 		t.Helper()
 		resp, err := http.Get(url)
@@ -1164,10 +1165,13 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
-		for _, staged := range []string{"worker.json", "smelter.json", "weaver.json", "librarian.json", "archivist.json", "gateway.json", "dispatcher.json"} {
+		for _, staged := range []string{"smelter.json", "weaver.json", "librarian.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
+		}
+		if worker := machineFile(t, s, "worker.json"); !strings.Contains(worker, issuer) {
+			t.Errorf("%s: the worker's document does not state the issuer at port %s:\n%s", step.name, step.want, worker)
 		}
 		if strings.Contains(argv, "KEYCLOAK_PORT=") || strings.Contains(argv, "KEYCLOAK_HOST=") {
 			t.Errorf("%s: a container is told of the issuer through its environment:\n%s", step.name, argv)
@@ -1548,22 +1552,17 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 			t.Errorf("the telemetry's %d is among the stack's claims: %v", p, first.Stacks["local"].Ports)
 		}
 	}
-	telemetry := filepath.Join(stateHomeFor(s.home), "telemetry")
 	collectorYAML := func() string {
 		t.Helper()
-		b, err := os.ReadFile(filepath.Join(telemetry, "collector.yaml"))
-		if err != nil {
-			t.Fatalf("the collector's config: %v", err)
-		}
-		return string(b)
+		return machineFile(t, s, "collector.yaml")
 	}
 	mustContain(t, "collector.yaml with Jaeger up", collectorYAML(), "otlphttp/jaeger")
-	if _, err := os.Stat(filepath.Join(telemetry, "prometheus.yml")); err != nil {
+	if _, err := os.Stat(filepath.Join(stateHomeFor(s.home), "machine", "prometheus.yml")); err != nil {
 		t.Errorf("Prometheus's config: %v", err)
 	}
 	mustContain(t, "first start's argv", string(s.mustLog(t)),
-		filepath.Join("telemetry", "collector.yaml")+":/etc/otelcol/config.yaml:ro",
-		filepath.Join("telemetry", "prometheus.yml")+":/etc/prometheus/prometheus.yml:ro")
+		filepath.Join("machine", "collector.yaml")+":/etc/otelcol/config.yaml:ro",
+		filepath.Join("machine", "prometheus.yml")+":/etc/prometheus/prometheus.yml:ro")
 
 	// A re-run that finds each running as its record says, on the image it
 	// would run, keeps it.
@@ -1985,6 +1984,12 @@ func stateHomeFor(home string) string {
 		return filepath.Join(home, "AppData", "Local", "semiont")
 	}
 	return filepath.Join(home, ".local", "state", "semiont")
+}
+
+// workerListFor: where the knowledge bases the machine's worker serves are
+// kept, beside its key.
+func workerListFor(home string) string {
+	return filepath.Join(dataHomeFor(home), "machine", "worker-knowledge-bases.json")
 }
 
 func dataHomeFor(home string) string {
@@ -3129,7 +3134,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 12 container(s) across container, docker, podman",
+		"Sweeping 11 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -5419,7 +5424,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	} else {
 		mustContain(t, "stderr", stderr, "--repo names a remote stack")
 	}
-	if _, stderr, code := s2.run(t, "stop", "--service", "worker"); code != 1 {
+	if _, stderr, code := s2.run(t, "stop", "--service", "gateway"); code != 1 {
 		t.Error("stop --service on codespace should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack (the codespace's own launcher runs its services)")
@@ -5696,7 +5701,7 @@ func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
 	mustContain(t, "argv log", s.argv(t), "ghcr.io/the-ai-alliance/semiont-worker:local")
 	mustNotContain(t, "argv log", s.argv(t), "pull ghcr.io/the-ai-alliance/semiont-worker:local")
 	var doc api.WorkerConfig
-	if err := json.Unmarshal([]byte(stagedFile(t, s, "worker.json")), &doc); err != nil {
+	if err := json.Unmarshal([]byte(machineFile(t, s, "worker.json")), &doc); err != nil {
 		t.Fatal(err)
 	}
 	if doc.LogLevel != api.LogLevelDebug {
@@ -6042,7 +6047,7 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	checkGolden(t, "start-no-worker-boot.argv", started)
 
 	mustContain(t, "stdout", stdout,
-		"worker — no job has an engine; skipping (give one an engine in "+noJobEnginesAt+" to run one)",
+		"worker — no job has an engine, so it does not serve this knowledge base (give one an engine in "+noJobEnginesAt+")",
 		"🚀 Semiont stack is up")
 	if n := strings.Count(stdout+stderr, noJobEnginesAt); n != 1 {
 		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noJobEnginesAt, n, stdout, stderr)
@@ -6050,12 +6055,10 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	mustNotContain(t, "start argv", started, "run -d --name semiont-worker", "semiont-worker:", "24100")
 	mustContain(t, "start argv", started, "run -d --name semiont-smelter", "run -d --name semiont-weaver")
 
-	stages := s.stageRe().FindAllString(string(s.mustLog(t)), -1)
-	if len(stages) == 0 {
-		t.Fatal("no staging dir in the argv log")
-	}
-	if _, err := os.Stat(filepath.Join(stages[len(stages)-1], "worker.json")); !os.IsNotExist(err) {
-		t.Errorf("a document was staged for a worker that does not run (stat: %v)", err)
+	for _, file := range []string{filepath.Join(stateHomeFor(s.home), "machine", "worker.json"), workerListFor(s.home)} {
+		if _, err := os.Stat(file); !os.IsNotExist(err) {
+			t.Errorf("%s was written for a worker that serves nothing (stat: %v)", file, err)
+		}
 	}
 	var archivist struct {
 		Engines struct {
@@ -6148,7 +6151,8 @@ func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	}
 	plan := s.norm(stdout)
 	mustContain(t, "plan", plan,
-		"# worker: no job has an engine — nothing to launch (give one an engine in "+noJobEnginesAt+" to run one)",
+		"# worker: no job has an engine — this knowledge base is not on its list (give one an engine in "+noJobEnginesAt+")",
+		"# remove <data-home>/machine/worker-knowledge-bases.json: the worker's list is empty",
 		"run -d --name semiont-smelter", "wait: http://<host-addr>:24101/health (30s)")
 	if n := strings.Count(plan, noJobEnginesAt); n != 1 {
 		t.Errorf("the plan names %s %d times, want once:\n%s", noJobEnginesAt, n, plan)
@@ -7945,7 +7949,7 @@ func TestStartServiceWorker(t *testing.T) {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Restarting Worker Pool",
+		"Restarting Worker\n",
 		"OTel collector detected — export enabled",
 		"--env SEMIONT_OIDC_CLIENT_KEY ",
 		"🚀 worker is up",
@@ -7961,7 +7965,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"--env SEMIONT_OIDC_CLIENT_KEY",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
-		"<config-stage>/worker.json:/etc/semiont/worker.json:ro",
+		filepath.Join("machine", "worker.json")+":/etc/semiont/worker.json:ro",
 	)
 	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
@@ -7980,13 +7984,10 @@ func TestStartServiceWorker(t *testing.T) {
 		`"kbDid": "did:web:example.github.io:test-kb"`)
 }
 
-// A knowledge base someone else runs, added to this machine's worker, is one
-// more knowledge base the worker's document names, after the one the start
-// runs, at the gateway and as the client it was added with, at the issuer that
-// gateway names, and offered the same engines. One that is the knowledge base
-// the start runs refuses the start before anything runs, saying how to remove
-// it; removed, the worker serves the start's own alone again.
-func TestTheWorkerServesTheKnowledgeBasesAddedToIt(t *testing.T) {
+// otherKBGateway: a gateway someone else runs, naming its issuer as a
+// knowledge base's gateway does, for `semiont worker kb add` to ask.
+func otherKBGateway(t *testing.T) string {
+	t.Helper()
 	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/oauth-protected-resource" {
 			w.WriteHeader(http.StatusNotFound)
@@ -7996,70 +7997,361 @@ func TestTheWorkerServesTheKnowledgeBasesAddedToIt(t *testing.T) {
 		fmt.Fprint(w, `{"resource": "https://other.example/kb", "authorization_servers": ["https://id.other.example/realms/kb"], "bearer_methods_supported": ["header"]}`)
 	}))
 	t.Cleanup(gateway.Close)
-	s := newScenario(t, "container")
-	add := func(domain string) {
-		t.Helper()
-		if stdout, stderr, code := s.run(t, "worker", "kb", "add", domain, "--gateway", gateway.URL, "--client-id", "semiont-worker-alice"); code != 0 {
-			t.Fatalf("worker kb add %s: exit %d\nstdout:\n%s\nstderr:\n%s", domain, code, stdout, stderr)
-		}
-	}
-	staged := func() api.WorkerConfig {
-		t.Helper()
-		var doc api.WorkerConfig
-		if err := json.Unmarshal([]byte(stagedFile(t, s, "worker.json")), &doc); err != nil {
-			t.Fatal(err)
-		}
-		return doc
-	}
+	return gateway.URL
+}
 
-	add("other.example:kb")
+// addToWorker adds the knowledge base at domain, behind gateway, to this
+// machine's worker, from inside the scenario's knowledge base.
+func addToWorker(t *testing.T, s *scenario, domain, gateway string) (stderr string, code int) {
+	t.Helper()
+	_, stderr, code = s.run(t, "worker", "kb", "add", domain, "--gateway", gateway, "--client-id", "semiont-worker-alice")
+	return stderr, code
+}
+
+// workerServes: the knowledge bases the worker's document names, in order.
+func workerServes(t *testing.T, s *scenario) []api.WorkerKnowledgeBaseConfig {
+	t.Helper()
+	var doc api.WorkerConfig
+	if err := json.Unmarshal([]byte(machineFile(t, s, "worker.json")), &doc); err != nil {
+		t.Fatal(err)
+	}
+	return doc.KnowledgeBases
+}
+
+// domainsOf: the domains of entries, in order.
+func domainsOf(entries []api.WorkerKnowledgeBaseConfig) []string {
+	var out []string
+	for _, e := range entries {
+		out = append(out, e.Domain)
+	}
+	return out
+}
+
+// A knowledge base someone else runs is added to this machine's worker from
+// inside a local knowledge base on its list, and is offered that one's
+// engines. Before the local one's start puts it on the list it has none to
+// offer. The worker's document names the local one, then the added one, at the
+// gateway and as the client it was added with, at the issuer that gateway
+// names. While the added one is offered its engines the local one stays on the
+// list; with the added one removed, the worker serves the local one alone
+// again.
+func TestTheWorkerServesTheKnowledgeBasesAddedToIt(t *testing.T) {
+	gateway := otherKBGateway(t)
+	s := newScenario(t, "container")
+
+	stderr, code := addToWorker(t, s, "other.example:kb", gateway)
+	if code != 1 {
+		t.Fatalf("worker kb add before any start: exit %d, want 1\n%s", code, stderr)
+	}
+	mustContain(t, "worker kb add before any start", stderr, "example.github.io:test-kb is not on this machine's worker's list, so it has no engines to offer.")
+
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if stderr, code := addToWorker(t, s, "other.example:kb", gateway); code != 0 {
+		t.Fatalf("worker kb add: exit %d\n%s", code, stderr)
+	}
 	stdout, stderr, code := s.run(t, "worker", "kb", "list")
 	if code != 0 {
 		t.Fatalf("worker kb list: exit %d\n%s", code, stderr)
 	}
-	mustContain(t, "worker kb list", stdout, "other.example:kb\n", "Issuer:     https://id.other.example/realms/kb\n", "Client id:  semiont-worker-alice\n")
+	mustContain(t, "worker kb list", stdout,
+		"example.github.io:test-kb (local)\n",
+		"other.example:kb (added)\n", "Issuer:     https://id.other.example/realms/kb\n", "Client id:  semiont-worker-alice\n",
+		"Engines of: example.github.io:test-kb\n")
+
+	plan, _, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("start --dry-run: exit %d", code)
+	}
+	mustContain(t, "the plan", plan, "# write <data-home>/machine/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local), other.example:kb (added, offered example.github.io:test-kb's engines)")
 
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	doc := staged()
-	if len(doc.KnowledgeBases) != 2 {
-		t.Fatalf("the worker's document names %d knowledge bases, want the start's own and the one added: %+v", len(doc.KnowledgeBases), doc.KnowledgeBases)
+	served := workerServes(t, s)
+	if len(served) != 2 {
+		t.Fatalf("the worker's document names %v, want the local knowledge base and the one added", domainsOf(served))
 	}
-	own, other := doc.KnowledgeBases[0], doc.KnowledgeBases[1]
+	own, other := served[0], served[1]
 	if own.Domain != "example.github.io:test-kb" || own.Identity.ClientId != "semiont-worker-local" {
-		t.Errorf("the first knowledge base is %s as %s, want the start's own as this machine's worker", own.Domain, own.Identity.ClientId)
+		t.Errorf("the first knowledge base is %s as %s, want the local one as this machine's worker", own.Domain, own.Identity.ClientId)
 	}
-	if other.Domain != "other.example:kb" || other.GatewayUrl != gateway.URL ||
+	if other.Domain != "other.example:kb" || other.GatewayUrl != gateway ||
 		other.Identity.Issuer != "https://id.other.example/realms/kb" || other.Identity.ClientId != "semiont-worker-alice" {
-		t.Errorf("the added knowledge base is staged as %+v", other)
+		t.Errorf("the added knowledge base is served as %+v", other)
 	}
 	offered, _ := json.Marshal(other.Engines)
 	if owns, _ := json.Marshal(own.Engines); string(offered) != string(owns) || len(own.Engines) == 0 {
-		t.Errorf("the added knowledge base is offered %s, and the start's own %s", offered, owns)
+		t.Errorf("the added knowledge base is offered %s, and the local one has %s", offered, owns)
 	}
 
-	add("example.github.io:test-kb")
-	before := strings.Count(s.argv(t), "\n")
-	stdout, stderr, code = s.run(t, "start")
+	_, stderr, code = s.run(t, "worker", "kb", "remove", "example.github.io:test-kb")
 	if code != 1 {
-		t.Fatalf("a start of a knowledge base added to its own worker: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		t.Fatalf("worker kb remove of a knowledge base whose engines are offered: exit %d, want 1\n%s", code, stderr)
 	}
-	mustContain(t, "stderr", stderr, "semiont worker kb remove example.github.io:test-kb")
-	if ran := strings.Split(s.argv(t), "\n")[before:]; strings.Contains(strings.Join(ran, "\n"), " run ") || strings.Contains(strings.Join(ran, "\n"), " stop ") {
-		t.Errorf("the refused start ran or stopped containers:\n%s", strings.Join(ran, "\n"))
-	}
-
-	for _, domain := range []string{"example.github.io:test-kb", "other.example:kb"} {
-		if _, stderr, code := s.run(t, "worker", "kb", "remove", domain); code != 0 {
-			t.Fatalf("worker kb remove %s: exit %d\n%s", domain, code, stderr)
-		}
+	mustContain(t, "worker kb remove", stderr, "example.github.io:test-kb's engines are offered to other.example:kb")
+	if _, stderr, code := s.run(t, "worker", "kb", "remove", "other.example:kb"); code != 0 {
+		t.Fatalf("worker kb remove other.example:kb: exit %d\n%s", code, stderr)
 	}
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	if doc := staged(); len(doc.KnowledgeBases) != 1 || doc.KnowledgeBases[0].Domain != "example.github.io:test-kb" {
-		t.Errorf("with every added knowledge base removed, the worker's document names %+v", doc.KnowledgeBases)
+	if served := domainsOf(workerServes(t, s)); !slices.Equal(served, []string{"example.github.io:test-kb"}) {
+		t.Errorf("with the added knowledge base removed, the worker serves %v", served)
+	}
+}
+
+// otherLocalKB: a second local knowledge base, example.github.io:other-kb,
+// for the scenario to start in turn with its own.
+func otherLocalKB(t *testing.T) string {
+	t.Helper()
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	return other
+}
+
+// Until each local knowledge base has a gateway port of its own, two started
+// in turn take the same one. The second start takes the first off the
+// worker's list, and says so: the worker would ask whichever gateway answers
+// there, and refuses for good one that answers as another knowledge base. A
+// knowledge base added from the first, offered its engines, goes unserved
+// until the first's next start, which says so too; that start takes the
+// second off in turn. A re-run that finds the worker serving its list keeps
+// it.
+func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
+	gateway := otherKBGateway(t)
+	s := newScenario(t, "container")
+	first, other := s.kb, otherLocalKB(t)
+	start := func(label string) string {
+		t.Helper()
+		stdout, stderr, code := s.run(t, "start")
+		if code != 0 {
+			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", label, code, stdout, stderr)
+		}
+		return stdout
+	}
+	stop := func() {
+		t.Helper()
+		if _, stderr, code := s.run(t, "stop"); code != 0 {
+			t.Fatalf("stop: exit %d\n%s", code, stderr)
+		}
+	}
+
+	start("the first knowledge base's start")
+	if stderr, code := addToWorker(t, s, "other.example:kb", gateway); code != 0 {
+		t.Fatalf("worker kb add: exit %d\n%s", code, stderr)
+	}
+	stop()
+
+	s.kb = other
+	stdout := start("the second knowledge base's start")
+	mustContain(t, "the second start", stdout,
+		"worker — example.github.io:test-kb leaves its list: this start's gateway takes the port its gateway was on",
+		"worker — other.example:kb goes unserved: it is offered the engines of example.github.io:test-kb, which is not on its list")
+	if served := domainsOf(workerServes(t, s)); !slices.Equal(served, []string{"example.github.io:other-kb"}) {
+		t.Errorf("after the second start the worker serves %v, want the second knowledge base alone", served)
+	}
+	list, _, _ := s.run(t, "worker", "kb", "list")
+	mustContain(t, "worker kb list", list, "example.github.io:other-kb (local)\n", "other.example:kb (added)\n")
+	mustNotContain(t, "worker kb list", list, "example.github.io:test-kb (local)")
+
+	// A re-run that finds the worker running as its record says keeps it.
+	var rec struct {
+		Machine map[string]struct {
+			Image string `json:"image"`
+		} `json:"machine"`
+	}
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &rec); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_worker=running", "FAKERT_IMAGE_worker="+rec.Machine["semiont-worker"].Image)
+	before := s.argv(t)
+	mustContain(t, "a re-run", start("a re-run of the second knowledge base's start"), "worker — Worker already running")
+	if again := strings.TrimPrefix(s.argv(t), before); strings.Contains(again, "run -d --name semiont-worker") {
+		t.Errorf("a re-run serving the same list restarted the worker:\n%s", again)
+	}
+	stop()
+	s.extraEnv = nil
+
+	s.kb = first
+	stdout = start("the first knowledge base's next start")
+	mustContain(t, "the first's next start", stdout,
+		"worker — example.github.io:other-kb leaves its list: this start's gateway takes the port its gateway was on")
+	mustNotContain(t, "the first's next start", stdout, "goes unserved")
+	if served := domainsOf(workerServes(t, s)); !slices.Equal(served, []string{"example.github.io:test-kb", "other.example:kb"}) {
+		t.Errorf("after the first's next start the worker serves %v, want it and the one added from it", served)
+	}
+}
+
+// `stop --service worker` stops the worker alone, and a bare stop stops it
+// with the stack. A start that gives no job an engine takes its own knowledge
+// base off the worker's list, and the worker, serving nothing, is stopped.
+func TestTheWorkerStopsWhenItServesNothing(t *testing.T) {
+	s := newScenario(t, "container")
+	writeDocument(t, s, "inference/no-worker.yaml", noJobEngines)
+	start := func(args ...string) string {
+		t.Helper()
+		stdout, stderr, code := s.run(t, append([]string{"start"}, args...)...)
+		if code != 0 {
+			t.Fatalf("start %v: exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		}
+		return stdout
+	}
+
+	start()
+	before := s.argv(t)
+	if _, stderr, code := s.run(t, "stop", "--service", "worker"); code != 0 {
+		t.Fatalf("stop --service worker: exit %d\n%s", code, stderr)
+	}
+	stopped := strings.TrimPrefix(s.argv(t), before)
+	mustContain(t, "stop --service worker", stopped, "stop semiont-worker", "rm semiont-worker")
+	mustNotContain(t, "stop --service worker", stopped, "semiont-gateway")
+
+	start()
+	before = s.argv(t)
+	stdout, stderr, code := s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stderr)
+	}
+	mustContain(t, "a bare stop", stdout, "Worker stopped")
+	mustContain(t, "a bare stop", strings.TrimPrefix(s.argv(t), before), "stop semiont-worker")
+	plan, _, _ := s.run(t, "stop", "--dry-run")
+	mustContain(t, "stop --dry-run", plan, "# stop the machine's Worker:")
+
+	start()
+	before = s.argv(t)
+	stdout = start("--config", "no-worker")
+	mustContain(t, "a start with no engine", stdout, "worker — serves no knowledge base; stopped")
+	mustContain(t, "a start with no engine", strings.TrimPrefix(s.argv(t), before), "stop semiont-worker")
+	if _, err := os.Stat(workerListFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("the worker's list is kept with nothing on it (stat: %v)", err)
+	}
+}
+
+// onItsOwnGatewayPort gives the scenario's knowledge base the gateway port
+// 4001, so another local one on 4000 stays on the worker's list beside it.
+func onItsOwnGatewayPort(t *testing.T, s *scenario) {
+	t.Helper()
+	editDocument(t, s, "knowledge-base.yaml", "    port: 4000\n    publicURL: http://localhost:4000\n", "    port: 4001\n    publicURL: http://localhost:4001\n")
+}
+
+// A knowledge base none of whose jobs has an engine is not on the worker's
+// list, and the worker goes on serving the rest; `stop --service worker` from
+// it still stops the machine's worker.
+func TestStopServiceWorkerStopsTheWorkerFromAKnowledgeBaseItDoesNotServe(t *testing.T) {
+	s := newScenario(t, "container")
+	first, other := s.kb, otherLocalKB(t)
+	s.kb = other
+	onItsOwnGatewayPort(t, s)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the second knowledge base's start: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stderr)
+	}
+
+	s.kb = first
+	writeDocument(t, s, "inference/no-worker.yaml", noJobEngines)
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start", "--config", "no-worker")
+	if code != 0 {
+		t.Fatalf("start --config no-worker: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "a start with no engine", stdout, "worker — no job has an engine, so it does not serve this knowledge base")
+	mustContain(t, "a start with no engine", strings.TrimPrefix(s.argv(t), before), "run -d --name semiont-worker")
+	if served := domainsOf(workerServes(t, s)); !slices.Equal(served, []string{"example.github.io:other-kb"}) {
+		t.Errorf("the worker serves %v, want the knowledge base on its own port alone", served)
+	}
+
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_worker=running")
+	before = s.argv(t)
+	if _, stderr, code := s.run(t, "stop", "--service", "worker"); code != 0 {
+		t.Fatalf("stop --service worker: exit %d\n%s", code, stderr)
+	}
+	mustContain(t, "stop --service worker", strings.TrimPrefix(s.argv(t), before), "stop semiont-worker", "rm semiont-worker")
+}
+
+// A start resolves every provider key the worker's list names, its own
+// knowledge base's and the others': a key only another names, unset, refuses
+// the start before anything runs, naming that knowledge base and how to stop
+// serving it.
+func TestAStartRefusesAKeyAnotherKnowledgeBaseOnTheListNames(t *testing.T) {
+	s := newScenario(t, "container")
+	other := otherLocalKB(t)
+	s.extraEnv = []string{"ANTHROPIC_API_KEY=test-key"}
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("the first knowledge base's start: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stderr)
+	}
+
+	// The second answers on a port of its own, so the first stays on the list.
+	s.kb = other
+	onItsOwnGatewayPort(t, s)
+	s.extraEnv = nil
+	before := strings.Count(s.argv(t), "\n")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("a start with a key the list names unset: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stderr", stderr,
+		"example.github.io:test-kb, which this machine's worker serves, names the variable ANTHROPIC_API_KEY for an engine's key (fromEnv), and it is not set in the environment.",
+		"semiont worker kb remove example.github.io:test-kb")
+	if ran := strings.Join(strings.Split(s.argv(t), "\n")[before:], "\n"); strings.Contains(ran, " run ") {
+		t.Errorf("the refused start ran containers:\n%s", ran)
+	}
+
+	s.extraEnv = []string{"ANTHROPIC_API_KEY=test-key"}
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the second knowledge base's start with the key set: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if served := domainsOf(workerServes(t, s)); !slices.Equal(served, []string{"example.github.io:other-kb", "example.github.io:test-kb"}) {
+		t.Errorf("with each on a port of its own the worker serves %v, want both", served)
+	}
+}
+
+// A knowledge base added to this machine's worker as one someone else runs
+// refuses its own start before anything runs, saying how to remove it: a
+// start puts its own on the list as local.
+func TestAStartOfAKnowledgeBaseAddedAsAnothersIsRefused(t *testing.T) {
+	gateway := otherKBGateway(t)
+	s := newScenario(t, "container")
+	first, other := s.kb, otherLocalKB(t)
+	s.kb = other
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the second knowledge base's start: exit %d\n%s", code, stderr)
+	}
+	if stderr, code := addToWorker(t, s, "example.github.io:test-kb", gateway); code != 0 {
+		t.Fatalf("worker kb add: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\n%s", code, stderr)
+	}
+
+	s.kb = first
+	before := strings.Count(s.argv(t), "\n")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("a start of a knowledge base added as another's: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stderr", stderr, "semiont worker kb remove example.github.io:test-kb")
+	if ran := strings.Join(strings.Split(s.argv(t), "\n")[before:], "\n"); strings.Contains(ran, " run ") || strings.Contains(ran, " stop ") {
+		t.Errorf("the refused start ran or stopped containers:\n%s", ran)
+	}
+	if _, stderr, code := s.run(t, "worker", "kb", "remove", "example.github.io:test-kb"); code != 0 {
+		t.Fatalf("worker kb remove: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the start once it is removed: exit %d\n%s", code, stderr)
+	}
+	if served := domainsOf(workerServes(t, s)); !slices.Equal(served, []string{"example.github.io:test-kb"}) {
+		t.Errorf("the worker serves %v, want the knowledge base started", served)
 	}
 }
 
@@ -8193,7 +8485,8 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"<config-stage>/worker.json",
+		"# write <data-home>/machine/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local)",
+		"--volume <state-home>/machine/worker.json:/etc/semiont/worker.json:ro",
 		"wait: http://<host-addr>:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-neo4j") {
@@ -10878,6 +11171,17 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 // it does not run ---
 
 // stagedFile reads a file the last start staged for its containers.
+// machineFile: the document the launcher wrote for one of the machine's
+// containers, in <state-home>/machine.
+func machineFile(t *testing.T, s *scenario, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(stateHomeFor(s.home), "machine", name))
+	if err != nil {
+		t.Fatalf("reading the machine's %s: %v", name, err)
+	}
+	return string(b)
+}
+
 func stagedFile(t *testing.T, s *scenario, name string) string {
 	t.Helper()
 	log, _ := os.ReadFile(s.log)

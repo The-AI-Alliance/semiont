@@ -5,8 +5,6 @@ container stop semiont-weaver
 container rm semiont-weaver
 container stop semiont-smelter
 container rm semiont-smelter
-container stop semiont-worker
-container rm semiont-worker
 container stop semiont-dispatcher
 container rm semiont-dispatcher
 container stop semiont-librarian
@@ -29,8 +27,6 @@ docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter
 docker rm semiont-smelter
-docker stop semiont-worker
-docker rm semiont-worker
 docker stop semiont-dispatcher
 docker rm semiont-dispatcher
 docker stop semiont-librarian
@@ -53,8 +49,6 @@ podman stop semiont-weaver
 podman rm semiont-weaver
 podman stop semiont-smelter
 podman rm semiont-smelter
-podman stop semiont-worker
-podman rm semiont-worker
 podman stop semiont-dispatcher
 podman rm semiont-dispatcher
 podman stop semiont-librarian
@@ -74,6 +68,13 @@ podman rm semiont-nats
 podman stop semiont-postgres
 podman rm semiont-postgres
 # remove staged configs: <config-stages>
+# stop the machine's Worker:
+container stop semiont-worker
+container rm semiont-worker
+docker stop semiont-worker
+docker rm semiont-worker
+podman stop semiont-worker
+podman rm semiont-worker
 # stop the machine's OTel collector:
 container stop semiont-otel-collector
 container rm semiont-otel-collector

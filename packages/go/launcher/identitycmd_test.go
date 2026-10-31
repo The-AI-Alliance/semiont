@@ -71,8 +71,8 @@ func TestIdentitySyncCreatesWhatTheRealmLacks(t *testing.T) {
 	}
 	harness.MustContainAll(t, "stdout", stdout, "Reconciling realm semiont", "created,")
 	harness.MustContainAll(t, "stderr", stderr, "Run `semiont start` again")
-	if len(admin.created) != len(stackServices) {
-		t.Errorf("%d clients created, want one per service (%d)", len(admin.created), len(stackServices))
+	if len(admin.created) != len(accountServices()) {
+		t.Errorf("%d clients created, want one per service (%d)", len(admin.created), len(accountServices()))
 	}
 }
 

@@ -1,6 +1,5 @@
 docker stop semiont-weaver
 docker stop semiont-smelter
-docker stop semiont-worker
 docker stop semiont-dispatcher
 docker stop semiont-librarian
 docker stop semiont-archivist
@@ -12,7 +11,6 @@ docker stop semiont-nats
 docker stop semiont-postgres
 docker logs --tail 5000 semiont-weaver
 docker logs --tail 5000 semiont-smelter
-docker logs --tail 5000 semiont-worker
 docker logs --tail 5000 semiont-dispatcher
 docker logs --tail 5000 semiont-librarian
 docker logs --tail 5000 semiont-archivist
@@ -24,7 +22,6 @@ docker logs --tail 5000 semiont-nats
 docker logs --tail 5000 semiont-postgres
 docker rm semiont-weaver
 docker rm semiont-smelter
-docker rm semiont-worker
 docker rm semiont-dispatcher
 docker rm semiont-librarian
 docker rm semiont-archivist
@@ -34,6 +31,8 @@ docker rm semiont-gateway
 docker rm semiont-keycloak
 docker rm semiont-nats
 docker rm semiont-postgres
+docker stop semiont-worker
+docker rm semiont-worker
 docker stop semiont-otel-collector
 docker rm semiont-otel-collector
 docker stop semiont-prometheus

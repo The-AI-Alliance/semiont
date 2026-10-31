@@ -7,16 +7,14 @@
 # verify ghcr.io/the-ai-alliance/semiont-archivist:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
 # verify ghcr.io/the-ai-alliance/semiont-librarian:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
 # verify ghcr.io/the-ai-alliance/semiont-dispatcher:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
-# verify ghcr.io/the-ai-alliance/semiont-worker:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
 # verify ghcr.io/the-ai-alliance/semiont-smelter:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
 # verify ghcr.io/the-ai-alliance/semiont-weaver:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
+# verify ghcr.io/the-ai-alliance/semiont-worker:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
 # snapshot container logs into <state-root>/logs/<timestamp>/ before removal
 container stop semiont-weaver
 container rm semiont-weaver
 container stop semiont-smelter
 container rm semiont-smelter
-container stop semiont-worker
-container rm semiont-worker
 container stop semiont-dispatcher
 container rm semiont-dispatcher
 container stop semiont-librarian
@@ -37,11 +35,10 @@ container stop semiont-postgres
 container rm semiont-postgres
 # end the issuer proxy the record names, if one runs
 # remove staged configs: <config-stages>
-# require free ports: 7474 7687 17687 6333 5432 4222 8080 4000 14000 24100 24101 24102 24103 24104 24105
+# require free ports: 7474 7687 17687 6333 5432 4222 8080 4000 14000 24101 24102 24103 24104 24105
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
 # write <config-stage>/archivist.json (the Archivist's configuration document: ArchivistConfig, resolved)
-# write <config-stage>/worker.json (the worker's configuration document: WorkerConfig, resolved)
 # write <config-stage>/smelter.json (the Smelter's configuration document: SmelterConfig, resolved)
 # write <config-stage>/weaver.json (the Weaver's configuration document: WeaverConfig, resolved)
 # write <config-stage>/librarian.json (the Librarian's configuration document: LibrarianConfig, resolved)
@@ -58,7 +55,6 @@ container image pull ghcr.io/the-ai-alliance/semiont-gateway:latest@sha256:<veri
 container image pull ghcr.io/the-ai-alliance/semiont-archivist:latest@sha256:<verified>
 container image pull ghcr.io/the-ai-alliance/semiont-librarian:latest@sha256:<verified>
 container image pull ghcr.io/the-ai-alliance/semiont-dispatcher:latest@sha256:<verified>
-container image pull ghcr.io/the-ai-alliance/semiont-worker:latest@sha256:<verified>
 container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest@sha256:<verified>
 container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest@sha256:<verified>
 # traces: keep semiont-jaeger if its record says http://localhost:16686 under container and it runs jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac; else stop/rm it, then run it
@@ -73,8 +69,8 @@ container run -d --name semiont-jaeger --memory 1G -p 127.0.0.1:16686:16686 -p <
 container stop semiont-prometheus
 container rm semiont-prometheus
 # require free ports: 9090
-# write <state-home>/telemetry/prometheus.yml (the launcher's own; only as its container (re)starts)
-container run -d --name semiont-prometheus --memory 1G -p 127.0.0.1:9090:9090 --volume <state-home>/telemetry/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
+# write <state-home>/machine/prometheus.yml (the launcher's own; only as its container (re)starts)
+container run -d --name semiont-prometheus --memory 1G -p 127.0.0.1:9090:9090 --volume <state-home>/machine/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
 # wait: http://localhost:9090/-/healthy (30s)
 # probe: Jaeger at http://localhost:16686 — the collector sends traces to it if it answers, else discards them
 # collector: keep semiont-otel-collector if its record says http://<host-addr>:24110/metrics under container, its collector.yaml is what this start writes, and it runs otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c; else stop/rm it, then run it
@@ -82,8 +78,8 @@ container run -d --name semiont-prometheus --memory 1G -p 127.0.0.1:9090:9090 --
 container stop semiont-otel-collector
 container rm semiont-otel-collector
 # require free ports: 4318 24110
-# write <state-home>/telemetry/collector.yaml (the launcher's own; only as its container (re)starts)
-container run -d --name semiont-otel-collector --memory 1G -p <host-addr>:4318:4318 -p <host-addr>:24110:24110 --volume <state-home>/telemetry/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c
+# write <state-home>/machine/collector.yaml (the launcher's own; only as its container (re)starts)
+container run -d --name semiont-otel-collector --memory 1G -p <host-addr>:4318:4318 -p <host-addr>:24110:24110 --volume <state-home>/machine/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c
 # wait: http://<host-addr>:24110/metrics (30s)
 # database state: <data-home>/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
 container run -d --name semiont-postgres --memory 1G -p <host-addr>:5432:5432 -v <data-home>/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
@@ -145,7 +141,15 @@ container run -d --name semiont-librarian --memory 2G --publish <host-addr>:2410
 # wait: http://<host-addr>:24104/health (30s)
 container run -d --name semiont-dispatcher --memory 2G --publish <host-addr>:24105:24105 --volume <config-stage>/dispatcher.json:/etc/semiont/dispatcher.json:ro --env NATS_USER --env NATS_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-dispatcher --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-dispatcher:latest@sha256:<verified>
 # wait: http://<host-addr>:24105/health (30s)
-container run -d --name semiont-worker --memory 2G --publish <host-addr>:24100:24100 --volume <config-stage>/worker.json:/etc/semiont/worker.json:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_KEY --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:latest@sha256:<verified>
+# write <data-home>/machine/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local)
+# worker: keep semiont-worker if its record says http://<host-addr>:24100/health under container with 2G, its worker.json is what this start writes, and it runs ghcr.io/the-ai-alliance/semiont-worker:latest@sha256:<verified>; else stop/rm it, then run it
+# else:
+container stop semiont-worker
+container rm semiont-worker
+# require free ports: 24100
+container image pull ghcr.io/the-ai-alliance/semiont-worker:latest@sha256:<verified>
+# write <state-home>/machine/worker.json (the launcher's own; only as its container (re)starts)
+container run -d --name semiont-worker --memory 2G --publish <host-addr>:24100:24100 --volume <state-home>/machine/worker.json:/etc/semiont/worker.json:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_KEY --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:latest@sha256:<verified>
 # wait: http://<host-addr>:24100/health (30s)
 container run -d --name semiont-smelter --memory 2G --publish <host-addr>:24101:24101 --volume <config-stage>/smelter.json:/etc/semiont/smelter.json:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-smelter --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-smelter:latest@sha256:<verified>
 # wait: http://<host-addr>:24101/health (30s)

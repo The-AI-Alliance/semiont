@@ -162,9 +162,11 @@ func machineNoun(role string) string {
 // local stack's record of the role names the container serving it, and the
 // role runs it when it is the first the start walk reaches that names it — a
 // later one shares it (embedding, on the Ollama inference runs). With no
-// record of the role, the roles table's container for a machine role.
+// record of the role, the roles table's container for a machine role. The
+// worker is the machine's whatever a stack records of it: one whose jobs have
+// no engine is not on its list, and it goes on serving the rest.
 func machineServing(ss *StackSet, role string) (string, bool) {
-	if st := ss.Stacks["local"]; st != nil {
+	if st := ss.Stacks["local"]; st != nil && role != "worker" {
 		if rec, ok := st.Services[role]; ok {
 			if rec.Provided != providedMachine {
 				return "", false
@@ -588,8 +590,7 @@ func Stop(args []string) int {
 	}
 	forgetStack("local")
 
-	// The machine's Ollama and the Browser go with the stack, wherever this
-	// stop swept.
+	// The machine's containers go with the stack, wherever this stop swept.
 	machine := stopMachineServices(u, slices.Concat(runtimes, strayRuntimes), ss, !useState)
 
 	// Say what actually happened: a stop that found nothing anywhere (the
@@ -611,12 +612,12 @@ func Stop(args []string) int {
 // says — the release-verification fallback when no record captured the
 // stack's exact claims (older launcher's record, name-sweep path): every
 // launcher-fiat role's, since a stop with no record cannot know which of them
-// the stack ran, then the broker's, then the machine's telemetry's, which a
-// blind stop sweeps with no record of their ports. 3000 is absent: the
-// Browser's port is its document's, not the stack's to verify.
+// the stack ran, then the broker's, then the machine's worker's and
+// telemetry's, which a blind stop sweeps with no record of their ports. 3000
+// is absent: the Browser's port is its document's, not the stack's to verify.
 var fiatPorts = func() []int {
 	var needs []portNeed
-	for _, role := range slices.Concat(fiatRoles(), []string{"messaging"}, telemetryRoles) {
+	for _, role := range slices.Concat(fiatRoles(), []string{"messaging", "worker"}, telemetryRoles) {
 		needs = append(needs, stackPortNeeds(role)...)
 	}
 	return portNumbers(needs)

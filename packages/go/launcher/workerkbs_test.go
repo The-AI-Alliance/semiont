@@ -1,8 +1,9 @@
 package launcher
 
-// The knowledge bases added to this machine's worker: what `semiont worker kb`
-// keeps, where, and to whom; what each start's worker document makes of them;
-// and the start a knowledge base among them refuses.
+// The knowledge bases on this machine's worker's list: what a start and
+// `semiont worker kb` keep, where, and to whom; what the worker's document
+// makes of them; what a start takes off it; and the start a knowledge base
+// added to it refuses.
 
 import (
 	"encoding/json"
@@ -39,11 +40,46 @@ func gatewayNaming(t *testing.T, issuers ...string) string {
 	return srv.URL
 }
 
-// addedKBOf: an added knowledge base, as `semiont worker kb add` keeps one.
-func addedKBOf(domain, gateway, issuer, clientID string) addedKB {
-	kb := addedKB{Domain: domain, GatewayUrl: gateway}
+// addedKBOf: an added knowledge base, as `semiont worker kb add` keeps one
+// run inside the local knowledge base at lender.
+func addedKBOf(domain, gateway, issuer, clientID, lender string) addedKB {
+	kb := addedKB{Domain: domain, GatewayUrl: gateway, EnginesOf: lender}
 	kb.Identity.Issuer, kb.Identity.ClientId = issuer, clientID
 	return kb
+}
+
+// localEntryOf: a local knowledge base's entry, as its start puts it on the
+// list, at gateway, with one engine whose key is named keyEnv ("" for none).
+func localEntryOf(domain, gateway, keyEnv string) api.WorkerKnowledgeBaseConfig {
+	engine := api.WorkerEngineConfig{BaseUrl: "http://192.168.64.1:11434"}
+	engine.Engine.Provider, engine.Engine.Model = api.EngineProviderOllama, "gemma3:1b"
+	if keyEnv != "" {
+		engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl = api.EngineProviderAnthropic, "claude-haiku", "https://api.anthropic.com"
+		engine.ApiKeyEnv = &keyEnv
+	}
+	entry := api.WorkerKnowledgeBaseConfig{Domain: domain, GatewayUrl: gateway, Engines: []api.WorkerEngineConfig{engine}}
+	entry.Identity.Issuer, entry.Identity.ClientId = "http://keycloak.localhost:8080/realms/semiont", serviceClientID("worker")
+	return entry
+}
+
+// insideLocalKB: the test runs inside the fixture knowledge base, which is
+// on the worker's list beside the local entries others; its domain.
+func insideLocalKB(t *testing.T, others ...api.WorkerKnowledgeBaseConfig) string {
+	t.Helper()
+	root, err := filepath.Abs(fixtureRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident, err := readKBIdentity(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+	list := workerList{Local: append(others, localEntryOf(ident.Domain, "http://192.168.64.1:14000", ""))}
+	if err := saveWorkerList(list); err != nil {
+		t.Fatal(err)
+	}
+	return ident.Domain
 }
 
 // workerOutput runs the worker verb and returns its exit code and what it
@@ -55,20 +91,20 @@ func workerOutput(t *testing.T, args ...string) (int, string, string) {
 	return code, stdout, stderr
 }
 
-// keptKBs: the knowledge bases kept for the machine, read as a start reads
-// them.
-func keptKBs(t *testing.T) []addedKB {
+// keptList: the list kept for the machine, read as a start reads it.
+func keptList(t *testing.T) workerList {
 	t.Helper()
-	added, err := loadAddedKBs()
+	list, err := loadWorkerList()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return added
+	return list
 }
 
 // An added knowledge base is its entry in the worker's document but for its
-// engines, member for member: a member the schema gains is one `add` keeps,
-// or the entry the launcher writes from it lacks it.
+// engines, member for member, plus the local knowledge base whose engines it
+// is offered: a member the schema gains is one `add` keeps, or the entry the
+// launcher writes from it lacks it.
 func TestAnAddedKnowledgeBaseIsAWorkerEntryButItsEngines(t *testing.T) {
 	members := func(of reflect.Type, but string) map[string]reflect.StructField {
 		fields := map[string]reflect.StructField{}
@@ -80,7 +116,10 @@ func TestAnAddedKnowledgeBaseIsAWorkerEntryButItsEngines(t *testing.T) {
 		return fields
 	}
 	entry := members(reflect.TypeFor[api.WorkerKnowledgeBaseConfig](), "engines")
-	kept := members(reflect.TypeFor[addedKB](), "")
+	kept := members(reflect.TypeFor[addedKB](), "enginesOf")
+	if f, ok := reflect.TypeFor[addedKB]().FieldByName("EnginesOf"); !ok || f.Tag.Get("json") != "enginesOf" || f.Type.Kind() != reflect.String {
+		t.Error("an added knowledge base keeps no enginesOf: the local knowledge base whose engines it is offered")
+	}
 	if len(entry) == 0 {
 		t.Fatal("the entry has no member: a gate that checks nothing passes on silence")
 	}
@@ -96,10 +135,10 @@ func TestAnAddedKnowledgeBaseIsAWorkerEntryButItsEngines(t *testing.T) {
 	}
 }
 
-// With none added, the document names one knowledge base: the one the start
-// runs, at the gateway and issuer it places, as this machine's own worker,
-// offered the engines the Inference document gives jobs.
-func TestAStartWithNoKnowledgeBaseAddedServesItsOwnAlone(t *testing.T) {
+// A local knowledge base's entry is where its start places it: its domain,
+// the gateway and issuer the start places, signed in at as this machine's own
+// worker, offered the engines its Inference document gives jobs.
+func TestALocalEntryIsWhereItsStartPlacesIt(t *testing.T) {
 	p := placed(t, threeEngines(t))
 	engines, err := workerEngines(p)
 	if err != nil {
@@ -116,82 +155,143 @@ func TestAStartWithNoKnowledgeBaseAddedServesItsOwnAlone(t *testing.T) {
 	}
 }
 
-// Each added knowledge base follows the start's own, in the order they are
-// kept, with its own gateway, issuer and client, and the engines the start
-// offers its own: the same documents are the same document every time.
-func TestAddedKnowledgeBasesFollowTheStartsOwnWithItsEngines(t *testing.T) {
-	added := []addedKB{
-		addedKBOf("a.example:kb", "https://a.example", "https://id.a.example/realms/a", "semiont-worker-alice"),
-		addedKBOf("b.example:kb", "https://b.example", "https://id.b.example/realms/b", "semiont-worker-bob"),
+// The worker's document serves each local knowledge base, then each added
+// one, offered the engines of the local one it names; an added one whose
+// local one is not on the list is left out, and said. The same list is the
+// same document every time.
+func TestTheListServesEachAddedWithItsLendersEngines(t *testing.T) {
+	list := workerList{
+		Local: []api.WorkerKnowledgeBaseConfig{
+			localEntryOf("a.example:local", "http://192.168.64.1:14000", ""),
+			localEntryOf("b.example:local", "http://192.168.64.1:14001", "ANTHROPIC_API_KEY"),
+		},
+		Added: []addedKB{
+			addedKBOf("x.example:kb", "https://x.example", "https://id.x/realms/x", "semiont-worker-alice", "b.example:local"),
+			addedKBOf("y.example:kb", "https://y.example", "https://id.y/realms/y", "semiont-worker-alice", "gone.example:local"),
+			addedKBOf("z.example:kb", "https://z.example", "https://id.z/realms/z", "semiont-worker-alice", "a.example:local"),
+		},
 	}
-	p := placed(t, threeEngines(t))
-	b, err := workerDocument(p, exampleKB.Domain, added)
+	entries, unserved := list.served()
+	var domains []string
+	for _, e := range entries {
+		domains = append(domains, e.Domain)
+	}
+	if want := []string{"a.example:local", "b.example:local", "x.example:kb", "z.example:kb"}; !reflect.DeepEqual(domains, want) {
+		t.Fatalf("the document serves %v, want %v", domains, want)
+	}
+	if !reflect.DeepEqual(entries[2], list.Added[0].entry(list.Local[1].Engines)) || !reflect.DeepEqual(entries[3], list.Added[2].entry(list.Local[0].Engines)) {
+		t.Errorf("an added knowledge base is not offered its lender's engines: %+v", entries[2:])
+	}
+	if len(unserved) != 1 || unserved[0].Domain != "y.example:kb" {
+		t.Errorf("unserved %+v, want y.example:kb, whose lender is not on the list", unserved)
+	}
+	b, err := workerDocument(entries, catalogWorkerPoolDocument)
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc := workerDocumentFrom(t, b)
-	var domains []string
-	for _, kb := range doc.KnowledgeBases {
-		domains = append(domains, kb.Domain)
-	}
-	if want := []string{exampleKB.Domain, "a.example:kb", "b.example:kb"}; !reflect.DeepEqual(domains, want) {
-		t.Fatalf("knowledgeBases name %v, want %v", domains, want)
-	}
-	own := doc.KnowledgeBases[0]
-	for i, kb := range doc.KnowledgeBases[1:] {
-		got, err := json.Marshal(kb)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if want, _ := json.Marshal(added[i].entry(own.Engines)); string(got) != string(want) {
-			t.Errorf("knowledgeBases[%d] = %s\nwant %s", i+1, got, want)
-		}
-	}
 	for i := 0; i < 20; i++ {
-		again, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, added)
-		if err != nil {
-			t.Fatal(err)
-		}
+		again, _ := workerDocument(entries, catalogWorkerPoolDocument)
 		if string(again) != string(b) {
-			t.Fatalf("the same documents gave two worker documents:\n%s\nand\n%s", b, again)
+			t.Fatalf("the same list gave two worker documents:\n%s\nand\n%s", b, again)
 		}
 	}
 }
 
-// A start of a knowledge base that is among those added is refused, saying how
-// to remove it: the worker would serve it twice, and refuses a document that
-// names one domain twice.
-func TestAKnowledgeBaseAddedToItsOwnStartIsRefused(t *testing.T) {
-	p := placed(t, fixtureStack(t, "anthropic"))
-	added := []addedKB{
-		addedKBOf("a.example:kb", "https://a.example", "https://id.a.example/realms/a", "semiont-worker-alice"),
-		addedKBOf(exampleKB.Domain, "https://example.github.io", "https://id.example/realms/kb", "semiont-worker-alice"),
+// A start takes off the list its own old entry, which it places afresh, and
+// every other local knowledge base whose gateway was on the port its own
+// takes: none of those answers there now, and the worker refuses for good a
+// knowledge base that answers as another. One on another port stays, as do
+// the added ones.
+func TestAStartDisplacesTheLocalKnowledgeBasesOnItsGatewayPort(t *testing.T) {
+	harness.Home(t)
+	added := addedKBOf("x.example:kb", "https://x.example", "https://id.x/realms/x", "semiont-worker-alice", "c.example:local")
+	if err := saveWorkerList(workerList{
+		Local: []api.WorkerKnowledgeBaseConfig{
+			localEntryOf("a.example:local", "http://192.168.64.1:14000", ""),
+			localEntryOf("b.example:local", "http://192.168.64.1:14000", ""),
+			localEntryOf("c.example:local", "http://192.168.64.1:14001", ""),
+			localEntryOf("d.example:local", "http://192.168.64.2:14000", ""),
+		},
+		Added: []addedKB{added},
+	}); err != nil {
+		t.Fatal(err)
 	}
-	_, err := workerDocument(p, exampleKB.Domain, added)
+	serving, err := planWorkerServing("b.example:local", 14000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"a.example:local", "d.example:local"}; !reflect.DeepEqual(serving.displaced, want) {
+		t.Errorf("displaced %v, want %v: every other local one on port 14000, whatever its address", serving.displaced, want)
+	}
+	if len(serving.others.Local) != 1 || serving.others.Local[0].Domain != "c.example:local" {
+		t.Errorf("the others on the list are %+v, want c.example:local alone", serving.others.Local)
+	}
+	if !reflect.DeepEqual(serving.others.Added, []addedKB{added}) {
+		t.Errorf("the added ones are %+v, want them as they were", serving.others.Added)
+	}
+	if after := keptList(t); len(after.Local) != 4 {
+		t.Errorf("planning changed the list kept: %+v", after)
+	}
+}
+
+// A start of a knowledge base that is added to the worker as one someone else
+// runs is refused, saying how to remove it: the worker refuses a document
+// that names one domain twice.
+func TestAKnowledgeBaseAddedToItsOwnStartIsRefused(t *testing.T) {
+	harness.Home(t)
+	if err := saveWorkerList(workerList{Added: []addedKB{
+		addedKBOf("a.example:kb", "https://a.example", "https://id.a.example/realms/a", "semiont-worker-alice", "c.example:local"),
+		addedKBOf(exampleKB.Domain, "https://example.github.io", "https://id.example/realms/kb", "semiont-worker-alice", "c.example:local"),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := planWorkerServing(exampleKB.Domain, 14000)
 	if err == nil || !strings.Contains(err.Error(), "semiont worker kb remove "+exampleKB.Domain) {
 		t.Errorf("want a refusal saying how to remove %s, got %v", exampleKB.Domain, err)
 	}
 }
 
-// `add` asks the gateway which issuer it trusts and keeps that, to its owner,
-// for the machine: what a start reads.
+// The worker is handed the key of every engine its list names: this start's,
+// and each other local knowledge base's; and the knowledge base whose engines
+// alone name one is the one a missing key's refusal names.
+func TestTheWorkerIsHandedEveryKeyItsListNames(t *testing.T) {
+	p := placed(t, fixtureStack(t, "ollama-gemma"))
+	p.plan.Serving.others.Local = []api.WorkerKnowledgeBaseConfig{
+		localEntryOf("a.example:local", "http://192.168.64.1:14001", "ANTHROPIC_API_KEY"),
+		localEntryOf("b.example:local", "http://192.168.64.1:14002", "OTHER_KEY"),
+	}
+	if got := workerSecrets(p); !reflect.DeepEqual(got, []string{"ANTHROPIC_API_KEY", "OTHER_KEY"}) {
+		t.Errorf("the worker is handed %v, want both listed knowledge bases' keys", got)
+	}
+	if kb, ok := p.plan.Serving.keyNamer("OTHER_KEY"); !ok || kb != "b.example:local" {
+		t.Errorf("OTHER_KEY is named by %q, want b.example:local", kb)
+	}
+	if _, ok := p.plan.Serving.keyNamer("UNNAMED"); ok {
+		t.Error("a variable no listed engine names has a namer")
+	}
+}
+
+// `add`, run inside a local knowledge base on the list, asks the gateway which
+// issuer it trusts and keeps that, with the local knowledge base whose
+// engines it is offered, to its owner, for the machine: what a start reads.
 func TestWorkerKBAddKeepsWhatTheGatewayNames(t *testing.T) {
 	harness.Home(t)
+	lender := insideLocalKB(t)
 	gateway := gatewayNaming(t, "https://id.other.example/realms/kb")
 	code, stdout, stderr := workerOutput(t, "kb", "add", "other.example:kb", "--gateway", gateway, "--client-id", "semiont-worker-alice")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	harness.MustContainAll(t, "stdout", stdout, "added other.example:kb", "https://id.other.example/realms/kb", "semiont-worker-alice")
-	want := []addedKB{addedKBOf("other.example:kb", gateway, "https://id.other.example/realms/kb", "semiont-worker-alice")}
-	if got := keptKBs(t); !reflect.DeepEqual(got, want) {
+	harness.MustContainAll(t, "stdout", stdout, "added other.example:kb", "https://id.other.example/realms/kb", "semiont-worker-alice", "Engines of: "+lender)
+	want := []addedKB{addedKBOf("other.example:kb", gateway, "https://id.other.example/realms/kb", "semiont-worker-alice", lender)}
+	if got := keptList(t).Added; !reflect.DeepEqual(got, want) {
 		t.Errorf("kept %+v, want %+v", got, want)
 	}
-	kept := filepath.Join(machineStateDir(), addedKBsFile)
+	kept := workerListPath()
 	if fi, err := os.Stat(kept); err != nil {
 		t.Fatalf("nothing is kept for the machine: %v", err)
 	} else if fi.Mode().Perm()&0o077 != 0 {
-		t.Errorf("the added knowledge bases are readable beyond their owner: %v", fi.Mode().Perm())
+		t.Errorf("the worker's list is readable beyond its owner: %v", fi.Mode().Perm())
 	}
 	if _, err := os.Stat(kept + ".tmp"); !os.IsNotExist(err) {
 		t.Errorf("the write left its temporary file: %v", err)
@@ -202,6 +302,7 @@ func TestWorkerKBAddKeepsWhatTheGatewayNames(t *testing.T) {
 // others; the kept order is the domains', whatever order they were added in.
 func TestWorkerKBAddOfADomainAddedReplacesIt(t *testing.T) {
 	harness.Home(t)
+	lender := insideLocalKB(t)
 	first, second := gatewayNaming(t, "https://id.one/realms/kb"), gatewayNaming(t, "https://id.two/realms/kb")
 	for _, args := range [][]string{
 		{"kb", "add", "z.example:kb", "--gateway", first, "--client-id", "semiont-worker-alice"},
@@ -217,19 +318,21 @@ func TestWorkerKBAddOfADomainAddedReplacesIt(t *testing.T) {
 	}
 	harness.MustContainAll(t, "stdout", stdout, "replaced z.example:kb, which was added already")
 	want := []addedKB{
-		addedKBOf("a.example:kb", first, "https://id.one/realms/kb", "semiont-worker-alice"),
-		addedKBOf("z.example:kb", second, "https://id.two/realms/kb", "semiont-worker-zed"),
+		addedKBOf("a.example:kb", first, "https://id.one/realms/kb", "semiont-worker-alice", lender),
+		addedKBOf("z.example:kb", second, "https://id.two/realms/kb", "semiont-worker-zed", lender),
 	}
-	if got := keptKBs(t); !reflect.DeepEqual(got, want) {
+	if got := keptList(t).Added; !reflect.DeepEqual(got, want) {
 		t.Errorf("kept %+v, want %+v", got, want)
 	}
 }
 
 // A gateway that cannot be reached, or names no issuer, adds nothing: the
 // worker could sign in nowhere. Nor does anything `add` must not keep: a
-// domain that names no knowledge base, or a gateway or client left out.
+// domain that names no knowledge base, a gateway or client left out, or a
+// domain that is a local knowledge base on the list.
 func TestWorkerKBAddThatFailsKeepsNothing(t *testing.T) {
 	harness.Home(t)
+	lender := insideLocalKB(t)
 	named := gatewayNaming(t, "https://id.other.example/realms/kb")
 	for _, c := range []struct {
 		args []string
@@ -242,6 +345,7 @@ func TestWorkerKBAddThatFailsKeepsNothing(t *testing.T) {
 		{[]string{"kb", "add", "other.example:kb", "--gateway", named}, "add needs --gateway <url> and --client-id <id>"},
 		{[]string{"kb", "add", "--gateway", named, "--client-id", "semiont-worker-alice"}, "add takes one domain"},
 		{[]string{"kb", "add", "other.example:kb", "--gateway", named, "--client-id", "semiont-worker-alice", "--issuer", "x"}, "Unknown flag: --issuer"},
+		{[]string{"kb", "add", lender, "--gateway", named, "--client-id", "semiont-worker-alice"}, lender + " is a local knowledge base on this machine's worker's list"},
 	} {
 		code, _, stderr := workerOutput(t, c.args...)
 		if code != 1 {
@@ -249,72 +353,128 @@ func TestWorkerKBAddThatFailsKeepsNothing(t *testing.T) {
 		}
 		harness.MustContainAll(t, "stderr", stderr, c.want)
 	}
-	if _, err := os.Stat(filepath.Join(machineStateDir(), addedKBsFile)); !os.IsNotExist(err) {
-		t.Errorf("a failed add kept something: %v", err)
+	if added := keptList(t).Added; len(added) != 0 {
+		t.Errorf("a failed add kept %+v", added)
 	}
 }
 
-// `remove` takes that knowledge base out and no other; one not added is
-// refused, naming what is. The last removed leaves no file, as before the
-// first was added.
-func TestWorkerKBRemoveTakesOutThatOneAlone(t *testing.T) {
+// `add` offers the one added a local knowledge base's engines, so it runs
+// inside one on the list: outside every knowledge base, or inside one not on
+// the list, it adds nothing.
+func TestWorkerKBAddRunsInsideALocalKnowledgeBaseOnTheList(t *testing.T) {
 	harness.Home(t)
-	if err := saveAddedKBs([]addedKB{
-		addedKBOf("a.example:kb", "https://a.example", "https://id.a/realms/a", "semiont-worker-alice"),
-		addedKBOf("b.example:kb", "https://b.example", "https://id.b/realms/b", "semiont-worker-alice"),
+	named := gatewayNaming(t, "https://id.other.example/realms/kb")
+	add := []string{"kb", "add", "other.example:kb", "--gateway", named, "--client-id", "semiont-worker-alice"}
+
+	lender := insideLocalKB(t)
+	if err := saveWorkerList(workerList{}); err != nil {
+		t.Fatal(err)
+	}
+	code, _, stderr := workerOutput(t, add...)
+	if code != 1 {
+		t.Errorf("inside a knowledge base not on the list: exit %d, want 1", code)
+	}
+	harness.MustContainAll(t, "stderr", stderr, lender+" is not on this machine's worker's list", "A start of it puts it there")
+
+	t.Chdir(t.TempDir())
+	code, _, stderr = workerOutput(t, add...)
+	if code != 1 {
+		t.Errorf("outside a knowledge base: exit %d, want 1", code)
+	}
+	harness.MustContainAll(t, "stderr", stderr, "add runs inside a local knowledge base on this machine's worker's list")
+	if _, err := os.Stat(workerListPath()); !os.IsNotExist(err) {
+		t.Errorf("a refused add kept a list: %v", err)
+	}
+}
+
+// `remove` takes that knowledge base off the list and no other, an added one
+// or a local one; a local one whose engines an added one is offered is
+// refused, naming it; one not on the list is refused, naming what is. The
+// last taken off leaves no file, as before anything was put on it.
+func TestWorkerKBRemoveTakesOffThatOneAlone(t *testing.T) {
+	harness.Home(t)
+	if err := saveWorkerList(workerList{
+		Local: []api.WorkerKnowledgeBaseConfig{
+			localEntryOf("a.example:local", "http://192.168.64.1:14000", ""),
+			localEntryOf("b.example:local", "http://192.168.64.1:14001", ""),
+		},
+		Added: []addedKB{addedKBOf("x.example:kb", "https://x.example", "https://id.x/realms/x", "semiont-worker-alice", "b.example:local")},
 	}); err != nil {
 		t.Fatal(err)
 	}
 	code, _, stderr := workerOutput(t, "kb", "remove", "c.example:kb")
 	if code != 1 {
-		t.Errorf("remove of a knowledge base not added: exit %d, want 1", code)
+		t.Errorf("remove of a knowledge base not on the list: exit %d, want 1", code)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "c.example:kb is not added", "Added: a.example:kb, b.example:kb")
+	harness.MustContainAll(t, "stderr", stderr, "c.example:kb is not on this machine's worker's list", "On it: a.example:local, b.example:local, x.example:kb")
 
-	if code, _, stderr := workerOutput(t, "kb", "remove", "a.example:kb"); code != 0 {
-		t.Fatalf("exit %d\n%s", code, stderr)
-	}
-	if got := keptKBs(t); len(got) != 1 || got[0].Domain != "b.example:kb" {
-		t.Errorf("kept %+v, want b.example:kb alone", got)
-	}
-	if code, _, stderr := workerOutput(t, "kb", "remove", "b.example:kb"); code != 0 {
-		t.Fatalf("exit %d\n%s", code, stderr)
-	}
-	if _, err := os.Stat(filepath.Join(machineStateDir(), addedKBsFile)); !os.IsNotExist(err) {
-		t.Errorf("none added left a file: %v", err)
-	}
-	code, _, stderr = workerOutput(t, "kb", "remove", "b.example:kb")
+	code, _, stderr = workerOutput(t, "kb", "remove", "b.example:local")
 	if code != 1 {
-		t.Errorf("remove with none added: exit %d, want 1", code)
+		t.Errorf("remove of a lender: exit %d, want 1", code)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "None is added")
+	harness.MustContainAll(t, "stderr", stderr, "b.example:local's engines are offered to x.example:kb")
+
+	for _, domain := range []string{"a.example:local", "x.example:kb"} {
+		if code, _, stderr := workerOutput(t, "kb", "remove", domain); code != 0 {
+			t.Fatalf("remove %s: exit %d\n%s", domain, code, stderr)
+		}
+	}
+	if got := keptList(t); len(got.Local) != 1 || got.Local[0].Domain != "b.example:local" || len(got.Added) != 0 {
+		t.Errorf("kept %+v, want b.example:local alone", got)
+	}
+	if code, _, stderr := workerOutput(t, "kb", "remove", "b.example:local"); code != 0 {
+		t.Fatalf("exit %d\n%s", code, stderr)
+	}
+	if _, err := os.Stat(workerListPath()); !os.IsNotExist(err) {
+		t.Errorf("an empty list left a file: %v", err)
+	}
+	code, _, stderr = workerOutput(t, "kb", "remove", "b.example:local")
+	if code != 1 {
+		t.Errorf("remove with nothing on the list: exit %d, want 1", code)
+	}
+	harness.MustContainAll(t, "stderr", stderr, "Nothing is.")
 }
 
-// `list` prints each knowledge base added, with what is kept of it; with none
-// it says so, and prints nothing a pipe would read.
+// `list` prints each knowledge base on the list, the local ones first, with
+// what is kept of it; with nothing on it it says so, and prints nothing a
+// pipe would read.
 func TestWorkerKBListPrintsWhatIsKept(t *testing.T) {
 	harness.Home(t)
 	code, stdout, stderr := workerOutput(t, "kb", "list")
 	if code != 0 || stdout != "" {
-		t.Errorf("with none added: exit %d, stdout %q", code, stdout)
+		t.Errorf("with nothing on the list: exit %d, stdout %q", code, stdout)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "No knowledge base is added")
+	harness.MustContainAll(t, "stderr", stderr, "Nothing is on this machine's worker's list")
 
-	if err := saveAddedKBs([]addedKB{addedKBOf("a.example:kb", "https://a.example", "https://id.a/realms/a", "semiont-worker-alice")}); err != nil {
+	if err := saveWorkerList(workerList{
+		Local: []api.WorkerKnowledgeBaseConfig{localEntryOf("b.example:local", "http://192.168.64.1:14000", "")},
+		Added: []addedKB{addedKBOf("a.example:kb", "https://a.example", "https://id.a/realms/a", "semiont-worker-alice", "b.example:local")},
+	}); err != nil {
 		t.Fatal(err)
 	}
 	code, stdout, stderr = workerOutput(t, "kb", "list")
 	if code != 0 {
 		t.Fatalf("exit %d\n%s", code, stderr)
 	}
-	harness.MustContainAll(t, "stdout", stdout, "a.example:kb\n", "Gateway:    https://a.example\n", "Issuer:     https://id.a/realms/a\n", "Client id:  semiont-worker-alice\n")
+	want := "b.example:local (local)\n" +
+		"  Gateway:    http://192.168.64.1:14000\n" +
+		"  Issuer:     http://keycloak.localhost:8080/realms/semiont\n" +
+		"  Client id:  " + serviceClientID("worker") + "\n" +
+		"a.example:kb (added)\n" +
+		"  Gateway:    https://a.example\n" +
+		"  Issuer:     https://id.a/realms/a\n" +
+		"  Client id:  semiont-worker-alice\n" +
+		"  Engines of: b.example:local\n"
+	if stdout != want {
+		t.Errorf("list printed:\n%s\nwant:\n%s", stdout, want)
+	}
 }
 
 // What is kept and cannot be read is refused by every verb that reads it, and
-// by the start, naming the file: never read as none added.
+// by the start, naming the file: never read as an empty list.
 func TestAnUnreadableKeptFileIsRefused(t *testing.T) {
 	harness.Home(t)
-	kept := filepath.Join(machineStateDir(), addedKBsFile)
+	kept := workerListPath()
 	if err := writeOwnerOnly(kept, []byte(`[{"domain": "a.example:kb", "engines": []}]`)); err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +487,10 @@ func TestAnUnreadableKeptFileIsRefused(t *testing.T) {
 		if code != 1 {
 			t.Errorf("%v: exit %d, want 1", args, code)
 		}
-		harness.MustContainAll(t, "stderr", stderr, kept, "does not hold the knowledge bases added")
+		harness.MustContainAll(t, "stderr", stderr, kept, "does not hold the knowledge bases this machine's worker serves")
+	}
+	if _, err := planWorkerServing(exampleKB.Domain, 14000); err == nil || !strings.Contains(err.Error(), kept) {
+		t.Errorf("a start read an unreadable list as %v, want its refusal naming %s", err, kept)
 	}
 }
 
