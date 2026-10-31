@@ -131,15 +131,23 @@ interface SessionStorage {
   get(key: string): string | null;
   set(key: string, value: string): void;
   delete(key: string): void;
-  subscribe?(handler: (key: string, newValue: string | null) => void): () => void;
+  update(key: string, change: (stored: string | null) => string | null): void;
+  subscribe(handler: (key: string, newValue: string | null) => void): (() => void) | null;
 }
 ```
 
+`update` changes a key's value as one step: `change` is given what is
+stored and says what is stored next, so no other writer's change falls
+between the read and the write. `subscribe` hears what another context
+writes, and answers null where no other context writes.
+
 Implementations:
 
-- `InMemorySessionStorage` (in `@semiont/sdk`) — for tests / in-memory.
-- `WebBrowserStorage` (in `@semiont/react-ui`) — wraps `localStorage` and
-  the `window` `storage` event for cross-tab sync.
+- `InMemorySessionStorage` (in `@semiont/sdk`) — for scripts and tests; no
+  other context writes it.
+- `WebBrowserStorage` (in `@semiont/react-ui`) — wraps `localStorage`, read
+  and written in one synchronous step by `update`, and the `window`
+  `storage` event for cross-tab sync.
 
 ## React surface
 
@@ -310,8 +318,8 @@ wiring required.
 
 ## Testing
 
-Tests use `InMemorySessionStorage` (or a simple subclass adding
-`subscribe()` for cross-context sync simulation) to drive session state
+Tests use `InMemorySessionStorage` (or a simple subclass whose
+`subscribe()` simulates cross-context sync) to drive session state
 without depending on jsdom's `localStorage`. See
 `packages/typescript/sdk/src/session/__tests__/test-storage-helpers.ts` for
 the test harness pattern.

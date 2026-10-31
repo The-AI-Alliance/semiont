@@ -49,9 +49,9 @@
  * NOT YET REACHED. An SDK that is to have something and does not yet says
  * so in `notYetReached`, with what is to be built for it: on a member, or on
  * the whole of a namespace, of what a worker is handed, of a state unit, of
- * the bus over the wire or of a module. It is held as `absent` is, and is
- * stale once the SDK has what it names. A whole that is not yet reached needs
- * no `made` or `where` for that SDK.
+ * the bus over the wire, of the storage or of a module. It is held as
+ * `absent` is, and is stale once the SDK has what it names. A whole that is
+ * not yet reached needs no `made` or `where` for that SDK.
  *
  * WHAT A WORKER IS HANDED. The table's `worker` section lists the members of
  * the claims `job.claim` returns and of a job the worker holds, and each SDK
@@ -148,6 +148,23 @@
  * packages/go/sdk, with the package's exported functions that take it: a Go
  * method takes no type parameters, so a member generic in its channel is a
  * function of the package (`Emit(ctx, w, bus.MarkSubmit, payload)`).
+ *
+ * THE STORAGE. The table's `storage` entry is where a client keeps text
+ * under a key, the interface an application implements: what each SDK makes
+ * it as (`made`), and its members by name. Each SDK is held to it as to the
+ * bus, both ways:
+ *
+ * - a storage an SDK does not declare;
+ * - a member the table lists that an SDK's storage lacks;
+ * - a public member an SDK's storage has that the table does not list;
+ * - a member the table says an SDK's storage lacks (`absent`) that it has.
+ *
+ * TypeScript's storage is an interface of packages/typescript/sdk/src,
+ * Python's a class of packages/python/sdk/src/semiont (a `Protocol`) and
+ * Kotlin's an interface of packages/kotlin/sdk/src/main/kotlin/semiont, each
+ * read as a unit's is; Go's is the exported methods of its interface in the
+ * root package, packages/go/sdk, and Rust's the functions of its trait in
+ * packages/rust/sdk/src. What implements a storage is not read.
  *
  * Which files a directory holds, and whether a schema exists, is what git says
  * the repository holds (`repository-files.mjs`).
@@ -360,6 +377,27 @@ function rustShape(isAsync, returns) {
   if (isAsync && returns === 'Result<Option<u64>, SemiontError>') return 'count';
   if (isAsync && returns.startsWith('Result<')) return 'promise';
   return undefined;
+}
+
+/**
+ * Rust's trait under `directory`, given its name: the functions it declares,
+ * each as the table spells it, a trait's functions being public. A default
+ * function's body is none of it; an associated type or constant is a
+ * failure: this reads none.
+ */
+function rustTrait(made, directory) {
+  const header = new RegExp(`^pub trait ${made}\\b[^{;]*\\{`, 'm');
+  const found = sources(directory, '.rs').map((file) => ({ file, source: withoutComments(read(file), '"') })).filter(({ source }) => header.test(source));
+  if (found.length === 0) return undefined;
+  if (found.length > 1) fail(`${found.map(({ file }) => file).join(', ')}: \`pub trait ${made}\` is declared ${found.length} times, and this reads the one`);
+  const [{ file, source }] = found;
+  const opened = header.exec(source);
+  const members = new Set();
+  for (const item of outsideBrackets(braced(source, opened.index + opened[0].length - 1)).matchAll(/\b(fn|type|const)\s+(\w+)/g)) {
+    if (item[1] === 'fn') members.add(camel(item[2]));
+    else fail(`${file}: \`trait ${made}\` declares the ${item[1]} ${item[2]}, which this lint does not read`);
+  }
+  return { where: `trait ${made} in ${file}`, members };
 }
 
 /** namespace → method → { shape, returns } */
@@ -654,6 +692,45 @@ function goWire(made) {
     }
   }
   return { where: `${made} in ${declared[0].file}`, members };
+}
+
+/**
+ * Go's interface of the root package, given its name: its exported methods,
+ * each as the table spells it. A line of it that is no method, an interface
+ * it embeds among them, is a failure: this reads none.
+ */
+function goInterface(made) {
+  const found = goFiles().flatMap(({ file, code }) => [...code.matchAll(new RegExp(`^type ${made} interface\\s*\\{`, 'gm'))].map((header) => ({ file, code, header })));
+  if (found.length === 0) return undefined;
+  if (found.length > 1) fail(`${found.map(({ file }) => file).join(', ')}: \`type ${made} interface\` is declared ${found.length} times, and this reads the one`);
+  const [{ file, code, header }] = found;
+  const open = header.index + header[0].length - 1;
+  const members = new Set();
+  for (const line of outsideBrackets(code.slice(open + 1, goClosing(code, open) - 1)).split(/[\n;]/).map(squeezed).filter((text) => text !== '')) {
+    const method = /^([A-Za-z_]\w*)\s*\(/.exec(line);
+    if (!method) {
+      fail(`${file}: \`type ${made} interface\` has a line that is no method: ${line}`);
+      continue;
+    }
+    if (/^[A-Z]/.test(method[1])) members.add(tableName(method[1]));
+  }
+  return { where: `interface ${made} in ${file}`, members };
+}
+
+/** `text` with what is inside each bracket left out, the outermost brackets kept: `Get(key string) (string, bool)` is `Get() ()`. */
+function outsideBrackets(text) {
+  let out = '';
+  let depth = 0;
+  for (const c of text) {
+    if ('([{'.includes(c)) {
+      if (depth === 0) out += c;
+      depth++;
+    } else if (')]}'.includes(c)) {
+      depth--;
+      if (depth === 0) out += c;
+    } else if (depth === 0) out += c;
+  }
+  return out;
 }
 
 // ── Kotlin ──────────────────────────────────────────────────────────────
@@ -977,14 +1054,14 @@ function kotlinWorker() {
   return said.any ? undefined : worker;
 }
 
-/** What Kotlin makes a unit as, read as every reader of a unit reads it. `close` is a Kotlin unit's dispose, and no member. */
+/** What Kotlin makes a unit as, read as every reader of a unit reads it. */
 function kotlinUnit(made, directory) {
   const types = kotlinTypes(kotlinSources(directory));
   const found = types.filter((type) => type.name === made);
   if (found.length === 0) return undefined;
   if (found.length > 1) fail(`${found.map(({ file }) => file).join(', ')}: \`${made}\` is declared ${found.length} times, and this reads the one`);
   const [type] = found;
-  const members = new Set([...kotlinMembers(type, types, (what) => fail(`${type.file}: ${what}`)).keys()].filter((member) => member !== 'close'));
+  const members = new Set(kotlinMembers(type, types, (what) => fail(`${type.file}: ${what}`)).keys());
   return { where: `${type.keyword} ${made} in ${type.file}`, isUnit: type.supertypes.includes('StateUnit'), members };
 }
 
@@ -1534,14 +1611,16 @@ for (const [sdk, readWorker] of Object.entries(WORKERS)) {
 
 /**
  * Each SDK whose state units this reads: its reader of one unit, where its
- * units are declared, and its reader of every unit it declares.
+ * units are declared, its reader of every unit it declares, and what it
+ * names a unit's `dispose`, which every unit has, being a StateUnit, and is
+ * no member.
  */
 const UNITS = {
-  typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits },
-  rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits },
-  python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits },
-  go: { read: goUnit, sources: GO_SDK, declared: goUnits },
-  kotlin: { read: kotlinUnit, sources: KOTLIN_SDK, declared: kotlinUnits },
+  typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits, dispose: 'dispose' },
+  rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits, dispose: 'dispose' },
+  python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits, dispose: 'dispose' },
+  go: { read: goUnit, sources: GO_SDK, declared: goUnits, dispose: 'close' },
+  kotlin: { read: kotlinUnit, sources: KOTLIN_SDK, declared: kotlinUnits, dispose: 'close' },
 };
 const UNIT_SDKS = Object.keys(UNITS);
 
@@ -1629,7 +1708,7 @@ function typescriptUnit(made, directory) {
         fail(`${file}: \`interface ${made}\` has a member that is neither a property nor a method: ${text}`);
         continue;
       }
-      if (named[1] !== 'dispose') members.add(named[1]);
+      members.add(named[1]);
     }
   } else {
     for (const declaration of classDeclarations(body)) {
@@ -1640,7 +1719,7 @@ function typescriptUnit(made, directory) {
         fail(`${file}: \`class ${made}\` has a declaration that is neither a property nor a method of its own: ${declaration}`);
         continue;
       }
-      if (named !== 'dispose') members.add(named);
+      members.add(named);
     }
   }
   const stated = splitOutside(header[1] ?? '', ',').map(squeezed);
@@ -1689,7 +1768,7 @@ function pythonUnit(made, directory) {
     ...[...body.matchAll(/\bself\.(\w+)\s*(?::[^=\n]+)?=(?!=)/g)].map((attribute) => attribute[1]),
   ];
   for (const name of named) {
-    if (!name.startsWith('_') && name !== 'dispose') members.add(camel(name));
+    if (!name.startsWith('_')) members.add(camel(name));
   }
   const bases = splitOutside(header[1] ?? '', ',').map(squeezed);
   return { where: `class ${made} in ${file}`, isUnit: bases.includes('StateUnit'), members };
@@ -1717,7 +1796,7 @@ const goStructHeader = (name) => new RegExp(`^type ${name}(?:\\[[^\\]\\n]*\\])?\
 /**
  * The members of `type <name> struct`, declared once among files: its
  * exported fields and methods, and those of each struct it embeds, each as
- * the table spells it. `Close`, a Go unit's dispose, is none.
+ * the table spells it.
  */
 function goStructMembers(name, files) {
   const members = new Set();
@@ -1746,7 +1825,7 @@ function goStructMembers(name, files) {
   const method = new RegExp(`^func \\(\\s*(?:\\w+\\s+)?\\*?${name}(?:\\[[^\\]\\n]*\\])?\\s*\\)\\s*([A-Z]\\w*)\\s*[[(]`, 'gm');
   for (const { code: other } of files) {
     for (const declared of other.matchAll(method)) {
-      if (declared[1] !== 'Close') members.add(tableName(declared[1]));
+      members.add(tableName(declared[1]));
     }
   }
   return members;
@@ -1803,10 +1882,11 @@ for (const [sdk, { declared }] of Object.entries(UNITS)) {
 
 for (const [name, unit] of units) {
   const row = `the \`${name}\` row of \`stateUnits\` in ${TABLE}`;
-  for (const [sdk, { read: readUnit, sources: where }] of Object.entries(UNITS)) {
+  for (const [sdk, { read: readUnit, sources: where, dispose }] of Object.entries(UNITS)) {
     const made = unit.made?.[sdk];
     if (typeof made !== 'string') continue;
     const declared = readUnit(made, where);
+    declared?.members.delete(dispose);
     if (unit.absent?.[sdk] !== undefined) {
       if (declared) fail(`${sdk} has ${declared.where}, and ${row} says ${sdk} has no ${name} unit: the row's \`absent\` is stale, so take ${sdk} out of it`);
       continue;
@@ -1821,21 +1901,69 @@ for (const [name, unit] of units) {
     }
     const its = `${sdk}'s ${name} unit (${declared.where})`;
     if (!declared.isUnit) fail(`${its} is not a StateUnit: say so where it is declared, so it ends by \`dispose\` as every unit does`);
-    for (const [member, stated] of unit.members) {
-      if (stated.absent?.[sdk] !== undefined) {
-        if (declared.members.has(member)) fail(`${its} has ${member}, and ${row} says ${sdk}'s has none: the member's \`absent\` is stale, so take ${sdk} out of it`);
-        continue;
-      }
-      if (yetToReach(stated, sdk)) {
-        if (declared.members.has(member)) fail(`${its} has ${member}, and ${row} says ${sdk}'s has yet to have it (\`notYetReached\`): take ${sdk} out of the member's \`notYetReached\``);
-        continue;
-      }
-      if (!declared.members.has(member)) fail(`${its} has no ${member}, which ${row} lists: add it to the SDK, under that name, or say in the member's \`absent\` why ${sdk}'s has none`);
-    }
-    for (const member of declared.members) {
-      if (!unit.members.has(member)) fail(`${its} has ${member}, which ${row} does not list: rename it to the row's name for it, or add a row for it there before any SDK has it`);
-    }
+    heldToMembers(sdk, its, row, unit.members, declared.members);
   }
+}
+
+/**
+ * Hold the members `sdk` declares (`declared`, of what `its` names) to those
+ * `row` lists (`listed`, member → its row) both ways: a member the row lists
+ * that the SDK lacks, and one the SDK has that the row does not list. A
+ * member's `absent`, or its `notYetReached`, that names the SDK is stale once
+ * the SDK has it.
+ */
+function heldToMembers(sdk, its, row, listed, declared) {
+  for (const [member, stated] of listed) {
+    if (stated.absent?.[sdk] !== undefined) {
+      if (declared.has(member)) fail(`${its} has ${member}, and ${row} says ${sdk}'s has none: the member's \`absent\` is stale, so take ${sdk} out of it`);
+      continue;
+    }
+    if (yetToReach(stated, sdk)) {
+      if (declared.has(member)) fail(`${its} has ${member}, and ${row} says ${sdk}'s has yet to have it (\`notYetReached\`): take ${sdk} out of the member's \`notYetReached\``);
+      continue;
+    }
+    if (!declared.has(member)) fail(`${its} has no ${member}, which ${row} lists: add it to the SDK, under that name, or say in the member's \`absent\` why ${sdk}'s has none`);
+  }
+  for (const member of declared) {
+    if (!listed.has(member)) fail(`${its} has ${member}, which ${row} does not list: rename it to the row's name for it, or add a row for it there before any SDK has it`);
+  }
+}
+
+/**
+ * Read a section that states one thing every SDK has (`wire`, `storage`),
+ * named `row` in a message: what it is (`docs`), what each SDK of `roster`
+ * makes it as (`made`), and its members, each a name with an `absent` for
+ * each SDK that has none. `noun` is what a message calls the thing. Gives
+ * member → its row.
+ */
+function sectionMembers(section, row, roster, noun) {
+  const members = new Map();
+  const strays = Object.keys(section).filter((key) => !['docs', 'made', 'members', 'notYetReached'].includes(key));
+  if (strays.length > 0) fail(`${row} states ${strays.join(', ')}, which it does not: what the ${noun} does is its SDKs' tests' to hold`);
+  if (typeof section.docs !== 'string' || section.docs === '') fail(`${row} does not say what it is (\`docs\`)`);
+  heldWaiting(row, section, roster, noun);
+  for (const sdk of roster) {
+    if (yetToReach(section, sdk) && section.made?.[sdk] === undefined) continue;
+    if (typeof section.made?.[sdk] !== 'string' || !/^\w+$/.test(section.made[sdk])) fail(`${row} does not say what ${sdk} makes the ${noun} as (\`made\`)`);
+  }
+  for (const sdk of Object.keys(section.made ?? {})) {
+    if (!roster.includes(sdk)) fail(`${row}: \`made\` names "${sdk}", which is no SDK whose ${noun} this lint reads`);
+  }
+  if (!Array.isArray(section.members) || section.members.length === 0) fail(`${row} lists no member`);
+  for (const stated of section.members ?? []) {
+    const name = `${row}, member ${stated.member}`;
+    if (members.has(stated.member)) fail(`${name} is listed twice`);
+    members.set(stated.member, stated);
+    const others = Object.keys(stated).filter((key) => !['member', 'absent', 'notYetReached'].includes(key));
+    if (others.length > 0) fail(`${name} states ${others.join(', ')}, and a member of the ${noun} is its name, with an \`absent\` for each SDK that has none`);
+    heldWaiting(name, stated, roster, noun);
+    for (const [sdk, why] of Object.entries(stated.absent ?? {})) {
+      if (!roster.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose ${noun} this lint reads`);
+      if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);
+    }
+    if (roster.every((sdk) => stated.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+  }
+  return members;
 }
 
 // ── The bus over the wire ───────────────────────────────────────────────
@@ -1880,31 +2008,9 @@ const wire = table.wire;
 const wireRow = `\`wire\` in ${TABLE}`;
 if (typeof wire !== 'object' || wire === null || Array.isArray(wire)) fail(`${TABLE}: \`wire\` does not state the bus over a client's transport`);
 else {
-  const strays = Object.keys(wire).filter((key) => !['docs', 'made', 'members', 'notYetReached'].includes(key));
-  if (strays.length > 0) fail(`${wireRow} states ${strays.join(', ')}, which it does not: what the bus does is its SDKs' tests' to hold`);
-  if (typeof wire.docs !== 'string' || wire.docs === '') fail(`${wireRow} does not say what it is (\`docs\`)`);
-  heldWaiting(wireRow, wire, WIRE_SDKS, 'bus');
-  for (const sdk of WIRE_SDKS) {
-    if (yetToReach(wire, sdk) && wire.made?.[sdk] === undefined) continue;
-    if (typeof wire.made?.[sdk] !== 'string' || !/^\w+$/.test(wire.made[sdk])) fail(`${wireRow} does not say what ${sdk} makes the bus as (\`made\`)`);
-  }
-  for (const sdk of Object.keys(wire.made ?? {})) {
-    if (!WIRE_SDKS.includes(sdk)) fail(`${wireRow}: \`made\` names "${sdk}", which is no SDK whose bus this lint reads`);
-  }
-  if (!Array.isArray(wire.members) || wire.members.length === 0) fail(`${wireRow} lists no member`);
-  for (const row of wire.members ?? []) {
-    const name = `${wireRow}, member ${row.member}`;
-    if (wireMembers.has(row.member)) fail(`${name} is listed twice`);
-    wireMembers.set(row.member, row);
-    const others = Object.keys(row).filter((key) => !['member', 'absent', 'notYetReached'].includes(key));
-    if (others.length > 0) fail(`${name} states ${others.join(', ')}, and a member of the bus is its name, with an \`absent\` for each SDK that has none`);
-    heldWaiting(name, row, WIRE_SDKS, 'bus');
-    if (row.member === 'transport') fail(`${name}: a bus hands out no transport; a client's transport is the client's \`transport\`, and only there`);
-    for (const [sdk, why] of Object.entries(row.absent ?? {})) {
-      if (!WIRE_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose bus this lint reads`);
-      if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);
-    }
-    if (WIRE_SDKS.every((sdk) => row.absent?.[sdk] !== undefined)) fail(`${name} is absent from every SDK: it is no member`);
+  for (const [member, row] of sectionMembers(wire, wireRow, WIRE_SDKS, 'bus')) {
+    wireMembers.set(member, row);
+    if (member === 'transport') fail(`${wireRow}, member ${member}: a bus hands out no transport; a client's transport is the client's \`transport\`, and only there`);
   }
   for (const [sdk, { read: readBus, sources: where, handedOut }] of Object.entries(WIRES)) {
     if (yetToReach(wire, sdk)) {
@@ -1923,21 +2029,48 @@ else {
     if (!REPOSITORY.includes(handedOut.file) || !handedOut.says(made).test(read(handedOut.file))) {
       fail(`${handedOut.file}: ${sdk}'s client does not hand out its ${made} as \`wire\`, which ${wireRow} says every client does`);
     }
-    const its = `${sdk}'s bus (${declared.where})`;
-    for (const [member, stated] of wireMembers) {
-      if (stated.absent?.[sdk] !== undefined) {
-        if (declared.members.has(member)) fail(`${its} has ${member}, and ${wireRow} says ${sdk}'s has none: the member's \`absent\` is stale, so take ${sdk} out of it`);
-        continue;
-      }
-      if (yetToReach(stated, sdk)) {
-        if (declared.members.has(member)) fail(`${its} has ${member}, and ${wireRow} says ${sdk}'s has yet to have it (\`notYetReached\`): take ${sdk} out of the member's \`notYetReached\``);
-        continue;
-      }
-      if (!declared.members.has(member)) fail(`${its} has no ${member}, which ${wireRow} lists: add it to the SDK, under that name, or say in the member's \`absent\` why ${sdk}'s has none`);
+    heldToMembers(sdk, `${sdk}'s bus (${declared.where})`, wireRow, wireMembers, declared.members);
+  }
+}
+
+// ── The storage ─────────────────────────────────────────────────────────
+
+/**
+ * Each SDK whose storage this reads: its reader, given the name the SDK makes
+ * the storage as, and where the storage is declared. TypeScript's is an
+ * interface, read as a unit's is; Python's a class (a `Protocol`), read as a
+ * unit's is; Kotlin's an interface, read as a unit's is; Go's an interface
+ * of the root package, and Rust's a trait.
+ */
+const STORAGES = {
+  typescript: { read: typescriptUnit, sources: TS_SDK },
+  rust: { read: rustTrait, sources: RUST_SDK },
+  python: { read: pythonUnit, sources: PYTHON_SDK },
+  go: { read: goInterface, sources: GO_SDK },
+  kotlin: { read: kotlinUnit, sources: KOTLIN_SDK },
+};
+const STORAGE_SDKS = Object.keys(STORAGES);
+
+/** member → row */
+const storageMembers = new Map();
+const storage = table.storage;
+const storageRow = `\`storage\` in ${TABLE}`;
+if (typeof storage !== 'object' || storage === null || Array.isArray(storage)) fail(`${TABLE}: \`storage\` does not state where a client keeps text under a key`);
+else {
+  for (const [member, row] of sectionMembers(storage, storageRow, STORAGE_SDKS, 'storage')) storageMembers.set(member, row);
+  for (const [sdk, { read: readStorage, sources: where }] of Object.entries(STORAGES)) {
+    const made = storage.made?.[sdk];
+    if (typeof made !== 'string') continue;
+    const declared = readStorage(made, where);
+    if (yetToReach(storage, sdk)) {
+      if (declared) fail(`${sdk} has ${declared.where}, and ${storageRow} says ${sdk} has yet to reach it (\`notYetReached\`): take ${sdk} out of it`);
+      continue;
     }
-    for (const member of declared.members) {
-      if (!wireMembers.has(member)) fail(`${its} has ${member}, which ${wireRow} does not list: rename it to the row's name for it, or add a row for it there before any SDK has it`);
+    if (!declared) {
+      fail(`${sdk} declares no ${made} in ${where}, which ${storageRow} says it makes the storage as`);
+      continue;
     }
+    heldToMembers(sdk, `${sdk}'s storage (${declared.where})`, storageRow, storageMembers, declared.members);
   }
 }
 
@@ -2151,5 +2284,5 @@ const stillToReach = (value) =>
       ? Object.entries(value).reduce((total, [key, item]) => total + (key === 'notYetReached' ? Object.keys(item).length : stillToReach(item)), 0)
       : 0;
 console.log(
-  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; and ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
+  `✓ lint:client-surface — ${count} methods in ${rows.size} namespaces, ${heldBy(NAMESPACE_SDKS)}; ${membersCount} members of what a worker is handed, ${heldBy(WORKER_SDKS)}; ${unitMembers} members of ${units.size} state units, ${heldBy(UNIT_SDKS)}; ${wireMembers.size} members of the bus over the wire, ${heldBy(WIRE_SDKS)}; ${storageMembers.size} members of the storage, ${heldBy(STORAGE_SDKS)}; and ${[...modules.values()].reduce((total, module) => total + (module.members?.length ?? 0), 0)} members of ${modules.size} modules, ${heldBy(MODULE_SDKS)}; ${stillToReach(table)} rows name an SDK that is still to reach them`,
 );

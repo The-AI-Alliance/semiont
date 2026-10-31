@@ -47,7 +47,7 @@ export function seedStoredSession(
 export class TestStorage extends InMemorySessionStorage {
   private handlers: Array<(key: string, newValue: string | null) => void> = [];
 
-  subscribe(handler: (key: string, newValue: string | null) => void): () => void {
+  override subscribe(handler: (key: string, newValue: string | null) => void): () => void {
     this.handlers.push(handler);
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);
@@ -57,5 +57,70 @@ export class TestStorage extends InMemorySessionStorage {
   /** Fire all subscribed handlers. Use in tests to simulate a cross-tab write. */
   dispatch(key: string, newValue: string | null): void {
     for (const h of this.handlers) h(key, newValue);
+  }
+}
+
+/** What every context's handle on a `SharedStorage` reads and writes, and who listens from which context. */
+interface Shared {
+  stored: Map<string, string>;
+  listeners: Map<number, { context: number; heard: (key: string, newValue: string | null) => void }>;
+  contexts: number;
+  subscriptions: number;
+}
+
+/**
+ * One context's handle on a storage several share, for tests of what one
+ * context does when another writes. Each context hears what the others write,
+ * never what it wrote itself: how two windows on one `localStorage` see each
+ * other. Made holding nothing, as the first context's handle; `context` is
+ * another's.
+ */
+export class SharedStorage implements SessionStorage {
+  private shared: Shared = { stored: new Map(), listeners: new Map(), contexts: 0, subscriptions: 0 };
+  private contextId = 0;
+
+  /** Another context's handle on the same storage. */
+  context(): SharedStorage {
+    this.shared.contexts += 1;
+    const other = new SharedStorage();
+    other.shared = this.shared;
+    other.contextId = this.shared.contexts;
+    return other;
+  }
+
+  get(key: string): string | null {
+    return this.shared.stored.get(key) ?? null;
+  }
+
+  set(key: string, value: string): void {
+    this.shared.stored.set(key, value);
+    this.tell(key, value);
+  }
+
+  delete(key: string): void {
+    this.shared.stored.delete(key);
+    this.tell(key, null);
+  }
+
+  update(key: string, change: (stored: string | null) => string | null): void {
+    const next = change(this.get(key));
+    if (next === null) this.shared.stored.delete(key);
+    else this.shared.stored.set(key, next);
+    this.tell(key, next);
+  }
+
+  subscribe(handler: (key: string, newValue: string | null) => void): () => void {
+    this.shared.subscriptions += 1;
+    const subscription = this.shared.subscriptions;
+    this.shared.listeners.set(subscription, { context: this.contextId, heard: handler });
+    return () => {
+      this.shared.listeners.delete(subscription);
+    };
+  }
+
+  private tell(key: string, newValue: string | null): void {
+    for (const { context, heard } of [...this.shared.listeners.values()]) {
+      if (context !== this.contextId) heard(key, newValue);
+    }
   }
 }

@@ -140,6 +140,12 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
       get: (k) => inner.get(k),
       set: (k, v) => { writes.push([k, v]); inner.set(k, v); },
       delete: (k) => inner.delete(k),
+      update: (k, change) => inner.update(k, (stored) => {
+        const next = change(stored);
+        if (next !== null) writes.push([k, next]);
+        return next;
+      }),
+      subscribe: (handler) => inner.subscribe(handler),
     };
     return { storage, writes, inner };
   }
@@ -162,6 +168,27 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
     coupled.storage.set('semiont.cache.kb-1.resource', '{"doc":1}');
 
     expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', ID_KEY]);
+    expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
+  });
+
+  it('a cache-document update flushes the pending ids as a set does, when the flush gate allows it', () => {
+    const { storage, writes } = recordingStorage();
+    const coupled = coupledLastEventId(storage, ID_KEY);
+    let quiet = false;
+    coupled.setFlushGate(() => quiet);
+
+    coupled.saveLastEventId(resourceId('res-1'), 'p-res-1-47');
+    coupled.storage.update('semiont.cache.kb-1.resource', () => '{"doc":1}');
+
+    // The caches are not quiet: the ids stay pending, lagging.
+    expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource']);
+    expect(storage.get(ID_KEY)).toBeNull();
+
+    quiet = true;
+    coupled.storage.update('semiont.cache.kb-1.resource', () => '{"doc":2}');
+
+    // Document first, ids second.
+    expect(writes.map(([k]) => k)).toEqual(['semiont.cache.kb-1.resource', 'semiont.cache.kb-1.resource', ID_KEY]);
     expect(JSON.parse(storage.get(ID_KEY)!)).toEqual({ 'res-1': 'p-res-1-47' });
   });
 

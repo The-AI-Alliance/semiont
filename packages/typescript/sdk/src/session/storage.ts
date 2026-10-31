@@ -116,7 +116,11 @@ export function sessionKey(kbId: string): string {
 // ---------- Per-KB session storage ----------
 
 export function getStoredSession(storage: SessionStorage, kbId: string): StoredSession | null {
-  const raw = storage.get(sessionKey(kbId));
+  return storedSessionIn(storage.get(sessionKey(kbId)));
+}
+
+/** The session in what is stored under a session key; null when it holds none. */
+export function storedSessionIn(raw: string | null): StoredSession | null {
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
