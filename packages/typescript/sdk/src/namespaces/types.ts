@@ -444,7 +444,7 @@ export interface BeckonNamespace {
   // Wire drives — beckon OTHER participants (guided-tour moves). Each
   // resolves with the subscriber count, absent when there is none
   // (ITransport.emit).
-  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number | undefined>;
+  attention(resourceId: ResourceId, annotationId?: AnnotationId): Promise<number | undefined>;
   click(annotationId: AnnotationId): Promise<number | undefined>;
   openResource(resourceId: ResourceId): Promise<number | undefined>;
   sparkleAll(annotationId: AnnotationId): Promise<number | undefined>;

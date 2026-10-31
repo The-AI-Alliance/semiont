@@ -325,7 +325,7 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
     ("yield", "fromToken"): lambda client, args: client.yield_.from_token(text(args["token"], "token")),
     ("yield", "createFromToken"): cloned,
     ("yield", "clone"): lambda client, _: client.yield_.clone(),
-    ("beckon", "attention"): lambda client, args: client.beckon.attention(rid(args), aid(args)),
+    ("beckon", "attention"): lambda client, args: client.beckon.attention(rid(args), aid(args) if "annotationId" in args else None),
     ("beckon", "click"): lambda client, args: client.beckon.click(aid(args)),
     ("beckon", "openResource"): lambda client, args: client.beckon.open_resource(rid(args)),
     ("beckon", "sparkleAll"): lambda client, args: client.beckon.sparkle_all(aid(args)),

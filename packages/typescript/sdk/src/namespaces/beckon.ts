@@ -20,8 +20,9 @@ export class BeckonNamespace implements IBeckonNamespace {
   // tell an empty room from a full one and from one nobody counted. Arrivals come back bridged like any remote emit —
   // these methods never loop back onto the local bus.
 
-  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number | undefined> {
-    return this.wire.emit('beckon:focus', { annotationId, resourceId });
+  /** Point the others at an annotation, or, with none, at the resource as a whole. */
+  attention(resourceId: ResourceId, annotationId?: AnnotationId): Promise<number | undefined> {
+    return this.wire.emit('beckon:focus', { ...(annotationId !== undefined ? { annotationId } : {}), resourceId });
   }
 
   /**

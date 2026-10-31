@@ -12,7 +12,6 @@ import (
 
 	launcher "github.com/The-AI-Alliance/semiont/packages/go/launcher"
 
-	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
@@ -139,11 +138,13 @@ options:
 	if !ok {
 		return 1
 	}
-	var aid api.AnnotationId
+	var aid *api.AnnotationId
 	if annotation != "" {
-		if aid, ok = parsed(u, "annotation", annotation, api.ParseAnnotationId); !ok {
+		named, ok := parsed(u, "annotation", annotation, api.ParseAnnotationId)
+		if !ok {
 			return 1
 		}
+		aid = &named
 	}
 
 	sess, ok := launcher.VerbSession(u, "beckon", repo, wantLocal)
@@ -165,13 +166,9 @@ options:
 	switch {
 	case sparkle:
 		channel = bus.BeckonSparkle.Channel()
-		subscribers, counted, err = c.Beckon.SparkleAll(c.Context(), aid)
-	case annotation != "":
-		subscribers, counted, err = c.Beckon.Attention(c.Context(), rid, aid)
+		subscribers, counted, err = c.Beckon.SparkleAll(c.Context(), *aid)
 	default:
-		// The focus a resource alone is: the event's annotation is optional,
-		// and attention names one.
-		subscribers, counted, err = semiont.Emit(c.Context(), c.Wire, bus.BeckonFocus, api.BeckonFocusEvent{ResourceId: rid}, semiont.Envelope{})
+		subscribers, counted, err = c.Beckon.Attention(c.Context(), rid, aid)
 	}
 	if err != nil {
 		return busFail(u, "beckon", c.Refusal(err))

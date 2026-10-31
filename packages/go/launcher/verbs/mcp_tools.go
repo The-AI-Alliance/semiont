@@ -285,7 +285,7 @@ var mcpHandlers = map[string]mcpHandler{
 		AnnotationId api.AnnotationId `json:"annotationId"`
 		ResourceId   api.ResourceId   `json:"resourceId"`
 	}) (mcpAnswer, error) {
-		reached, counted, err := call.client().Beckon.Attention(ctx, args.ResourceId, args.AnnotationId)
+		reached, counted, err := call.client().Beckon.Attention(ctx, args.ResourceId, &args.AnnotationId)
 		if err != nil || !counted {
 			return mcpAnswer{structured: map[string]any{}}, err
 		}

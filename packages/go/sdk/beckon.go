@@ -17,9 +17,10 @@ type BeckonNamespace struct {
 	links *links
 }
 
-// Attention points the other participants at an annotation.
-func (n *BeckonNamespace) Attention(ctx context.Context, resourceID api.ResourceId, annotationID api.AnnotationId) (subscribers int, counted bool, err error) {
-	return drive(ctx, n.links, bus.BeckonFocus, api.BeckonFocusEvent{AnnotationId: &annotationID, ResourceId: resourceID})
+// Attention points the other participants at an annotation, or, when
+// annotationID is nil, at the resource as a whole.
+func (n *BeckonNamespace) Attention(ctx context.Context, resourceID api.ResourceId, annotationID *api.AnnotationId) (subscribers int, counted bool, err error) {
+	return drive(ctx, n.links, bus.BeckonFocus, api.BeckonFocusEvent{AnnotationId: annotationID, ResourceId: resourceID})
 }
 
 // Click opens an annotation on the other participants' screens.

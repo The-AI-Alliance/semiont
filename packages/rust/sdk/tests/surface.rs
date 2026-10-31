@@ -512,10 +512,11 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("yield", "clone") => client.yield_.clone(),
 
         ("beckon", "attention") => {
-            let (resource_id, annotation_id) = (args.text("resourceId"), args.text("annotationId"));
+            let resource_id = args.text("resourceId");
+            let annotation_id = args.optional_text("annotationId").map(|id| as_id(&id));
             go!(client
                 .beckon
-                .attention(&as_id(&resource_id), &as_id(&annotation_id)))
+                .attention(&as_id(&resource_id), annotation_id.as_ref()))
         }
         ("beckon", "click") => {
             let annotation_id = args.text("annotationId");
