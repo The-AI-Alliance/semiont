@@ -29,7 +29,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -115,7 +114,7 @@ func renewed() string {
 func storeSession(t *testing.T, issuer *issuerStub, lifetime time.Duration) {
 	t.Helper()
 	store := semiont.NewSignInStore(filepath.Join(launcher.StateDir(), semiont.SignInFile))
-	if err := store.Entry("local").Keep(context.Background(), semiont.HeldSignIn{
+	if err := store.Entry(localKey).Keep(context.Background(), semiont.HeldSignIn{
 		Access: tokenTagged("token-1", lifetime), Refresh: "refresh-1",
 		ClientID: semiont.ScriptClientID, TokenEndpoint: issuer.URL + "/token",
 	}); err != nil {
@@ -126,7 +125,7 @@ func storeSession(t *testing.T, issuer *issuerStub, lifetime time.Duration) {
 // kept is the sign-in the store holds for the local stack; false when none.
 func kept(t *testing.T) (semiont.SignIn, bool) {
 	t.Helper()
-	signIn, ok := launcher.LoadTokens()["local"]
+	signIn, ok := launcher.LoadTokens()[localKey]
 	return signIn, ok
 }
 
@@ -280,15 +279,7 @@ func gatewayFixture(t *testing.T, gateway *gatewayStub) {
 func gatewayAt(t *testing.T, base string) {
 	t.Helper()
 	verbFixture(t)
-	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{
-		"local": {Runtime: "container", Services: map[string]launcher.ServiceState{
-			"gateway": {Endpoint: base + "/api/health"},
-		}},
-	}}
-	b, _ := json.MarshalIndent(ss, "", "  ")
-	if err := os.WriteFile(filepath.Join(launcher.StateDir(), "stack.json"), b, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	recordLocalStack(t, localStack(launcher.ServiceState{Endpoint: base + "/api/health"}))
 }
 
 // only accepts the one token tagged token.

@@ -8,11 +8,11 @@ interesting ones, prefixed with a ``--source`` label.
 Designed for the **live monitoring** workflow described in
 ``tests/e2e/docs/live-monitoring.md`` — start one tail per container::
 
-    container logs --follow semiont-gateway 2>&1 \\
+    container logs --follow semiont-<kb>-gateway 2>&1 \\
       | python3 tests/e2e/scripts/log-filter.py --source gateway &
     container logs --follow semiont-worker 2>&1 \\
       | python3 tests/e2e/scripts/log-filter.py --source worker &
-    container logs --follow semiont-smelter 2>&1 \\
+    container logs --follow semiont-<kb>-smelter 2>&1 \\
       | python3 tests/e2e/scripts/log-filter.py --source smelter &
 
 Each background tail surfaces only:

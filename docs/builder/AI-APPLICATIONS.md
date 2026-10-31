@@ -36,7 +36,7 @@ An AI application that speaks the Model Context Protocol (MCP), such as Claude C
 
 ## What it serves
 
-- **Every knowledge base you have signed in to**, local and codespace alike. The `knowledge_bases` tool lists them, each with the key every other tool takes as its `kb` argument: `local`, or `codespace:<owner>/<name>`. With one knowledge base signed in, `kb` may be left out. With several, a call names one, and one that names none is refused, naming them.
+- **Every knowledge base you have signed in to**, local and codespace alike. The `knowledge_bases` tool lists them, each with the key every other tool takes as its `kb` argument: `local:<did-key>` for a local knowledge base (its did:web domain, `local:example.org-my-kb` for `did:web:example.org:my-kb`), or `codespace:<owner>/<name>`. With one knowledge base signed in, `kb` may be left out. With several, a call names one, and one that names none is refused, naming them.
 - **Tools named by the [eight verbs](../protocol/flows/README.md)**: `browse_…`, `match_…` and `gather_…` read; `mark_…`, `bind_link`, `yield_…` and `frame_…` write; `beckon_attention` draws the attention of whoever is watching in a Browser; `job_status` and `job_cancel` follow the work the stack does. Each tool's arguments and result are the spec's, and the application reads them from the tool's schema. The set is curated around what an agent does in a knowledge base, not one tool per SDK method: [`mcp-tools.json`](../../packages/go/launcher/verbs/mcp-tools.json) names the methods each tool calls, and each method left out with the reason.
 - **The knowledge bases' resources**, as MCP resources named `semiont://kb/<key>/resources/<id>`. A tool that names a resource links to it.
 

@@ -34,11 +34,11 @@ const kbRemotePort = 4000
 
 // allocatePort picks one of this stack's local ports — its KB (from 4000)
 // or its issuer (from 8080): base when free, else the lowest free port above
-// it. It skips every port the local stack claims, every forward other
+// it. It skips every port a local stack claims, every forward other
 // codespace stacks hold, and live holders.
 func allocatePort(ss *StackSet, repo string, base int) int {
 	used := map[int]bool{}
-	if local := ss.Stacks["local"]; local != nil {
+	for _, local := range localStacks(ss) {
 		for _, p := range local.Ports {
 			used[p] = true
 		}
@@ -1672,7 +1672,7 @@ func waitForRemoteKB(u *UI, name, repo string, created bool) int {
 	}
 	tail.stop()
 	u.Fail("The stack did not come up inside %s within %s.", name, took(remoteReadyBudget))
-	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 semiont-gateway'\n", name)
+	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 $(docker ps -aq --filter name=-gateway$)'\n", name)
 	fmt.Fprintln(os.Stderr, "  A crash-looping gateway is the usual cause; its logs name the reason.")
 	return 1
 }

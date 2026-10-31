@@ -52,8 +52,9 @@ Options:
   --entity-types        List the KB's entity-type vocabulary
   --tag-schemas         List the KB's tag schemas and their categories
   --json                Raw JSON reply instead of a table
-  --repo <owner/name>   Target a codespace stack (default: the local stack)
-  --runtime <rt>        Target the local stack explicitly
+  --repo <owner/name>   Target a codespace stack
+  --root <path>         Target the stack of the knowledge base at path
+  --runtime <rt>        Target a local stack
   --help                Show this help
 
 ` + idsOrder + `
@@ -70,6 +71,7 @@ func Browse(args []string) int {
 	var positional []string
 	limit := 20
 	annotations, entityTypes, tagSchemas, asJSON, wantLocal := false, false, false, false, false
+	rootFlag := ""
 	toBrowser, launch := false, false
 
 options:
@@ -111,6 +113,12 @@ options:
 				return 1
 			}
 			repo = v
+		case "--root":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			rootFlag = v
 		case "--runtime":
 			if _, ok := val(); !ok {
 				return 1
@@ -230,7 +238,7 @@ options:
 		aid = id
 	}
 
-	sess, ok := launcher.VerbSession(u, "browse", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "browse", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}

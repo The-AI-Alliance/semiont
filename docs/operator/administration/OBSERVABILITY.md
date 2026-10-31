@@ -196,11 +196,12 @@ If Jaeger only knows about itself (`jaeger-all-in-one`), no Semiont
 process has exported spans. Most likely causes:
 
 1. `OTEL_EXPORTER_OTLP_ENDPOINT` is set but unreachable — verify with
-   `container exec semiont-gateway wget -qO- http://...:4318` from
-   inside the gateway container.
+   `container exec semiont-<kb>-gateway wget -qO- http://...:4318` from
+   inside the gateway container (`<kb>` is the knowledge base's did:web
+   domain made safe for a name: [the launcher's names](../services/OVERVIEW.md#the-launchers-names)).
 2. `OTEL_SDK_DISABLED=true` is set on the process, or neither
    `OTEL_EXPORTER_OTLP_ENDPOINT` nor `OTEL_CONSOLE_EXPORTER=true` is: check
-   with `container exec semiont-gateway env | grep OTEL_`.
+   with `container exec semiont-<kb>-gateway env | grep OTEL_`.
 
 If services appear but every trace is single-service (no cross-service
 propagation), a service between them exports nothing: one that installs

@@ -29,8 +29,9 @@ Options:
   --annotation <id>    Narrow the attention to one annotation (bare: second)
   --sparkle            Mark the annotation WITHOUT scrolling to it
                        (requires --annotation)
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 
 ` + idsOrder + `
@@ -78,6 +79,7 @@ func Beckon(args []string) int {
 	var resource, annotation, repo string
 	var positional []string
 	wantLocal := false
+	rootFlag := ""
 	sparkle := false
 
 options:
@@ -101,6 +103,12 @@ options:
 			repo, ok = val()
 		case "--sparkle":
 			sparkle, ok = true, true
+		case "--root":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			rootFlag = v
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
@@ -147,7 +155,7 @@ options:
 		aid = &named
 	}
 
-	sess, ok := launcher.VerbSession(u, "beckon", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "beckon", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}

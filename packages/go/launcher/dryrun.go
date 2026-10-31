@@ -38,7 +38,7 @@ func (x *planExec) stateHomeDocumentWrites(browser browserDocument, plan *launch
 // truth; the kb mount still renders "<kb-root>" via val(), the seam for
 // values the flow treats as runtime-scoped.
 func renderStartPlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan, browser browserDocument) {
-	x := &planExec{rt: rt, lan: lan}
+	x := &planExec{rt: rt, lan: lan, kb: kb}
 	x.c("semiont start --dry-run — the exact runtime commands a real run would")
 	x.c("execute, in order. Values known only at runtime appear as <placeholders>.")
 	x.stateHomeDocumentWrites(browser, plan)

@@ -27,8 +27,9 @@ Options:
   --annotation <id>    The linking annotation (bare: second)
   --target <id>        The resource it refers to (bare: third)
   --unbind <id>        Remove that target instead of adding it
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 
 ` + idsOrder + `
@@ -44,6 +45,7 @@ func Bind(args []string) int {
 	var positional []string
 	var resourceID, annotationID, target, repo string
 	unbind, wantLocal := false, false
+	rootFlag := ""
 
 options:
 	for i := 0; i < len(args); i++ {
@@ -68,6 +70,12 @@ options:
 			unbind, ok = true, idValue(u, "target", val, &target)
 		case "--repo":
 			repo, ok = val()
+		case "--root":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			rootFlag = v
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
@@ -114,7 +122,7 @@ options:
 		op = "remove"
 	}
 
-	sess, ok := launcher.VerbSession(u, "bind", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "bind", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}

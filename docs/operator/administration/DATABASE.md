@@ -19,8 +19,10 @@ none, and there is no ORM, no migration step and no schema of ours to evolve.
   names a PostgreSQL in its `spec.database`, because Keycloak needs somewhere to keep accounts,
   realms and sessions.
 
-In a launcher-managed stack, PostgreSQL runs as the `semiont-postgres` container and Keycloak
-reaches it over the stack network. Keycloak keeps its realm in the database `spec.database.name`
+In a launcher-managed stack, PostgreSQL runs as the `semiont-<kb>-postgres` container, where `<kb>`
+is the knowledge base's did:web domain made safe for a name
+([the launcher's names](../services/OVERVIEW.md#the-launchers-names)), and Keycloak reaches it over
+the stack network. Keycloak keeps its realm in the database `spec.database.name`
 names, `keycloak` as `semiont init` writes it. The launcher creates that database when it runs
 PostgreSQL itself; against an external PostgreSQL it must already exist, and the launcher says so at
 start. Renaming it on a store that already holds a realm points Keycloak at an empty database: its
@@ -43,8 +45,8 @@ row of its own. What follows from that:
 Keycloak's database is the thing worth dumping, because it holds the accounts people sign in with:
 
 ```bash
-container exec semiont-postgres pg_dump -U postgres keycloak > keycloak-$(date +%Y%m%d).sql
-container exec -i semiont-postgres psql -U postgres keycloak < keycloak-20260101.sql
+container exec semiont-<kb>-postgres pg_dump -U postgres keycloak > keycloak-$(date +%Y%m%d).sql
+container exec -i semiont-<kb>-postgres psql -U postgres keycloak < keycloak-20260101.sql
 ```
 
 Restoring it restores who can sign in. It restores nothing else, because nothing else is in there.
@@ -55,7 +57,7 @@ The gateway's `GET /api/health` reports on no database; it has none. Check Postg
 and check the identity service for whether Keycloak is actually using it:
 
 ```bash
-container exec semiont-postgres pg_isready -U postgres
+container exec semiont-<kb>-postgres pg_isready -U postgres
 semiont logs --service database
 semiont logs --service identity
 ```
@@ -63,7 +65,7 @@ semiont logs --service identity
 For query-level inspection:
 
 ```bash
-container exec semiont-postgres psql -U postgres keycloak \
+container exec semiont-<kb>-postgres psql -U postgres keycloak \
   -c "SELECT pid, state, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active';"
 ```
 
@@ -84,8 +86,8 @@ somebody else runs, where the database `spec.database.name` names was never crea
 ### Connection refused or timeouts
 
 ```bash
-container ps --all | grep semiont-postgres
-container exec semiont-postgres pg_isready -U postgres
+container ps --all | grep semiont-<kb>-postgres
+container exec semiont-<kb>-postgres pg_isready -U postgres
 ```
 
 ### The gateway is healthy but nobody can sign in

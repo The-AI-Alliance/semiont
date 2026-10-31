@@ -24,7 +24,8 @@ Reports what this machine knows about:
 
   BROWSER        the machine-level viewer (not a stack member) — first,
                  because it sits architecturally above everything it views
-  LOCAL STACK    the one stack running here, and the root it belongs to
+  LOCAL STACK    a stack running here, and the root it belongs to: the
+                 one of the KB you stand in (or --root), else each one
   KNOWLEDGE BASES
                  every KB this machine knows — file:// clones the launcher
                  has used (roots.json), and https:// codespace-hosted repos
@@ -203,7 +204,6 @@ func Status(args []string) int {
 		return 1
 	}
 	cs := codespaceStacks(ss)
-	st := ss.Stacks["local"]
 
 	// --repo: one remote stack, health-coded for scripting.
 	if repoFlag != "" {
@@ -214,37 +214,55 @@ func Status(args []string) int {
 		return statusCodespace(u, target, refresh)
 	}
 
-	// --root: assert the local stack belongs to that root before reporting it.
+	// The local stacks reported: --root's, which must be recorded; else the
+	// one of the knowledge base you stand in; else each one recorded. With
+	// none, the one discovered by name — the knowledge base you stand in's,
+	// else the machine's containers alone.
+	var reported []*StackState
+	key := ""
 	if rootFlag != "" {
-		want, ident, err := resolveRootArg(rootFlag)
-		if err != nil {
-			u.Fail("%v", err)
-			return 1
-		}
-		if st == nil {
-			u.Fail("No local stack is running (root %s).", want)
-			return 1
-		}
-		if st.KBRoot != "" && st.KBRoot != want {
-			u.Fail("The local stack belongs to %s, not %s.", st.KBRoot, want)
+		st, ok := rootLocalStack(u, ss, rootFlag)
+		if !ok {
 			return 1
 		}
 		// A stack mid-start is not ready, whatever its recorded services
 		// report so far: the gateway answers long before the sidecars do.
 		// This is the question a laptop asks a codespace before moving its
 		// issuer (askRemoteKB).
-		if holder, busy := startInProgress(kbRoot{dir: want, ident: ident}.key()); busy {
+		if holder, busy := startInProgress(rootKey(st.KBDid, st.KBRoot)); busy {
 			u.Fail("A semiont start is running for this KB (%s) — its stack is not ready yet.", holder)
 			return 1
+		}
+		reported = []*StackState{st}
+	} else {
+		kb, err := cwdKBRoot()
+		if err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
+		if st := localStack(ss, kb.key()); kb.dir != "" && st != nil {
+			reported = []*StackState{st}
+		} else if reported = localStacks(ss); len(reported) == 0 && kb.dir != "" {
+			key = kb.key()
 		}
 	}
 
 	if service == "" {
 		printBrowser(u, ss)
 	}
-	healthy, code := printLocalStack(u, st, runtime, service)
-	if code != 0 {
-		return code
+	healthy := true
+	if len(reported) == 0 {
+		var code int
+		if healthy, code = printLocalStack(u, nil, key, runtime, service); code != 0 {
+			return code
+		}
+	}
+	for _, st := range reported {
+		up, code := printLocalStack(u, st, rootKey(st.KBDid, st.KBRoot), runtime, service)
+		if code != 0 {
+			return code
+		}
+		healthy = healthy && up
 	}
 	// ONE section: local and remote KBs are the same kind of thing, told
 	// apart by the scheme on their address (file:// vs https://) rather than
@@ -252,7 +270,7 @@ func Status(args []string) int {
 	// so the "nothing here" line belongs here too.
 	if service == "" {
 		u.Section("KNOWLEDGE BASES")
-		printRootsPointer(u, st, cs)
+		printRootsPointer(u, localStacks(ss), cs)
 	}
 	if service == "" && verbose {
 		printSessions(u, ss)
@@ -296,9 +314,10 @@ type BrowserProbe struct {
 // neither there is no endpoint to probe: the launcher started no Browser it
 // knows the port of.
 func BrowserTarget(ss *StackSet, override string) BrowserProbe {
-	b := ss.Machine["semiont-browser"]
+	name := machineContainer("browser")
+	b := ss.Machine[name]
 	var p BrowserProbe
-	handle := "semiont-browser"
+	handle := name
 	if b != nil {
 		if b.Endpoint != "" {
 			p.Endpoint = b.Endpoint
@@ -318,10 +337,10 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 		rts = []string{b.Runtime}
 	}
 	p.State, _ = containerState(rts, handle)
-	if p.State == "" && handle != "semiont-browser" {
+	if p.State == "" && handle != name {
 		// A stale recorded ID must not contradict a live endpoint ("absent"
 		// beside ✓): the stable name is the fallback truth.
-		p.State, _ = containerState(rts, "semiont-browser")
+		p.State, _ = containerState(rts, name)
 	}
 	return p
 }
@@ -332,7 +351,7 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 // is visible: a kept Browser can legitimately outlive several stacks.
 func printBrowser(u *UI, ss *StackSet) (healthy bool) {
 	u.Section("BROWSER")
-	b := ss.Machine["semiont-browser"]
+	b := ss.Machine[machineContainer("browser")]
 	p := BrowserTarget(ss, "")
 	healthy = p.Running
 	word := p.State
@@ -363,10 +382,13 @@ func printBrowser(u *UI, ss *StackSet) (healthy bool) {
 	return healthy
 }
 
-// printLocalStack renders the LOCAL STACK section: the root it belongs to,
-// its provenance, and the service table. Returns whether every counted
-// service is healthy, plus a nonzero code if status itself could not run.
-func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bool, code int) {
+// printLocalStack renders a LOCAL STACK section: the root it belongs to, its
+// provenance, and the service table. st is the recorded stack, nil for one
+// discovered by name; key, the state key of its knowledge base, names its
+// containers — "" for no knowledge base, which leaves the machine's alone.
+// Returns whether every counted service is healthy, plus a nonzero code if
+// status itself could not run.
+func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healthy bool, code int) {
 	if service == "" {
 		u.Section("LOCAL STACK")
 	}
@@ -405,8 +427,10 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			case ident != nil && ident.SiteName != "":
 				fmt.Printf("    %s %s\n", u.Dim(ident.didWeb()), u.Dim("— "+ident.SiteName))
 			}
-		} else if st == nil {
+		} else if st == nil && key != "" {
 			fmt.Printf("  %s\n", u.Dim("(no recorded stack — services below are discovered by name)"))
+		} else if st == nil {
+			fmt.Printf("  %s\n", u.Dim("(no recorded stack — the machine's services below; cd into a KB clone, or --root, for its stack's)"))
 		}
 		if st != nil {
 			fmt.Printf("    %s\n", u.Dim(st.Runtime+" · "+statePath()))
@@ -465,11 +489,14 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		if service != "" && svc.name != service {
 			continue
 		}
+		if key == "" && !machineRole(svc.name) {
+			continue // no knowledge base names a stack container to ask of
+		}
 		if service == "" && lastGroup != 0 && svc.group != lastGroup {
 			fmt.Println()
 		}
 		lastGroup = svc.group
-		handle := roleContainer(svc.name)
+		handle := roleContainer(svc.name, key)
 		// No record: the descriptor's static probe, for the driver a stack
 		// that has not recorded itself would be running. A record's endpoint
 		// is sharper — it names the port that start actually used.
@@ -656,7 +683,7 @@ func Roots(args []string) int {
 		return 1
 	}
 	u.Section("KNOWLEDGE BASES")
-	found := printRoots(u, ss.Stacks["local"])
+	found := printRoots(u, localStacks(ss))
 	found += printRemoteKBs(u, codespaceStacks(ss))
 	if found == 0 {
 		fmt.Printf("  %s\n", u.Dim("(none — cd into a KB clone, set SEMIONT_ROOT, start with --root, "+
@@ -667,9 +694,9 @@ func Roots(args []string) int {
 
 // printRootsPointer is status's face of the catalog: the count, the verb
 // that owns the full tree, and the one contextual fact worth a line at
-// status-reading time — cwd being a DIFFERENT KB than the running stack's
-// root (being in template-kb while the stack runs family is a real gotcha).
-func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
+// status-reading time — cwd being a KB none of the running stacks is of
+// (being in template-kb while the stack runs family is a real gotcha).
+func printRootsPointer(u *UI, locals, cs []*StackState) {
 	reg := loadRoots().Roots
 	n := len(reg) + len(cs)
 	cwd, _, _, cwdErr := resolveKBRoot()
@@ -698,12 +725,14 @@ func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 	// Every ACTIVE stack stays scannable here, addressed exactly as its
 	// row in `semiont roots` (file:// local, https:// codespace) so the
 	// jump from pointer to catalog is one glance. Active is a local fact:
-	// the running local stack per stack.json, and a codespace whose
+	// each running local stack per stack.json, and a codespace whose
 	// forward is alive AND answering (forwardAlive) — a record whose
 	// tunnel is gone is history, not activity, and no gh round-trip is
 	// spent deciding.
-	if st != nil && st.KBRoot != "" {
-		fmt.Printf("  active: file://%s %s\n", st.KBRoot, u.Dim("(the running local stack)"))
+	cwdRunning := false
+	for _, st := range locals {
+		fmt.Printf("  active: file://%s %s\n", st.KBRoot, u.Dim("(a running local stack)"))
+		cwdRunning = cwdRunning || st.KBRoot == cwd
 	}
 	for _, c := range cs {
 		if !forwardAlive(c.Codespace.ForwardPID, c.Codespace.ForwardPort) {
@@ -712,19 +741,19 @@ func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 		fmt.Printf("  active: https://github.com/%s %s\n", c.Codespace.Repo,
 			u.Dim(fmt.Sprintf("(codespace %s → http://localhost:%d)", c.Codespace.Name, c.Codespace.ForwardPort)))
 	}
-	if cwdErr == nil && st != nil && st.KBRoot != "" && cwd != st.KBRoot {
-		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, "cwd KB: "+cwd+" — not the running stack's root"))
+	if cwdErr == nil && len(locals) > 0 && !cwdRunning {
+		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, "cwd KB: "+cwd+" — no running stack's root"))
 	}
 }
 
 // printRoots reports the Semiont roots: every registered root (roots.json —
 // the launcher's memory of roots it has actually used), merged with the one
-// resolvable from here (SEMIONT_ROOT or cwd discovery) and the running
+// resolvable from here (SEMIONT_ROOT or cwd discovery) and each running
 // stack's, each annotated with everything true about it. Vanished paths are
 // flagged, not hidden.
 // Reports how many it printed: the KNOWLEDGE BASES section is shared with
 // the remote half, so only the caller can know whether it came out empty.
-func printRoots(u *UI, st *StackState) int {
+func printRoots(u *UI, locals []*StackState) int {
 	order := []string{}
 	labels := map[string][]string{}
 	add := func(path, label string) {
@@ -746,7 +775,7 @@ func printRoots(u *UI, st *StackState) int {
 		// ignored.
 		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, fmt.Sprintf("⚠ %v", err)))
 	}
-	if st != nil && st.KBRoot != "" {
+	for _, st := range locals {
 		add(st.KBRoot, "running stack")
 	}
 	for _, e := range loadRoots().Roots {

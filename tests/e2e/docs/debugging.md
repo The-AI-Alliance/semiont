@@ -7,7 +7,9 @@ In order:
 1. **Run just that test with the bus log**: `-g '<title>' --repeat-each 3`.
    Three runs tells you flaky vs. deterministic in under a minute. See
    [running.md](running.md).
-2. **Tail gateway logs during the run**: `container logs -f semiont-gateway`.
+2. **Tail gateway logs during the run**: `container logs --follow semiont-<kb>-gateway`
+   (`<kb>` is the knowledge base's did:web domain made safe for a name:
+   [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names)).
    If the event never reaches the gateway, it's a Browser-side
    emit/subscribe problem; if the gateway logs the emit but no
    response comes back through SSE, it's a result-channel or SSE
@@ -118,7 +120,7 @@ Delete the diagnostic as soon as you know.
 ## Tailing gateway logs during a test
 
 ```sh
-container logs -f semiont-gateway
+container logs --follow semiont-<kb>-gateway
 ```
 
 Useful columns in the JSONL log lines:

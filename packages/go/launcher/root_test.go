@@ -31,7 +31,9 @@ func TestReRegistrationDropsMovedKBCorpse(t *testing.T) {
 		{Path: liveTwin, Did: "did:web:pingel.org"},
 		{Path: "/gone/unrelated", Did: "did:web:other.example"},
 	}}
-	saveRoots(reg)
+	if err := writeRoots(reg); err != nil {
+		t.Fatal(err)
+	}
 
 	ident, err := readKBIdentity(kb)
 	if err != nil {

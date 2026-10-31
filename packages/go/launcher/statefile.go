@@ -13,12 +13,12 @@ import (
 )
 
 // The launcher records what it believes each stack IS in stack.json under
-// the XDG state home. Schema 3 is a KEYED COLLECTION: the machine's one
-// LOCAL stack under "local" (fixed ports and container names keep it
-// singleton), plus one entry per codespace stack under "codespace:<repo>" —
-// codespace stacks don't collide in the cloud, so many may run at once,
-// each forwarding its KB on its own local port (4000, else allocated above
-// it); local ports are the only contention point. stop and status compute their
+// the XDG state home. Schema 3 is a KEYED COLLECTION: one LOCAL stack per
+// knowledge base under "local:<key>" (its state key, rootKey — each local
+// stack runs under container names and on a port block of its own), plus one
+// entry per codespace stack under "codespace:<repo>" — codespace stacks don't
+// collide in the cloud, so many may run at once, each forwarding its KB on
+// its own local port (4000, else allocated above it). stop and status compute their
 // work from these identifiers (falling back to the all-runtimes
 // name sweep only when no record exists). The record is belief, not ground
 // truth: status still verifies every claim against the runtime, gh, and
@@ -164,13 +164,22 @@ type StackSet struct {
 	unreadable error
 }
 
-// stackKey: "local" for the machine's one local stack, "codespace:<repo>"
-// per codespace stack (the repo is the user-facing identity there).
-func stackKey(st *StackState) string {
+// StackKey: "local:<key>" for a local stack, by its knowledge base's state
+// key (localStackKey), "codespace:<repo>" per codespace stack (the repo is
+// the user-facing identity there).
+func StackKey(st *StackState) string {
 	if st.Codespace != nil {
 		return "codespace:" + st.Codespace.Repo
 	}
-	return "local"
+	return localStackKey(rootKey(st.KBDid, st.KBRoot))
+}
+
+// localStackKey: how stack.json and the sign-in store key the local stack of
+// the knowledge base whose state is keyed key (rootKey). One running copy per
+// knowledge base: two clones of one did share the key, so the record of one
+// is what refuses the other's start.
+func localStackKey(key string) string {
+	return "local:" + key
 }
 
 // LoadStackSet returns every recorded stack (never nil; empty when no file).
@@ -225,15 +234,37 @@ func (ss *StackSet) refuseUnreadable(u *UI) bool {
 	return true
 }
 
-// loadLocalState: the machine's one local stack record, or nil. Every caller
-// sits inside a flow that already refused an unreadable record at its entry —
-// this shorthand cannot refuse, because nil here reads as "no local stack".
-func loadLocalState() *StackState {
-	return LoadStackSet().Stacks["local"]
+// localStack: the recorded local stack of the knowledge base keyed key, or
+// nil.
+func localStack(ss *StackSet, key string) *StackState {
+	return ss.Stacks[localStackKey(key)]
+}
+
+// recordedStackOf: the recorded local stack running from root, nil when none
+// does — for a caller that holds a path and not the identity read from it.
+func recordedStackOf(root string) *StackState {
+	for _, st := range localStacks(LoadStackSet()) {
+		if st.KBRoot == root {
+			return st
+		}
+	}
+	return nil
+}
+
+// localStacks: every recorded local stack, sorted by root.
+func localStacks(ss *StackSet) []*StackState {
+	var out []*StackState
+	for _, st := range ss.Stacks {
+		if st.platform() == platformLocal {
+			out = append(out, st)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].KBRoot < out[j].KBRoot })
+	return out
 }
 
 // codespaceStack: the recorded stack for one repo, or nil. The key can only
-// exist for a stack that HAS a placement — stackKey builds the key out of
+// exist for a stack that HAS a placement — StackKey builds the key out of
 // the placement — so a non-nil result always has one, and every caller that
 // goes through here may read it without asking again. This function is where
 // that invariant is stated, instead of at six lookups that each assumed it.
@@ -301,39 +332,47 @@ func saveStackSet(ss *StackSet) {
 // saveStack upserts one stack into the collection.
 func saveStack(st *StackState) {
 	st.UpdatedAt = time.Now().UTC()
-	ss := LoadStackSet()
-	ss.Stacks[stackKey(st)] = st
-	saveStackSet(ss)
+	exclusively(statePath(), func() {
+		ss := LoadStackSet()
+		ss.Stacks[StackKey(st)] = st
+		saveStackSet(ss)
+	})
 }
 
 // forgetStack removes one stack from the collection (full local stop,
 // codespace delete). Other stacks' records survive.
 func forgetStack(key string) {
-	ss := LoadStackSet()
-	delete(ss.Stacks, key)
-	saveStackSet(ss)
+	exclusively(statePath(), func() {
+		ss := LoadStackSet()
+		delete(ss.Stacks, key)
+		saveStackSet(ss)
+	})
 }
 
 // saveMachine upserts the record of a container the launcher runs for the
 // machine, by its container name.
 func saveMachine(e *ServiceState) {
-	ss := LoadStackSet()
-	if ss.Machine == nil {
-		ss.Machine = map[string]*ServiceState{}
-	}
-	ss.Machine[e.Container] = e
-	saveStackSet(ss)
+	exclusively(statePath(), func() {
+		ss := LoadStackSet()
+		if ss.Machine == nil {
+			ss.Machine = map[string]*ServiceState{}
+		}
+		ss.Machine[e.Container] = e
+		saveStackSet(ss)
+	})
 }
 
 // forgetMachine forgets the machine container name: stopped, or (Ollama)
 // replaced by a host install.
 func forgetMachine(name string) {
-	ss := LoadStackSet()
-	if ss.Machine[name] == nil {
-		return
-	}
-	delete(ss.Machine, name)
-	saveStackSet(ss)
+	exclusively(statePath(), func() {
+		ss := LoadStackSet()
+		if ss.Machine[name] == nil {
+			return
+		}
+		delete(ss.Machine, name)
+		saveStackSet(ss)
+	})
 }
 
 // recordService updates one service's entry and saves. provided says who

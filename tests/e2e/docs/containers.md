@@ -11,9 +11,16 @@ through that lifecycle.
 | Container | What's inside | Where it comes from |
 |---|---|---|
 | `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-archivist`, `semiont-librarian`, `semiont-dispatcher`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `scripts/ci/local-build.sh` |
-| plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres`, `semiont-nats`, `semiont-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
+| `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `scripts/ci/local-build.sh` |
+| plus: `semiont-<kb>-neo4j`, `semiont-<kb>-qdrant`, `semiont-ollama`, `semiont-<kb>-postgres`, `semiont-<kb>-nats`, `semiont-<kb>-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
+
+A knowledge base's containers are named `semiont-<kb>-<product>`, where
+`<kb>` is its did:web domain made safe for a name: `did:web:example.org:my-kb`
+runs its gateway as `semiont-example.org-my-kb-gateway`. The Browser, the
+worker, Ollama and Jaeger are the machine's, shared by every knowledge
+base, and keep `semiont-<name>`. See
+[the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names).
 
 **Key fact:** `scripts/ci/local-build.sh` (in this repo) publishes the
 `@semiont/*` packages to a throwaway local Verdaccio and builds **every**
@@ -49,7 +56,7 @@ container image ls                        # list local images
 container inspect <name>                  # JSON dump — mounts, env, IP, etc.
 ```
 
-Use `container logs -f semiont-gateway` when diagnosing a failing test
+Use `container logs --follow semiont-<kb>-gateway` when diagnosing a failing test
 — the gateway's structured logs often reveal whether a bus handler
 actually ran. (`semiont logs`, from the KB directory, follows all
 services at once with `[svc]` prefixes.)
@@ -65,7 +72,7 @@ Symptom: every request in your first test times out because the
 browser is dialing a dead address.
 
 ```sh
-container ls | grep -E 'semiont-(browser|gateway)'    # inspection only
+container ls | grep -E 'semiont-(browser|.+-gateway)'    # inspection only
 ```
 
 > Useful for *seeing* what is running. Do **not** feed these IPs to the e2e

@@ -35,7 +35,7 @@
 //	FAKERT_GATEWAY_UNREACHABLE  "1" fails the busybox wget probe of the gateway's /api/health
 //	FAKERT_NC_FAIL           "1" fails the busybox `nc -z` postgres probe
 //	FAKERT_VOLUME_ABSENT     "1" makes `volume rm` fail (volume not found)
-//	FAKERT_STACK_RUNTIME     which runtime's list/ps shows semiont-gateway
+//	FAKERT_STACK_RUNTIME     which runtime's list/ps shows the containers scripted as running
 //	FAKERT_PULL_FAIL         substring; pulls of matching images fail
 //	FAKERT_DAEMON_DOWN       "1": every runtime command fails XPC-style;
 //	                         `container system status` reports the apiserver down
@@ -659,7 +659,7 @@ func ghCodespace(args []string, joined string) {
 			// actually receive — that is what proves quoting works.
 			fmt.Println("remote-cmd: " + args[len(args)-1])
 		case strings.Contains(joined, "docker logs"):
-			name := strings.TrimPrefix(args[len(args)-1], "semiont-")
+			name := product(args[len(args)-1])
 			fmt.Println(name + " out")
 			fmt.Fprintln(os.Stderr, name+" err")
 		default:
@@ -1248,11 +1248,12 @@ func runtimeCmd(base string, args []string) {
 	case "list", "ps":
 		// Two callers, two questions:
 		//
-		//   list / ps            "which runtime is the stack on?" — answered by
-		//                        FAKERT_STACK_RUNTIME.
+		//   list / ps            "which runtime is the stack on?" — answered on
+		//                        FAKERT_STACK_RUNTIME's runtime alone, by the
+		//                        containers scripted as running.
 		//   list -a / ps -a      "which semiont containers EXIST here?" — the
 		//                        teardown's question. Answered from
-		//                        FAKERT_STATE_<svc>, the same source `inspect`
+		//                        stateVar's scripts, the same source `inspect`
 		//                        uses, so the fake cannot tell the launcher a
 		//                        container exists and then deny it on inspect.
 		all := false
@@ -1269,7 +1270,7 @@ func runtimeCmd(base string, args []string) {
 			}
 			for _, n := range names {
 				if header {
-					fmt.Printf("%s ghcr.io/x/%s  running\n", n, strings.TrimPrefix(n, "semiont-"))
+					fmt.Printf("%s ghcr.io/x/%s  running\n", n, product(n))
 				} else {
 					fmt.Println(n)
 				}
@@ -1279,13 +1280,19 @@ func runtimeCmd(base string, args []string) {
 		if os.Getenv("FAKERT_STACK_RUNTIME") == base {
 			if header {
 				fmt.Println("ID              IMAGE                       STATE")
-				fmt.Println("semiont-gateway ghcr.io/x/semiont-gateway  running")
-			} else {
-				fmt.Println("semiont-gateway")
+			}
+			for _, n := range existingContainers() {
+				switch {
+				case os.Getenv(stateVar(n)) != "running":
+				case header:
+					fmt.Printf("%s ghcr.io/x/%s  running\n", n, product(n))
+				default:
+					fmt.Println(n)
+				}
 			}
 		}
 	case "logs":
-		name := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
+		name := product(handleName(args[len(args)-1]))
 		fmt.Println(name + " out")
 		fmt.Fprintln(os.Stderr, name+" err")
 	case "exec":
@@ -1315,12 +1322,12 @@ func runtimeCmd(base string, args []string) {
 		}
 		fmt.Println("fakert exec ok")
 	case "inspect":
-		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
-		// e.g. FAKERT_STATE_gateway=running. Unset = container not found.
-		// The env list stays in the shape because a real inspect carries one;
-		// the launcher reads no variable out of it.
-		svc := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
-		state := os.Getenv("FAKERT_STATE_" + svc)
+		// Scripted via stateVar, e.g. FAKERT_STATE_worker=running or
+		// FAKERT_STATE_example.org-kb-gateway=running. Unset = container not
+		// found. The env list stays in the shape because a real inspect
+		// carries one; the launcher reads no variable out of it.
+		name := handleName(args[len(args)-1])
+		state := os.Getenv(stateVar(name))
 		if state == "" {
 			fmt.Fprintln(os.Stderr, "Error: no such container")
 			os.Exit(1)
@@ -1330,9 +1337,10 @@ func runtimeCmd(base string, args []string) {
 			// docker/podman status form: inspect -f {{.State.Status}} <name>
 			fmt.Println(state)
 		case base == "container":
-			// FAKERT_IMAGE_<svc> scripts the image reference the container
-			// reports (the Browser's keep-if-current check reads it).
-			img := os.Getenv("FAKERT_IMAGE_" + svc)
+			// FAKERT_IMAGE_<name minus semiont-> scripts the image reference
+			// the container reports (the Browser's keep-if-current check
+			// reads it).
+			img := os.Getenv("FAKERT_IMAGE_" + strings.TrimPrefix(name, "semiont-"))
 			fmt.Printf(`[{"configuration":{"initProcess":{"environment":[]},"image":{"reference":%q}},"status":%q}]`+"\n", img, state)
 		default:
 			// docker/podman full form: inspect <name>
@@ -1419,7 +1427,7 @@ func run(args []string) {
 	holdIfNamed(name)
 	// NAME-HOLDING: real runtimes refuse `run --name X` while a container
 	// named X exists IN ANY STATE — stopped included (no --rm keeps them).
-	// A scripted container (FAKERT_STATE_<svc>) holds its name until an
+	// A scripted container (stateVar) holds its name until an
 	// explicit `rm` records a removal marker. Without that, a
 	// stop-without-rm restart path passes hermetically and fails against a
 	// real runtime.
@@ -1554,8 +1562,20 @@ func markRemoved(name string) {
 }
 
 func scriptedAlive(name string) bool {
-	svc := strings.TrimPrefix(name, "semiont-")
-	return os.Getenv("FAKERT_STATE_"+svc) != "" && !removed(name)
+	return os.Getenv(stateVar(name)) != "" && !removed(name)
+}
+
+// stateVar: the variable a test scripts the container named name's state in —
+// FAKERT_STATE_ and the name without its semiont- prefix.
+func stateVar(name string) string {
+	return "FAKERT_STATE_" + strings.TrimPrefix(name, "semiont-")
+}
+
+// product: what a container the launcher named runs, the last word of its
+// name — semiont-<product> for the machine's (semiont-otel-collector runs a
+// collector), semiont-<kb key>-<product> for a knowledge base's.
+func product(container string) string {
+	return container[strings.LastIndex(container, "-")+1:]
 }
 
 // createdCodespaceNames: just the names, for the /user/codespaces facts.
@@ -1968,7 +1988,7 @@ var busScripted = map[string]bool{
 // existingContainers is every semiont-* container that exists here, from BOTH
 // sources — and it must be both, or the fake lies to a teardown:
 //
-//	FAKERT_STATE_<svc>   containers the TEST scripted as pre-existing
+//	FAKERT_STATE_<name>  containers the TEST scripted as pre-existing (stateVar)
 //	serve-<name>.pid     containers THIS RUN started (`run -d --name`), which
 //	                     no env var knows about
 //
@@ -2210,20 +2230,21 @@ func servedRoutes(container string) (func(string) bool, error) {
 		}
 		return func(p string) bool { return set[p] }
 	}
-	switch container {
-	case "semiont-otel-collector": // otel/opentelemetry-collector 0.137.0, prometheus exporter
+	svc := product(container)
+	switch svc {
+	case "collector": // otel/opentelemetry-collector 0.137.0, prometheus exporter
 		return exact("/metrics"), nil
-	case "semiont-prometheus": // prom/prometheus v3.9.1
+	case "prometheus": // prom/prometheus v3.9.1
 		return exact("/-/healthy"), nil
-	case "semiont-jaeger": // jaegertracing/all-in-one 1.76.0, the UI root
+	case "jaeger": // jaegertracing/all-in-one 1.76.0, the UI root
 		return exact("/"), nil
-	case "semiont-qdrant": // qdrant v1.19.1
+	case "qdrant": // qdrant v1.19.1
 		return exact("/readyz", "/"), nil
-	case "semiont-neo4j": // neo4j 5.26.28-community, the browser on 7474
+	case "neo4j": // neo4j 5.26.28-community, the browser on 7474
 		return exact("/"), nil
-	case "semiont-ollama": // the rest of Ollama's API is modelled above
+	case "ollama": // the rest of Ollama's API is modelled above
 		return exact("/api/version"), nil
-	case "semiont-keycloak":
+	case "keycloak":
 		// Keycloak serves a root document for EVERY realm it holds, which is
 		// what the launcher's readiness wait reads — it does not know which
 		// realm a config named, and must not ask the launcher. Whether the
@@ -2233,11 +2254,10 @@ func servedRoutes(container string) (func(string) bool, error) {
 			rest, ok := strings.CutPrefix(p, "/realms/")
 			return ok && rest != "" && !strings.Contains(rest, "/")
 		}, nil
-	case "semiont-postgres", "semiont-nats": // TCP only: a dial, no HTTP
+	case "postgres", "nats": // TCP only: a dial, no HTTP
 		return exact(), nil
 	}
 	// One of ours: ask the image.
-	svc := strings.TrimPrefix(container, "semiont-")
 	root := os.Getenv("FAKERT_REPO")
 	if root == "" {
 		return nil, fmt.Errorf("FAKERT_REPO is unset, so %s cannot read what its image serves", container)

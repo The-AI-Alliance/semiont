@@ -1,102 +1,102 @@
-container stop semiont-weaver
-container stop semiont-smelter
-container stop semiont-dispatcher
-container stop semiont-librarian
-container stop semiont-archivist
-container stop semiont-qdrant
-container stop semiont-neo4j
-container stop semiont-gateway
-container stop semiont-keycloak
-container stop semiont-nats
-container stop semiont-postgres
-container logs semiont-weaver
-container logs semiont-smelter
-container logs semiont-dispatcher
-container logs semiont-librarian
-container logs semiont-archivist
-container logs semiont-qdrant
-container logs semiont-neo4j
-container logs semiont-gateway
-container logs semiont-keycloak
-container logs semiont-nats
-container logs semiont-postgres
-container rm semiont-weaver
-container rm semiont-smelter
-container rm semiont-dispatcher
-container rm semiont-librarian
-container rm semiont-archivist
-container rm semiont-qdrant
-container rm semiont-neo4j
-container rm semiont-gateway
-container rm semiont-keycloak
-container rm semiont-nats
-container rm semiont-postgres
-docker stop semiont-weaver
-docker stop semiont-smelter
-docker stop semiont-dispatcher
-docker stop semiont-librarian
-docker stop semiont-archivist
-docker stop semiont-qdrant
-docker stop semiont-neo4j
-docker stop semiont-gateway
-docker stop semiont-keycloak
-docker stop semiont-nats
-docker stop semiont-postgres
-docker logs --tail 5000 semiont-weaver
-docker logs --tail 5000 semiont-smelter
-docker logs --tail 5000 semiont-dispatcher
-docker logs --tail 5000 semiont-librarian
-docker logs --tail 5000 semiont-archivist
-docker logs --tail 5000 semiont-qdrant
-docker logs --tail 5000 semiont-neo4j
-docker logs --tail 5000 semiont-gateway
-docker logs --tail 5000 semiont-keycloak
-docker logs --tail 5000 semiont-nats
-docker logs --tail 5000 semiont-postgres
-docker rm semiont-weaver
-docker rm semiont-smelter
-docker rm semiont-dispatcher
-docker rm semiont-librarian
-docker rm semiont-archivist
-docker rm semiont-qdrant
-docker rm semiont-neo4j
-docker rm semiont-gateway
-docker rm semiont-keycloak
-docker rm semiont-nats
-docker rm semiont-postgres
-podman stop semiont-weaver
-podman stop semiont-smelter
-podman stop semiont-dispatcher
-podman stop semiont-librarian
-podman stop semiont-archivist
-podman stop semiont-qdrant
-podman stop semiont-neo4j
-podman stop semiont-gateway
-podman stop semiont-keycloak
-podman stop semiont-nats
-podman stop semiont-postgres
-podman logs --tail 5000 semiont-weaver
-podman logs --tail 5000 semiont-smelter
-podman logs --tail 5000 semiont-dispatcher
-podman logs --tail 5000 semiont-librarian
-podman logs --tail 5000 semiont-archivist
-podman logs --tail 5000 semiont-qdrant
-podman logs --tail 5000 semiont-neo4j
-podman logs --tail 5000 semiont-gateway
-podman logs --tail 5000 semiont-keycloak
-podman logs --tail 5000 semiont-nats
-podman logs --tail 5000 semiont-postgres
-podman rm semiont-weaver
-podman rm semiont-smelter
-podman rm semiont-dispatcher
-podman rm semiont-librarian
-podman rm semiont-archivist
-podman rm semiont-qdrant
-podman rm semiont-neo4j
-podman rm semiont-gateway
-podman rm semiont-keycloak
-podman rm semiont-nats
-podman rm semiont-postgres
+container stop semiont-example.github.io-test-kb-weaver
+container stop semiont-example.github.io-test-kb-smelter
+container stop semiont-example.github.io-test-kb-dispatcher
+container stop semiont-example.github.io-test-kb-librarian
+container stop semiont-example.github.io-test-kb-archivist
+container stop semiont-example.github.io-test-kb-qdrant
+container stop semiont-example.github.io-test-kb-neo4j
+container stop semiont-example.github.io-test-kb-gateway
+container stop semiont-example.github.io-test-kb-keycloak
+container stop semiont-example.github.io-test-kb-nats
+container stop semiont-example.github.io-test-kb-postgres
+container logs semiont-example.github.io-test-kb-weaver
+container logs semiont-example.github.io-test-kb-smelter
+container logs semiont-example.github.io-test-kb-dispatcher
+container logs semiont-example.github.io-test-kb-librarian
+container logs semiont-example.github.io-test-kb-archivist
+container logs semiont-example.github.io-test-kb-qdrant
+container logs semiont-example.github.io-test-kb-neo4j
+container logs semiont-example.github.io-test-kb-gateway
+container logs semiont-example.github.io-test-kb-keycloak
+container logs semiont-example.github.io-test-kb-nats
+container logs semiont-example.github.io-test-kb-postgres
+container rm semiont-example.github.io-test-kb-weaver
+container rm semiont-example.github.io-test-kb-smelter
+container rm semiont-example.github.io-test-kb-dispatcher
+container rm semiont-example.github.io-test-kb-librarian
+container rm semiont-example.github.io-test-kb-archivist
+container rm semiont-example.github.io-test-kb-qdrant
+container rm semiont-example.github.io-test-kb-neo4j
+container rm semiont-example.github.io-test-kb-gateway
+container rm semiont-example.github.io-test-kb-keycloak
+container rm semiont-example.github.io-test-kb-nats
+container rm semiont-example.github.io-test-kb-postgres
+docker stop semiont-example.github.io-test-kb-weaver
+docker stop semiont-example.github.io-test-kb-smelter
+docker stop semiont-example.github.io-test-kb-dispatcher
+docker stop semiont-example.github.io-test-kb-librarian
+docker stop semiont-example.github.io-test-kb-archivist
+docker stop semiont-example.github.io-test-kb-qdrant
+docker stop semiont-example.github.io-test-kb-neo4j
+docker stop semiont-example.github.io-test-kb-gateway
+docker stop semiont-example.github.io-test-kb-keycloak
+docker stop semiont-example.github.io-test-kb-nats
+docker stop semiont-example.github.io-test-kb-postgres
+docker logs --tail 5000 semiont-example.github.io-test-kb-weaver
+docker logs --tail 5000 semiont-example.github.io-test-kb-smelter
+docker logs --tail 5000 semiont-example.github.io-test-kb-dispatcher
+docker logs --tail 5000 semiont-example.github.io-test-kb-librarian
+docker logs --tail 5000 semiont-example.github.io-test-kb-archivist
+docker logs --tail 5000 semiont-example.github.io-test-kb-qdrant
+docker logs --tail 5000 semiont-example.github.io-test-kb-neo4j
+docker logs --tail 5000 semiont-example.github.io-test-kb-gateway
+docker logs --tail 5000 semiont-example.github.io-test-kb-keycloak
+docker logs --tail 5000 semiont-example.github.io-test-kb-nats
+docker logs --tail 5000 semiont-example.github.io-test-kb-postgres
+docker rm semiont-example.github.io-test-kb-weaver
+docker rm semiont-example.github.io-test-kb-smelter
+docker rm semiont-example.github.io-test-kb-dispatcher
+docker rm semiont-example.github.io-test-kb-librarian
+docker rm semiont-example.github.io-test-kb-archivist
+docker rm semiont-example.github.io-test-kb-qdrant
+docker rm semiont-example.github.io-test-kb-neo4j
+docker rm semiont-example.github.io-test-kb-gateway
+docker rm semiont-example.github.io-test-kb-keycloak
+docker rm semiont-example.github.io-test-kb-nats
+docker rm semiont-example.github.io-test-kb-postgres
+podman stop semiont-example.github.io-test-kb-weaver
+podman stop semiont-example.github.io-test-kb-smelter
+podman stop semiont-example.github.io-test-kb-dispatcher
+podman stop semiont-example.github.io-test-kb-librarian
+podman stop semiont-example.github.io-test-kb-archivist
+podman stop semiont-example.github.io-test-kb-qdrant
+podman stop semiont-example.github.io-test-kb-neo4j
+podman stop semiont-example.github.io-test-kb-gateway
+podman stop semiont-example.github.io-test-kb-keycloak
+podman stop semiont-example.github.io-test-kb-nats
+podman stop semiont-example.github.io-test-kb-postgres
+podman logs --tail 5000 semiont-example.github.io-test-kb-weaver
+podman logs --tail 5000 semiont-example.github.io-test-kb-smelter
+podman logs --tail 5000 semiont-example.github.io-test-kb-dispatcher
+podman logs --tail 5000 semiont-example.github.io-test-kb-librarian
+podman logs --tail 5000 semiont-example.github.io-test-kb-archivist
+podman logs --tail 5000 semiont-example.github.io-test-kb-qdrant
+podman logs --tail 5000 semiont-example.github.io-test-kb-neo4j
+podman logs --tail 5000 semiont-example.github.io-test-kb-gateway
+podman logs --tail 5000 semiont-example.github.io-test-kb-keycloak
+podman logs --tail 5000 semiont-example.github.io-test-kb-nats
+podman logs --tail 5000 semiont-example.github.io-test-kb-postgres
+podman rm semiont-example.github.io-test-kb-weaver
+podman rm semiont-example.github.io-test-kb-smelter
+podman rm semiont-example.github.io-test-kb-dispatcher
+podman rm semiont-example.github.io-test-kb-librarian
+podman rm semiont-example.github.io-test-kb-archivist
+podman rm semiont-example.github.io-test-kb-qdrant
+podman rm semiont-example.github.io-test-kb-neo4j
+podman rm semiont-example.github.io-test-kb-gateway
+podman rm semiont-example.github.io-test-kb-keycloak
+podman rm semiont-example.github.io-test-kb-nats
+podman rm semiont-example.github.io-test-kb-postgres
 container stop semiont-worker
 container rm semiont-worker
 docker stop semiont-worker

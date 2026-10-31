@@ -25,6 +25,28 @@ import (
 //
 // A black-box suite of these takes minutes; this takes microseconds.
 
+// localStack: the knowledge base's local stack the fixtures record, its
+// gateway as given.
+func localStack(gateway launcher.ServiceState) *launcher.StackState {
+	return &launcher.StackState{Runtime: "container", KBDid: "did:web:example.org:kb", KBRoot: "/kb",
+		Services: map[string]launcher.ServiceState{"gateway": gateway}}
+}
+
+// localKey: the key the launcher records localStack's stack, and keeps its
+// sign-in, under.
+var localKey = launcher.StackKey(localStack(launcher.ServiceState{}))
+
+// recordLocalStack writes a record holding st alone, keyed as the launcher
+// keys it.
+func recordLocalStack(t *testing.T, st *launcher.StackState) {
+	t.Helper()
+	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{launcher.StackKey(st): st}}
+	b, _ := json.MarshalIndent(ss, "", "  ")
+	if err := os.WriteFile(filepath.Join(launcher.StateDir(), "stack.json"), b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // verbFixture puts the on-disk state `VerbSession` reads — a recorded local
 // stack and a stored token — under a temp HOME, so a verb can run without a
 // started stack.
@@ -38,16 +60,8 @@ func verbFixture(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{
-		"local": {Runtime: "container", Services: map[string]launcher.ServiceState{
-			"gateway": {Endpoint: "http://localhost:4000/api/health"},
-		}},
-	}}
-	b, _ := json.MarshalIndent(ss, "", "  ")
-	if err := os.WriteFile(filepath.Join(dir, "stack.json"), b, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	toks, _ := json.Marshal(map[string]semiont.SignIn{"local": {Token: "test-token", Email: "t@example.com"}})
+	recordLocalStack(t, localStack(launcher.ServiceState{Endpoint: "http://localhost:4000/api/health"}))
+	toks, _ := json.Marshal(map[string]semiont.SignIn{localKey: {Token: "test-token", Email: "t@example.com"}})
 	if err := os.WriteFile(filepath.Join(dir, "tokens.json"), toks, 0o600); err != nil {
 		t.Fatal(err)
 	}

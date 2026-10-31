@@ -128,8 +128,8 @@ func TestMCPACodespaceWhoseForwardIsDownIsSaidAndNothingIsStarted(t *testing.T) 
 		kb := row.(map[string]any)
 		byKey[kb["kb"].(string)] = kb
 	}
-	if len(byKey) != 2 || byKey["local"] == nil || byKey["codespace:o/n"] == nil {
-		t.Fatalf("knowledge_bases listed %v, want local and codespace:o/n", rows)
+	if len(byKey) != 2 || byKey[localKey] == nil || byKey["codespace:o/n"] == nil {
+		t.Fatalf("knowledge_bases listed %v, want %s and codespace:o/n", rows, localKey)
 	}
 	if up, _ := byKey["codespace:o/n"]["forwardUp"].(bool); up || byKey["codespace:o/n"]["forwardUp"] == nil {
 		t.Errorf("a codespace whose forward is down is listed with forwardUp %v", byKey["codespace:o/n"]["forwardUp"])
@@ -150,7 +150,7 @@ func TestMCPACodespaceWhoseForwardIsDownIsSaidAndNothingIsStarted(t *testing.T) 
 	// With two signed in, a call names one, and the server picks none.
 	unnamed := callTool(t, cs, "browse_resources", map[string]any{})
 	if !unnamed.IsError || !strings.Contains(said(unnamed), "`kb` is required") ||
-		!strings.Contains(said(unnamed), "`local`") || !strings.Contains(said(unnamed), "`codespace:o/n`") {
+		!strings.Contains(said(unnamed), "`"+localKey+"`") || !strings.Contains(said(unnamed), "`codespace:o/n`") {
 		t.Errorf("a call naming no kb with two signed in was not refused naming kb and both:\n%s", said(unnamed))
 	}
 	if sent := fake.RequestLog(); len(sent) != 0 {
@@ -158,7 +158,7 @@ func TestMCPACodespaceWhoseForwardIsDownIsSaidAndNothingIsStarted(t *testing.T) 
 	}
 
 	// A call naming local reaches local's client.
-	callTool(t, cs, "browse_resources", map[string]any{"kb": "local"})
+	callTool(t, cs, "browse_resources", map[string]any{"kb": localKey})
 	if sent := requestsOf(fake, bus.BrowseResourcesRequested.Request().Channel()); len(sent) != 1 {
 		t.Errorf("a call naming local did not reach it")
 	}

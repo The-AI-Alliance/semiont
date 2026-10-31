@@ -179,10 +179,10 @@ func issuerProxyAlive(pid int) bool {
 	return strings.Contains(processName(strconv.Itoa(pid)), name)
 }
 
-// retireIssuerProxy ends the issuer proxy the local stack's record names, if
-// one runs, and forgets it.
-func retireIssuerProxy(u *UI) {
-	st := loadLocalState()
+// retireIssuerProxy ends the issuer proxy the record of the knowledge base
+// keyed key names, if one runs, and forgets it.
+func retireIssuerProxy(u *UI, key string) {
+	st := localStack(LoadStackSet(), key)
 	if st == nil || st.IssuerProxy == nil {
 		return
 	}

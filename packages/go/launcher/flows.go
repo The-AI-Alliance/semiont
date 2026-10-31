@@ -180,15 +180,22 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.banner("Preflight")
 	// Crash evidence first: the runtime's log capture is the only copy of the
 	// prior stack's story, and the stop+rm below deletes it.
-	x.snapshotLogs(fc.kb, preflightNames)
-	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(preflightNames))))
+	//
+	// The sweep is this knowledge base's stack alone: another's runs under
+	// names of its own. The machine's containers are not in it — the
+	// telemetry, the worker, the machine's Ollama and the Browser serve every
+	// KB here, and each is kept or replaced from its own record by its own
+	// flow (flowMachine, flowOllama, flowBrowser).
+	prior := stackContainers(fc.kb.key())
+	x.snapshotLogs(fc.kb, prior)
+	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(prior))))
 	removed := 0
-	for _, c := range preflightNames {
+	for _, c := range prior {
 		if x.stopRm(c) {
 			removed++
 		}
 	}
-	swept := x.sweepStray(preflightNames)
+	swept := x.sweepStray(prior)
 	// A prior `network lan` start's issuer proxy holds the issuer's port at
 	// the network address, whatever this start's setting.
 	x.retireIssuerProxy()
@@ -372,7 +379,7 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 		desired, doc.endpoint(), doc.spec.Resources.Limits.Memory)
 	x.note("(the Browser is not a stack member: semiont stop --service browser stops it alone)")
 	return x.either(func() bool {
-		return !forceRestart && recordedAs(x.machineRecord("semiont-browser"), doc) && x.containerCurrent("semiont-browser", desired)
+		return !forceRestart && recordedAs(x.machineRecord(machineContainer("browser")), doc) && x.containerCurrent(machineContainer("browser"), desired)
 	},
 		func() int {
 			x.say(sayOK, "Browser already running on %s %s", doc.endpoint(),
@@ -384,7 +391,7 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 			// stopped container HOLDS its name — the next run --name fails
 			// with "already exists" on every runtime (the same reason
 			// stop.go always rm's).
-			x.stopRm("semiont-browser")
+			x.stopRm(machineContainer("browser"))
 			e := x.exposure(addr)
 			browser := portNeed{doc.spec.Port, "Browser"}
 			needs := append([]portNeed{browser}, e.containersSideNeed("browser", browser, semiontDescriptor("browser").defaultPort)...)
@@ -403,13 +410,13 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 				x.say(sayFail, "Browser failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP("Browser", "semiont-browser", doc.endpoint(), 30)
+			d, ok := x.waitHTTP("Browser", machineContainer("browser"), doc.endpoint(), 30)
 			if !ok {
-				x.dumpLogs("semiont-browser", "browser")
+				x.dumpLogs(machineContainer("browser"), "browser")
 				return 1
 			}
 			x.say(sayOK, "Browser on %s %s", doc.endpoint(), x.dim("("+took(d)+")"))
-			x.recordMachine(ServiceState{Container: "semiont-browser", ID: id, Image: desired,
+			x.recordMachine(ServiceState{Container: machineContainer("browser"), ID: id, Image: desired,
 				Endpoint: doc.endpoint(), Memory: doc.spec.Resources.Limits.Memory, Ports: portNumbers(needs)})
 			return 0
 		})
@@ -454,7 +461,8 @@ type machineRun struct {
 // says it runs, and run afresh. Its caller says what it is (banner).
 func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 	d := descriptorFor(m.role, m.driver)
-	rec := x.machineRecord(d.container)
+	name := machineContainer(m.role)
+	rec := x.machineRecord(name)
 	e := x.exposure(addr)
 	health := healthEndpoint(m.role, m.driver, fc.plan, e)
 	memoryClause := ""
@@ -466,15 +474,15 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 		configClause = ", its " + m.file + " is what this start writes,"
 	}
 	x.note("%s: keep %s if its record says %s under %s%s%s and it runs %s; else stop/rm it, then run it",
-		m.role, d.container, health, x.rtName(), memoryClause, configClause, m.image)
+		m.role, name, health, x.rtName(), memoryClause, configClause, m.image)
 	served := func() {
 		if !m.notThisKB {
-			x.servedByMachine(m.role, d.container, health, m.driver)
+			x.servedByMachine(m.role, name, health, m.driver)
 		}
 	}
 	return x.either(func() bool {
 		return !fc.restart && rec != nil && rec.Runtime == x.rtName() && rec.Endpoint == health && rec.Memory == m.memory &&
-			(m.file == "" || x.machineConfigCurrent(m.file, m.config)) && x.containerCurrent(d.container, m.image)
+			(m.file == "" || x.machineConfigCurrent(m.file, m.config)) && x.containerCurrent(name, m.image)
 	},
 		func() int {
 			x.say(sayOK, "%s — %s already running %s", m.role, d.display,
@@ -484,7 +492,7 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 		},
 		func() int {
 			needs := stackPortNeeds(m.role)
-			if x.stopMachine(d.container, rec) {
+			if x.stopMachine(name, rec) {
 				x.settle(portNumbers(needs)...)
 			}
 			if !x.portChecks(needs) {
@@ -506,13 +514,13 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 				x.say(sayFail, "%s (%s) failed to start.", m.role, d.display)
 				return 1
 			}
-			waited, ok := x.waitHTTP(m.role+" ("+d.display+")", d.container, health, 30)
+			waited, ok := x.waitHTTP(m.role+" ("+d.display+")", name, health, 30)
 			if !ok {
-				x.dumpLogs(d.container, m.role)
+				x.dumpLogs(name, m.role)
 				return 1
 			}
 			x.say(sayOK, "%s — %s %s", m.role, m.ready, x.dim("("+took(waited)+")"))
-			x.recordMachine(ServiceState{Container: d.container, ID: id, Image: m.image, Endpoint: health, Memory: m.memory, Ports: portNumbers(needs)})
+			x.recordMachine(ServiceState{Container: name, ID: id, Image: m.image, Endpoint: health, Memory: m.memory, Ports: portNumbers(needs)})
 			served()
 			return 0
 		})
@@ -594,7 +602,7 @@ func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
 	if !x.keepWorkerList(list) {
 		return 1
 	}
-	name := roleContainer("worker")
+	name := machineContainer("worker")
 	if len(entries) == 0 {
 		x.note("worker: serves no knowledge base — stop/rm %s wherever its record says it runs", name)
 		if x.stopMachine(name, x.machineRecord(name)) {
@@ -677,7 +685,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		rp.Env = append(append([]string{}, rp.Env...), creds...)
-		args := providedRunArgs(x.exposure(addr), fc.plan, rp, extra...)
+		args := providedRunArgs(x.exposure(addr), fc.plan, rp, fc.kb.key(), extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
 			x.say(sayFail, "%s (%s) failed to start.", role, disp)
@@ -689,9 +697,9 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// the wait is the realm gate as well as the liveness gate. It asks
 			// Keycloak itself, which under `network lan` is behind the proxy.
 			e := x.exposure(addr)
-			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity"), keycloakEndpoint(rp, e), 90)
+			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity", fc.kb.key()), keycloakEndpoint(rp, e), 90)
 			if !ok {
-				x.dumpLogs(roleContainer("identity"), "identity")
+				x.dumpLogs(roleContainer("identity", fc.kb.key()), "identity")
 				return 1
 			}
 			if e.behindProxy(role) {
@@ -701,7 +709,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 					return 1
 				}
 				// The issuer where everyone dials it, through the proxy (D5).
-				if _, ok := x.waitHTTP("identity (the issuer proxy)", roleContainer("identity"), healthEndpoint(role, rp.Driver, fc.plan, e), 15); !ok {
+				if _, ok := x.waitHTTP("identity (the issuer proxy)", roleContainer("identity", fc.kb.key()), healthEndpoint(role, rp.Driver, fc.plan, e), 15); !ok {
 					return 1
 				}
 			}
@@ -717,17 +725,17 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
-			d, ok := x.waitHTTP("graph ("+disp+")", roleContainer("graph"), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 30)
+			d, ok := x.waitHTTP("graph ("+disp+")", roleContainer("graph", fc.kb.key()), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 30)
 			if !ok {
-				x.dumpLogs(roleContainer("graph"), "graph")
+				x.dumpLogs(roleContainer("graph", fc.kb.key()), "graph")
 				return 1
 			}
 			x.say(sayOK, "graph — bolt://localhost:%d (browser: http://localhost:%d) %s", rp.Port, aux, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "vectors":
-			d, ok := x.waitHTTP("vectors ("+disp+")", roleContainer("vectors"), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 15)
+			d, ok := x.waitHTTP("vectors ("+disp+")", roleContainer("vectors", fc.kb.key()), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 15)
 			if !ok {
-				x.dumpLogs(roleContainer("vectors"), "vectors")
+				x.dumpLogs(roleContainer("vectors", fc.kb.key()), "vectors")
 				return 1
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
@@ -735,12 +743,12 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "database":
 			d, ok := x.waitTCP("PostgreSQL", x.exposure(addr).probeHost(role, descriptorFor(role, rp.Driver).defaultPort), addr, rp.Port, 20)
 			if !ok {
-				x.dumpLogs(roleContainer("database"), "database")
+				x.dumpLogs(roleContainer("database", fc.kb.key()), "database")
 				return 1
 			}
 			// The port is the runtime's; sessions are the server's.
 			if !x.waitPGAccepting(30) {
-				x.dumpLogs(roleContainer("database"), "database")
+				x.dumpLogs(roleContainer("database", fc.kb.key()), "database")
 				return 1
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
@@ -750,7 +758,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// the container path the gateway will dial.
 			d, ok := x.waitTCP("NATS", x.exposure(addr).probeHost(role, descriptorFor(role, rp.Driver).defaultPort), addr, rp.Port, 15)
 			if !ok {
-				x.dumpLogs(roleContainer("messaging"), "messaging")
+				x.dumpLogs(roleContainer("messaging", fc.kb.key()), "messaging")
 				return 1
 			}
 			x.say(sayOK, "messaging — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
@@ -907,19 +915,19 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		title = depRoleTitles[role]
 	}
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
-	rec := x.machineRecord("semiont-ollama")
+	rec := x.machineRecord(machineContainer("inference"))
 	health := healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr))
 	base := fmt.Sprintf("http://%s:%d", x.exposure(addr).probeHost(role, rp.Port), rp.Port)
 	asked := ollamaCacheAsked(fc.opts.ollamaCache)
 	x.note("ollama: keep the machine's Ollama if its record says %s under %s%s and it runs %s; else stop/rm it, then reuse a host Ollama or run the container",
 		base, x.rtName(), cacheClause(asked), rp.Image)
 	return x.either(func() bool {
-		return !fc.restart && ollamaRecordedAs(rec, x.rtName(), base, asked) && x.containerCurrent("semiont-ollama", rp.Image)
+		return !fc.restart && ollamaRecordedAs(rec, x.rtName(), base, asked) && x.containerCurrent(machineContainer("inference"), rp.Image)
 	},
 		func() int {
 			x.say(sayOK, "%s — the machine's Ollama already running on %s %s", role, base,
 				x.dim("(kept: it serves every KB here; semiont stop --service "+role+" stops it)"))
-			x.servedByMachine(role, "semiont-ollama", health, rp.Driver)
+			x.servedByMachine(role, machineContainer("inference"), health, rp.Driver)
 			x.ensureModels(base, fc.plan.OllamaModels)
 			return 0
 		},
@@ -929,7 +937,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			// the same /api/version, so probing first would take it for a
 			// host install. It goes wherever it runs — its record may name
 			// another runtime — and with no record, by name under this one.
-			if x.stopMachine("semiont-ollama", rec) {
+			if x.stopMachine(machineContainer("inference"), rec) {
 				x.settle(rp.Port)
 			}
 			x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
@@ -940,7 +948,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 						return 1
 					}
 					x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
-					x.forgetMachine("semiont-ollama")
+					x.forgetMachine(machineContainer("inference"))
 					x.record(role, "", "", providedHost, healthEndpoint(role, rp.Driver, fc.plan, exposure{}), rp.Driver)
 					x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 					return 0
@@ -960,15 +968,15 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 						x.say(sayFail, "Ollama container failed to start.")
 						return 1
 					}
-					d, ok := x.waitHTTP(role+" (Ollama)", "semiont-ollama", health, 30)
+					d, ok := x.waitHTTP(role+" (Ollama)", machineContainer("inference"), health, 30)
 					if !ok {
-						x.dumpLogs("semiont-ollama", role)
+						x.dumpLogs(machineContainer("inference"), role)
 						return 1
 					}
 					x.say(sayOK, "%s — Ollama container on %s (24 GB memory) %s", role, base, x.dim("("+took(d)+")"))
-					x.recordMachine(ServiceState{Container: "semiont-ollama", ID: id, Image: rp.Image,
+					x.recordMachine(ServiceState{Container: machineContainer("inference"), ID: id, Image: rp.Image,
 						Endpoint: base, Cache: volume, Ports: portNumbers([]portNeed{need})})
-					x.servedByMachine(role, "semiont-ollama", health, rp.Driver)
+					x.servedByMachine(role, machineContainer("inference"), health, rp.Driver)
 					x.ensureModels(base, fc.plan.OllamaModels)
 					return 0
 				})
@@ -1014,16 +1022,16 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, x.exposure(addr), gatewayClientSecret, jwt, fc.plan.Images["gateway"], fc.plan.Memory["gateway"], port, fc.envFor("gateway"), otel, extra...)
+	bArgs := gatewayArgs(fc.kb.key(), stage, x.exposure(addr), gatewayClientSecret, jwt, fc.plan.Images["gateway"], fc.plan.Memory["gateway"], port, fc.envFor("gateway"), otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
 		return 1
 	}
 	x.say(sayLog, "Waiting for gateway health...")
-	d, ok := x.waitHTTP("Gateway", "semiont-gateway", healthEndpoint("gateway", driverSemiont, fc.plan, x.exposure(addr)), 120)
+	d, ok := x.waitHTTP("Gateway", roleContainer("gateway", fc.kb.key()), healthEndpoint("gateway", driverSemiont, fc.plan, x.exposure(addr)), 120)
 	if !ok {
-		x.dumpLogs("semiont-gateway", "gateway")
+		x.dumpLogs(roleContainer("gateway", fc.kb.key()), "gateway")
 		return 1
 	}
 	x.say(sayOK, "Gateway healthy %s", x.dim("("+took(d)+")"))
@@ -1048,22 +1056,22 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		if !ok {
 			return 1
 		}
-		args = smelterArgs(stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = smelterArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "weaver":
 		clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
 		if !ok {
 			return 1
 		}
-		args = weaverArgs(stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = weaverArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	}
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
 		return 1
 	}
-	d, ok := x.waitHTTP(sc.label, spec.container, healthEndpoint(sc.svc, driverSemiont, fc.plan, x.exposure(addr)), 30)
+	d, ok := x.waitHTTP(sc.label, spec.containerName(fc.kb.key()), healthEndpoint(sc.svc, driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
-		x.dumpLogs(spec.container, sc.svc)
+		x.dumpLogs(spec.containerName(fc.kb.key()), sc.svc)
 		return 1
 	}
 	x.say(sayOK, "%s healthy (http://%s:%d) %s", sc.label, x.exposure(addr).probeHost(sc.svc, spec.ports[0].port), fc.plan.servicePort(sc.svc), x.dim("("+took(d)+")"))
@@ -1093,15 +1101,15 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.exposure(addr), fc.plan.servicePort("archivist"), clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
+	args := archivistArgs(fc.kb.key(), x.val(fc.kb.dir, "<kb-root>"), stage, x.exposure(addr), fc.plan.servicePort("archivist"), clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Archivist", "semiont-archivist", healthEndpoint("archivist", driverSemiont, fc.plan, x.exposure(addr)), 30)
+	d, ok := x.waitHTTP("Archivist", roleContainer("archivist", fc.kb.key()), healthEndpoint("archivist", driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
-		x.dumpLogs("semiont-archivist", "archivist")
+		x.dumpLogs(roleContainer("archivist", fc.kb.key()), "archivist")
 		return 1
 	}
 	x.say(sayOK, "Archivist healthy (http://%s:%d) %s", x.exposure(addr).probeHost("archivist", semiontDescriptor("archivist").ports[0].port), fc.plan.servicePort("archivist"), x.dim("("+took(d)+")"))
@@ -1126,15 +1134,15 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.exposure(addr), fc.plan.servicePort("librarian"), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
+	args := librarianArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort("librarian"), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Librarian", "semiont-librarian", healthEndpoint("librarian", driverSemiont, fc.plan, x.exposure(addr)), 30)
+	d, ok := x.waitHTTP("Librarian", roleContainer("librarian", fc.kb.key()), healthEndpoint("librarian", driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
-		x.dumpLogs("semiont-librarian", "librarian")
+		x.dumpLogs(roleContainer("librarian", fc.kb.key()), "librarian")
 		return 1
 	}
 	x.say(sayOK, "Librarian healthy (http://%s:%d) %s", x.exposure(addr).probeHost("librarian", semiontDescriptor("librarian").ports[0].port), fc.plan.servicePort("librarian"), x.dim("("+took(d)+")"))
@@ -1156,15 +1164,15 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.exposure(addr), fc.plan.servicePort("dispatcher"), clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort("dispatcher"), clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Dispatcher", "semiont-dispatcher", healthEndpoint("dispatcher", driverSemiont, fc.plan, x.exposure(addr)), 30)
+	d, ok := x.waitHTTP("Dispatcher", roleContainer("dispatcher", fc.kb.key()), healthEndpoint("dispatcher", driverSemiont, fc.plan, x.exposure(addr)), 30)
 	if !ok {
-		x.dumpLogs("semiont-dispatcher", "dispatcher")
+		x.dumpLogs(roleContainer("dispatcher", fc.kb.key()), "dispatcher")
 		return 1
 	}
 	x.say(sayOK, "Dispatcher healthy (http://%s:%d) %s", x.exposure(addr).probeHost("dispatcher", semiontDescriptor("dispatcher").ports[0].port), fc.plan.servicePort("dispatcher"), x.dim("("+took(d)+")"))
@@ -1210,7 +1218,7 @@ func flowOneService(x executor, fc flowCtx) int {
 	// containers deliberately keep running on theirs.
 	if !contains(machineRoles, svc) {
 		ports := servicePortNeeds(svc, fc.plan, fc.browser, x.exposure(""))
-		if x.stopRm(roleContainer(svc)) {
+		if x.stopRm(roleContainer(svc, fc.kb.key())) {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.settle(portNumbers(ports)...)
 		}

@@ -11,12 +11,13 @@ import (
 	"syscall"
 )
 
-var logsUsage = fmt.Sprintf(`Usage: semiont logs [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
+var logsUsage = fmt.Sprintf(`Usage: semiont logs [--service <name>] [--root <path>] [--runtime container|docker|podman] [--repo <owner/name>]
 
-A bare invocation follows the lone forwarded codespace stack (when no local
-stack exists), else the local stack, else the lone recorded codespace; with
-several codespace stacks, say which. --repo targets a codespace stack
-explicitly; --runtime targets a local runtime.
+A bare invocation follows the stack of the knowledge base you stand in, else
+the one local stack, else (with no local stack) the lone forwarded codespace
+stack, else the lone recorded codespace; with several, say which. --root
+targets a knowledge base's stack, --repo a codespace stack; --runtime
+targets a local runtime.
 
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
@@ -49,6 +50,7 @@ func Logs(args []string) int {
 	runtime := ""
 	service := ""
 	repoFlag := ""
+	rootFlag := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--runtime":
@@ -64,6 +66,13 @@ func Logs(args []string) int {
 				return 1
 			}
 			repoFlag = args[i+1]
+			i++
+		case "--root":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --root")
+				return 1
+			}
+			rootFlag = args[i+1]
 			i++
 		case "--service":
 			if i+1 >= len(args) {
@@ -95,9 +104,31 @@ func Logs(args []string) int {
 		return 1
 	}
 	cs := codespaceStacks(ss)
-	st := ss.Stacks["local"]
+	// key: the state key of the knowledge base whose containers are
+	// followed, which names them — a codespace's own launcher names its
+	// stack's as this one does.
+	st, key, ok := logsLocalStack(u, ss, rootFlag, repoFlag != "")
+	if !ok {
+		return 1
+	}
 	rt := ""
 	csName := ""
+	// A codespace's containers are named for its knowledge base. Logs ride
+	// ssh, so one whose identity no record holds (an adopted codespace) has
+	// it read there.
+	codespace := func(c *StackState) bool {
+		did := c.KBDid
+		if did == "" {
+			remote, ok := fetchRemoteDid(u, c.Codespace.Name)
+			if !ok {
+				u.Fail("%s's knowledge base could not be identified, so its containers cannot be named.", c.Codespace.Repo)
+				return false
+			}
+			did = remote
+		}
+		csName, key, st = c.Codespace.Name, rootKey(did, ""), nil
+		return true
+	}
 	if repoFlag != "" {
 		target, ok := repoCodespaceStack(u, ss, repoFlag)
 		if !ok {
@@ -107,8 +138,9 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "'gh' is not on PATH.")
 			return 1
 		}
-		csName = target.Codespace.Name
-		st = nil
+		if !codespace(target) {
+			return 1
+		}
 	} else if runtime != "" {
 		if !onPath(runtime) {
 			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
@@ -127,18 +159,24 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "A codespace stack is forwarded but 'gh' is not on PATH.")
 			return 1
 		}
-		csName = fwd[0].Codespace.Name
+		if !codespace(fwd[0]) {
+			return 1
+		}
 		u.Log("Using the forwarded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		rt = st.Runtime
 		u.Log("Using recorded stack state %s", u.Dim("("+rt+" per "+statePath()+")"))
+	} else if key != "" {
+		st = nil
+		rt = stackRuntime(key)
 	} else if len(cs) == 1 {
 		if !onPath("gh") {
 			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
 			return 1
 		}
-		csName = cs[0].Codespace.Name
-		st = nil
+		if !codespace(cs[0]) {
+			return 1
+		}
 		u.Log("Using recorded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if len(cs) > 1 {
 		fmt.Fprintln(os.Stderr, "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
@@ -146,9 +184,6 @@ func Logs(args []string) int {
 			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 		}
 		return 1
-	} else {
-		st = nil
-		rt = stackRuntime()
 	}
 	if rt == "" && csName == "" {
 		fmt.Fprintln(os.Stderr, "No running Semiont stack found in any runtime (container/docker/podman).")
@@ -181,7 +216,7 @@ func Logs(args []string) int {
 				}
 			}
 		}
-		return roleContainer(svc), true
+		return roleContainer(svc, key), true
 	}
 
 	// The default set is the services this stack runs: one its config gives
@@ -201,7 +236,7 @@ func Logs(args []string) int {
 	targets := make(map[string]string, len(follow)) // svc → handle
 	for _, svc := range follow {
 		if csName != "" { // codespace: wire-level names, no per-service record
-			targets[svc] = roleContainer(svc)
+			targets[svc] = roleContainer(svc, key)
 			continue
 		}
 		h, ok := handleFor(svc)
@@ -274,11 +309,62 @@ func Logs(args []string) int {
 	return 0
 }
 
-// stackRuntime finds the runtime actually running the stack: following via
-// the wrong one shows nothing. It anchors on semiont-gateway by NAME —
-// matching any "semiont-" would false-positive on unrelated containers
-// (e.g. a local verdaccio).
-func stackRuntime() string {
+// logsLocalStack: the local stack logs follows, and the state key of its
+// knowledge base: --root's, else the one you stand in, else the one recorded.
+// st is nil for a knowledge base with no stack recorded, whose containers are
+// found by name; key is "" when no knowledge base answers, and a codespace
+// may. ok=false: refused — a codespace was named alongside --root, or several
+// local stacks are recorded and none was named.
+func logsLocalStack(u *UI, ss *StackSet, root string, repo bool) (st *StackState, key string, ok bool) {
+	if repo && root != "" {
+		u.Fail("--repo and --root are contradictory: one names a codespace stack, the other a local one.")
+		return nil, "", false
+	}
+	if repo {
+		return nil, "", true
+	}
+	var asked kbRoot
+	if root != "" {
+		dir, ident, err := resolveRootArg(root)
+		if err != nil {
+			u.Fail("%v", err)
+			return nil, "", false
+		}
+		asked = kbRoot{dir: dir, ident: ident}
+	} else if kb, err := cwdKBRoot(); err != nil {
+		u.Fail("%v", err)
+		return nil, "", false
+	} else {
+		asked = kb
+	}
+	if asked.dir != "" {
+		// A copy of the knowledge base running from another clone is still
+		// its stack, under the names it has here too.
+		if st := localStack(ss, asked.key()); st != nil || root != "" {
+			return st, asked.key(), true
+		}
+	}
+	switch locals := localStacks(ss); len(locals) {
+	case 0:
+		if asked.dir != "" {
+			return nil, asked.key(), true
+		}
+		return nil, "", true
+	case 1:
+		return locals[0], rootKey(locals[0].KBDid, locals[0].KBRoot), true
+	default:
+		u.Fail("Multiple stacks are recorded — say which:")
+		printStackMenu("logs", "", locals, codespaceStacks(ss))
+		return nil, "", false
+	}
+}
+
+// stackRuntime finds the runtime actually running the stack of the knowledge
+// base keyed key: following via the wrong one shows nothing. It anchors on
+// that stack's gateway by NAME — matching any "semiont-" would false-positive
+// on unrelated containers (e.g. a local verdaccio).
+func stackRuntime(key string) string {
+	gateway := roleContainer("gateway", key)
 	for _, rt := range runtimeOrder {
 		if !onPath(rt) {
 			continue
@@ -295,7 +381,7 @@ func stackRuntime() string {
 		}
 		for _, line := range strings.Split(out, "\n") {
 			fields := strings.Fields(line)
-			if len(fields) > 0 && fields[0] == "semiont-gateway" {
+			if len(fields) > 0 && fields[0] == gateway {
 				return rt
 			}
 		}

@@ -236,9 +236,19 @@ func (s *scenario) stagingPattern() string {
 	return filepath.Join(s.stagingParent(), "semiont-config.*")
 }
 
-// stageRe matches one staging dir.
+// stageRe matches one staging dir: semiont-config.<kb key>.<MkdirTemp's digits>.
 func (s *scenario) stageRe() *regexp.Regexp {
-	return regexp.MustCompile(regexp.QuoteMeta(filepath.Join(s.stagingParent(), "semiont-config.")) + `[A-Za-z0-9]+`)
+	return regexp.MustCompile(regexp.QuoteMeta(filepath.Join(s.stagingParent(), "semiont-config.")) + `[A-Za-z0-9._-]+\.[0-9]+`)
+}
+
+// stageOf: a staging dir as a start of the test KB makes one.
+func (s *scenario) stageOf(t *testing.T) string {
+	t.Helper()
+	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config."+testKBKey+".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stage
 }
 
 // withDomain makes root another knowledge base: its project file names domain
@@ -728,7 +738,7 @@ func TestStartDefaultBoot(t *testing.T) {
 	if err := json.Unmarshal(rec, &doc); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	svcs := doc.Stacks["local"].Services
+	svcs := doc.Stacks[localKey].Services
 	if got, want := svcs["embedding"].Provided, svcs["inference"].Provided; got != want {
 		t.Errorf("embedding provider %q != inference provider %q — same Ollama, two answers", got, want)
 	}
@@ -777,15 +787,15 @@ func TestStartOptsEveryServiceIntoSupervision(t *testing.T) {
 	seen := map[string]bool{}
 	for _, line := range strings.Split(s.argv(t), "\n") {
 		for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
-			if strings.Contains(line, " --name semiont-"+svc+" ") {
+			if strings.Contains(line, " --name "+containerOf(svc)+" ") {
 				seen[svc] = true
-				mustContain(t, "semiont-"+svc+" run argv", line, "--env SEMIONT_SUPERVISE=1")
+				mustContain(t, containerOf(svc)+" run argv", line, "--env SEMIONT_SUPERVISE=1")
 			}
 		}
 	}
 	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"} {
 		if !seen[svc] {
-			t.Errorf("no run argv for semiont-%s — the gate saw nothing to check", svc)
+			t.Errorf("no run argv for %s — the gate saw nothing to check", containerOf(svc))
 		}
 	}
 }
@@ -834,14 +844,14 @@ func TestHostProbeRefusalQuotesTheRuntime(t *testing.T) {
 // makes the second wait for the first, then run its own whole sequence.
 func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-example.github.io-test-kb-archivist")
 	type result struct {
 		out  string
 		code int
 	}
 	first, second := make(chan result, 1), make(chan result, 1)
 	go func() { o, e, c := s.run(t, "start"); first <- result{o + e, c} }()
-	held := filepath.Join(s.fakertDir, "holding-semiont-archivist")
+	held := filepath.Join(s.fakertDir, "holding-semiont-example.github.io-test-kb-archivist")
 	for i := 0; i < 600; i++ {
 		if _, err := os.Stat(held); err == nil {
 			break
@@ -850,7 +860,7 @@ func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
 	}
 	go func() { o, e, c := s.run(t, "start"); second <- result{o + e, c} }()
 	time.Sleep(3 * time.Second) // time enough to interleave, if it can
-	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-archivist"), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-example.github.io-test-kb-archivist"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	r1, r2 := <-first, <-second
@@ -863,7 +873,7 @@ func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
 	lines := strings.Split(s.argv(t), "\n")
 	firstWeaver, secondProbe, probes := -1, -1, 0
 	for i, l := range lines {
-		if firstWeaver < 0 && strings.Contains(l, "--name semiont-weaver") {
+		if firstWeaver < 0 && strings.Contains(l, "--name semiont-example.github.io-test-kb-weaver") {
 			firstWeaver = i
 		}
 		if strings.Contains(l, "ip route") {
@@ -882,10 +892,10 @@ func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
 // already is — the record lists only what has started so far.
 func TestStatusRootSaysNotReadyWhileAStartRuns(t *testing.T) {
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-example.github.io-test-kb-archivist")
 	done := make(chan int, 1)
 	go func() { _, _, c := s.run(t, "start"); done <- c }()
-	held := filepath.Join(s.fakertDir, "holding-semiont-archivist")
+	held := filepath.Join(s.fakertDir, "holding-semiont-example.github.io-test-kb-archivist")
 	for i := 0; i < 600; i++ {
 		if _, err := os.Stat(held); err == nil {
 			break
@@ -893,7 +903,7 @@ func TestStatusRootSaysNotReadyWhileAStartRuns(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	_, stderr, code := s.run(t, "status", "--root", s.kb)
-	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-archivist"), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-example.github.io-test-kb-archivist"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if c := <-done; c != 0 {
@@ -1119,10 +1129,10 @@ func recordedIssuerProxyPID(t *testing.T, s *scenario) int {
 			} `json:"issuerProxy"`
 		} `json:"stacks"`
 	}
-	if json.Unmarshal(b, &doc) != nil || doc.Stacks["local"].IssuerProxy == nil {
+	if json.Unmarshal(b, &doc) != nil || doc.Stacks[localKey].IssuerProxy == nil {
 		return 0
 	}
-	return doc.Stacks["local"].IssuerProxy.PID
+	return doc.Stacks[localKey].IssuerProxy.PID
 }
 
 // The issuer's port is the launcher's to place, like its host — one Keycloak
@@ -1137,7 +1147,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 	keycloakRun := func(t *testing.T, argv string) string {
 		t.Helper()
 		for _, line := range strings.Split(argv, "\n") {
-			if strings.Contains(line, "run -d --name semiont-keycloak") {
+			if strings.Contains(line, "run -d --name semiont-example.github.io-test-kb-keycloak") {
 				return line
 			}
 		}
@@ -1252,7 +1262,7 @@ func TestKeycloakRunsInProductionModeAtTheIssuerTheServicesTrust(t *testing.T) {
 			}
 			var keycloak []string
 			for _, line := range strings.Split(s.argv(t), "\n") {
-				if strings.Contains(line, " run ") && strings.Contains(line, "--name semiont-keycloak ") {
+				if strings.Contains(line, " run ") && strings.Contains(line, "--name semiont-example.github.io-test-kb-keycloak ") {
 					keycloak = strings.Fields(line)
 				}
 			}
@@ -1415,14 +1425,14 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	if !slices.Equal(ollama.Ports, []int{11434}) {
 		t.Errorf("the record's ports are %v: want the 11434 its start required free", ollama.Ports)
 	}
-	inference := first.Stacks["local"].Services["inference"]
+	inference := first.Stacks[localKey].Services["inference"]
 	if inference.Provided != "machine" || inference.Container != "semiont-ollama" || inference.ID != "" {
 		t.Errorf("the stack records inference as %+v: want provided by the machine's semiont-ollama, with no ID of its own", inference)
 	}
 	// Ollama's port is the machine's, not among the stack's claims.
-	for _, p := range first.Stacks["local"].Ports {
+	for _, p := range first.Stacks[localKey].Ports {
 		if p == 11434 {
-			t.Errorf("Ollama's port recorded among the stack's claims: %v", first.Stacks["local"].Ports)
+			t.Errorf("Ollama's port recorded among the stack's claims: %v", first.Stacks[localKey].Ports)
 		}
 	}
 
@@ -1519,7 +1529,7 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	}
 	mustContain(t, "stop --service inference --dry-run", stdout, "# stop the machine's Ollama:",
 		"container stop "+restarted.ID, "container stop semiont-ollama", "container rm semiont-ollama")
-	mustNotContain(t, "stop --service inference --dry-run", stdout, "semiont-gateway")
+	mustNotContain(t, "stop --service inference --dry-run", stdout, "semiont-example.github.io-test-kb-gateway")
 	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); fresh != "" {
 		t.Errorf("a dry run ran:\n%s", fresh)
 	}
@@ -1534,10 +1544,10 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	mustContain(t, "stop --service inference", stdout, "Ollama stopped")
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	mustContain(t, "stop --service inference's argv", fresh, "container stop semiont-ollama", "container rm semiont-ollama")
-	if strings.Contains(fresh, "semiont-gateway") {
+	if strings.Contains(fresh, "semiont-example.github.io-test-kb-gateway") {
 		t.Errorf("stop --service inference touched the stack:\n%s", fresh)
 	}
-	if after := readMachineRecords(t, s); after.Machine["semiont-ollama"] != nil || after.Stacks["local"].Services["gateway"].Provided == "" {
+	if after := readMachineRecords(t, s); after.Machine["semiont-ollama"] != nil || after.Stacks[localKey].Services["gateway"].Provided == "" {
 		t.Errorf("after stop --service inference: want no Ollama record and the stack's standing, got %+v", after)
 	}
 
@@ -1577,13 +1587,13 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 		}
 	}
 	for role, name := range map[string]string{"collector": "semiont-otel-collector", "traces": "semiont-jaeger", "metrics": "semiont-prometheus"} {
-		if svc := first.Stacks["local"].Services[role]; svc.Provided != "machine" || svc.Container != name || svc.ID != "" {
+		if svc := first.Stacks[localKey].Services[role]; svc.Provided != "machine" || svc.Container != name || svc.ID != "" {
 			t.Errorf("the stack records %s as %+v: want provided by the machine's %s, with no ID of its own", role, svc, name)
 		}
 	}
-	for _, p := range first.Stacks["local"].Ports {
+	for _, p := range first.Stacks[localKey].Ports {
 		if slices.Contains([]int{4318, 24110, 16686, 14318, 9090}, p) {
-			t.Errorf("the telemetry's %d is among the stack's claims: %v", p, first.Stacks["local"].Ports)
+			t.Errorf("the telemetry's %d is among the stack's claims: %v", p, first.Stacks[localKey].Ports)
 		}
 	}
 	collectorYAML := func() string {
@@ -1647,7 +1657,7 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 	mustContain(t, "stop --service traces", stdout, "Jaeger stopped")
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	mustContain(t, "stop --service traces' argv", fresh, "container stop "+first.Machine["semiont-jaeger"].ID, "container rm semiont-jaeger")
-	mustNotContain(t, "stop --service traces' argv", fresh, "semiont-otel-collector", "semiont-prometheus", "semiont-gateway")
+	mustNotContain(t, "stop --service traces' argv", fresh, "semiont-otel-collector", "semiont-prometheus", "semiont-example.github.io-test-kb-gateway")
 	if after := readMachineRecords(t, s); after.Machine["semiont-jaeger"] != nil || after.Machine["semiont-otel-collector"] == nil {
 		t.Errorf("after stop --service traces: want no Jaeger record and the collector's standing, got %+v", after.Machine)
 	}
@@ -1683,7 +1693,7 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 	}
 	mustContain(t, "bare stop", stdout, "OTel collector stopped", "Prometheus stopped", "Jaeger stopped", "Ollama stopped", "Browser stopped")
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
-	order := []string{"stop fid-semiont-gateway", "stop semiont-otel-collector", "stop semiont-prometheus", "stop semiont-jaeger", "stop semiont-ollama", "stop semiont-browser"}
+	order := []string{"stop fid-semiont-example.github.io-test-kb-gateway", "stop semiont-otel-collector", "stop semiont-prometheus", "stop semiont-jaeger", "stop semiont-ollama", "stop semiont-browser"}
 	at := -1
 	for _, step := range order {
 		i := strings.Index(fresh, step)
@@ -2042,11 +2052,40 @@ func stateRootFor(home, key string) string {
 // testKBKey: the slug of the test KB's did:web (packages/go/launcher/testdata/kb/.semiont/config.yaml).
 const testKBKey = "example.github.io-test-kb"
 
+// testKBDid: the test KB's did:web.
+const testKBDid = "did:web:example.github.io:test-kb"
+
+// localKey: the key the launcher records the test KB's local stack, and keeps
+// its sign-in, under.
+const localKey = "local:" + testKBKey
+
+// localRecord: stack.json's entry for the scenario's KB's local stack on
+// runtime, keyed and identified as the launcher records one, rest its other
+// members (its ports, its services).
+func (s *scenario) localRecord(runtime, rest string) string {
+	return `"` + localKey + `":{"runtime":"` + runtime + `","kbRoot":"` + inJSON(s.kb) + `","kbDid":"` + testKBDid + `",` + rest + `}`
+}
+
+// containerOf: the container that runs product for the test KB — the
+// machine's own for the worker and the Browser, which serve every KB, and one
+// named for the KB otherwise.
+func containerOf(product string) string {
+	if product == "worker" || product == "browser" {
+		return "semiont-" + product
+	}
+	return "semiont-" + testKBKey + "-" + product
+}
+
+// elsewhereRecord: stack.json's entry for another KB's local stack, run from
+// /elsewhere, rest its other members.
+func elsewhereRecord(rest string) string {
+	return `"local:example.github.io-other-kb":{"runtime":"container","kbRoot":"/elsewhere","kbDid":"did:web:example.github.io:other-kb",` + rest + `}`
+}
+
 // Two knowledge bases of distinct DIDs, started one after the other on one
 // machine: each start signs its services in at its own realm, which gives
 // their tokens its own knowledge base as audience, and each keeps its stores
-// under its own DID. Running them at once is the step that names and ports
-// each knowledge base's own services.
+// under its own DID.
 func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	s := newScenario(t, "container")
 	other := asTheSystemNamesIt(t, mkKB(t))
@@ -2065,7 +2104,7 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("the second knowledge base's start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	realm, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-semiont-keycloak.json"))
+	realm, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-semiont-example.github.io-other-kb-keycloak.json"))
 	if err != nil {
 		t.Fatalf("the realm the second start's issuer imported: %v", err)
 	}
@@ -2081,6 +2120,142 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	}
 	roots, _, _ := s.run(t, "roots")
 	mustContain(t, "roots", roots, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
+}
+
+// withGatewayPort makes root's KnowledgeBase document commit port as its
+// gateway's, where clients reach it too.
+func withGatewayPort(t *testing.T, root string, port int) {
+	t.Helper()
+	path := filepath.Join(root, ".semiont", "stack", "knowledge-base.yaml")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(b)
+	if !strings.Contains(text, "port: 4000\n") || !strings.Contains(text, "localhost:4000") {
+		t.Fatalf("%s commits no gateway port 4000 to replace:\n%s", path, b)
+	}
+	text = strings.Replace(text, "port: 4000\n", "port: "+strconv.Itoa(port)+"\n", 1)
+	text = strings.Replace(text, "localhost:4000", "localhost:"+strconv.Itoa(port), 1)
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// recordedStacks: the keys of the stacks stack.json records, sorted; none
+// when there is no record.
+func recordedStacks(t *testing.T, s *scenario) []string {
+	t.Helper()
+	b, err := os.ReadFile(statePathFor(s.home))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var set struct {
+		Stacks map[string]json.RawMessage `json:"stacks"`
+	}
+	if err := json.Unmarshal(b, &set); err != nil {
+		t.Fatal(err)
+	}
+	keys := make([]string, 0, len(set.Stacks))
+	for k := range set.Stacks {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// Two knowledge bases run side by side on one machine. Each start runs
+// containers named for its own knowledge base and records a stack of its
+// own, and leaves the other's running; the machine's containers serve both.
+// A stop stops the stack of the knowledge base it stands in, and the
+// machine's containers with the last stack. A bare stop that stands in
+// neither refuses and lists both. A second copy of a running knowledge base,
+// and one whose gateway port a running stack holds, are refused before
+// anything runs.
+func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	const otherKey = "local:example.github.io-other-kb"
+	run := func(label string, want int, args ...string) (argv, stdout, stderr string) {
+		t.Helper()
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, args...)
+		if code != want {
+			t.Fatalf("%s: exit %d, want %d\nstdout:\n%s\nstderr:\n%s", label, code, want, stdout, stderr)
+		}
+		return strings.TrimPrefix(s.argv(t), before), stdout, stderr
+	}
+
+	run("the first knowledge base's start", 0, "start")
+	// The worker runs as its record says, serving the first's list; the
+	// second start puts its own knowledge base on the list too, and
+	// restarts it.
+	var rec struct {
+		Machine map[string]struct {
+			Image string `json:"image"`
+		} `json:"machine"`
+	}
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &rec); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_worker=running", "FAKERT_IMAGE_worker="+rec.Machine["semiont-worker"].Image)
+	s.kb = other
+	second, _, _ := run("the second knowledge base's start", 0, "start")
+	mustContain(t, "the second start", second, "run -d --name semiont-example.github.io-other-kb-gateway",
+		"rm semiont-worker", "run -d --name semiont-worker")
+	mustNotContain(t, "the second start", second, "semiont-example.github.io-test-kb-")
+	if got := recordedStacks(t, s); !slices.Equal(got, []string{otherKey, localKey}) {
+		t.Errorf("stack.json records %v, want both knowledge bases' stacks", got)
+	}
+	discovered, err := os.ReadFile(filepath.Join(stateHomeFor(s.home), "discovery", "kbs.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "discovery", string(discovered), `"did": "`+testKBDid+`"`, `"port": 4000`,
+		`"did": "did:web:example.github.io:other-kb"`, `"port": 4010`)
+
+	s.cwd = t.TempDir()
+	argv, _, stderr := run("a stop standing in neither", 1, "stop")
+	mustContain(t, "a stop standing in neither", stderr, "semiont stop --root "+first, "semiont stop --root "+other)
+	mustNotContain(t, "a stop standing in neither", argv, " stop ", " rm ")
+	s.cwd = ""
+
+	s.kb = asTheSystemNamesIt(t, mkKB(t))
+	argv, _, stderr = run("a second copy's start", 1, "start")
+	mustContain(t, "a second copy's start", stderr, testKBDid+" is running from "+first, "semiont stop --root "+first)
+	mustNotContain(t, "a second copy's start", argv, "run -d")
+	third := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, third, "example.github.io:third-kb")
+	s.kb = third
+	argv, _, stderr = run("a start on a held gateway port", 1, "start")
+	mustContain(t, "a start on a held gateway port", stderr, first+"'s stack holds port 4000", "knowledge-base.yaml", "semiont stop --root "+first)
+	mustNotContain(t, "a start on a held gateway port", argv, "run -d")
+
+	s.kb = first
+	argv, stdout, _ := run("the first knowledge base's stop", 0, "stop")
+	mustContain(t, "the first knowledge base's stop", argv, "stop fid-semiont-example.github.io-test-kb-gateway")
+	mustNotContain(t, "the first knowledge base's stop", argv, "other-kb-", "semiont-worker", "semiont-otel-collector")
+	mustContain(t, "the first knowledge base's stop", stdout, "The machine's containers stay up")
+	if got := recordedStacks(t, s); !slices.Equal(got, []string{otherKey}) {
+		t.Errorf("after the first knowledge base's stop, stack.json records %v, want the second's alone", got)
+	}
+
+	s.kb = other
+	argv, _, _ = run("the second knowledge base's stop", 0, "stop")
+	mustContain(t, "the last stack's stop", argv, "stop fid-semiont-example.github.io-other-kb-gateway", "stop semiont-otel-collector")
+	if got := recordedStacks(t, s); len(got) != 0 {
+		t.Errorf("after the last stop, stack.json records %v", got)
+	}
 }
 
 // Each knowledge base's stack is published on a port block of its own, taken
@@ -2326,7 +2501,7 @@ func TestNoStoreIsMountedByTwoContainers(t *testing.T) {
 				}
 			}
 			for _, store := range []string{"anchored-text", "state"} {
-				if by := containers(store); len(by) != 1 || by[0] != "semiont-archivist" {
+				if by := containers(store); len(by) != 1 || by[0] != "semiont-example.github.io-test-kb-archivist" {
 					t.Errorf("the %s store is mounted into %v, want the Archivist alone", store, by)
 				}
 			}
@@ -2746,8 +2921,7 @@ func TestCleanRefusesRunningStack(t *testing.T) {
 	seedStateDir(t, s)
 	// A recorded local stack on this root: clean must refuse — those dirs
 	// may be mounted right now.
-	stack := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + inJSON(s.kb) +
-		`","kbDid":"did:web:example.github.io:test-kb","services":{}}}}`
+	stack := `{"schema":3,"stacks":{` + s.localRecord("container", `"services":{}`) + `}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -3039,7 +3213,7 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 		t.Fatalf("device authorization request not recorded: %v", err)
 	}
 	mustContain(t, "device authorization", string(da), "client_id=semiont-cli", "offline_access")
-	signIn, ok := storedSignIn(t, s.home, "local")
+	signIn, ok := storedSignIn(t, s.home, localKey)
 	if !ok || tagOf(signIn.Token) != "fake-jwt-token" || signIn.RefreshToken != "fake-refresh-token" ||
 		signIn.Issuer != "http://localhost:4000/realms/semiont" || signIn.TokenEndpoint == "" || signIn.Email != "admin@example.com" {
 		t.Errorf("tokens.json after login does not hold the issued session: %+v (%v)", signIn, ok)
@@ -3213,7 +3387,7 @@ func TestYieldAutoRefreshesExpiredToken(t *testing.T) {
 	}
 	// …and the rotation was SAVED: next command starts from the new token,
 	// keeping the original refresh token (the server does not rotate it).
-	if signIn, _ := storedSignIn(t, s.home, "local"); tagOf(signIn.Token) != "fake-jwt-token-2" || signIn.RefreshToken != "fake-refresh-token" {
+	if signIn, _ := storedSignIn(t, s.home, localKey); tagOf(signIn.Token) != "fake-jwt-token-2" || signIn.RefreshToken != "fake-refresh-token" {
 		t.Errorf("tokens.json was not rotated to the renewed token: %+v", signIn)
 	}
 }
@@ -3240,7 +3414,7 @@ func TestLogoutForgetsSession(t *testing.T) {
 		t.Fatalf("logout: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Logged out", "local", "revoked at the issuer")
-	if _, still := storedSignIn(t, s.home, "local"); still {
+	if _, still := storedSignIn(t, s.home, localKey); still {
 		t.Error("the session survived logout")
 	}
 	// The refresh token was revoked at the issuer (RFC 7009), as the
@@ -3278,10 +3452,7 @@ func TestStatusVerboseShowsSessions(t *testing.T) {
 func TestStopSweepsAllRuntimes(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	// Simulate leftover staging from a previous run.
-	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config.")
-	if err != nil {
-		t.Fatal(err)
-	}
+	stage := s.stageOf(t)
 	stdout, stderr, code := s.run(t, "stop")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
@@ -3354,9 +3525,9 @@ func TestStatusMixed(t *testing.T) {
 	// Ollama answering with no container, which must report runtime "host".
 	s := newScenario(t, "docker")
 	s.extraEnv = append(s.extraEnv,
-		"FAKERT_STATE_gateway=running",
+		"FAKERT_STATE_example.github.io-test-kb-gateway=running",
 		"FAKERT_STATE_worker=running",
-		"FAKERT_STATE_smelter=exited",
+		"FAKERT_STATE_example.github.io-test-kb-smelter=exited",
 	)
 	serveHealth(t, 4000, 11434)
 	// The default report covers every stack, so its exit says only that
@@ -3434,7 +3605,8 @@ func TestStatusAllHealthy(t *testing.T) {
 	// Full stack running and healthy (Apple container JSON inspect path);
 	// Jaeger absent is fine — observability is optional, exit stays 0.
 	s := newScenario(t, "container")
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "browser", "neo4j", "qdrant", "postgres", "ollama"} {
+	for _, svc := range []string{testKBKey + "-gateway", "worker", testKBKey + "-smelter", testKBKey + "-weaver", "browser",
+		testKBKey + "-neo4j", testKBKey + "-qdrant", testKBKey + "-postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
 	serveHealth(t, 4000, 24100, 24101, 24102, 24103, 24104, 3000, 7474, 6333, 5432, 11434)
@@ -3588,7 +3760,7 @@ func TestUseradd(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"`+inJSON(s.kb)+`","services":{}}}}`), 0o644); err != nil {
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{`+s.localRecord("container", `"services":{}`)+`}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	s.stdin = ""
@@ -3902,13 +4074,13 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 	}
 	for _, c := range []struct{ container, name, want string }{
 		{"semiont-worker", "ANTHROPIC_API_KEY", "test-key"},
-		{"semiont-gateway", "JWT_SECRET", ""},
-		{"semiont-weaver", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		{"semiont-example.github.io-test-kb-gateway", "JWT_SECRET", ""},
+		{"semiont-example.github.io-test-kb-weaver", "SEMIONT_OIDC_CLIENT_SECRET", ""},
 		// The PEM's first line: the record keeps a line per variable.
 		{"semiont-worker", "SEMIONT_OIDC_CLIENT_KEY", "-----BEGIN PRIVATE KEY-----"},
-		{"semiont-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
-		{"semiont-keycloak", "KC_DB_PASSWORD", ""},
-		{"semiont-postgres", "POSTGRES_PASSWORD", ""},
+		{"semiont-example.github.io-test-kb-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
+		{"semiont-example.github.io-test-kb-keycloak", "KC_DB_PASSWORD", ""},
+		{"semiont-example.github.io-test-kb-postgres", "POSTGRES_PASSWORD", ""},
 	} {
 		got, _ := s.containerEnv(t, c.container, c.name)
 		if got == "" || (c.want != "" && got != c.want) {
@@ -3935,7 +4107,7 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	log := s.argv(t)
 	runLine := func(svc string) string {
 		for _, l := range strings.Split(log, "\n") {
-			if strings.HasPrefix(l, "container run") && strings.Contains(l, "--name semiont-"+svc+" ") {
+			if strings.HasPrefix(l, "container run") && strings.Contains(l, "--name "+containerOf(svc)+" ") {
 				return l
 			}
 		}
@@ -3943,12 +4115,12 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 		return ""
 	}
 	for _, svc := range []string{"librarian", "worker"} {
-		if v, _ := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); v != "test-key" {
+		if v, _ := s.containerEnv(t, containerOf(svc), "ANTHROPIC_API_KEY"); v != "test-key" {
 			t.Errorf("%s calls the models but was not handed ANTHROPIC_API_KEY", svc)
 		}
 	}
 	for _, svc := range []string{"archivist", "gateway", "dispatcher", "weaver", "smelter"} {
-		if _, handed := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); handed || strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
+		if _, handed := s.containerEnv(t, containerOf(svc), "ANTHROPIC_API_KEY"); handed || strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
 			t.Errorf("the document of %s names no ANTHROPIC_API_KEY but it was handed it", svc)
 		}
 	}
@@ -4662,7 +4834,7 @@ func TestUseraddCodespace(t *testing.T) {
 	if strings.Contains(remote, "KC_BOOTSTRAP_ADMIN") {
 		t.Errorf("the remote command carries the admin credential:\n%s", remote)
 	}
-	if strings.Contains(remote, "docker") || strings.Contains(remote, "semiont-gateway") {
+	if strings.Contains(remote, "docker") || strings.Contains(remote, "semiont-example.github.io-test-kb-gateway") {
 		t.Errorf("the codespace path reaches into a container:\n%s", remote)
 	}
 	// Arguments cross a SHELL, so they must be quoted. The free-text value in
@@ -4825,15 +4997,17 @@ func TestUseraddLocalAdministersTheRunningStackNotTheCwd(t *testing.T) {
 }
 
 func TestUseraddAmbiguousStacks(t *testing.T) {
-	// Local + codespace recorded: useradd must NOT silently pick local —
-	// writing a user into the wrong KB is not a silent-default decision.
+	// Local + codespace recorded, standing in neither's clone: useradd must
+	// NOT silently pick local — writing a user into the wrong KB is not a
+	// silent-default decision.
 	s := newCodespaceScenario(t)
+	s.cwd = t.TempDir()
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	both := `{"schema":3,"stacks":{` +
-		`"local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
+		s.localRecord("container", `"services":{"gateway":{"container":"semiont-example.github.io-test-kb-gateway","id":"fid-semiont-example.github.io-test-kb-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}`) + `,` +
 		`"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"services":{}}}}`
 	if err := os.WriteFile(p, []byte(both), 0o644); err != nil {
 		t.Fatal(err)
@@ -4844,7 +5018,7 @@ func TestUseraddAmbiguousStacks(t *testing.T) {
 		t.Fatalf("ambiguous useradd: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
-		"semiont useradd --runtime container", "semiont useradd --repo "+csRepo)
+		"semiont useradd --root "+s.kb, "semiont useradd --repo "+csRepo)
 
 	// Naming the codespace resolves it; the local stack is reachable by
 	// simply omitting --repo is NOT true here, so it must still refuse —
@@ -5028,7 +5202,7 @@ func TestReapedCodespaceAdviceWorksBesideOtherStacks(t *testing.T) {
 	s := newCodespaceScenario(t)
 	s.cwd = t.TempDir()
 	both := `{"schema":3,"stacks":{` +
-		`"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[4000],"services":{}},` +
+		elsewhereRecord(`"ports":[4000],"services":{}`) + `,` +
 		`"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"ports":[4001],"services":{}}}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
@@ -5051,7 +5225,7 @@ func TestReapedCodespaceAdviceWorksBesideOtherStacks(t *testing.T) {
 	if strings.Contains(string(b), "fake-cs-1") {
 		t.Errorf("the advice left the reaped record:\n%s", b)
 	}
-	if !strings.Contains(string(b), `"local"`) {
+	if !strings.Contains(string(b), `"local:example.github.io-other-kb"`) {
 		t.Errorf("forgetting the codespace touched the local stack's record:\n%s", b)
 	}
 }
@@ -5173,7 +5347,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 	t.Run("8080 taken: allocate 8081 and move the codespace", func(t *testing.T) {
 		s := newCodespaceScenario(t)
 		// A local stack on this machine holds 8080 (its own Keycloak).
-		local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+		local := `{"schema":3,"stacks":{` + elsewhereRecord(`"ports":[8080],"services":{}`) + `}}`
 		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -5223,7 +5397,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 
 	t.Run("a holder that takes the port after allocation is refused, named", func(t *testing.T) {
 		s := newCodespaceScenario(t)
-		local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+		local := `{"schema":3,"stacks":{` + elsewhereRecord(`"ports":[8080],"services":{}`) + `}}`
 		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -5295,7 +5469,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 // must come up, on different issuer ports.
 func TestSimultaneousCodespaceCreatesTakeDifferentIssuerPorts(t *testing.T) {
 	s := newCodespaceScenario(t)
-	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+	local := `{"schema":3,"stacks":{` + elsewhereRecord(`"ports":[8080],"services":{}`) + `}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -5349,7 +5523,7 @@ func TestSimultaneousCodespaceCreatesTakeDifferentIssuerPorts(t *testing.T) {
 // have its rerun collide with post-start's start still bringing up the rest.
 func TestCodespaceMovesOnlyAfterItsOwnStartFinishes(t *testing.T) {
 	s := newCodespaceScenario(t)
-	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+	local := `{"schema":3,"stacks":{` + elsewhereRecord(`"ports":[8080],"services":{}`) + `}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -5535,8 +5709,8 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	local := `{"schema":3,"stacks":{"local":{"runtime":"container","ports":[3000,4000,24100],` +
-		`"services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
+	local := `{"schema":3,"stacks":{` + s.localRecord("container", `"ports":[3000,4000,24100],`+
+		`"services":{"gateway":{"container":"semiont-example.github.io-test-kb-gateway","id":"fid-semiont-example.github.io-test-kb-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}`) + `}}`
 	if err := os.WriteFile(statePath, []byte(local), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -5549,7 +5723,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 		t.Errorf("forward argv must be <codespacePort>:<localPort> = 4000:4001:\n%s", l)
 	}
 	b, _ := os.ReadFile(statePath)
-	mustContain(t, "stack.json", string(b), `"local"`, "codespace:"+csRepo, `"forwardPort": 4001`)
+	mustContain(t, "stack.json", string(b), `"`+localKey+`"`, "codespace:"+csRepo, `"forwardPort": 4001`)
 
 	s2 := newCodespaceScenario(t)
 	if _, _, code := s2.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -5563,7 +5737,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("codespace record + local dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "local plan stdout", stdout, "container run -d --name semiont-gateway")
+	mustContain(t, "local plan stdout", stdout, "container run -d --name semiont-example.github.io-test-kb-gateway")
 
 	// useradd works against a codespace stack.
 	if _, stderr, code := s2.run(t, "useradd", "--email", "a@b.co", "--generate-password"); code != 0 {
@@ -5638,7 +5812,7 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 	mustContain(t, "logs stdout", stdout, "[gateway] gateway out")
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
-		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-gateway")
+		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-example.com-remote-kb-gateway")
 }
 
 func TestMultiStackCodespaces(t *testing.T) {
@@ -6035,11 +6209,12 @@ func TestSettingsShowsTheBrowserDocument(t *testing.T) {
 
 func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	// A local stack and codespace stacks coexist in the record set: verbs
-	// that can't guess refuse with selectors; useradd targets the local
-	// gateway; a targeted local stop leaves the codespace records alone.
+	// that can't guess (standing in neither's clone) refuse with selectors;
+	// useradd targets the local gateway; a targeted local stop leaves the
+	// codespace records alone.
 	s := newCodespaceScenario(t)
-	set := `{"schema":3,"stacks":{
-	  "local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
+	s.cwd = t.TempDir()
+	set := `{"schema":3,"stacks":{` + s.localRecord("container", `"services":{"gateway":{"container":"semiont-example.github.io-test-kb-gateway","id":"fid-semiont-example.github.io-test-kb-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}`) + `,
 	  "codespace:pingel-org/foo-kb":{"codespace":{"name":"fake-cs-1","repo":"pingel-org/foo-kb"},"ports":[3000,4000,24100,24101,24102],"services":{}}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -6054,7 +6229,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 		t.Fatalf("ambiguous stop: want exit 1, got %d", code)
 	}
 	mustContain(t, "stderr", stderr, "Multiple stacks are recorded",
-		"semiont stop --runtime container", "semiont stop --repo "+csRepo)
+		"semiont stop --root "+s.kb, "semiont stop --repo "+csRepo)
 
 	// useradd will not GUESS between stacks; --runtime names the local one.
 	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--generate-password"); code != 1 {
@@ -6080,7 +6255,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 		t.Fatalf("local stop: exit %d\nstderr:\n%s", code, stderr)
 	}
 	b, _ := os.ReadFile(statePathFor(s.home))
-	if strings.Contains(string(b), `"local"`) {
+	if strings.Contains(string(b), `"`+localKey+`"`) {
 		t.Errorf("local stack survived its targeted stop:\n%s", b)
 	}
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
@@ -6113,7 +6288,7 @@ func TestStartExternalGraphBoot(t *testing.T) {
 		"graph — externally provided at 127.0.0.1:7777 (reachable)",
 		"🚀 Semiont stack is up")
 	argv := s.argv(t)
-	for _, absent := range []string{"run -d --name semiont-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
+	for _, absent := range []string{"run -d --name semiont-example.github.io-test-kb-neo4j", "NEO4J_AUTH", "lsof -ti :7474"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("external graph still touched %q in argv", absent)
 		}
@@ -6142,10 +6317,10 @@ func TestStartExternalGraphBoot(t *testing.T) {
 		t.Fatalf("stop: exit %d", code)
 	}
 	stopArgv := strings.TrimPrefix(s.argv(t), preStop)
-	if strings.Contains(stopArgv, "semiont-neo4j") {
+	if strings.Contains(stopArgv, "semiont-example.github.io-test-kb-neo4j") {
 		t.Errorf("stop touched the external graph:\n%s", stopArgv)
 	}
-	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-gateway")
+	mustContain(t, "stop argv", stopArgv, "stop fid-semiont-example.github.io-test-kb-gateway")
 }
 
 // --- a stack without a worker ---
@@ -6207,7 +6382,7 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 		t.Errorf("the start names %s %d times, want once\nstdout:\n%s\nstderr:\n%s", noJobEnginesAt, n, stdout, stderr)
 	}
 	mustNotContain(t, "start argv", started, "run -d --name semiont-worker", "semiont-worker:", "24100")
-	mustContain(t, "start argv", started, "run -d --name semiont-smelter", "run -d --name semiont-weaver")
+	mustContain(t, "start argv", started, "run -d --name semiont-example.github.io-test-kb-smelter", "run -d --name semiont-example.github.io-test-kb-weaver")
 
 	for _, file := range []string{filepath.Join(stateHomeFor(s.home), "machine", "worker.json"), workerListFor(s.home)} {
 		if _, err := os.Stat(file); !os.IsNotExist(err) {
@@ -6241,7 +6416,7 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	if err := json.Unmarshal(rec, &doc); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	local := doc.Stacks["local"]
+	local := doc.Stacks[localKey]
 	if got := local.Services["worker"].Provided; got != "none" {
 		t.Errorf("the record says the worker is provided %q, want none:\n%s", got, rec)
 	}
@@ -6291,7 +6466,7 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	}
 	stopped := strings.TrimPrefix(s.argv(t), before)
 	mustNotContain(t, "stop argv", stopped, "semiont-worker", "24100")
-	mustContain(t, "stop argv", stopped, "stop fid-semiont-gateway", "stop fid-semiont-smelter")
+	mustContain(t, "stop argv", stopped, "stop fid-semiont-example.github.io-test-kb-gateway", "stop fid-semiont-example.github.io-test-kb-smelter")
 }
 
 // The plan of that start is the start: no document, no pull, no port, no
@@ -6307,7 +6482,7 @@ func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	mustContain(t, "plan", plan,
 		"# worker: no job has an engine — this knowledge base is not on its list (give one an engine in "+noJobEnginesAt+")",
 		"# remove <data-home>/machine/worker-knowledge-bases.json: the worker's list is empty",
-		"run -d --name semiont-smelter", "wait: http://<host-addr>:24101/health (30s)")
+		"run -d --name semiont-example.github.io-test-kb-smelter", "wait: http://<host-addr>:24101/health (30s)")
 	if n := strings.Count(plan, noJobEnginesAt); n != 1 {
 		t.Errorf("the plan names %s %d times, want once:\n%s", noJobEnginesAt, n, plan)
 	}
@@ -6385,7 +6560,7 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout+stderr", stdout+stderr, "graph is externally provided per", "graph.example.com:7687", "nothing to launch")
-	if argv := s.argv(t); strings.Contains(argv, "semiont-neo4j") {
+	if argv := s.argv(t); strings.Contains(argv, "semiont-example.github.io-test-kb-neo4j") {
 		t.Errorf("no-op still touched the container:\n%s", argv)
 	}
 }
@@ -6640,13 +6815,13 @@ func TestLogsService(t *testing.T) {
 	// --service reaches ANY role's logs — infra included (record-less stack:
 	// discovery by name-scan, follow by container name).
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=container", "FAKERT_STATE_"+testKBKey+"-gateway=running")
 	stdout, stderr, code := s.run(t, "logs", "--service", "graph")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Following graph —", "[graph] neo4j out", "[graph] neo4j err")
-	mustContain(t, "argv", s.argv(t), "container logs --follow semiont-neo4j")
+	mustContain(t, "argv", s.argv(t), "container logs --follow semiont-example.github.io-test-kb-neo4j")
 }
 
 func TestLogsRecordAware(t *testing.T) {
@@ -6660,7 +6835,7 @@ func TestLogsRecordAware(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Using recorded stack state", "[gateway]")
 	argv := s.argv(t)
-	mustContain(t, "argv", argv, "container logs --follow fid-semiont-gateway")
+	mustContain(t, "argv", argv, "container logs --follow fid-semiont-example.github.io-test-kb-gateway")
 	for _, absent := range []string{"container list", "docker ps"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("record-aware logs still name-scanned: %q", absent)
@@ -6668,8 +6843,8 @@ func TestLogsRecordAware(t *testing.T) {
 	}
 
 	// Host-provided inference: no container logs, pointed message.
-	hostProvided := `{"schema":3,"stacks":{"local":{"runtime":"container","services":{
-	  "inference":{"provided":"host","endpoint":"http://localhost:11434/api/version","startedAt":"2026-07-19T00:00:00Z"}}}}}`
+	hostProvided := `{"schema":3,"stacks":{` + s.localRecord("container", `"services":{
+	  "inference":{"provided":"host","endpoint":"http://localhost:11434/api/version","startedAt":"2026-07-19T00:00:00Z"}}`) + `}}`
 	if err := os.WriteFile(statePathFor(s.home), []byte(hostProvided), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -6721,7 +6896,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	if err := json.Unmarshal(b, &set); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
 	}
-	st, ok := set.Stacks["local"]
+	st, ok := set.Stacks[localKey]
 	if !ok {
 		t.Fatalf("no 'local' stack in the record set:\n%s", b)
 	}
@@ -6811,7 +6986,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	mustContain(t, "status header", statusOut, "images latest")
 	statusArgv := strings.TrimPrefix(s.argv(t), preStatus)
-	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-gateway")
+	mustContain(t, "status argv", statusArgv, "container inspect fid-semiont-example.github.io-test-kb-gateway")
 	for _, bad := range []string{"docker inspect", "podman inspect"} {
 		if strings.Contains(statusArgv, bad) {
 			t.Errorf("status queried a non-recorded runtime: %q", bad)
@@ -6826,7 +7001,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout, "Using recorded stack state")
 	stopArgv := strings.TrimPrefix(s.argv(t), preStop)
-	mustContain(t, "per-service stop argv", stopArgv, "container stop fid-semiont-weaver")
+	mustContain(t, "per-service stop argv", stopArgv, "container stop fid-semiont-example.github.io-test-kb-weaver")
 	if strings.Contains(stopArgv, "docker stop") {
 		t.Error("per-service stop swept a non-recorded runtime")
 	}
@@ -6849,8 +7024,8 @@ func TestStackStateLifecycle(t *testing.T) {
 	mustContain(t, "stdout", stdout, "Using recorded stack state", "Semiont stack stopped.")
 	fullArgv := strings.TrimPrefix(s.argv(t), preFull)
 	mustContain(t, "full stop argv", fullArgv,
-		"container stop fid-semiont-gateway",
-		"docker stop semiont-gateway", "podman stop semiont-gateway")
+		"container stop fid-semiont-example.github.io-test-kb-gateway",
+		"docker stop semiont-example.github.io-test-kb-gateway", "podman stop semiont-example.github.io-test-kb-gateway")
 	// The Browser goes with the stack, by its name under every runtime the
 	// stop swept.
 	mustContain(t, "full stop argv", fullArgv,
@@ -6967,8 +7142,8 @@ func TestUnreadableStackRecordRefuses(t *testing.T) {
 // writeStackState plants a stack.json that records a local stack for the scenario.
 func writeStackState(t *testing.T, s *scenario, runtime string) {
 	t.Helper()
-	st := `{"schema":3,"stacks":{"local":{"runtime":"` + runtime + `","services":{
-	  "gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}}}}`
+	st := `{"schema":3,"stacks":{` + s.localRecord(runtime, `"services":{
+	  "gateway":{"container":"semiont-example.github.io-test-kb-gateway","id":"fid-semiont-example.github.io-test-kb-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}`) + `}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
@@ -6983,10 +7158,7 @@ func TestStopRuntimeMismatchKeepsRecordAndStaging(t *testing.T) {
 	// configs (live mounts!) or its record — the real stack may be running.
 	s := newScenario(t, "container", "docker")
 	writeStackState(t, s, "container")
-	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config.")
-	if err != nil {
-		t.Fatal(err)
-	}
+	stage := s.stageOf(t)
 	t.Cleanup(func() { os.RemoveAll(stage) })
 
 	stdout, stderr, code := s.run(t, "stop", "--runtime", "docker")
@@ -7004,7 +7176,7 @@ func TestStopRuntimeMismatchKeepsRecordAndStaging(t *testing.T) {
 	}
 	argv := s.argv(t)
 	// The sweep excludes the Browser; weaver is the first stack member.
-	mustContain(t, "argv", argv, "docker stop semiont-weaver")
+	mustContain(t, "argv", argv, "docker stop semiont-example.github.io-test-kb-weaver")
 	if strings.Contains(argv, "container stop") {
 		t.Errorf("mismatched stop touched the recorded runtime:\n%s", argv)
 	}
@@ -7042,7 +7214,7 @@ func TestStartPrefersRecordedRuntime(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"docker pull ghcr.io/the-ai-alliance/semiont-gateway:latest",
-		"docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-gateway")
+		"docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-example.github.io-test-kb-gateway")
 	// The main flow must plan against docker; `container` may appear only in
 	// the cross-runtime stray sweep, never as the launching runtime.
 	if strings.Contains(stdout, "container run -d") {
@@ -7134,7 +7306,7 @@ func TestStartPreflightSweepsAllRuntimes(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"# sweep stray Semiont containers under docker:",
-		"docker stop semiont-gateway", "docker rm semiont-gateway")
+		"docker stop semiont-example.github.io-test-kb-gateway", "docker rm semiont-example.github.io-test-kb-gateway")
 }
 
 func TestStopSweepsStrayRuntimes(t *testing.T) {
@@ -7154,7 +7326,7 @@ func TestStopSweepsStrayRuntimes(t *testing.T) {
 		t.Fatal(err)
 	}
 	mustContain(t, "argv log", string(log),
-		"docker stop semiont-gateway", "docker rm semiont-gateway")
+		"docker stop semiont-example.github.io-test-kb-gateway", "docker rm semiont-example.github.io-test-kb-gateway")
 
 	// An explicit --runtime keeps its narrow meaning: no cross-runtime sweep.
 	s.killServes(t)
@@ -8053,7 +8225,7 @@ func TestSettingsRefusesWhatAStartWould(t *testing.T) {
 // from what the container received.
 func gatewayJWTSecret(t *testing.T, s *scenario) string {
 	t.Helper()
-	v, ok := s.containerEnv(t, "semiont-gateway", "JWT_SECRET")
+	v, ok := s.containerEnv(t, "semiont-example.github.io-test-kb-gateway", "JWT_SECRET")
 	if !ok {
 		t.Fatalf("the gateway was given no JWT_SECRET:\n%s", s.argv(t))
 	}
@@ -8087,7 +8259,7 @@ func TestStartServiceWorker(t *testing.T) {
 	// full start wrote and no container needs inspecting.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
-		"FAKERT_STATE_gateway=running",
+		"FAKERT_STATE_example.github.io-test-kb-gateway=running",
 		// The worker is ALREADY RUNNING — this is a restart, and a restart is
 		// only a restart if there is something to replace. The teardown lists
 		// before it acts, so a scenario that wants stop+rm asserted has to say
@@ -8121,7 +8293,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		filepath.Join("machine", "worker.json")+":/etc/semiont/worker.json:ro",
 	)
-	for _, absent := range []string{"run -d --name semiont-neo4j", "run -d --name semiont-gateway", "semiont-browser"} {
+	for _, absent := range []string{"run -d --name semiont-example.github.io-test-kb-neo4j", "run -d --name semiont-example.github.io-test-kb-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
 			t.Errorf("--service worker touched the wider stack: %q in argv", absent)
 		}
@@ -8265,14 +8437,14 @@ func otherLocalKB(t *testing.T) string {
 	return other
 }
 
-// Until each local knowledge base has a gateway port of its own, two started
-// in turn take the same one. The second start takes the first off the
-// worker's list, and says so: the worker would ask whichever gateway answers
-// there, and refuses for good one that answers as another knowledge base. A
-// knowledge base added from the first, offered its engines, goes unserved
-// until the first's next start, which says so too; that start takes the
-// second off in turn. A re-run that finds the worker serving its list keeps
-// it; a start that finds it serving another restarts it.
+// Two knowledge bases that commit one gateway port take it in turn: a start
+// refuses while the other's stack holds it. The second start takes the first
+// off the worker's list, and says so: the worker would ask whichever gateway
+// answers there, and refuses for good one that answers as another knowledge
+// base. A knowledge base added from the first, offered its engines, goes
+// unserved until the first's next start, which says so too; that start takes
+// the second off in turn. A re-run that finds the worker serving its list
+// keeps it.
 func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
 	gateway := otherKBGateway(t)
 	s := newScenario(t, "container")
@@ -8330,13 +8502,17 @@ func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
 		t.Errorf("a re-run serving the same list restarted the worker:\n%s", again)
 	}
 
-	// The first's next start finds the worker running, serving another list,
-	// and restarts it.
+	s.kb = first
+	if _, stderr, code := s.run(t, "start"); code != 1 || !strings.Contains(stderr, "holds port 4000") {
+		t.Errorf("the first's start while the second's stack holds its gateway port: exit %d\n%s", code, stderr)
+	}
+	s.kb = other
+	stop()
 	s.kb = first
 	before = s.argv(t)
 	stdout = start("the first knowledge base's next start")
 	if again := strings.TrimPrefix(s.argv(t), before); !strings.Contains(again, "run -d --name semiont-worker") {
-		t.Errorf("a start whose list differs kept the worker:\n%s", again)
+		t.Errorf("the first's next start did not run the worker:\n%s", again)
 	}
 	mustContain(t, "the first's next start", stdout,
 		"worker — example.github.io:other-kb leaves its list: this start's gateway takes the port its gateway was on")
@@ -8368,7 +8544,7 @@ func TestTheWorkerStopsWhenItServesNothing(t *testing.T) {
 	}
 	stopped := strings.TrimPrefix(s.argv(t), before)
 	mustContain(t, "stop --service worker", stopped, "stop semiont-worker", "rm semiont-worker")
-	mustNotContain(t, "stop --service worker", stopped, "semiont-gateway")
+	mustNotContain(t, "stop --service worker", stopped, "semiont-example.github.io-test-kb-gateway")
 
 	start()
 	before = s.argv(t)
@@ -8525,7 +8701,7 @@ func TestStartServiceGraph(t *testing.T) {
 			// The teardown lists before it acts; a scenario asserting stop+rm
 			// must say the container is there rather than relying on a blind
 			// fire at its name.
-			s.extraEnv = append(s.extraEnv, "FAKERT_STATE_neo4j=running")
+			s.extraEnv = append(s.extraEnv, "FAKERT_STATE_example.github.io-test-kb-neo4j=running")
 			stdout, stderr, code := s.run(t, "start", "--service", "graph")
 			if code != 0 {
 				t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -8533,7 +8709,7 @@ func TestStartServiceGraph(t *testing.T) {
 			mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
 			argv := s.argv(t)
 			// Docker's run carries its log options before -d.
-			mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "-d --name semiont-neo4j")
+			mustContain(t, "argv", argv, "stop semiont-example.github.io-test-kb-neo4j", "rm semiont-example.github.io-test-kb-neo4j", "-d --name semiont-example.github.io-test-kb-neo4j")
 			needless := []string{"image pull", "inspect"}
 			if rt == "container" {
 				mustContain(t, "argv", argv, "-p 192.168.64.1:17687:7687")
@@ -8589,7 +8765,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://192.168.64.1:24104)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
-		"--name semiont-librarian",
+		"--name semiont-example.github.io-test-kb-librarian",
 		"--publish 192.168.64.1:24104:24104",
 		"librarian.json:/etc/semiont/librarian.json:ro",
 		filepath.Join(testKBKey, "librarian")+":/semiont-state",
@@ -8604,7 +8780,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	// librarian that never starts live.
 	mustContain(t, "staged librarian.json", stagedFile(t, s, "librarian.json"),
 		`"passwordEnv": "NEO4J_PASSWORD"`)
-	if v, _ := s.containerEnv(t, "semiont-librarian", "NEO4J_PASSWORD"); len(v) < 32 {
+	if v, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-librarian", "NEO4J_PASSWORD"); len(v) < 32 {
 		t.Errorf("the Librarian's document names NEO4J_PASSWORD, and it was handed %q", v)
 	}
 }
@@ -8622,7 +8798,7 @@ func TestStartServiceArchivist(t *testing.T) {
 	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://192.168.64.1:24103)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
-		"--name semiont-archivist",
+		"--name semiont-example.github.io-test-kb-archivist",
 		"--publish 192.168.64.1:24103:24103",
 		":/kb",
 		"archivist.json:/etc/semiont/archivist.json:ro",
@@ -8647,7 +8823,7 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"--volume <state-home>/machine/worker.json:/etc/semiont/worker.json:ro",
 		"wait: http://<host-addr>:24100/health (30s)",
 	)
-	if strings.Contains(stdout, "semiont-neo4j") {
+	if strings.Contains(stdout, "semiont-example.github.io-test-kb-neo4j") {
 		t.Error("service plan leaked the wider stack")
 	}
 	// Dry run must execute nothing: worker needs only .semiont/ discovery
@@ -8685,10 +8861,7 @@ func TestStartServiceRejections(t *testing.T) {
 
 func TestStopService(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
-	stage, err := os.MkdirTemp(s.stagingParent(), "semiont-config.")
-	if err != nil {
-		t.Fatal(err)
-	}
+	stage := s.stageOf(t)
 	t.Cleanup(func() { os.RemoveAll(stage) })
 	stdout, _, code := s.run(t, "stop", "--service", "weaver")
 	if code != 0 {
@@ -8705,9 +8878,9 @@ func TestStopService(t *testing.T) {
 	}
 	argv := s.argv(t)
 	for _, rt := range []string{"container", "docker", "podman"} {
-		mustContain(t, "argv", argv, rt+" stop semiont-weaver", rt+" rm semiont-weaver")
+		mustContain(t, "argv", argv, rt+" stop semiont-example.github.io-test-kb-weaver", rt+" rm semiont-example.github.io-test-kb-weaver")
 	}
-	if strings.Contains(argv, "semiont-gateway") {
+	if strings.Contains(argv, "semiont-example.github.io-test-kb-gateway") {
 		t.Error("--service weaver touched other containers")
 	}
 }
@@ -8956,7 +9129,7 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 	// The stack records embedding as served by the machine's Ollama, so
 	// --service embedding is what stops that Ollama alone; --service
 	// inference, which Claude performs, leaves it.
-	if m := readMachineRecords(t, s); m.Machine["semiont-ollama"] == nil || m.Stacks["local"].Services["embedding"].Provided != "machine" {
+	if m := readMachineRecords(t, s); m.Machine["semiont-ollama"] == nil || m.Stacks[localKey].Services["embedding"].Provided != "machine" {
 		t.Errorf("want the machine's Ollama recorded and embedding provided by it, got %+v", m)
 	}
 	before := s.mustLog(t)
@@ -9405,7 +9578,7 @@ func TestFailedGateDumpsContainerLogs(t *testing.T) {
 	all := stdout + stderr
 	mustContain(t, "gate failure output", all,
 		"vectors (Qdrant) did not become ready",
-		"of semiont-qdrant's logs:",
+		"of semiont-example.github.io-test-kb-qdrant's logs:",
 		"qdrant out", // fakert's `logs` stdout — proof the tail is the container's own
 		"qdrant err",
 		"Full logs:  semiont logs --service vectors")
@@ -9746,7 +9919,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	if _, ok := placement.Machine["semiont-browser"]; !ok {
 		t.Errorf("no machine-level browser record:\n%s", rec)
 	}
-	if _, wrong := placement.Stacks["local"].Services["browser"]; wrong {
+	if _, wrong := placement.Stacks[localKey].Services["browser"]; wrong {
 		t.Errorf("browser recorded as a stack service:\n%s", rec)
 	}
 	// The stack's port claims must NOT include the Browser's 3000 — stop
@@ -9761,7 +9934,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	if err := json.Unmarshal(rec, &claims); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	for _, p := range claims.Stacks["local"].Ports {
+	for _, p := range claims.Stacks[localKey].Ports {
 		if p == 3000 {
 			t.Errorf("browser port recorded among the stack's claims:\n%s", rec)
 		}
@@ -10471,7 +10644,7 @@ func TestInitHardeningRules(t *testing.T) {
 
 func TestStatusService(t *testing.T) {
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_gateway=running")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_example.github.io-test-kb-gateway=running")
 	serveHealth(t, 4000)
 	stdout, _, code := s.run(t, "status", "--service", "gateway")
 	if code != 0 {
@@ -10503,7 +10676,7 @@ func TestStatusService(t *testing.T) {
 
 func TestLogsDiscovery(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
-	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
+	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker", "FAKERT_STATE_"+testKBKey+"-gateway=running")
 	stdout, stderr, code := s.run(t, "logs")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -10520,13 +10693,13 @@ func TestLogsDiscovery(t *testing.T) {
 	follows := append([]string{}, lines[2:]...)
 	sort.Strings(follows)
 	want := []string{
-		"docker logs --follow semiont-archivist",
 		"docker logs --follow semiont-browser",
-		"docker logs --follow semiont-dispatcher",
-		"docker logs --follow semiont-gateway",
-		"docker logs --follow semiont-librarian",
-		"docker logs --follow semiont-smelter",
-		"docker logs --follow semiont-weaver",
+		"docker logs --follow semiont-example.github.io-test-kb-archivist",
+		"docker logs --follow semiont-example.github.io-test-kb-dispatcher",
+		"docker logs --follow semiont-example.github.io-test-kb-gateway",
+		"docker logs --follow semiont-example.github.io-test-kb-librarian",
+		"docker logs --follow semiont-example.github.io-test-kb-smelter",
+		"docker logs --follow semiont-example.github.io-test-kb-weaver",
 		"docker logs --follow semiont-worker",
 	}
 	if strings.Join(follows, "\n") != strings.Join(want, "\n") {
@@ -10669,7 +10842,7 @@ func TestBrowseAutoRefreshesExpiredToken(t *testing.T) {
 	if strings.Contains(stdout+stderr, "semiont login") {
 		t.Errorf("a renewed session was still sent to login:\n%s\n%s", stdout, stderr)
 	}
-	if signIn, _ := storedSignIn(t, s.home, "local"); tagOf(signIn.Token) != "fake-jwt-token-2" {
+	if signIn, _ := storedSignIn(t, s.home, localKey); tagOf(signIn.Token) != "fake-jwt-token-2" {
 		t.Errorf("tokens.json was not rotated to the renewed token")
 	}
 }
@@ -11247,7 +11420,7 @@ func TestForgetRefusesAmbiguityAndRunningStack(t *testing.T) {
 	// --root find it; stop first.
 	seedRootsRegistry(t, s,
 		`{"path":"`+inJSON(s.kb)+`","did":"did:web:running.example","lastUsed":"2026-03-01T00:00:00Z"}`)
-	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + inJSON(s.kb) + `","services":{}}}}`
+	body := `{"schema":3,"stacks":{"local:running.example":{"runtime":"container","kbRoot":"` + inJSON(s.kb) + `","kbDid":"did:web:running.example","services":{}}}}`
 	if err := os.WriteFile(statePathFor(s.home), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -11310,7 +11483,9 @@ func TestRootsVerbOwnsTheCatalogStatusPoints(t *testing.T) {
 func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	s := newScenario(t, "container")
 	other := mkKB(t)
-	body := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"` + inJSON(other) + `","services":{}}}}`
+	withDomain(t, other, "example.github.io:other-kb")
+	body := `{"schema":3,"stacks":{"local:example.github.io-other-kb":{"runtime":"container","kbRoot":"` + inJSON(other) +
+		`","kbDid":"did:web:example.github.io:other-kb","services":{}}}}`
 	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -11318,7 +11493,7 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout, stderr, _ := s.run(t, "status") // cwd is s.kb — a KB, but not the stack's root
-	mustContain(t, "cwd mismatch", stdout+stderr, "cwd KB: "+s.kb, "not the running stack's root")
+	mustContain(t, "cwd mismatch", stdout+stderr, "cwd KB: "+s.kb, "no running stack's root")
 	// Active stacks stay scannable in the slim section, addressed exactly
 	// as their rows in `semiont roots` — find one there in one glance.
 	mustContain(t, "active line", stdout, "active: file://"+other)
@@ -11361,7 +11536,7 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	neo, _ := s.containerEnv(t, "semiont-neo4j", "NEO4J_AUTH")
+	neo, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-neo4j", "NEO4J_AUTH")
 	graphPw, ok := strings.CutPrefix(neo, "neo4j/")
 	if !ok || len(graphPw) < 32 {
 		t.Fatalf("Neo4j was not given a generated password: NEO4J_AUTH=%q", neo)
@@ -11373,12 +11548,12 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 		t.Errorf("roots/<key>/neo4j-password does not hold Neo4j's password (read %q, %v)", kept, err)
 	}
 	for _, svc := range []string{"librarian", "weaver"} {
-		if v, _ := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); v != graphPw {
+		if v, _ := s.containerEnv(t, containerOf(svc), "NEO4J_PASSWORD"); v != graphPw {
 			t.Errorf("%s reaches the graph but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)
 		}
 	}
 	for _, svc := range []string{"archivist", "smelter"} {
-		if _, handed := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); handed {
+		if _, handed := s.containerEnv(t, containerOf(svc), "NEO4J_PASSWORD"); handed {
 			t.Errorf("the %s reaches no graph but was handed its password", svc)
 		}
 	}
@@ -11387,11 +11562,11 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 			t.Errorf("the staged %s does not name NEO4J_PASSWORD, or states the password:\n%s", doc, staged)
 		}
 	}
-	pg, _ := s.containerEnv(t, "semiont-postgres", "POSTGRES_PASSWORD")
+	pg, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-postgres", "POSTGRES_PASSWORD")
 	if len(pg) < 32 {
 		t.Fatalf("PostgreSQL was not given a generated password: %q", pg)
 	}
-	if v, _ := s.containerEnv(t, "semiont-keycloak", "KC_DB_PASSWORD"); v != pg {
+	if v, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-keycloak", "KC_DB_PASSWORD"); v != pg {
 		t.Errorf("Keycloak dials PostgreSQL with %q, want PostgreSQL's own password", v)
 	}
 
@@ -11401,7 +11576,7 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
 		t.Fatalf("second start: exit %d\n%s", code, stderr)
 	}
-	if again, _ := s.containerEnv(t, "semiont-neo4j", "NEO4J_AUTH"); again != neo {
+	if again, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-neo4j", "NEO4J_AUTH"); again != neo {
 		t.Errorf("the Neo4j password changed across starts: %q then %q", neo, again)
 	}
 }
@@ -11416,12 +11591,12 @@ func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	pw, _ := s.containerEnv(t, "semiont-dispatcher", "NATS_PASSWORD")
+	pw, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-dispatcher", "NATS_PASSWORD")
 	if len(pw) < 32 {
 		t.Fatalf("the dispatcher was not given a generated password: %q", pw)
 	}
 	mustContain(t, "argv log", s.argv(t), "-c /etc/nats/semiont.conf")
-	for _, c := range []string{"semiont-dispatcher", "semiont-gateway"} {
+	for _, c := range []string{"semiont-example.github.io-test-kb-dispatcher", "semiont-example.github.io-test-kb-gateway"} {
 		if u, _ := s.containerEnv(t, c, "NATS_USER"); u != "semiont" {
 			t.Errorf("%s: NATS_USER=%q, want semiont", c, u)
 		}
@@ -11429,10 +11604,10 @@ func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 			t.Errorf("%s: NATS_PASSWORD=%q, want the dispatcher's", c, v)
 		}
 	}
-	if u, _ := s.containerEnv(t, "semiont-nats", "NATS_USER"); u != `"semiont"` {
+	if u, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-nats", "NATS_USER"); u != `"semiont"` {
 		t.Errorf(`semiont-nats: NATS_USER=%s, want "semiont" in its quotes`, u)
 	}
-	if v, _ := s.containerEnv(t, "semiont-nats", "NATS_PASSWORD"); v != `"`+pw+`"` {
+	if v, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-nats", "NATS_PASSWORD"); v != `"`+pw+`"` {
 		t.Errorf("semiont-nats: NATS_PASSWORD=%s, want the clients' password in quotes", v)
 	}
 	mustContain(t, "the dispatcher's document", stagedFile(t, s, "dispatcher.json"), `"passwordEnv": "NATS_PASSWORD"`)
@@ -11493,7 +11668,7 @@ func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 		t.Fatalf("start accepted a jobs driver the dispatcher cannot run")
 	}
 	mustContain(t, "fs-jobs refusal", stderr, "dispatcher", "jetstream")
-	if strings.Contains(s.argv(t), "run -d --name semiont-dispatcher") {
+	if strings.Contains(s.argv(t), "run -d --name semiont-example.github.io-test-kb-dispatcher") {
 		t.Errorf("the dispatcher was started before the refusal")
 	}
 }
@@ -11598,7 +11773,7 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 		"sending no credential — require both to refuse it",
 	)
 	// Verified, never launched.
-	if strings.Contains(stdout, "--name semiont-keycloak") {
+	if strings.Contains(stdout, "--name semiont-example.github.io-test-kb-keycloak") {
 		t.Error("an external issuer was launched")
 	}
 }

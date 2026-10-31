@@ -1,9 +1,6 @@
 package verbs
 
 import (
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,15 +15,7 @@ import (
 func noGatewayFixture(t *testing.T) *int {
 	t.Helper()
 	verbFixture(t)
-	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{
-		"local": {Runtime: "container", Services: map[string]launcher.ServiceState{
-			"gateway": {Container: "semiont-gateway"},
-		}},
-	}}
-	b, _ := json.MarshalIndent(ss, "", "  ")
-	if err := os.WriteFile(filepath.Join(launcher.StateDir(), "stack.json"), b, 0o600); err != nil {
-		t.Fatal(err)
-	}
+	recordLocalStack(t, localStack(launcher.ServiceState{Container: "semiont-example.org-kb-gateway"}))
 	built := 0
 	t.Cleanup(launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport {
 		built++

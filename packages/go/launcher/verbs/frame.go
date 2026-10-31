@@ -27,8 +27,9 @@ no-op — so re-running this is always safe.
 
 Options:
   --entity-type <name>  Add this entity type (repeatable)
-  --repo <owner/name>   Target a codespace stack (default: the local stack)
-  --runtime <rt>        Target the local stack explicitly
+  --repo <owner/name>   Target a codespace stack
+  --root <path>         Target the stack of the knowledge base at path
+  --runtime <rt>        Target a local stack
   --help                Show this help
 
 Requires a session:  semiont login
@@ -39,6 +40,7 @@ func Frame(args []string) int {
 	var entityTypes []string
 	var repo string
 	wantLocal := false
+	rootFlag := ""
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -68,6 +70,12 @@ func Frame(args []string) int {
 				return 1
 			}
 			repo = v
+		case "--root":
+			v, ok := val()
+			if !ok {
+				return 1
+			}
+			rootFlag = v
 		case "--runtime":
 			if _, ok := val(); !ok {
 				return 1
@@ -94,7 +102,7 @@ func Frame(args []string) int {
 		return 1
 	}
 
-	sess, ok := launcher.VerbSession(u, "frame", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "frame", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}

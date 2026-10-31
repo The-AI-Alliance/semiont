@@ -263,7 +263,7 @@ func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
 	if got := plan.Roles["database"].Image; got != dbImage {
 		t.Errorf("database image: got %q", got)
 	}
-	args := providedRunArgs(exposure{}, plan, plan.Roles["graph"])
+	args := providedRunArgs(exposure{}, plan, plan.Roles["graph"], "kb")
 	if args[len(args)-1] != graphImage {
 		t.Errorf("run argv image: got %q", args[len(args)-1])
 	}
@@ -559,16 +559,22 @@ func TestServicePortNeedsOfTheBrowserAreItsDocuments(t *testing.T) {
 }
 
 // A stop holding no record of the stack's claims verifies fiatPorts instead,
-// so every stack-level claim such a stop can know must be in it, on every
-// port block a root keeps: one it misses is a survivor nobody reports, and
-// the next start fails on it.
+// so every stack-level claim such a stop can know must be in it, on the port
+// block each knowledge base it swept keeps: one it misses is a survivor
+// nobody reports, and the next start fails on it. A block it did not sweep is
+// another knowledge base's, whose running stack holds its ports, and the
+// machine's ports are its to verify only when it swept the machine's
+// containers.
 func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 	harness.Home(t)
-	first, third := 0, 2
-	if err := writeRoots(rootsRegistry{Roots: []rootEntry{{Path: "/kb/one", PortBlock: &first}, {Path: "/kb/three", PortBlock: &third}, {Path: "/kb/never-started"}}}); err != nil {
+	first, second, third := 0, 1, 2
+	if err := writeRoots(rootsRegistry{Roots: []rootEntry{
+		{Path: "/kb/one", PortBlock: &first}, {Path: "/kb/two", PortBlock: &second}, {Path: "/kb/three", PortBlock: &third}, {Path: "/kb/never-started"},
+	}}); err != nil {
 		t.Fatal(err)
 	}
-	verified := fiatPorts()
+	swept := []string{rootKey("", "/kb/one"), rootKey("", "/kb/three")}
+	verified := fiatPorts(swept, true)
 	// The documents set these roles' ports and may bind them to somebody
 	// else's service, and a stop with no record reads no document.
 	configOwned := []string{"gateway", "graph", "vectors", "database", "identity"}
@@ -586,7 +592,11 @@ func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 		}
 	}
 	if blockOne := blockPort(semiontDescriptor("archivist").ports[0].port, 1); slices.Contains(verified, blockOne) {
-		t.Errorf("a stop with no record verifies %d, on port block 1, which no root keeps", blockOne)
+		t.Errorf("a stop with no record verifies %d, on port block 1, which a knowledge base it did not sweep keeps", blockOne)
+	}
+	worker := semiontDescriptor("worker").ports[0].port
+	if slices.Contains(fiatPorts(swept, false), worker) {
+		t.Errorf("a stop that left the machine's containers verifies the worker's %d", worker)
 	}
 }
 

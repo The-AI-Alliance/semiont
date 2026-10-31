@@ -46,12 +46,13 @@ startup. See [containers.md](containers.md).
 
 ## Stale browser tabs poison gateway logs
 
-If `container logs semiont-gateway` is a firehose of `Invalid token
+If `container logs semiont-<kb>-gateway` is a firehose of `Invalid token
 signature` or `401` entries when no test is running, a lingering tab
 from an earlier dev session is still holding an SSE connection with
 an expired token and retrying. It won't break the tests directly, but
 it makes gateway logs unreadable while diagnosing. Close the tab
-before debugging.
+before debugging. (`<kb>` is the knowledge base's did:web domain made
+safe for a name: [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names).)
 
 ## Bus fixture order is load-bearing
 

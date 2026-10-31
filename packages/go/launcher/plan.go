@@ -348,18 +348,18 @@ func driverDisplay(role, driver string) string {
 	return driver
 }
 
-// providedRunArgs builds the `run -d` argv for a launcher-provided role from
-// its row of plan: aux ports first, where plan publishes them, then the primary publish (host side the plan's,
+// providedRunArgs builds the `run -d` argv for a launcher-provided role of the
+// knowledge base keyed key from its row of plan: aux ports first, where plan publishes them, then the primary publish (host side the plan's,
 // container side the driver default), driver extras, the env the documents
 // derive, image — with the memory its document states.
-func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, extra ...string) []string {
+func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, key string, extra ...string) []string {
 	role := rp.Role
 	spec := descriptorFor(role, rp.Driver)
 	// NO --rm: a crashed container must remain inspectable — its logs are
 	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
 	// "No such container"). Cleanup is already explicit at both ends:
 	// start's preflight and stop both stop+rm by name.
-	a := []string{"run", "-d", "--name", spec.container, "--memory", rp.Memory}
+	a := []string{"run", "-d", "--name", spec.containerName(key), "--memory", rp.Memory}
 	for _, ap := range spec.auxPorts {
 		a = append(a, e.publish("-p", role, plan.hostPort(role, ap.port), ap.port)...)
 	}
@@ -384,7 +384,7 @@ func ollamaRunArgs(e exposure, rp rolePlan, extra ...string) []string {
 	// (an all-remote embedding config still runs one Ollama), and it comes
 	// from the descriptor ALONE — a second -m from a caller wins by flag
 	// order and desyncs the memory preflight.
-	a := []string{"run", "-d", "--name", spec.container, "--memory", spec.mem} // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", machineContainer("inference"), "--memory", spec.mem} // no --rm: see providedRunArgs
 	a = append(a, e.publish("-p", "inference", rp.Port, spec.defaultPort)...)
 	a = append(a, extra...)
 	return append(a, rp.Image)

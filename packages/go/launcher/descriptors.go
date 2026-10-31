@@ -16,7 +16,7 @@ import (
 // ceiling, the ports, the product name.
 //
 // Keeping those facts on the role would be a lie the reader has to correct
-// at every site: an identity ROW asserting `semiont-keycloak` even when the
+// at every site: an identity ROW asserting a Keycloak container even when the
 // config selects an external OIDC issuer, which launches nothing. Here a row
 // is a (role, driver) pair, so that assertion is not a row anybody can write.
 //
@@ -86,12 +86,13 @@ type serviceDescriptor struct {
 	role   string
 	driver string
 
-	// container is the wire-level name this driver runs under, "" when the
-	// driver launches nothing (an external issuer, a SaaS API, or an Ollama
-	// another role already runs). "" is the structural fact the rest of the
-	// launcher reads as "no start, no stop, no logs" — never a missing value.
-	container string
-	image     string // "" for Semiont's own services: registry + version, at start
+	// name: the container this driver runs, as named within its scope
+	// (containerName), "" when the driver launches nothing (an external
+	// issuer, a SaaS API, or an Ollama another role already runs). "" is the
+	// structural fact the rest of the launcher reads as "no start, no stop, no
+	// logs" — never a missing value.
+	name  string
+	image string // "" for Semiont's own services: registry + version, at start
 
 	// mem is the container's memory CEILING (--memory). On Apple container it
 	// sizes the per-container VM (≈ a commitment); on docker/podman it is a
@@ -153,30 +154,30 @@ var serviceDescriptors = []serviceDescriptor{
 	// and the broker its signal plane dials; it dials no graph, vector,
 	// embedding or database client of its own. The collector precedes it
 	// because the gateway is the first process to export to it.
-	{role: "gateway", driver: driverSemiont, container: "semiont-gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}},
+	{role: "gateway", driver: driverSemiont, name: "gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}},
 		needs:  []string{"collector", "identity", "messaging"},
 		health: healthProbe{path: "/api/health"}},
 	// The worker, the Smelter and the Weaver open with boot-time bus requests the
 	// Archivist answers (the smelter's reconcile opens with browse:resources),
 	// and its /health only turns on after its bus pumps attach — so this edge
 	// is what closes the startup race.
-	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
+	{role: "worker", driver: driverSemiont, name: "worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
 		display: "Worker", needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
-	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
+	{role: "smelter", driver: driverSemiont, name: "smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
 		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
-	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
+	{role: "weaver", driver: driverSemiont, name: "weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
 		needs: []string{"gateway", "archivist"}, health: healthProbe{path: "/health"}},
 	// The Archivist dials the bus and nothing else.
-	{role: "archivist", driver: driverSemiont, container: "semiont-archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}},
+	{role: "archivist", driver: driverSemiont, name: "archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}},
 		needs: []string{"gateway"}, health: healthProbe{path: "/health"}},
 	// The Librarian owns discovery, so the stores it dials are its preconditions:
 	// each of them gates it, and none of them gates the gateway above.
-	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
+	{role: "librarian", driver: driverSemiont, name: "librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
 		needs:  []string{"gateway", "graph", "vectors", "inference", "embedding"},
 		health: healthProbe{path: "/health"}},
 	// The dispatcher's JetStream queue dials the same broker the signal plane
 	// does.
-	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},
+	{role: "dispatcher", driver: driverSemiont, name: "dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},
 		needs:  []string{"gateway", "messaging"},
 		health: healthProbe{path: "/health"}},
 	// browser: the catalog its document is written from (browserdoc.go) — its
@@ -184,21 +185,21 @@ var serviceDescriptors = []serviceDescriptor{
 	// its container. What runs is the document's. An empty ports list keeps
 	// the Browser's port out of every stack-level claim and sweep: flowBrowser
 	// claims the one its document names, and status reports it from its record.
-	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G", defaultPort: 3000},
+	{role: "browser", driver: driverSemiont, name: "browser", mem: "1G", defaultPort: 3000},
 
-	{role: "database", driver: "postgres", container: "semiont-postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
+	{role: "database", driver: "postgres", name: "postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
 		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL",
 		health: healthProbe{tcp: true}},
 
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default is too tight on Apple container.
-	{role: "graph", driver: "neo4j", container: "semiont-neo4j", image: "neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357", mem: "2G",
+	{role: "graph", driver: "neo4j", name: "neo4j", image: "neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357", mem: "2G",
 		ports:   []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}},
 		display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}},
 		// Neo4j answers HTTP on its browser port; bolt is not a health route.
 		health: healthProbe{port: 7474}},
 
-	{role: "vectors", driver: "qdrant", container: "semiont-qdrant", image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", mem: "2G",
+	{role: "vectors", driver: "qdrant", name: "qdrant", image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", mem: "2G",
 		ports: []portNeed{{6333, "Qdrant"}}, display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant",
 		health: healthProbe{path: "/readyz"}},
 
@@ -209,7 +210,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// with the stamped /data store — because both use that store: the job
 	// queue's stream, and the signal driver's KV tables, where the gateway's
 	// ledger keeps its claims.
-	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.15.1-alpine@sha256:7ae34c25dfd6fe2e01c6483eabef20d796690fdcac6c4d94ca780a6cf9877fde", mem: "512M",
+	{role: "messaging", driver: "jetstream", name: "nats", image: "nats:2.15.1-alpine@sha256:7ae34c25dfd6fe2e01c6483eabef20d796690fdcac6c4d94ca780a6cf9877fde", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 
@@ -224,7 +225,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// ample for one KB's realm. "oidc" is an issuer somebody else runs: the
 	// launcher verifies it and launches nothing, which is why it carries no
 	// container.
-	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c", mem: "1G",
+	{role: "identity", driver: "keycloak", name: "keycloak", image: "quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start", "--import-realm", "--http-enabled=true", "--hostname-backchannel-dynamic=true", "--cache=local"},
 		needs: []string{"database"},
@@ -240,7 +241,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// authorityConfigure: the launcher pulls models into an Ollama it did not
 	// start. A pull is idempotent, cheap and reversible, which is the whole
 	// of the argument — and the argument PostgreSQL does not get.
-	{role: "inference", driver: "ollama", container: "semiont-ollama", image: "ollama/ollama:0.40.10@sha256:4c5b27871a3239a717048f9b93057680a51b60c8119a7016aebb57f938e25e35", mem: "24G",
+	{role: "inference", driver: "ollama", name: "ollama", image: "ollama/ollama:0.40.10@sha256:4c5b27871a3239a717048f9b93057680a51b60c8119a7016aebb57f938e25e35", mem: "24G",
 		display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure,
 		health: healthProbe{path: "/api/version"}},
 	// Remote SaaS: no image (nothing to launch), port is TLS. The row it
@@ -258,14 +259,14 @@ var serviceDescriptors = []serviceDescriptor{
 	// The collector owns 4318 (the port services target); Jaeger's own OTLP
 	// ingest sits behind it on 14318. Both are ephemeral: observability data
 	// is disposable in a dev stack.
-	{role: "traces", driver: "jaeger", container: "semiont-jaeger", image: "jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac", mem: "1G",
+	{role: "traces", driver: "jaeger", name: "jaeger", image: "jaegertracing/all-in-one:1.76.0@sha256:ab6f1a1f0fb49ea08bcd19f6b84f6081d0d44b364b6de148e1798eb5816bacac", mem: "1G",
 		ports:   []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}},
 		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI", health: healthProbe{}},
 	// Prometheus keeps its product port (tier 2).
-	{role: "metrics", driver: "prometheus", container: "semiont-prometheus", image: "prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702", mem: "1G",
+	{role: "metrics", driver: "prometheus", name: "prometheus", image: "prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702", mem: "1G",
 		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI",
 		health: healthProbe{path: "/-/healthy"}},
-	{role: "collector", driver: "otel", container: "semiont-otel-collector", image: "otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c", mem: "1G",
+	{role: "collector", driver: "otel", name: "otel-collector", image: "otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c", mem: "1G",
 		ports:   []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}},
 		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: []string{"traces"},
 		// The collector's readout port, not the OTLP port services target.
@@ -426,30 +427,70 @@ func driversFor(role string) []string {
 	return names
 }
 
-// containersForRole: every container name a driver of this role could run,
-// deduped, in table order. Empty for a role no driver launches (embedding),
-// and never longer than one for any role in the table — but a role whose
-// drivers run different containers must be swept for all of them, not for a
-// guess.
-func containersForRole(role string) []string {
+// containerName: the container d's driver runs for the knowledge base whose
+// state is keyed key (rootKey). A machine role's is the machine's one,
+// semiont-<name>, serving every knowledge base here; a stack role's is
+// semiont-<key>-<name>, so each knowledge base's stack runs under names of its
+// own. "" when the driver runs none.
+func (d serviceDescriptor) containerName(key string) string {
+	switch {
+	case d.name == "":
+		return ""
+	case machineRole(d.role):
+		return "semiont-" + d.name
+	case key == "":
+		panic("the " + d.role + " container is named for a knowledge base, and none was named")
+	}
+	return "semiont-" + key + "-" + d.name
+}
+
+// containersForRole: every container a driver of role could run for the
+// knowledge base keyed key, deduped, in table order. Empty for a role no
+// driver launches (embedding), and never longer than one for any role in the
+// table — but a role whose drivers run different containers must be swept for
+// all of them, not for a guess.
+func containersForRole(role, key string) []string {
 	var out []string
 	for _, d := range descriptorsForRole(role) {
-		if d.container == "" || contains(out, d.container) {
-			continue
+		if c := d.containerName(key); c != "" && !contains(out, c) {
+			out = append(out, c)
 		}
-		out = append(out, d.container)
 	}
 	return out
 }
 
-// roleContainer: the one container name a role can run, "" when it runs
-// none. For the single-handle sites (status's inspect target, a codespace's
-// wire-level name).
-func roleContainer(role string) string {
-	if names := containersForRole(role); len(names) > 0 {
+// roleContainer: the one container role can run for the knowledge base keyed
+// key, "" when it runs none. For the single-handle sites (status's inspect
+// target, logs, stop --service).
+func roleContainer(role, key string) string {
+	if names := containersForRole(role, key); len(names) > 0 {
 		return names[0]
 	}
 	return ""
+}
+
+// runsContainer: whether some driver of role runs a container.
+func runsContainer(role string) bool {
+	for _, d := range descriptorsForRole(role) {
+		if d.name != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// machineContainer: the machine's container for one of machineRoles.
+func machineContainer(role string) string {
+	if !machineRole(role) {
+		panic(role + " is no machine role: its container is a knowledge base's")
+	}
+	return roleContainer(role, "")
+}
+
+// machineRole: whether role's container is the machine's, run once for every
+// knowledge base here, rather than one stack's.
+func machineRole(role string) bool {
+	return contains(machineRoles, role)
 }
 
 // stackPortNeeds: the launcher-fiat ports a role claims, whichever driver a
@@ -473,15 +514,14 @@ func stackPortNeeds(role string) []portNeed {
 	return out
 }
 
-// roleByContainer inverts the descriptor set (container name → role).
+// machineRoleByContainer inverts the machine's containers (name → role).
 // Container-less drivers must not be indexed: mapping "" would hand a role
-// back for every unmatched lookup, and stop would then believe a container
-// it cannot name belongs to it.
-var roleByContainer = func() map[string]string {
+// back for every unmatched lookup.
+var machineRoleByContainer = func() map[string]string {
 	m := map[string]string{}
 	for _, d := range serviceDescriptors {
-		if d.container != "" {
-			m[d.container] = d.role
+		if c := d.name; c != "" && machineRole(d.role) {
+			m[d.containerName("")] = d.role
 		}
 	}
 	return m
@@ -556,7 +596,7 @@ func healthPort(role string, d serviceDescriptor, plan *launchPlan) (ctrPort, ho
 func probeDriver(role string) string {
 	ds := descriptorsForRole(role)
 	for _, d := range ds {
-		if d.container != "" {
+		if d.name != "" {
 			return d.driver
 		}
 	}
@@ -590,10 +630,6 @@ var stackServices = func() []string {
 	return out
 }()
 
-// sweepNames: the containers a teardown sweep removes, in teardown order,
-// skipping the roles the caller names as exempt. Both sweeps are this
-// function; they differ only in what they exempt, which is the whole of the
-// difference between them.
 // telemetryRoles: the telemetry the launcher runs for the machine, in the
 // order a bare stop stops it — the collector before the backends it exports
 // to.
@@ -606,13 +642,17 @@ var telemetryRoles = []string{"collector", "metrics", "traces"}
 // replaced and stopped from its own record.
 var machineRoles = slices.Concat([]string{"worker"}, telemetryRoles, []string{"inference", "browser"})
 
-func sweepNames(exempt ...string) []string {
+// stackContainers: every container of the knowledge base keyed key's stack,
+// in teardown order — what a start's preflight and a stop sweep. The
+// machine's containers are not among them: each is kept, replaced and
+// stopped from its own record.
+func stackContainers(key string) []string {
 	var out []string
 	for _, r := range teardownOrder {
-		if contains(exempt, r) {
+		if machineRole(r) {
 			continue
 		}
-		for _, c := range containersForRole(r) {
+		for _, c := range containersForRole(r, key) {
 			if !contains(out, c) {
 				out = append(out, c)
 			}

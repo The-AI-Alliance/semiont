@@ -233,7 +233,9 @@ func TestResolvedSecretValueReadsTheRegisteredSource(t *testing.T) {
 		reg.Secrets = map[string]secretRef{}
 	}
 	reg.Secrets["SOME_API_KEY"] = secretRef{Provider: "testvault", Path: vault}
-	saveRoots(reg)
+	if err := writeRoots(reg); err != nil {
+		t.Fatal(err)
+	}
 
 	if got := resolvedSecretValue(u, "SOME_API_KEY"); got != "from-the-vault" {
 		t.Errorf("registered source not consulted: got %q", got)

@@ -40,18 +40,52 @@ func TestARootIsGivenTheLowestPortBlockNoOtherKeeps(t *testing.T) {
 	base := t.TempDir()
 	zero, two, fresh := filepath.Join(base, "zero"), filepath.Join(base, "two"), filepath.Join(base, "new")
 	keepBlocks(t, []string{zero, two, fresh}, map[string]int{zero: 0, two: 2})
-	if block, kept := portBlockOf(two); block != 2 || !kept {
-		t.Errorf("a root keeping block 2 is given %d (kept %v)", block, kept)
+	if block := portBlockOf(two); block != 2 {
+		t.Errorf("a root keeping block 2 is given %d", block)
 	}
-	if block, kept := portBlockOf(fresh); block != 1 || kept {
-		t.Errorf("a root keeping no block is given %d (kept %v), want 1, the lowest no other keeps", block, kept)
+	if block := portBlockOf(fresh); block != 1 {
+		t.Errorf("a root keeping no block is given %d, want 1, the lowest no other keeps", block)
 	}
-	recordPortBlock(fresh, 1)
-	if block, kept := portBlockOf(fresh); block != 1 || !kept {
-		t.Errorf("after its start recorded it, the root is given %d (kept %v)", block, kept)
+	if err := keepPortBlock(kbRoot{dir: fresh}, 1); err != nil {
+		t.Fatal(err)
 	}
-	if block, _ := portBlockOf(filepath.Join(base, "unregistered")); block != 3 {
+	if block := portBlockOf(fresh); block != 1 {
+		t.Errorf("after its start kept it, the root is given %d", block)
+	}
+	if block := portBlockOf(filepath.Join(base, "unregistered")); block != 3 {
 		t.Errorf("a root no row names is given block %d, want 3", block)
+	}
+}
+
+// A start keeps the block it planned on, on its row, made when it has none;
+// one another root kept after the start chose it is refused, naming that
+// root, and kept by neither twice.
+func TestAStartKeepsTheBlockItPlannedOnUnlessAnotherRootKeptIt(t *testing.T) {
+	harness.Home(t)
+	base := t.TempDir()
+	first, second := filepath.Join(base, "first"), filepath.Join(base, "second")
+	if err := keepPortBlock(kbRoot{dir: first}, 0); err != nil {
+		t.Fatal(err)
+	}
+	if block := portBlockOf(second); block != 1 {
+		t.Fatalf("the second root plans on block %d, want 1", block)
+	}
+	// Another root's start keeps block 1 between the second's plan and its
+	// keep.
+	if err := keepPortBlock(kbRoot{dir: filepath.Join(base, "third")}, 1); err != nil {
+		t.Fatal(err)
+	}
+	err := keepPortBlock(kbRoot{dir: second}, 1)
+	if err == nil || !strings.Contains(err.Error(), filepath.Join(base, "third")) {
+		t.Errorf("keeping a block another root kept meanwhile: %v, want a refusal naming that root", err)
+	}
+	for _, e := range loadRoots().Roots {
+		if e.Path == second && e.PortBlock != nil {
+			t.Errorf("the refused root keeps block %d", *e.PortBlock)
+		}
+	}
+	if block := portBlockOf(first); block != 0 {
+		t.Errorf("the first root, whose start kept block 0 on a row it had none on, is given %d", block)
 	}
 }
 

@@ -30,7 +30,7 @@ import (
 // session's token, and the end of the command when the session is over.
 type Session struct {
 	u      *UI
-	key    string // token/stack key: "local" or "codespace:<repo>"
+	key    string // token/stack key: "local:<key>" or "codespace:<repo>"
 	base   string // the stack's gateway base URL, which the tokens are for
 	signIn semiont.SignIn
 	token  *semiont.Variable[string]
@@ -283,47 +283,50 @@ func RejectedFail(u *UI, verb string, rej *SessionRejected) int {
 // VerbSession resolves a verb's stack and its session in one place, because
 // nine verbs asking the same questions nine different ways is how they drift.
 // Refusals are printed here with their fix-it lines; ok=false means stop.
-func VerbSession(u *UI, verb, repo string, wantLocal bool, channels ...bus.Channel) (*Session, bool) {
-	ss := LoadStackSet()
-	target, ok := SelectVerbStack(u, verb, ss, repo, wantLocal)
+func VerbSession(u *UI, verb, repo, root string, wantLocal bool, channels ...bus.Channel) (*Session, bool) {
+	target, ok := SelectVerbStack(u, verb, LoadStackSet(), repo, root, wantLocal)
 	if !ok {
 		return nil, false
 	}
-	var base, key string
-	if target != nil {
-		if base, ok = ForwardedBase(u, target, verb); !ok {
-			return nil, false
-		}
-		key = "codespace:" + target.Codespace.Repo
-	} else {
-		local := ss.Stacks["local"]
-		if local == nil {
-			u.Fail("%s needs a running stack, and none is recorded.", verb)
-			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
-			return nil, false
-		}
-		if base, ok = LocalBase(u, local, verb); !ok {
-			return nil, false
-		}
-		key = "local"
+	base, ok := StackBase(u, target, verb)
+	if !ok {
+		return nil, false
 	}
-	return LoadSession(u, verb, key, base, channels...)
+	return LoadSession(u, verb, StackKey(target), base, channels...)
 }
 
-const logoutUsage = `Usage: semiont logout [--repo <owner/name> | --runtime <rt>]
+// StackBase: where verb dials the KB of target, the stack SelectVerbStack
+// chose — a codespace's forward, a local stack's gateway. A nil target is no
+// stack recorded, refused here for every verb that needs one. ok=false:
+// refused, said for verb.
+func StackBase(u *UI, target *StackState, verb string) (string, bool) {
+	switch {
+	case target == nil:
+		u.Fail("%s needs a running stack, and none is recorded.", verb)
+		fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
+		return "", false
+	case target.Codespace != nil:
+		return forwardedBase(u, target, verb)
+	}
+	return localBase(u, target, verb)
+}
+
+const logoutUsage = `Usage: semiont logout [--repo <owner/name> | --root <path> | --runtime <rt>]
 
 End the stack's stored session: the refresh token is revoked at the issuer
 (best-effort), then the local token is forgotten either way.
 
 Options:
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 `
 
 func Logout(args []string) int {
 	u := NewUI(false)
 	repo, wantLocal := "", false
+	rootFlag := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--repo":
@@ -332,6 +335,13 @@ func Logout(args []string) int {
 				return 1
 			}
 			repo = args[i+1]
+			i++
+		case "--root":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --root")
+				return 1
+			}
+			rootFlag = args[i+1]
 			i++
 		case "--runtime":
 			if i+1 >= len(args) {
@@ -349,15 +359,15 @@ func Logout(args []string) int {
 		}
 	}
 
-	ss := LoadStackSet()
-	target, ok := SelectVerbStack(u, "logout", ss, repo, wantLocal)
+	target, ok := SelectVerbStack(u, "logout", LoadStackSet(), repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}
-	key := "local"
-	if target != nil {
-		key = "codespace:" + target.Codespace.Repo
+	if target == nil {
+		u.Log("No stack is recorded — nothing to log out.")
+		return 0
 	}
+	key := StackKey(target)
 
 	store, ok := signInStore()
 	if !ok {
