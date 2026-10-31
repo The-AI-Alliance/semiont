@@ -56,7 +56,13 @@ def trusting(gateway: GatewayServer, *, device: bool = True, revocation: bool = 
 def minted(**stated: JsonValue) -> Answer:
     """The issuer's answer to a device authorization request."""
     return says(
-        {"device_code": "the-device-code", "user_code": "WDJB-MJHT", "verification_uri": "https://issuer.example.org/device", **stated}
+        {
+            "device_code": "the-device-code",
+            "user_code": "WDJB-MJHT",
+            "verification_uri": "https://issuer.example.org/device",
+            "expires_in": 600,
+            **stated,
+        }
     )
 
 

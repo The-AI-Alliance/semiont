@@ -1439,6 +1439,41 @@ async fn an_issuer_with_no_device_endpoint_is_refused_naming_the_client() {
     assert!(world.staged.device_forms.lock().unwrap().is_empty());
 }
 
+/// RFC 8628 §3.2 requires `expires_in` of a device authorization answer: one
+/// without it has answered without what was asked for, and a code whose
+/// lifetime nobody knows is shown to nobody.
+#[tokio::test]
+async fn a_device_authorization_answer_with_no_lifetime_is_refused() {
+    let world = World::start().await;
+    world
+        .staged
+        .device_answer
+        .lock()
+        .unwrap()
+        .1
+        .as_object_mut()
+        .expect("the answer is an object")
+        .remove("expires_in");
+    let shown = Arc::new(Mutex::new(0));
+    let showing = shown.clone();
+
+    let refused = sign_in_with_device_grant(
+        &world.target(),
+        move |_| *showing.lock().unwrap() += 1,
+        &world.http,
+    )
+    .await
+    .expect_err("the answer has no lifetime");
+
+    assert_eq!(code(&refused), (SignInErrorCode::Exchange, Some(200)));
+    assert_eq!(
+        refused.message,
+        "The issuer refused the device authorization request (HTTP 200)"
+    );
+    assert_eq!(*shown.lock().unwrap(), 0);
+    assert!(world.token_forms().is_empty());
+}
+
 // ── Sessions over a gateway ─────────────────────────────────────────────
 
 fn issued(world: &World, storage: Arc<InMemorySessionStorage>, access: &str) -> IssuedSession {

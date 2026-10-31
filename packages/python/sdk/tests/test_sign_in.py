@@ -57,7 +57,7 @@ from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage
-from semiont.timing import DEVICE_CODE_LIFETIME_MS, DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MIN_REFRESH_DELAY_MS
+from semiont.timing import DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MIN_REFRESH_DELAY_MS
 from semiont.types import HttpEndpoint, KbTarget, LocalEndpoint
 from semiont.watched import Watched, reached
 
@@ -377,7 +377,30 @@ def test_an_issuer_that_states_no_interval_is_asked_every_device_poll_until_the_
     run(scenario())
 
 
-def test_an_issuer_that_states_no_lifetime_mints_a_code_good_for_the_device_code_lifetime() -> None:
+def test_an_issuer_that_states_no_lifetime_has_answered_without_what_was_asked_for() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            # RFC 8628 §3.2 requires `expires_in`: a code whose lifetime nobody knows is shown to nobody.
+            gateway.scripted[("POST", DEVICE)] = [
+                says({"device_code": "the-device-code", "user_code": "WDJB-MJHT", "verification_uri": "https://issuer.example.org/device"})
+            ]
+            shown: list[DeviceCode] = []
+
+            with pytest.raises(SignInError) as refused:
+                await soon(sign_in_with_device_grant(gateway.origin, shown.append))
+            assert (refused.value.code, refused.value.status, refused.value.message) == (
+                "exchange",
+                200,
+                "The issuer refused the device authorization request (HTTP 200)",
+            )
+            assert shown == []
+            assert gateway.of("POST", TOKEN) == []
+
+    run(scenario())
+
+
+def test_an_issuer_that_states_no_link_with_the_code_shows_none() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
@@ -387,7 +410,7 @@ def test_an_issuer_that_states_no_lifetime_mints_a_code_good_for_the_device_code
 
             with pytest.raises(SignInError):
                 await hurried(sign_in_with_device_grant(gateway.origin, shown.append))
-            assert (shown[0].expires_in, shown[0].verification_uri_complete) == (DEVICE_CODE_LIFETIME_MS / 1000, None)
+            assert (shown[0].expires_in, shown[0].verification_uri_complete) == (600, None)
 
     run(scenario())
 

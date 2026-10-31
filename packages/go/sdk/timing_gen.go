@@ -131,14 +131,14 @@ type Timing struct {
 	// each time the issuer answers `slow_down`. RFC 8628 §3.5 names five
 	// seconds, so an issuer that says it again is given more time again.
 	DeviceSlowDown time.Duration
-	// DeviceCodeLifetime is deviceCodeLifetimeMs: How long a sign-in by the
-	// device grant takes its code to be good for when the issuer's answer states
-	// no `expires_in`, which RFC 8628 §3.2 requires of it: the whole of the wait
-	// for the person to approve the code, after which the sign-in has failed as
-	// expired and the token endpoint is not asked again. RFC 8628 leaves the
-	// lifetime to the issuer, and ten minutes is the common choice: long enough
-	// to reach a browser and sign in there.
-	DeviceCodeLifetime time.Duration
+	// DevicePollFloor is devicePollFloorMs: The shortest a sign-in by the device
+	// grant ever waits between its asks of the token endpoint, whatever
+	// `interval` the issuer states. An issuer that states zero, or a fraction of
+	// a second, would otherwise be asked again at once for as long as the code
+	// lives; a floor makes that impossible, as `minRefreshDelayMs` does for
+	// renewals. RFC 8628 sets no lower bound, and a second is not long enough
+	// for a person who has approved the code to notice.
+	DevicePollFloor time.Duration
 	// InvalidationWindow is invalidationWindowMs: How long bus-driven
 	// invalidations of one cache key fold together (CACHE-SEMANTICS B19). The
 	// first runs at once; any more inside the window become one refetch at its
@@ -269,7 +269,7 @@ func DefaultTiming() Timing {
 		MinRefreshDelay:                   10000 * time.Millisecond,
 		DevicePoll:                        5000 * time.Millisecond,
 		DeviceSlowDown:                    5000 * time.Millisecond,
-		DeviceCodeLifetime:                600000 * time.Millisecond,
+		DevicePollFloor:                   1000 * time.Millisecond,
 		InvalidationWindow:                1000 * time.Millisecond,
 		SaveDebounce:                      50 * time.Millisecond,
 		MaxStoredBytesCount:               2097152,

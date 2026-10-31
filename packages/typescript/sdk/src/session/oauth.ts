@@ -10,7 +10,7 @@
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import {
   BROWSER_CLIENT_ID,
-  DEVICE_CODE_LIFETIME_MS,
+  DEVICE_POLL_FLOOR_MS,
   DEVICE_POLL_MS,
   DEVICE_SLOW_DOWN_MS,
   REFRESH_RETRY,
@@ -442,13 +442,14 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
     throw new SignInError('discovery', `Issuer ${issuer.issuer} offers no device authorization endpoint — the device grant needs one enabled for client ${SCRIPT_CLIENT_ID}`);
   }
   const { status, body } = await postForm(issuer.device, { client_id: SCRIPT_CLIENT_ID, scope: SIGN_IN_SCOPE });
+  const expiresIn = body?.['expires_in'];
   if (
     status !== 200 || !body
     || !isString(body['device_code']) || !isString(body['user_code']) || !isString(body['verification_uri'])
+    || typeof expiresIn !== 'number' || expiresIn < 0
   ) {
     throw new SignInError('exchange', `The issuer refused the device authorization request (${refusal(status, body)})`);
   }
-  const expiresIn = typeof body['expires_in'] === 'number' ? body['expires_in'] : DEVICE_CODE_LIFETIME_MS / 1000;
   opts.onCode({
     userCode: body['user_code'],
     verificationUri: body['verification_uri'],
@@ -456,7 +457,7 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
     expiresIn,
   });
 
-  let interval = Math.max(typeof body['interval'] === 'number' ? body['interval'] * 1000 : DEVICE_POLL_MS, 1000);
+  let interval = Math.max(typeof body['interval'] === 'number' ? body['interval'] * 1000 : DEVICE_POLL_MS, DEVICE_POLL_FLOOR_MS);
   const deadline = Date.now() + expiresIn * 1000;
   for (;;) {
     await sleep(interval, opts.signal);

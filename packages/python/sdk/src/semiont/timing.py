@@ -18,7 +18,7 @@ __all__ = [
     "BUS_REQUEST_TIMEOUT_MS",
     "DEGRADED_THRESHOLD_MS",
     "DELEGATE_SILENCE_MS",
-    "DEVICE_CODE_LIFETIME_MS",
+    "DEVICE_POLL_FLOOR_MS",
     "DEVICE_POLL_MS",
     "DEVICE_SLOW_DOWN_MS",
     "DISCOVERY_INTERVAL_MS",
@@ -161,12 +161,12 @@ DEVICE_POLL_MS: Final = 5000
 # an issuer that says it again is given more time again.
 DEVICE_SLOW_DOWN_MS: Final = 5000
 
-# How long a sign-in by the device grant takes its code to be good for when the issuer's answer
-# states no `expires_in`, which RFC 8628 §3.2 requires of it: the whole of the wait for the
-# person to approve the code, after which the sign-in has failed as expired and the token
-# endpoint is not asked again. RFC 8628 leaves the lifetime to the issuer, and ten minutes is
-# the common choice: long enough to reach a browser and sign in there.
-DEVICE_CODE_LIFETIME_MS: Final = 600000
+# The shortest a sign-in by the device grant ever waits between its asks of the token endpoint,
+# whatever `interval` the issuer states. An issuer that states zero, or a fraction of a second,
+# would otherwise be asked again at once for as long as the code lives; a floor makes that
+# impossible, as `minRefreshDelayMs` does for renewals. RFC 8628 sets no lower bound, and a
+# second is not long enough for a person who has approved the code to notice.
+DEVICE_POLL_FLOOR_MS: Final = 1000
 
 # How long bus-driven invalidations of one cache key fold together (CACHE-SEMANTICS B19). The
 # first runs at once; any more inside the window become one refetch at its end. Each refetch is
@@ -285,7 +285,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "minRefreshDelayMs",
     "devicePollMs",
     "deviceSlowDownMs",
-    "deviceCodeLifetimeMs",
+    "devicePollFloorMs",
     "invalidationWindowMs",
     "saveDebounceMs",
     "maxStoredBytesCount",

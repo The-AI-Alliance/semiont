@@ -293,12 +293,9 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 	deviceCode, hasDeviceCode := body.text("device_code")
 	userCode, hasUserCode := body.text("user_code")
 	verificationURI, hasVerificationURI := body.text("verification_uri")
-	if status != http.StatusOK || !hasDeviceCode || !hasUserCode || !hasVerificationURI {
+	expiresIn, hasExpiresIn := body.seconds("expires_in")
+	if status != http.StatusOK || !hasDeviceCode || !hasUserCode || !hasVerificationURI || !hasExpiresIn {
 		return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the device authorization request (%s)", body.refusal(status)), status)
-	}
-	expiresIn, ok := body.seconds("expires_in")
-	if !ok {
-		expiresIn = i.Timing.DeviceCodeLifetime
 	}
 	complete, _ := body.text("verification_uri_complete")
 	onCode(DeviceCode{UserCode: userCode, VerificationURI: verificationURI, VerificationURIComplete: complete, ExpiresIn: expiresIn})
@@ -307,7 +304,7 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 	if !ok {
 		interval = i.Timing.DevicePoll
 	}
-	interval = max(interval, time.Second)
+	interval = max(interval, i.Timing.DevicePollFloor)
 	deadline := time.Now().Add(expiresIn)
 	for {
 		if !pause(ctx, interval) {

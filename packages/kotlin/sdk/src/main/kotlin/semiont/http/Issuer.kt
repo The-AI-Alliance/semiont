@@ -221,12 +221,12 @@ internal suspend fun signInWithDeviceGrant(baseUrl: String, onCode: (DeviceCode)
     val deviceCode = minted.text("device_code")
     val userCode = minted.text("user_code")
     val verificationUri = minted.text("verification_uri")
-    if (minted.status != 200 || deviceCode == null || userCode == null || verificationUri == null) {
+    val expiresIn = minted.seconds("expires_in")
+    if (minted.status != 200 || deviceCode == null || userCode == null || verificationUri == null || expiresIn == null) {
         throw SignInError(SignInErrorCode.Exchange, "The issuer refused the device authorization request (${minted.refusal()})", minted.status)
     }
-    val expiresIn = minted.seconds("expires_in") ?: Timings.DEVICE_CODE_LIFETIME_MS / 1000.0
     onCode(DeviceCode(userCode, verificationUri, minted.text("verification_uri_complete"), expiresIn))
-    var interval = maxOf(minted.seconds("interval") ?: Timings.DEVICE_POLL_MS / 1000.0, 1.0)
+    var interval = maxOf(minted.seconds("interval") ?: Timings.DEVICE_POLL_MS / 1000.0, Timings.DEVICE_POLL_FLOOR_MS / 1000.0)
     val deadline = System.nanoTime() + (expiresIn * 1e9).toLong()
     while (true) {
         delay((interval * 1000).toLong())
