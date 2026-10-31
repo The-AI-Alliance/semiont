@@ -86,12 +86,21 @@ internal object OwnerOnly {
     }
 
     /**
+     * An access list as Windows writes it out, with its entries sorted: entries that each allow mean the same in any order, and a
+     * list's own entries need not be read back in the order they were set.
+     */
+    private fun inAnyOrder(list: String): String {
+        val flags = list.substringBefore("(")
+        return flags + list.drop(flags.length).split(")").filter { it.isNotEmpty() }.sorted().joinToString("") { "$it)" }
+    }
+
+    /**
      * Keep `directory`, and everything made in it from then on, to its owner.
      * A directory that has the list already is left as it is: setting a list
      * hands it down to everything beneath, which in a state home is no small
      * walk. The two lists are compared as Windows writes each out, which names
      * some users by an abbreviation (the built-in administrator is `LA`)
-     * rather than by their SID.
+     * rather than by their SID, and with their entries in any order.
      */
     fun keep(directory: Path): Unit = Arena.ofConfined().use { arena ->
         val state = arena.allocate(captured)
@@ -119,7 +128,7 @@ internal object OwnerOnly {
             } finally {
                 localFree.invoke(held.get(ADDRESS, 0L))
             }
-            if (has == written(arena, state, descriptor)) return@use
+            if (inAnyOrder(has) == inAnyOrder(written(arena, state, descriptor))) return@use
 
             val present = arena.allocate(JAVA_INT)
             val defaulted = arena.allocate(JAVA_INT)

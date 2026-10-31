@@ -300,6 +300,15 @@ class SignInStoreTest {
         return said[0] to said[1]
     }
 
+    /**
+     * An access list's flags (`D:PAI`) and its entries, sorted. PowerShell reads a list through .NET, which writes the entries a
+     * list sets itself in an order of its own (by SID), and the order of entries that each allow does not change what they allow.
+     */
+    private fun entriesOf(list: String): Pair<String, List<String>> {
+        val flags = list.substringBefore("(")
+        return flags to list.drop(flags.length).split(")").filter { it.isNotEmpty() }.map { "$it)" }.sorted()
+    }
+
     @Test
     fun theEntryThisSdkWritesIsTheSchemas() {
         val schema = Spec.read("sign-in-store/SignIn.json").jsonObject
@@ -344,11 +353,16 @@ class SignInStoreTest {
         } else {
             // The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
             val (user, list) = accessListOf(path.parent)
-            fun entries(flags: String) = """\(A;$flags;FA;;;${Regex.escape(user)}\)\(A;$flags;FA;;;SY\)\(A;$flags;FA;;;BA\)"""
-            assertTrue(Regex("D:P(AI)?" + entries("OICI")).matches(list), "the state home's access list is $list, not its owner's ($user) alone")
+            fun ownerOnly(inherit: String) = listOf(user, "SY", "BA").map { "(A;$inherit;FA;;;$it)" }.sorted()
+            val (flags, entries) = entriesOf(list)
+            assertTrue(flags in setOf("D:PAI", "D:P") && entries == ownerOnly("OICI"), "the state home's access list is $list, not its owner's ($user) alone")
             for (made in listOf(path, path.resolveSibling("tokens.lock"))) {
                 val (_, inherited) = accessListOf(made)
-                assertTrue(Regex("D:(AI)?" + entries("ID")).matches(inherited), "$made's access list is $inherited, not the one its directory hands down to its owner ($user)")
+                val (madeFlags, madeEntries) = entriesOf(inherited)
+                assertTrue(
+                    madeFlags in setOf("D:AI", "D:") && madeEntries == ownerOnly("ID"),
+                    "$made's access list is $inherited, not the one its directory hands down to its owner ($user)",
+                )
             }
         }
         assertEquals(listOf("tokens.json", "tokens.lock"), Files.list(path.parent).use { files -> files.map { it.fileName.toString() }.sorted().toList() })

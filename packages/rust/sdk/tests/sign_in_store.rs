@@ -292,6 +292,18 @@ fn access_list_of(path: &std::path::Path) -> (String, String) {
     }
 }
 
+/// An access list's flags (`D:PAI`) and its entries, sorted. PowerShell
+/// reads a list through .NET, which writes the entries a list sets itself in
+/// an order of its own (by SID), and the order of entries that each allow
+/// does not change what they allow.
+#[cfg(windows)]
+fn entries_of(list: &str) -> (&str, Vec<String>) {
+    let (flags, entries) = list.split_at(list.find('(').expect("an access list with entries"));
+    let mut entries: Vec<String> = entries.split_inclusive(')').map(str::to_owned).collect();
+    entries.sort();
+    (flags, entries)
+}
+
 #[test]
 fn the_file_is_written_whole_for_its_owner_alone() {
     let home = Home::new();
@@ -322,21 +334,26 @@ fn the_file_is_written_whole_for_its_owner_alone() {
     #[cfg(windows)]
     {
         let (user, list) = access_list_of(&home.dir);
-        let entries =
-            |flags: &str| format!("(A;{flags};FA;;;{user})(A;{flags};FA;;;SY)(A;{flags};FA;;;BA)");
-        assert_eq!(
-            list.strip_prefix("D:PAI")
-                .or_else(|| list.strip_prefix("D:P")),
-            Some(entries("OICI").as_str()),
-            "{list}"
+        let owner_only = |inherit: &str| {
+            let mut entries: Vec<String> = [user.as_str(), "SY", "BA"]
+                .iter()
+                .map(|who| format!("(A;{inherit};FA;;;{who})"))
+                .collect();
+            entries.sort();
+            entries
+        };
+        let (flags, entries) = entries_of(&list);
+        assert!(
+            ["D:PAI", "D:P"].contains(&flags) && entries == owner_only("OICI"),
+            "the state home's access list is {list}, not its owner's ({user}) alone"
         );
         for made in [home.path(), home.dir.join("tokens.lock")] {
             let (_, list) = access_list_of(&made);
-            assert_eq!(
-                list.strip_prefix("D:AI")
-                    .or_else(|| list.strip_prefix("D:")),
-                Some(entries("ID").as_str()),
-                "{list}"
+            let (flags, entries) = entries_of(&list);
+            assert!(
+                ["D:AI", "D:"].contains(&flags) && entries == owner_only("ID"),
+                "{}'s access list is {list}, not the one its directory hands down to its owner ({user})",
+                made.display()
             );
         }
     }

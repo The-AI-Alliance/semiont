@@ -4,6 +4,8 @@ package semiont
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -32,7 +34,8 @@ const (
 // that has the list already is left as it is: setting a list hands it down to
 // everything beneath, which in a state home is no small walk. The two lists
 // are compared as Windows writes each out, which names some users by an
-// abbreviation (the built-in administrator is LA) rather than by their SID.
+// abbreviation (the built-in administrator is LA) rather than by their SID,
+// and with their entries in any order.
 func ownerOnlyDir(dir string) error {
 	token, err := syscall.OpenCurrentProcessToken()
 	if err != nil {
@@ -64,7 +67,7 @@ func ownerOnlyDir(dir string) error {
 	if err != nil {
 		return err
 	}
-	if has, err := accessListAt(name); err != nil || has == list {
+	if has, err := accessListAt(name); err != nil || inAnyOrder(has) == inAnyOrder(list) {
 		return err
 	}
 	var present, defaulted int32
@@ -76,6 +79,16 @@ func ownerOnlyDir(dir string) error {
 		return fmt.Errorf("cannot keep %s to its owner: %w", dir, syscall.Errno(failed))
 	}
 	return nil
+}
+
+// inAnyOrder is an access list as Windows writes it out, with its entries
+// sorted: entries that each allow mean the same in any order, and a list's
+// own entries need not be read back in the order they were set.
+func inAnyOrder(list string) string {
+	flags, _, _ := strings.Cut(list, "(")
+	entries := strings.SplitAfter(list[len(flags):], ")")
+	slices.Sort(entries)
+	return flags + strings.Join(entries, "")
 }
 
 // accessListAt is the access list of what name names, as Windows writes it

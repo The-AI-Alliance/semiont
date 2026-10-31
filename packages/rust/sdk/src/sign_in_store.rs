@@ -63,7 +63,7 @@ pub const FILE_NAME: &str = "tokens.json";
 /// hands it down to everything beneath, which in a state home is no small
 /// walk. The two lists are compared as Windows writes each out, which names
 /// some users by an abbreviation (the built-in administrator is `LA`) rather
-/// than by their SID.
+/// than by their SID, and with their entries in any order.
 #[cfg(windows)]
 #[allow(unsafe_code)]
 fn owner_only(directory: &Path) -> io::Result<()> {
@@ -123,6 +123,19 @@ fn owner_only(directory: &Path) -> io::Result<()> {
             }
         }
 
+        /// An access list as Windows writes it out, with its entries sorted:
+        /// entries that each allow mean the same in any order, and a list's
+        /// own entries need not be read back in the order they were set.
+        fn in_any_order(list: &str) -> String {
+            let (flags, entries) = match list.find('(') {
+                Some(at) => list.split_at(at),
+                None => (list, ""),
+            };
+            let mut entries: Vec<&str> = entries.split_inclusive(')').collect();
+            entries.sort_unstable();
+            format!("{flags}{}", entries.concat())
+        }
+
         let mut size = 0u32;
         GetTokenInformation(CURRENT_PROCESS_TOKEN, TokenUser, null_mut(), 0, &mut size);
         // Aligned as a TOKEN_USER is: the SID it points to follows it.
@@ -174,7 +187,7 @@ fn owner_only(directory: &Path) -> io::Result<()> {
             }
             let has = written(held);
             LocalFree(held);
-            if has? == written(descriptor)? {
+            if in_any_order(&has?) == in_any_order(&written(descriptor)?) {
                 return Ok(());
             }
             let (mut present, mut defaulted) = (0, 0);

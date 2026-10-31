@@ -9,7 +9,6 @@ lock every writer of the file takes.
 import asyncio
 import json
 import os
-import re
 import stat
 import subprocess
 import sys
@@ -79,6 +78,17 @@ def access_list_of(path: Path) -> tuple[str, str]:
     return words[0], words[1]
 
 
+def entries_of(listed: str) -> tuple[str, list[str]]:
+    """An access list's flags (`D:PAI`) and its entries, sorted.
+
+    PowerShell reads a list through .NET, which writes the entries a list sets
+    itself in an order of its own (by SID), and the order of entries that each
+    allow does not change what they allow.
+    """
+    flags = listed.split("(", 1)[0]
+    return flags, sorted(f"{entry})" for entry in listed[len(flags) :].split(")") if entry)
+
+
 def entry(path: Path, key: str) -> JsonObject:
     found = document(path)[key]
     assert isinstance(found, dict)
@@ -133,19 +143,20 @@ def test_a_sign_in_is_kept_as_the_launcher_keeps_one(tmp_path: Path) -> None:
     else:
         # The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
         user, listed = access_list_of(path.parent)
-        sid = re.escape(user)
 
-        def entries(flags: str) -> str:
-            return rf"\(A;{flags};FA;;;{sid}\)\(A;{flags};FA;;;SY\)\(A;{flags};FA;;;BA\)"
+        def owner_only(inherit: str) -> list[str]:
+            return sorted(f"(A;{inherit};FA;;;{who})" for who in (user, "SY", "BA"))
 
-        assert re.fullmatch("D:P(AI)?" + entries("OICI"), listed), (
-            f"the state home's access list is {listed}, not its owner's ({user}) alone"
-        )
+        flags, entries = entries_of(listed)
+        said = f"the state home's access list is {listed}, not its owner's ({user}) alone"
+        assert flags in {"D:PAI", "D:P"}, said
+        assert entries == owner_only("OICI"), said
         for made in (path, path.parent / "tokens.lock"):
             _, listed = access_list_of(made)
-            assert re.fullmatch("D:(AI)?" + entries("ID"), listed), (
-                f"{made}'s access list is {listed}, not the one its directory hands down to its owner ({user})"
-            )
+            flags, entries = entries_of(listed)
+            said = f"{made}'s access list is {listed}, not the one its directory hands down to its owner ({user})"
+            assert flags in {"D:AI", "D:"}, said
+            assert entries == owner_only("ID"), said
     assert sorted(found.name for found in path.parent.iterdir()) == ["tokens.json", "tokens.lock"]
     assert path.read_bytes().endswith(b"}\n")
 

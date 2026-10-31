@@ -64,7 +64,9 @@ A directory that has the list already is left as it is: setting a list hands
 it down to everything beneath, and is done under the lock because a file
 being handed the list cannot be renamed over. The directory's list and this
 one are compared as Windows writes each out, which names some users by an
-abbreviation (the built-in administrator's SID is written `LA`).
+abbreviation (the built-in administrator's SID is written `LA`), and with
+their entries in any order: entries that each allow mean the same in any
+order.
 
 ## Writing it
 

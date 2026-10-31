@@ -202,7 +202,7 @@ if sys.platform == "win32":
         finally:
             _LocalFree(named)
 
-    def _written(descriptor: ctypes.c_void_p) -> str | None:
+    def _written(descriptor: ctypes.c_void_p) -> str:
         """The access list `descriptor` holds, as Windows writes it out (SDDL)."""
         written = wintypes.LPWSTR()
         if not _ConvertSecurityDescriptorToStringSecurityDescriptorW(
@@ -210,11 +210,20 @@ if sys.platform == "win32":
         ):
             raise ctypes.WinError(ctypes.get_last_error())
         try:
-            return written.value
+            return ctypes.wstring_at(written)
         finally:
             _LocalFree(written)
 
-    def _access_list(path: str) -> str | None:
+    def _in_any_order(listed: str) -> str:
+        """An access list as Windows writes it out, with its entries sorted.
+
+        Entries that each allow mean the same in any order, and a list's own
+        entries need not be read back in the order they were set.
+        """
+        flags = listed.split("(", 1)[0]
+        return flags + "".join(sorted(f"{entry})" for entry in listed[len(flags) :].split(")") if entry))
+
+    def _access_list(path: str) -> str:
         """The access list of `path`, as Windows writes it out (SDDL)."""
         descriptor, dacl = ctypes.c_void_p(), ctypes.c_void_p()
         failed = _GetNamedSecurityInfoW(
@@ -237,14 +246,15 @@ if sys.platform == "win32":
         is: setting a list hands it down to everything beneath, which in a state
         home is no small walk. The two lists are compared as Windows writes each
         out, which names some users by an abbreviation (the built-in
-        administrator is `LA`) rather than by their SID.
+        administrator is `LA`) rather than by their SID, and with their entries
+        in any order.
         """
         listed = f"D:PAI(A;OICI;FA;;;{_user()})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
         descriptor = ctypes.c_void_p()
         if not _ConvertStringSecurityDescriptorToSecurityDescriptorW(listed, _SDDL_REVISION_1, ctypes.byref(descriptor), None):
             raise ctypes.WinError(ctypes.get_last_error())
         try:
-            if _access_list(directory) == _written(descriptor):
+            if _in_any_order(_access_list(directory)) == _in_any_order(_written(descriptor)):
                 return
             present, defaulted, dacl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
             if not _GetSecurityDescriptorDacl(descriptor, ctypes.byref(present), ctypes.byref(dacl), ctypes.byref(defaulted)):

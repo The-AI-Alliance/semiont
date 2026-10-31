@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -196,6 +195,21 @@ func accessListOf(t *testing.T, path string) (user, list string) {
 	return said[0], said[1]
 }
 
+// entriesOf is an access list's flags (D:PAI) and its entries, sorted.
+// PowerShell reads a list through .NET, which writes the entries a list sets
+// itself in an order of its own (by SID), and the order of entries that each
+// allow does not change what they allow.
+func entriesOf(list string) (flags string, entries []string) {
+	flags, _, _ = strings.Cut(list, "(")
+	for _, entry := range strings.SplitAfter(list[len(flags):], ")") {
+		if entry != "" {
+			entries = append(entries, entry)
+		}
+	}
+	slices.Sort(entries)
+	return flags, entries
+}
+
 // The file holds bearer credentials: its owner's alone, and no stray
 // temporary file beside it. The directory is kept to its owner as the
 // launcher keeps its state home, and what is made in it inherits that: on
@@ -210,15 +224,17 @@ func TestTheSignInStoreIsWrittenPrivately(t *testing.T) {
 	dir := filepath.Dir(store.Path())
 	if runtime.GOOS == "windows" {
 		user, list := accessListOf(t, dir)
-		ownerOnly := func(flags string) string {
-			sid := regexp.QuoteMeta(user)
-			return `\(A;` + flags + `;FA;;;` + sid + `\)\(A;` + flags + `;FA;;;SY\)\(A;` + flags + `;FA;;;BA\)$`
+		ownerOnly := func(inherit string) []string {
+			entries := []string{"(A;" + inherit + ";FA;;;" + user + ")", "(A;" + inherit + ";FA;;;SY)", "(A;" + inherit + ";FA;;;BA)"}
+			slices.Sort(entries)
+			return entries
 		}
-		if !regexp.MustCompile(`^D:P(AI)?` + ownerOnly("OICI")).MatchString(list) {
+		if flags, entries := entriesOf(list); (flags != "D:PAI" && flags != "D:P") || !slices.Equal(entries, ownerOnly("OICI")) {
 			t.Errorf("the state home's access list is %s, not its owner's (%s) alone", list, user)
 		}
 		for _, name := range []string{SignInFile, signInLock} {
-			if _, list := accessListOf(t, filepath.Join(dir, name)); !regexp.MustCompile(`^D:(AI)?` + ownerOnly("ID")).MatchString(list) {
+			_, list := accessListOf(t, filepath.Join(dir, name))
+			if flags, entries := entriesOf(list); (flags != "D:AI" && flags != "D:") || !slices.Equal(entries, ownerOnly("ID")) {
 				t.Errorf("%s's access list is %s, not the one its directory hands down to its owner (%s)", name, list, user)
 			}
 		}
