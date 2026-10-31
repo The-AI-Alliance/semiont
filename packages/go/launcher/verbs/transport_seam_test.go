@@ -36,11 +36,14 @@ func localStack(gateway launcher.ServiceState) *launcher.StackState {
 // sign-in, under.
 var localKey = launcher.StackKey(localStack(launcher.ServiceState{}))
 
-// recordLocalStack writes a record holding st alone, keyed as the launcher
-// keys it.
-func recordLocalStack(t *testing.T, st *launcher.StackState) {
+// recordStacks writes a record holding these stacks alone, each keyed as the
+// launcher keys it.
+func recordStacks(t *testing.T, stacks ...*launcher.StackState) {
 	t.Helper()
-	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{launcher.StackKey(st): st}}
+	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{}}
+	for _, st := range stacks {
+		ss.Stacks[launcher.StackKey(st)] = st
+	}
 	b, _ := json.MarshalIndent(ss, "", "  ")
 	if err := os.WriteFile(filepath.Join(launcher.StateDir(), "stack.json"), b, 0o600); err != nil {
 		t.Fatal(err)
@@ -60,7 +63,7 @@ func verbFixture(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	recordLocalStack(t, localStack(launcher.ServiceState{Endpoint: "http://localhost:4000/api/health"}))
+	recordStacks(t, localStack(launcher.ServiceState{Endpoint: "http://localhost:4000/api/health"}))
 	toks, _ := json.Marshal(map[string]semiont.SignIn{localKey: {Token: "test-token", Email: "t@example.com"}})
 	if err := os.WriteFile(filepath.Join(dir, "tokens.json"), toks, 0o600); err != nil {
 		t.Fatal(err)

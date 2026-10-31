@@ -2193,9 +2193,9 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	}
 
 	run("the first knowledge base's start", 0, "start")
-	// The worker runs as its record says, serving the first's list; the
-	// second start puts its own knowledge base on the list too, and
-	// restarts it.
+	// The machine's containers run as their records say. The second start
+	// keeps each, but for the worker: it puts its own knowledge base on the
+	// worker's list, and restarts it.
 	var rec struct {
 		Machine map[string]struct {
 			Image string `json:"image"`
@@ -2208,9 +2208,17 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	if err := json.Unmarshal(b, &rec); err != nil {
 		t.Fatal(err)
 	}
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_worker=running", "FAKERT_IMAGE_worker="+rec.Machine["semiont-worker"].Image)
+	for name, m := range rec.Machine {
+		bare := strings.TrimPrefix(name, "semiont-")
+		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+bare+"=running", "FAKERT_IMAGE_"+bare+"="+m.Image)
+	}
 	s.kb = other
 	second, _, _ := run("the second knowledge base's start", 0, "start")
+	for name := range rec.Machine {
+		if name != "semiont-worker" {
+			mustNotContain(t, "the second start", second, "stop "+name, "rm "+name, "stop fid-"+name, "rm fid-"+name)
+		}
+	}
 	mustContain(t, "the second start", second, "run -d --name semiont-example.github.io-other-kb-gateway",
 		"rm semiont-worker", "run -d --name semiont-worker")
 	mustNotContain(t, "the second start", second, "semiont-example.github.io-test-kb-")
@@ -2230,10 +2238,25 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	mustNotContain(t, "a stop standing in neither", argv, " stop ", " rm ")
 	s.cwd = ""
 
-	s.kb = asTheSystemNamesIt(t, mkKB(t))
+	twin := asTheSystemNamesIt(t, mkKB(t))
+	s.kb = twin
 	argv, _, stderr = run("a second copy's start", 1, "start")
 	mustContain(t, "a second copy's start", stderr, testKBDid+" is running from "+first, "semiont stop --root "+first)
 	mustNotContain(t, "a second copy's start", argv, "run -d")
+	// A stop of the twin clone, standing in it or naming it, is no stop of
+	// the copy that runs: that one is stopped from its own clone.
+	argv, _, stderr = run("a stop standing in the twin", 1, "stop")
+	mustContain(t, "a stop standing in the twin", stderr, "stack runs from "+first+", not "+twin, "semiont stop --root "+first)
+	mustNotContain(t, "a stop standing in the twin", argv, " stop ", " rm ")
+	s.cwd = t.TempDir()
+	argv, _, stderr = run("a stop naming the twin", 1, "stop", "--root", twin)
+	mustContain(t, "a stop naming the twin", stderr, "stack runs from "+first+", not "+twin)
+	mustNotContain(t, "a stop naming the twin", argv, " stop ", " rm ")
+	// logs --root follows the stack it names, from anywhere.
+	argv, _, _ = run("logs naming the second", 0, "logs", "--root", other, "--service", "gateway")
+	mustContain(t, "logs naming the second", argv, "container logs --follow fid-semiont-example.github.io-other-kb-gateway")
+	mustNotContain(t, "logs naming the second", argv, "test-kb-gateway")
+	s.cwd = ""
 	third := asTheSystemNamesIt(t, mkKB(t))
 	withDomain(t, third, "example.github.io:third-kb")
 	s.kb = third
@@ -2256,6 +2279,14 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	if got := recordedStacks(t, s); len(got) != 0 {
 		t.Errorf("after the last stop, stack.json records %v", got)
 	}
+
+	// With nothing recorded, a stop standing in no clone sweeps by name every
+	// knowledge base this machine knows.
+	s.cwd = t.TempDir()
+	argv, stdout, _ = run("a stop with nothing recorded", 0, "stop")
+	mustContain(t, "a stop with nothing recorded", stdout, "of every known knowledge base")
+	mustContain(t, "a stop with nothing recorded", argv,
+		"stop semiont-example.github.io-test-kb-gateway", "stop semiont-example.github.io-other-kb-gateway")
 }
 
 // Each knowledge base's stack is published on a port block of its own, taken

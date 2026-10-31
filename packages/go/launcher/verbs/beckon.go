@@ -104,11 +104,7 @@ options:
 		case "--sparkle":
 			sparkle, ok = true, true
 		case "--root":
-			v, ok := val()
-			if !ok {
-				return 1
-			}
-			rootFlag = v
+			rootFlag, ok = val()
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true

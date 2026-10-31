@@ -15,7 +15,7 @@ import (
 func noGatewayFixture(t *testing.T) *int {
 	t.Helper()
 	verbFixture(t)
-	recordLocalStack(t, localStack(launcher.ServiceState{Container: "semiont-example.org-kb-gateway"}))
+	recordStacks(t, localStack(launcher.ServiceState{Container: "semiont-example.org-kb-gateway"}))
 	built := 0
 	t.Cleanup(launcher.UseTransport(func(semiont.HTTPTransportConfig) semiont.Transport {
 		built++

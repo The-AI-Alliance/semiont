@@ -279,7 +279,7 @@ func gatewayFixture(t *testing.T, gateway *gatewayStub) {
 func gatewayAt(t *testing.T, base string) {
 	t.Helper()
 	verbFixture(t)
-	recordLocalStack(t, localStack(launcher.ServiceState{Endpoint: base + "/api/health"}))
+	recordStacks(t, localStack(launcher.ServiceState{Endpoint: base + "/api/health"}))
 }
 
 // only accepts the one token tagged token.
