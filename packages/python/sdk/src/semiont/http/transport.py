@@ -163,7 +163,6 @@ class HttpTransport(Transport, GatewayOperations):
             try:
                 # Whatever else is on the wire ends here, as a request that got no answer.
                 self._closing.set()
-                self._exchange.cut()
                 await self._exchange.ended()
                 if self._owns_http:
                     await self._http.aclose()
