@@ -259,6 +259,11 @@ A fetch triggered by the **swallowed** paths — first observation (B1),
 exactly once. If the retry also fails, the key goes idle (B6 state:
 empty or stale-fresh) until the next observe/invalidate acts.
 
+A fetch fails when it ends with any error at all, whatever the fetch
+function threw or rejected with: one of the SDK's own failures or any
+other. Only a cancellation is not a failure. B14 retries every failure,
+B15 records it, and the one-shot `fetch(key)` rejects with it.
+
 Rationale: the swallowed paths hide failures from subscribers by design
 (B6), so without a retry a lost one-shot reply — e.g. a `Bus.request`
 whose SSE result raced a connection swap and timed out — would
@@ -292,6 +297,8 @@ visibly, not drift past it.
 When the B14 retry ALSO fails and the key holds **no cached value**, the
 key's state MUST become **`{ status: 'failed', error }`** — never
 `pending` forever, and never an RxJS error (the stream does not die).
+`error` is what the retry failed with, whatever that was (B14): the
+state holds the language's general error, not only the SDK's own.
 
 **A key has one state, held by the cache, and every observer of the key
 holds it.** No observer sees `failed` while another sees `pending`.

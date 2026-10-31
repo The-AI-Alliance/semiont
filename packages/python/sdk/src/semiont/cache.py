@@ -34,7 +34,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Hasha
 from dataclasses import dataclass, field
 from typing import Final, Literal, Protocol, final, override
 
-from semiont.errors import BusRequestError, SemiontError
+from semiont.errors import BusRequestError
 from semiont.state_unit import StateUnit
 from semiont.timing import SAVE_DEBOUNCE_MS
 from semiont.watched import Variable
@@ -62,9 +62,9 @@ class Ready[T]:
 @final
 @dataclass(frozen=True, slots=True)
 class Failed:
-    """No value, and the fetch for one failed, and failed again."""
+    """No value, and the fetch for one failed, and failed again: `error` is what the second failed with, whatever it was."""
 
-    error: SemiontError
+    error: Exception
     status: Literal["failed"] = field(default="failed", init=False)
 
 
@@ -138,10 +138,10 @@ class _Nothing[T]:
 class Cache[K: Hashable, V](StateUnit):
     """See the module's documentation.
 
-    `fetch` asks for a key's value, failing with a `SemiontError`. `tasks`
-    runs the fetches. With a `persister`, the cache begins with what it kept,
-    and saves its values there once they have stopped changing for
-    `save_debounce_ms`.
+    `fetch` asks for a key's value, and whatever it fails with is the key's
+    failure. `tasks` runs the fetches. With a `persister`, the cache begins
+    with what it kept, and saves its values there once they have stopped
+    changing for `save_debounce_ms`.
     """
 
     def __init__(
@@ -221,9 +221,10 @@ class Cache[K: Hashable, V](StateUnit):
         self._tasks.run(self._chain(key, self._fetching(key)))
 
     async def _chain(self, key: K, first: asyncio.Task[V]) -> None:
+        # Whatever a fetch failed with is a failure; a cancellation is not one.
         try:
             await _joined(first)
-        except SemiontError:
+        except Exception:
             pass
         else:
             return
@@ -231,7 +232,7 @@ class Cache[K: Hashable, V](StateUnit):
             return
         try:
             await _joined(self._fetching(key))
-        except SemiontError as failure:
+        except Exception as failure:
             held = self._keys.get(key)
             if held is not None and not isinstance(held.state.value, Ready):
                 held.state.set(Failed(failure))
@@ -312,7 +313,7 @@ class Cache[K: Hashable, V](StateUnit):
         for key in self.keys():
             self.invalidate(key)
 
-    def remove(self, key: K, gone: SemiontError) -> None:
+    def remove(self, key: K, gone: Exception) -> None:
         """The key's entity is gone: its value is dropped and the key is failed with `gone`, at once, for every observer.
 
         Nothing is asked for.

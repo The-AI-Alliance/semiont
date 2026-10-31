@@ -31,6 +31,7 @@ import org.junit.jupiter.api.assertThrows
 import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
+import java.io.IOException
 
 private const val KEY = "k"
 
@@ -42,26 +43,28 @@ private fun ready(value: Int): CacheState<Int> = CacheState.Ready(value)
 private class Service {
     /** The key of each request, in the order they were made. */
     val asked = mutableListOf<String>()
-    private val waiting = mutableListOf<CompletableDeferred<Int>>()
+    /** Each request's answer, a failure among them as a value: an awaited failure is rethrown as a copy of what the test gave. */
+    private val waiting = mutableListOf<CompletableDeferred<Result<Int>>>()
 
     /** Requests not yet made that are answered as soon as they are, by their number. */
     val answeredAtOnce = mutableMapOf<Int, Int>()
 
     suspend fun fetch(key: String): Int {
-        val answer = CompletableDeferred<Int>()
-        answeredAtOnce[asked.size]?.let(answer::complete)
+        val answer = CompletableDeferred<Result<Int>>()
+        answeredAtOnce[asked.size]?.let { answer.complete(Result.success(it)) }
         asked += key
         waiting += answer
-        return answer.await()
+        return answer.await().getOrThrow()
     }
 
     fun answer(request: Int, value: Int) {
-        waiting[request].complete(value)
+        waiting[request].complete(Result.success(value))
     }
 
-    fun fail(request: Int, why: String = "the service is down"): BusRequestError {
-        val error = BusRequestError(BusRequestErrorCode.Timeout, why)
-        waiting[request].completeExceptionally(error)
+    fun fail(request: Int, why: String = "the service is down"): BusRequestError = failWith(request, BusRequestError(BusRequestErrorCode.Timeout, why))
+
+    fun <E : Exception> failWith(request: Int, error: E): E {
+        waiting[request].complete(Result.failure(error))
         return error
     }
 }
@@ -376,6 +379,25 @@ class CacheTest {
         assertEquals(listOf(KEY, KEY, KEY), world.service.asked)
         world.service.answer(2, 7)
         assertEquals(Triple(ready(7), ready(7), ready(7)), Triple(now(one), now(other), now(arriving)))
+        world.close()
+    }
+
+    @Test
+    fun b14AndB15AFetchThatFailsWithAnythingIsMadeOnceMoreAndThenTheKeyIsFailedWithIt() = runTest {
+        val world = World(this)
+        val observer = world.observe()
+        assertEquals(PENDING, now(observer))
+        world.service.failWith(0, IOException("not an answer"))
+        runCurrent()
+        // Made once more, as any failure is.
+        assertEquals(listOf(KEY, KEY), world.service.asked)
+        val failure = world.service.failWith(1, IOException("not an answer either"))
+        assertEquals(CacheState.Failed(failure), now(observer))
+        // And a one-shot read throws it.
+        val read = async { runCatching { world.cache.fetch(KEY) } }
+        runCurrent()
+        val broken = world.service.failWith(2, NoSuchElementException("no such thing"))
+        assertSame(broken, read.await().exceptionOrNull())
         world.close()
     }
 

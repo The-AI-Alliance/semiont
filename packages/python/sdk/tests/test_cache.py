@@ -62,7 +62,9 @@ class Service:
         self._waiting[request].set_result(value)
 
     def fail(self, request: int, why: str = "the service is down") -> BusRequestError:
-        error = BusRequestError("bus.timeout", why)
+        return self.fail_with(request, BusRequestError("bus.timeout", why))
+
+    def fail_with[E: Exception](self, request: int, error: E) -> E:
         self._waiting[request].set_exception(error)
         return error
 
@@ -375,6 +377,29 @@ def test_b15_a_key_with_no_value_whose_retry_fails_too_is_failed_for_every_obser
         assert service.asked == [KEY, KEY, KEY]
         service.answer(2, 7)
         assert (await now(one), await now(other), await now(arriving)) == (Ready(7), Ready(7), Ready(7))
+        await tasks.close()
+
+    run(scenario())
+
+
+def test_b14_b15_a_fetch_that_fails_with_anything_is_made_once_more_and_then_the_key_is_failed_with_it() -> None:
+    async def scenario() -> None:
+        cache, service, tasks = world()
+        observing = cache.observe(KEY)
+        assert await now(observing) == Pending()
+        service.fail_with(0, ValueError("not an answer"))
+        await turns()
+        # Made once more, as any failure is.
+        assert service.asked == [KEY, KEY]
+        failure = service.fail_with(1, ValueError("not an answer either"))
+        assert await now(observing) == Failed(failure)
+        # And a one-shot read raises it.
+        read = asyncio.ensure_future(cache.fetch(KEY))
+        await turns()
+        broken = service.fail_with(2, LookupError("no such thing"))
+        with pytest.raises(LookupError) as raised:
+            await soon(read)
+        assert raised.value is broken
         await tasks.close()
 
     run(scenario())
