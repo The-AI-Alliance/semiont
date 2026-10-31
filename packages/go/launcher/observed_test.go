@@ -1,6 +1,9 @@
 package launcher
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // The two knowledge bases sampleReadout holds, by their DIDs. A DID may hold
 // punctuation (`%`, `,`, `=`) and is read as it is.
@@ -79,6 +82,37 @@ func TestEachKnowledgeBaseReadsItsOwnNumbers(t *testing.T) {
 		}
 		if _, _, ok := jobsConcluded(sampleReadout, other); ok {
 			t.Errorf("jobsConcluded read a worker's outcomes for %s, which the readout does not hold", other)
+		}
+	}
+}
+
+// What status prints beneath a running dispatcher and gateway is the
+// knowledge base's own numbers. For a knowledge base the readout does not
+// hold it prints nothing. Where the worker's outcomes name no knowledge base,
+// the queue is printed without them.
+func TestStatusPrintsEachKnowledgeBasesOwnNumbers(t *testing.T) {
+	var queueOnly strings.Builder
+	for _, line := range strings.SplitAfter(sampleReadout, "\n") {
+		if !strings.HasPrefix(line, "semiont_job_outcome_total{") {
+			queueOnly.WriteString(line)
+		}
+	}
+	const other = "did:web:example.github.io:other-kb"
+	u := &UI{}
+	for _, c := range []struct {
+		role, readout, kb, want string
+	}{
+		{"dispatcher", sampleReadout, kbA, "      queue      3 pending · 2 running · 10 completed · 3 failed since worker start\n"},
+		{"dispatcher", sampleReadout, kbB, "      queue      9 pending · 1 running · 6 completed · 1 failed since worker start\n"},
+		{"dispatcher", queueOnly.String(), kbA, "      queue      3 pending · 2 running\n"},
+		{"gateway", sampleReadout, kbA, "      ledger     7/4096 claims\n"},
+		{"gateway", sampleReadout, kbB, "      ledger     1/512 claims\n"},
+		{"dispatcher", sampleReadout, other, ""},
+		{"gateway", sampleReadout, other, ""},
+	} {
+		got, _ := captureOutput(t, func() { printInFlight(u, c.role, c.readout, c.kb) })
+		if got != c.want {
+			t.Errorf("%s of %s: printed %q, want %q", c.role, c.kb, got, c.want)
 		}
 	}
 }
