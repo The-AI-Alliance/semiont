@@ -443,9 +443,11 @@ func Start(args []string) int {
 		if ident.SiteName != "" {
 			u.Log("KB: %s %s", u.Bold(ident.SiteName), u.Dim(ident.didWeb()))
 		}
-		// The worker's document refuses a knowledge base added to this
-		// machine's worker that is the one this start runs (workerDocument);
-		// that refusal is made here, before anything runs.
+		// A start that runs the worker runs it as the machine's worker
+		// document says. The worker's configuration document refuses a
+		// knowledge base added to this machine's worker that is the one this
+		// start runs (workerDocument); that refusal is made here, before
+		// anything runs.
 		if plan.runs("worker") && (opts.service == "" || opts.service == "worker") {
 			added, err := loadAddedKBs()
 			if err == nil {
@@ -455,6 +457,11 @@ func Start(args []string) int {
 				u.Fail("%v", err)
 				return 1
 			}
+			workers, ok := readWorkerPoolDocument(u, opts.dryRun)
+			if !ok {
+				return 1
+			}
+			plan.runWorkerAs(workers)
 		}
 		if !opts.dryRun {
 			warnICloudRoot(u, root)
@@ -667,8 +674,6 @@ func roleDocument(st *stack.Stack, role string) string {
 		}
 	case "inference":
 		return st.Files.Inference
-	case "worker":
-		return st.Files.Workers
 	}
 	return st.Files.KnowledgeBase
 }

@@ -1,6 +1,7 @@
 # semiont start --dry-run — the exact runtime commands a real run would
 # execute, in order. Values known only at runtime appear as <placeholders>.
 # write <state-home>/stack/browser.yaml: the Browser's document, from the launcher's catalog
+# write <state-home>/stack/workers.yaml: the worker's document, from the launcher's catalog
 # probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
 # verify ghcr.io/the-ai-alliance/semiont-gateway:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest
 # verify ghcr.io/the-ai-alliance/semiont-archivist:latest: its build provenance, signed by publish-service-images.yml at a release tag (refs/tags/v…); then pull and run it by its digest

@@ -28,16 +28,17 @@ func fixtureStack(t *testing.T, inference string) *stack.Stack {
 	return st
 }
 
-// placed: a start's placement of st — the plan derivePlan makes of it, on the
-// runtime and at the host address the scenarios use.
+// placed: a start's placement of st — the plan derivePlan makes of it, its
+// worker run as the catalog's worker document says, on the runtime and at the
+// host address the scenarios use.
 func placed(t *testing.T, st *stack.Stack) placement {
 	t.Helper()
-	plan, err := derivePlan(st, descriptorFor("identity", "keycloak").defaultPort)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return placement{st: st, plan: plan, rt: "container", addr: "192.168.64.1"}
+	return placement{st: st, plan: mustPlan(t, st), rt: "container", addr: "192.168.64.1"}
 }
+
+// catalogWorkerPoolDocument: the worker's document as the launcher writes it,
+// read.
+var catalogWorkerPoolDocument = workerPoolDocument{spec: catalogWorkerPool().Spec}
 
 // The fixture knowledge base's stack documents name every container's image
 // and memory, as a knowledge base's documents do, and they name the
@@ -59,10 +60,6 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workers, err := stack.Read[stack.WorkerPool](filepath.Join(dir, "workers.yaml"), "WorkerPool")
-	if err != nil {
-		t.Fatal(err)
-	}
 	if kb.Spec.Messaging.Image == nil || kb.Spec.Messaging.Resources == nil || index.Spec.Graph.Image == nil || index.Spec.Graph.Resources == nil ||
 		index.Spec.Vectors.Image == nil || index.Spec.Vectors.Resources == nil || issuer.Spec.Database.Image == nil || issuer.Spec.Database.Resources == nil {
 		t.Fatal("the fixture runs every daemon itself, so each states its image and its resources")
@@ -79,7 +76,6 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 		{"the librarian", index.Spec.Librarian.Image, index.Spec.Librarian.Resources.Limits.Memory, semiontImage("librarian", "latest"), semiontDescriptor("librarian").mem},
 		{"the smelter", index.Spec.Smelter.Image, index.Spec.Smelter.Resources.Limits.Memory, semiontImage("smelter", "latest"), semiontDescriptor("smelter").mem},
 		{"the weaver", index.Spec.Weaver.Image, index.Spec.Weaver.Resources.Limits.Memory, semiontImage("weaver", "latest"), semiontDescriptor("weaver").mem},
-		{"the worker", workers.Spec.Worker.Image, workers.Spec.Worker.Resources.Limits.Memory, semiontImage("worker", "latest"), semiontDescriptor("worker").mem},
 		{"the broker", *kb.Spec.Messaging.Image, kb.Spec.Messaging.Resources.Limits.Memory, descriptorFor("messaging", "jetstream").image, descriptorFor("messaging", "jetstream").mem},
 		{"the graph store", *index.Spec.Graph.Image, index.Spec.Graph.Resources.Limits.Memory, descriptorFor("graph", "neo4j").image, descriptorFor("graph", "neo4j").mem},
 		{"the vector store", *index.Spec.Vectors.Image, index.Spec.Vectors.Resources.Limits.Memory, descriptorFor("vectors", "qdrant").image, descriptorFor("vectors", "qdrant").mem},

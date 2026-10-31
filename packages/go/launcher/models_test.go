@@ -119,11 +119,11 @@ func TestWriteVettedStackRefusesUnstartable(t *testing.T) {
 		}
 		return files
 	}
-	// Engines for every job, and no WorkerPool to run a worker from.
+	// A knowledge base with no KnowledgeIndex.
 	bad := generated()
-	delete(bad, stack.WorkerPoolFile)
+	delete(bad, stack.KnowledgeIndexFile)
 	if writeVettedStack(u, root, bad) {
-		t.Fatal("engines for jobs with no workers.yaml passed the vet")
+		t.Fatalf("documents with no %s passed the vet", stack.KnowledgeIndexFile)
 	}
 	if _, err := os.Stat(filepath.Join(root, stack.Dir)); !os.IsNotExist(err) {
 		t.Errorf("the refusal left %s behind: %v", stack.Dir, err)

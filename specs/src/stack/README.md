@@ -1,4 +1,4 @@
-# stack — the documents that describe a knowledge base's stack, and the Browser
+# stack — the documents that describe a knowledge base's stack, and the machine's Browser and worker
 
 A knowledge base's repository commits its stack as documents in Kubernetes'
 resource format (`apiVersion`, `kind`, `metadata`, `spec`), one file for each
@@ -14,7 +14,6 @@ deployment elsewhere edits its own copy.
 | `KnowledgeBase` | [`KnowledgeBase.json`](KnowledgeBase.json) | the Gateway, the Dispatcher, the Archivist, the broker between them, and the issuer the knowledge base trusts |
 | `KnowledgeIndex` | [`KnowledgeIndex.json`](KnowledgeIndex.json) | the graph store, the vector store, the embedding model, and the Librarian, the Smelter and the Weaver |
 | `Issuer` | [`Issuer.json`](Issuer.json) | an issuer the launcher runs, and the database it keeps its realm in |
-| `WorkerPool` | [`WorkerPool.json`](WorkerPool.json) | the Worker |
 | `Inference` | [`Inference.json`](Inference.json) | the providers a machine reaches, and the engine for each job and each Librarian actor ([`ArchivistEngines`](../components/schemas/ArchivistEngines.json)) |
 
 Every kind's `apiVersion` is [`ApiVersion.json`](ApiVersion.json)'s:
@@ -37,6 +36,7 @@ the file is what runs.
 | Kind | Schema | File | Holds |
 |---|---|---|---|
 | `Browser` | [`Browser.json`](Browser.json) | `stack/browser.yaml` | the Browser: its image, its memory, and the port it is published on, on the machine's loopback |
+| `WorkerPool` | [`WorkerPool.json`](WorkerPool.json) | `stack/workers.yaml` | the worker: its image, its memory and its log level. A knowledge base's jobs are done when its Inference document gives a job an engine |
 
 ## The project file
 

@@ -70,11 +70,12 @@ That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds 
    ```
 4. **Build your tree and run a stack on it**. Name the `:local` images in the knowledge base's
    `.semiont/stack/*.yaml` (`ghcr.io/the-ai-alliance/semiont-gateway:local`, and so on for each
-   service), and the Browser's in its own document:
+   service), and the Browser's and the worker's in their own documents:
    ```bash
    ./scripts/ci/local-build.sh
    cd ../semiont-template-kb
    perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings browser --path)"
+   perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings worker --path)"
    ../semiont/apps/launcher/dist/semiont start
    ```
 5. **Run the tests** for the part you are changing:

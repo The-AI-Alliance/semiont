@@ -154,7 +154,7 @@ func shimDir(t *testing.T, runtimes ...string) string {
 // .semiont — its project file and its stack's documents.
 var fixtureDocuments = []string{
 	"config.yaml",
-	"stack/knowledge-base.yaml", "stack/index.yaml", "stack/issuer.yaml", "stack/workers.yaml",
+	"stack/knowledge-base.yaml", "stack/index.yaml", "stack/issuer.yaml",
 	"stack/inference/anthropic.yaml", "stack/inference/ollama-gemma.yaml",
 }
 
@@ -1493,7 +1493,8 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 }
 
 // localImages: the scenario's documents naming each of Semiont's images at
-// :local, the Browser's included — a developer's checkout.
+// :local, the machine's Browser's and worker's included — a developer's
+// checkout.
 func localImages(t *testing.T, s *scenario) {
 	t.Helper()
 	editDocument(t, s, "knowledge-base.yaml",
@@ -1504,8 +1505,8 @@ func localImages(t *testing.T, s *scenario) {
 		"semiont-librarian:latest", "semiont-librarian:local",
 		"semiont-smelter:latest", "semiont-smelter:local",
 		"semiont-weaver:latest", "semiont-weaver:local")
-	editDocument(t, s, "workers.yaml", "semiont-worker:latest", "semiont-worker:local")
-	editBrowserDocument(t, s, "semiont-browser:latest", "semiont-browser:local")
+	editMachineDocument(t, s, "worker", "workers.yaml", "semiont-worker:latest", "semiont-worker:local")
+	editMachineDocument(t, s, "browser", "browser.yaml", "semiont-browser:latest", "semiont-browser:local")
 }
 
 func TestStartLocalImagesBoot(t *testing.T) {
@@ -5419,25 +5420,26 @@ func TestMultiStackCodespaces(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
-// browserDocumentFor: where the scenario's Browser document is kept, in its
-// state home.
-func browserDocumentFor(home string) string {
-	return filepath.Join(stateHomeFor(home), "stack", "browser.yaml")
+// machineDocumentFor: where the scenario's state home keeps the machine's
+// document named file: browser.yaml, the Browser's, or workers.yaml, the
+// worker's.
+func machineDocumentFor(home, file string) string {
+	return filepath.Join(stateHomeFor(home), "stack", file)
 }
 
-// editBrowserDocument: the scenario's Browser document, which `settings
-// browser --path` names and writes where there is none, with each old text of
-// edits (old, new, old, new, …) replaced by its new one; an old text the
-// document does not hold fails the test.
-func editBrowserDocument(t *testing.T, s *scenario, edits ...string) {
+// editMachineDocument: the scenario's machine document named file, which
+// `settings <setting> --path` names and writes where there is none, with each
+// old text of edits (old, new, old, new, …) replaced by its new one; an old
+// text the document does not hold fails the test.
+func editMachineDocument(t *testing.T, s *scenario, setting, file string, edits ...string) {
 	t.Helper()
-	stdout, stderr, code := s.run(t, "settings", "browser", "--path")
+	stdout, stderr, code := s.run(t, "settings", setting, "--path")
 	if code != 0 {
-		t.Fatalf("settings browser --path: exit %d\n%s", code, stderr)
+		t.Fatalf("settings %s --path: exit %d\n%s", setting, code, stderr)
 	}
-	path := browserDocumentFor(s.home)
+	path := machineDocumentFor(s.home, file)
 	if stdout != path+"\n" {
-		t.Fatalf("settings browser --path printed %q, want the path alone, %q", stdout, path)
+		t.Fatalf("settings %s --path printed %q, want the path alone, %q", setting, stdout, path)
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -5475,13 +5477,67 @@ func recordedBrowser(t *testing.T, s *scenario) (image, endpoint, memory string)
 	return rec.Browser.Image, rec.Browser.Endpoint, rec.Browser.Memory
 }
 
+// A start that runs a worker and finds no worker document writes the
+// launcher's, says where, and runs what it says; a dry run before it writes
+// nothing, and says what a start would write. The document is the machine's:
+// an edit runs at the next start, its image, its memory and its log level,
+// and no knowledge base's document says otherwise.
+func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
+	s := newScenario(t, "container")
+	path := machineDocumentFor(s.home, "workers.yaml")
+
+	stdout, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry run: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the dry run", stdout, "# write "+path+": the worker's document, from the launcher's catalog")
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("a dry run wrote %s (%v)", path, err)
+	}
+
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the start's output", stdout+stderr, "wrote its document, "+path)
+	text, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("no worker document was written: %v", err)
+	}
+	mustContain(t, path, string(text),
+		"kind: WorkerPool",
+		"logLevel: info",
+		"image: ghcr.io/the-ai-alliance/semiont-worker:latest",
+		"memory: 2G")
+	mustContain(t, "argv log", s.argv(t), "run -d --name semiont-worker --memory 2G")
+
+	editMachineDocument(t, s, "worker", "workers.yaml",
+		"semiont-worker:latest", "semiont-worker:local",
+		"memory: 2G", "memory: 3G",
+		"logLevel: info", "logLevel: debug")
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start after the edit: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "argv log", s.argv(t), "run -d --name semiont-worker --memory 3G")
+	mustContain(t, "argv log", s.argv(t), "ghcr.io/the-ai-alliance/semiont-worker:local")
+	mustNotContain(t, "argv log", s.argv(t), "pull ghcr.io/the-ai-alliance/semiont-worker:local")
+	var doc api.WorkerConfig
+	if err := json.Unmarshal([]byte(stagedFile(t, s, "worker.json")), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.LogLevel != api.LogLevelDebug {
+		t.Errorf("the worker logs at %q, want the document's debug", doc.LogLevel)
+	}
+}
+
 // A start that finds no Browser document writes the launcher's, says where,
 // and runs what it says. A dry run before it writes nothing, and says what a
 // start would write.
 func TestAStartWithNoBrowserDocumentWritesOne(t *testing.T) {
 	s := newScenario(t, "container")
 	s.noGitRoot = true // the Browser alone needs no clone
-	path := browserDocumentFor(s.home)
+	path := machineDocumentFor(s.home, "browser.yaml")
 
 	stdout, stderr, code := s.run(t, "start", "--service", "browser", "--dry-run")
 	if code != 0 {
@@ -5518,7 +5574,7 @@ func TestAStartWithNoBrowserDocumentWritesOne(t *testing.T) {
 // do not.
 func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
 	s := newScenario(t, "container")
-	editBrowserDocument(t, s,
+	editMachineDocument(t, s, "browser", "browser.yaml",
 		"semiont-browser:latest", "semiont-browser:local",
 		"memory: 1G", "memory: 2G",
 		"port: 3000", "port: 3001")
@@ -5555,7 +5611,7 @@ func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
 		{"port: 3001", "port: 3002", "--memory 2G --publish 127.0.0.1:3002:3000"},
 		{"memory: 2G", "memory: 3G", "--memory 3G --publish 127.0.0.1:3002:3000"},
 	} {
-		editBrowserDocument(t, s, edit.from, edit.to)
+		editMachineDocument(t, s, "browser", "browser.yaml", edit.from, edit.to)
 		before = s.mustLog(t)
 		stdout, stderr, code = s.run(t, "start")
 		if code != 0 {
@@ -5574,8 +5630,8 @@ func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
 // by a start of the Browser alone, and by a dry run.
 func TestABrowserDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
 	s := newScenario(t, "container")
-	editBrowserDocument(t, s, "port: 3000", "port: 70000")
-	path := browserDocumentFor(s.home)
+	editMachineDocument(t, s, "browser", "browser.yaml", "port: 3000", "port: 70000")
+	path := machineDocumentFor(s.home, "browser.yaml")
 	for _, args := range [][]string{{"start"}, {"start", "--service", "browser"}, {"start", "--dry-run"}} {
 		before := s.argv(t)
 		stdout, stderr, code := s.run(t, args...)
@@ -5594,7 +5650,7 @@ func TestABrowserDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
 // Browser's image, and start's --port, are gone.
 func TestSettingsShowsTheBrowserDocument(t *testing.T) {
 	s := newScenario(t, "container")
-	path := browserDocumentFor(s.home)
+	path := machineDocumentFor(s.home, "browser.yaml")
 	stdout, stderr, code := s.run(t, "settings", "browser")
 	if code != 0 {
 		t.Fatalf("settings browser: exit %d\n%s", code, stderr)
@@ -9288,10 +9344,13 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 		t.Fatalf("generated KnowledgeIndex missing: %v", err)
 	}
 	mustContain(t, "index.yaml", string(index), "model: nomic-embed-text", "semiont-librarian:latest")
-	for _, name := range []string{"knowledge-base.yaml", "issuer.yaml", "workers.yaml"} {
+	for _, name := range []string{"knowledge-base.yaml", "issuer.yaml"} {
 		if _, err := os.Stat(filepath.Join(stackDir, name)); err != nil {
 			t.Errorf("%s not generated: %v", name, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(stackDir, "workers.yaml")); !os.IsNotExist(err) {
+		t.Errorf("init wrote a workers.yaml into the knowledge base (%v): the worker's document is the machine's", err)
 	}
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic", "--dry-run")
 	if code != 0 {

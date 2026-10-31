@@ -56,35 +56,22 @@ func edit(t *testing.T, root, file, old, new string) {
 }
 
 // The fixture knowledge base loads whole: each document, the Issuer its
-// KnowledgeBase names, its workers, and the Inference document asked for.
+// KnowledgeBase names, and the Inference document asked for.
 func TestLoadReadsEveryDocument(t *testing.T) {
 	st, err := Load(fixtureCopy(t), "anthropic")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Issuer == nil || st.Workers == nil {
-		t.Fatalf("the Issuer and the WorkerPool were not read: %+v", st)
+	if st.Issuer == nil {
+		t.Fatalf("the Issuer was not read: %+v", st)
 	}
 	if st.Inference.Metadata.Name != "anthropic" || st.Files.Inference != filepath.Join(Dir, InferenceDir, "anthropic.yaml") {
 		t.Errorf("the Inference document read is %q, from %s", st.Inference.Metadata.Name, st.Files.Inference)
 	}
 }
 
-// A knowledge base without workers.yaml has no workers; one without any other
-// document it needs is refused, naming the file.
-func TestLoadReadsWorkersOnlyWhenTheyAreThere(t *testing.T) {
-	root := fixtureCopy(t)
-	if err := os.Remove(filepath.Join(root, Dir, WorkerPoolFile)); err != nil {
-		t.Fatal(err)
-	}
-	st, err := Load(root, "anthropic")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if st.Workers != nil {
-		t.Errorf("a knowledge base without %s has workers: %+v", WorkerPoolFile, st.Workers)
-	}
-
+// A knowledge base without a document it needs is refused, naming the file.
+func TestLoadRefusesADocumentThatIsNotThere(t *testing.T) {
 	for _, missing := range []string{KnowledgeBaseFile, KnowledgeIndexFile, IssuerFile} {
 		t.Run(missing, func(t *testing.T) {
 			root := fixtureCopy(t)
@@ -109,7 +96,6 @@ func TestLoadRefusesANameThatDoesNotHold(t *testing.T) {
 		why, file, old, new, refusal string
 	}{
 		{"the index names another knowledge base", KnowledgeIndexFile, "knowledgeBase: knowledge-base", "knowledgeBase: elsewhere", "index.yaml: spec.knowledgeBase names \"elsewhere\""},
-		{"the workers name another knowledge base", WorkerPoolFile, "knowledgeBase: knowledge-base", "knowledgeBase: elsewhere", "workers.yaml: spec.knowledgeBase names \"elsewhere\""},
 		{"the knowledge base names another issuer", KnowledgeBaseFile, "ref: issuer", "ref: elsewhere", "knowledge-base.yaml: spec.issuer.ref names \"elsewhere\""},
 		{"the Inference document is named otherwise than its file", filepath.Join(InferenceDir, "anthropic.yaml"), "name: anthropic", "name: elsewhere", "an Inference document is named by its file"},
 		{"an external issuer beside an Issuer document", KnowledgeBaseFile, "ref: issuer", "external: { type: oidc, url: https://issuer.example.org }", "delete one of the two"},
@@ -169,7 +155,6 @@ func TestMarshalWritesADocumentThatReadsBack(t *testing.T) {
 		{"KnowledgeBase", st.KnowledgeBase, func(text []byte) (any, error) { return Parse[KnowledgeBase]("kb", "KnowledgeBase", text) }},
 		{"KnowledgeIndex", st.KnowledgeIndex, func(text []byte) (any, error) { return Parse[KnowledgeIndex]("index", "KnowledgeIndex", text) }},
 		{"Issuer", *st.Issuer, func(text []byte) (any, error) { return Parse[Issuer]("issuer", "Issuer", text) }},
-		{"WorkerPool", *st.Workers, func(text []byte) (any, error) { return Parse[WorkerPool]("workers", "WorkerPool", text) }},
 		{"Inference", st.Inference, func(text []byte) (any, error) { return Parse[Inference]("inference", "Inference", text) }},
 	} {
 		t.Run(c.kind, func(t *testing.T) {

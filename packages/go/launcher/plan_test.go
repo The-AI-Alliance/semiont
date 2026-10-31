@@ -19,11 +19,16 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
+// mustPlan derives st's plan as a start does: its worker, when it runs one,
+// run as the catalog's worker document says.
 func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 	t.Helper()
 	plan, err := derivePlan(st, 8080)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
+	}
+	if plan.runs("worker") {
+		plan.runWorkerAs(catalogWorkerPoolDocument)
 	}
 	return plan
 }
@@ -460,9 +465,10 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 }
 
 // The worker is a role of the plan like any other the documents decide: run
-// by the launcher when the engines give a job an engine, from the image and
-// with the memory the WorkerPool states; absent when they give none. An
-// actor's engine is no job's.
+// by the launcher when the engines give a job an engine, absent when they
+// give none. An actor's engine is no job's. No knowledge base's document
+// gives it an image or memory: the machine's worker document does
+// (runWorkerAs).
 func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	claude := &api.Engine{Provider: api.EngineProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
 	for _, c := range []struct {
@@ -477,7 +483,10 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	} {
 		st := fixtureStack(t, "anthropic")
 		c.engines(&st.Inference.Spec.Engines)
-		plan := mustPlan(t, st)
+		plan, err := derivePlan(st, 8080)
+		if err != nil {
+			t.Fatalf("%s: %v", c.why, err)
+		}
 		worker, planned := plan.Roles["worker"]
 		if !planned {
 			t.Fatalf("%s: the plan carries no worker", c.why)
@@ -490,24 +499,9 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 		}
 		_, imaged := plan.Images["worker"]
 		_, sized := plan.Memory["worker"]
-		if run := c.want == presenceLauncher; imaged != run || sized != run {
-			t.Errorf("%s: the plan gives the worker an image (%v) and memory (%v), and runs it: %v", c.why, imaged, sized, run)
+		if imaged || sized {
+			t.Errorf("%s: the knowledge base's documents give the worker an image (%v) or memory (%v)", c.why, imaged, sized)
 		}
-	}
-}
-
-// A knowledge base with no workers.yaml runs no worker, so an Inference
-// document that gives a job an engine is refused, naming both documents.
-func TestPlanRefusesAJobEngineWithNoWorkerPool(t *testing.T) {
-	st := fixtureStack(t, "anthropic")
-	st.Workers = nil
-	mustRefuse(t, st, st.Files.Inference+": spec.engines.jobs", st.Files.Workers)
-
-	st = fixtureStack(t, "anthropic")
-	st.Workers = nil
-	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
-	if got := mustPlan(t, st).Roles["worker"].Presence; got != presenceAbsent {
-		t.Errorf("engines giving no job an engine, with no workers.yaml, plan the worker %s", got)
 	}
 }
 

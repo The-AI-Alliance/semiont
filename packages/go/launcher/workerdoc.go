@@ -154,9 +154,8 @@ func sameEngine(a, b api.WorkerEngineConfig) bool {
 // places, as this machine's own worker; then each added one, in the order
 // they are kept. Every one is offered the same engines: the ones this start's
 // Inference document gives jobs, on this machine's providers' keys
-// (workerSecrets). It is staged only for a worker the plan runs, and
-// derivePlan refuses an Inference document that gives a job an engine when
-// there is no WorkerPool document.
+// (workerSecrets). Its log level is the machine's worker document's
+// (runWorkerAs). It is staged only for a worker the plan runs.
 func workerDocument(p placement, kbDomain string, added []addedKB) ([]byte, error) {
 	if err := refuseOwnKB(kbDomain, added); err != nil {
 		return nil, err
@@ -175,7 +174,7 @@ func workerDocument(p placement, kbDomain string, added []addedKB) ([]byte, erro
 	}
 	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port
-	doc.LogLevel = p.st.Workers.Spec.LogLevel
+	doc.LogLevel = p.plan.Worker.spec.LogLevel
 	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

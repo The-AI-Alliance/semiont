@@ -66,7 +66,7 @@ const (
 )
 
 // generateStack: the documents `semiont init` writes, each as YAML, by its
-// path below .semiont/stack — the four the knowledge base shares, and the
+// path below .semiont/stack — the three the knowledge base shares, and the
 // Inference document named name.
 func generateStack(p genParams, name string) (map[string][]byte, error) {
 	daemon := func(role, driver string) (*string, *stack.Resources) {
@@ -123,11 +123,6 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	issuer.Spec.Database.Type, issuer.Spec.Database.Name, issuer.Spec.Database.User = "postgres", "keycloak", "postgres"
 	issuer.Spec.Database.Image, issuer.Spec.Database.Resources = daemon("database", "postgres")
 
-	var workers stack.WorkerPool
-	workers.ApiVersion, workers.Kind, workers.Metadata = meta("WorkerPool", "workers")
-	workers.Spec.KnowledgeBase, workers.Spec.LogLevel = initKnowledgeBase, api.LogLevelInfo
-	workers.Spec.Worker.Image, workers.Spec.Worker.Resources = service("worker")
-
 	var inference stack.Inference
 	inference.ApiVersion, inference.Kind, inference.Metadata = meta("Inference", name)
 	provider := api.EngineProvider(p.Inference)
@@ -155,7 +150,6 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 		stack.KnowledgeBaseFile:                         kb,
 		stack.KnowledgeIndexFile:                        index,
 		stack.IssuerFile:                                issuer,
-		stack.WorkerPoolFile:                            workers,
 		filepath.Join(stack.InferenceDir, name+".yaml"): inference,
 	}
 	out := map[string][]byte{}

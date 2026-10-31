@@ -137,11 +137,12 @@ func enginesOfJobs(engines api.ArchivistEngines) map[string]api.Engine {
 }
 
 // Every address is the placement's, each provider's key is named, and the log
-// level is the WorkerPool's. The jobs given one engine are one entry.
+// level is the machine's worker document's. The jobs given one engine are one
+// entry.
 func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
-	st := fixtureStack(t, "anthropic")
-	st.Workers.Spec.LogLevel = api.LogLevelDebug
-	doc := workerDocumentOf(t, placed(t, st))
+	p := placed(t, fixtureStack(t, "anthropic"))
+	p.plan.Worker.spec.LogLevel = api.LogLevelDebug
+	doc := workerDocumentOf(t, p)
 	kb := theKB(t, doc)
 	want := []string{
 		"anthropic/claude-sonnet-4-5-20250929: mark.assessing mark.linking yield",
@@ -174,7 +175,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
 	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
-		t.Errorf("log = %q %q, want the WorkerPool's level and JSON", doc.LogLevel, doc.LogFormat)
+		t.Errorf("log = %q %q, want the worker document's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
 }
 

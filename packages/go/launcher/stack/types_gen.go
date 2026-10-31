@@ -475,9 +475,13 @@ type IssuerDatabaseExternal struct {
 	Password SecretRef `json:"password"`
 }
 
-// WorkerPool: The workers that do a knowledge base's jobs. A worker needs
-// only the Gateway, and an issuer's token with the worker's role; it can run
-// anywhere, as many as are wanted.
+// WorkerPool: The worker a machine runs knowledge bases' jobs with: its
+// image, its memory and its log level. They are the machine's, not any
+// knowledge base's, so its document is kept in the launcher's state home, in
+// `stack/workers.yaml`, not in a knowledge base's repository. A knowledge
+// base's jobs are done when its Inference document gives a job an engine. A
+// worker needs only the Gateway, and an issuer's token with the worker's
+// role.
 type WorkerPool struct {
 	// The group and version of Semiont's kinds. The group names who defines a
 	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
@@ -490,15 +494,12 @@ type WorkerPool struct {
 	// one another by `name`.
 	Metadata Metadata `json:"metadata"`
 
-	// The workers, and the knowledge base whose jobs they do.
+	// How the worker runs.
 	Spec WorkerPoolSpec `json:"spec"`
 }
 
-// WorkerPoolSpec: The workers, and the knowledge base whose jobs they do.
+// WorkerPoolSpec: How the worker runs.
 type WorkerPoolSpec struct {
-	// The name of the KnowledgeBase document whose jobs the workers do.
-	KnowledgeBase string `json:"knowledgeBase"`
-
 	// How much a service logs: the least severe level it writes, from error, the
 	// most severe, to debug.
 	LogLevel api.LogLevel `json:"logLevel"`
