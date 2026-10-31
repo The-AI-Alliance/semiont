@@ -21,7 +21,6 @@ import semiont.StateUnit
 import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
-import semiont.errors.SemiontError
 import semiont.telemetry.futureOf
 import semiont.transport.Events
 import java.util.concurrent.CompletableFuture
@@ -67,8 +66,8 @@ private class Key<V : Any>(state: CacheState<V>) {
  * that is known; `remove` ends a key whose entity is gone; `close` ends every
  * observer, and nothing is fetched, retried or written after it.
  *
- * `ask` asks for a key's value, failing with a [SemiontError], and its fetches
- * run in `scope`: the client's, for a cache the client makes, and one of the
+ * `ask` asks for a key's value, and whatever it fails with is the key's failure;
+ * its fetches run in `scope`: the client's, for a cache the client makes, and one of the
  * cache's own on the default dispatcher, for one a host makes. With a
  * `persister`, the cache begins with what was kept, shows a kept value at once
  * and asks for it again the first time it is observed, and saves its values
@@ -288,7 +287,7 @@ public class Cache<K : Any, V : Any> internal constructor(
     public fun invalidateAll(): Unit = keys().forEach(::invalidate)
 
     /** The key's entity is gone: its value is dropped and the key fails with `gone`, at once, for every observer. Nothing is asked for. */
-    public fun remove(key: K, gone: SemiontError): Unit = synchronized(lock) {
+    public fun remove(key: K, gone: Exception): Unit = synchronized(lock) {
         if (disposed) return
         val held = held(key)
         held.inFlight = null
