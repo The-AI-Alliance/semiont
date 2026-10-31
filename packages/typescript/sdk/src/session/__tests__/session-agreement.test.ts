@@ -10,7 +10,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { BehaviorSubject } from 'rxjs';
 import type { AccessToken } from '@semiont/core';
-import { SignInError } from '@semiont/core';
+import { RECONNECT_MS, SignInError } from '@semiont/core';
 import { APIError } from '../../client';
 import { createTestClient } from '../../testing';
 import { httpKb } from '../knowledge-base';
@@ -165,7 +165,7 @@ describe('session — the SDK agrees with the shared table', () => {
       },
       refresh: async () => {
         renewals += 1;
-        if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
+        if (renewals > c.renewals + 1) throw new Error(`the issuer was asked ${renewals} times`);
         const said = answer(c.issuer, renewals - 1);
         if (said !== 'renews') throw notRenewed(said);
         return issued(renewals);
@@ -185,7 +185,10 @@ describe('session — the SDK agrees with the shared table', () => {
 
     // A session that ended signed out asks nobody anything afterwards,
     // however long it is held.
-    if (c.ends === 'signed-out') {
+    if (c.ends === 'signed-out' && c.kept) {
+      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals + 1 });
+    } else if (c.ends === 'signed-out') {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }
@@ -233,7 +236,7 @@ describe('session — the SDK agrees with the shared table', () => {
       },
       refresh: async () => {
         renewals += 1;
-        if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
+        if (renewals > c.renewals + 1) throw new Error(`the issuer was asked ${renewals} times`);
         const said = answer(c.issuer, renewals - 1);
         if (said !== 'renews') throw notRenewed(said);
         const renewed = issued(renewals);
@@ -260,7 +263,10 @@ describe('session — the SDK agrees with the shared table', () => {
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
-    if (c.ends === 'signed-out') {
+    if (c.ends === 'signed-out' && c.kept) {
+      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals + 1 });
+    } else if (c.ends === 'signed-out') {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }

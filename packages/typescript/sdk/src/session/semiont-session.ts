@@ -40,6 +40,8 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
+  MAX_RECONNECT_MS,
+  RECONNECT_MS,
   RETRY_RULES,
   SignInError,
   type AccessToken,
@@ -187,6 +189,9 @@ export class SemiontSession implements StateUnit {
   private readonly onAuthFailed: (reason: SessionEndReason) => void;
   private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The next renewal owed after one that got no answer, and how long the one after it waits. */
+  private unansweredTimer: ReturnType<typeof setTimeout> | null = null;
+  private unansweredWaitMs = RECONNECT_MS;
   /** Whether the session is still doing what it does at its start. */
   private starting = true;
   /** The renewal a refusal is being answered with, shared by the refusals that arrive during it. */
@@ -261,7 +266,8 @@ export class SemiontSession implements StateUnit {
           // There was no session to end: the stored session is forgotten, and nothing is said.
           clearStoredSession(this.storage, this.kb.id);
         } else {
-          // The issuer did not refuse it: the stored session is kept, and renewed when a request is refused.
+          // The issuer did not refuse it: the stored session is kept, and renewed on the reconnect backoff or when a request is refused.
+          this.renewAgainLater();
           this.onError(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
         }
         return;
@@ -342,6 +348,7 @@ export class SemiontSession implements StateUnit {
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
+    this.clearUnanswered();
     this.#heldToken$.next(null);
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed(told);
@@ -433,6 +440,7 @@ export class SemiontSession implements StateUnit {
     const { token: newAccess, failure, refused } = await this.tryRefresh();
     if (this.disposed) return null;
     if (newAccess) {
+      this.clearUnanswered();
       const tok = accessToken(newAccess);
       this.#heldToken$.next(tok);
       this.scheduleProactiveRefresh(newAccess);
@@ -448,6 +456,7 @@ export class SemiontSession implements StateUnit {
     // (This also makes the REAL teardown below fire once: it clears the
     // stored session, so any follow-up 401s take this quiet path.)
     if (!getStoredSession(this.storage, this.kb.id)) {
+      this.clearUnanswered();
       this.#heldToken$.next(null);
       return null;
     }
@@ -459,7 +468,7 @@ export class SemiontSession implements StateUnit {
    * A renewal of what is stored gave no token, and the session holds none.
    * The issuer's refusal, or nothing left to renew with, ends the session; any
    * other failure keeps what is stored, and says why: the next refusal renews
-   * again.
+   * again, and so does the reconnect backoff.
    */
   private unrenewed(failure: string | undefined, refused: boolean): void {
     if (failure === undefined || refused) {
@@ -468,7 +477,37 @@ export class SemiontSession implements StateUnit {
     }
     this.clearRefreshTimer();
     this.#heldToken$.next(null);
+    this.renewAgainLater();
     this.onError(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
+  }
+
+  /**
+   * After a renewal that got no answer, renew again on the reconnect backoff:
+   * `RECONNECT_MS`, doubling to `MAX_RECONNECT_MS`. It ends when a renewal is
+   * made or refused, when a token arrives some other way, and when the
+   * session ends. A renewal already owed is not owed twice.
+   */
+  private renewAgainLater(): void {
+    if (this.disposed || this.unansweredTimer) return;
+    const wait = this.unansweredWaitMs;
+    this.unansweredWaitMs = Math.min(2 * wait, MAX_RECONNECT_MS);
+    this.unansweredTimer = setTimeout(() => {
+      this.unansweredTimer = null;
+      if (this.disposed) return;
+      if (this.#heldToken$.getValue() !== null) {
+        this.unansweredWaitMs = RECONNECT_MS;
+        return;
+      }
+      void this.renew();
+    }, wait);
+  }
+
+  private clearUnanswered(): void {
+    if (this.unansweredTimer) {
+      clearTimeout(this.unansweredTimer);
+      this.unansweredTimer = null;
+    }
+    this.unansweredWaitMs = RECONNECT_MS;
   }
 
   private scheduleProactiveRefresh(token: string): void {
@@ -530,6 +569,7 @@ export class SemiontSession implements StateUnit {
     this.disposed = true;
 
     this.clearRefreshTimer();
+    this.clearUnanswered();
     if (this.unsubscribeStorage) {
       this.unsubscribeStorage();
       this.unsubscribeStorage = null;

@@ -21,7 +21,8 @@
 //! only signed out: there is nothing to end, and nothing is said. Whenever a
 //! token is renewed, what is stored is forgotten only when the issuer
 //! refuses: a renewal that got no answer leaves the session no usable token
-//! and keeps what is stored, and the next refusal renews again.
+//! and keeps what is stored, and the next refusal renews again, and so does
+//! the session on its own, on the reconnect backoff.
 //!
 //! The token is renewed before it expires, by the schedule every Semiont
 //! client keeps (`super::refresh_delay`). What another context writes under
@@ -47,6 +48,7 @@ use crate::retry::{REFRESH, RetryFacts};
 use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::storage::{SessionStorage, StorageSubscription};
+use crate::timing::{MAX_RECONNECT, RECONNECT};
 use crate::transport::{BoxFuture, ConnectionState, Failures};
 use crate::types::{KbTarget, UserResponse};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -130,6 +132,8 @@ struct Shared {
     token: Held<Option<String>>,
     user: Held<Option<UserResponse>>,
     ready: Held<bool>,
+    /// Holds while a renewal that got no answer is owed another attempt.
+    unanswered: Held<bool>,
     refresh: Option<Refresh>,
     validate: Option<Validate>,
     on_auth_failed: Option<OnAuthFailed>,
@@ -157,6 +161,7 @@ impl SemiontSession {
             token: Held::of(config.token),
             user: Held::new(None),
             ready: Held::new(false),
+            unanswered: Held::new(false),
             refresh: config.refresh,
             validate: config.validate,
             on_auth_failed: config.on_auth_failed,
@@ -186,6 +191,11 @@ impl SemiontSession {
                     shared.renew().await;
                 }
             }));
+
+        let retrying = shared.clone();
+        shared
+            .tasks
+            .spawn(async move { retrying.renew_when_unanswered().await });
 
         let heard = Arc::downgrade(&shared);
         *locked(&shared.storage_changes) = shared.storage.subscribe(Arc::new(move |key, value| {
@@ -343,6 +353,7 @@ impl Shared {
         self.token.end();
         self.user.end();
         self.ready.end();
+        self.unanswered.end();
     }
 
     /// Ask `refresh`, with a failure to ask read as there being no token:
@@ -374,6 +385,7 @@ impl Shared {
             return None;
         }
         if let Some(token) = renewed {
+            self.unanswered.set(false);
             self.token.set(Some(token.clone()));
             return Some(token);
         }
@@ -381,20 +393,47 @@ impl Shared {
         // A session that never had a credential cannot expire: it is signed
         // out, which is no failure. Ending the session below also clears the
         // credential, so the refusals that follow it are quiet too.
-        stored_session(self.storage.as_ref(), &self.kb.id)?;
+        if stored_session(self.storage.as_ref(), &self.kb.id).is_none() {
+            self.unanswered.set(false);
+            return None;
+        }
         self.unrenewed(failure);
         None
+    }
+
+    /// After a renewal that got no answer, renew again on the reconnect
+    /// backoff: `RECONNECT`, doubling to `MAX_RECONNECT`. It stops when a
+    /// renewal is made or refused, when a token arrives some other way, and
+    /// when the session ends.
+    async fn renew_when_unanswered(&self) {
+        let mut owed = self.unanswered.read();
+        loop {
+            if owed.wait_for(|owed| *owed).await.is_err() {
+                return;
+            }
+            let mut wait = RECONNECT;
+            while self.unanswered.now() {
+                tokio::time::sleep(wait).await;
+                if self.token.now().is_some() {
+                    self.unanswered.set(false);
+                } else if self.unanswered.now() {
+                    self.renew().await;
+                }
+                wait = (wait * 2).min(MAX_RECONNECT);
+            }
+        }
     }
 
     /// A renewal of what is stored gave no token, and the session holds
     /// none. The issuer's refusal, or nothing left to renew with, ends the
     /// session; any other failure keeps what is stored, and says why: the
-    /// next refusal renews again.
+    /// next refusal renews again, and so does the reconnect backoff.
     fn unrenewed(&self, failure: Option<Arc<dyn std::error::Error + Send + Sync>>) {
         self.token.set(None);
         let why = not_renewed(failure.as_deref());
         match failure {
             Some(failure) if !refused(failure.as_ref()) => {
+                self.unanswered.set(true);
                 self.failed(SessionErrorCode::RefreshExhausted, why);
             }
             _ => self.signed_out(
@@ -466,6 +505,7 @@ impl Shared {
     /// the application are each told why. The one teardown, whichever way
     /// the session ended.
     fn signed_out(&self, told: SessionEndReason, code: SessionErrorCode, why: String) {
+        self.unanswered.set(false);
         self.token.set(None);
         let why = match clear_stored_session(self.storage.as_ref(), &self.kb.id) {
             Ok(()) => why,
@@ -499,7 +539,9 @@ impl Shared {
                 (Some(renewed), _) => renewed,
                 (None, Some(failure)) if !refused(failure.as_ref()) => {
                     // The issuer did not refuse it: the credential is kept,
-                    // and renewed when a request is refused.
+                    // and renewed on the reconnect backoff or when a request
+                    // is refused.
+                    self.unanswered.set(true);
                     self.failed(
                         SessionErrorCode::AuthFailed,
                         not_renewed(Some(failure.as_ref())),

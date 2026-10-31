@@ -39,7 +39,9 @@ A session whose issuer refuses to renew it clears its token and what it kept,
 so a dead credential is never used again. One that never had a credential is
 only signed out: there is nothing to end, and nothing is said. A renewal that
 got no answer, whenever it is made, leaves the session no usable token and
-keeps what is kept, and the next refusal renews again.
+keeps what is kept: the next refusal renews again, and so does the session on
+its own, on the reconnect backoff (`RECONNECT_MS`, doubling to
+`MAX_RECONNECT_MS`).
 """
 
 import asyncio
@@ -60,7 +62,7 @@ from semiont.errors import SemiontError, SessionError, SignInError, TransportErr
 from semiont.events import Events
 from semiont.retry import REFRESH, RetryFacts
 from semiont.state_unit import StateUnit
-from semiont.timing import MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS
+from semiont.timing import MAX_RECONNECT_MS, MIN_REFRESH_DELAY_MS, RECONNECT_MS, REFRESH_BEFORE_EXP_MS
 from semiont.transport import ConnectionState, Transport
 from semiont.types import KbTarget, UserResponse
 from semiont.watched import Variable, Watched
@@ -325,6 +327,8 @@ class SemiontSession[T: Transport](StateUnit):
         self._closing: Final = asyncio.Event()
         # Held while a refusal is being answered, so that the refusals that arrive during it are answered by it.
         self._answering: Final = asyncio.Lock()
+        # Set while a renewal that got no answer is owed another attempt.
+        self._unanswered: Final = asyncio.Event()
         self._running: asyncio.Task[None] | None = None
 
     @property
@@ -395,6 +399,7 @@ class SemiontSession[T: Transport](StateUnit):
     async def _run(self, kept: HeldSignIn | None) -> None:
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(renew_when_due(self._token, self._renew))
+            tasks.create_task(self._renew_when_unanswered())
             try:
                 await self._start(kept)
             finally:
@@ -464,6 +469,7 @@ class SemiontSession[T: Transport](StateUnit):
         if self._closing.is_set():
             return None
         if renewed is not None:
+            self._unanswered.clear()
             self._token.set(renewed)
             return renewed
         self._token.set(None)
@@ -472,24 +478,46 @@ class SemiontSession[T: Transport](StateUnit):
         # credential, so the refusals that follow it are quiet too.
         if await self._kept.held() is not None:
             await self._unrenewed(failure)
+        else:
+            self._unanswered.clear()
         return None
+
+    async def _renew_when_unanswered(self) -> None:
+        """After a renewal that got no answer, renew again on the reconnect backoff.
+
+        The wait starts at `RECONNECT_MS` and doubles to `MAX_RECONNECT_MS`. It
+        ends when a renewal is made or refused, when a token arrives some
+        other way, and when the session ends.
+        """
+        while True:
+            await self._unanswered.wait()
+            wait = RECONNECT_MS
+            while self._unanswered.is_set():
+                await asyncio.sleep(wait / 1000)
+                if self._token.value is not None:
+                    self._unanswered.clear()
+                elif self._unanswered.is_set():
+                    await self._renew()
+                wait = min(2 * wait, MAX_RECONNECT_MS)
 
     async def _unrenewed(self, failure: SignInError | None) -> None:
         """A renewal of what is kept gave no token, and the session holds none.
 
         The issuer's refusal, or nothing left to renew with, ends the session.
         Any other failure keeps what is kept, and says why: the next refusal
-        renews again.
+        renews again, and so does the reconnect backoff.
         """
         self._token.set(None)
         not_renewed = SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id)
         if failure is not None and not _refused(failure):
+            self._unanswered.set()
             self._failed(not_renewed)
         else:
             await self._signed_out("expired", not_renewed)
 
     async def _signed_out(self, told: SessionEndReason, error: SessionError) -> None:
         """The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended."""
+        self._unanswered.clear()
         self._token.set(None)
         self._user.set(None)
         await self._kept.forget()
@@ -521,7 +549,8 @@ class SemiontSession[T: Transport](StateUnit):
                     # There was no session to end: the sign-in is forgotten, and nothing is said.
                     await self._kept.forget()
                 else:
-                    # The issuer did not refuse it: the sign-in is kept, and renewed when a request is refused.
+                    # The issuer did not refuse it: the sign-in is kept, and renewed on the reconnect backoff or when a request is refused.
+                    self._unanswered.set()
                     self._failed(SessionError("session.auth-failed", _not_renewed(failure), kb_id=self.kb.id))
                 return
             token = renewed

@@ -50,8 +50,9 @@ private sealed interface Renewal {
  * who the gateway says a token is (`saysWho`), and what a renewal gives
  * (`queueRenewals`, `failRenewal`). Each refuses by name until it is
  * scripted: an unscripted request names its operation and its knowledge base,
- * an unscripted renewal is a renewal that failed, and a gateway nobody
- * scripted a user for cannot say who a token is.
+ * an unscripted renewal is a renewal that got no answer (so the session renews
+ * again on the reconnect backoff, and fails again until a renewal is scripted),
+ * and a gateway nobody scripted a user for cannot say who a token is.
  */
 public class ScriptedSessions @JvmOverloads constructor(private val answer: Answer = REFUSE_UNSCRIPTED_KB) : SessionFactory {
     private val renewals = ArrayDeque<Renewal>()

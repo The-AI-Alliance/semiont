@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -794,6 +795,75 @@ func TestARenewalThatGotNoAnswerKeepsWhatIsKeptAndTheNextRefusalRenewsAgain(t *t
 			}
 		})
 	}
+}
+
+// A renewal that got no answer is tried again on the reconnect backoff, each
+// wait double the one before up to the longest, until one is made; and the
+// issuer's refusal ends the attempts. On the test's own clock.
+func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) {
+	timing := semiont.DefaultTiming()
+	var waits []time.Duration
+	for wait := timing.Reconnect; len(waits) < 6; wait = min(2*wait, timing.MaxReconnect) {
+		waits = append(waits, wait)
+	}
+	unanswered := fromTheIssuer(t, 0)
+	refused := fromTheIssuer(t, http.StatusBadRequest)
+
+	t.Run("until one is made", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			first, renewed := tokenFor(time.Hour, 0), tokenFor(time.Hour, 2)
+			w := newWorld(t, first)
+			for range waits {
+				w.renewals = append(w.renewals, renewal{err: unanswered})
+			}
+			w.renewals = append(w.renewals, renewal{token: renewed})
+			session := w.start(t)
+			if _, ok := session.Refresh(context.Background(), first); ok {
+				t.Fatal("a renewal that got no answer gave a token")
+			}
+			for n, wait := range waits {
+				time.Sleep(wait - time.Second)
+				synctest.Wait()
+				if _, renewals := w.counts(); renewals != n+1 {
+					t.Fatalf("renewed %d times %v into wait %d, want %d", renewals, wait-time.Second, n, n+1)
+				}
+				time.Sleep(time.Second)
+				synctest.Wait()
+				if _, renewals := w.counts(); renewals != n+2 {
+					t.Fatalf("renewed %d times once wait %d was up, want %d", renewals, n, n+2)
+				}
+			}
+			if w.token.Value() != renewed {
+				t.Error("the renewal made is not the session's token")
+			}
+			// The renewal made ends the waits, and asks nobody.
+			time.Sleep(4 * timing.MaxReconnect)
+			synctest.Wait()
+			if asks, renewals := w.counts(); renewals != len(waits)+1 || asks != 1 {
+				t.Errorf("then renewed %d times and asked %d, want %d and 1", renewals, asks, len(waits)+1)
+			}
+		})
+	})
+
+	t.Run("until the issuer refuses", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			first := tokenFor(time.Hour, 0)
+			w := newWorld(t, first)
+			w.renewals = []renewal{{err: unanswered}, {err: refused}}
+			session := w.start(t)
+			session.Refresh(context.Background(), first)
+			time.Sleep(timing.Reconnect)
+			synctest.Wait()
+			if _, kept, _ := w.kept.Held(context.Background()); kept {
+				t.Error("the sign-in the issuer refused is still kept")
+			}
+			time.Sleep(2 * time.Hour)
+			synctest.Wait()
+			if _, renewals := w.counts(); renewals != 2 {
+				t.Errorf("renewed %d times, want 2", renewals)
+			}
+		})
+	})
 }
 
 // A session that never signed in cannot expire: a renewal that gives nothing

@@ -22,6 +22,7 @@ from semiont.errors import BusRequestError, SemiontError, SessionError, SignInEr
 from semiont.session import HeldSignIn, MemorySignIn, Refresh, SemiontSession, SessionEndReason, Validate
 from semiont.testing import FaultyTransport, create_test_client
 from semiont.testing.axioms import AxiomSubject, Fresh, assert_state_unit_axioms
+from semiont.timing import MAX_RECONNECT_MS, RECONNECT_MS
 from semiont.types import HttpEndpoint, KbTarget, UserResponse
 from semiont.watched import Variable
 
@@ -181,7 +182,11 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
     assert world.told == ([] if row["told"] is None else [row["told"]]), "why the session ended"
     assert [error.code for error in world.errors] == ([] if row["error"] is None else [row["error"]]), "the error reported"
     assert await world.is_kept() == row["kept"], "whether a sign-in is still kept"
-    if ends(session) == "signed-out":
+    if ends(session) == "signed-out" and row["kept"]:
+        await pass_time(RECONNECT_MS / 1000)
+        asked_and_renewed = (len(world.validated) - asked_before, world.renewed)
+        assert asked_and_renewed == (asks, renewals + 1), "what was renewed once the reconnect wait passed"
+    elif ends(session) == "signed-out":
         await pass_time(2 * 60 * 60, step=60)
         assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "what was asked once the session was over"
 
@@ -192,7 +197,7 @@ def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
     kept = {"none": None, "unexpired": token(3600, 0), "expired": expired()}[text(row["stored"], "stored")]
     world = World(
         kept=kept,
-        renewals=[issuer_says(row, n, token(3600, n + 1)) for n in range(renewals)],
+        renewals=[issuer_says(row, n, token(3600, n + 1)) for n in range(renewals + 1)],
         validations=[*(gateway_says(row, n) for n in range(asks)), one_too_many()],
     )
 
@@ -210,7 +215,7 @@ def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) 
     # The session starts signed in: the gateway accepts the kept token. Then the row's answers.
     world = World(
         kept=token(3600, 0),
-        renewals=[issuer_says(row, n, token(3600, 1)) for n in range(renewals)],
+        renewals=[issuer_says(row, n, token(3600, 1)) for n in range(renewals + 1)],
         validations=[alice(), *(gateway_says(row, n) for n in range(asks)), one_too_many()],
     )
 
@@ -570,6 +575,45 @@ def test_a_renewal_that_got_no_answer_keeps_what_is_kept_and_the_next_refusal_re
 
     run(scenario(unanswered_by_the_issuer()))
     run(scenario(spent_on_not_now))
+
+
+def test_a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_until_one_is_made() -> None:
+    waits = [min(RECONNECT_MS * 2**n, MAX_RECONNECT_MS) / 1000 for n in range(6)]
+    renewed = token(3600, 2)
+    world = World(kept=token(3600, 1), renewals=[*(unanswered_by_the_issuer() for _ in range(len(waits))), renewed])
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            assert await soon(session.refresh()) is None
+            # Each wait doubles from the reconnect wait, up to the longest.
+            for n, wait in enumerate(waits):
+                await pass_time(wait - 0.5, step=0.5)
+                assert world.renewed == n + 1, "renewed again before the wait was up"
+                await pass_time(0.5)
+                assert world.renewed == n + 2
+            assert session.token.value == renewed
+            # The renewal made ends the waits, and asks nobody.
+            await pass_time(4 * MAX_RECONNECT_MS / 1000, step=5)
+            assert (world.renewed, len(world.validated)) == (len(waits) + 1, 1)
+
+    run(scenario())
+
+
+def test_the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() -> None:
+    world = World(kept=token(3600, 1), renewals=[unanswered_by_the_issuer(), refused_by_the_issuer()])
+
+    async def scenario() -> None:
+        async with world.its_session() as session:
+            await soon(session.ready())
+            assert await soon(session.refresh()) is None
+            await pass_time(RECONNECT_MS / 1000)
+            assert world.renewed == 2
+            assert (await world.is_kept(), world.told) == (False, ["expired"])
+            await pass_time(2 * 60 * 60, step=60)
+            assert world.renewed == 2
+
+    run(scenario())
 
 
 def test_a_session_that_never_signed_in_cannot_expire() -> None:

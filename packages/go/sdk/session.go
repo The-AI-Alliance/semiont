@@ -10,7 +10,8 @@ package semiont
 // renewing again cannot change the answer. Whenever a token is renewed, what
 // is kept is forgotten only when the issuer refuses: a renewal that got no
 // answer leaves the session no usable token and keeps what is kept, and the
-// next refusal renews again.
+// next refusal renews again, and so does the session on its own, on the
+// reconnect backoff.
 
 import (
 	"context"
@@ -157,6 +158,9 @@ type Session struct {
 	// base has another.
 	id   string
 	user *Variable[*api.UserResponse]
+	// unanswered holds while a renewal that got no answer is owed another
+	// attempt.
+	unanswered *Variable[bool]
 }
 
 var (
@@ -190,11 +194,15 @@ func StartSession(ctx context.Context, config SessionConfig) (*Session, error) {
 		config.Token.Set(kept.Access)
 	}
 	alive, cancel := context.WithCancel(context.Background())
-	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{}), id: "session-" + uuid.NewString(), user: NewVariable[*api.UserResponse](nil)}
-	s.work.Add(2)
+	s := &Session{config: config, alive: alive, cancel: cancel, ready: make(chan struct{}), id: "session-" + uuid.NewString(), user: NewVariable[*api.UserResponse](nil), unanswered: NewVariable(false)}
+	s.work.Add(3)
 	go func() {
 		defer s.work.Done()
 		renewWhenDue(s.alive, config.Token, config.Timing, func() { s.renew(config.Token.Value()) })
+	}()
+	go func() {
+		defer s.work.Done()
+		s.renewWhenUnanswered()
 	}()
 	go func() {
 		defer s.work.Done()
@@ -336,6 +344,7 @@ func (s *Session) renew(renewing string) (string, bool) {
 		return "", false
 	}
 	if renewed != "" {
+		s.unanswered.Set(false)
 		s.config.Token.Set(renewed)
 		return renewed, true
 	}
@@ -345,18 +354,55 @@ func (s *Session) renew(renewing string) (string, bool) {
 	// what may be there.
 	if _, held, err := s.config.Kept.Held(s.alive); err != nil || held {
 		s.unrenewed(failure)
+	} else {
+		s.unanswered.Set(false)
 	}
 	return "", false
+}
+
+// renewWhenUnanswered renews again, after a renewal that got no answer, on
+// the reconnect backoff: Reconnect, doubling to MaxReconnect. It stops when a
+// renewal is made or refused, when a token arrives some other way, and when
+// the session is closed.
+func (s *Session) renewWhenUnanswered() {
+	for {
+		owed, changed := s.unanswered.watch()
+		if !owed {
+			select {
+			case <-s.alive.Done():
+				return
+			case <-changed:
+				continue
+			}
+		}
+		wait := s.config.Timing.Reconnect
+		for s.unanswered.Value() {
+			timer := time.NewTimer(wait)
+			select {
+			case <-s.alive.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			if s.config.Token.Value() != "" {
+				s.unanswered.Set(false)
+			} else if s.unanswered.Value() {
+				s.renew("")
+			}
+			wait = min(2*wait, s.config.Timing.MaxReconnect)
+		}
+	}
 }
 
 // unrenewed is a renewal of what is kept that gave no token: the session holds
 // none. The issuer's refusal, or nothing left to renew with, ends the session;
 // any other failure keeps what is kept, and says why: the next refusal renews
-// again.
+// again, and so does the reconnect backoff.
 func (s *Session) unrenewed(failure error) {
 	s.config.Token.Set("")
 	err := &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id}
 	if failure != nil && !refusedRenewal(failure) {
+		s.unanswered.Set(true)
 		s.failed(err)
 		return
 	}
@@ -366,6 +412,7 @@ func (s *Session) unrenewed(failure error) {
 // signedOut is the session's end, whichever way it ended: its credential is
 // forgotten, and its host is told why.
 func (s *Session) signedOut(told SessionEndReason, err *SessionError) {
+	s.unanswered.Set(false)
 	s.config.Token.Set("")
 	s.user.Set(nil)
 	if forgotten := s.config.Kept.Forget(s.alive); forgotten != nil {
@@ -416,7 +463,9 @@ func (s *Session) start(kept HeldSignIn, has, withheld bool) {
 				}
 			default:
 				// The issuer did not refuse it: the sign-in is kept, and
-				// renewed when a request is refused.
+				// renewed on the reconnect backoff or when a request is
+				// refused.
+				s.unanswered.Set(true)
 				s.failed(&SessionError{Code: SessionErrorCodeAuthFailed, Message: notRenewed(failure), KbID: s.config.Kb.Id})
 			}
 			return

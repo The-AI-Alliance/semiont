@@ -36,7 +36,7 @@ vi.mock('../../client', async () => {
 
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
-import { accessToken, userId, SignInError, type AccessToken } from '@semiont/core';
+import { accessToken, userId, MAX_RECONNECT_MS, RECONNECT_MS, SignInError, type AccessToken } from '@semiont/core';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession } from '../storage';
 
@@ -274,6 +274,62 @@ describe('SemiontSession — refresh', () => {
       // already counted. A zero delay produces 1418 in ten SECONDS.
       await vi.advanceTimersByTimeAsync(10 * 60_000);
       expect(refresh.mock.calls.length, 'refresh count over ten minutes').toBeLessThanOrEqual(6);
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('tries a renewal that got no answer again on the reconnect backoff until one is made', async () => {
+    vi.useFakeTimers();
+    try {
+      const waits = Array.from({ length: 6 }, (_, n) => Math.min(RECONNECT_MS * 2 ** n, MAX_RECONNECT_MS));
+      seedStoredSession(storage, KB.id, freshJwt(), 'refresh-tok');
+      const renewed = freshJwt();
+      waits.forEach(() => refresh.mockRejectedValueOnce(new SignInError('exchange', 'The issuer did not answer: TypeError')));
+      refresh.mockResolvedValueOnce(renewed);
+
+      const session = newSession();
+      await session.ready;
+      await expect(session.refresh()).resolves.toBeNull();
+      // Each wait doubles from the reconnect wait, up to the longest.
+      for (const [n, wait] of waits.entries()) {
+        await vi.advanceTimersByTimeAsync(wait - 1);
+        expect(refresh, 'renewed again before the wait was up').toHaveBeenCalledTimes(n + 1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(refresh).toHaveBeenCalledTimes(n + 2);
+      }
+      expect(session.token$.getValue()).toBe(renewed);
+      // The renewal made ends the waits, and asks nobody.
+      await vi.advanceTimersByTimeAsync(4 * MAX_RECONNECT_MS);
+      expect(refresh).toHaveBeenCalledTimes(waits.length + 1);
+      expect(validate).toHaveBeenCalledTimes(1);
+
+      session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ends the renewals on the reconnect backoff at the issuer\'s refusal', async () => {
+    vi.useFakeTimers();
+    try {
+      seedStoredSession(storage, KB.id, freshJwt(), 'refresh-tok');
+      refresh
+        .mockRejectedValueOnce(new SignInError('exchange', 'The issuer did not answer: TypeError'))
+        .mockRejectedValueOnce(new SignInError('exchange', 'The issuer refused the token request (invalid_grant)', 400));
+      const onAuthFailed = vi.fn();
+
+      const session = newSession({ onAuthFailed });
+      await session.ready;
+      await expect(session.refresh()).resolves.toBeNull();
+      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      expect(refresh).toHaveBeenCalledTimes(2);
+      expect(getStoredSession(storage, KB.id)).toBeNull();
+      expect(onAuthFailed).toHaveBeenCalledWith('expired');
+      await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
+      expect(refresh).toHaveBeenCalledTimes(2);
 
       session.dispose();
     } finally {

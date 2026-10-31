@@ -18,6 +18,7 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.Timings
 import semiont.errors.TransportError
 
 /**
@@ -91,7 +92,11 @@ class SessionCasesTest {
         assertEquals(listOfNotNull(row.getValue("told").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.told.map { it.wire }, "why the session ended")
         assertEquals(listOfNotNull(row.getValue("error").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.errors.map { it.code }, "the error reported")
         assertEquals(row.getValue("kept").jsonPrimitive.content.toBooleanStrict(), world.kept.held() != null, "whether a sign-in is still kept")
-        if (ends(session) == "signed-out") {
+        if (ends(session) == "signed-out" && row.getValue("kept").jsonPrimitive.content.toBooleanStrict()) {
+            advanceTimeBy(Timings.RECONNECT_MS)
+            runCurrent()
+            assertEquals(asks to renewals + 1, (world.validated.size - askedBefore) to world.renewed, "what was renewed once the reconnect wait passed")
+        } else if (ends(session) == "signed-out") {
             advanceTimeBy(2 * 60 * 60 * 1000L)
             runCurrent()
             assertEquals(asks to renewals, (world.validated.size - askedBefore) to world.renewed, "what was asked once the session was over")
@@ -109,7 +114,7 @@ class SessionCasesTest {
                     "unexpired" -> token(3600, 0)
                     else -> expired()
                 }
-                val world = SessionWorld(kept, (0 until renewals).map { issuerSays(row, it, token(3600, it + 1)) }, (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
+                val world = SessionWorld(kept, (0..renewals).map { issuerSays(row, it, token(3600, it + 1)) }, (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
                 world.session().use { session ->
                     session.start()
                     session.ready()
@@ -126,7 +131,7 @@ class SessionCasesTest {
                 val asks = count(row, "asks")
                 val renewals = count(row, "renewals")
                 // The session starts signed in: the gateway accepts the kept token. Then the row's answers.
-                val world = SessionWorld(token(3600, 0), (0 until renewals).map { issuerSays(row, it, token(3600, 1)) }, listOf<Any>(alice) + (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
+                val world = SessionWorld(token(3600, 0), (0..renewals).map { issuerSays(row, it, token(3600, 1)) }, listOf<Any>(alice) + (0 until asks).map { gatewaySays(row, it) } + oneTooMany())
                 world.session().use { session ->
                     session.start()
                     session.ready()

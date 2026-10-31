@@ -218,8 +218,8 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
   forgotten, so a dead credential is never sent again. A renewal that got no
   answer, whenever it is made, ends nothing: the session holds no token,
   keeps the sign-in, says why (`session.auth-failed` at its start,
-  `session.refresh-exhausted` after), and renews it when a request is
-  refused. What a session does at its start and when it is refused is
+  `session.refresh-exhausted` after), and renews it on the reconnect backoff
+  or when a request is refused. What a session does at its start and when it is refused is
   [`specs/src/session/cases.json`][session-cases], row for row.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer.

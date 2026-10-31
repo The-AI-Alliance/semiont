@@ -6,8 +6,10 @@
 //! A test scripts three things: what each knowledge base's gateway answers,
 //! who the gateway says a token is, and what a renewal gives. Each refuses
 //! by name until it is scripted: an unscripted request names its operation
-//! and its knowledge base, an unscripted renewal is a renewal that failed,
-//! and a gateway nobody scripted a user for cannot say who a token is.
+//! and its knowledge base, an unscripted renewal is a renewal that got no
+//! answer (so the session renews again on the reconnect backoff, and fails
+//! again until a renewal is scripted), and a gateway nobody scripted a user
+//! for cannot say who a token is.
 
 use super::{FaultyTransport, TestClientOptions, create_test_client};
 use crate::errors::{

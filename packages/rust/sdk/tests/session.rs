@@ -21,6 +21,7 @@ use semiont::testing::{
     FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
     create_test_session,
 };
+use semiont::timing::{MAX_RECONNECT, RECONNECT};
 use semiont::types::{HttpEndpointProtocol, KbTarget, UserResponse};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -536,7 +537,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             .into())]);
         let renewed_tokens: Vec<String> =
             (0..renewals).map(|n| token(3600, n as u64 + 1)).collect();
-        let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+        let renewing = (0..=renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_tokens[n].clone())),
             "refuses" => Err(refused_by_the_issuer()),
             "unreachable" => Err(unanswered_by_the_issuer()),
@@ -592,9 +593,19 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             "{why}: whether a session is still stored"
         );
 
-        // A session that ended signed out asks nobody anything afterwards,
-        // however long it is held.
-        if ends == "signed-out" {
+        // A session that ended signed out and kept what is stored renews it
+        // once more when the reconnect wait has passed, and asks nobody; one
+        // that kept nothing asks nobody anything afterwards, however long it
+        // is held.
+        if ends == "signed-out" && world.has_stored() {
+            tokio::time::sleep(RECONNECT).await;
+            settle().await;
+            assert_eq!(
+                (world.validated().len(), world.renewed()),
+                (asks, renewals + 1),
+                "{why}: what was renewed once the reconnect wait passed"
+            );
+        } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
             assert_eq!(
                 (world.validated().len(), world.renewed()),
@@ -645,7 +656,7 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             )
             .into())]);
         let renewed_token = token(3600, 1);
-        let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+        let renewing = (0..=renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_token.clone())),
             "refuses" => Err(refused_by_the_issuer()),
             "unreachable" => Err(unanswered_by_the_issuer()),
@@ -714,7 +725,15 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             case["kept"].as_bool().expect("kept"),
             "{why}: whether a session is still stored"
         );
-        if ends == "signed-out" {
+        if ends == "signed-out" && world.has_stored() {
+            tokio::time::sleep(RECONNECT).await;
+            settle().await;
+            assert_eq!(
+                (world.validated().len() - 1, world.renewed()),
+                (asks, renewals + 1),
+                "{why}: what was renewed once the reconnect wait passed"
+            );
+        } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
             assert_eq!(
                 (world.validated().len() - 1, world.renewed()),
@@ -1117,6 +1136,63 @@ async fn a_renewal_that_got_no_answer_keeps_what_is_stored_and_the_next_refusal_
         assert_eq!(session.refresh().await, Some(renewed.clone()));
         assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_until_one_is_made() {
+    let waits: Vec<Duration> = (0..6)
+        .map(|n| (RECONNECT * 2u32.pow(n)).min(MAX_RECONNECT))
+        .collect();
+    let renewed = token(3600, 2);
+    let world = World::new().storing(&token(3600, 1)).renewing(
+        waits
+            .iter()
+            .map(|_| Err(unanswered_by_the_issuer()))
+            .chain([Ok(Some(renewed.clone()))]),
+    );
+    let session = world.session();
+    ready(&session).await;
+
+    assert_eq!(session.refresh().await, None);
+    // Each wait doubles from the reconnect wait, up to the longest.
+    for (n, wait) in waits.iter().enumerate() {
+        tokio::time::sleep(*wait - Duration::from_secs(1)).await;
+        settle().await;
+        assert_eq!(
+            world.renewed(),
+            n + 1,
+            "renewed again before wait {n} was up"
+        );
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        settle().await;
+        assert_eq!(world.renewed(), n + 2, "renewed again once wait {n} was up");
+    }
+    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    // The renewal made ends the waits, and asks nobody.
+    tokio::time::sleep(MAX_RECONNECT * 4).await;
+    assert_eq!(
+        (world.renewed(), world.validated().len()),
+        (waits.len() + 1, 1)
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() {
+    let world = World::new().storing(&token(3600, 1)).renewing([
+        Err(unanswered_by_the_issuer()),
+        Err(refused_by_the_issuer()),
+    ]);
+    let session = world.session();
+    ready(&session).await;
+
+    assert_eq!(session.refresh().await, None);
+    tokio::time::sleep(RECONNECT).await;
+    settle().await;
+    assert_eq!(world.renewed(), 2);
+    assert!(!world.has_stored());
+    assert_eq!(world.auth_failed(), ["expired"]);
+    tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
+    assert_eq!(world.renewed(), 2);
 }
 
 #[tokio::test(start_paused = true)]

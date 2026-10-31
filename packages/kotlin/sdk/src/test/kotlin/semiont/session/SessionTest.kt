@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
@@ -358,6 +359,50 @@ class SessionTest {
                 assertEquals(renewed, session.refresh())
                 assertEquals(renewed, session.token.value)
             }
+        }
+    }
+
+    @Test
+    fun aRenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoffUntilOneIsMade() = runTest {
+        val waits = (0 until 6).map { minOf(Timings.RECONNECT_MS shl it, Timings.MAX_RECONNECT_MS) }
+        val renewed = token(3600, 2)
+        val world = SessionWorld(kept = token(3600, 1), renewals = waits.map { unansweredByTheIssuer() } + renewed)
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            assertNull(session.refresh())
+            // Each wait doubles from the reconnect wait, up to the longest.
+            for ((n, wait) in waits.withIndex()) {
+                advanceTimeBy(wait - 1)
+                runCurrent()
+                assertEquals(n + 1, world.renewed, "renewed again before the wait was up")
+                advanceTimeBy(1)
+                runCurrent()
+                assertEquals(n + 2, world.renewed)
+            }
+            assertEquals(renewed, session.token.value)
+            // The renewal made ends the waits, and asks nobody.
+            advanceTimeBy(4 * Timings.MAX_RECONNECT_MS)
+            runCurrent()
+            assertEquals(waits.size + 1 to 1, world.renewed to world.validated.size)
+        }
+    }
+
+    @Test
+    fun theIssuersRefusalEndsTheRenewalsOnTheReconnectBackoff() = runTest {
+        val world = SessionWorld(kept = token(3600, 1), renewals = listOf(unansweredByTheIssuer(), refusedByTheIssuer()))
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            assertNull(session.refresh())
+            advanceTimeBy(Timings.RECONNECT_MS)
+            runCurrent()
+            assertEquals(2, world.renewed)
+            assertFalse(world.isKept())
+            assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
+            advanceTimeBy(2 * 60 * 60 * 1000L)
+            runCurrent()
+            assertEquals(2, world.renewed)
         }
     }
 
