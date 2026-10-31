@@ -215,9 +215,9 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
     client.bus.emit('match:search-results', {
-      referenceId: 'ann-1',
-      response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
-    } as never);
+      referenceId: annotationId('ann-1'),
+      response: [{ '@context': 'https://semiont.dev/context/v1', '@id': resourceId('res-9'), name: 'Caspian Sea', representations: [], score: 54.2 }],
+    });
     await screen.findByRole('button', { name: new RegExp(T.link) }); // results are up
 
     expect(baseElement.querySelector('.semiont-gather__source-box')).not.toBeNull(); // quotation strip
@@ -541,12 +541,12 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     // sits on the configure step until the bus answers (which is why dismissal
     // must stay available; see 'the way out' in WizardFooter.test).
     client.bus.emit('match:search-results', {
-      referenceId: 'ann-1',
+      referenceId: annotationId('ann-1'),
       // `ResourceDescriptor` is JSON-LD: the identifier is `@id`, and the
       // results step links on that. A fixture using `id` renders the row and
       // links `undefined` — passing the eye, failing the reference.
-      response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
-    } as never);
+      response: [{ '@context': 'https://semiont.dev/context/v1', '@id': resourceId('res-9'), name: 'Caspian Sea', representations: [], score: 54.2 }],
+    });
 
     await userEvent.click(await screen.findByRole('button', { name: new RegExp(T.link) }));
 
@@ -563,8 +563,8 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByRole('button', { name: T.search }));
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
 
-    client.bus.emit('match:search-failed', { referenceId: 'ann-1',
-      error: '/bus/emit 400: Bus emit validation failed', } as never, { correlationId: 'c-1' });
+    client.bus.emit('match:search-failed', { referenceId: annotationId('ann-1'),
+      error: '/bus/emit 400: Bus emit validation failed', }, { correlationId: 'c-1' });
 
     // Still on configure-search, failure visible, retry available.
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
@@ -579,8 +579,8 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
 
-    client.bus.emit('match:search-failed', { referenceId: 'someone-elses-annotation',
-      error: 'not ours', } as never, { correlationId: 'c-2' });
+    client.bus.emit('match:search-failed', { referenceId: annotationId('someone-elses-annotation'),
+      error: 'not ours', }, { correlationId: 'c-2' });
 
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
     expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
@@ -590,7 +590,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     const { client } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
-    client.bus.emit('match:search-failed', { referenceId: 'ann-1', error: 'boom', } as never, { correlationId: 'c-1' });
+    client.bus.emit('match:search-failed', { referenceId: annotationId('ann-1'), error: 'boom', }, { correlationId: 'c-1' });
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -603,9 +603,9 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     // annotation it was asked for — a late answer must not hijack the step.
     const { client } = renderWizard();
     client.bus.emit('match:search-results', {
-      referenceId: 'someone-elses-annotation',
-      response: [{ '@id': 'res-9', name: 'Caspian Sea' }],
-    } as never);
+      referenceId: annotationId('someone-elses-annotation'),
+      response: [{ '@context': 'https://semiont.dev/context/v1', '@id': resourceId('res-9'), name: 'Caspian Sea', representations: [] }],
+    });
     expect(screen.getByRole('button', { name: `🔍 ${T.search}…` })).toBeInTheDocument(); // still the gather step
   });
 
@@ -672,8 +672,9 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
 
     // A reply that arrives anyway is ignored rather than advancing the step.
     client.bus.emit('match:search-results', {
-      referenceId: 'ann-1', response: [{ '@id': 'res-9', name: 'X' }],
-    } as never);
+      referenceId: annotationId('ann-1'),
+      response: [{ '@context': 'https://semiont.dev/context/v1', '@id': resourceId('res-9'), name: 'X', representations: [] }],
+    });
     expect(screen.queryByRole('button', { name: new RegExp(T.link) })).not.toBeInTheDocument();
     expect(onGenerateSubmit).not.toHaveBeenCalled();
   });

@@ -394,8 +394,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         this._actor,
         {
           emit: (channel, payload, envelope) => {
+            // A payload that is not its channel's is handed to nobody.
             const declared = asDeclared(channel, payload);
-            for (const bus of this.bridges) bus.emit(channel, declared, envelope);
+            if (declared === undefined) return;
+            for (const bus of this.bridges) bus.emit(channel, declared.payload, envelope);
           },
         },
         [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
@@ -457,8 +459,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   /**
    * Wire this transport's SSE fan-in into the given bus. Every channel
    * in `BRIDGED_CHANNELS` (and subsequently per-resource scoped channels
-   * opened by `subscribeToResource`) is published on the bus. Safe to
-   * call multiple times — each bus is added to the fan-out list.
+   * opened by `subscribeToResource`) is published on the bus, as its
+   * channel types it; one that is not its channel's is published to nobody.
+   * Safe to call multiple times — each bus is added to the fan-out list.
    */
   bridgeInto(bus: EventBus): void {
     this.bridges.push(bus);

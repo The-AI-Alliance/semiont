@@ -14,16 +14,17 @@
  *   read for one resource: the read holds that resource's scope while it is
  *   read, and is given that resource's frames and no other's. Read with no
  *   resource, such a channel does not compile, and is refused when called;
- *   so is any other channel read for a resource.
+ *   so is any other channel read for a resource. A frame whose payload lacks
+ *   a member its channel's schema requires is not given (`asDeclared`).
  * - `request` sends an operation's request and awaits its reply.
  */
 
 import { Observable, firstValueFrom, merge, race, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
-import { CHANNEL_STAMPS, type EventMap } from './bus-protocol';
+import { CHANNEL_PAYLOADS, CHANNEL_STAMPS, type EventMap } from './bus-protocol';
 import type { BusEnvelope, BusFrame, TraceCarrier } from './event-bus';
 import type { ConnectionState } from './transport';
-import { BUS_OPERATIONS, RESULT_PAYLOADS, type BusOperationKey } from './bus-operations';
+import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
 import { lackingOf, type Shape } from './required';
@@ -133,22 +134,51 @@ export interface Delivered<T> {
 const EMITTED_BY = '_userId';
 
 /**
- * `payload` as `channel` types it. A stamp the gateway put on it that the
- * channel's payload type does not declare (`CHANNEL_STAMPS`) is the bus's, not
- * the payload's, and is left out: the rule every SDK's typed read keeps.
+ * What a payload on `channel` must carry: the payload of the schema its
+ * registry entry names (`CHANNEL_PAYLOADS`), or a `response` that is one.
  */
-export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K]): EventMap[K] {
-  if (typeof payload !== 'object' || payload === null) return payload;
-  const declared: readonly string[] = CHANNEL_STAMPS[channel];
-  return Object.fromEntries(
-    Object.entries(payload).filter(([name]) => !name.startsWith('_') || declared.includes(name)),
-  ) as EventMap[K];
+function payloadShape(channel: keyof EventMap): Shape {
+  const declared = CHANNEL_PAYLOADS[channel];
+  if ('payload' in declared) return { ref: declared.payload };
+  if ('response' in declared) return { required: ['response'], members: { response: { ref: declared.response } } };
+  return {};
 }
 
-function delivered<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]>): Delivered<EventMap[K]> {
+/** What is said of a payload on `channel` that lacks the member `lacks` names, in every SDK's words. */
+const notTheChannels = (channel: string, lacks: string): string => `a payload on ${channel} is not that channel's: it has no \`${lacks}\``;
+
+/**
+ * `payload` as `channel` types it: the rule every SDK's typed read keeps. A
+ * stamp the gateway put on it that the channel's payload type does not
+ * declare (`CHANNEL_STAMPS`) is the bus's, not the payload's, and is left
+ * out. A payload that lacks a member its channel's schema requires is not
+ * its channel's, and is nobody's to act on: there is none, and it is said so
+ * in a warning, as Python's and Kotlin's typed reads drop it. (Rust's and
+ * Go's give it as their stream's error, which an `Observable` cannot give
+ * and go on.)
+ */
+export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K]): { readonly payload: EventMap[K] } | undefined {
+  const lacks = lackingOf(payloadShape(channel), payload);
+  if (lacks !== undefined) {
+    console.warn(notTheChannels(channel, lacks));
+    return undefined;
+  }
+  if (typeof payload !== 'object' || payload === null) return { payload };
+  const declared: readonly string[] = CHANNEL_STAMPS[channel];
+  return {
+    payload: Object.fromEntries(
+      Object.entries(payload).filter(([name]) => !name.startsWith('_') || declared.includes(name)),
+    ) as EventMap[K],
+  };
+}
+
+/** `frame` as a frame of `channel`, or none when its payload is not that channel's. */
+function delivered<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]>): Delivered<EventMap[K]> | undefined {
+  const declared = asDeclared(channel, frame.payload);
+  if (declared === undefined) return undefined;
   const stamped = (frame.payload as Record<string, unknown>)[EMITTED_BY];
   return {
-    payload: asDeclared(channel, frame.payload),
+    payload: declared.payload,
     ...(frame.correlationId !== undefined ? { correlationId: frame.correlationId } : {}),
     ...(frame.scope !== undefined ? { scope: frame.scope } : {}),
     ...(typeof stamped === 'string' ? { userId: userId(stamped) } : {}),
@@ -156,16 +186,7 @@ function delivered<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMa
   };
 }
 
-/**
- * What the result of `operation` must carry: the payload of the schema its
- * registry entry names, or a `response` that is one.
- */
-function resultShape(operation: BusOperationKey): Shape {
-  const declared = RESULT_PAYLOADS[operation];
-  if ('payload' in declared) return { ref: declared.payload };
-  if ('response' in declared) return { required: ['response'], members: { response: { ref: declared.response } } };
-  return {};
-}
+const isDelivered = <T>(frame: Delivered<T> | undefined): frame is Delivered<T> => frame !== undefined;
 
 /** Fails with the signal's reason when its owner abandons the request; says nothing until then. */
 function abandonment(signal: AbortSignal): Observable<never> {
@@ -211,7 +232,10 @@ export class Bus {
           `${channel} is delivered on a resource's scope, so a read of it names the resource: frames(channel, resourceId)`,
         );
       }
-      return this.#transport.frames(channel).pipe(map((frame) => delivered(channel, frame)));
+      return this.#transport.frames(channel).pipe(
+        map((frame) => delivered(channel, frame)),
+        filter(isDelivered),
+      );
     }
     if (!isResourceScopedChannel(channel)) {
       throw new TypeError(`${channel} is no resource's channel: frames(channel)`);
@@ -226,6 +250,7 @@ export class Bus {
         .pipe(
           filter((frame) => frame.scope === resourceId),
           map((frame) => delivered(channel, frame)),
+          filter(isDelivered),
         )
         .subscribe(subscriber);
       return () => {
@@ -252,7 +277,7 @@ export class Bus {
    * A result reply is a frame whose envelope carries the request's
    * `correlationId` and whose payload is `{ response: T }` (data) or `{}`
    * (void); the request matches on the envelope and reads `payload.response`.
-   * A result that lacks a member its schema requires (`RESULT_PAYLOADS`)
+   * A result that lacks a member its schema requires (`CHANNEL_PAYLOADS`)
    * rejects, as a `SemiontError` coded `error` naming the member.
    *
    * `signal` lets the caller ABANDON the request. Abandoned, it rejects with
@@ -296,12 +321,12 @@ export class Bus {
       bus.frames(resultChannel as keyof EventMap).pipe(
         filter((frame) => frame.correlationId === correlationId),
         map(({ payload: e }) => {
-          const lacks = lackingOf(resultShape(operation), e);
+          const lacks = lackingOf(payloadShape(resultChannel), e);
           return lacks === undefined
             ? { ok: true as const, response: (e as Record<string, unknown>).response as BusReply<Op> }
             : {
                 ok: false as const,
-                error: new SemiontError(`a payload on ${resultChannel} is not that channel's: it has no \`${lacks}\``, 'error', {
+                error: new SemiontError(notTheChannels(resultChannel, lacks), 'error', {
                   channel: resultChannel,
                   correlationId,
                 }),

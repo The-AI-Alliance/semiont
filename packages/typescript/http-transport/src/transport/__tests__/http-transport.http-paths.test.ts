@@ -565,7 +565,25 @@ describe('HttpTransport — HTTP wire shape', () => {
       const received: unknown[] = [];
       bus.on('mark:added').subscribe((p) => received.push(p));
 
-      actorHarness.pushEvent('mark:added', { resourceId: 'test-resource-id' });
+      actorHarness.pushEvent('mark:added', {
+        id: 'evt-test-resource-id-1',
+        type: 'mark:added',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        userId: 'did:web:example.org:users:alice',
+        resourceId: 'test-resource-id',
+        version: 1,
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            type: 'Annotation',
+            id: 'ann-1',
+            motivation: 'highlighting',
+            target: { source: 'test-resource-id' },
+            created: '2026-01-01T00:00:00.000Z',
+          },
+        },
+        metadata: { sequenceNumber: 1 },
+      });
       expect(received).toHaveLength(1);
 
       bus.destroy();
@@ -590,6 +608,31 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(wire).toEqual([{ ...failed, _roles: ['semiont-service'] }]);
       expect(bridged).toEqual([failed]);
 
+      bus.destroy();
+    });
+
+    test("a payload that lacks a member its channel's schema requires is published to nobody, and said so in a warning", async () => {
+      const { EventBus } = await import('@semiont/core');
+      const bus = new EventBus();
+      transport.bridgeInto(bus);
+      const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // The wire's own frames are read first, which is what makes the actor the bridge relays from.
+      const wire: unknown[] = [];
+      transport.frames('job:fail').subscribe((frame) => wire.push(frame.payload));
+      const bridged: unknown[] = [];
+      bus.on('job:fail').subscribe((payload) => bridged.push(payload));
+
+      const lacking ={ resourceId: 'res-1', jobType: 'mark', error: 'the model did not answer' };
+      const failed = { ...lacking, jobId: 'job-1' };
+      actorHarness.pushEvent('job:fail', lacking);
+      actorHarness.pushEvent('job:fail', failed);
+
+      expect(wire, "the transport's own frames are the wire's").toEqual([lacking, failed]);
+      expect(bridged).toEqual([failed]);
+      expect(warned).toHaveBeenCalledWith("a payload on job:fail is not that channel's: it has no `jobId`");
+
+      warned.mockRestore();
       bus.destroy();
     });
   });

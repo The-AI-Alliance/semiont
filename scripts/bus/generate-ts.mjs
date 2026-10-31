@@ -2,9 +2,9 @@
 // generate-ts.mjs — regenerate the TypeScript bus authority from
 // specs/src/bus/registry.json.
 //
-//   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, TRACE_FIELD and CHANNEL_STAMPS)
+//   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, TRACE_FIELD, CHANNEL_STAMPS and CHANNEL_PAYLOADS)
 //   packages/typescript/core/src/persisted-events.ts    (the persisted-event catalog)
-//   packages/typescript/core/src/bus-operations.ts      (BUS_OPERATIONS, REPLY_NAMES from each reply's component schema, and RESULT_PAYLOADS)
+//   packages/typescript/core/src/bus-operations.ts      (BUS_OPERATIONS, and REPLY_NAMES from each reply's component schema)
 //   packages/typescript/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
 //   packages/rust/core/src/bus-classification.json (the same attributes, for the Rust services)
 //
@@ -153,6 +153,24 @@ const stampLines = reg.channelOrder.eventMap.map((ch) => {
   return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `[${declared.map((name) => `'${name}'`).join(', ')}],`;
 });
 
+/** The component schema a channel's payload is, or its `response` is, DERIVED from its shape as `payloadType` derives its type. */
+function payloadSchema(c) {
+  switch (c.shape) {
+    case 'schema':
+      return `{ payload: '${c.schema}' }`;
+    case 'envelope':
+      return `{ response: '${c.schema}' }`;
+    case 'storedEvent':
+      return `{ payload: '${c.enriched === true ? 'EnrichedResourceEvent' : 'StoredEventResponse'}' }`;
+    case 'void':
+    case 'empty':
+      return '{}';
+    default:
+      throw new Error(`registry: "${c.channel}" has no payload schema for shape ${JSON.stringify(c.shape)}`);
+  }
+}
+const payloadLines = reg.channelOrder.eventMap.map((ch) => pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `${payloadSchema(channelOr(ch, 'eventMap'))},`);
+
 // The sections between the two maps are TEMPLATE (derived types and the
 // `satisfies` tails the generator owns) plus DATA and PROSE from the registry
 // — never an opaque frozen blob, which would leave the generated file with
@@ -198,7 +216,17 @@ const protocol =
   ' */\n' +
   'export const CHANNEL_STAMPS = {\n' +
   stampLines.join('\n') +
-  '\n} as const satisfies Record<EventName, readonly string[]>;\n';
+  '\n} as const satisfies Record<EventName, readonly string[]>;\n\n' +
+  '/**\n' +
+  " * What each channel's payload is, as a reader holds it: the component schema\n" +
+  ' * it is (`payload`), a `{ response }` whose response is one (`response`), or\n' +
+  ' * nothing a schema states (`{}`). A stored event is its stored form; what it\n' +
+  " * records is the channel's own. A payload read off the wire that lacks a\n" +
+  ' * member its schema requires is not its channel\'s.\n' +
+  ' */\n' +
+  'export const CHANNEL_PAYLOADS = {\n' +
+  payloadLines.join('\n') +
+  "\n} as const satisfies Record<EventName, { readonly payload: keyof components['schemas'] } | { readonly response: keyof components['schemas'] } | Record<string, never>>;\n";
 
 // ── persisted-events.ts ────────────────────────────────────────────────
 // The catalog is the registry's stored-event channels, in their order: the
@@ -280,24 +308,6 @@ const replyNameLines = reg.operations.map(
   (o) => pad(`  '${o.request}':`, VALUE_COL_OPS) + `[${namedBy.get(o.request).map((name) => `'${name}'`).join(', ')}],`,
 );
 
-// What each operation's result carries, READ from the shape the registry
-// gives its result channel: the payload a schema is, a `{ response }` whose
-// response is one, or nothing a schema states.
-function resultPayload(o) {
-  const c = channelOr(o.result, 'operations');
-  switch (c.shape) {
-    case 'schema':
-      return `{ payload: '${c.schema}' }`;
-    case 'envelope':
-      return `{ response: '${c.schema}' }`;
-    case 'empty':
-      return '{}';
-    default:
-      throw new Error(`registry: the result of "${o.request}", "${o.result}", has no payload a request reads for shape ${JSON.stringify(c.shape)}`);
-  }
-}
-const resultPayloadLines = reg.operations.map((o) => pad(`  '${o.request}':`, VALUE_COL_OPS) + `${resultPayload(o)},`);
-
 const operations =
   BANNER +
   reg.preamble.operationsHeader +
@@ -326,20 +336,6 @@ export const REPLY_NAMES = {
 } as const satisfies {
   readonly [Op in BusOperationKey]: readonly (keyof EventMap[Op] &
     keyof EventMap[(typeof BUS_OPERATIONS)[Op]['result'] & EventName])[];
-};
-
-/**
- * RESULT_PAYLOADS — what each operation's result carries: the payload of a
- * component schema (\`payload\`), a \`{ response }\` whose response is one
- * (\`response\`), or nothing a schema states (\`{}\`). \`Bus.request\` holds
- * every result it reads to what the schema requires.
- */
-export const RESULT_PAYLOADS = {
-` +
-  resultPayloadLines.join('\n') +
-  `
-} as const satisfies {
-  readonly [Op in BusOperationKey]: { readonly payload: string } | { readonly response: string } | Record<string, never>;
 };
 `;
 

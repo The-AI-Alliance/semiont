@@ -410,6 +410,12 @@ this emit, never provenance.
   payload schema does not declare is the bus's, not the payload's, and is
   left out. A transport's own frames are the wire's, and keep every stamp.
   *Held by `sdk/live/job-failed`, `sdk/live/generation-retried`, `sdk/live/job-created`, `sdk/wire/chunked-stream`.*
+- A payload that lacks a member its channel's schema requires is not its
+  channel's, wherever the member is missing: a typed read does not deliver
+  it, and says so in the words a request's refusal does. Rust and Go give it
+  as the stream's error and go on; TypeScript, Python and Kotlin, whose
+  streams cannot, drop it with a warning.
+  *Held by `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/go/sdk/internal/required/required_test.go`.*
 
 ## Content and the gateway's own operations
 
