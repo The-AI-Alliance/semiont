@@ -812,7 +812,7 @@ func (b *SemiontBrowser) activate(id string) {
 		return
 	}
 	b.spawn(func() error {
-		route(b.alive, session, signals)
+		b.route(session, signals)
 		return nil
 	})
 	_ = session.Ready(b.alive)
@@ -837,7 +837,7 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 // valid token renews the session: it heals quietly, or the session ends itself
 // and says so once. A refusal for lack of permission has no remedy, and is
 // said. It ends when the transport closes.
-func route(alive context.Context, session *semiont.Session, signals *semiont.SessionSignals) {
+func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
 	for failure := range session.Errors() {
 		switch failure.Code {
 		case semiont.TransportErrorCodeUnauthorized:
@@ -845,7 +845,10 @@ func route(alive context.Context, session *semiont.Session, signals *semiont.Ses
 			// session holds them while it renews. A failure does not say which
 			// token was refused: the one the session holds as it is read is.
 			refused := session.Token().Value()
-			go session.Refresh(alive, refused)
+			b.spawn(func() error {
+				session.Refresh(b.alive, refused)
+				return nil
+			})
 		case semiont.TransportErrorCodeForbidden:
 			detail := failure.Message
 			signals.NotifyPermissionDenied(&detail)

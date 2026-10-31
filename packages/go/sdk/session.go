@@ -346,12 +346,17 @@ func (s *Session) signedOut(told SessionEndReason, err *SessionError) {
 	s.config.Token.Set("")
 	s.user.Set(nil)
 	if forgotten := s.config.Kept.Forget(s.alive); forgotten != nil {
-		err = &SessionError{Code: err.Code, Message: err.Message + "; and the sign-in could not be forgotten: " + forgotten.Error(), KbID: s.config.Kb.Id}
+		err = notForgotten(err, forgotten)
 	}
 	if s.config.OnAuthFailed != nil {
 		s.config.OnAuthFailed(told)
 	}
 	s.failed(err)
+}
+
+// notForgotten is err, saying too why the sign-in could not be forgotten.
+func notForgotten(err *SessionError, forgotten error) *SessionError {
+	return &SessionError{Code: err.Code, Message: err.Message + "; and the sign-in could not be forgotten: " + forgotten.Error(), KbID: err.KbID}
 }
 
 func (s *Session) failed(err *SessionError) {
@@ -376,12 +381,14 @@ func (s *Session) start(kept HeldSignIn, has, withheld bool) {
 	justIssued := IsTokenExpired(kept.Access, time.Now())
 	token := kept.Access
 	if justIssued {
-		renewed, _ := s.tryRefresh(token)
+		renewed, failure := s.tryRefresh(token)
 		if renewed == "" {
 			// There was no session to end: the sign-in is forgotten, and
-			// nothing is said.
+			// nothing is said unless it could not be.
 			if !s.closing() {
-				_ = s.config.Kept.Forget(s.alive)
+				if forgotten := s.config.Kept.Forget(s.alive); forgotten != nil {
+					s.failed(notForgotten(&SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id}, forgotten))
+				}
 			}
 			return
 		}
