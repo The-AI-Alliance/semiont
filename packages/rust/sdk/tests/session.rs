@@ -76,6 +76,15 @@ fn alice() -> UserResponse {
     .expect("a user")
 }
 
+/// Who the gateway says a token is when it accepts the `n`th ask of a case:
+/// told apart from every other answer.
+fn answering(n: usize) -> UserResponse {
+    UserResponse {
+        name: Some(format!("Alice {n}")),
+        ..alice()
+    }
+}
+
 fn unauthorized() -> SemiontError {
     TransportError::of_status("HTTP 401", 401, None).into()
 }
@@ -111,6 +120,8 @@ struct World {
     /// What the gateway says of a token, in order; Alice once it is spent.
     validations: Arc<Mutex<VecDeque<Validation>>>,
     validated: Arc<Mutex<Vec<String>>>,
+    /// Who the gateway last said a token is.
+    answered: Arc<Mutex<Option<UserResponse>>>,
     auth_failed: Arc<Mutex<Vec<String>>>,
     errors: Arc<Mutex<Vec<SessionError>>>,
 }
@@ -132,6 +143,7 @@ impl World {
             renewed: Arc::default(),
             validations: Arc::default(),
             validated: Arc::default(),
+            answered: Arc::default(),
             auth_failed: Arc::default(),
             errors: Arc::default(),
         }
@@ -158,6 +170,7 @@ impl World {
     fn config(&self) -> SemiontSessionConfig {
         let (renewals, renewed) = (self.renewals.clone(), self.renewed.clone());
         let (validations, validated) = (self.validations.clone(), self.validated.clone());
+        let answered = self.answered.clone();
         let (auth_failed, errors) = (self.auth_failed.clone(), self.errors.clone());
         SemiontSessionConfig {
             kb: KbTarget::http(KB, "Alpha", "localhost", 4000, HttpEndpointProtocol::Http),
@@ -184,6 +197,9 @@ impl World {
                     .expect("validations")
                     .pop_front()
                     .unwrap_or_else(|| Ok(alice()));
+                if let Ok(user) = &answer {
+                    *answered.lock().expect("answered") = Some(user.clone());
+                }
                 Box::pin(async move { answer })
             })),
             on_auth_failed: Some(Arc::new(move |reason: SessionEndReason| {
@@ -208,6 +224,10 @@ impl World {
 
     fn validated(&self) -> Vec<String> {
         self.validated.lock().expect("validated").clone()
+    }
+
+    fn answered(&self) -> Option<UserResponse> {
+        self.answered.lock().expect("answered").clone()
     }
 
     fn auth_failed(&self) -> Vec<String> {
@@ -503,7 +523,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
         // gateway, an answer that is no refusal; of the issuer, none.
         let validations = (0..asks)
             .map(|n| match answer(&case["gateway"], n).as_str() {
-                "accepts" => Ok(alice()),
+                "accepts" => Ok(answering(n)),
                 "refuses" => Err(unauthorized()),
                 "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
                 other => panic!("{why}: the gateway {other}"),
@@ -546,6 +566,13 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             (true, true) => "signed-in",
         };
         assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
+        if ends == "signed-in" {
+            assert_eq!(
+                *session.user().borrow(),
+                world.answered(),
+                "{why}: who the gateway last said the token is"
+            );
+        }
         let told: Vec<String> = case["told"]
             .as_str()
             .map(str::to_owned)
@@ -605,7 +632,7 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         let validations = std::iter::once(Ok(alice()))
             .chain(
                 (0..asks).map(|n| match answer(&case["gateway"], n).as_str() {
-                    "accepts" => Ok(alice()),
+                    "accepts" => Ok(answering(n)),
                     "refuses" => Err(unauthorized()),
                     "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
                     other => panic!("{why}: the gateway {other}"),
@@ -662,6 +689,13 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             (true, true) => "signed-in",
         };
         assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
+        if ends == "signed-in" {
+            assert_eq!(
+                *session.user().borrow(),
+                world.answered(),
+                "{why}: who the gateway last said the token is"
+            );
+        }
         let told: Vec<String> = case["told"]
             .as_str()
             .map(str::to_owned)

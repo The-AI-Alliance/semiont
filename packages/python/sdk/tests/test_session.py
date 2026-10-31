@@ -62,6 +62,8 @@ class World:
         self.validations = deque(validations)
         """What the gateway says of a token, in order; Alice once it is spent."""
         self.validated: list[str] = []
+        self.answered: UserResponse | None = None
+        """Who the gateway last said a token is."""
         self.told: list[SessionEndReason] = []
         self.errors: list[SessionError] = []
 
@@ -77,6 +79,7 @@ class World:
         answer = self.validations.popleft() if self.validations else alice()
         if isinstance(answer, SemiontError):
             raise answer
+        self.answered = answer
         return answer
 
     def session(self, *, refresh: Refresh | None, validate: Validate | None) -> SemiontSession[FaultyTransport]:
@@ -118,10 +121,15 @@ def answer(row: JsonObject, who: str, n: int) -> str:
     return script[min(n, len(script) - 1)]
 
 
+def answering(n: int) -> UserResponse:
+    """Who the gateway says a token is when it accepts it the `n`th time a row asks: told apart from every other answer."""
+    return alice().model_copy(update={"name": f"Alice {n}"})
+
+
 def gateway_says(row: JsonObject, n: int) -> Validation:
     match answer(row, "gateway", n):
         case "accepts":
-            return alice()
+            return answering(n)
         case "refuses":
             return unauthorized()
         case "unreachable":
@@ -168,6 +176,8 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
     asks, renewals = count(row, "asks"), count(row, "renewals")
     assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "how often the gateway and the issuer were asked"
     assert ends(session) == row["ends"]
+    if row["ends"] == "signed-in":
+        assert session.user.value == world.answered, "who the gateway last said the token is"
     assert world.told == ([] if row["told"] is None else [row["told"]]), "why the session ended"
     assert [error.code for error in world.errors] == ([] if row["error"] is None else [row["error"]]), "the error reported"
     assert await world.is_kept() == row["kept"], "whether a sign-in is still kept"

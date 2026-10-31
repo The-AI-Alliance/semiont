@@ -110,6 +110,9 @@ describe('session — the SDK agrees with the shared table', () => {
   /** The `n`th answer of a script whose last answer repeats. */
   const answer = <T>(script: T[], n: number): T => script[Math.min(n, script.length - 1)]!;
 
+  /** Who the gateway says a token is when it accepts the `n`th ask of a case: told apart from every other answer. */
+  const answering = (n: number): UserInfo => ({ ...ALICE, name: `Alice ${n}` });
+
   /** What a renewal the issuer does not make throws: its refusal, with its status, or no answer, with none. */
   const notRenewed = (said: 'refuses' | 'unreachable'): SignInError =>
     said === 'refuses'
@@ -136,6 +139,7 @@ describe('session — the SDK agrees with the shared table', () => {
 
     let asks = 0;
     let renewals = 0;
+    let answered: UserInfo | null = null;
     const told: SessionEndReason[] = [];
     const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
@@ -151,7 +155,8 @@ describe('session — the SDK agrees with the shared table', () => {
         if (asks > c.asks) throw new Error(`the gateway was asked ${asks} times`);
         switch (answer(c.gateway, asks - 1)) {
           case 'accepts':
-            return ALICE;
+            answered = answering(asks - 1);
+            return answered;
           case 'refuses':
             throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
           case 'unreachable':
@@ -173,6 +178,7 @@ describe('session — the SDK agrees with the shared table', () => {
     expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     const [token, user] = [token$.getValue(), session.user$.getValue()];
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
+    if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
@@ -201,6 +207,7 @@ describe('session — the SDK agrees with the shared table', () => {
     let started = false;
     let asks = 0;
     let renewals = 0;
+    let answered: UserInfo = ALICE;
     const told: SessionEndReason[] = [];
     const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
@@ -216,7 +223,8 @@ describe('session — the SDK agrees with the shared table', () => {
         if (asks > c.asks) throw new Error(`the gateway was asked ${asks} times`);
         switch (answer(c.gateway, asks - 1)) {
           case 'accepts':
-            return ALICE;
+            answered = answering(asks - 1);
+            return answered;
           case 'refuses':
             throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
           case 'unreachable':
@@ -247,6 +255,7 @@ describe('session — the SDK agrees with the shared table', () => {
     if (c.given) expect(given).toBe(token$.getValue());
     const [token, user] = [token$.getValue(), session.user$.getValue()];
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
+    if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);

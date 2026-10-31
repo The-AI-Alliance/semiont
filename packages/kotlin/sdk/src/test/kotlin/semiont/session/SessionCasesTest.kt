@@ -57,7 +57,7 @@ class SessionCasesTest {
     }
 
     private fun gatewaySays(row: JsonObject, n: Int): Any = when (val said = answer(row, "gateway", n)) {
-        "accepts" -> alice
+        "accepts" -> alice.copy(name = "Alice $n")
         "refuses" -> unauthorized()
         "unreachable" -> TransportError.ofStatus("HTTP 503", 503, null)
         else -> error("the gateway $said")
@@ -87,6 +87,7 @@ class SessionCasesTest {
         val renewals = count(row, "renewals")
         assertEquals(asks to renewals, (world.validated.size - askedBefore) to world.renewed, "how often the gateway and the issuer were asked")
         assertEquals(row.getValue("ends").jsonPrimitive.content, ends(session))
+        if (ends(session) == "signed-in") assertEquals(world.answered, session.user.value, "who the gateway last said the token is")
         assertEquals(listOfNotNull(row.getValue("told").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.told.map { it.wire }, "why the session ended")
         assertEquals(listOfNotNull(row.getValue("error").takeUnless { it is JsonNull }?.jsonPrimitive?.content), world.errors.map { it.code }, "the error reported")
         assertEquals(row.getValue("kept").jsonPrimitive.content.toBooleanStrict(), world.kept.held() != null, "whether a sign-in is still kept")

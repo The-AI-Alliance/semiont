@@ -408,8 +408,9 @@ class SemiontSession[T: Transport](StateUnit):
         transport asks this when the gateway refuses it.
 
         One refusal is answered at a time, so however many requests were
-        refused at once, they cost one renewal and one ask. A gateway that
-        cannot be asked refuses nothing: the renewed token is given.
+        refused at once, they cost one renewal and one ask, and who the gateway
+        says the renewed token is, is who is signed in. A gateway that cannot
+        be asked refuses nothing: the renewed token is given.
         """
         refused_with = self._token.value
         async with self._answering:
@@ -426,7 +427,7 @@ class SemiontSession[T: Transport](StateUnit):
             if not self._ready.is_set():
                 return renewed
             try:
-                await self._validate(renewed)
+                user = await self._validate(renewed)
             except SemiontError as refusal:
                 # A gateway that could not be asked refused nothing. And only a
                 # token the session still holds ends it: one replaced while the
@@ -437,6 +438,10 @@ class SemiontSession[T: Transport](StateUnit):
                     await self._signed_out(
                         "refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id)
                     )
+            else:
+                # Who the token the session still holds is, as the gateway said.
+                if not self._closing.is_set() and self._token.value == renewed:
+                    self._user.set(user)
             return None if self._closing.is_set() else self._token.value
 
     async def _try_refresh(self) -> tuple[str | None, SignInError | None]:

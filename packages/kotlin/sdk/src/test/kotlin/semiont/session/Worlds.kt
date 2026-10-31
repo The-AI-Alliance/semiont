@@ -65,6 +65,9 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
     var renewed = 0
     private val validationsLeft = ArrayDeque(validations)
     val validated = mutableListOf<String>()
+
+    /** Who the gateway last said a token is. */
+    var answered: UserResponse? = null
     val told = mutableListOf<SessionEndReason>()
     val errors = mutableListOf<SessionError>()
 
@@ -80,7 +83,7 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
         validated += asked
         return when (val answer = validationsLeft.removeFirstOrNull() ?: alice) {
             is SemiontError -> throw answer
-            else -> answer as UserResponse
+            else -> (answer as UserResponse).also { answered = it }
         }
     }
 

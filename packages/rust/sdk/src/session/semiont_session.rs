@@ -411,9 +411,10 @@ impl Shared {
     /// just issued and the gateway refuses is final, and the session ends as
     /// `CredentialRefused`. So one refusal costs at most one renewal and one
     /// ask, and a gateway that refuses whatever its issuer issues is not
-    /// asked again for every request that follows. A gateway that cannot be
-    /// asked refuses nothing: the renewed token is given. A session of a
-    /// service, which has nobody to ask about, only renews.
+    /// asked again for every request that follows. Who the gateway says the
+    /// renewed token is, is who is signed in. A gateway that cannot be asked
+    /// refuses nothing: the renewed token is given. A session of a service,
+    /// which has nobody to ask about, only renews.
     ///
     /// One refusal is answered at a time, so however many requests were
     /// refused at once, they cost one renewal and one ask.
@@ -440,18 +441,23 @@ impl Shared {
         if self.closed() {
             return None;
         }
-        if let Err(SemiontError::Transport(refusal)) = &answer
-            && refusal.code == TransportErrorCode::Unauthorized
-            // Only a token the session still holds ends it: one replaced
-            // while the gateway was being asked (another context signed in,
-            // or renewed) is no longer the session's to be refused.
-            && self.token.now().as_deref() == Some(renewed.as_str())
-        {
-            self.signed_out(
-                SessionEndReason::Refused,
-                SessionErrorCode::CredentialRefused,
-                "The gateway refused a token its issuer had just issued".to_owned(),
-            );
+        // Only a token the session still holds is its to be refused, or to say
+        // who it is: one replaced while the gateway was being asked (another
+        // context signed in, or renewed) is not.
+        if self.token.now().as_deref() == Some(renewed.as_str()) {
+            match answer {
+                Ok(user) => self.user.set(Some(user)),
+                Err(SemiontError::Transport(refusal))
+                    if refusal.code == TransportErrorCode::Unauthorized =>
+                {
+                    self.signed_out(
+                        SessionEndReason::Refused,
+                        SessionErrorCode::CredentialRefused,
+                        "The gateway refused a token its issuer had just issued".to_owned(),
+                    );
+                }
+                Err(_) => {}
+            }
         }
         self.token.now()
     }

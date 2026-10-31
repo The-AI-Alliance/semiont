@@ -71,6 +71,15 @@ func alice() api.UserResponse {
 	return api.UserResponse{Email: &email, Name: &name, Domain: "example.org"}
 }
 
+// answerTo is who the gateway says a token is when it accepts the nth ask:
+// told apart from every other answer.
+func answerTo(n int) api.UserResponse {
+	user := alice()
+	name := fmt.Sprintf("Alice %d", n)
+	user.Name = &name
+	return user
+}
+
 // renewal is what refresh answers: a token, or why there is none.
 type renewal struct {
 	token string
@@ -113,6 +122,8 @@ type world struct {
 	takes       time.Duration
 	validations []error // what the gateway says of a token, in order: nil accepts
 	validated   []string
+	// answered is who the gateway last said a token is.
+	answered *api.UserResponse
 	// holding is the token the session held as each ask was made.
 	holding []string
 	told    []semiont.SessionEndReason
@@ -147,15 +158,16 @@ func (w *world) validate(_ context.Context, token string) (api.UserResponse, err
 	defer w.mu.Unlock()
 	w.validated = append(w.validated, token)
 	w.holding = append(w.holding, w.token.Value())
-	if len(w.validations) == 0 {
-		return alice(), nil
+	if len(w.validations) != 0 {
+		answer := w.validations[0]
+		w.validations = w.validations[1:]
+		if answer != nil {
+			return api.UserResponse{}, answer
+		}
 	}
-	answer := w.validations[0]
-	w.validations = w.validations[1:]
-	if answer != nil {
-		return api.UserResponse{}, answer
-	}
-	return alice(), nil
+	user := answerTo(len(w.validated))
+	w.answered = &user
+	return user, nil
 }
 
 func (w *world) start(t *testing.T) *semiont.Session {
@@ -246,6 +258,9 @@ func isAsStated(t *testing.T, row sessionRow, w *world, session *semiont.Session
 	}
 	if got := ends(session, w); got != row.Ends {
 		t.Errorf("%s: ended %s, want %s", row.Why, got, row.Ends)
+	}
+	if user := session.User().Value(); row.Ends == "signed-in" && (user == nil || w.answered == nil || *user.Name != *w.answered.Name) {
+		t.Errorf("%s: signed in as someone the gateway did not last say the token is", row.Why)
 	}
 	w.mu.Lock()
 	told := slices.Clone(w.told)

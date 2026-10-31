@@ -143,7 +143,8 @@ public class SemiontSession internal constructor(
      * who the new one is. Returns the token the session then holds, or null:
      * it holds no token, and if the issuer refused to renew a kept sign-in it is over. One refusal
      * is answered at a time, so refusals that arrive together cost one renewal
-     * and one ask. A gateway that cannot be asked refuses nothing: the renewed
+     * and one ask, and who the gateway says the renewed token is, is who is
+     * signed in. A gateway that cannot be asked refuses nothing: the renewed
      * token is given.
      */
     public suspend fun refresh(): String? = refreshOf(tokens.value)
@@ -162,7 +163,9 @@ public class SemiontSession internal constructor(
             // While the session is starting, its start is what asks: it takes the renewed token up as the just-issued one.
             if (!readied.isCompleted) return@withLock renewed
             try {
-                validate.invoke(renewed)
+                val user = validate.invoke(renewed)
+                // Who the token the session still holds is, as the gateway said.
+                if (!closing && tokens.value == renewed) users.set(user)
             } catch (refusal: SemiontError) {
                 // Only a token the session still holds ends it: one replaced meanwhile is no longer the session's to be refused.
                 val refused = refusal is TransportError && refusal.reason == TransportErrorCode.Unauthorized

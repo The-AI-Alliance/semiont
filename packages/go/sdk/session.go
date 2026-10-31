@@ -273,8 +273,9 @@ func (s *Session) Close() {
 // holds was answered
 // already, renewed or ended: what the session holds is given, and nothing is
 // renewed or asked. So however many requests were refused one token, at once
-// or one after another, they cost one renewal and one ask. A refusal met while
-// the session is starting waits for the start, which answers it. A gateway
+// or one after another, they cost one renewal and one ask, and who the gateway
+// says the renewed token is, is who is signed in. A refusal met while the
+// session is starting waits for the start, which answers it. A gateway
 // that cannot be asked refuses nothing: the renewed token is given.
 //
 // The wait and the renewal run under the session's own lifetime, not ctx: a
@@ -290,14 +291,18 @@ func (s *Session) Refresh(_ context.Context, refused string) (string, bool) {
 	if !ok || s.config.Validate == nil {
 		return renewed, ok
 	}
-	if _, err := s.config.Validate(s.alive, renewed); err != nil {
-		// A gateway that could not be asked refused nothing. And only a token
-		// the session still holds ends it: one replaced while the gateway was
-		// being asked is no longer the session's to be refused.
+	user, err := s.config.Validate(s.alive, renewed)
+	// Only a token the session still holds is its to be refused, or to say
+	// who it is: one replaced while the gateway was being asked is not.
+	held := !s.closing() && s.config.Token.Value() == renewed
+	if err != nil {
+		// A gateway that could not be asked refused nothing.
 		var refused *TransportError
-		if errors.As(err, &refused) && refused.Code == TransportErrorCodeUnauthorized && !s.closing() && s.config.Token.Value() == renewed {
+		if errors.As(err, &refused) && refused.Code == TransportErrorCodeUnauthorized && held {
 			s.signedOut(SessionEndRefused, &SessionError{Code: SessionErrorCodeCredentialRefused, Message: justIssuedAndRefused, KbID: s.config.Kb.Id})
 		}
+	} else if held {
+		s.user.Set(&user)
 	}
 	if s.closing() {
 		return "", false

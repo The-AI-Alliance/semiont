@@ -389,7 +389,8 @@ export class SemiontSession implements StateUnit {
    * renews.
    *
    * Refusals that arrive together are answered together: one renewal and
-   * one ask, however many requests were refused at once.
+   * one ask, however many requests were refused at once. Who the gateway
+   * says the renewed token is, is who is signed in.
    */
   refresh(): Promise<AccessToken | null> {
     this.refusal ??= this.renewForRefusal().finally(() => {
@@ -406,7 +407,9 @@ export class SemiontSession implements StateUnit {
     // too would be a second ask about one renewal.
     if (!renewed || !validate || this.starting) return renewed;
     try {
-      await validate(renewed);
+      const user = await validate(renewed);
+      // Who the token the session still holds is, as the gateway said.
+      if (!this.disposed && this.#heldToken$.getValue() === renewed) this.#heldUser$.next(user);
     } catch (err) {
       if (this.disposed) return null;
       const refused = err instanceof APIError && err.code === 'unauthorized';
