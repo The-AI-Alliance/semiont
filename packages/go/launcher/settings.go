@@ -80,11 +80,12 @@ var settingsTable = []setting{
 }
 
 // registryBookkeeping: what roots.json keeps that is not a preference — the
-// registry's own record of the knowledge bases this machine has used.
+// registry's own record of the knowledge bases this machine has used, and the
+// port block the launcher gave each.
 var registryBookkeeping = map[string]bool{
 	"rootsRegistry.Schema": true, "rootsRegistry.Roots": true,
 	"rootEntry.Path": true, "rootEntry.Did": true, "rootEntry.SiteName": true,
-	"rootEntry.LastUsed": true, "rootEntry.LastStarted": true,
+	"rootEntry.LastUsed": true, "rootEntry.LastStarted": true, "rootEntry.PortBlock": true,
 }
 
 const settingsUsage = `Usage: semiont settings [<name> [<value> | --unset]] [--root <path|name>]
@@ -301,8 +302,8 @@ func showKeycloakPort(u *UI, kb kbRoot) []settingLine {
 		return []settingLine{{os.Getenv("KEYCLOAK_PORT"), "KEYCLOAK_PORT in the environment is not a port"}}
 	case fromEnv:
 		return []settingLine{{strconv.Itoa(port), "KEYCLOAK_PORT in the environment, which wins over what is recorded"}}
-	case source == "default":
-		return []settingLine{{strconv.Itoa(port), "Keycloak's default"}}
+	case source != keycloakPortRecorded:
+		return []settingLine{{strconv.Itoa(port), "Keycloak's default, on this knowledge base's " + source}}
 	}
 	return []settingLine{{strconv.Itoa(port), "recorded by a start with KEYCLOAK_PORT, or semiont settings"}}
 }
@@ -398,7 +399,7 @@ func loadRootStack(u *UI, root, name string) (*stack.Stack, bool) {
 	}
 	st, err := stack.Load(root, name)
 	if err == nil {
-		_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort)
+		_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort, 0)
 	}
 	if err != nil {
 		u.Fail("%v", err)

@@ -115,7 +115,7 @@ func TestWeaverDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("weaver").mem, []string{"--env", "NEO4J_PASSWORD"}, nil), " ")
+	args := strings.Join(weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("weaver").ports[0].port, "client-secret", "v", semiontDescriptor("weaver").mem, []string{"--env", "NEO4J_PASSWORD"}, nil), " ")
 	if want := "/stage/" + weaverDocumentFile + ":" + weaverDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Weaver's document is not mounted onto %s:\n%s", weaverDocumentTarget, args)
 	}

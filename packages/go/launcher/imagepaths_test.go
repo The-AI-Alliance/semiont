@@ -101,11 +101,11 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	// the property expressed in the signatures themselves.
 	fleet := map[string][]string{
 		"gateway":   gatewayArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "secret", "jwt", "v", semiontDescriptor("gateway").mem, 4000, nil, nil),
-		"archivist": archivistArgs(kbRoot, "/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
-		"librarian": librarianArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
+		"archivist": archivistArgs(kbRoot, "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("archivist").ports[0].port, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
+		"librarian": librarianArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
 		"worker":    workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":   smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
-		"weaver":    weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
+		"smelter":   smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
+		"weaver":    weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("weaver").ports[0].port, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
 	}
 
 	var mounters []string
@@ -201,11 +201,11 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 		t.Errorf("the gateway's document is not mounted onto %s:\n%s", gatewayDocumentTarget, args)
 	}
 	for name, args := range map[string][]string{
-		"archivist": archivistArgs("/kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
+		"archivist": archivistArgs("/kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("archivist").ports[0].port, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
 		"worker":    workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":   smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
-		"weaver":    weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
-		"librarian": librarianArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
+		"smelter":   smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
+		"weaver":    weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("weaver").ports[0].port, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
+		"librarian": librarianArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
 	} {
 		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
 			t.Errorf("%s mounts the gateway's document path", name)

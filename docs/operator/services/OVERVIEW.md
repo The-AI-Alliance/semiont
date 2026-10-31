@@ -57,6 +57,8 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
 | `metrics` | Prometheus | 9090 | Scrapes the collector |
 
+The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are the machine's, at their own ports.
+
 `embedding` never has a container of its own: an Ollama embedding is served by the Ollama that `inference` runs, and Voyage is a remote API. `semiont start --no-observe` leaves out `traces` and `metrics`; the collector still runs.
 
 None of these is fixed. Each role sits behind a driver interface, so a stack can use a daemon you already run, or a different technology: see [Adapting a stack](../administration/DEPLOYMENT.md#adapting-a-stack).

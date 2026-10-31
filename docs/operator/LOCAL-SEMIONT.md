@@ -71,12 +71,20 @@ A local stack publishes these for you to open:
 | Port | What |
 |---|---|
 | 3000 | The Browser, as its document names it ([The Browser](#the-browser)) |
-| 4000 | The gateway: the knowledge base's address |
+| 4000 | The gateway: the knowledge base's address, as its `knowledge-base.yaml` commits it |
 | 8080 | Keycloak, where people sign in |
 | 7474, 7687 | Neo4j's console and its bolt port |
 | 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)), the machine's: one each serves every knowledge base here |
 
 The services' own ports and the infrastructure's are in [the service catalog](services/OVERVIEW.md). `semiont start` checks that every port it needs is free before it starts anything.
+
+Each knowledge base on this Mac has a port block of its own. Its first start takes the lowest block no other knowledge base keeps, and it keeps that block until `semiont forget` drops it. Block 0 is the ports above and in the catalog. Block 1 places each of them 10 higher, block 2 20 higher, and so on: on block 1, Keycloak is at 8090, Neo4j at 7484 and 7697, PostgreSQL at 5442, NATS at 4232, Qdrant at 6343, and the services behind the gateway at 24111–24115. Each container still listens on its own port inside; only where it is published moves. Three ports are not in the block:
+
+- **The gateway's** is the one the knowledge base commits. `semiont init` writes one no other knowledge base this Mac knows commits: 4000, else 4010, 4020, and so on.
+- **Keycloak's** is the one `semiont settings keycloak-port` sets, if it has been set, and otherwise 8080 on the block.
+- **The machine's** containers keep their own ports whichever knowledge base runs: the Browser, the telemetry, Ollama and the worker.
+
+Each start says where it publishes each service as it comes up.
 
 Where each port listens depends on the container runtime:
 

@@ -109,11 +109,11 @@ func TestNoAddressTravelsInAnEnvironment(t *testing.T) {
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
 		"worker":     workerArgs("/state/machine/worker.json", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":    smelterArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
-		"weaver":     weaverArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
-		"archivist":  archivistArgs("/kb", "/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
-		"librarian":  librarianArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
-		"dispatcher": dispatcherArgs("/stage", exposure{rt: "docker", addr: addr}, "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
+		"smelter":    smelterArgs("/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("smelter").ports[0].port, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
+		"weaver":     weaverArgs("/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("weaver").ports[0].port, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
+		"archivist":  archivistArgs("/kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("archivist").ports[0].port, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
+		"librarian":  librarianArgs("/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("librarian").ports[0].port, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
+		"dispatcher": dispatcherArgs("/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("dispatcher").ports[0].port, "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
 	}
 	handed := map[string]bool{}
 	for svc, args := range builders {
@@ -146,9 +146,9 @@ func TestAGeneratedStackLeavesEveryAddressToTheLauncher(t *testing.T) {
 		params genParams
 		places []string
 	}{
-		{genParams{Inference: "ollama", Model: "gemma4:26b", EmbeddingModel: "nomic-embed-text"},
+		{genParams{Inference: "ollama", Model: "gemma4:26b", EmbeddingModel: "nomic-embed-text", GatewayPort: 4000},
 			[]string{"graph", "vectors", "database", "messaging", "identity", "embedding", "inference"}},
-		{genParams{Inference: "anthropic", Model: "claude-sonnet-4-5-20250929", EmbeddingModel: "nomic-embed-text", AnthropicEndpoint: "https://api.anthropic.com"},
+		{genParams{Inference: "anthropic", Model: "claude-sonnet-4-5-20250929", EmbeddingModel: "nomic-embed-text", AnthropicEndpoint: "https://api.anthropic.com", GatewayPort: 4000},
 			[]string{"graph", "vectors", "database", "messaging", "identity", "embedding"}},
 	} {
 		inference := c.params.Inference

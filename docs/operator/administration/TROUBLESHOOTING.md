@@ -134,7 +134,7 @@ Semiont keeps no schema of its own here — this PostgreSQL is Keycloak's. See t
 
 ### Port already in use
 
-`semiont start` checks the ports every role needs before it starts anything, and refuses rather than half-starting. The ports are in [the service catalog](../services/OVERVIEW.md). To see what holds one:
+`semiont start` checks the ports every role needs before it starts anything, and refuses rather than half-starting. The ports are in [the service catalog](../services/OVERVIEW.md), on the knowledge base's port block: 10 higher for each block after the first ([Ports](../LOCAL-SEMIONT.md#ports)). To see what holds one:
 
 ```bash
 lsof -i :4000
@@ -158,8 +158,8 @@ Neither is optional at start: the Weaver and the Librarian each connect to the g
 
 ```bash
 semiont logs --service graph
-curl -s http://localhost:7474
-curl -s http://192.168.64.1:6333/readyz        # Under Docker or Podman: localhost
+curl -s http://localhost:7474                  # On port block 1: 7484
+curl -s http://192.168.64.1:6333/readyz        # On port block 1: 6343. Under Docker or Podman: localhost
 ```
 
 ### Inference failures

@@ -91,7 +91,7 @@ func TestADryRunWritesNoWorkerDocument(t *testing.T) {
 // in the worker's configuration document, its log level.
 func TestAPlanRunsTheWorkerAsItsDocumentSays(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	plan, err := derivePlan(st, 8080)
+	plan, err := derivePlan(st, 8080, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
