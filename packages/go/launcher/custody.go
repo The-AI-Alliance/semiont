@@ -166,17 +166,12 @@ const (
 // $JWT_SECRET, else the persisted per-root secret, else a freshly generated one
 // that is persisted before use.
 //
-// Per-ROOT, and PERSISTED — the two properties that matter. The secret signs
-// tokens for users who live in this root's postgres store, so it shares their
-// lifecycle (a full `semiont clean` removes the state dir and takes this with
-// it, which is correct: the users went too). And a fresh secret per start
-// silently invalidates every token already issued, surfacing as `Invalid
-// token signature` and jobs that hang in Yielding forever rather than as an
-// error anyone can read.
-//
-// Tokens outlive the stack, which is why this one is persisted — and why the
-// per-service issuer credentials are too, since the realm that honours them
-// is written once, on first boot.
+// Per-ROOT, and PERSISTED. The secret signs this root's gateway's media
+// tokens, and nothing else: people's and agents' tokens are the issuer's. A
+// media token names its knowledge base, so a root's tokens open nothing of
+// another's even under an exported $JWT_SECRET they share. Persisted so a
+// restart leaves the media links in hand working; a full `semiont clean`
+// removes the state dir and takes it with it.
 func loadOrCreateJWTSecret(u *UI, key string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		// The gateway reads this as an ordered RING: the first value signs,
@@ -275,7 +270,8 @@ func serviceClientSecretEnv(svc string) string {
 // sidecar's Keycloak service account, generating and persisting one on first
 // use. The same value reaches two places — the realm document Keycloak imports
 // and the container that has to present it — so both read it from here rather
-// than passing it between them.
+// than passing it between them. Persisted because the realm that honours it is
+// written once, on Keycloak's first boot.
 func loadOrCreateServiceClientSecret(u *UI, key, svc string) (string, bool) {
 	// An explicit value wins, the same precedence $KC_BOOTSTRAP_ADMIN_PASSWORD
 	// has. Per service rather than one for all:

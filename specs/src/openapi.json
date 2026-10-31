@@ -90,7 +90,7 @@
         "type": "apiKey",
         "in": "query",
         "name": "token",
-        "description": "A media token from `POST /api/tokens/media`: HS256 under the gateway's own key ring (`JWT_SECRET`), which signs nothing else, naming one resource (`purpose: \"media\"`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}`, and only for the resource it names — for `<img>`, PDF.js and download links, which cannot send a header."
+        "description": "A media token from `POST /api/tokens/media`: HS256 under the gateway's own key ring (`JWT_SECRET`), which signs nothing else, naming the knowledge base whose gateway minted it and one of its resources (`purpose: \"media\"`, `iss: <the domain the gateway's document names>`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}` of that knowledge base's gateway, and only for the resource it names: a gateway sharing the ring but serving another knowledge base refuses it — for `<img>`, PDF.js and download links, which cannot send a header."
       }
     },
     "responses": {

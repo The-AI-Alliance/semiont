@@ -9,7 +9,7 @@
       "readBy": "service",
       "providedBy": "launcher",
       "required": true,
-      "effect": "The gateway's signing key ring: comma-separated keys of at least 32 characters, whitespace around each ignored. Agent and media tokens are signed with the first key, and a token signed with any key is accepted. Unset, or with a key shorter than 32 characters, the gateway refuses to start."
+      "effect": "The gateway's signing key ring: comma-separated keys of at least 32 characters, whitespace around each ignored. Media tokens are signed with the first key, and a media token signed with any key is accepted. Unset, or with a key shorter than 32 characters, the gateway refuses to start."
     },
     {
       "name": "SEMIONT_OIDC_CLIENT_ID",

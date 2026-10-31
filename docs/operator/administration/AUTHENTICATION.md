@@ -26,7 +26,7 @@ graph TB
     end
 
     subgraph "Gateway API"
-        TokenGen[Agent and media token mint]
+        TokenGen[Media token mint]
         MW[Token verification<br/>Bearer, or ?token= for media]
         Principal[Principal<br/>DID, email, name, domain]
         API[Protected APIs]
@@ -128,7 +128,7 @@ data.
 
 ### Media tokens (`?token=`)
 
-`GET /api/resources/:id` additionally accepts a short-lived, resource-scoped **media token** as `?token=` (minted by `POST /api/tokens/media`), checked **before** the `Authorization` header. This is the path `<img>` / PDF / media use, where a request header can't be set. It is the *only* `?token=` path — it does not apply to the bare `/resources/:id` IRI.
+`GET /api/resources/:id` additionally accepts a short-lived, resource-scoped **media token** as `?token=` (minted by `POST /api/tokens/media`), checked **before** the `Authorization` header. A media token names the knowledge base whose gateway minted it, and another knowledge base's gateway refuses it even when the two share a `JWT_SECRET`. This is the path `<img>` / PDF / media use, where a request header can't be set. It is the *only* `?token=` path — it does not apply to the bare `/resources/:id` IRI.
 
 ### Bare-IRI navigation → 401
 
