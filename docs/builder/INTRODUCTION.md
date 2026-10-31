@@ -227,10 +227,10 @@ Script the replies; drive your code; then assert what your app *actually sent*
 off the transport's request log:
 
 ```ts
-import { createTestSession } from '@semiont/sdk/testing';
+import { createTestSession, refuseUnscriptedOperation } from '@semiont/sdk/testing';
 
 const { session, transport } = createTestSession({
-  transport: { makeResponse: (op) => (op === 'job:create' ? { jobId: 'job-1' } : {}) },
+  transport: { makeResponse: (op) => (op === 'job:create' ? { jobId: 'job-1' } : refuseUnscriptedOperation(op)) },
 });
 
 // ... drive your orchestrator with `session` ...

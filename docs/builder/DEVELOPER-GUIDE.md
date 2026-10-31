@@ -642,12 +642,12 @@ The SDK ships a contract double: a real `SemiontClient` (real caches, real
 `Bus.request`, real namespaces) over a scriptable transport.
 
 ```ts
-import { createTestClient } from '@semiont/sdk/testing';
+import { createTestClient, refuseUnscriptedOperation } from '@semiont/sdk/testing';
 
 const { client, transport } = createTestClient({
   transport: {
     makeResponse: (op) =>
-      op === 'browse:entity-types-requested' ? { entityTypes: ['Person', 'Place'] } : {},
+      op === 'browse:entity-types-requested' ? { entityTypes: ['Person', 'Place'] } : refuseUnscriptedOperation(op),
   },
 });
 // Subscribe through the client; script the wire through the transport:

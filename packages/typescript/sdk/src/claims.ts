@@ -174,7 +174,8 @@ export interface ClaimOptions {
  * A claim that was refused for a reason other than "nothing pending".
  *
  * `code` is the `BusRequestError` code the reply was promoted to, or `null`
- * when the refusal was the worker's own: a reply that names no job. Never a
+ * when the refusal was the worker's own: a reply that lacks a member its
+ * schema requires, or names no job type either verb has. Never a
  * manufactured bus code. `bus.none-pending` never appears: an empty queue is
  * not a fault. `bus.unauthorized` means this credential cannot claim, and
  * will not be able to later.
@@ -539,20 +540,17 @@ class HeldJobOf<T extends JobType, R> implements Held<T, R> {
 
 /**
  * Hold the job a claim was answered with, as its verb's, in the trace its
- * reply arrived in: `arrivedIn` has it by the job's id. Undefined for a
- * reply that names no job (WORKER-CONTRACT C9): read unguarded, one with no
- * `metadata` throws inside the loop, where no claim would ever follow, and
- * one with no id would be handed to the work as a job.
+ * reply arrived in: `arrivedIn` has it by the job's id. Undefined for one
+ * whose job type is neither verb's (WORKER-CONTRACT C9); a reply that lacks a
+ * member its schema requires never reaches here, refused by its request.
  */
 function heldJob(
   claimed: ClaimedJob,
   holder: Holder,
   arrivedIn: ReadonlyMap<string, TraceCarrier | undefined>,
 ): HeldJobOf<'mark', MarkJobResult> | HeldJobOf<'yield', YieldJobResult> | undefined {
-  const reply: unknown = claimed;
-  if (!isObject(reply) || !isObject(reply['metadata']) || !isString(reply['metadata']['id']) || !isObject(reply['params'])) return undefined;
-  const trace = arrivedIn.get(reply['metadata']['id']);
-  switch (reply['metadata']['type']) {
+  const trace = arrivedIn.get(claimed.metadata.id);
+  switch (claimed.metadata.type) {
     case 'mark':
       return new HeldJobOf('mark', claimed, holder, trace, (said, result: MarkJobResult) => ({ ...said, result }));
     case 'yield':
@@ -750,10 +748,10 @@ class ClaimLoop implements Holder {
   }
 
   private async claimNext(): Promise<ClaimOutcome> {
-    // A claim names fields of the job description, never a job id. A reply is
-    // not held to its schema here: the dispatcher states it, and its own
-    // conformance suite holds every frame it sends to the channel's schema.
-    // What is checked is only that the reply names a job.
+    // A claim names fields of the job description, never a job id. A reply
+    // that lacks a member its schema requires, a job id or parameters among
+    // them, is refused by the request (WORKER-CONTRACT C9), as every SDK
+    // refuses it; one whose job type is neither verb's is refused here.
     let claimed: ClaimedJob;
     try {
       claimed = await this.wire.request('job:claim', { accepts: this.accepts }, this.jobClaimTimeoutMs);
@@ -765,7 +763,7 @@ class ClaimLoop implements Holder {
       return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
     }
     const job = heldJob(claimed, this, this.arrivedIn);
-    return job ? { job } : { refused: { code: null, message: 'job:claimed names no job: it has no job id, no job type or no parameters' } };
+    return job ? { job } : { refused: { code: null, message: "a payload on job:claimed is not that channel's: it names no job type" } };
   }
 
   private lookForStall(): void {

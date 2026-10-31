@@ -1916,8 +1916,11 @@ func busPublish(channel, corrID, clientID string, payload map[string]any) {
 // busReplyFor maps a request channel to its scripted reply. The channel PAIR
 // comes from the generated operations registry, so the fake can never invent a
 // pair the real bus does not have — a fake that agrees with the code under
-// test about a wrong channel is how a verb passes while broken.
-func busReplyFor(request string) (string, map[string]any) {
+// test about a wrong channel is how a verb passes while broken. A result that
+// names what it answers for beside its response (the resource a context was
+// gathered for, the reference a search was for) names what asked did, as the
+// gateway's does.
+func busReplyFor(request string, asked map[string]any) (string, map[string]any) {
 	if !busScripted[request] {
 		return "", nil
 	}
@@ -1935,12 +1938,22 @@ func busReplyFor(request string) (string, map[string]any) {
 		if request == "job:create" {
 			raw = `{"jobId":"fake-job-1"}`
 		}
+		// A key holder nobody scripted reports no engine.
+		for _, holder := range bus.LimitsOperations {
+			if string(holder.Request().Channel()) == request {
+				raw = `{"limits":[]}`
+			}
+		}
 	}
 	var response any
 	if json.Unmarshal([]byte(raw), &response) != nil {
 		response = map[string]any{}
 	}
-	return string(op.Result), map[string]any{"response": response}
+	result := map[string]any{"response": response}
+	for _, named := range op.ReplyNames {
+		result[named] = asked[named]
+	}
+	return string(op.Result), result
 }
 
 // The handful of operations the launcher's verbs use — an ALLOWLIST of request
@@ -2641,7 +2654,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						}
 					}
 					cid := body.CorrelationID
-					if ch, payload := busReplyFor(body.Channel); ch != "" {
+					if ch, payload := busReplyFor(body.Channel, body.Payload); ch != "" {
 						busPublish(ch, cid, body.ClientID, payload)
 						// A created job then runs: progress, then a terminal
 						// event, both keyed by jobId — never the correlationId

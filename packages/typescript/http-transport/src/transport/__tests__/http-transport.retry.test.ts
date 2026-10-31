@@ -42,6 +42,9 @@ function okJson(body: unknown): Response {
   });
 }
 
+/** The gateway's answer to who the token is. */
+const USER = { did: 'did:web:localhost:users:a', email: 'a@b.c', name: null, image: null, domain: 'localhost' };
+
 describe('HttpTransport retry — what the caller receives', () => {
   beforeEach(() => {
     fetchMock.mockReset();
@@ -73,7 +76,7 @@ describe('HttpTransport retry — what the caller receives', () => {
 
   test('a GET that got a 504 is retried — one attempt plus one retry', async () => {
     fetchMock.mockResolvedValueOnce(failWith(504));
-    fetchMock.mockResolvedValueOnce(okJson({ email: 'a@b.c' }));
+    fetchMock.mockResolvedValueOnce(okJson(USER));
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,
       timeout: 10_000,
@@ -188,7 +191,7 @@ describe('HttpTransport — a refused credential', () => {
 
   test('a GET refused 429 refusal-rate is sent again at once with the renewed token, and nothing is reported', async () => {
     fetchMock.mockResolvedValueOnce(refusedByLimit('refusal-rate', 30));
-    fetchMock.mockResolvedValueOnce(okJson({ email: 'a@b.c' }));
+    fetchMock.mockResolvedValueOnce(okJson(USER));
     const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000, tokenRefresher: async () => 'fresh-token' });
     const reported: unknown[] = [];
     transport.errors$.subscribe((error) => reported.push(error));
@@ -303,7 +306,7 @@ describe('currentUserOf — one request, and no transport behind it', () => {
   });
 
   test('asks /api/users/me with the token, once, and opens no stream', async () => {
-    fetchMock.mockImplementation(async () => okJson({ email: 'a@b.c' }));
+    fetchMock.mockImplementation(async () => okJson(USER));
 
     await expect(currentUserOf(baseUrl('http://localhost:4000/'), accessToken('tok-1'))).resolves.toMatchObject({ email: 'a@b.c' });
 

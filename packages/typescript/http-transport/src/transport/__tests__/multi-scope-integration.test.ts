@@ -65,9 +65,28 @@ describe('multi-scope over the real HttpTransport + ActorStateUnit', () => {
     // ── One scoped frame → exactly one delivery on the bridged bus ────────
     const received: unknown[] = [];
     bus.on('mark:added').subscribe((p) => received.push(p));
+    const added = {
+      id: 'evt-res-A-1',
+      type: 'mark:added',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      userId: 'did:web:example.org:users:alice',
+      resourceId: 'res-A',
+      version: 1,
+      payload: {
+        annotation: {
+          '@context': 'http://www.w3.org/ns/anno.jsonld',
+          type: 'Annotation',
+          id: 'ann-1',
+          motivation: 'highlighting',
+          target: { source: 'res-A' },
+          created: '2026-01-01T00:00:00.000Z',
+        },
+      },
+      metadata: { sequenceNumber: 1 },
+    };
     sse2.push(sseChunkId(
       'bus-event',
-      JSON.stringify({ channel: 'mark:added', payload: { seq: 1 }, scope: 'res-A' }),
+      JSON.stringify({ channel: 'mark:added', payload: added, scope: 'res-A' }),
       'p-res-A-1',
     ));
     await vi.waitFor(() => expect(received).toHaveLength(1));

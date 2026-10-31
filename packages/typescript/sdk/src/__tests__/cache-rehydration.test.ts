@@ -22,13 +22,14 @@ import { BrowseNamespace } from '../namespaces/browse';
 import { sessionStoragePersister } from '../cache-persister';
 import { TestStorage } from '../session/__tests__/test-storage-helpers';
 import { inMemoryTransport, type InMemoryTransportOptions } from './helpers/in-memory-transport';
+import { mockResource } from './fixtures/resource';
 
 function inertTransport(onEmit: InMemoryTransportOptions['onEmit']): ITransport {
   return inMemoryTransport({ onEmit });
 }
 
 const RID = makeResourceId('res-cached');
-const DESCRIPTOR = { '@id': RID, name: 'Cached Doc' } as unknown as ResourceDescriptor;
+const DESCRIPTOR = mockResource(RID, { name: 'Cached Doc' });
 
 describe('BrowseNamespace cache rehydration (B17)', () => {
   it('serves a rehydrated resource instantly AND revalidates it (B18); un-cached keys still request', async () => {

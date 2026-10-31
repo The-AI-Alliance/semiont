@@ -126,8 +126,8 @@ func ParseDiscoveryDocument(text string) DiscoveryState {
 			),
 		}
 	}
-	if name, lacks := required.Lacking(members, reflect.TypeFor[api.DiscoveryDocument]()); lacks {
-		return invalid(fmt.Sprintf("missing %q", name))
+	if way, lacks := required.Lacking(data, reflect.TypeFor[api.DiscoveryDocument]()); lacks {
+		return invalid(fmt.Sprintf("missing %q", way))
 	}
 	var entries []json.RawMessage
 	if err := json.Unmarshal(members["kbs"], &entries); err != nil {
@@ -138,9 +138,6 @@ func ParseDiscoveryDocument(text string) DiscoveryState {
 		var entryMembers map[string]json.RawMessage
 		if json.Unmarshal(entry, &entryMembers) != nil || entryMembers == nil {
 			return invalid(fmt.Sprintf("kbs[%d] is not an object", i))
-		}
-		if name, lacks := required.Lacking(entryMembers, reflect.TypeFor[api.DiscoveredKB]()); lacks {
-			return invalid(fmt.Sprintf("kbs[%d] has no %q", i, name))
 		}
 		var kb api.DiscoveredKB
 		if err := json.Unmarshal(entry, &kb); err != nil {

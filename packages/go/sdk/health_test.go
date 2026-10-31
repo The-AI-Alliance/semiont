@@ -28,10 +28,21 @@ func TestAServingGatewayIsAliveAndReportsItself(t *testing.T) {
 		if r.URL.Path != "/api/health" {
 			t.Errorf("asked %s", r.URL.Path)
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"status": "operational", "version": "0.7.0", "timestamp": "2026-10-26T00:00:00.000Z"})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "operational", "message": "Semiont API is running", "version": "0.7.0", "timestamp": "2026-10-26T00:00:00.000Z"})
 	})
 	if err != nil || !ok || status != "operational" {
 		t.Errorf("got %q, %v, %v", status, ok, err)
+	}
+}
+
+// A success whose body lacks a member its schema requires is alive, with no
+// report: a report that lacks one is none.
+func TestASuccessWithABodyThatLacksAMemberIsAliveWithNoReport(t *testing.T) {
+	_, ok, err := healthOf(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "operational", "version": "0.7.0", "timestamp": "2026-10-26T00:00:00.000Z"})
+	})
+	if err != nil || ok {
+		t.Errorf("got ok %v, err %v; want alive with no report", ok, err)
 	}
 }
 
