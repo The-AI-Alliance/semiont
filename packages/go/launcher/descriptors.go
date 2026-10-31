@@ -179,11 +179,12 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},
 		needs:  []string{"gateway", "messaging"},
 		health: healthProbe{path: "/health"}},
-	// browser: the Browser owns its port inside flowBrowser — an empty ports
-	// list keeps 3000 out of every stack-level claim and sweep.
-	// The Browser's port is the one a flag may move, so the probe pins the
-	// default; a running Browser is reported from its record instead.
-	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G", health: healthProbe{port: 3000}},
+	// browser: the catalog its document is written from (browserdoc.go) — its
+	// memory, and defaultPort, which is also the port its server listens on in
+	// its container. What runs is the document's. An empty ports list keeps
+	// the Browser's port out of every stack-level claim and sweep: flowBrowser
+	// claims the one its document names, and status reports it from its record.
+	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G", defaultPort: 3000},
 
 	{role: "database", driver: "postgres", container: "semiont-postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
 		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL",
