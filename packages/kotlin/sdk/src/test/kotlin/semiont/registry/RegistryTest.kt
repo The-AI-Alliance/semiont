@@ -1,8 +1,10 @@
 package semiont.registry
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.errors.SessionError
 import semiont.http.tokenFor
+import semiont.session.OpenedSession
 import semiont.types.KbRead
 import semiont.types.KnowledgeBase
 import semiont.types.NewKnowledgeBase
@@ -302,6 +305,32 @@ class RegistryTest {
             assertNull(browser.activeSignals.value)
             assertNull(sessionOf(browser))
         }
+    }
+
+    // How it ends.
+
+    @Test
+    fun closingFromWithinTheRegistrysOwnWorkEndsItWithoutWaitingForItself() = runBlocking {
+        val world = World().with(kbOfA())
+        val made = CompletableDeferred<SemiontBrowser>()
+        val closed = CompletableDeferred<Unit>()
+        // A factory that closes the registry while the registry is building the session it began with.
+        val closing = object : SessionFactory {
+            override suspend fun session(options: SessionFactoryOptions): OpenedSession {
+                made.await().close()
+                closed.complete(Unit)
+                awaitCancellation()
+            }
+
+            override suspend fun revoke(stored: StoredSession): Unit = world.factory.sessions.revoke(stored)
+        }
+        val browser = SemiontBrowser(SemiontBrowserConfig(world.storage, closing))
+        made.complete(browser)
+        soon { closed.await() }
+        assertTrue(ended(browser.kbs))
+        assertNull(sessionOf(browser))
+        // Closing again is closing once.
+        browser.close()
     }
 }
 

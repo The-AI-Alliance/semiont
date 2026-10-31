@@ -7,10 +7,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -56,6 +58,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
 
 /**
  * What a completed sign-in learned: where it was, who the knowledge base
@@ -192,15 +195,18 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
  *
  * A request the gateway refuses for want of a valid token renews the session;
  * one refused for lack of permission is said at once. Closing the registry
- * closes its session, ends everything it holds, and throws the first failure
- * of what it ran in the background.
+ * closes its session and ends everything it holds; once what it ran in the
+ * background has stopped, it throws the first failure of any of it.
  */
 public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** Where the registry keeps what it keeps: what a sign-in that is under way is remembered in, too. */
     public val storage: SessionStorage = config.storage
 
     private val factory = config.sessionFactory
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** Whether this thread is running the registry's own work: closing from there cannot wait for that work to stop. */
+    private val inside = ThreadLocal.withInitial { false }
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + inside.asContextElement(true))
     private val lock = Any()
 
     /** One activation at a time: an activation that waits its turn waits here. */
@@ -434,11 +440,13 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     public fun readActiveKbFuture(): CompletableFuture<KbReadVerdict> = scope.futureOf { readActiveKb() }
 
     /**
-     * End the registry: its session is closed, and everything it holds ends.
-     * Then it throws the first failure of what it ran in the background:
-     * bringing up the session it began with, the checks a session's arrival
-     * starts, and the renewals a refused token asks for. What closing ended
-     * is no failure. Closing twice is closing once.
+     * End the registry: its session is closed, what it runs in the background
+     * is ended, and everything it holds ends. It returns once that work has
+     * stopped, and throws the first failure of any of it: bringing up the
+     * session it began with, the checks a session's arrival starts, and the
+     * renewals a refused token asks for. What closing ended is no failure.
+     * Called from within that work, it does not wait for the work to stop,
+     * which would never happen. Closing twice is closing once.
      */
     override fun close() {
         synchronized(lock) {
@@ -449,6 +457,11 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         listening?.close()
         taken?.close()
         scope.cancel()
+        if (!inside.get()) {
+            val stopped = CountDownLatch(1)
+            scope.coroutineContext.job.invokeOnCompletion { stopped.countDown() }
+            stopped.await()
+        }
         failures.close()
         for (held in listOf(kbsHeld, activeKbIdHeld, activeSessionHeld, activeSignalsHeld, activatingHeld, openResourcesHeld, lastViewedHeld, identityTokenHeld)) held.end()
         bus.destroy()
@@ -458,7 +471,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
 
     // Within.
 
-    /** Run `work` for as long as the registry lives: closing ends it, and throws what it failed with. */
+    /** Run `work` for as long as the registry lives: closing ends it, waits for it to stop, and throws what it failed with. */
     private fun spawn(work: suspend () -> Unit) {
         scope.launch {
             try {

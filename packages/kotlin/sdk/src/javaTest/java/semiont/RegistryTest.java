@@ -142,8 +142,6 @@ final class RegistryTest {
         UncheckedIOException thrown = assertThrows(UncheckedIOException.class, () -> {
             try (SemiontBrowser browser = new SemiontBrowser(new SemiontBrowserConfig(refusing, new ScriptedSessions()))) {
                 refused.get(10, SECONDS);
-                // The storage says it refused before the refusal has reached the registry.
-                Thread.sleep(200);
                 // What is open is shown as it was.
                 assertEquals(List.of("One"), browser.getOpenResources().getValue().stream().map(OpenResource::getName).toList());
             }

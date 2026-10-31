@@ -225,8 +225,6 @@ class OpenResourcesTest {
         val browser = world.browser(storage)
         live(browser)
         soon { storage.refused.await() }
-        // The storage says it refused before the refusal has reached the registry.
-        settle()
 
         // What is open is as it was, there and here.
         assertEquals(listOf("kept", "gone"), shown(browser))
