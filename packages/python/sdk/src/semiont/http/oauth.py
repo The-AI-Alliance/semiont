@@ -125,7 +125,7 @@ class DeviceCode:
     """How long the code is good for, in seconds."""
 
 
-def issuer_client(http: httpx.AsyncClient | None = None) -> AbstractAsyncContextManager[httpx.AsyncClient]:
+def issuer_client(*, http: httpx.AsyncClient | None = None) -> AbstractAsyncContextManager[httpx.AsyncClient]:
     """The HTTP client requests of an issuer are made with, held with `async with`.
 
     It is `http`, which its caller built and closes, and which is left open.
@@ -188,7 +188,7 @@ async def discover_issuer(base_url: str, *, http: httpx.AsyncClient | None = Non
 
     url = f"{issuer.rstrip('/')}/.well-known/openid-configuration"
     try:
-        async with issuer_client(http) as client, _within():
+        async with issuer_client(http=http) as client, _within():
             response = await client.get(url, headers={"Accept": "application/json"})
     except (TimeoutError, httpx.HTTPError) as error:
         raise SignInError("discovery", f"Issuer {issuer}: discovery was not answered: {why_unanswered(error)}") from None
@@ -285,7 +285,7 @@ async def renew_kept(kept: SignInKept, holding: str | None, *, http: httpx.Async
     if held.access != holding and not is_token_expired(held.access, now=time.time()):
         return held.access
     attempts = 0
-    async with issuer_client(http) as client:
+    async with issuer_client(http=http) as client:
 
         async def attempt() -> IssuedTokens:
             nonlocal attempts
@@ -458,7 +458,7 @@ async def complete_authorization(
     if "code" not in said:
         raise SignInError("exchange", "The sign-in response carries no authorization code")
 
-    async with issuer_client(http) as client:
+    async with issuer_client(http=http) as client:
         status, answer = await post_form(
             client,
             record.issuer.token,
@@ -503,7 +503,7 @@ async def sign_in_with_device_grant(
             f"Issuer {issuer.issuer} offers no device authorization endpoint: "
             f"the device grant needs one enabled for client {SCRIPT_CLIENT_ID}",
         )
-    async with issuer_client(http) as client:
+    async with issuer_client(http=http) as client:
         status, body = await post_form(client, issuer.device, [("client_id", SCRIPT_CLIENT_ID), ("scope", SIGN_IN_SCOPE)])
         device_code, user_code, verification_uri = (
             text_in(body, "device_code"),

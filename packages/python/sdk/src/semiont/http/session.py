@@ -290,7 +290,7 @@ async def _revoked(revocation_endpoint: str | None, client_id: str, refresh: str
     if revocation_endpoint is None:
         return
     try:
-        async with issuer_client(http) as client:
+        async with issuer_client(http=http) as client:
             await revoke_at_issuer(client, revocation_endpoint, client_id, refresh)
     except SignInError:
         pass

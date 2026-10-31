@@ -203,7 +203,7 @@ class ServiceToken:
             if not renewed and self._held is not None and loop.time() < self._held[1]:
                 return self._held[0]
             issuer, client_id = self._credential.issuer, self._credential.client_id
-            async with issuer_client(self._http) as http:
+            async with issuer_client(http=self._http) as http:
                 endpoint = await self._endpoint(http)
                 try:
                     status, answer = await post_form(http, endpoint, _proof(self._credential, endpoint))
@@ -333,7 +333,7 @@ class AgentToken:
         """The DID the gateway names the bearer of `token` by: `GET /api/users/me`."""
         url = f"{self._gateway}/api/users/me"
         try:
-            async with issuer_client(self._http) as http, _within():
+            async with issuer_client(http=self._http) as http, _within():
                 response = await http.get(url, headers={"Authorization": f"Bearer {token}"})
         except (TimeoutError, httpx.HTTPError) as error:
             raise TransportError.without_response(f"{url} got no answer: {why_unanswered(error)}") from None
