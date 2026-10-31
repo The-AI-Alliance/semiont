@@ -272,18 +272,22 @@ func TestUseraddNamesTheIdentityItCreated(t *testing.T) {
 	}
 }
 
-// What the person does next: sign in, at the Browser this machine serves or
-// from a terminal against the same stack. The terminal command names the stack
-// the way the person selected it.
+// What the person does next: sign in, at the Browser this machine serves
+// where its record says it is, or from a terminal against the same stack. The
+// terminal command names the stack the way the person selected it.
 func TestUseraddNextStepsNameTheSelectedStack(t *testing.T) {
-	local := strings.Join(useraddNextSteps(nil, &StackState{Runtime: "docker"}), "\n")
-	for _, want := range []string{"Next: sign in at http://localhost:3000 with this email and password.", "first and last name", "semiont login --runtime docker"} {
+	browser := &ServiceState{Endpoint: "http://localhost:3001"}
+	local := strings.Join(useraddNextSteps(nil, &StackState{Runtime: "docker"}, browser), "\n")
+	for _, want := range []string{"Next: sign in at http://localhost:3001 with this email and password.", "first and last name", "semiont login --runtime docker"} {
 		if !strings.Contains(local, want) {
 			t.Errorf("local next steps missing %q:\n%s", want, local)
 		}
 	}
+	if none := strings.Join(useraddNextSteps(nil, &StackState{Runtime: "docker"}, nil), "\n"); !strings.Contains(none, "semiont start --service browser") || strings.Contains(none, "localhost") {
+		t.Errorf("with no Browser recorded, the next steps must start one rather than name an address:\n%s", none)
+	}
 	cs := &StackState{Codespace: &codespacePlacement{Repo: "owner/kb"}}
-	remote := strings.Join(useraddNextSteps(cs, nil), "\n")
+	remote := strings.Join(useraddNextSteps(cs, nil, browser), "\n")
 	if !strings.Contains(remote, "semiont login --repo owner/kb") || strings.Contains(remote, "--runtime") {
 		t.Errorf("codespace next steps must name --repo owner/kb:\n%s", remote)
 	}

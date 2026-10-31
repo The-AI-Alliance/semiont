@@ -537,9 +537,19 @@ func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
 // which the descriptor carries and the plan does not.
 func TestServicePortNeedsOfTheWorkerAreItsDescriptors(t *testing.T) {
 	plan := mustPlan(t, fixtureStack(t, "anthropic"))
-	got := servicePortNeeds("worker", plan, startOptions{}, exposure{})
+	got := servicePortNeeds("worker", plan, browserDocument{}, exposure{})
 	if want := stackPortNeeds("worker"); !slices.Equal(got, want) {
 		t.Errorf("--service worker claims %v, want %v", got, want)
+	}
+}
+
+// `start --service browser` claims the port the Browser's document names.
+func TestServicePortNeedsOfTheBrowserAreItsDocuments(t *testing.T) {
+	doc := browserDocument{spec: catalogBrowser().Spec}
+	doc.spec.Port = 3001
+	got := servicePortNeeds("browser", nil, doc, exposure{})
+	if len(got) == 0 || got[0] != (portNeed{3001, "Browser"}) {
+		t.Errorf("--service browser claims %v, want the document's 3001 first", got)
 	}
 }
 

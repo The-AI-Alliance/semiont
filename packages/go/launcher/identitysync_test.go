@@ -397,15 +397,16 @@ func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 	}
 }
 
-// A realm imported before the portless loopback rule pins :3000, and
-// `--service browser --port N` then produces a stack nobody can sign in to.
+// A realm imported before the portless loopback rule pins :3000, and a
+// Browser document naming another port then produces a stack nobody can sign
+// in to.
 func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": semiont.BrowserClientID, "redirectUris": []any{"http://localhost:3000/*"}},
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -438,7 +439,7 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	patch, ok := s.updated[semiont.BrowserClientID]
@@ -459,7 +460,7 @@ func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(1800)}
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	patch, ok := s.updated["<realm>"]
@@ -497,7 +498,7 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 	s := newStubAdmin(t, "semiont", correctRealm())
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -564,7 +565,7 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -573,7 +574,7 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 		t.Fatal("a realm deriving its origins was left deriving them")
 	}
 	origins, _ := json.Marshal(patch["webOrigins"])
-	for _, want := range loopbackWebOrigins(defaultBrowserPort) {
+	for _, want := range loopbackWebOrigins(catalogBrowser().Spec.Port) {
 		if !strings.Contains(string(origins), want) {
 			t.Errorf("patch does not add %s: %s", want, origins)
 		}
@@ -588,8 +589,9 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 	}
 }
 
-// `--port` moves the Browser, so sync writes the origin for the port it is
-// told about — that is what makes "move the Browser, then sync" actually work.
+// The Browser's document moves the Browser, so sync writes the origin for the
+// port it is told about — that is what makes "move the Browser, then sync"
+// actually work.
 func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": semiont.BrowserClientID, "webOrigins": []any{"+"}},
@@ -608,7 +610,7 @@ func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
 // Idempotent: a realm already carrying the origins is not patched again.
 func TestIdentitySyncLeavesCorrectWebOriginsAlone(t *testing.T) {
 	origins := []any{}
-	for _, o := range loopbackWebOrigins(defaultBrowserPort) {
+	for _, o := range loopbackWebOrigins(catalogBrowser().Spec.Port) {
 		origins = append(origins, o)
 	}
 	reps := append(allServiceClientReps(),
@@ -617,7 +619,7 @@ func TestIdentitySyncLeavesCorrectWebOriginsAlone(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	if patch, ok := s.updated[semiont.BrowserClientID]; ok {

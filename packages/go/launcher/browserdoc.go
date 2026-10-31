@@ -9,6 +9,7 @@ package launcher
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -91,4 +92,28 @@ func loadBrowserDocument(preview bool) (browserDocument, error) {
 		return doc, err
 	}
 	return doc, os.Rename(tmp, path)
+}
+
+// readBrowserDocument: loadBrowserDocument for a command, which says where it
+// wrote one and refuses, naming the file and each line, one that does not
+// hold.
+func readBrowserDocument(u *UI, preview bool) (browserDocument, bool) {
+	doc, err := loadBrowserDocument(preview)
+	if err != nil {
+		u.Fail("%v", err)
+		var refused *stack.Refused
+		if errors.As(err, &refused) {
+			fmt.Fprintf(os.Stderr, "  Fix it, or delete it and the next command that needs it writes the launcher's: %s\n", refused.File)
+		}
+		return doc, false
+	}
+	if doc.fromCatalog && !preview {
+		u.Log("Browser: wrote its document, %s %s", u.Bold(doc.path), u.Dim("(the launcher's catalog; edit it to change the image, memory or port)"))
+	}
+	return doc, true
+}
+
+// endpoint: where a person opens the Browser the document describes.
+func (d browserDocument) endpoint() string {
+	return fmt.Sprintf("http://localhost:%d", d.spec.Port)
 }

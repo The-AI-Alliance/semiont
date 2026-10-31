@@ -27,6 +27,10 @@ type flowCtx struct {
 	// are the SAME flows either way — it changes only what the banner says,
 	// which is the whole of what a single-service start does differently.
 	restart bool
+	// browser: the Browser's document, for the starts that read it
+	// (startReadsBrowserDocument): what the Browser runs, and the port the
+	// realm allows its sign-in from.
+	browser browserDocument
 }
 
 // withDaemonCredentials adds the kept passwords of the daemons this plan runs
@@ -323,18 +327,19 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	// The Browser rides every start but belongs to no stack.
-	return flowBrowser(x, addr, 3000, false)
+	return flowBrowser(x, addr, fc.browser, false)
 }
 
-// flowBrowser: the Browser is a MACHINE-LEVEL viewer, not a stack member.
-// Any start ensures it; none churns it: a running Browser is kept when its
-// image matches what this start would run, and restarted when the image is
-// stale (image identity, not tag order — tags like :latest and :local are
-// mutable) or when the restart is explicit (--service browser, the port
-// mover).
-func flowBrowser(x executor, addr string, port int, forceRestart bool) int {
-	// forceRestart IS the single-service case (`--service browser`, the port
-	// mover), so it is also what the heading should say.
+// flowBrowser: the Browser is a MACHINE-LEVEL viewer, not a stack member,
+// and runs what its document says. Any start ensures it; none churns it: a
+// running Browser is kept when it runs the image this start would (image
+// identity, not tag order — tags like :latest and :local are mutable) and its
+// record says it was started with the port and memory its document names. It
+// is restarted otherwise, and when the restart is explicit
+// (--service browser).
+func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool) int {
+	// forceRestart IS the single-service case (`--service browser`), so it is
+	// also what the heading should say.
 	if forceRestart {
 		x.banner("Restarting Browser")
 	} else {
@@ -342,7 +347,7 @@ func flowBrowser(x executor, addr string, port int, forceRestart bool) int {
 	}
 	// Verified first, so a running Browser is kept only when it runs the very
 	// digest a release built, and a moved tag restarts it.
-	desired := browserImage()
+	desired := doc.spec.Image
 	if locallyBuilt(desired) {
 		warnUnverified(x, []string{desired})
 	} else {
@@ -352,35 +357,23 @@ func flowBrowser(x executor, addr string, port int, forceRestart bool) int {
 		}
 		desired = pinned
 	}
-	x.note("browser: keep if running with image identity matching %s; else stop/rm + pull + run", desired)
-	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)")
-	return x.either(func() bool { return !forceRestart && x.browserCurrent(desired) },
+	x.note("browser: keep if running with image identity matching %s, recorded at %s with %s; else stop/rm + pull + run",
+		desired, doc.endpoint(), doc.spec.Resources.Limits.Memory)
+	x.note("(the Browser is not a stack member: semiont stop --service browser stops it alone)")
+	return x.either(func() bool { return !forceRestart && recordedAs(x.browserRecord(), doc) && x.browserCurrent(desired) },
 		func() int {
-			endpoint := "http://localhost:3000"
-			if b := x.browserRecord(); b != nil && b.Endpoint != "" {
-				endpoint = b.Endpoint
-			}
-			x.say(sayOK, "Browser already running on %s %s", endpoint,
-				x.dim("(current image — left alone; semiont stop --service browser stops it)"))
+			x.say(sayOK, "Browser already running on %s %s", doc.endpoint(),
+				x.dim("(as its document says — left alone; semiont stop --service browser stops it)"))
 			return 0
 		},
 		func() int {
-			if port != 3000 {
-				// Not a CORS warning: the API is bearer-only and answers every origin
-				// with `Access-Control-Allow-Origin: *` and no credentials (gateway
-				// http.rs), so no gateway rejects this origin.
-				// What IS true is that anything holding the default origin literally —
-				// an OAuth app registration, a bookmark, a pinned integration — keeps
-				// pointing at 3000.
-				x.say(sayWarn, "Browser on port %d instead of 3000: anything with http://localhost:3000 baked in (OAuth app registrations, saved links) will not follow it.", port)
-			}
 			// stop+rm, not stop: without --rm (kept for crash forensics) a
 			// stopped container HOLDS its name — the next run --name fails
 			// with "already exists" on every runtime (the same reason
 			// stop.go always rm's).
 			x.stopRm("semiont-browser")
 			e := x.exposure(addr)
-			browser := portNeed{port, "Browser"}
+			browser := portNeed{doc.spec.Port, "Browser"}
 			needs := append([]portNeed{browser}, e.containersSideNeed("browser", browser)...)
 			x.settle(portNumbers(needs)...)
 			for _, need := range needs {
@@ -391,21 +384,28 @@ func flowBrowser(x executor, addr string, port int, forceRestart bool) int {
 			if !locallyBuilt(desired) && !x.pull(desired) {
 				return 1
 			}
-			args := browserArgs(e, desired, port)
+			args := browserArgs(e, doc, desired)
 			id, ok := x.runDetached(args)
 			if !ok {
 				x.say(sayFail, "Browser failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP("Browser", "semiont-browser", fmt.Sprintf("http://localhost:%d", port), 30)
+			d, ok := x.waitHTTP("Browser", "semiont-browser", doc.endpoint(), 30)
 			if !ok {
 				x.dumpLogs("semiont-browser", "browser")
 				return 1
 			}
-			x.say(sayOK, "Browser on http://localhost:%d %s", port, x.dim("("+took(d)+")"))
-			x.recordBrowser(id, desired, port)
+			x.say(sayOK, "Browser on %s %s", doc.endpoint(), x.dim("("+took(d)+")"))
+			x.recordBrowser(id, desired, doc)
 			return 0
 		})
+}
+
+// recordedAs: whether the Browser's record says it was started on the port,
+// and with the memory, its document names. No record says nothing, so a
+// Browser running without one is restarted into one.
+func recordedAs(rec *ServiceState, doc browserDocument) bool {
+	return rec != nil && rec.Endpoint == doc.endpoint() && rec.Memory == doc.spec.Resources.Limits.Memory
 }
 
 // flowTraces, flowMetrics, flowCollector: the observability tier's launches,
@@ -548,7 +548,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `keycloakEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightIdentity(keycloakEndpoint(rp, e), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, true) {
+			if !x.preflightIdentity(keycloakEndpoint(rp, e), fc.kb.ident.resource(), svcSecrets, rp.AccessTokenLifespan, fc.browser.spec.Port, true) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
@@ -622,7 +622,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			if !ok {
 				return 1
 			}
-			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), secrets, 0, false) {
+			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), secrets, 0, fc.browser.spec.Port, false) {
 				return 1
 			}
 		}
@@ -1018,7 +1018,7 @@ func flowOneService(x executor, fc flowCtx) int {
 	// verifies stack-port release while the Browser deliberately keeps
 	// running on its port.
 	if svc != "inference" && svc != "browser" {
-		ports := servicePortNeeds(svc, fc.plan, fc.opts, x.exposure(""))
+		ports := servicePortNeeds(svc, fc.plan, fc.browser, x.exposure(""))
 		if x.stopRm(roleContainer(svc)) {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.settle(portNumbers(ports)...)
@@ -1125,30 +1125,9 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 		}
 	case "browser":
-		// Explicit --service browser is the one deliberate restart (and the
-		// port mover): forceRestart bypasses keep-if-current.
-		bp := browserPort(fc.opts)
-		// Moving the Browser changes its redirect URI without touching the
-		// realm, so this is the one flow that has to ask whether the realm
-		// will follow. Only on a move: :3000 is what every realm registers.
-		//
-		// The nil plan is not a defensive check: the Browser is machine-level,
-		// so `--service browser` is the one start that resolves no KB and
-		// therefore has no plan — the same case runStartService and
-		// serviceEndpoint already name. No config, no identity role, nothing
-		// to ask.
-		if bp != 3000 && fc.plan != nil {
-			if rp, ok := fc.plan.Roles["identity"]; ok && rp.Issuer != "" {
-				base := rp.Issuer
-				if rp.Presence == presenceLauncher {
-					base = keycloakEndpoint(rp, recordedExposure(fc.kb.key()))
-				}
-				if !x.preflightBrowserMove(base, bp) {
-					return 1
-				}
-			}
-		}
-		if code := flowBrowser(x, addr, bp, true); code != 0 {
+		// Explicit --service browser is the one deliberate restart:
+		// forceRestart bypasses keep-if-current.
+		if code := flowBrowser(x, addr, fc.browser, true); code != 0 {
 			return code
 		}
 	}
@@ -1172,15 +1151,16 @@ func nothingToLaunch(plan *launchPlan, svc string) (rolePlan, bool) {
 }
 
 // servicePortNeeds: one service's must-be-free ports. Claims follow the
-// plan for config-owned ports (dependency roles, gateway); the static role
-// table covers only the launcher-fiat ports (sidecars, browser, traces),
-// which the plan carries no port for. A port a person and the containers both
-// dial claims its containers' side too (e).
-func servicePortNeeds(svc string, plan *launchPlan, opts startOptions, e exposure) []portNeed {
+// plan for config-owned ports (dependency roles, gateway), and the Browser's
+// document for its port; the static role table covers only the launcher-fiat
+// ports (sidecars, traces), which the plan carries no port for. A port a
+// person and the containers both dial claims its containers' side too (e).
+func servicePortNeeds(svc string, plan *launchPlan, browser browserDocument, e exposure) []portNeed {
 	ports := stackPortNeeds(svc)
 	switch {
-	case svc == "browser" && opts.port != 0:
-		ports = []portNeed{{opts.port, "Browser"}}
+	case svc == "browser":
+		need := portNeed{browser.spec.Port, "Browser"}
+		ports = append([]portNeed{need}, e.containersSideNeed("browser", need)...)
 	case svc == "gateway" && plan != nil:
 		gateway := portNeed{plan.GatewayPort, "Gateway"}
 		ports = append([]portNeed{gateway}, e.containersSideNeed("gateway", gateway)...)

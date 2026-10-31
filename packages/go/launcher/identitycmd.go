@@ -142,6 +142,12 @@ func Identity(args []string) int {
 		fmt.Fprintln(os.Stderr, "  Create one client per service at your own issuer — see the AUTHENTICATION docs for the claims each needs.")
 		return 1
 	}
+	// The origins sync writes are the Browser's, at the port its document
+	// names: where it runs, or where the next start runs it.
+	browser, ok := readBrowserDocument(u, false)
+	if !ok {
+		return 1
+	}
 
 	adminPass, source, ok := keycloakAdminPassword(u, kb.key())
 	if !ok {
@@ -168,7 +174,7 @@ func Identity(args []string) int {
 	u.Log("Reconciling realm %s at %s", u.Bold(realm), base)
 
 	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,
-		kb.ident.resource(), rp.AccessTokenLifespan, runningBrowserPort(),
+		kb.ident.resource(), rp.AccessTokenLifespan, browser.spec.Port,
 		func(svc string) string { return secrets[svc] })
 	if err != nil {
 		u.Fail("%v", err)

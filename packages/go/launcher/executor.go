@@ -73,7 +73,7 @@ type recorder interface {
 	noteContainer(role, container string) // stamp a launched container on a container-less role
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *ServiceState         // the machine-level browser record
-	recordBrowser(id, image string, port int)
+	recordBrowser(id, image string, doc browserDocument)
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
@@ -88,9 +88,8 @@ type keeper interface {
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
 // credential or a person is sent to sign in.
 type admitter interface {
-	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
-	preflightBrowserMove(issuerBase string, port int) bool                                                         // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
-	openAdminToThisMachine(password string)                                                                        // Keycloak's own admin answers this machine over plain HTTP, whatever address the runtime delivers its connections from
+	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan, browserPort int, managed bool) bool // the realm honours every service credential AND the clients people sign in through — the Browser's at its document's port — before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
+	openAdminToThisMachine(password string)                                                                                     // Keycloak's own admin answers this machine over plain HTTP, whatever address the runtime delivers its connections from
 }
 
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
@@ -798,33 +797,6 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	saveStack(x.st)
 }
 
-// preflightBrowserMove checks both legs of a sign-in against the port the
-// Browser is moving to: the realm must redirect there, and it must accept the
-// token exchange that follows.
-//
-// The REDIRECT leg refuses, unlike the same condition inside preflightIdentity:
-// there the stack is on the default port and works, so a pinned realm is
-// something to know about later. Here the operator has ASKED for the port the
-// realm will not redirect to, and proceeding produces a healthy Browser nobody
-// can sign in to — the failure this whole preflight exists to prevent.
-//
-// The ORIGIN leg only warns, and the difference is not squeamishness: the
-// repair needs this move to have happened first. `semiont identity sync` writes
-// the origin for the port the Browser is RECORDED on, so refusing here would
-// leave the operator unable to run the very command the message names. Move,
-// sync, reload — which is the order the message asks for.
-func (x *liveExec) preflightBrowserMove(issuerBase string, port int) bool {
-	if f, bad := verifyBrowserRedirect(issuerBase, port); bad {
-		x.u.Fail("The realm will not redirect to the port this Browser is being moved to.")
-		fmt.Fprintln(os.Stderr, "  "+f.String())
-		return false
-	}
-	if _, bad := verifyBrowserOrigin(issuerBase, port); bad {
-		x.say(sayWarn, "The realm does not yet allow a token exchange from http://localhost:%d — run `semiont identity sync` once this move completes, then reload the Browser.", port)
-	}
-	return true
-}
-
 // openAdminToThisMachine: Keycloak's own admin lives in its master realm, which
 // keeps Keycloak's default `sslRequired: external` — plain HTTP only from a
 // private address. Which address this machine's connections arrive from is the
@@ -859,7 +831,7 @@ func (x *liveExec) openAdminToThisMachine(password string) {
 // while the operator could have been told up front which client and why. The
 // one exception is a finding marked warnOnly — a realm that works but predates
 // a change to the document, where refusing would strand a healthy deployment.
-func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool {
+func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan, browserPort int, managed bool) bool {
 	findings, observedLifespan := verifyServiceAccounts(issuerBase, audience, secrets)
 	if len(findings) > 0 {
 		x.u.Fail("The issuer does not honour the service-account credentials this start would inject.")
@@ -918,7 +890,7 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 	// The six machine identities being sound says nothing about whether a
 	// PERSON can get in. Checked second so a broken realm reports its cause
 	// once, at the layer that explains it.
-	public := verifyPublicClients(issuerBase)
+	public := verifyPublicClients(issuerBase, browserPort)
 	var blocking []publicClientFinding
 	for _, f := range public {
 		if f.warnOnly {
@@ -1009,10 +981,10 @@ func (x *liveExec) browserRecord() *ServiceState {
 	return LoadStackSet().Browser
 }
 
-func (x *liveExec) recordBrowser(id, img string, port int) {
+func (x *liveExec) recordBrowser(id, img string, doc browserDocument) {
 	saveBrowser(&ServiceState{
 		Container: "semiont-browser", ID: id, Image: img, Provided: providedLauncher,
-		Runtime: x.rt, Endpoint: fmt.Sprintf("http://localhost:%d", port),
+		Runtime: x.rt, Endpoint: doc.endpoint(), Memory: doc.spec.Resources.Limits.Memory,
 		StartedAt: time.Now().UTC(),
 	})
 }
@@ -1444,20 +1416,20 @@ func (x *planExec) retireIssuerProxy() {
 
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
-func (x *planExec) browserCurrent(string) bool        { return false }
-func (x *planExec) browserRecord() *ServiceState      { return nil }
-func (x *planExec) recordBrowser(string, string, int) {}
+func (x *planExec) browserCurrent(string) bool                    { return false }
+func (x *planExec) browserRecord() *ServiceState                  { return nil }
+func (x *planExec) recordBrowser(string, string, browserDocument) {}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the
 // answer must carry.
-func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string, wantLifespan int, _ bool) bool {
+func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string, wantLifespan, browserPort int, _ bool) bool {
 	for _, svc := range serviceClients {
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
 	}
 	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, semiont.ScriptClientID)
-	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, semiont.BrowserClientID, probeRedirect)
+	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, semiont.BrowserClientID, browserRedirect(browserPort))
 	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")
 	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, semiont.BrowserClientID, semiont.ScriptClientID)
 	if wantLifespan > 0 {
@@ -1469,12 +1441,6 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 func (x *planExec) openAdminToThisMachine(string) {
 	x.c("open Keycloak's admin to this machine over HTTP: %s exec --env KC_CLI_PASSWORD %s %s",
 		x.rt, roleContainer("identity"), strings.Join(masterRealmOverHTTP(), " "))
-}
-
-func (x *planExec) preflightBrowserMove(issuerBase string, port int) bool {
-	x.c("authorization request at %s as %s — require a redirect to http://localhost:%d/en/auth/callback, the port this move puts the Browser on",
-		issuerBase, semiont.BrowserClientID, port)
-	return true
 }
 
 // --dry-run reaches for nothing; name the query a real run would make.

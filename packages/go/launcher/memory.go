@@ -52,12 +52,12 @@ func memCeilingGB(m string) float64 {
 
 // startCeilingsGB sums the --memory ceilings THIS start will actually
 // request. The list mirrors the flow: the stack's services the plan runs, at
-// the ceilings their documents state (launchPlan.Memory), and the Browser and
-// the collector; the daemons the launcher runs at the ceilings theirs state;
+// the ceilings their documents state (launchPlan.Memory), the Browser at its
+// document's, and the collector; the daemons the launcher runs at the ceilings theirs state;
 // traces and metrics ride --observe. The machine's Ollama is not counted: it
 // is the host's when the host has one, and only a fallback container when it
 // does not.
-func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
+func startCeilingsGB(plan *launchPlan, browser browserDocument, opts startOptions) float64 {
 	sum := 0.0
 	if plan != nil {
 		for _, svc := range stackServices {
@@ -66,7 +66,7 @@ func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 			}
 		}
 	}
-	sum += memCeilingGB(semiontDescriptor("browser").mem)
+	sum += memCeilingGB(browser.spec.Resources.Limits.Memory)
 	// The collector runs on every start too, but it is not one of ours:
 	// --no-observe declines the backends, never the collector.
 	sum += memCeilingGB(descriptorFor("collector", "otel").mem)

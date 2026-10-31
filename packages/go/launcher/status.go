@@ -282,7 +282,7 @@ func Status(args []string) int {
 // moves. If you find yourself adding a route to a Go file, that decision was
 // reopened without saying so.
 type BrowserProbe struct {
-	Endpoint string // origin: flag override → record → http://localhost:3000
+	Endpoint string // origin: flag override → record; "" when neither names one
 	Running  bool   // the endpoint answers — the only test of "can a human open this"
 	State    string // container state; "" when no container carries either handle
 }
@@ -292,10 +292,12 @@ type BrowserProbe struct {
 // reached nobody: a second implementation would be a second set of bugs
 // (notably the stale-ID fallback below).
 //
-// override is `--browser-url`, taking precedence over the record.
+// override is `--browser-url`, taking precedence over the record. With
+// neither there is no endpoint to probe: the launcher started no Browser it
+// knows the port of.
 func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 	b := ss.Browser
-	p := BrowserProbe{Endpoint: "http://localhost:3000"}
+	var p BrowserProbe
 	handle := "semiont-browser"
 	if b != nil {
 		if b.Endpoint != "" {
@@ -308,7 +310,7 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 	if override != "" {
 		p.Endpoint = override
 	}
-	p.Running = probeHealth(p.Endpoint)
+	p.Running = p.Endpoint != "" && probeHealth(p.Endpoint)
 	// Query only the runtime the record names — a record must narrow the
 	// sweep, same rule the stack table keeps. No record: all installed.
 	rts := installedRuntimes()
@@ -353,7 +355,11 @@ func printBrowser(u *UI, ss *StackSet) (healthy bool) {
 		fmt.Printf("  %s %-12s %s\n", mark, word, u.Dim("any semiont start brings it up (or: semiont start --service browser)"))
 		return healthy
 	}
-	fmt.Printf("  %s %-12s %s  %s\n", mark, word, p.Endpoint, u.Dim("("+detail+")"))
+	where := p.Endpoint
+	if where == "" {
+		where = "not recorded here"
+	}
+	fmt.Printf("  %s %-12s %s  %s\n", mark, word, where, u.Dim("("+detail+")"))
 	return healthy
 }
 

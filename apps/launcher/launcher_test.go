@@ -1347,8 +1347,7 @@ func TestRerunStartReplacesItsOwnOllama(t *testing.T) {
 }
 
 // localImages: the scenario's documents naming each of Semiont's images at
-// :local, and the machine's Browser at its :local build — a developer's
-// checkout.
+// :local, the Browser's included — a developer's checkout.
 func localImages(t *testing.T, s *scenario) {
 	t.Helper()
 	editDocument(t, s, "knowledge-base.yaml",
@@ -1360,9 +1359,7 @@ func localImages(t *testing.T, s *scenario) {
 		"semiont-smelter:latest", "semiont-smelter:local",
 		"semiont-weaver:latest", "semiont-weaver:local")
 	editDocument(t, s, "workers.yaml", "semiont-worker:latest", "semiont-worker:local")
-	if _, stderr, code := s.run(t, "settings", "browser-image", "ghcr.io/the-ai-alliance/semiont-browser:local"); code != 0 {
-		t.Fatalf("settings browser-image: exit %d\n%s", code, stderr)
-	}
+	editBrowserDocument(t, s, "semiont-browser:latest", "semiont-browser:local")
 }
 
 func TestStartLocalImagesBoot(t *testing.T) {
@@ -5230,58 +5227,205 @@ func TestMultiStackCodespaces(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
-func TestBrowserPort(t *testing.T) {
-	// --port moves the browser (the one flag-movable port): publish
-	// 127.0.0.1:<p>:3000, warn that anything holding the default origin will not
-	// follow, record the moved endpoint so status and stop follow it.
+// browserDocumentFor: where the scenario's Browser document is kept, in its
+// state home.
+func browserDocumentFor(home string) string {
+	return filepath.Join(stateHomeFor(home), "stack", "browser.yaml")
+}
+
+// editBrowserDocument: the scenario's Browser document, which `settings
+// browser --path` names and writes where there is none, with each old text of
+// edits (old, new, old, new, …) replaced by its new one; an old text the
+// document does not hold fails the test.
+func editBrowserDocument(t *testing.T, s *scenario, edits ...string) {
+	t.Helper()
+	stdout, stderr, code := s.run(t, "settings", "browser", "--path")
+	if code != 0 {
+		t.Fatalf("settings browser --path: exit %d\n%s", code, stderr)
+	}
+	path := browserDocumentFor(s.home)
+	if stdout != path+"\n" {
+		t.Fatalf("settings browser --path printed %q, want the path alone, %q", stdout, path)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(b)
+	for i := 0; i+1 < len(edits); i += 2 {
+		if !strings.Contains(text, edits[i]) {
+			t.Fatalf("%s holds no %q to edit:\n%s", path, edits[i], text)
+		}
+		text = strings.Replace(text, edits[i], edits[i+1], 1)
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// recordedBrowser: the Browser's record in stack.json.
+func recordedBrowser(t *testing.T, s *scenario) (image, endpoint, memory string) {
+	t.Helper()
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec struct {
+		Browser struct {
+			Image    string `json:"image"`
+			Endpoint string `json:"endpoint"`
+			Memory   string `json:"memory"`
+		} `json:"browser"`
+	}
+	if err := json.Unmarshal(b, &rec); err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	return rec.Browser.Image, rec.Browser.Endpoint, rec.Browser.Memory
+}
+
+// A start that finds no Browser document writes the launcher's, says where,
+// and runs what it says. A dry run before it writes nothing, and says what a
+// start would write.
+func TestAStartWithNoBrowserDocumentWritesOne(t *testing.T) {
 	s := newScenario(t, "container")
-	s.noGitRoot = true // "just the browser" needs no clone
-	stdout, stderr, code := s.run(t, "start", "--service", "browser", "--port", "3001")
+	s.noGitRoot = true // the Browser alone needs no clone
+	path := browserDocumentFor(s.home)
+
+	stdout, stderr, code := s.run(t, "start", "--service", "browser", "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry run: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the dry run", stdout, "# write "+path)
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("a dry run wrote %s (%v)", path, err)
+	}
+
+	stdout, stderr, code = s.run(t, "start", "--service", "browser")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--publish 127.0.0.1:3001:3000")
-	mustContain(t, "stdout", stdout,
-		"Browser on port 3001", "instead of 3000",
-		"🚀 browser is up")
-	b, _ := os.ReadFile(statePathFor(s.home))
-	mustContain(t, "stack.json", string(b), `"endpoint": "http://localhost:3001"`)
+	mustContain(t, "the start's output", stdout+stderr, "wrote its document, "+path)
+	text, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("no Browser document was written: %v", err)
+	}
+	mustContain(t, path, string(text),
+		"kind: Browser",
+		"image: ghcr.io/the-ai-alliance/semiont-browser:latest",
+		"memory: 1G",
+		"port: 3000")
+	mustContain(t, "argv log", s.argv(t), "run -d --name semiont-browser --memory 1G --publish 127.0.0.1:3000:3000")
+	if _, endpoint, memory := recordedBrowser(t, s); endpoint != "http://localhost:3000" || memory != "1G" {
+		t.Errorf("the Browser was recorded at %q with %q, want http://localhost:3000 with 1G", endpoint, memory)
+	}
+}
 
-	// status probes the recorded endpoint, not the static 3000.
-	stdout, _, code = s.run(t, "status", "--service", "browser")
+// The Browser runs the image, the memory and the port its document names.
+// Its record keeps what it ran with, so status follows it, and a later start
+// keeps a Browser its record and its document agree on and restarts one they
+// do not.
+func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
+	s := newScenario(t, "container")
+	editBrowserDocument(t, s,
+		"semiont-browser:latest", "semiont-browser:local",
+		"memory: 1G", "memory: 2G",
+		"port: 3000", "port: 3001")
+	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
-		t.Fatalf("status: exit %d\n%s", code, stdout)
+		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "status stdout", stdout, "http://localhost:3001")
+	mustContain(t, "argv log", s.argv(t),
+		"run -d --name semiont-browser --memory 2G --publish 127.0.0.1:3001:3000",
+		"ghcr.io/the-ai-alliance/semiont-browser:local")
+	mustContain(t, "the start's summary", stdout, "Semiont Browser    http://localhost:3001")
+	if image, endpoint, memory := recordedBrowser(t, s); image != "ghcr.io/the-ai-alliance/semiont-browser:local" || endpoint != "http://localhost:3001" || memory != "2G" {
+		t.Errorf("the Browser was recorded as %q at %q with %q, want the document's :local at http://localhost:3001 with 2G", image, endpoint, memory)
+	}
+	stdout, _, _ = s.run(t, "status", "--service", "browser")
+	mustContain(t, "status", stdout, "http://localhost:3001")
 
-	// Default port stays 3000, no warning.
-	s.killServes(t)
-	stdout, _, code = s.run(t, "start", "--service", "browser")
+	// A later start keeps the Browser it finds running as its document says.
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_browser=running",
+		"FAKERT_IMAGE_browser=ghcr.io/the-ai-alliance/semiont-browser:local")
+	before := s.mustLog(t)
+	stdout, stderr, code = s.run(t, "start")
 	if code != 0 {
-		t.Fatal("default-port browser failed")
+		t.Fatalf("second start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	if strings.Contains(stdout, "instead of 3000") {
-		t.Errorf("default port warned:\n%s", stdout)
+	mustContain(t, "the second start's output", stdout+stderr, "Browser already running on http://localhost:3001")
+	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); strings.Contains(fresh, "run -d --name semiont-browser") {
+		t.Errorf("a Browser running as its document says was restarted:\n%s", fresh)
 	}
 
-	// Scoping: browser-only, and never with codespace placement.
-	for _, tc := range []struct{ args []string }{
-		{[]string{"start", "--port", "3001"}},
-		{[]string{"start", "--service", "worker", "--port", "3001"}},
-		{[]string{"start", "--runtime", "codespace", "--port", "3001"}},
+	// A port the document moves restarts it there; so does a memory it changes.
+	for _, edit := range []struct{ from, to, publishes string }{
+		{"port: 3001", "port: 3002", "--memory 2G --publish 127.0.0.1:3002:3000"},
+		{"memory: 2G", "memory: 3G", "--memory 3G --publish 127.0.0.1:3002:3000"},
 	} {
-		if _, stderr, code := s.run(t, tc.args...); code != 1 {
-			t.Errorf("%v: want exit 1, got %d", tc.args, code)
-		} else {
-			mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr,
-				"--port only applies to --service browser")
+		editBrowserDocument(t, s, edit.from, edit.to)
+		before = s.mustLog(t)
+		stdout, stderr, code = s.run(t, "start")
+		if code != 0 {
+			t.Fatalf("start after %s: exit %d\nstdout:\n%s\nstderr:\n%s", edit.to, code, stdout, stderr)
+		}
+		fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+		mustContain(t, "argv after "+edit.to, fresh, "run -d --name semiont-browser "+edit.publishes)
+	}
+	if _, endpoint, memory := recordedBrowser(t, s); endpoint != "http://localhost:3002" || memory != "3G" {
+		t.Errorf("after the edits the Browser was recorded at %q with %q, want http://localhost:3002 with 3G", endpoint, memory)
+	}
+}
+
+// A Browser document that does not hold is refused, with its file and the
+// line of what it refuses, before anything is stopped or started: by a start,
+// by a start of the Browser alone, and by a dry run.
+func TestABrowserDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
+	s := newScenario(t, "container")
+	editBrowserDocument(t, s, "port: 3000", "port: 70000")
+	path := browserDocumentFor(s.home)
+	for _, args := range [][]string{{"start"}, {"start", "--service", "browser"}, {"start", "--dry-run"}} {
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, args...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		}
+		mustContain(t, fmt.Sprintf("%v's refusal", args), stderr, path+" is not a Browser", "line 10, /spec/port")
+		if ran := strings.TrimPrefix(s.argv(t), before); ran != "" {
+			t.Errorf("%v ran commands before refusing the Browser's document:\n%s", args, ran)
 		}
 	}
-	if _, stderr, code := s.run(t, "start", "--service", "browser", "--port", "notaport"); code != 1 {
-		t.Error("bad port value should fail")
+}
+
+// `semiont settings browser` shows the Browser's document: where it is, and
+// what it says. It is changed by editing it; the setting that named the
+// Browser's image, and start's --port, are gone.
+func TestSettingsShowsTheBrowserDocument(t *testing.T) {
+	s := newScenario(t, "container")
+	path := browserDocumentFor(s.home)
+	stdout, stderr, code := s.run(t, "settings", "browser")
+	if code != 0 {
+		t.Fatalf("settings browser: exit %d\n%s", code, stderr)
+	}
+	mustContain(t, "settings browser", stdout, path, "ghcr.io/the-ai-alliance/semiont-browser:latest", "1G", "http://localhost:3000")
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("showing the Browser's document did not write it: %v", err)
+	}
+
+	if _, stderr, code := s.run(t, "settings", "browser", "ghcr.io/the-ai-alliance/semiont-browser:local"); code != 1 {
+		t.Errorf("settings browser <value>: exit %d, want 1", code)
 	} else {
-		mustContain(t, "stderr", stderr, "Invalid --port")
+		mustContain(t, "settings browser <value>", stderr, "edit", path)
+	}
+	if _, stderr, code := s.run(t, "settings", "browser-image", "ghcr.io/the-ai-alliance/semiont-browser:local"); code != 1 {
+		t.Errorf("settings browser-image: exit %d, want 1", code)
+	} else {
+		mustContain(t, "settings browser-image", stderr, `Unknown setting "browser-image"`)
+	}
+	if _, stderr, code := s.run(t, "start", "--service", "browser", "--port", "3001"); code != 1 {
+		t.Errorf("start --port: exit %d, want 1", code)
+	} else {
+		mustContain(t, "start --port", stderr, "Unknown argument: --port")
 	}
 }
 
@@ -8531,9 +8675,9 @@ func TestDiscoveryPublishesOneKBInTwoPlaces(t *testing.T) {
 
 func TestBrowserLifecycle(t *testing.T) {
 	// The Browser keeps a record of its own, apart from the stack's. Start
-	// ensures it; stop takes it down with the stack; a start that finds a
-	// current one running KEEPS it; a stale image is restarted; --service
-	// browser stops it alone.
+	// ensures it; stop takes it down with the stack; a start that finds one
+	// running as its record says KEEPS it; a stale image is restarted;
+	// --service browser stops it alone.
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -8602,7 +8746,13 @@ func TestBrowserLifecycle(t *testing.T) {
 		t.Errorf("stack.json after a stop: %v\n%s", err, left)
 	}
 
-	// A start that finds a current Browser running KEEPS it, whoever started
+	// A start after the stop finds no record, so it runs the Browser afresh
+	// and records it.
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// A start that finds a current Browser running as its record says KEEPS
 	// it: no churn. The fake runtime reports the reference the first start
 	// ran.
 	s.extraEnv = append(s.extraEnv,
@@ -8611,7 +8761,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	before := s.mustLog(t)
 	stdout, stderr, code = s.run(t, "start")
 	if code != 0 {
-		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
+		t.Fatalf("keeping start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	mustContain(t, "keep message", stdout+stderr, "Browser already running")
@@ -8619,14 +8769,12 @@ func TestBrowserLifecycle(t *testing.T) {
 		t.Errorf("current Browser was churned:\n%s", fresh)
 	}
 
-	// Stale image (reference differs): restart.
+	// Stale image (reference differs), its record otherwise agreeing:
+	// restart.
 	for i, e := range s.extraEnv {
 		if strings.HasPrefix(e, "FAKERT_IMAGE_browser=") {
 			s.extraEnv[i] = "FAKERT_IMAGE_browser=ghcr.io/the-ai-alliance/semiont-browser:old"
 		}
-	}
-	if _, _, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
-		t.Fatal("interim stop")
 	}
 	before = s.mustLog(t)
 	stdout, stderr, code = s.run(t, "start")

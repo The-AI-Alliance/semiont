@@ -190,10 +190,13 @@ func (f publicClientFinding) String() string {
 	return s
 }
 
-// probeRedirect: the loopback callback the browser client must accept. Any port
-// would do — the realm matches this as a string and nothing listens on it
-// during the probe — but the one a default start uses is the honest choice.
-const probeRedirect = "http://localhost:3000/en/auth/callback"
+// browserRedirect: the loopback callback the browser client must accept, on
+// the port the Browser's document names. Any port would do — the realm matches
+// this as a string and nothing listens on it during the probe — but the one
+// the Browser is published on is the honest choice.
+func browserRedirect(port int) string {
+	return fmt.Sprintf("http://localhost:%d/en/auth/callback", port)
+}
 
 // The two response types these probes ask for. `code` is the flow the Browser
 // must use; `token` is the one it must not be offered.
@@ -202,56 +205,21 @@ const (
 	responseToken = "token"
 )
 
-// probeRedirectOtherPort: the same callback on a port no default start uses.
-// A realm that registers loopback WITHOUT a port (RFC 8252 §7.3, which is what
-// keycloakRealmJSON writes) accepts this; one that pins `localhost:3000` does
+// probeRedirectOtherPort: the same callback on a port no Browser is published
+// on here. A realm that registers loopback WITHOUT a port (RFC 8252 §7.3, which
+// is what keycloakRealmJSON writes) accepts this; one that pins a port does
 // not. So a rejection here dates the realm rather than condemning it.
 const probeRedirectOtherPort = "http://localhost:61234/en/auth/callback"
 
-// verifyBrowserRedirect: can this realm redirect to the port the Browser is
-// about to move to?
-//
-// `--service browser --port N` is the one flow that changes the redirect URI
-// without touching the realm. The loopback entries are registered PORTLESS so
-// any port matches (RFC 8252 §7.3) — but a realm from an older import, or
-// edited by hand, pins :3000, and then the move produces a healthy Browser
-// nobody can sign in to. `verifyPublicClients` reports the same condition as
-// a WARNING, because a stack on the default port still works; here the
-// operator has asked for the port that does not, so it refuses.
-//
-// Narrow on purpose: this flow starts no service account and no CLI, so it
-// checks the one thing it is about to change.
-// Refuses ONLY on a positive answer: the realm was asked and declined. Every
-// other outcome — issuer unreachable, no authorization endpoint, probe error —
-// is "cannot tell", and cannot tell must not block. The Browser is
-// machine-level and belongs to no stack, so moving it with nothing running is
-// ordinary; refusing then would make an absent realm a reason not to move a
-// viewer that does not need one yet.
-func verifyBrowserRedirect(issuerBase string, port int) (publicClientFinding, bool) {
-	eps, err := discoverEndpoints(issuerBase)
-	if err != nil || eps.authorization == "" {
-		return publicClientFinding{}, false
-	}
-	redirect := fmt.Sprintf("http://localhost:%d/en/auth/callback", port)
-	code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, redirect, responseCode, withPKCE)
-	if err != nil || code == http.StatusOK {
-		return publicClientFinding{}, false // unreachable, or accepted
-	}
-	return publicClientFinding{
-		clientID: semiont.BrowserClientID,
-		reason:   fmt.Sprintf("the realm will not redirect to %s (HTTP %d)", redirect, code),
-		fix:      fmt.Sprintf("this realm pins the Browser to :3000 — it predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, add `http://localhost/*` to the client, or run `semiont identity sync`; the Browser would start on :%d and no one could sign in", port),
-	}, true
-}
-
 // verifyBrowserOrigin: will this realm let the Browser COMPLETE a sign-in?
 //
-// verifyBrowserRedirect asks the other half — whether the realm will send a
-// person back to the Browser — and a realm can pass that and still refuse this.
+// The redirect probe of verifyPublicClients asks the other half — whether the
+// realm will send a person back to the Browser — and a realm can pass that and
+// still refuse this.
 // They are different matches against different lists. A redirect URI is matched
 // under RFC 8252 §7.3, where a portless loopback entry takes any port; a web
 // origin is matched EXACTLY. So registering the loopback redirects portlessly
-// (correct, and what makes `--port` work) reduces a `webOrigins: ["+"]` client's
+// (correct, and what lets the Browser's document name any port) reduces a `webOrigins: ["+"]` client's
 // CORS set to `http://localhost` on port 80, and the Browser's real origin is
 // in no set at all.
 //
@@ -331,7 +299,7 @@ func tokenOriginProbe(tokenEndpoint, clientID, origin string) (string, error) {
 // such client, while a client that exists but may not use the grant is refused
 // as `unauthorized_client`. That distinction is unavailable from the
 // authorization endpoint, which renders an HTML error page for either.
-func verifyPublicClients(issuerBase string) []publicClientFinding {
+func verifyPublicClients(issuerBase string, browserPort int) []publicClientFinding {
 	eps, err := discoverEndpoints(issuerBase)
 	if err != nil {
 		return []publicClientFinding{{
@@ -394,6 +362,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			fix:      "nobody could sign in from a browser against this issuer",
 		})
 	} else if browserExists {
+		probeRedirect := browserRedirect(browserPort)
 		if code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, probeRedirect, responseCode, withPKCE); err != nil {
 			findings = append(findings, publicClientFinding{clientID: semiont.BrowserClientID, reason: err.Error()})
 		} else if code != http.StatusOK {
@@ -407,8 +376,8 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 				findings = append(findings, publicClientFinding{
 					clientID: semiont.BrowserClientID,
 					warnOnly: true,
-					reason:   "the realm pins the Browser to port 3000",
-					fix:      "`--port` will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
+					reason:   fmt.Sprintf("the realm pins the Browser to a port: it redirects to %s and to no other", probeRedirect),
+					fix:      "another port in the Browser's document will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
 				})
 			}
 			// PKCE must be REQUIRED, not merely supported. A realm that
@@ -435,7 +404,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			// exchange that follows, because CORS origins are matched exactly
 			// where redirect URIs are not — and the realm that does both is the
 			// only one anybody can actually sign in to.
-			if f, bad := verifyBrowserOrigin(issuerBase, defaultBrowserPort); bad {
+			if f, bad := verifyBrowserOrigin(issuerBase, browserPort); bad {
 				findings = append(findings, f)
 			}
 			if code, err := authorizationProbe(eps.authorization, semiont.BrowserClientID, probeRedirect, responseCode, withoutPKCE); err == nil && code == http.StatusOK {
