@@ -131,7 +131,11 @@ func plainJSON(v any, indent string) ([]byte, error) {
 // change, and a write when it changed. The lock is held from before the read
 // until after the rename. The write is a sibling file renamed over the old
 // one: no reader sees half a document, and no credential is left in a stray
-// file.
+// file. Under the lock, before the read, the directory is kept to its owner,
+// as the launcher keeps its state home, so the file and the sibling are its
+// owner's alone from the moment each is made, and the lock from then on:
+// setting the list hands it down to the file, and another writer renaming
+// over the file at that moment would be refused.
 func (s *SignInStore) change(change func(document map[string]json.RawMessage) (changed bool, err error)) error {
 	s.turn.Lock()
 	defer s.turn.Unlock()
@@ -149,6 +153,9 @@ func (s *SignInStore) change(change func(document map[string]json.RawMessage) (c
 	defer lock.Close()
 	if err := lockFile(lock); err != nil {
 		return fmt.Errorf("cannot lock %s: %w", lock.Name(), err)
+	}
+	if err := ownerOnlyDir(dir); err != nil {
+		return fmt.Errorf("the state home %s cannot be kept to its owner: %w", dir, err)
 	}
 	document, err := s.read()
 	if err != nil {

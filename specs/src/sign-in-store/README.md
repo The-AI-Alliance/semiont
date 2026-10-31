@@ -49,6 +49,25 @@ written by writing a sibling temporary file and renaming it over the old
 one, so no reader sees half a document and no credential is left in a stray
 file.
 
+Every writer keeps `<stateDir>` to its owner, as the launcher keeps its state
+home, once it holds the lock (below) and before it reads, so the file and the
+temporary file are its owner's alone from the moment each is made, and the
+lock from then on: mode `0700`, and on Windows, where a mode keeps nobody out,
+an access list. The list allows full access to the user the writer runs as
+(its process token's user), to the system and to the administrators, and to
+nobody else; it is handed down to everything made in the directory, and it is
+protected, so nothing is inherited from above:
+
+    D:PAI(A;OICI;FA;;;<the user's SID>)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)
+
+A directory that has the list already is left as it is: setting a list hands
+it down to everything beneath, and is done under the lock because a file
+being handed the list cannot be renamed over. The directory's list and this
+one are compared as Windows writes each out, which names some users by an
+abbreviation (the built-in administrator's SID is written `LA`), and with
+their entries in any order: entries that each allow mean the same in any
+order.
+
 ## Writing it
 
 Every change to the document is a read, a change and a write, and more than
@@ -64,7 +83,8 @@ whole.
 
 Every writer takes the lock: the Go SDK (`packages/go/sdk`, `SignInStore`),
 through which the launcher keeps its sign-ins, the Rust SDK
-(`semiont::sign_in_store`) and the Python SDK (`semiont.sign_in_store`). On
+(`semiont::sign_in_store`), the Python SDK (`semiont.sign_in_store`) and the
+Kotlin SDK (`semiont.signin.SignInStore`). On
 Windows the lock is on one byte of the lock file, far past anything the file
 holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file
 holds that byte too. Each generates its entry from `SignIn.json`.
