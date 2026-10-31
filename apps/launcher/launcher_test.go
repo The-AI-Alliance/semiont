@@ -5866,6 +5866,12 @@ func TestCodespaceDryRunAndLogs(t *testing.T) {
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log),
 		"gh codespace ssh -c fake-cs-1 -- docker logs --follow semiont-example.com-remote-kb-gateway")
+
+	// --root names a local knowledge base: its containers are followed by
+	// name, whatever codespace is forwarded.
+	before := s.argv(t)
+	s.run(t, "logs", "--root", s.kb, "--service", "gateway")
+	mustNotContain(t, "logs --root", strings.TrimPrefix(s.argv(t), before), "gh codespace ssh")
 }
 
 func TestMultiStackCodespaces(t *testing.T) {

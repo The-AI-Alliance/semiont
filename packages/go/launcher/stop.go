@@ -21,12 +21,13 @@ LEFT: the next start reuses it. Removing it is its own explicit command:
 semiont clean.
 
 Which stack: --root <path> names a knowledge base's, --repo <owner/name> a
-codespace's. Without either, the stack of the knowledge base you stand in;
-else the one stack recorded; else, with no local stack, the codespace this
-clone's git origin names. With several and none of these, stop refuses and
-lists the choices. --runtime keeps to the local stacks. With no stack
-recorded, stop sweeps by name: the knowledge base you stand in's containers,
-or else every known knowledge base's, and the machine's.
+codespace's. Without either, the knowledge base you stand in names its own:
+its stack, or, with none recorded, its containers by name. Standing in none,
+the one stack recorded; with none recorded, every known knowledge base's
+containers by name, and the machine's. A codespace stack recorded with no
+local one is stopped when it is the lone one, or the one this clone's git
+origin names. With several and none of these, stop refuses and lists the
+choices. --runtime keeps to the local stacks.
 
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.

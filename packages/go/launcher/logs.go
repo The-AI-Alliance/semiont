@@ -14,9 +14,10 @@ import (
 var logsUsage = fmt.Sprintf(`Usage: semiont logs [--service <name>] [--root <path>] [--runtime container|docker|podman] [--repo <owner/name>]
 
 A bare invocation follows the stack of the knowledge base you stand in, else
-the one local stack, else (with no local stack) the lone forwarded codespace
-stack, else the lone recorded codespace; with several, say which. --root
-targets a knowledge base's stack, --repo a codespace stack; --runtime
+the lone forwarded codespace stack, else the knowledge base you stand in by
+its containers' names, started or not. Standing in none, it follows the one
+local stack, else the lone recorded codespace; with several, say which.
+--root targets a knowledge base's stack, --repo a codespace stack; --runtime
 targets a local runtime.
 
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
@@ -150,7 +151,7 @@ func Logs(args []string) int {
 		if st != nil && st.Runtime != runtime {
 			st = nil
 		}
-	} else if fwd := forwardedStacks(cs); len(fwd) == 1 && st == nil {
+	} else if fwd := forwardedStacks(cs); len(fwd) == 1 && st == nil && rootFlag == "" {
 		// Read-only commands look at what you're looking at: the lone
 		// forwarded codespace stack wins a bare invocation. Logs ride ssh,
 		// by wire-level container name (the codespace's launcher names them

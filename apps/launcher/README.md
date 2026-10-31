@@ -304,10 +304,11 @@ semiont stop
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
   details any); bare `logs`, `stop`, `useradd` and the knowledge verbs
   let the working directory disambiguate — inside a clone they mean its
-  knowledge base, as `--root` would name it, unless its origin names a
-  recorded codespace stack and no local stack is recorded, when they mean
-  that one; standing in no clone, a lone recorded stack answers for itself —
-  and refuse anywhere less certain:
+  knowledge base, as `--root` would name it, unless nothing started it and a
+  codespace stack is recorded: then, with no local stack recorded, the lone
+  codespace stack or the one the clone's origin names, and otherwise they
+  refuse and list each. Standing in no clone, a lone recorded stack answers
+  for itself. They refuse anywhere less certain:
   `--root <path>` targets a local KB's stack, `--repo <owner/name>` a
   codespace stack, and `--runtime` narrows the choice to local stacks.
 - Codespace preflights fail fast with fixes: `gh` missing/unauthenticated, the
