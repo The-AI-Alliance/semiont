@@ -343,6 +343,27 @@ func TestBeckonWithoutSparkleFocusesInProcess(t *testing.T) {
 	}
 }
 
+func TestBeckonAtAResourceAloneFocusesItInProcess(t *testing.T) {
+	fake, restore := withFake(t)
+	defer restore()
+	harness.CaptureStdout(t, func() {
+		if code := Beckon([]string{"res-42"}); code != 0 {
+			t.Fatalf("beckon: exit %d", code)
+		}
+	})
+	sent := signals(fake)
+	if len(sent) != 1 || sent[0].Channel != bus.BeckonFocus.Channel() {
+		t.Fatalf("want one beckon:focus emit, got %v", sent)
+	}
+	var focus map[string]any
+	if err := json.Unmarshal(sent[0].Payload, &focus); err != nil {
+		t.Fatal(err)
+	}
+	if len(focus) != 1 || focus["resourceId"] != "res-42" {
+		t.Errorf("the focus names the resource and nothing else, got %v", focus)
+	}
+}
+
 func TestBeckonRefusalsInProcess(t *testing.T) {
 	for _, c := range []struct {
 		name string

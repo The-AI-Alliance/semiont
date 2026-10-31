@@ -559,7 +559,10 @@
           "method": "attention",
           "shape": "count",
           "via": { "emit": "beckon:focus" },
-          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1", "resourceId": "res-1" } }]
+          "cases": [
+            { "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1", "resourceId": "res-1" } },
+            { "why": "no annotation: the focus is on the resource as a whole, and names none", "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }
+          ]
         },
         {
           "method": "click",

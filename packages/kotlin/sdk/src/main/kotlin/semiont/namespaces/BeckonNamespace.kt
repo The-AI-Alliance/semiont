@@ -14,13 +14,14 @@ import java.util.concurrent.CompletableFuture
 
 /** Attention: driving the other participants' viewers, each drive answered by how many of them the gateway reached. */
 public class BeckonNamespace internal constructor(private val links: Links) {
-    /** Draw the others' attention to an annotation of a resource. */
-    public suspend fun attention(resourceId: ResourceId, annotationId: AnnotationId): Long? =
+    /** Draw the others' attention to an annotation of a resource, or, with none, to the resource as a whole. */
+    public suspend fun attention(resourceId: ResourceId, annotationId: AnnotationId? = null): Long? =
         links.drive(Channels.BECKON_FOCUS, BeckonFocusEvent(annotationId = annotationId, resourceId = resourceId))
 
     /** `attention`, for Java. */
+    @JvmOverloads
     @JvmExposeBoxed
-    public fun attentionFuture(resourceId: ResourceId, annotationId: AnnotationId): CompletableFuture<Long?> = links.future { attention(resourceId, annotationId) }
+    public fun attentionFuture(resourceId: ResourceId, annotationId: AnnotationId? = null): CompletableFuture<Long?> = links.future { attention(resourceId, annotationId) }
 
     /** Open an annotation in the others' viewers. */
     public suspend fun click(annotationId: AnnotationId): Long? = links.drive(Channels.BROWSE_CLICK, BrowseClickEvent(annotationId = annotationId))

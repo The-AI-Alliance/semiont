@@ -22,15 +22,16 @@ impl BeckonNamespace {
         BeckonNamespace { links }
     }
 
-    /// Point the other participants at an annotation.
+    /// Point the other participants at an annotation, or, with none, at the
+    /// resource as a whole.
     pub async fn attention(
         &self,
         resource_id: &ResourceId,
-        annotation_id: &AnnotationId,
+        annotation_id: Option<&AnnotationId>,
     ) -> Result<Option<u64>, SemiontError> {
         self.links
             .drive::<BeckonFocus>(&BeckonFocusEvent {
-                annotation_id: Some(annotation_id.clone()),
+                annotation_id: annotation_id.cloned(),
                 resource_id: resource_id.clone(),
             })
             .await

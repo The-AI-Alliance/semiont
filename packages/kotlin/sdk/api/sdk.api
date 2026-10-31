@@ -1045,9 +1045,13 @@ public final class semiont/namespaces/AuthNamespace {
 }
 
 public final class semiont/namespaces/BeckonNamespace {
-	public final fun attention-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun attention-TX4fQuk (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun attention-TX4fQuk$default (Lsemiont/namespaces/BeckonNamespace;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun attentionFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun attentionFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
-	public final fun attentionFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun attentionFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun attentionFuture-zT0v48I (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun attentionFuture-zT0v48I$default (Lsemiont/namespaces/BeckonNamespace;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public final fun click-iUDtbMI (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun clickFuture (Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun clickFuture-2VybQ2U (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;

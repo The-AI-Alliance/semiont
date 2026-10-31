@@ -214,7 +214,7 @@ const CALLS: Calls = {
     clone: (c) => c.yield.clone(),
   },
   beckon: {
-    attention: (c, a) => c.beckon.attention(rid(a), aid(a)),
+    attention: (c, a) => c.beckon.attention(rid(a), a['annotationId'] === undefined ? undefined : aid(a)),
     click: (c, a) => c.beckon.click(aid(a)),
     openResource: (c, a) => c.beckon.openResource(rid(a)),
     sparkleAll: (c, a) => c.beckon.sparkleAll(aid(a)),

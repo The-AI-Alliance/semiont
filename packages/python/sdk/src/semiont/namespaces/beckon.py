@@ -22,8 +22,8 @@ class BeckonNamespace:
     def __init__(self, links: Links) -> None:
         self._links: Final = links
 
-    async def attention(self, resource_id: ResourceId, annotation_id: AnnotationId) -> int | None:
-        """Point the other participants at an annotation."""
+    async def attention(self, resource_id: ResourceId, annotation_id: AnnotationId | None = None) -> int | None:
+        """Point the other participants at an annotation, or, with none, at the resource as a whole."""
         return await self._links.drive(BECKON_FOCUS, BeckonFocusEvent(annotation_id=annotation_id, resource_id=resource_id))
 
     async def click(self, annotation_id: AnnotationId) -> int | None:
