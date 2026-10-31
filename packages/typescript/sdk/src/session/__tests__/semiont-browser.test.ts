@@ -53,7 +53,7 @@ import { SemiontBrowser } from '../semiont-browser';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
-import { storageKey, seedStoredSession, testSession, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
+import { storageKey, seedStoredSession, testSession, SharedStorage, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
 import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
 import { PENDING_AUTHORIZATION_KEY } from '../oauth';
 import { IdentityUnverifiableError } from '../connect';
@@ -593,6 +593,79 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await browser.dispose();
   });
 
+  it('two registries over one storage each open a resource: both keep theirs, and each shows what the other opened and viewed', async () => {
+    const here = new SharedStorage();
+    const there = here.context();
+    seedStoredSession(here, KB_A.id, freshJwt(), 'r');
+    here.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    here.set(ACTIVE_KEY, KB_A.id);
+    const first = new SemiontBrowser({ storage: here, sessionFactory: createHttpSessionFactory() });
+    const second = new SemiontBrowser({ storage: there, sessionFactory: createHttpSessionFactory() });
+    await liveSession(first);
+    await liveSession(second);
+    await settled();
+
+    first.addOpenResource('from-here', 'Here');
+    second.addOpenResource('from-there', 'There');
+    second.setLastViewedResource('from-there');
+
+    const both = ['from-here', 'from-there'];
+    const stored = JSON.parse(here.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, { id: string }[]>;
+    expect(stored[KB_A.id]!.map((r) => r.id)).toEqual(both);
+    expect(first.openResources$.getValue().map((r) => r.id)).toEqual(both);
+    expect(second.openResources$.getValue().map((r) => r.id)).toEqual(both);
+    expect(first.lastViewedResource$.getValue()).toBe('from-there');
+
+    await first.dispose();
+    await second.dispose();
+  });
+
+  it('a change to what is open, or to where the person was, is made against what the storage holds', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('mine', 'Mine');
+
+    // Written to the storage with nobody told: what the registry holds in
+    // memory is behind, and what it writes next must not put it back.
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: [
+        { id: 'mine', name: 'Mine', openedAt: 1, order: 0 },
+        { id: 'theirs', name: 'Theirs', openedAt: 2, order: 1 },
+      ],
+    }));
+    storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify({ [KB_B.id]: 'in-b' }));
+    browser.addOpenResource('another', 'Another');
+    browser.setLastViewedResource('mine');
+
+    const want = ['mine', 'theirs', 'another'];
+    const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, { id: string }[]>;
+    expect(stored[KB_A.id]!.map((r) => r.id)).toEqual(want);
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(want);
+    expect(JSON.parse(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY)!)).toEqual({ [KB_A.id]: 'mine', [KB_B.id]: 'in-b' });
+
+    await browser.dispose();
+  });
+
+  it('removing a knowledge base forgets what was kept of it, against what the storage holds', async () => {
+    const browser = await makeConnectedBrowser();
+    browser.addOpenResource('a1', 'A1');
+    browser.setLastViewedResource('a1');
+
+    // Another context's, written with nobody told.
+    storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({
+      [KB_A.id]: [{ id: 'a1', name: 'A1', openedAt: 1, order: 0 }],
+      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 2, order: 0 }],
+    }));
+    storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify({ [KB_A.id]: 'a1', [KB_B.id]: 'b1' }));
+    browser.removeKb(KB_A.id);
+
+    expect(JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!)).toEqual({
+      [KB_B.id]: [{ id: 'b1', name: 'B1', openedAt: 2, order: 0 }],
+    });
+    expect(JSON.parse(storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY)!)).toEqual({ [KB_B.id]: 'b1' });
+
+    await browser.dispose();
+  });
+
   // ── KB identity is checked on activation ───────────────────────────
   // A registry entry claims a particular KB answers at a particular address.
   // Addresses get reused. The claim is checked once there is a session to ask
@@ -1060,6 +1133,59 @@ describe('SemiontBrowser — last viewed resource (KB-scoped)', () => {
 
     expect(browser.lastViewedResource$.getValue()).toBe('res-from-other-tab');
     await browser.dispose();
+  });
+});
+
+describe('SemiontBrowser — a write the storage refuses', () => {
+  /** A storage that refuses every write while `refusing` is set. */
+  class RefusingStorage extends TestStorage {
+    refusing = false;
+
+    override set(key: string, value: string): void {
+      if (this.refusing) throw new Error(`refused: ${key}`);
+      super.set(key, value);
+    }
+
+    override update(key: string, change: (stored: string | null) => string | null): void {
+      if (this.refusing) throw new Error(`refused: ${key}`);
+      super.update(key, change);
+    }
+  }
+
+  const liveSession = (browser: SemiontBrowser) =>
+    firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+
+  /** The checks a session's arrival starts are fire-and-forget; let their microtasks drain. */
+  const settled = () => new Promise((r) => setTimeout(r, 0));
+
+  it('raises from the constructor when what it read cannot be kept', () => {
+    const refusing = new RefusingStorage();
+    refusing.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    refusing.refusing = true;
+
+    expect(() => makeBrowser(refusing)).toThrow('refused');
+  });
+
+  it('raises from dispose what the checks of what is open could not write', async () => {
+    const refusing = new RefusingStorage();
+    seedStoredSession(refusing, KB_A.id, freshJwt(), 'r');
+    refusing.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    refusing.set(ACTIVE_KEY, KB_A.id);
+    refusing.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify({ [KB_A.id]: [{ id: 'gone', name: 'Gone', openedAt: 0, order: 0 }] }));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    mockResourceFresh.mockImplementation(async () => {
+      await gate;
+      throw new BusRequestError('Resource not found', 'bus.not-found', {});
+    });
+
+    const browser = makeBrowser(refusing);
+    await liveSession(browser);
+    refusing.refusing = true;
+    release();
+    await settled();
+
+    await expect(browser.dispose()).rejects.toThrow(`refused: ${OPEN_RESOURCES_BY_KB_KEY}`);
   });
 });
 
