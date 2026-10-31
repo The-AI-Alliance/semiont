@@ -457,6 +457,9 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	if st != nil {
 		at = st.exposure()
 	}
+	// The machine's Ollama runs outside the stack: a row it serves reads its
+	// state from Ollama's own record.
+	machineOllama := LoadStackSet().Ollama
 	lastGroup := 0
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
@@ -519,17 +522,20 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			rt = "external"
 		case rec != nil && rec.Provided == providedHost:
 			rt = "host"
-		case handle == "":
-			// A container-less role (embedding) has nothing to inspect. Never
-			// ask the runtime with an empty name: Apple container
-			// answers [] and docker errors, but either could just as well
-			// answer with EVERY container and be read as this role running.
-			// STATE stays blank — the role owns no container state — but the
-			// RUNTIME column still names where its provider runs.
-			rt = "external"
-			if rec != nil && rec.Provided == providedLauncher && len(runtimes) == 1 {
-				rt = runtimes[0]
+		case rec != nil && rec.Provided == providedMachine:
+			// The machine's Ollama, under the runtime and handle its own
+			// record names. With no record it is absent: stopped alone.
+			if machineOllama != nil {
+				h := machineHandles(machineOllama.Runtime, "semiont-ollama", machineOllama)[0]
+				state, rt = containerState([]string{machineOllama.Runtime}, h)
 			}
+		case handle == "":
+			// A container-less role (embedding, provided elsewhere) has
+			// nothing to inspect. Never ask the runtime with an empty name:
+			// Apple container answers [] and docker errors, but either could
+			// just as well answer with EVERY container and be read as this
+			// role running.
+			rt = "external"
 		default:
 			state, rt = containerState(runtimes, handle)
 		}

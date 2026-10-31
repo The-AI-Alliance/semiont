@@ -77,7 +77,7 @@ func TestStopSweepDerivesTheTeardownOrder(t *testing.T) {
 	assertNames(t, "stopNames", stopNames, []string{
 		"semiont-weaver", "semiont-smelter", "semiont-worker",
 		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
-		"semiont-ollama", "semiont-qdrant", "semiont-neo4j",
+		"semiont-qdrant", "semiont-neo4j",
 		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",
 		"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
 	})

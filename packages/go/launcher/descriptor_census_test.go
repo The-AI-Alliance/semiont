@@ -3,7 +3,6 @@ package launcher
 import (
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 )
@@ -36,29 +35,14 @@ func TestEveryImageTheLauncherNamesIsPinnedByDigest(t *testing.T) {
 // the derivation produces, name for name and position for position. Delete
 // a literal only together with the behaviour it pins.
 
-// The deliberate difference between the two sweeps, asserted as a PREDICATE
-// rather than left to a reader diffing two lists: the stop sweep is the
-// preflight sweep plus semiont-ollama. Start handles Ollama in its own
-// section (a host instance may make the container unnecessary); stop has no
-// such section and must still tear a container-fallback Ollama down.
-func TestStopSweepIsPreflightPlusOllama(t *testing.T) {
-	extra := map[string]bool{}
-	for _, n := range stopNames {
-		extra[n] = true
-	}
-	for _, n := range preflightNames {
-		if !extra[n] {
-			t.Errorf("%s is swept at start but never at stop — it survives the teardown", n)
-		}
-		delete(extra, n)
-	}
-	got := make([]string, 0, len(extra))
-	for n := range extra {
-		got = append(got, n)
-	}
-	sort.Strings(got)
-	if len(got) != 1 || got[0] != "semiont-ollama" {
-		t.Errorf("stop sweeps %v beyond the preflight; only semiont-ollama is a documented difference", got)
+// The two sweeps are one list, asserted as a PREDICATE rather than left to a
+// reader diffing two: what start's preflight clears is what stop tears down.
+// The machine-level containers, the Browser and the machine's Ollama, are in
+// neither: each has a record of its own, by which start keeps or replaces it
+// and stop stops it.
+func TestStopSweepIsThePreflightSweep(t *testing.T) {
+	if !slices.Equal(stopNames, preflightNames) {
+		t.Errorf("stop sweeps %v, start's preflight %v: a name in one alone survives the other", stopNames, preflightNames)
 	}
 }
 
@@ -68,10 +52,11 @@ func TestStopSweepIsPreflightPlusOllama(t *testing.T) {
 func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 	noPreflight := map[string]string{
 		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks",
-		"inference": "handled in the Ollama section, where a host instance may make the container unnecessary",
+		"inference": "the machine's Ollama: kept or replaced in the Ollama section, from its own record, where a host instance may make the container unnecessary",
 	}
 	noStop := map[string]string{
-		"browser": "stopped after the stack by stopBrowser, from the Browser's own record and under its own runtime",
+		"browser":   "stopped after the stack by stopMachineServices, from the Browser's own record and under its own runtime",
+		"inference": "the machine's Ollama: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
 	}
 	for _, d := range serviceDescriptors {
 		if d.container == "" {

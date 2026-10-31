@@ -26,7 +26,8 @@ import (
 
 // Provided values: who provides this role.
 const (
-	providedLauncher = "launcher" // a container this launcher started
+	providedLauncher = "launcher" // a container this launcher started for this stack
+	providedMachine  = "machine"  // the machine's Ollama: a container this launcher runs outside every stack (StackSet.Ollama)
 	providedHost     = "host"     // a host process (reused, not launched)
 	providedExternal = "external" // config-declared external endpoint
 	providedNone     = "none"     // not referenced by the config
@@ -36,7 +37,7 @@ type ServiceState struct {
 	Container string `json:"container,omitempty"` // container name (launcher-provided only)
 	ID        string `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string `json:"image,omitempty"`     // full image ref
-	Provided  string `json:"provided,omitempty"`  // launcher|host|external|none
+	Provided  string `json:"provided,omitempty"`  // launcher|machine|host|external|none
 	Driver    string `json:"driver,omitempty"`    // config `type` (infra roles)
 	// Models: the models this role uses, each with its provider, per the
 	// config it started with.
@@ -47,10 +48,14 @@ type ServiceState struct {
 	// live only when the key happens to be in its environment.
 	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
 	Endpoint     string                     `json:"endpoint,omitempty"` // health probe: http(s) URL or tcp:<host>:<port>
-	Runtime      string                     `json:"runtime,omitempty"`  // browser record only: the runtime that runs it (stack services get theirs from the stack)
+	Runtime      string                     `json:"runtime,omitempty"`  // the Browser's and Ollama's records only: the runtime that runs it (stack services get theirs from the stack)
 	// Memory: the Browser's record only — the ceiling its document gave it,
 	// which with its image and endpoint decides whether a start keeps it.
-	Memory    string    `json:"memory,omitempty"`
+	Memory string `json:"memory,omitempty"`
+	// Cache: Ollama's record only — the model cache it mounts, a named volume
+	// or a host directory, which with its image, port and runtime decides
+	// whether a start keeps it.
+	Cache     string    `json:"cache,omitempty"`
 	StartedAt time.Time `json:"startedAt"`
 }
 
@@ -136,9 +141,15 @@ type StackSet struct {
 	Launcher  string                 `json:"launcherVersion"`
 	Stacks    map[string]*StackState `json:"stacks"`
 	// Browser: the machine-level viewer, deliberately OUTSIDE every stack:
-	// it serves any number of KBs, any start ensures it, and stopping a
-	// stack leaves it running.
+	// it serves any number of KBs, any start ensures it, and a bare stop
+	// stops it with everything else.
 	Browser *ServiceState `json:"browser,omitempty"`
+	// Ollama: the machine's Ollama container, outside every stack for the
+	// same reasons: one serves every KB whose engines name Ollama, a start
+	// keeps a current one, and only a bare stop or `stop --service` on the
+	// role a stack runs it under stops it. A host Ollama is the host's, and
+	// has no record.
+	Ollama *ServiceState `json:"ollama,omitempty"`
 	// unreadable: why the file on disk could not be understood, nil when it
 	// was (an ABSENT file included — no record is a clean, expected state).
 	//
@@ -262,7 +273,7 @@ func saveStackSet(ss *StackSet) {
 	if ss.unreadable != nil {
 		return
 	}
-	if len(ss.Stacks) == 0 && ss.Browser == nil {
+	if len(ss.Stacks) == 0 && ss.Browser == nil && ss.Ollama == nil {
 		_ = os.Remove(p)
 		writeDiscovery(ss) // empty list, not an absent file
 		return
@@ -320,6 +331,23 @@ func clearBrowser() {
 	saveStackSet(ss)
 }
 
+// saveOllama upserts the machine's Ollama record.
+func saveOllama(e *ServiceState) {
+	ss := LoadStackSet()
+	ss.Ollama = e
+	saveStackSet(ss)
+}
+
+// clearOllama forgets it: stopped, or replaced by a host Ollama.
+func clearOllama() {
+	ss := LoadStackSet()
+	if ss.Ollama == nil {
+		return
+	}
+	ss.Ollama = nil
+	saveStackSet(ss)
+}
+
 // recordService updates one service's entry and saves. provided says who
 // provides the role; endpoint is the health probe status should use.
 func (st *StackState) recordService(role, id, image, provided, endpoint, driver string, models []servedModel) {
@@ -334,12 +362,6 @@ func (st *StackState) recordService(role, id, image, provided, endpoint, driver 
 	}
 	if provided == providedLauncher {
 		e.Container = descriptorFor(role, driver).container
-		// A container-less role (embedding) gets NO container here even when
-		// provided reads "launcher" — that value may be INHERITED from the
-		// role that runs its Ollama (SharesOllamaWith), and stamping a
-		// container it does not own would let `stop --service embedding`
-		// sweep inference's Ollama. Ownership is explicit: only the flow that
-		// actually launched the container records one (noteContainer).
 	}
 	st.Services[role] = e
 	saveStack(st)
