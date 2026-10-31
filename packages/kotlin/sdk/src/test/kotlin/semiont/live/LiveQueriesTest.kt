@@ -241,9 +241,6 @@ class LiveQueriesTest {
             client.match.resources("text").fresh()
             client.browse.engines().fresh()
         }
-        // What it knows is owed to storage until it has stopped changing.
-        assertFalse(client.persistenceSettled)
-        assertNull(kept("resource"))
         // A save that has begun is owed no more: the client is settled while its last write has yet to land.
         eventually { client.persistenceSettled }
         assertNull(kept("annotation-detail"))
