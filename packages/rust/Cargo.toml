@@ -57,6 +57,7 @@ hyper = "1.11.1"
 hyper-util = "0.1.21"
 jsonschema = { version = "0.60.0", default-features = false }
 jsonwebtoken = { version = "11.1.0", default-features = false }
+log = "0.4.34"
 opentelemetry = { version = "0.33.0", default-features = false }
 opentelemetry_sdk = { version = "0.33.0", default-features = false }
 opentelemetry-otlp = { version = "0.33.0", default-features = false }

@@ -1641,16 +1641,6 @@
           "absent": {
             "typescript": "TypeScript's is a method of `SemiontBrowser`."
           }
-        },
-        {
-          "member": "CompleteSignInError",
-          "kind": "type",
-          "absent": {
-            "python": "Python's `complete_sign_in` raises the `SignInError` or the `IdentityUnverifiableError` itself.",
-            "typescript": "TypeScript's `completeSignIn` rejects with the `SignInError` or the `IdentityUnverifiableError` itself.",
-            "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`.",
-            "kotlin": "Kotlin's `completeSignIn` throws the `SignInError` or the `IdentityUnverifiableError` itself."
-          }
         }
       ]
     },

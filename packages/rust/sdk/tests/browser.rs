@@ -9,24 +9,26 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use semiont::errors::{SessionErrorCode, TransportError};
+use semiont::errors::{SessionError, SessionErrorCode, TransportError};
 use semiont::session::{
     ACTIVE_KEY, Expected, KNOWLEDGE_BASES_KEY, KbIdentityConflict, KbReadVerdict, KbSessionStatus,
     LAST_VIEWED_RESOURCE_BY_KB_KEY, OPEN_RESOURCES_BY_KB_KEY, OpenResource, PermissionDenied,
-    SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded, SignedIn,
-    StoredSession, save_knowledge_bases, session_key, store_session, stored_session,
+    SemiontBrowser, SemiontBrowserConfig, SemiontSession, SessionEndReason, SessionEnded,
+    SessionFactory, SessionFactoryOptions, SignedIn, StoredSession, load_knowledge_bases,
+    save_knowledge_bases, session_key, store_session, stored_session,
 };
-use semiont::storage::SessionStorage;
+use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::as_id;
 use semiont::testing::{FaultyTransport, ScriptedSessions, SharedStorage};
-use semiont::transport::{ConnectionState, Transport};
+use semiont::transport::{BoxFuture, ConnectionState, Transport};
 use semiont::types::{
     HttpEndpoint, HttpEndpointProtocol, KbEndpoint, KbRead, KnowledgeBase, NewKnowledgeBase,
     UserResponse,
 };
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // ── The knowledge bases behind the factory ──────────────────────────────
@@ -221,12 +223,12 @@ impl World {
     /// the first of them active.
     fn with(kbs: &[KnowledgeBase]) -> World {
         let world = World::new();
-        save_knowledge_bases(world.storage.as_ref(), kbs);
+        save_knowledge_bases(world.storage.as_ref(), kbs).expect("stored");
         for kb in kbs {
-            store_session(world.storage.as_ref(), &kb.id, &tokens("r"));
+            store_session(world.storage.as_ref(), &kb.id, &tokens("r")).expect("stored");
         }
         if let Some(first) = kbs.first() {
-            world.storage.set(ACTIVE_KEY, &first.id);
+            world.storage.set(ACTIVE_KEY, &first.id).expect("stored");
         }
         world
     }
@@ -235,11 +237,12 @@ impl World {
         self.browser_over(self.storage.clone())
     }
 
-    fn browser_over(&self, storage: Arc<SharedStorage>) -> SemiontBrowser {
+    fn browser_over(&self, storage: Arc<dyn SessionStorage>) -> SemiontBrowser {
         SemiontBrowser::new(SemiontBrowserConfig {
             storage,
             session_factory: Arc::new(self.factory.sessions.clone()),
         })
+        .expect("a browser")
     }
 
     fn stored<T: serde::de::DeserializeOwned + Default>(&self, key: &str) -> T {
@@ -332,7 +335,8 @@ async fn a_knowledge_base_that_is_added_is_kept_signed_in_and_made_active() {
             },
             &tokens("r"),
         )
-        .await;
+        .await
+        .expect("added");
 
     assert_eq!(*browser.kbs().borrow(), std::slice::from_ref(&added));
     assert_eq!(*browser.active_kb_id().borrow(), Some(added.id.clone()));
@@ -341,7 +345,7 @@ async fn a_knowledge_base_that_is_added_is_kept_signed_in_and_made_active() {
     assert!(stored_session(world.storage.as_ref(), &added.id).is_some());
 
     // Its identity and what it last said survive a new browser on the storage.
-    browser.close().await;
+    browser.close().await.expect("closed");
     let reopened = world.browser();
     assert_eq!(*reopened.kbs().borrow(), std::slice::from_ref(&added));
     assert_eq!(reopened.kbs().borrow()[0].did, DID_A);
@@ -361,8 +365,8 @@ async fn an_entry_that_is_not_a_knowledge_base_with_a_did_is_dropped_from_the_st
             "not an entry",
         ])
         .to_string(),
-    );
-    world.storage.set(ACTIVE_KEY, "old");
+    ).expect("stored");
+    world.storage.set(ACTIVE_KEY, "old").expect("stored");
     let browser = world.browser();
 
     assert_eq!(*browser.kbs().borrow(), [kb_a()]);
@@ -381,11 +385,15 @@ async fn removing_a_knowledge_base_forgets_it_and_the_next_one_takes_over() {
     let world = World::with(&[kb_a(), kb_b()]);
     let browser = world.browser();
     live(&browser).await;
-    browser.add_open_resource(&as_id("res-1"), "One", None, None);
-    browser.set_last_viewed_resource(&as_id("res-1"));
+    browser
+        .add_open_resource(&as_id("res-1"), "One", None, None)
+        .expect("opened");
+    browser
+        .set_last_viewed_resource(&as_id("res-1"))
+        .expect("recorded");
     assert_eq!(world.stored_open(A), ["res-1"]);
 
-    browser.remove_kb(A).await;
+    browser.remove_kb(A).await.expect("removed");
     assert_eq!(*browser.kbs().borrow(), [kb_b()]);
     assert_eq!(session_of(&browser).as_deref(), Some(B));
     assert!(stored_session(world.storage.as_ref(), A).is_none());
@@ -393,7 +401,7 @@ async fn removing_a_knowledge_base_forgets_it_and_the_next_one_takes_over() {
     assert!(!world.stored_last_viewed().contains_key(A));
     assert!(closed(&world.factory.transports(A)[0]));
 
-    browser.remove_kb(B).await;
+    browser.remove_kb(B).await.expect("removed");
     assert!(browser.kbs().borrow().is_empty());
     assert_eq!(*browser.active_kb_id().borrow(), None);
     assert_eq!(session_of(&browser), None);
@@ -409,7 +417,9 @@ async fn an_entry_takes_what_its_knowledge_base_last_said_and_keeps_its_did() {
         git_branch: None,
     };
 
-    browser.update_kb(B, Some("Renamed"), Some(read.clone()));
+    browser
+        .update_kb(B, Some("Renamed"), Some(read.clone()))
+        .expect("recorded");
 
     let kbs = browser.kbs().borrow().clone();
     assert_eq!(kbs[0], kb_a());
@@ -434,7 +444,8 @@ async fn a_stored_credential_says_whether_it_is_good_expired_or_not_there() {
             access: jwt(-60),
             ..tokens("r")
         },
-    );
+    )
+    .expect("stored");
     let browser = world.browser();
 
     assert_eq!(browser.kb_session_status(A), KbSessionStatus::Authenticated);
@@ -482,7 +493,7 @@ async fn making_another_knowledge_base_active_shows_no_session_and_then_the_new_
     });
     settle().await;
 
-    browser.set_active_kb(Some(B)).await;
+    browser.set_active_kb(Some(B)).await.expect("made active");
     settle().await;
 
     assert_eq!(
@@ -503,7 +514,7 @@ async fn making_none_active_closes_the_session_and_leaves_none() {
     let browser = world.browser();
     live(&browser).await;
 
-    browser.set_active_kb(None).await;
+    browser.set_active_kb(None).await.expect("made active");
 
     assert_eq!(session_of(&browser), None);
     assert_eq!(*browser.active_kb_id().borrow(), None);
@@ -519,7 +530,7 @@ async fn making_the_active_one_active_again_changes_nothing() {
     let browser = world.browser();
     let session = live(&browser).await;
 
-    browser.set_active_kb(Some(A)).await;
+    browser.set_active_kb(Some(A)).await.expect("made active");
 
     assert_eq!(live(&browser).await.id(), session.id());
     assert_eq!(world.factory.transports(A).len(), 1);
@@ -531,11 +542,12 @@ async fn of_two_activations_asked_for_together_the_last_one_asked_for_stands() {
     let browser = world.browser();
     live(&browser).await;
 
-    tokio::join!(
+    tokio::try_join!(
         browser.set_active_kb(Some(B)),
         browser.set_active_kb(Some(A)),
         browser.set_active_kb(Some(B)),
-    );
+    )
+    .expect("made active");
 
     assert_eq!(session_of(&browser).as_deref(), Some(B));
     assert_eq!(browser.active_kb_id().borrow().as_deref(), Some(B));
@@ -560,11 +572,12 @@ async fn an_activation_overtaken_while_it_waited_its_turn_builds_no_session() {
     // the other two are asked for behind it.
     world.factory.sessions.answers_after(Duration::from_secs(2));
 
-    tokio::join!(
+    tokio::try_join!(
         browser.set_active_kb(Some(B)),
         browser.set_active_kb(Some(A)),
         browser.set_active_kb(Some(B)),
-    );
+    )
+    .expect("made active");
 
     assert_eq!(session_of(&browser).as_deref(), Some(B));
     // A had the session it started with, and no other was built for it.
@@ -602,8 +615,14 @@ async fn a_session_that_comes_up_after_its_knowledge_base_stopped_being_active_i
     // B's session is still coming up when A is asked for again.
     settle().await;
     let standing = tokio::spawn(async move { to_a.set_active_kb(Some(A)).await });
-    overtaken.await.expect("the first activation ends");
-    standing.await.expect("the second activation ends");
+    overtaken
+        .await
+        .expect("the first activation ends")
+        .expect("stored");
+    standing
+        .await
+        .expect("the second activation ends")
+        .expect("stored");
     settle().await;
 
     assert_eq!(
@@ -669,13 +688,13 @@ async fn what_a_host_shows_about_a_session_is_there_exactly_when_the_session_is(
     assert_eq!(*first.session_ended().borrow(), None);
 
     // A sign-in on the active knowledge base replaces both together.
-    browser.sign_in(A, &tokens("r2")).await;
+    browser.sign_in(A, &tokens("r2")).await.expect("signed in");
     live(&browser).await;
     let second = browser.active_signals().borrow().clone().expect("signals");
     assert!(!Arc::ptr_eq(&first, &second));
     assert!(first.session_ended().has_changed().is_err());
 
-    browser.sign_out(A).await;
+    browser.sign_out(A).await.expect("signed out");
     assert!(browser.active_signals().borrow().is_none());
     assert_eq!(session_of(&browser), None);
 }
@@ -699,7 +718,10 @@ async fn new_tokens_for_the_active_knowledge_base_replace_its_session() {
     let browser = world.browser();
     let first = live(&browser).await;
 
-    browser.sign_in(A, &tokens("renewed")).await;
+    browser
+        .sign_in(A, &tokens("renewed"))
+        .await
+        .expect("signed in");
     let second = live(&browser).await;
 
     assert_ne!(first.id(), second.id());
@@ -721,7 +743,8 @@ async fn a_sign_in_at_a_new_address_registers_the_knowledge_base_under_what_it_s
             description("KB A", "example.org:kb-a", Some("main")),
             "r",
         ))
-        .await;
+        .await
+        .expect("signed in");
 
     assert_eq!(outcome.expected, None);
     assert_eq!(
@@ -758,7 +781,8 @@ async fn a_sign_in_reports_what_the_person_believed_they_clicked() {
                 "r",
             )
         })
-        .await;
+        .await
+        .expect("signed in");
 
     // The knowledge base that answered is the one registered. What was
     // believed is said back, for a host to set against it.
@@ -788,7 +812,8 @@ async fn a_sign_in_to_a_registered_knowledge_base_takes_what_it_and_the_issuer_n
                     "r2",
                 )
             })
-            .await;
+            .await
+            .expect("signed in");
 
         // The same entry, under the name it gives itself now.
         assert_eq!(outcome.kb.id, A);
@@ -834,7 +859,8 @@ async fn a_sign_in_a_different_knowledge_base_answers_leaves_the_entry_and_lands
                 "for-b",
             )
         })
-        .await;
+        .await
+        .expect("signed in");
 
     // The entry the person believed they were signing in to is as it was:
     // its did, its name, what it last said, and its credentials.
@@ -878,7 +904,8 @@ async fn of_two_entries_at_one_address_a_sign_in_lands_on_the_one_whose_did_answ
             description("KB B", "example.org:kb-b", None),
             "for-b",
         ))
-        .await;
+        .await
+        .expect("signed in");
 
     assert_eq!(outcome.kb.id, twin.id);
     assert_eq!(browser.kbs().borrow().len(), 2);
@@ -901,7 +928,8 @@ async fn an_entry_at_another_address_with_the_same_did_is_not_the_one_signed_in(
             description("KB A", "example.org:kb-a", None),
             "r",
         ))
-        .await;
+        .await
+        .expect("signed in");
 
     assert_ne!(outcome.kb.id, A);
     assert_eq!(outcome.kb.did, DID_A);
@@ -918,7 +946,7 @@ async fn signing_out_forgets_the_tokens_closes_the_session_and_has_the_issuer_to
     let mut kbs = browser.kbs();
     kbs.borrow_and_update();
 
-    browser.sign_out(A).await;
+    browser.sign_out(A).await.expect("signed out");
     settle().await;
 
     assert!(stored_session(world.storage.as_ref(), A).is_none());
@@ -933,7 +961,7 @@ async fn signing_out_forgets_the_tokens_closes_the_session_and_has_the_issuer_to
     assert_eq!(browser.kb_session_status(A), KbSessionStatus::SignedOut);
 
     // Signing out of what is not signed in tells the issuer nothing.
-    browser.sign_out(A).await;
+    browser.sign_out(A).await.expect("signed out");
     settle().await;
     assert_eq!(world.factory.sessions.revoked().len(), 1);
 }
@@ -946,14 +974,24 @@ async fn resources_are_opened_renamed_closed_and_moved_in_the_active_knowledge_b
     let browser = world.browser();
     live(&browser).await;
 
-    browser.add_open_resource(&as_id("r1"), "One", Some("text/plain"), None);
-    browser.add_open_resource(&as_id("r2"), "Two", None, Some("file://two.md"));
-    browser.add_open_resource(&as_id("r3"), "Three", None, None);
+    browser
+        .add_open_resource(&as_id("r1"), "One", Some("text/plain"), None)
+        .expect("opened");
+    browser
+        .add_open_resource(&as_id("r2"), "Two", None, Some("file://two.md"))
+        .expect("opened");
+    browser
+        .add_open_resource(&as_id("r3"), "Three", None, None)
+        .expect("opened");
     assert_eq!(open(&browser), ["r1", "r2", "r3"]);
 
     // Opening what is open already takes what is stated of it, in place.
-    browser.add_open_resource(&as_id("r1"), "One, renamed", None, None);
-    browser.update_open_resource_name(&as_id("r2"), "Two, renamed");
+    browser
+        .add_open_resource(&as_id("r1"), "One, renamed", None, None)
+        .expect("opened");
+    browser
+        .update_open_resource_name(&as_id("r2"), "Two, renamed")
+        .expect("renamed");
     let shown = browser.open_resources().borrow().clone();
     assert_eq!(open(&browser), ["r1", "r2", "r3"]);
     assert_eq!(shown[0].name, "One, renamed");
@@ -961,14 +999,14 @@ async fn resources_are_opened_renamed_closed_and_moved_in_the_active_knowledge_b
     assert_eq!(shown[1].name, "Two, renamed");
     assert_eq!(shown[1].storage_uri.as_deref(), Some("file://two.md"));
 
-    browser.reorder_open_resources(0, 2);
+    browser.reorder_open_resources(0, 2).expect("moved");
     assert_eq!(open(&browser), ["r2", "r3", "r1"]);
     // A place that is not in the list moves nothing.
-    browser.reorder_open_resources(0, 3);
-    browser.reorder_open_resources(7, 0);
+    browser.reorder_open_resources(0, 3).expect("moved");
+    browser.reorder_open_resources(7, 0).expect("moved");
     assert_eq!(open(&browser), ["r2", "r3", "r1"]);
 
-    browser.remove_open_resource(&as_id("r3"));
+    browser.remove_open_resource(&as_id("r3")).expect("closed");
     assert_eq!(open(&browser), ["r2", "r1"]);
     assert_eq!(world.stored_open(A).len(), 2);
 }
@@ -979,11 +1017,15 @@ async fn a_resource_opened_after_a_removal_does_not_take_a_place_that_is_taken()
     let browser = world.browser();
     live(&browser).await;
     for id in ["r1", "r2", "r3"] {
-        browser.add_open_resource(&as_id(id), id, None, None);
+        browser
+            .add_open_resource(&as_id(id), id, None, None)
+            .expect("opened");
     }
 
-    browser.remove_open_resource(&as_id("r2"));
-    browser.add_open_resource(&as_id("r4"), "r4", None, None);
+    browser.remove_open_resource(&as_id("r2")).expect("closed");
+    browser
+        .add_open_resource(&as_id("r4"), "r4", None, None)
+        .expect("opened");
 
     let places: Vec<u64> = browser
         .open_resources()
@@ -998,14 +1040,20 @@ async fn a_resource_opened_after_a_removal_does_not_take_a_place_that_is_taken()
 #[tokio::test(start_paused = true)]
 async fn nothing_is_open_or_opened_or_viewed_without_a_live_session() {
     let world = World::with(&[kb_a()]);
-    world.storage.set(
-        OPEN_RESOURCES_BY_KB_KEY,
-        &json!({ A: [{ "id": "r1", "name": "One", "openedAt": 1, "order": 0 }] }).to_string(),
-    );
-    world.storage.set(
-        LAST_VIEWED_RESOURCE_BY_KB_KEY,
-        &json!({ A: "r1" }).to_string(),
-    );
+    world
+        .storage
+        .set(
+            OPEN_RESOURCES_BY_KB_KEY,
+            &json!({ A: [{ "id": "r1", "name": "One", "openedAt": 1, "order": 0 }] }).to_string(),
+        )
+        .expect("stored");
+    world
+        .storage
+        .set(
+            LAST_VIEWED_RESOURCE_BY_KB_KEY,
+            &json!({ A: "r1" }).to_string(),
+        )
+        .expect("stored");
     let browser = world.browser();
     live(&browser).await;
     assert_eq!(open(&browser), ["r1"]);
@@ -1014,12 +1062,16 @@ async fn nothing_is_open_or_opened_or_viewed_without_a_live_session() {
         Some("r1")
     );
 
-    browser.sign_out(A).await;
+    browser.sign_out(A).await.expect("signed out");
     assert!(open(&browser).is_empty());
     assert_eq!(*browser.last_viewed_resource().borrow(), None);
-    browser.add_open_resource(&as_id("r2"), "Two", None, None);
-    browser.set_last_viewed_resource(&as_id("r2"));
-    browser.remove_open_resource(&as_id("r1"));
+    browser
+        .add_open_resource(&as_id("r2"), "Two", None, None)
+        .expect("opened");
+    browser
+        .set_last_viewed_resource(&as_id("r2"))
+        .expect("recorded");
+    browser.remove_open_resource(&as_id("r1")).expect("closed");
     // Hidden, not forgotten: the storage holds what it held.
     assert_eq!(world.stored_open(A), ["r1"]);
     assert_eq!(
@@ -1027,7 +1079,7 @@ async fn nothing_is_open_or_opened_or_viewed_without_a_live_session() {
         Some("r1")
     );
 
-    browser.sign_in(A, &tokens("r")).await;
+    browser.sign_in(A, &tokens("r")).await.expect("signed in");
     live(&browser).await;
     assert_eq!(open(&browser), ["r1"]);
     assert_eq!(
@@ -1041,17 +1093,25 @@ async fn each_knowledge_base_keeps_what_is_open_in_it_and_where_the_person_was()
     let world = World::with(&[kb_a(), kb_b()]);
     let browser = world.browser();
     live(&browser).await;
-    browser.add_open_resource(&as_id("in-a"), "In A", None, None);
-    browser.set_last_viewed_resource(&as_id("in-a"));
+    browser
+        .add_open_resource(&as_id("in-a"), "In A", None, None)
+        .expect("opened");
+    browser
+        .set_last_viewed_resource(&as_id("in-a"))
+        .expect("recorded");
 
-    browser.set_active_kb(Some(B)).await;
+    browser.set_active_kb(Some(B)).await.expect("made active");
     live(&browser).await;
     assert!(open(&browser).is_empty());
     assert_eq!(*browser.last_viewed_resource().borrow(), None);
-    browser.add_open_resource(&as_id("in-b"), "In B", None, None);
-    browser.set_last_viewed_resource(&as_id("in-b"));
+    browser
+        .add_open_resource(&as_id("in-b"), "In B", None, None)
+        .expect("opened");
+    browser
+        .set_last_viewed_resource(&as_id("in-b"))
+        .expect("recorded");
 
-    browser.set_active_kb(Some(A)).await;
+    browser.set_active_kb(Some(A)).await.expect("made active");
     live(&browser).await;
     assert_eq!(open(&browser), ["in-a"]);
     assert_eq!(
@@ -1076,9 +1136,14 @@ async fn what_another_context_opens_or_views_is_shown_and_neither_loses_the_othe
     live(&here).await;
     live(&there).await;
 
-    here.add_open_resource(&as_id("from-here"), "Here", None, None);
-    there.add_open_resource(&as_id("from-there"), "There", None, None);
-    there.set_last_viewed_resource(&as_id("from-there"));
+    here.add_open_resource(&as_id("from-here"), "Here", None, None)
+        .expect("opened");
+    there
+        .add_open_resource(&as_id("from-there"), "There", None, None)
+        .expect("opened");
+    there
+        .set_last_viewed_resource(&as_id("from-there"))
+        .expect("recorded");
 
     // Each wrote against what the storage held, so both are there, in both.
     assert_eq!(world.stored_open(A), ["from-here", "from-there"]);
@@ -1095,24 +1160,36 @@ async fn a_change_to_what_is_open_is_made_against_what_the_storage_holds() {
     let world = World::with(&[kb_a()]);
     let browser = world.browser();
     live(&browser).await;
-    browser.add_open_resource(&as_id("mine"), "Mine", None, None);
+    browser
+        .add_open_resource(&as_id("mine"), "Mine", None, None)
+        .expect("opened");
 
     // Written to the storage with nobody told: what the browser has in
     // memory is behind, and what it writes next must not put it back.
-    world.storage.set(
-        OPEN_RESOURCES_BY_KB_KEY,
-        &json!({ A: [
+    world
+        .storage
+        .set(
+            OPEN_RESOURCES_BY_KB_KEY,
+            &json!({ A: [
             { "id": "mine", "name": "Mine", "openedAt": 1, "order": 0 },
             { "id": "theirs", "name": "Theirs", "openedAt": 2, "order": 1 },
         ] })
-        .to_string(),
-    );
-    world.storage.set(
-        LAST_VIEWED_RESOURCE_BY_KB_KEY,
-        &json!({ B: "in-b" }).to_string(),
-    );
-    browser.add_open_resource(&as_id("another"), "Another", None, None);
-    browser.set_last_viewed_resource(&as_id("mine"));
+            .to_string(),
+        )
+        .expect("stored");
+    world
+        .storage
+        .set(
+            LAST_VIEWED_RESOURCE_BY_KB_KEY,
+            &json!({ B: "in-b" }).to_string(),
+        )
+        .expect("stored");
+    browser
+        .add_open_resource(&as_id("another"), "Another", None, None)
+        .expect("opened");
+    browser
+        .set_last_viewed_resource(&as_id("mine"))
+        .expect("recorded");
 
     assert_eq!(world.stored_open(A), ["mine", "theirs", "another"]);
     assert_eq!(open(&browser), ["mine", "theirs", "another"]);
@@ -1138,7 +1215,8 @@ fn opened(world: &World, kb_id: &str, ids: &[&str]) {
     );
     world
         .storage
-        .set(OPEN_RESOURCES_BY_KB_KEY, &json!(by_kb).to_string());
+        .set(OPEN_RESOURCES_BY_KB_KEY, &json!(by_kb).to_string())
+        .expect("stored");
 }
 
 #[tokio::test(start_paused = true)]
@@ -1176,12 +1254,14 @@ async fn what_is_open_is_checked_once_per_session_and_again_for_the_next() {
     assert_eq!(world.factory.asked_about(A).len(), 6);
 
     // Changing what is open shows the list again, and checks nothing.
-    browser.add_open_resource(&as_id("a7"), "Seven", None, None);
-    browser.reorder_open_resources(0, 1);
+    browser
+        .add_open_resource(&as_id("a7"), "Seven", None, None)
+        .expect("opened");
+    browser.reorder_open_resources(0, 1).expect("moved");
     settle().await;
     assert_eq!(world.factory.asked_about(A).len(), 6);
 
-    browser.set_active_kb(Some(B)).await;
+    browser.set_active_kb(Some(B)).await.expect("made active");
     live(&browser).await;
     assert_eq!(world.factory.asked_about(B), ["b1"]);
 }
@@ -1199,7 +1279,9 @@ async fn a_resource_another_context_opened_while_the_checks_ran_is_left_open() {
         .entry(A.to_owned())
         .or_default()
         .push(json!({ "id": "sibling", "name": "Sibling", "openedAt": 9, "order": 9 }));
-    elsewhere.set(OPEN_RESOURCES_BY_KB_KEY, &json!(by_kb).to_string());
+    elsewhere
+        .set(OPEN_RESOURCES_BY_KB_KEY, &json!(by_kb).to_string())
+        .expect("stored");
 
     live(&browser).await;
 
@@ -1217,10 +1299,13 @@ async fn a_different_knowledge_base_answering_voids_what_was_open_and_is_raised(
     let world = World::with(&[kb_a(), kb_b()]);
     opened(&world, A, &["a1", "a2"]);
     opened(&world, B, &["b1"]);
-    world.storage.set(
-        LAST_VIEWED_RESOURCE_BY_KB_KEY,
-        &json!({ A: "a1", B: "b1" }).to_string(),
-    );
+    world
+        .storage
+        .set(
+            LAST_VIEWED_RESOURCE_BY_KB_KEY,
+            &json!({ A: "a1", B: "b1" }).to_string(),
+        )
+        .expect("stored");
     world
         .factory
         .describes(A, description("KB B", "example.org:kb-b", Some("main")));
@@ -1273,7 +1358,7 @@ async fn the_knowledge_base_answering_as_itself_changes_nothing_and_is_recorded(
     );
 
     // And a new browser on the storage reads what was recorded.
-    browser.close().await;
+    browser.close().await.expect("closed");
     assert_eq!(world.browser().kbs().borrow()[0], entry);
 }
 
@@ -1293,7 +1378,10 @@ async fn no_answer_and_a_refusal_to_say_are_no_verdict_and_void_nothing() {
         assert_eq!(browser.kbs().borrow()[0], kb_a());
         // The resources were checked all the same.
         assert_eq!(world.factory.asked_about(A), ["a1"]);
-        assert_eq!(browser.read_active_kb().await, KbReadVerdict::NoVerdict);
+        assert_eq!(
+            browser.read_active_kb().await.expect("asked"),
+            KbReadVerdict::NoVerdict
+        );
     }
 }
 
@@ -1310,7 +1398,10 @@ async fn asking_the_active_knowledge_base_again_records_what_it_says_now() {
     world
         .factory
         .describes(A, description("KB A", "example.org:kb-a", None));
-    assert_eq!(browser.read_active_kb().await, KbReadVerdict::Recorded);
+    assert_eq!(
+        browser.read_active_kb().await.expect("asked"),
+        KbReadVerdict::Recorded
+    );
 
     assert_eq!(world.factory.asked_who(A), asked + 1);
     // A tree that is on no branch is recorded as on none.
@@ -1327,12 +1418,14 @@ async fn asking_again_reports_a_different_knowledge_base_and_acts_on_nothing() {
         .describes(A, description("KB A", "example.org:kb-a", None));
     let browser = world.browser();
     live(&browser).await;
-    browser.set_last_viewed_resource(&as_id("a1"));
+    browser
+        .set_last_viewed_resource(&as_id("a1"))
+        .expect("recorded");
 
     world
         .factory
         .describes(A, description("KB B", "example.org:kb-b", None));
-    let verdict = browser.read_active_kb().await;
+    let verdict = browser.read_active_kb().await.expect("asked");
 
     assert_eq!(
         verdict,
@@ -1364,7 +1457,7 @@ async fn asking_again_does_not_raise_a_conflict_that_was_acknowledged() {
     signals.acknowledge_kb_identity_conflict();
 
     assert!(matches!(
-        browser.read_active_kb().await,
+        browser.read_active_kb().await.expect("asked"),
         KbReadVerdict::Conflict { .. }
     ));
     assert_eq!(conflict(&browser), None);
@@ -1373,7 +1466,10 @@ async fn asking_again_does_not_raise_a_conflict_that_was_acknowledged() {
 #[tokio::test(start_paused = true)]
 async fn with_no_session_there_is_nothing_to_ask() {
     let browser = World::new().browser();
-    assert_eq!(browser.read_active_kb().await, KbReadVerdict::NoVerdict);
+    assert_eq!(
+        browser.read_active_kb().await.expect("asked"),
+        KbReadVerdict::NoVerdict
+    );
 }
 
 // ── What the session's transport fails at ───────────────────────────────
@@ -1454,7 +1550,7 @@ fn signals_acknowledged(browser: &SemiontBrowser) {
 #[tokio::test(start_paused = true)]
 async fn a_refusal_with_nothing_stored_is_being_signed_out_and_not_an_expiry() {
     let world = World::new();
-    save_knowledge_bases(world.storage.as_ref(), &[kb_a()]);
+    save_knowledge_bases(world.storage.as_ref(), &[kb_a()]).expect("stored");
     let browser = world.browser();
     live(&browser).await;
 
@@ -1490,7 +1586,252 @@ async fn a_refusal_for_lack_of_permission_is_said_and_any_other_failure_is_not()
     assert_eq!(ended(&browser), None);
 }
 
+// ── A write the storage refuses ─────────────────────────────────────────
+
+fn full() -> Box<dyn std::error::Error + Send + Sync> {
+    "the storage is full".into()
+}
+
+/// The world's storage that, while it refuses a kind of write, takes none of
+/// that kind: what it holds stays as it was.
+struct Refusing {
+    beneath: SharedStorage,
+    sets: AtomicBool,
+    deletes: AtomicBool,
+    updates: AtomicBool,
+}
+
+impl Refusing {
+    fn over(world: &World) -> Arc<Refusing> {
+        Arc::new(Refusing {
+            beneath: world.storage.context(),
+            sets: AtomicBool::new(false),
+            deletes: AtomicBool::new(false),
+            updates: AtomicBool::new(false),
+        })
+    }
+}
+
+impl SessionStorage for Refusing {
+    fn get(&self, key: &str) -> Option<String> {
+        self.beneath.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.sets.load(Ordering::SeqCst) {
+            return Err(full());
+        }
+        self.beneath.set(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.deletes.load(Ordering::SeqCst) {
+            return Err(full());
+        }
+        self.beneath.delete(key)
+    }
+
+    /// Told what to store, and refuses to store it.
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.updates.load(Ordering::SeqCst) {
+            change(self.beneath.get(key).as_deref());
+            return Err(full());
+        }
+        self.beneath.update(key, change)
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.beneath.subscribe(on_change)
+    }
+}
+
+/// What a write's failure says; none when it did not fail.
+fn said<T>(result: Result<T, Box<dyn std::error::Error + Send + Sync>>) -> Option<String> {
+    result.err().map(|refused| refused.to_string())
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_browser_over_a_storage_that_refuses_what_it_read_is_not_made() {
+    let world = World::with(&[kb_a()]);
+    let storage = Refusing::over(&world);
+    storage.sets.store(true, Ordering::SeqCst);
+
+    let made = SemiontBrowser::new(SemiontBrowserConfig {
+        storage,
+        session_factory: Arc::new(world.factory.sessions.clone()),
+    });
+    assert_eq!(said(made).as_deref(), Some("the storage is full"));
+    settle().await;
+    assert!(world.factory.transports(A).is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_knowledge_base_whose_tokens_the_storage_will_not_forget_is_not_removed() {
+    let world = World::with(&[kb_a(), kb_b()]);
+    let storage = Refusing::over(&world);
+    let browser = world.browser_over(storage.clone());
+    live(&browser).await;
+    storage.deletes.store(true, Ordering::SeqCst);
+
+    let refused = browser.remove_kb(A).await;
+
+    assert_eq!(said(refused).as_deref(), Some("the storage is full"));
+    assert_eq!(*browser.kbs().borrow(), [kb_a(), kb_b()]);
+    assert_eq!(
+        load_knowledge_bases(world.storage.as_ref()),
+        [kb_a(), kb_b()]
+    );
+    assert!(stored_session(world.storage.as_ref(), A).is_some());
+    assert_eq!(session_of(&browser).as_deref(), Some(A));
+    assert!(!closed(&world.factory.transports(A)[0]));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_sign_out_the_storage_will_not_keep_leaves_the_session_as_it_was() {
+    let world = World::with(&[kb_a()]);
+    let storage = Refusing::over(&world);
+    let browser = world.browser_over(storage.clone());
+    live(&browser).await;
+    storage.deletes.store(true, Ordering::SeqCst);
+
+    let refused = browser.sign_out(A).await;
+    settle().await;
+
+    assert_eq!(said(refused).as_deref(), Some("the storage is full"));
+    assert_eq!(
+        stored_session(world.storage.as_ref(), A).map(|stored| stored.refresh),
+        Some("r".to_owned())
+    );
+    assert_eq!(session_of(&browser).as_deref(), Some(A));
+    assert!(!closed(&world.factory.transports(A)[0]));
+    assert!(world.factory.sessions.revoked().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn making_none_active_when_the_storage_will_not_forget_the_active_one_changes_nothing() {
+    let world = World::with(&[kb_a()]);
+    let storage = Refusing::over(&world);
+    let browser = world.browser_over(storage.clone());
+    live(&browser).await;
+    storage.deletes.store(true, Ordering::SeqCst);
+
+    let refused = browser.set_active_kb(None).await;
+
+    assert_eq!(said(refused).as_deref(), Some("the storage is full"));
+    assert_eq!(browser.active_kb_id().borrow().as_deref(), Some(A));
+    assert_eq!(session_of(&browser).as_deref(), Some(A));
+    assert_eq!(world.storage.get(ACTIVE_KEY).as_deref(), Some(A));
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_answer_the_storage_will_not_record_is_what_asking_again_says() {
+    let world = World::with(&[kb_a()]);
+    world
+        .factory
+        .describes(A, description("KB A", "example.org:kb-a", None));
+    let storage = Refusing::over(&world);
+    let browser = world.browser_over(storage.clone());
+    live(&browser).await;
+    storage.sets.store(true, Ordering::SeqCst);
+
+    world
+        .factory
+        .describes(A, description("KB A, renamed", "example.org:kb-a", None));
+    let refused = browser.read_active_kb().await;
+
+    assert_eq!(said(refused).as_deref(), Some("the storage is full"));
+    assert_eq!(browser.kbs().borrow()[0].label, "KB A");
+    assert_eq!(
+        load_knowledge_bases(world.storage.as_ref())[0].label,
+        "KB A"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_check_the_storage_will_not_keep_is_what_closing_says() {
+    let world = World::with(&[kb_a()]);
+    opened(&world, A, &["kept", "gone"]);
+    world.factory.behind().gone.insert("gone".to_owned());
+    let storage = Refusing::over(&world);
+    storage.updates.store(true, Ordering::SeqCst);
+    let browser = world.browser_over(storage.clone());
+    live(&browser).await;
+
+    // What is open is as it was, there and here.
+    assert_eq!(open(&browser), ["kept", "gone"]);
+    assert_eq!(world.stored_open(A), ["kept", "gone"]);
+    assert_eq!(
+        said(browser.close().await).as_deref(),
+        Some("the storage is full")
+    );
+}
+
 // ── How it ends ─────────────────────────────────────────────────────────
+
+/// A factory whose issuer, told of a sign-out, closes the browser it builds
+/// sessions for: a close made from inside the browser's own work.
+struct ClosingOnRevoke {
+    sessions: ScriptedSessions,
+    browser: Arc<OnceLock<Weak<SemiontBrowser>>>,
+    /// What the close said, once it returned.
+    closing: Arc<Mutex<Option<Option<String>>>>,
+}
+
+impl SessionFactory for ClosingOnRevoke {
+    fn session(&self, options: SessionFactoryOptions) -> Result<SemiontSession, SessionError> {
+        self.sessions.session(options)
+    }
+
+    fn revoke(&self, _: StoredSession) -> BoxFuture<'static, ()> {
+        let (browser, closing) = (self.browser.clone(), self.closing.clone());
+        Box::pin(async move {
+            if let Some(browser) = browser.get().and_then(Weak::upgrade) {
+                let closed = said(browser.close().await);
+                *closing.lock().expect("closing") = Some(closed);
+            }
+        })
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_browser_closed_from_inside_its_own_work_ends_everything_and_its_close_returns() {
+    let world = World::with(&[kb_a(), kb_b()]);
+    let factory = ClosingOnRevoke {
+        sessions: world.factory.sessions.clone(),
+        browser: Arc::default(),
+        closing: Arc::default(),
+    };
+    let (registered, closing) = (factory.browser.clone(), factory.closing.clone());
+    let browser = Arc::new(
+        SemiontBrowser::new(SemiontBrowserConfig {
+            storage: world.storage.clone(),
+            session_factory: Arc::new(factory),
+        })
+        .expect("a browser"),
+    );
+    registered
+        .set(Arc::downgrade(&browser))
+        .expect("registered once");
+    live(&browser).await;
+    let (kbs, session) = (browser.kbs(), browser.active_session());
+
+    // B is not the active one: its sign-out leaves A's session up, and the
+    // issuer it tells closes the browser.
+    browser.sign_out(B).await.expect("signed out");
+    settle().await;
+
+    // The close returned, with no failure.
+    assert_eq!(*closing.lock().expect("closing"), Some(None));
+    assert!(closed(&world.factory.transports(A)[0]));
+    assert!(kbs.has_changed().is_err());
+    assert!(session.has_changed().is_err());
+    assert!(browser.bus().destroyed());
+    assert_eq!(said(browser.close().await), None);
+}
 
 #[tokio::test(start_paused = true)]
 async fn closing_the_browser_closes_its_session_and_ends_what_it_holds() {
@@ -1504,8 +1845,8 @@ async fn closing_the_browser_closes_its_session_and_ends_what_it_holds() {
     );
     let mut errors = browser.errors();
 
-    browser.close().await;
-    browser.close().await;
+    browser.close().await.expect("closed");
+    browser.close().await.expect("closed");
 
     assert!(closed(&world.factory.transports(A)[0]));
     assert!(kbs.has_changed().is_err());
@@ -1519,8 +1860,11 @@ async fn closing_the_browser_closes_its_session_and_ends_what_it_holds() {
             .is_none()
     );
     // Nothing it is told afterwards does anything, and what is stored stays.
-    browser.set_active_kb(None).await;
-    browser.sign_in(A, &tokens("late")).await;
+    browser.set_active_kb(None).await.expect("made active");
+    browser
+        .sign_in(A, &tokens("late"))
+        .await
+        .expect("signed in");
     assert_eq!(world.storage.get(ACTIVE_KEY).as_deref(), Some(A));
     assert_eq!(
         stored_session(world.storage.as_ref(), A).map(|stored| stored.refresh),

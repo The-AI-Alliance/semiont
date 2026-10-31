@@ -34,19 +34,24 @@ impl Drop for StorageSubscription {
     }
 }
 
-/// A store of strings by key.
+/// A store of strings by key. A write the store could not make is its own
+/// error.
 pub trait SessionStorage: Send + Sync + 'static {
     fn get(&self, key: &str) -> Option<String>;
 
-    fn set(&self, key: &str, value: &str);
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
     /// Remove a key. One that is not there is left not there.
-    fn delete(&self, key: &str);
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
     /// Change a key's value as one step: `change` is given what is stored
     /// and says what is stored next, `None` for nothing. No other writer's
     /// change falls between the read and the write.
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>);
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
     /// Hear of what another context writes: another process, another window.
     /// `None` where the environment has no such thing; a client then works
@@ -78,20 +83,27 @@ impl SessionStorage for InMemorySessionStorage {
         self.stored().get(key).cloned()
     }
 
-    fn set(&self, key: &str, value: &str) {
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.stored().insert(key.to_owned(), value.to_owned());
+        Ok(())
     }
 
-    fn delete(&self, key: &str) {
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.stored().remove(key);
+        Ok(())
     }
 
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut stored = self.stored();
         match change(stored.get(key).map(String::as_str)) {
             Some(next) => stored.insert(key.to_owned(), next),
             None => stored.remove(key),
         };
+        Ok(())
     }
 
     fn subscribe(&self, _: StorageChange) -> Option<StorageSubscription> {

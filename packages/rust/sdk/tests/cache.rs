@@ -20,6 +20,7 @@ use semiont::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::oneshot;
@@ -592,11 +593,13 @@ async fn b16_a_disposed_cache_asks_nothing_and_a_one_shot_read_of_it_fails_as_cl
 /// What a persister calls with what another context saved.
 type Heard = Box<dyn Fn(HashMap<String, String>) + Send + Sync>;
 
-/// A persister that keeps what it is given, and counts.
+/// A persister that keeps what it is given, and counts; while it is full, it
+/// counts each save and keeps none.
 #[derive(Default)]
 struct Kept {
     stored: Mutex<Option<HashMap<String, String>>>,
     saves: Mutex<Vec<HashMap<String, String>>>,
+    full: AtomicBool,
     external: Mutex<Option<Heard>>,
 }
 
@@ -634,8 +637,15 @@ impl CachePersister<String, String> for Kept {
         self.stored.lock().expect("stored").clone()
     }
 
-    fn save(&self, entries: &HashMap<String, String>) {
+    fn save(
+        &self,
+        entries: &HashMap<String, String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.saves.lock().expect("saves").push(entries.clone());
+        if self.full.load(Ordering::SeqCst) {
+            return Err("the storage is full".into());
+        }
+        Ok(())
     }
 
     fn subscribe(
@@ -715,6 +725,25 @@ async fn b17_a_burst_of_changes_is_one_save_and_failures_are_never_saved() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn b17_a_save_that_fails_leaves_the_cache_as_it_was_and_the_next_save_tries_again() {
+    let service = Service::default();
+    let kept = Arc::new(Kept::default());
+    kept.full.store(true, Ordering::SeqCst);
+    let cache = persisted(&service, &kept);
+    cache.set(&key("a"), key("one"));
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    assert_eq!(kept.saves().len(), 1);
+    assert!(!cache.persistence_pending());
+    assert_eq!(cache.get(&key("a")), Some(key("one")));
+
+    kept.full.store(false, Ordering::SeqCst);
+    cache.set(&key("b"), key("two"));
+    tokio::time::sleep(SAVE_DEBOUNCE * 2).await;
+    let expected: HashMap<String, String> = [(key("a"), key("one")), (key("b"), key("two"))].into();
+    assert_eq!(kept.saves().last(), Some(&expected));
+}
+
+#[tokio::test(start_paused = true)]
 async fn b17_disposal_makes_the_save_that_was_owed_and_nothing_is_saved_after() {
     let service = Service::default();
     let kept = Arc::new(Kept::default());
@@ -767,7 +796,9 @@ fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let persister = stored(&storage, 1, MAX_STORED_BYTES_COUNT);
     assert_eq!(persister.load(), None);
-    persister.save(&entries(&[("a", "one"), ("b", "two")]));
+    persister
+        .save(&entries(&[("a", "one"), ("b", "two")]))
+        .expect("stored");
 
     let document: Value =
         serde_json::from_str(&storage.get("semiont.cache.kb.test").expect("a document"))
@@ -784,12 +815,18 @@ fn a_stored_cache_is_one_document_and_is_read_back_as_it_was_written() {
 #[test]
 fn a_document_of_another_version_or_one_that_is_not_a_document_reads_as_nothing_kept() {
     let storage = Arc::new(InMemorySessionStorage::new());
-    stored(&storage, 1, MAX_STORED_BYTES_COUNT).save(&entries(&[("a", "one")]));
+    stored(&storage, 1, MAX_STORED_BYTES_COUNT)
+        .save(&entries(&[("a", "one")]))
+        .expect("stored");
     assert_eq!(stored(&storage, 2, MAX_STORED_BYTES_COUNT).load(), None);
 
-    storage.set("semiont.cache.kb.test", "{ not a document");
+    storage
+        .set("semiont.cache.kb.test", "{ not a document")
+        .expect("stored");
     assert_eq!(stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(), None);
-    storage.set("semiont.cache.kb.test", "[1, 2, 3]");
+    storage
+        .set("semiont.cache.kb.test", "[1, 2, 3]")
+        .expect("stored");
     assert_eq!(stored(&storage, 1, MAX_STORED_BYTES_COUNT).load(), None);
 }
 
@@ -798,17 +835,23 @@ fn a_document_over_its_size_loses_the_entries_longest_unwritten() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let value = "x".repeat(100);
     let persister = stored(&storage, 1, 400);
-    persister.save(&entries(&[("oldest", &value)]));
+    persister
+        .save(&entries(&[("oldest", &value)]))
+        .expect("stored");
     std::thread::sleep(Duration::from_millis(5));
-    persister.save(&entries(&[("oldest", &value), ("older", &value)]));
+    persister
+        .save(&entries(&[("oldest", &value), ("older", &value)]))
+        .expect("stored");
     std::thread::sleep(Duration::from_millis(5));
     // An entry whose value did not change keeps the time it was written, so
     // the newest is the one that stays.
-    persister.save(&entries(&[
-        ("oldest", &value),
-        ("older", &value),
-        ("newest", &value),
-    ]));
+    persister
+        .save(&entries(&[
+            ("oldest", &value),
+            ("older", &value),
+            ("newest", &value),
+        ]))
+        .expect("stored");
 
     let kept = stored(&storage, 1, 400).load().expect("a document");
     assert!(kept.contains_key("newest"), "{kept:?}");
@@ -831,7 +874,7 @@ struct Shared {
 
 impl Shared {
     fn written_elsewhere(&self, key: &str, value: &str) {
-        self.inner.set(key, value);
+        self.inner.set(key, value).expect("stored");
         if let Some(heard) = self.heard.lock().expect("heard").as_ref() {
             heard(key, Some(value));
         }
@@ -843,16 +886,20 @@ impl SessionStorage for Shared {
         self.inner.get(key)
     }
 
-    fn set(&self, key: &str, value: &str) {
-        self.inner.set(key, value);
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.set(key, value)
     }
 
-    fn delete(&self, key: &str) {
-        self.inner.delete(key);
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.delete(key)
     }
 
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
-        self.inner.update(key, change);
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.update(key, change)
     }
 
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {

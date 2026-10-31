@@ -222,7 +222,8 @@ async fn a_test_session_holds_the_token_its_storage_held_and_then_the_one_the_te
             token_endpoint: "https://issuer.test/token".to_owned(),
             revocation_endpoint: None,
         },
-    );
+    )
+    .expect("stored");
 
     let test = create_test_session(TestSessionOptions {
         kb: Some(kb.clone()),
@@ -318,7 +319,8 @@ impl Asked {
                 token_endpoint: "https://issuer.test/token".to_owned(),
                 revocation_endpoint: None,
             },
-        );
+        )
+        .expect("stored");
     }
 
     fn errors(&self) -> Vec<SessionError> {
