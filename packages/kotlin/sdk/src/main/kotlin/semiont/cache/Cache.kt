@@ -5,13 +5,16 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.transformWhile
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import semiont.StateUnit
@@ -22,6 +25,8 @@ import semiont.errors.SemiontError
 import semiont.telemetry.futureOf
 import semiont.transport.Events
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
+import java.util.function.Function
 
 /** Where a cache keeps its values, so a later one begins with them. */
 public interface CachePersister<K : Any, V : Any> {
@@ -34,6 +39,9 @@ public interface CachePersister<K : Any, V : Any> {
 
 /** What a read of a closed client fails as: what a request of a closed bus does. */
 internal fun closed(): BusRequestError = BusRequestError(BusRequestErrorCode.Closed, "The client is closed")
+
+/** Where the fetches of a cache a host makes run: on the default dispatcher, one failing leaving the others be. */
+private fun ownScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 /** One key: its state, which every observer of it holds, and the fetch in flight for it, by its number. */
 private class Key<V : Any>(state: CacheState<V>) {
@@ -59,10 +67,12 @@ private class Key<V : Any>(state: CacheState<V>) {
  * that is known; `remove` ends a key whose entity is gone; `close` ends every
  * observer, and nothing is fetched, retried or written after it.
  *
- * `ask` asks the service for a key's value, and its fetches run in `scope`, the client's. With a `persister`, the cache
- * begins with what was kept, shows a kept value at once and asks for it again
- * the first time it is observed, and saves its values once they have stopped
- * changing for `saveDebounceMs`.
+ * `ask` asks for a key's value, failing with a [SemiontError], and its fetches
+ * run in `scope`: the client's, for a cache the client makes, and one of the
+ * cache's own on the default dispatcher, for one a host makes. With a
+ * `persister`, the cache begins with what was kept, shows a kept value at once
+ * and asks for it again the first time it is observed, and saves its values
+ * once they have stopped changing for `saveDebounceMs`.
  */
 public class Cache<K : Any, V : Any> internal constructor(
     private val ask: suspend (K) -> V,
@@ -70,6 +80,21 @@ public class Cache<K : Any, V : Any> internal constructor(
     private val persister: CachePersister<K, V>? = null,
     private val saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
 ) : StateUnit {
+    /** A cache of a host's own, whose fetches ask `fetch` and run on the default dispatcher. */
+    public constructor(
+        fetch: suspend (K) -> V,
+        persister: CachePersister<K, V>? = null,
+        saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
+    ) : this(fetch, ownScope(), persister, saveDebounceMs)
+
+    /** A cache of a host's own, for Java: `fetch` gives a key's value as the stage it returns completes. */
+    @JvmOverloads
+    public constructor(
+        fetch: Function<K, CompletionStage<V>>,
+        persister: CachePersister<K, V>? = null,
+        saveDebounceMs: Long = Timings.SAVE_DEBOUNCE_MS,
+    ) : this({ key: K -> fetch.apply(key).await() }, ownScope(), persister, saveDebounceMs)
+
     private val lock = Any()
     private var disposed = false
     private var fetches = 0

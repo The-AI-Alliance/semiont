@@ -11,8 +11,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -685,5 +688,20 @@ class CacheTest {
         runCurrent()
         assertEquals(2, world.cache.get(KEY))
         world.close()
+    }
+
+    @Test
+    fun aCacheAHostMakesAsksWhatItWasGivenAndKeepsAsItWasTold() = runBlocking {
+        val kept = Kept(mapOf("kept" to 7))
+        val cache = Cache<String, Int>({ key -> key.length }, kept, saveDebounceMs = 60_000)
+        assertEquals(7, cache.get("kept"))
+        assertEquals(3, cache.fetch("abc"))
+        // Long past the wait a client's cache keeps, the save it owes is still owed: it waits as long as it was told.
+        delay(Timings.SAVE_DEBOUNCE_MS * 4)
+        assertTrue(cache.persistencePending)
+        assertEquals(emptyList<Map<String, Int>>(), kept.saves)
+        cache.close()
+        assertEquals(listOf(mapOf("kept" to 7, "abc" to 3)), kept.saves)
+        assertEquals(BusRequestErrorCode.Closed, assertThrows<BusRequestError> { cache.fetch("abc") }.reason)
     }
 }

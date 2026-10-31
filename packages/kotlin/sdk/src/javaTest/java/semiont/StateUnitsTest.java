@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Flow;
 import java.util.concurrent.LinkedBlockingQueue;
 import kotlin.Unit;
@@ -19,6 +20,10 @@ import kotlinx.coroutines.flow.StateFlowKt;
 import kotlinx.serialization.json.Json;
 import kotlinx.serialization.json.JsonElementKt;
 import org.junit.jupiter.api.Test;
+import semiont.cache.Cache;
+import semiont.cache.CacheState;
+import semiont.errors.BusRequestError;
+import semiont.errors.BusRequestErrorCode;
 import semiont.http.HttpContentTransport;
 import semiont.http.HttpTransport;
 import semiont.identifiers.AnnotationId;
@@ -163,6 +168,44 @@ final class StateUnitsTest {
             assertEquals(List.of("PARIS"), found.getResults());
             assertEquals("paris", pipeline.getQuery().getValue());
         }
+    }
+
+    @Test
+    void aCacheJavaMakesAsksWhatJavaGivesItAndIsClosedFromJava() throws Exception {
+        // Each answer is how many requests have been made, so every request shows.
+        List<String> asked = new CopyOnWriteArrayList<>();
+        Reading<CacheState<Integer>> states;
+        try (Cache<String, Integer> cache = new Cache<String, Integer>(key -> {
+            asked.add(key);
+            return CompletableFuture.completedFuture(asked.size());
+        })) {
+            assertEquals(1, cache.fetchFuture("k").get(10, SECONDS));
+            assertEquals(1, cache.get("k"));
+            assertTrue(cache.known("k"));
+            assertFalse(cache.known("other"));
+            assertEquals(List.of("k"), cache.keys());
+            states = new Reading<>(cache.observe("k").asPublisher());
+            assertEquals(new CacheState.Ready<>(1), states.next());
+            cache.set("k", 10);
+            assertEquals(new CacheState.Ready<>(10), states.next());
+            BusRequestError gone = new BusRequestError(BusRequestErrorCode.NotFound, "gone", null);
+            cache.remove("k", gone);
+            assertEquals(new CacheState.Failed(gone), states.next());
+            cache.invalidate("k");
+            assertEquals(new CacheState.Ready<>(2), readyOf(states));
+            cache.invalidateAll();
+            assertEquals(new CacheState.Ready<>(3), readyOf(states));
+            assertEquals(List.of("k", "k", "k"), asked);
+            assertFalse(cache.getPersistencePending());
+        }
+        states.ended.get(10, SECONDS);
+    }
+
+    /** The next state of a cache's key that has a value, past any that has none. */
+    private static CacheState<Integer> readyOf(Reading<CacheState<Integer>> states) throws InterruptedException {
+        CacheState<Integer> state = states.next();
+        while (!(state instanceof CacheState.Ready<?>)) state = states.next();
+        return state;
     }
 
     @Test

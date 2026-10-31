@@ -332,6 +332,12 @@ public final class semiont/bus/Typed : java/lang/AutoCloseable, kotlinx/coroutin
 }
 
 public final class semiont/cache/Cache : semiont/StateUnit {
+	public fun <init> (Ljava/util/function/Function;)V
+	public fun <init> (Ljava/util/function/Function;Lsemiont/cache/CachePersister;)V
+	public fun <init> (Ljava/util/function/Function;Lsemiont/cache/CachePersister;J)V
+	public synthetic fun <init> (Ljava/util/function/Function;Lsemiont/cache/CachePersister;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lkotlin/jvm/functions/Function2;Lsemiont/cache/CachePersister;J)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function2;Lsemiont/cache/CachePersister;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public final fun fetch (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun fetchFuture (Ljava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
