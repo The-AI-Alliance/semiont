@@ -117,7 +117,7 @@ A start with no `--config` runs the choice recorded for the knowledge base: the 
 
 Each job and each actor has its engine stated by itself, keyed as a job is described ([`ArchivistEngines`](../../../specs/src/components/schemas/ArchivistEngines.json)): a `mark` job by its motivation, under `spec.engines.jobs.mark`, a `yield` job at `spec.engines.jobs.yield`, and the librarian's two actors that call a model, the `gatherer` and the `matcher`, under `spec.engines.actors`. Nothing stands in for an engine the document leaves out: a job with none is done by no software worker, and the librarian does not start without both actors' engines. An engine is how software does a job; a person who holds the worker role claims jobs from the same queue and uses none. `semiont init` gives every job and actor the one model chosen; anything finer is your edit, and providers can be mixed: a stronger model for the jobs that reason, a lighter or local one for the high-volume ones.
 
-The worker runs only when a job has an engine, as the machine's worker document says ([The worker](#the-worker)). With no job's engine stated, a start skips the worker and says so.
+The machine's worker serves a knowledge base only when one of its jobs has an engine ([The worker](#the-worker)). With no job's engine stated, a start takes the knowledge base off the worker's list and says so.
 
 An engine's `provider` is one of seven, and each one an engine names needs its entry in `spec.providers`, which says how it is reached ([`Provider`](../../../specs/src/stack/Provider.json)):
 
@@ -208,6 +208,10 @@ The first command that needs it (a start that runs a worker, `semiont settings w
 - **`spec.logLevel`**: how much it logs.
 
 Which jobs it does, and with which engines, is each knowledge base's: its Inference document's `spec.engines.jobs`.
+
+One worker serves every knowledge base on the machine's list. A start puts its own knowledge base on the list when one of its jobs has an engine, and takes it off when none does. A knowledge base someone else runs is added from inside one on the list, `semiont worker kb add`, and is offered that one's engines ([What the worker's owner does with it](AUTHENTICATION.md#what-the-workers-owner-does-with-it)). `semiont worker kb list` shows the list. Until each local knowledge base has a gateway port of its own, a start takes off the list any other local knowledge base whose gateway was on its port, and says so.
+
+A start resolves every provider key the list's engines name, not its own knowledge base's alone, and refuses when one is missing, naming the knowledge base that names it. It writes the worker's configuration document to `machine/worker.json` in the state home, and keeps a running worker when that document, its image and its memory are what the start would run; it restarts the worker otherwise, and stops it when the list is empty.
 
 ## A deployment of its own
 

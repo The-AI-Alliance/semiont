@@ -142,7 +142,7 @@ func assertedClient(assertion, tokenEndpoint string, k workerKey) string {
 
 // serviceOfClient: the service whose account a client id names.
 func serviceOfClient(clientID string) string {
-	for _, svc := range stackServices {
+	for _, svc := range accountServices() {
 		if serviceClientID(svc) == clientID {
 			return svc
 		}
@@ -199,7 +199,7 @@ func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 
 	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
-	if len(findings) != len(stackServices) {
+	if len(findings) != len(accountServices()) {
 		t.Fatalf("want a finding per client, got %d", len(findings))
 	}
 	if !strings.Contains(findings[0].String(), "roles") {
@@ -220,7 +220,7 @@ func TestPreflightRefusesWrongAudience(t *testing.T) {
 
 	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
-	if len(findings) != len(stackServices) {
+	if len(findings) != len(accountServices()) {
 		t.Fatalf("want a finding per client, got %d", len(findings))
 	}
 	if !strings.Contains(findings[0].String(), "aud") {
@@ -338,7 +338,7 @@ func TestPreflightRefusesATokenThatDoesNotSayItsAnAgents(t *testing.T) {
 
 	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts())
 
-	if len(findings) != len(stackServices) {
+	if len(findings) != len(accountServices()) {
 		t.Fatalf("want a finding per client, got %d: %v", len(findings), findings)
 	}
 	for _, f := range findings {

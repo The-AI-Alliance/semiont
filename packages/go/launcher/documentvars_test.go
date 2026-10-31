@@ -78,8 +78,14 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 			services = append(services, svc)
 		}
 		sort.Strings(services)
+		// The stack's services' documents, and the machine's worker's, for
+		// a start whose list holds its own knowledge base alone.
+		writers := map[string]func(placement) ([]byte, error){"worker": aloneWorkerDocument}
+		for svc, document := range serviceDocuments {
+			writers[svc] = func(p placement) ([]byte, error) { return document.write(p, exampleKB) }
+		}
 		var written []string
-		for svc := range serviceDocuments {
+		for svc := range writers {
 			written = append(written, svc)
 		}
 		sort.Strings(written)
@@ -90,7 +96,7 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 		handed := withDaemonCredentialVars(byService, p.plan, st.KnowledgeBase.Spec.Messaging.Signal.Type == "nats")
 		found := map[string]bool{}
 		for _, svc := range services {
-			document, err := serviceDocuments[svc].write(p, exampleKB)
+			document, err := writers[svc](p)
 			if err != nil {
 				t.Fatalf("%s: %s: %v", c.why, svc, err)
 			}

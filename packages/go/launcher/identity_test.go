@@ -181,8 +181,8 @@ func TestTheRealmMarksEveryAgentsAccountAndNoPersons(t *testing.T) {
 			}
 		}
 	}
-	if accounts != len(stackServices) {
-		t.Errorf("%d agent accounts in the realm, want one per stack service (%d)", accounts, len(stackServices))
+	if accounts != len(accountServices()) {
+		t.Errorf("%d agent accounts in the realm, want one per account (%d)", accounts, len(accountServices()))
 	}
 }
 

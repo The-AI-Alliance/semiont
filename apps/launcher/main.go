@@ -36,7 +36,7 @@ Identity & auth:
   identity  Reconcile a running realm's service-account clients (identity sync);
             admit or remove another's worker by its key (identity grant, revoke)
   worker    The public key this machine's worker signs in with (worker key);
-            the knowledge bases others run that it serves (worker kb add, remove, list)
+            the knowledge bases it serves (worker kb add, remove, list)
 
 Settings:
   settings  Every setting the launcher keeps: the runtime, where secrets come

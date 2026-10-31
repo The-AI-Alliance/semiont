@@ -51,6 +51,7 @@ func TestStopSweepIsThePreflightSweep(t *testing.T) {
 // and never reaches stop survives the teardown.
 func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 	noPreflight := map[string]string{
+		"worker":    "the machine's worker: kept or replaced by flowWorker, from its own record, since it serves every KB on its list",
 		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks",
 		"inference": "the machine's Ollama: kept or replaced in the Ollama section, from its own record, where a host instance may make the container unnecessary",
 		"collector": "the machine's collector: kept or replaced by flowMachine, from its own record, since it takes every KB's signals",
@@ -58,6 +59,7 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 		"traces":    "the machine's Jaeger: kept or replaced by flowMachine, from its own record",
 	}
 	noStop := map[string]string{
+		"worker":    "the machine's worker: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
 		"browser":   "stopped after the stack by stopMachineServices, from the Browser's own record and under its own runtime",
 		"inference": "the machine's Ollama: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
 		"collector": "the machine's collector: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
@@ -119,14 +121,15 @@ func TestStatusReportCoversEveryRole(t *testing.T) {
 }
 
 // The realm's accounts are every Semiont service that presents a token to
-// another: the secret clients, and the worker, which proves itself with the
-// machine's key. The Browser presents none — it is a viewer, and the only
-// Semiont role without an account. The list is derived; the literal pins it.
+// another: the stack's, each with a secret, and the machine's worker, which
+// proves itself with the machine's key. The Browser presents none — it is a
+// viewer, and the only Semiont role without an account. The list is derived;
+// the literal pins it.
 func TestSecretClientsDeriveTheRealmAccountList(t *testing.T) {
 	assertNames(t, "secretClients", secretClients,
 		[]string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver"})
-	if !slices.Contains(stackServices, "worker") || slices.Contains(secretClients, "worker") {
-		t.Error("the worker is a stack service with an account, and proves itself with a key, not a secret")
+	if slices.Contains(stackServices, "worker") || slices.Contains(secretClients, "worker") || !slices.Contains(machineRoles, "worker") {
+		t.Error("the worker is the machine's, not a stack service, and proves itself with a key, not a secret")
 	}
 }
 

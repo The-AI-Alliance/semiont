@@ -50,7 +50,7 @@ grant
   worker's owner needs: this knowledge base's domain, its client id, and where
   the gateway is, which names the issuer to sign in at, and the one
   ` + "`semiont worker kb add`" + ` line that adds this knowledge base to their
-  worker. None is secret. Granting the same key again changes nothing;
+  worker, run in a knowledge base it serves. None is secret. Granting the same key again changes nothing;
   another key under the same label replaces the old on the same client, so the
   worker keeps its account.
 
@@ -321,7 +321,7 @@ func identityGrant(u *UI, args []string) int {
 	fmt.Printf("  Domain:     %s\n", domain)
 	fmt.Printf("  Client id:  %s\n", clientID)
 	fmt.Printf("  Gateway:    %s\n", gateway)
-	fmt.Printf("  On the worker's machine:  semiont worker kb add %s --gateway %s --client-id %s\n", domain, gateway, clientID)
+	fmt.Printf("  On the worker's machine, in a knowledge base it serves:  semiont worker kb add %s --gateway %s --client-id %s\n", domain, gateway, clientID)
 	// Not the issuer: the gateway names the one it trusts in its protected
 	// resource metadata, and a second statement of it here could only be wrong.
 	fmt.Fprintln(os.Stderr, "  Send these to whoever runs the worker. None is secret; the gateway names the issuer to sign in at.")

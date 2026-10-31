@@ -52,11 +52,12 @@ func memCeilingGB(m string) float64 {
 
 // startCeilingsGB sums the --memory ceilings THIS start will actually
 // request. The list mirrors the flow: the stack's services the plan runs, at
-// the ceilings their documents state (launchPlan.Memory), the Browser at its
-// document's, and the collector; the daemons the launcher runs at the ceilings theirs state;
-// traces and metrics ride --observe. The machine's Ollama is not counted: it
-// is the host's when the host has one, and only a fallback container when it
-// does not.
+// the ceilings their documents state (launchPlan.Memory), the worker at its
+// document's when its list serves a knowledge base, the Browser at its
+// document's, and the collector; the daemons the launcher runs at the
+// ceilings theirs state; traces and metrics ride --observe. The machine's
+// Ollama is not counted: it is the host's when the host has one, and only a
+// fallback container when it does not.
 func startCeilingsGB(plan *launchPlan, browser browserDocument, opts startOptions) float64 {
 	sum := 0.0
 	if plan != nil {
@@ -64,6 +65,9 @@ func startCeilingsGB(plan *launchPlan, browser browserDocument, opts startOption
 			if plan.runs(svc) {
 				sum += memCeilingGB(plan.Memory[svc])
 			}
+		}
+		if plan.workerRuns() {
+			sum += memCeilingGB(plan.Memory["worker"])
 		}
 	}
 	sum += memCeilingGB(browser.spec.Resources.Limits.Memory)

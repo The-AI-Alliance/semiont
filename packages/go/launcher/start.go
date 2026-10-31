@@ -341,11 +341,6 @@ func Start(args []string) int {
 			u.Fail("%v", err)
 			return 1
 		}
-		plan.ServiceVars = withDaemonCredentialVars(serviceSecrets(placement{st: st, plan: plan}), plan, st.KnowledgeBase.Spec.Messaging.Signal.Type == "nats")
-		if err := refuseDaemonCredentialNames(placement{st: st, plan: plan}); err != nil {
-			u.Fail("%v", err)
-			return 1
-		}
 		if st.Issuer != nil {
 			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
 		} else if kcFromEnv {
@@ -442,26 +437,6 @@ func Start(args []string) int {
 		if ident.SiteName != "" {
 			u.Log("KB: %s %s", u.Bold(ident.SiteName), u.Dim(ident.didWeb()))
 		}
-		// A start that runs the worker runs it as the machine's worker
-		// document says. The worker's configuration document refuses a
-		// knowledge base added to this machine's worker that is the one this
-		// start runs (workerDocument); that refusal is made here, before
-		// anything runs.
-		if plan.runs("worker") && (opts.service == "" || opts.service == "worker") {
-			added, err := loadAddedKBs()
-			if err == nil {
-				err = refuseOwnKB(ident.domain(), added)
-			}
-			if err != nil {
-				u.Fail("%v", err)
-				return 1
-			}
-			workers, ok := readWorkerPoolDocument(u, opts.dryRun)
-			if !ok {
-				return 1
-			}
-			plan.runWorkerAs(workers)
-		}
 		if !opts.dryRun {
 			warnICloudRoot(u, root)
 		}
@@ -474,6 +449,38 @@ func Start(args []string) int {
 	lan, ok := startNetwork(u, rt, opts)
 	if !ok {
 		return 1
+	}
+	// A full start, and a start of the worker, reconcile the machine's worker
+	// with its list (flowWorker): planned here, before anything runs, so the
+	// keys this start resolves are those its list names (workerSecrets), and
+	// the refusal of this knowledge base among the added ones comes first. The
+	// worker runs as the machine's worker document says. ownVars: the
+	// variables this knowledge base's own documents name, for the refusal of
+	// one that only another on the list names.
+	var ownVars []string
+	if plan != nil && (opts.service == "" || (opts.service == "worker" && plan.runs("worker"))) {
+		ownVars = secretsRead(placement{st: st, plan: plan}, opts.service)
+		gatewayPort := exposure{rt: rt, lan: lan}.containersPort("gateway", plan.GatewayPort)
+		serving, err := planWorkerServing(ident.domain(), gatewayPort)
+		if err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
+		plan.Serving = serving
+		if plan.workerRuns() {
+			workers, ok := readWorkerPoolDocument(u, opts.dryRun)
+			if !ok {
+				return 1
+			}
+			plan.runWorkerAs(workers)
+		}
+	}
+	if plan != nil {
+		plan.ServiceVars = withDaemonCredentialVars(serviceSecrets(placement{st: st, plan: plan}), plan, st.KnowledgeBase.Spec.Messaging.Signal.Type == "nats")
+		if err := refuseDaemonCredentialNames(placement{st: st, plan: plan}); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 	}
 	if configNeeded {
 		if configFrom != "" {
@@ -527,6 +534,11 @@ func Start(args []string) int {
 			}
 		}
 		if val == "" {
+			if kb, ok := plan.Serving.keyNamer(v); ok && !contains(ownVars, v) {
+				u.Fail("%s, which this machine's worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
+				fmt.Fprintf(os.Stderr, "  Export it, register a secret source once (semiont settings secret set %s), or stop serving it (semiont worker kb remove %s).\n", v, kb)
+				return 1
+			}
 			u.Fail("The knowledge base's documents name the variable %s (fromEnv), and it is not set in the environment.", v)
 			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
 			return 1
@@ -896,21 +908,22 @@ func dispatcherArgs(stage string, e exposure, clientSecret, img, mem string, use
 	return append(a, img)
 }
 
-// workerArgs: the worker claims jobs and calls the models. It mounts no piece
-// of the knowledge base and no state: each gateway is its route to that
-// knowledge base's bus and to a resource's bytes. It reads a resolved
-// configuration document (workerdoc.go) at the path its image passes to
-// `--config`, so it is handed no *_HOST variables and no copy of the KB's
-// documents: the document carries every address already, the client it signs
-// in as at each knowledge base, and the variable holding each provider's key
-// (workerSecrets), which arrives among the user's. It keeps the issuer's
-// host entry, because it signs in at this start's issuer by name.
-func workerArgs(stage string, e exposure, clientKey, img, mem string, userEnv, otel []string) []string {
+// workerArgs: the machine's worker claims jobs and calls the models. It
+// mounts no piece of any knowledge base and no state: each gateway is its
+// route to that knowledge base's bus and to a resource's bytes. It reads a
+// resolved configuration document (workerdoc.go), kept at document with the
+// machine's containers' configs, at the path its image passes to `--config`,
+// so it is handed no *_HOST variables and no copy of a KB's documents: the
+// document carries every address already, the client it signs in as at each
+// knowledge base, and the variable holding each provider's key
+// (workerSecrets), which arrives among the user's. It keeps the issuer's host
+// entry, because it signs in at a local knowledge base's issuer by name.
+func workerArgs(document string, e exposure, clientKey, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("worker").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "worker", port, port)...)
-	a = append(a, "--volume", stage+"/"+workerDocumentFile+":"+workerDocumentTarget+":ro")
+	a = append(a, "--volume", document+":"+workerDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
@@ -1012,10 +1025,9 @@ type sidecarSpec struct {
 	svc, label, noun string
 }
 
-// sidecarSpecs: the worker, the Smelter and the Weaver, in start order. Each
-// one's container, port and memory are its descriptor's.
+// sidecarSpecs: the Smelter and the Weaver, in start order. Each one's
+// container, port and memory are its descriptor's.
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "Worker Pool"},
 	{"smelter", "Smelter", "Smelter"},
 	{"weaver", "Weaver", "Weaver"},
 }

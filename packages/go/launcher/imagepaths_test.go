@@ -103,7 +103,7 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 		"gateway":   gatewayArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "secret", "jwt", "v", semiontDescriptor("gateway").mem, 4000, nil, nil),
 		"archivist": archivistArgs(kbRoot, "/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
 		"librarian": librarianArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),
-		"worker":    workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
+		"worker":    workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
 		"smelter":   smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
 		"weaver":    weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
 	}
@@ -202,7 +202,7 @@ func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
 	}
 	for name, args := range map[string][]string{
 		"archivist": archivistArgs("/kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("archivist").mem, nil, nil),
-		"worker":    workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
+		"worker":    workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil),
 		"smelter":   smelterArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("smelter").mem, nil, nil),
 		"weaver":    weaverArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("weaver").mem, nil, nil),
 		"librarian": librarianArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("librarian").mem, nil, nil),

@@ -117,11 +117,11 @@ func keycloakBase(e exposure, port int) string {
 	return fmt.Sprintf("http://%s:%d", host, p)
 }
 
-// secretClients: the realm's view of `stackServices` that proves itself with a
-// secret — every process that PRESENTS a token to another Semiont service, and
-// so needs an account, but the worker, which proves itself with this machine's
-// key (workerkey.go). The Browser presents none: it is a viewer, and the only
-// one of ours without an account.
+// secretClients: the realm's view of `stackServices`, every one of which
+// proves itself with a secret — every process that PRESENTS a token to
+// another Semiont service, and so needs an account, but the machine's worker,
+// which proves itself with this machine's key (workerkey.go). The Browser
+// presents none: it is a viewer, and the only one of ours without an account.
 //
 // The gateway is among them. "It verifies tokens, it never presents one" is
 // true of the agent exchange and false in general: the gateway dials the
@@ -132,7 +132,7 @@ func keycloakBase(e exposure, port int) string {
 // alphabetical is the stable presentation for a list a human reads in a JSON
 // file.
 var secretClients = func() []string {
-	out := slices.DeleteFunc(append([]string(nil), stackServices...), func(svc string) bool { return svc == "worker" })
+	out := slices.Clone(stackServices)
 	sort.Strings(out)
 	return out
 }()

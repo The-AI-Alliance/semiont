@@ -116,6 +116,9 @@ type launchPlan struct {
 	// Worker: the machine's worker document, for a start that runs the
 	// worker (runWorkerAs); its log level is the worker's.
 	Worker workerPoolDocument
+	// Serving: what this start does with the machine's worker's list, for a
+	// start that reconciles the worker (planWorkerServing).
+	Serving workerServing
 }
 
 // The two roles a model can be asked to serve. Providers vary (ollama,
@@ -391,6 +394,14 @@ func (p *launchPlan) runs(role string) bool {
 	return !planned || rp.Presence == presenceLauncher
 }
 
+// workerRuns: whether the machine's worker runs once this start is done —
+// whether the list it leaves serves a knowledge base: its own, when one of
+// its jobs has an engine (runs), or another.
+func (p *launchPlan) workerRuns() bool {
+	entries, _ := p.Serving.others.served()
+	return p.runs("worker") || len(entries) > 0
+}
+
 // planPortChecks: the must-be-free ports, derived from the plan — only roles
 // the launcher actually provides claim ports, and a port a person and the
 // containers both dial claims its containers' side too (e). The order is the
@@ -430,9 +441,10 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 // a config says — the Semiont services behind the gateway. ONE list for the
 // two sites that decide it: a full start requires the ports of the ones it
 // runs free, and a stop holding no record of the stack's claims verifies
-// every one's released. The telemetry's are the machine's, not a stack's.
+// every one's released. The telemetry's and the worker's are the machine's,
+// not a stack's.
 func fiatRoles() []string {
-	return []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
+	return []string{"smelter", "weaver", "archivist", "librarian", "dispatcher"}
 }
 
 func knownDrivers(role string) string {
@@ -458,11 +470,11 @@ func parseHostPort(s string) (host string, port int) {
 	return s, 0
 }
 
-// workerPlan: the worker's row of the plan. The launcher runs a worker when
-// the engines give a job an engine, and the stack has none when they give
-// none. ONE decision, read from the engines the worker's document and the
-// Archivist's are written from (jobEngines); everything that enumerates the
-// stack follows it (launchPlan.runs).
+// workerPlan: the worker's row of the plan. The machine's worker serves the
+// knowledge base when the engines give a job an engine, and not when they
+// give none. ONE decision, read from the engines the worker's entry and the
+// Archivist's document are written from (jobEngines); everything that
+// enumerates the stack follows it (launchPlan.runs).
 func workerPlan(st *stack.Stack) rolePlan {
 	worker := rolePlan{Role: "worker", Driver: driverSemiont, Presence: presenceLauncher}
 	if len(jobEngines(st.Inference.Spec.Engines)) == 0 {

@@ -179,7 +179,7 @@ func TestTheWorkerKeySetNamesTheKeyByItsThumbprint(t *testing.T) {
 // launcher's own environment.
 func TestTheWorkerIsHandedItsKeyOffTheCommandLine(t *testing.T) {
 	k := testWorkerKey()
-	argv, env := offCommandLine(workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, k.private, "v", semiontDescriptor("worker").mem, nil, nil))
+	argv, env := offCommandLine(workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, k.private, "v", semiontDescriptor("worker").mem, nil, nil))
 	if line := strings.Join(argv, " "); strings.Contains(line, "PRIVATE KEY") || !strings.Contains(line, "--env SEMIONT_OIDC_CLIENT_KEY ") {
 		t.Errorf("the key's value rides the command line, or its name is missing:\n%s", line)
 	}

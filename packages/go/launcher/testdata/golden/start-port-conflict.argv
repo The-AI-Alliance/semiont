@@ -2,7 +2,6 @@ git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c ip route | awk '/default/{print $3}'
 container logs semiont-weaver
 container logs semiont-smelter
-container logs semiont-worker
 container logs semiont-dispatcher
 container logs semiont-librarian
 container logs semiont-archivist

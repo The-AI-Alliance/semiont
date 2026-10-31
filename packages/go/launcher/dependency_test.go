@@ -70,12 +70,13 @@ func TestTeardownIsTheStartWalkReversed(t *testing.T) {
 }
 
 // The teardown order, spelled out. It is derived rather than hand-written: a
-// hand-written list can tear the Archivist down ahead of the weaver, smelter
-// and worker that dial it at every request — a dependency ahead of its
-// dependents. Reversing the start walk cannot make that mistake.
+// hand-written list can tear the Archivist down ahead of the weaver and
+// smelter that dial it at every request — a dependency ahead of its
+// dependents. Reversing the start walk cannot make that mistake. The worker
+// is the machine's, stopped from its own record (stopMachineServices).
 func TestStopSweepDerivesTheTeardownOrder(t *testing.T) {
 	assertNames(t, "stopNames", stopNames, []string{
-		"semiont-weaver", "semiont-smelter", "semiont-worker",
+		"semiont-weaver", "semiont-smelter",
 		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
 		"semiont-qdrant", "semiont-neo4j",
 		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",
@@ -84,7 +85,7 @@ func TestStopSweepDerivesTheTeardownOrder(t *testing.T) {
 
 func TestPreflightSweepDerivesTheTeardownOrder(t *testing.T) {
 	assertNames(t, "preflightNames", preflightNames, []string{
-		"semiont-weaver", "semiont-smelter", "semiont-worker",
+		"semiont-weaver", "semiont-smelter",
 		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
 		"semiont-qdrant", "semiont-neo4j",
 		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",

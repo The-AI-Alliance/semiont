@@ -2,11 +2,13 @@ package launcher
 
 // workerdoc.go — the worker's configuration document: WorkerConfig in specs/,
 // the Go type generated from it (packages/go/sdk). The launcher writes it for
-// the worker it starts, every address a literal (placement), and mounts it
-// where the worker's image points its `--config` flag, so the worker neither
-// reads a knowledge base's documents nor resolves or defaults anything.
-// Secrets are never values in it: a provider's key is a variable the Inference
-// document names (`fromEnv`), and the document names it.
+// the machine's one worker from the knowledge bases on its list
+// (workerkbs.go), every address a literal (placement), keeps it with the
+// machine's containers' configs, and mounts it where the worker's image points
+// its `--config` flag, so the worker neither reads a knowledge base's
+// documents nor resolves or defaults anything. Secrets are never values in
+// it: a provider's key is a variable an Inference document names (`fromEnv`),
+// and the document names it.
 
 import (
 	"encoding/json"
@@ -82,12 +84,23 @@ func providerKeyName(p placement, provider api.EngineProvider) *string {
 const modelCatalogueTarget = "/usr/share/semiont/model-catalogue.json"
 
 // workerSecrets: the variables the worker's document names, and so the ones
-// the worker is handed — the key of each provider a job's engine names.
+// the worker is handed — the key of each provider an engine names: this
+// start's jobs' engines, and those of every other local knowledge base on the
+// list this start leaves (planWorkerServing). An added knowledge base is
+// offered a local one's engines, so it names none of its own.
 func workerSecrets(p placement) []string {
 	var names []string
-	for _, j := range jobEngines(p.st.Inference.Spec.Engines) {
-		if name := providerKeyName(p, j.engine.Provider); name != nil && !contains(names, *name) {
+	add := func(name *string) {
+		if name != nil && !contains(names, *name) {
 			names = append(names, *name)
+		}
+	}
+	for _, j := range jobEngines(p.st.Inference.Spec.Engines) {
+		add(providerKeyName(p, j.engine.Provider))
+	}
+	for _, kb := range p.plan.Serving.others.Local {
+		for _, e := range kb.Engines {
+			add(e.ApiKeyEnv)
 		}
 	}
 	return names
@@ -110,9 +123,9 @@ func errNoJobEngine(inference string) error {
 // provider and a model, at one address, under one key, and takes every job
 // given it: they are in the order of the first job that needs each, and each
 // one's jobs in engineJobs' order. An Inference document that gives no job an
-// engine has none, and is refused: the document's `engines` is never empty. A
-// start of such a document runs no worker and writes no document (workerPlan),
-// and a worker asked for by name is refused before anything runs
+// engine has none, and is refused: an entry's `engines` is never empty. A
+// start of such a document puts no entry on the worker's list (workerPlan,
+// flowWorker), and a worker asked for by name is refused before anything runs
 // (flowOneService).
 func workerEngines(p placement) ([]api.WorkerEngineConfig, error) {
 	given := jobEngines(p.st.Inference.Spec.Engines)
@@ -147,34 +160,30 @@ func sameEngine(a, b api.WorkerEngineConfig) bool {
 	return a.Engine == b.Engine && a.BaseUrl == b.BaseUrl && reflect.DeepEqual(a.ApiKeyEnv, b.ApiKeyEnv)
 }
 
-// workerDocument renders the document from the start's placement, the
-// committed identity of the knowledge base it starts, and the knowledge bases
-// added to this machine's worker (workerkbs.go). The first of its
-// knowledgeBases is the one this start runs, at the gateway and the issuer it
-// places, as this machine's own worker; then each added one, in the order
-// they are kept. Every one is offered the same engines: the ones this start's
-// Inference document gives jobs, on this machine's providers' keys
-// (workerSecrets). Its log level is the machine's worker document's
-// (runWorkerAs). It is staged only for a worker the plan runs.
-func workerDocument(p placement, kbDomain string, added []addedKB) ([]byte, error) {
-	if err := refuseOwnKB(kbDomain, added); err != nil {
-		return nil, err
-	}
+// workerEntry: the knowledge base at kbDomain's entry on the worker's list,
+// as this start places it: at the gateway and the issuer it places, signed in
+// at as this machine's own worker, and offered the engines its Inference
+// document gives jobs (workerEngines).
+func workerEntry(p placement, kbDomain string) (api.WorkerKnowledgeBaseConfig, error) {
 	engines, err := workerEngines(p)
 	if err != nil {
-		return nil, err
+		return api.WorkerKnowledgeBaseConfig{}, err
 	}
-	own := api.WorkerKnowledgeBaseConfig{Domain: kbDomain, GatewayUrl: p.gatewayURL(), Engines: engines}
-	own.Identity.Issuer = p.issuer()
-	own.Identity.ClientId = serviceClientID("worker")
+	entry := api.WorkerKnowledgeBaseConfig{Domain: kbDomain, GatewayUrl: p.gatewayURL(), Engines: engines}
+	entry.Identity.Issuer = p.issuer()
+	entry.Identity.ClientId = serviceClientID("worker")
+	return entry, nil
+}
+
+// workerDocument renders the document for the machine's worker from the
+// entries its list serves (workerList.served), in their order, and the
+// machine's worker document, whose log level it carries.
+func workerDocument(entries []api.WorkerKnowledgeBaseConfig, pool workerPoolDocument) ([]byte, error) {
 	var doc api.WorkerConfig
-	doc.KnowledgeBases = []api.WorkerKnowledgeBaseConfig{own}
-	for _, kb := range added {
-		doc.KnowledgeBases = append(doc.KnowledgeBases, kb.entry(engines))
-	}
+	doc.KnowledgeBases = entries
 	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port
-	doc.LogLevel = p.plan.Worker.spec.LogLevel
+	doc.LogLevel = pool.spec.LogLevel
 	doc.LogFormat = api.LogFormatJson
 	return json.MarshalIndent(doc, "", "  ")
 }

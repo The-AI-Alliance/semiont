@@ -267,13 +267,13 @@ To revoke, delete the client.
 
 ### What the worker's owner does with it
 
-`semiont identity grant` prints the knowledge base's domain, its gateway's address and the client id, and the line that adds the knowledge base to the worker, to run on the worker's machine:
+`semiont identity grant` prints the knowledge base's domain, its gateway's address and the client id, and the line that adds the knowledge base to the worker, to run on the worker's machine, inside a local knowledge base the worker serves:
 
 ```bash
 semiont worker kb add kb.example.org --gateway https://kb.example.org --client-id semiont-worker-alice
 ```
 
-The launcher takes the issuer from the gateway, which names it at `/.well-known/oauth-protected-resource`, and keeps the knowledge base for the machine, beside the worker's key. Its next `semiont start` runs one worker serving the knowledge base it starts and every one added: at each it signs in as the client that knowledge base's realm holds the key on, with the one key. `semiont worker kb list` shows what is added, and `semiont worker kb remove <domain>` takes one away. The worker offers each the engines the started knowledge base's Inference document gives it, on this machine's provider keys.
+The machine runs one worker, serving a list of knowledge bases kept beside its key. A local knowledge base's `semiont start` puts it on the list when its Inference document gives one of its jobs an engine. `semiont worker kb add`, run inside one on the list, adds a knowledge base someone else runs, and the worker offers it the engines the local one's Inference document gives it, on this machine's provider keys. The launcher takes the issuer from the gateway, which names it at `/.well-known/oauth-protected-resource`. The next start runs the worker serving every knowledge base on the list: at each it signs in as the client that knowledge base's realm holds the key on, with the one key. `semiont worker kb list` shows the list, and `semiont worker kb remove <domain>` takes one off; a local one whose engines an added one is offered is refused until that one is removed. A local knowledge base taken off the list while one added from it remains leaves that one unserved, which the start says, until the local one's next start.
 
 A worker started another way is given the same in its document: one `knowledgeBases` entry for each knowledge base, with its domain, its gateway, its issuer and client id, and the engines it offers it ([the worker's configuration](../../../images/worker/README.md#configuration)). Its key is `SEMIONT_OIDC_CLIENT_KEY` in its environment, the same for every knowledge base.
 
