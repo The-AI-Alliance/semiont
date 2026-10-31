@@ -830,7 +830,8 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 			for _, step := range steps {
 				all += step
 			}
-			time.Sleep(all)
+			// Past every wait at its longest: the renewal made ends them.
+			time.Sleep(all + 30*time.Second)
 			synctest.Wait()
 			w.mu.Lock()
 			renewedAt := slices.Clone(w.renewedAt)
@@ -863,7 +864,9 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 			w.renewals = []renewal{{err: unanswered}, {err: refused}}
 			session := w.start(t)
 			session.Refresh(context.Background(), first)
-			time.Sleep(timing.Reconnect)
+			// Past the latest its renewal on the backoff falls due, and
+			// short of the earliest a second can.
+			time.Sleep(timing.Reconnect * 6 / 5)
 			synctest.Wait()
 			if _, kept, _ := w.kept.Held(context.Background()); kept {
 				t.Error("the sign-in the issuer refused is still kept")
@@ -885,7 +888,9 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 			if asks, _ := w.counts(); asks != 0 || session.User().Value() != nil {
 				t.Fatalf("an offline start asked %d times, or says who signed in", asks)
 			}
-			time.Sleep(timing.Reconnect)
+			// Past the latest its renewal on the backoff falls due, and
+			// short of the earliest a second can.
+			time.Sleep(timing.Reconnect * 6 / 5)
 			synctest.Wait()
 			if w.token.Value() != renewed {
 				t.Fatal("the renewal on the backoff was not made")

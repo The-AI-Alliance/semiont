@@ -303,7 +303,8 @@ describe('SemiontSession — refresh', () => {
       const session = newSession();
       await session.ready;
       await expect(session.refresh()).resolves.toBeNull();
-      await vi.advanceTimersByTimeAsync(waits.reduce((all, wait) => all + wait, 0));
+      // Past every wait at its longest: the renewal made ends them.
+      await vi.advanceTimersByTimeAsync(waits.reduce((all, wait) => all + wait, 0) + 30_000);
       expect(refresh).toHaveBeenCalledTimes(waits.length + 1);
       // Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
       waits.forEach((wait, n) => {
@@ -335,7 +336,7 @@ describe('SemiontSession — refresh', () => {
       const session = newSession({ onAuthFailed });
       await session.ready;
       await expect(session.refresh()).resolves.toBeNull();
-      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
       expect(refresh).toHaveBeenCalledTimes(2);
       expect(getStoredSession(storage, KB.id)).toBeNull();
       expect(onAuthFailed).toHaveBeenCalledWith('expired');

@@ -11,7 +11,7 @@ import asyncio
 import time
 from collections import deque
 from collections.abc import AsyncIterable, Sequence
-from typing import final, override
+from typing import Final, final, override
 
 import pytest
 from aio import pass_time, run, soon, turns
@@ -27,6 +27,9 @@ from semiont.types import HttpEndpoint, KbTarget, UserResponse
 from semiont.watched import Variable
 
 TABLE = read(SPEC / "session/cases.json")
+
+FIRST_RETRY_HELD: Final = 1.2 * RECONNECT_MS / 1000
+"""Seconds past the latest the first renewal on the backoff falls due, its whole step, and short of the earliest a second can."""
 STARTUP = objects(TABLE["startup"], "startup")
 REFUSAL = objects(TABLE["refusal"], "refusal")
 KB = "kb-alpha"
@@ -203,7 +206,7 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
     assert await world.is_kept() == row["kept"], "whether a sign-in is still kept"
     later = then(row)
     if later is not None:
-        await pass_time(RECONNECT_MS / 1000)
+        await pass_time(FIRST_RETRY_HELD, step=0.1)
         asked_and_renewed = (len(world.validated) - asked_before, world.renewed)
         stated = (count(later, "asks"), count(later, "renewals"))
         assert asked_and_renewed == stated, "what was asked and renewed once the reconnect wait passed"
@@ -611,7 +614,8 @@ def test_a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_un
             await soon(session.ready())
             assert await soon(session.refresh()) is None
             step = 0.1
-            await pass_time(sum(waits) + step, step=step)
+            # Past every wait at its longest: the renewal made ends them.
+            await pass_time(sum(waits) + 30, step=step)
             assert world.renewed == len(waits) + 1
             # Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
             gaps = [later - earlier for earlier, later in zip(world.renewed_at, world.renewed_at[1:], strict=False)]
@@ -632,7 +636,7 @@ def test_the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() -> Non
         async with world.its_session() as session:
             await soon(session.ready())
             assert await soon(session.refresh()) is None
-            await pass_time(RECONNECT_MS / 1000)
+            await pass_time(FIRST_RETRY_HELD, step=0.1)
             assert world.renewed == 2
             assert (await world.is_kept(), world.told) == (False, ["expired"])
             await pass_time(2 * 60 * 60, step=60)

@@ -202,7 +202,8 @@ describe('session — the SDK agrees with the shared table', () => {
     // however long it is held.
     const later = thenOf(c);
     if (later) {
-      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      // Past the latest its renewal on the backoff falls due, and short of the earliest a second can.
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
       expect({ asks, renewals }).toEqual({ asks: later.asks, renewals: later.renewals });
       const [held, signedIn] = [token$.getValue(), session.user$.getValue()];
       expect(held === null ? 'signed-out' : signedIn === null ? 'unconfirmed' : 'signed-in').toBe(later.ends);
@@ -284,7 +285,8 @@ describe('session — the SDK agrees with the shared table', () => {
 
     const later = thenOf(c);
     if (later) {
-      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      // Past the latest its renewal on the backoff falls due, and short of the earliest a second can.
+      await vi.advanceTimersByTimeAsync((RECONNECT_MS * 6) / 5);
       expect({ asks, renewals }).toEqual({ asks: later.asks, renewals: later.renewals });
       const [held, signedIn] = [token$.getValue(), session.user$.getValue()];
       expect(held === null ? 'signed-out' : signedIn === null ? 'unconfirmed' : 'signed-in').toBe(later.ends);

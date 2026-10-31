@@ -372,7 +372,8 @@ class SessionTest {
             session.start()
             session.ready()
             assertNull(session.refresh())
-            advanceTimeBy(waits.sum() + 1)
+            // Past every wait at its longest: the renewal made ends them.
+            advanceTimeBy(waits.sum() + 30_000)
             runCurrent()
             assertEquals(waits.size + 1, world.renewed)
             // Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
@@ -394,7 +395,7 @@ class SessionTest {
             session.start()
             session.ready()
             assertNull(session.refresh())
-            advanceTimeBy(Timings.RECONNECT_MS)
+            advanceTimeBy(Timings.RECONNECT_MS * 6 / 5)
             runCurrent()
             assertEquals(2, world.renewed)
             assertFalse(world.isKept())

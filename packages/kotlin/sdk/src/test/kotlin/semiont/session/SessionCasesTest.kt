@@ -108,7 +108,8 @@ class SessionCasesTest {
         assertEquals(row.getValue("kept").jsonPrimitive.content.toBooleanStrict(), world.kept.held() != null, "whether a sign-in is still kept")
         val later = then(row)
         if (later != null) {
-            advanceTimeBy(Timings.RECONNECT_MS)
+            // Past the latest its renewal on the backoff falls due, and short of the earliest a second can.
+            advanceTimeBy(Timings.RECONNECT_MS * 6 / 5)
             runCurrent()
             assertEquals(count(later, "asks") to count(later, "renewals"), (world.validated.size - askedBefore) to world.renewed, "what was asked and renewed once the reconnect wait passed")
             assertEquals(later.getValue("ends").jsonPrimitive.content, ends(session), "how the session stood once the reconnect wait passed")

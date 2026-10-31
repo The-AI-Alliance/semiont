@@ -589,8 +589,9 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
                 None,
             )
             .into())]);
-        let renewed_tokens: Vec<String> =
-            (0..renewals).map(|n| token(3600, n as u64 + 1)).collect();
+        let renewed_tokens: Vec<String> = (0..answered_renewals)
+            .map(|n| token(3600, n as u64 + 1))
+            .collect();
         let renewing = (0..answered_renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_tokens[n].clone())),
             "refuses" => Err(refused_by_the_issuer()),
@@ -652,7 +653,9 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
         // that kept nothing asks nobody anything afterwards, however long it
         // is held.
         if let Some(later) = later {
-            tokio::time::sleep(RECONNECT).await;
+            // Past the latest its renewal on the backoff falls due, and
+            // short of the earliest a second can.
+            tokio::time::sleep(RECONNECT * 6 / 5).await;
             settle().await;
             assert_eq!(
                 (world.validated().len(), world.renewed()),
@@ -788,7 +791,9 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             "{why}: whether a session is still stored"
         );
         if let Some(later) = later {
-            tokio::time::sleep(RECONNECT).await;
+            // Past the latest its renewal on the backoff falls due, and
+            // short of the earliest a second can.
+            tokio::time::sleep(RECONNECT * 6 / 5).await;
             settle().await;
             assert_eq!(
                 (world.validated().len() - 1, world.renewed()),
@@ -1217,7 +1222,8 @@ async fn a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_un
     ready(&session).await;
 
     assert_eq!(session.refresh().await, None);
-    tokio::time::sleep(waits.iter().sum::<Duration>()).await;
+    // Past every wait at its longest: the renewal made ends them.
+    tokio::time::sleep(waits.iter().sum::<Duration>() + Duration::from_secs(30)).await;
     settle().await;
     assert_eq!(world.renewed(), waits.len() + 1);
     // Each wait is the equal jitter of its step, the step doubling from the
@@ -1249,7 +1255,7 @@ async fn the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() {
     ready(&session).await;
 
     assert_eq!(session.refresh().await, None);
-    tokio::time::sleep(RECONNECT).await;
+    tokio::time::sleep(RECONNECT * 6 / 5).await;
     settle().await;
     assert_eq!(world.renewed(), 2);
     assert!(!world.has_stored());
