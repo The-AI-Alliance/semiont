@@ -25,19 +25,26 @@ pub enum Ended {
     /// The suite sent something this driver cannot act on: the suite's
     /// mistake, never the SDK's.
     Misuse(String),
-    /// The SDK failed it.
-    Failed(SemiontError),
+    /// The SDK failed it: with a `SemiontError`, or with whatever a query's
+    /// fetch failed with.
+    Failed(Arc<dyn std::error::Error + Send + Sync>),
 }
 
 impl From<SemiontError> for Ended {
     fn from(error: SemiontError) -> Ended {
-        Ended::Failed(error)
+        Ended::Failed(Arc::new(error))
     }
 }
 
 impl From<TransportError> for Ended {
     fn from(error: TransportError) -> Ended {
-        Ended::Failed(error.into())
+        Ended::Failed(Arc::new(SemiontError::from(error)))
+    }
+}
+
+impl From<Arc<dyn std::error::Error + Send + Sync>> for Ended {
+    fn from(error: Arc<dyn std::error::Error + Send + Sync>) -> Ended {
+        Ended::Failed(error)
     }
 }
 
@@ -64,8 +71,12 @@ pub fn failure(code: &str, status: Option<u16>, detail: String) -> Value {
 }
 
 /// The same, of a failure the SDK reported, with a job failure's class when
-/// it has one.
-pub fn failed(error: &SemiontError) -> Value {
+/// it has one. A failure that is no `SemiontError` has no code: it says only
+/// what it is, as Go's driver says it.
+pub fn failed(error: &(dyn std::error::Error + Send + Sync + 'static)) -> Value {
+    let Some(error) = error.downcast_ref::<SemiontError>() else {
+        return json!({ "detail": error.to_string() });
+    };
     let mut reported = failure(error.code(), error.status(), error.to_string());
     if let SemiontError::Job(JobError {
         failure_class: Some(class),
@@ -184,7 +195,7 @@ async fn answer(running: Arc<Running>, id: u64, operation: JoinHandle<Result<Val
         Err(_) => json!({ "id": id, "abandoned": true }),
         Ok(Ok(value)) => json!({ "id": id, "ok": value }),
         Ok(Err(Ended::Misuse(why))) => json!({ "id": id, "misuse": why }),
-        Ok(Err(Ended::Failed(error))) => json!({ "id": id, "error": failed(&error) }),
+        Ok(Err(Ended::Failed(error))) => json!({ "id": id, "error": failed(error.as_ref()) }),
     });
 }
 

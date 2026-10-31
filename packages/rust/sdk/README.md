@@ -385,7 +385,10 @@ abandons it.
 
 A watched query (`Observed<T>`) gives `CacheState<T>`: `Pending`,
 `Ready(value)` or `Failed(error)`. `Failed` is a state, not the end of the
-stream: the next watcher, or `invalidate`, tries again. While a query of one
+stream: the next watcher, or `invalidate`, tries again. Its `error`, and the
+error of `.fresh()`, is what the query's fetch failed with, an
+`Arc<dyn std::error::Error + Send + Sync>`: of a client's query, a
+`SemiontError`, which `downcast_ref` finds. While a query of one
 resource is watched, the client holds that resource's scope, which is what
 brings it that resource's events, and lets go of it when the watcher is
 dropped. A watcher that falls behind is given the latest state, not each one
@@ -395,8 +398,8 @@ it missed. The rules a query keeps are
 A stream of events never drops frames silently. A reader that falls behind
 is given `Lagged(n)` in place of what it missed, and reads on.
 
-A failure is a `SemiontError`, and `.code()` is the code every Semiont SDK
-shares for it.
+A failure the client reports is a `SemiontError`, and `.code()` is the code
+every Semiont SDK shares for it.
 
 ## Ids
 
