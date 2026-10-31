@@ -40,8 +40,8 @@ so a dead credential is never used again. One that never had a credential is
 only signed out: there is nothing to end, and nothing is said. A renewal that
 got no answer, whenever it is made, leaves the session no usable token and
 keeps what is kept: the next refusal renews again, and so does the session on
-its own, on the reconnect backoff (`RECONNECT_MS`, doubling to
-`MAX_RECONNECT_MS`).
+its own, on the reconnect backoff (each wait a jittered share of a step that
+doubles from `RECONNECT_MS` to `MAX_RECONNECT_MS`).
 """
 
 import asyncio
@@ -60,7 +60,7 @@ from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
 from semiont.events import Events
-from semiont.retry import REFRESH, RetryFacts
+from semiont.retry import REFRESH, RetryFacts, equal_jitter
 from semiont.state_unit import StateUnit
 from semiont.timing import MAX_RECONNECT_MS, MIN_REFRESH_DELAY_MS, RECONNECT_MS, REFRESH_BEFORE_EXP_MS
 from semiont.transport import ConnectionState, Transport
@@ -485,20 +485,22 @@ class SemiontSession[T: Transport](StateUnit):
     async def _renew_when_unanswered(self) -> None:
         """After a renewal that got no answer, renew again on the reconnect backoff.
 
-        The wait starts at `RECONNECT_MS` and doubles to `MAX_RECONNECT_MS`. It
-        ends when a renewal is made or refused, when a token arrives some
-        other way, and when the session ends.
+        Each wait is the equal jitter of its step, the step `RECONNECT_MS`
+        doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or
+        refused, when a token arrives some other way, and when the session
+        ends. A renewal made while nobody has said who the session's token
+        is asks the gateway once, as the start would have.
         """
         while True:
             await self._unanswered.wait()
-            wait = RECONNECT_MS
+            step = RECONNECT_MS
             while self._unanswered.is_set():
-                await asyncio.sleep(wait / 1000)
+                await asyncio.sleep(equal_jitter(step) / 1000)
                 if self._token.value is not None:
                     self._unanswered.clear()
                 elif self._unanswered.is_set():
-                    await self._renew()
-                wait = min(2 * wait, MAX_RECONNECT_MS)
+                    await (self.refresh() if self._user.value is None else self._renew())
+                step = min(2 * step, MAX_RECONNECT_MS)
 
     async def _unrenewed(self, failure: SignInError | None) -> None:
         """A renewal of what is kept gave no token, and the session holds none.

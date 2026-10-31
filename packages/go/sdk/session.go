@@ -361,9 +361,11 @@ func (s *Session) renew(renewing string) (string, bool) {
 }
 
 // renewWhenUnanswered renews again, after a renewal that got no answer, on
-// the reconnect backoff: Reconnect, doubling to MaxReconnect. It stops when a
-// renewal is made or refused, when a token arrives some other way, and when
-// the session is closed.
+// the reconnect backoff: each wait is the equal jitter of its step, the step
+// Reconnect doubling to MaxReconnect. It stops when a renewal is made or
+// refused, when a token arrives some other way, and when the session is
+// closed. A renewal made while nobody has said who the session's token is
+// asks the gateway once, as the start would have.
 func (s *Session) renewWhenUnanswered() {
 	for {
 		owed, changed := s.unanswered.watch()
@@ -375,21 +377,25 @@ func (s *Session) renewWhenUnanswered() {
 				continue
 			}
 		}
-		wait := s.config.Timing.Reconnect
+		step := s.config.Timing.Reconnect
 		for s.unanswered.Value() {
-			timer := time.NewTimer(wait)
+			timer := time.NewTimer(EqualJitter(step))
 			select {
 			case <-s.alive.Done():
 				timer.Stop()
 				return
 			case <-timer.C:
 			}
-			if s.config.Token.Value() != "" {
+			switch {
+			case s.config.Token.Value() != "":
 				s.unanswered.Set(false)
-			} else if s.unanswered.Value() {
+			case !s.unanswered.Value():
+			case s.user.Value() == nil:
+				s.Refresh(s.alive, "")
+			default:
 				s.renew("")
 			}
-			wait = min(2*wait, s.config.Timing.MaxReconnect)
+			step = min(2*step, s.config.Timing.MaxReconnect)
 		}
 	}
 }

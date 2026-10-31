@@ -118,6 +118,8 @@ struct World {
     /// What `refresh` answers, in order; `Ok(None)` once it is spent.
     renewals: Arc<Mutex<VecDeque<Renewal>>>,
     renewed: Arc<Mutex<usize>>,
+    /// When each renewal was asked for.
+    renewed_at: Arc<Mutex<Vec<tokio::time::Instant>>>,
     /// What the gateway says of a token, in order; Alice once it is spent.
     validations: Arc<Mutex<VecDeque<Validation>>>,
     validated: Arc<Mutex<Vec<String>>>,
@@ -142,6 +144,7 @@ impl World {
             transport,
             renewals: Arc::default(),
             renewed: Arc::default(),
+            renewed_at: Arc::default(),
             validations: Arc::default(),
             validated: Arc::default(),
             answered: Arc::default(),
@@ -170,6 +173,7 @@ impl World {
 
     fn config(&self) -> SemiontSessionConfig {
         let (renewals, renewed) = (self.renewals.clone(), self.renewed.clone());
+        let renewed_at = self.renewed_at.clone();
         let (validations, validated) = (self.validations.clone(), self.validated.clone());
         let answered = self.answered.clone();
         let (auth_failed, errors) = (self.auth_failed.clone(), self.errors.clone());
@@ -180,6 +184,10 @@ impl World {
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_holding| {
                 *renewed.lock().expect("renewed") += 1;
+                renewed_at
+                    .lock()
+                    .expect("renewed at")
+                    .push(tokio::time::Instant::now());
                 let answer = renewals
                     .lock()
                     .expect("renewals")
@@ -496,6 +504,45 @@ async fn a_token_that_could_not_be_asked_about_is_kept_and_the_failure_is_said()
     assert!(world.auth_failed().is_empty());
 }
 
+/// What a row that ended signed out and kept what is stored comes to once
+/// the reconnect wait has passed: its `then`, stated of every such row and
+/// of no other.
+fn then(case: &Value) -> Option<&Value> {
+    let later = case.get("then");
+    let kept_with_no_token = case["ends"] == "signed-out" && case["kept"] == true;
+    assert_eq!(
+        later.is_some(),
+        kept_with_no_token,
+        "{}: `then` is stated of every row that kept what is stored with no token, and of no other",
+        case["why"]
+    );
+    later
+}
+
+/// The session stood as `later` states once the reconnect wait passed.
+fn then_ends_as_stated(why: &str, later: &Value, world: &World, session: &SemiontSession) {
+    let ends = match (
+        session.token().borrow().is_some(),
+        session.user().borrow().is_some(),
+    ) {
+        (false, _) => "signed-out",
+        (true, false) => "unconfirmed",
+        (true, true) => "signed-in",
+    };
+    assert_eq!(
+        ends,
+        later["ends"].as_str().expect("ends"),
+        "{why}: how the session stood once the reconnect wait passed"
+    );
+    if ends == "signed-in" {
+        assert_eq!(
+            *session.user().borrow(),
+            world.answered(),
+            "{why}: who the gateway last said the token is"
+        );
+    }
+}
+
 /// What a session does with the credential it finds stored, as
 /// specs/src/session/cases.json states it for every SDK: each row scripts
 /// the gateway and the issuer, and says how often each is asked and how the
@@ -519,10 +566,17 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
         let why = case["why"].as_str().expect("why");
         let count = |key: &str| case[key].as_u64().expect("a count") as usize;
         let (asks, renewals) = (count("asks"), count("renewals"));
+        let later = then(case);
+        let (answered_asks, answered_renewals) = later.map_or((asks, renewals), |later| {
+            (
+                later["asks"].as_u64().expect("a count") as usize,
+                later["renewals"].as_u64().expect("a count") as usize,
+            )
+        });
         // The script's last answer repeats, so a session that asks without
         // end is stopped by one answer more than the case allows: of the
         // gateway, an answer that is no refusal; of the issuer, none.
-        let validations = (0..asks)
+        let validations = (0..answered_asks)
             .map(|n| match answer(&case["gateway"], n).as_str() {
                 "accepts" => Ok(answering(n)),
                 "refuses" => Err(unauthorized()),
@@ -537,7 +591,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             .into())]);
         let renewed_tokens: Vec<String> =
             (0..renewals).map(|n| token(3600, n as u64 + 1)).collect();
-        let renewing = (0..=renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+        let renewing = (0..answered_renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_tokens[n].clone())),
             "refuses" => Err(refused_by_the_issuer()),
             "unreachable" => Err(unanswered_by_the_issuer()),
@@ -597,14 +651,15 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
         // once more when the reconnect wait has passed, and asks nobody; one
         // that kept nothing asks nobody anything afterwards, however long it
         // is held.
-        if ends == "signed-out" && world.has_stored() {
+        if let Some(later) = later {
             tokio::time::sleep(RECONNECT).await;
             settle().await;
             assert_eq!(
                 (world.validated().len(), world.renewed()),
-                (asks, renewals + 1),
-                "{why}: what was renewed once the reconnect wait passed"
+                (answered_asks, answered_renewals),
+                "{why}: what was asked and renewed once the reconnect wait passed"
             );
+            then_ends_as_stated(why, later, &world, &session);
         } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
             assert_eq!(
@@ -637,12 +692,19 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         let why = case["why"].as_str().expect("why");
         let count = |key: &str| case[key].as_u64().expect("a count") as usize;
         let (asks, renewals) = (count("asks"), count("renewals"));
+        let later = then(case);
+        let (answered_asks, answered_renewals) = later.map_or((asks, renewals), |later| {
+            (
+                later["asks"].as_u64().expect("a count") as usize,
+                later["renewals"].as_u64().expect("a count") as usize,
+            )
+        });
         // The session starts signed in: the gateway accepts the stored token.
         // Then the case's answers, and one more than it allows: of the
         // gateway, an answer that is no refusal; of the issuer, none.
         let validations = std::iter::once(Ok(alice()))
             .chain(
-                (0..asks).map(|n| match answer(&case["gateway"], n).as_str() {
+                (0..answered_asks).map(|n| match answer(&case["gateway"], n).as_str() {
                     "accepts" => Ok(answering(n)),
                     "refuses" => Err(unauthorized()),
                     "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
@@ -656,7 +718,7 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             )
             .into())]);
         let renewed_token = token(3600, 1);
-        let renewing = (0..=renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+        let renewing = (0..answered_renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_token.clone())),
             "refuses" => Err(refused_by_the_issuer()),
             "unreachable" => Err(unanswered_by_the_issuer()),
@@ -725,14 +787,15 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             case["kept"].as_bool().expect("kept"),
             "{why}: whether a session is still stored"
         );
-        if ends == "signed-out" && world.has_stored() {
+        if let Some(later) = later {
             tokio::time::sleep(RECONNECT).await;
             settle().await;
             assert_eq!(
                 (world.validated().len() - 1, world.renewed()),
-                (asks, renewals + 1),
-                "{why}: what was renewed once the reconnect wait passed"
+                (answered_asks, answered_renewals),
+                "{why}: what was asked and renewed once the reconnect wait passed"
             );
+            then_ends_as_stated(why, later, &world, &session);
         } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
             assert_eq!(
@@ -1154,18 +1217,18 @@ async fn a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_un
     ready(&session).await;
 
     assert_eq!(session.refresh().await, None);
-    // Each wait doubles from the reconnect wait, up to the longest.
-    for (n, wait) in waits.iter().enumerate() {
-        tokio::time::sleep(*wait - Duration::from_secs(1)).await;
-        settle().await;
-        assert_eq!(
-            world.renewed(),
-            n + 1,
-            "renewed again before wait {n} was up"
+    tokio::time::sleep(waits.iter().sum::<Duration>()).await;
+    settle().await;
+    assert_eq!(world.renewed(), waits.len() + 1);
+    // Each wait is the equal jitter of its step, the step doubling from the
+    // reconnect wait up to the longest.
+    let renewed_at = world.renewed_at.lock().expect("renewed at").clone();
+    for (pair, wait) in renewed_at.windows(2).zip(&waits) {
+        let gap = pair[1] - pair[0];
+        assert!(
+            gap >= *wait / 2 && gap <= *wait + Duration::from_millis(1),
+            "waited {gap:?} for a step of {wait:?}"
         );
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        settle().await;
-        assert_eq!(world.renewed(), n + 2, "renewed again once wait {n} was up");
     }
     assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     // The renewal made ends the waits, and asks nobody.

@@ -63,6 +63,10 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
     val token = MutableStateFlow<String?>(null)
     private val renewalsLeft = ArrayDeque(renewals)
     var renewed = 0
+
+    /** When each renewal was asked for, by the clock given, when one is. */
+    val renewedAt = mutableListOf<Long>()
+    var clock: (() -> Long)? = null
     private val validationsLeft = ArrayDeque(validations)
     val validated = mutableListOf<String>()
 
@@ -73,6 +77,7 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
 
     suspend fun refresh(): String? {
         renewed += 1
+        clock?.let { renewedAt += it() }
         return when (val answer = renewalsLeft.removeFirstOrNull()) {
             is SignInError -> throw answer
             else -> answer as String?

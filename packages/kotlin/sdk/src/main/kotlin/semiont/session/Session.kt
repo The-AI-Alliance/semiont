@@ -24,6 +24,7 @@ import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.retry.REFRESH
 import semiont.retry.RetryFacts
+import semiont.retry.equalJitter
 import semiont.signin.HeldSignIn
 import semiont.signin.SignInKept
 import semiont.telemetry.futureOf
@@ -213,18 +214,24 @@ public class SemiontSession internal constructor(
     }
 
     /**
-     * After a renewal that got no answer, renew again on the reconnect backoff: `RECONNECT_MS`, doubling to
-     * `MAX_RECONNECT_MS`. It ends when a renewal is made or refused, when a token arrives some other way, and when the
-     * session ends.
+     * After a renewal that got no answer, renew again on the reconnect backoff: each wait is the equal jitter of its
+     * step, the step `RECONNECT_MS` doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or refused, when a
+     * token arrives some other way, and when the session ends. A renewal made while nobody has said who the session's
+     * token is asks the gateway once, as the start would have.
      */
     private suspend fun renewWhenUnanswered() {
         while (true) {
             unanswered.first { it }
-            var wait = Timings.RECONNECT_MS
+            var step = Timings.RECONNECT_MS
             while (unanswered.value) {
-                delay(wait)
-                if (tokens.value != null) unanswered.value = false else if (unanswered.value) renewed()
-                wait = minOf(2 * wait, Timings.MAX_RECONNECT_MS)
+                delay(equalJitter(step))
+                when {
+                    tokens.value != null -> unanswered.value = false
+                    !unanswered.value -> {}
+                    users.value == null -> refreshOf(null)
+                    else -> renewed()
+                }
+                step = minOf(2 * step, Timings.MAX_RECONNECT_MS)
             }
         }
     }

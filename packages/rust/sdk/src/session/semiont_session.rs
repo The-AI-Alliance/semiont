@@ -44,7 +44,7 @@ use crate::errors::{
     SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportErrorCode,
 };
 use crate::locked;
-use crate::retry::{REFRESH, RetryFacts};
+use crate::retry::{REFRESH, RetryFacts, equal_jitter};
 use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::storage::{SessionStorage, StorageSubscription};
@@ -402,24 +402,30 @@ impl Shared {
     }
 
     /// After a renewal that got no answer, renew again on the reconnect
-    /// backoff: `RECONNECT`, doubling to `MAX_RECONNECT`. It stops when a
-    /// renewal is made or refused, when a token arrives some other way, and
-    /// when the session ends.
+    /// backoff: each wait is the equal jitter of its step, the step
+    /// `RECONNECT` doubling to `MAX_RECONNECT`. It stops when a renewal is
+    /// made or refused, when a token arrives some other way, and when the
+    /// session ends. A renewal made while nobody has said who the session's
+    /// token is asks the gateway once, as the start would have.
     async fn renew_when_unanswered(&self) {
         let mut owed = self.unanswered.read();
         loop {
             if owed.wait_for(|owed| *owed).await.is_err() {
                 return;
             }
-            let mut wait = RECONNECT;
+            let mut step = RECONNECT;
             while self.unanswered.now() {
-                tokio::time::sleep(wait).await;
+                tokio::time::sleep(equal_jitter(step)).await;
                 if self.token.now().is_some() {
                     self.unanswered.set(false);
                 } else if self.unanswered.now() {
-                    self.renew().await;
+                    if self.user.now().is_none() {
+                        self.refused().await;
+                    } else {
+                        self.renew().await;
+                    }
                 }
-                wait = (wait * 2).min(MAX_RECONNECT);
+                step = (step * 2).min(MAX_RECONNECT);
             }
         }
     }

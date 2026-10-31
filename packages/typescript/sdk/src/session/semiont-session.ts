@@ -40,6 +40,7 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
+  equalJitter,
   MAX_RECONNECT_MS,
   RECONNECT_MS,
   RETRY_RULES,
@@ -189,7 +190,7 @@ export class SemiontSession implements StateUnit {
   private readonly onAuthFailed: (reason: SessionEndReason) => void;
   private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
-  /** The next renewal owed after one that got no answer, and how long the one after it waits. */
+  /** The next renewal owed after one that got no answer, and the step of the wait after it. */
   private unansweredTimer: ReturnType<typeof setTimeout> | null = null;
   private unansweredWaitMs = RECONNECT_MS;
   /** Whether the session is still doing what it does at its start. */
@@ -483,14 +484,16 @@ export class SemiontSession implements StateUnit {
 
   /**
    * After a renewal that got no answer, renew again on the reconnect backoff:
-   * `RECONNECT_MS`, doubling to `MAX_RECONNECT_MS`. It ends when a renewal is
-   * made or refused, when a token arrives some other way, and when the
-   * session ends. A renewal already owed is not owed twice.
+   * each wait is the equal jitter of its step, the step `RECONNECT_MS`
+   * doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or refused,
+   * when a token arrives some other way, and when the session ends. A renewal
+   * already owed is not owed twice. A renewal made while nobody has said who
+   * the session's token is asks the gateway once, as the start would have.
    */
   private renewAgainLater(): void {
     if (this.disposed || this.unansweredTimer) return;
-    const wait = this.unansweredWaitMs;
-    this.unansweredWaitMs = Math.min(2 * wait, MAX_RECONNECT_MS);
+    const step = this.unansweredWaitMs;
+    this.unansweredWaitMs = Math.min(2 * step, MAX_RECONNECT_MS);
     this.unansweredTimer = setTimeout(() => {
       this.unansweredTimer = null;
       if (this.disposed) return;
@@ -498,8 +501,8 @@ export class SemiontSession implements StateUnit {
         this.unansweredWaitMs = RECONNECT_MS;
         return;
       }
-      void this.renew();
-    }, wait);
+      void (this.#heldUser$.getValue() === null ? this.refresh() : this.renew());
+    }, equalJitter(step));
   }
 
   private clearUnanswered(): void {

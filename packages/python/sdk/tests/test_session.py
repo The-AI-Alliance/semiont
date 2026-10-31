@@ -60,6 +60,8 @@ class World:
         self.renewals = deque(renewals)
         """What `refresh` answers, in order; nothing once it is spent."""
         self.renewed = 0
+        self.renewed_at: list[float] = []
+        """When each renewal was asked for, by the loop's clock."""
         self.validations = deque(validations)
         """What the gateway says of a token, in order; Alice once it is spent."""
         self.validated: list[str] = []
@@ -70,6 +72,7 @@ class World:
 
     async def refresh(self) -> str | None:
         self.renewed += 1
+        self.renewed_at.append(asyncio.get_running_loop().time())
         answer = self.renewals.popleft() if self.renewals else None
         if isinstance(answer, SignInError):
             raise answer
@@ -114,6 +117,22 @@ def count(row: JsonObject, name: str) -> int:
     value = row[name]
     assert isinstance(value, int), f"{name} is not a count"
     return value
+
+
+def then(row: JsonObject) -> JsonObject | None:
+    """What a row that ended signed out and kept what is stored comes to once the reconnect wait has passed."""
+    later = row.get("then")
+    kept_with_no_token = row["ends"] == "signed-out" and row["kept"] is True
+    assert (later is not None) == kept_with_no_token, "`then` is stated of every row that kept what is stored with no token, and no other"
+    assert later is None or isinstance(later, dict)
+    return later
+
+
+def answers(row: JsonObject) -> tuple[int, int]:
+    """How many asks and renewals a row's answers are scripted for: through its `then`, when it has one."""
+    later = then(row)
+    stated = row if later is None else later
+    return count(stated, "asks"), count(stated, "renewals")
 
 
 def answer(row: JsonObject, who: str, n: int) -> str:
@@ -182,10 +201,15 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
     assert world.told == ([] if row["told"] is None else [row["told"]]), "why the session ended"
     assert [error.code for error in world.errors] == ([] if row["error"] is None else [row["error"]]), "the error reported"
     assert await world.is_kept() == row["kept"], "whether a sign-in is still kept"
-    if ends(session) == "signed-out" and row["kept"]:
+    later = then(row)
+    if later is not None:
         await pass_time(RECONNECT_MS / 1000)
         asked_and_renewed = (len(world.validated) - asked_before, world.renewed)
-        assert asked_and_renewed == (asks, renewals + 1), "what was renewed once the reconnect wait passed"
+        stated = (count(later, "asks"), count(later, "renewals"))
+        assert asked_and_renewed == stated, "what was asked and renewed once the reconnect wait passed"
+        assert ends(session) == later["ends"], "how the session stood once the reconnect wait passed"
+        if later["ends"] == "signed-in":
+            assert session.user.value == world.answered, "who the gateway last said the token is"
     elif ends(session) == "signed-out":
         await pass_time(2 * 60 * 60, step=60)
         assert (len(world.validated) - asked_before, world.renewed) == (asks, renewals), "what was asked once the session was over"
@@ -193,11 +217,11 @@ async def is_as_stated(row: JsonObject, world: World, session: SemiontSession[Fa
 
 @pytest.mark.parametrize("row", STARTUP, ids=why)
 def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
-    asks, renewals = count(row, "asks"), count(row, "renewals")
+    asks, renewals = answers(row)
     kept = {"none": None, "unexpired": token(3600, 0), "expired": expired()}[text(row["stored"], "stored")]
     world = World(
         kept=kept,
-        renewals=[issuer_says(row, n, token(3600, n + 1)) for n in range(renewals + 1)],
+        renewals=[issuer_says(row, n, token(3600, n + 1)) for n in range(renewals)],
         validations=[*(gateway_says(row, n) for n in range(asks)), one_too_many()],
     )
 
@@ -211,11 +235,11 @@ def test_a_session_starts_as_the_table_states(row: JsonObject) -> None:
 
 @pytest.mark.parametrize("row", REFUSAL, ids=why)
 def test_a_refused_session_renews_and_asks_as_the_table_states(row: JsonObject) -> None:
-    asks, renewals = count(row, "asks"), count(row, "renewals")
+    asks, renewals = answers(row)
     # The session starts signed in: the gateway accepts the kept token. Then the row's answers.
     world = World(
         kept=token(3600, 0),
-        renewals=[issuer_says(row, n, token(3600, 1)) for n in range(renewals + 1)],
+        renewals=[issuer_says(row, n, token(3600, 1)) for n in range(renewals)],
         validations=[alice(), *(gateway_says(row, n) for n in range(asks)), one_too_many()],
     )
 
@@ -586,12 +610,13 @@ def test_a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_un
         async with world.its_session() as session:
             await soon(session.ready())
             assert await soon(session.refresh()) is None
-            # Each wait doubles from the reconnect wait, up to the longest.
-            for n, wait in enumerate(waits):
-                await pass_time(wait - 0.5, step=0.5)
-                assert world.renewed == n + 1, "renewed again before the wait was up"
-                await pass_time(0.5)
-                assert world.renewed == n + 2
+            step = 0.1
+            await pass_time(sum(waits) + step, step=step)
+            assert world.renewed == len(waits) + 1
+            # Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
+            gaps = [later - earlier for earlier, later in zip(world.renewed_at, world.renewed_at[1:], strict=False)]
+            for gap, wait in zip(gaps, waits, strict=True):
+                assert wait / 2 <= gap <= wait + 2 * step, (gap, wait)
             assert session.token.value == renewed
             # The renewal made ends the waits, and asks nobody.
             await pass_time(4 * MAX_RECONNECT_MS / 1000, step=5)

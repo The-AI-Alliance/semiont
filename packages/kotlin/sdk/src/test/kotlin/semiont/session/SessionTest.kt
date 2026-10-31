@@ -367,18 +367,17 @@ class SessionTest {
         val waits = (0 until 6).map { minOf(Timings.RECONNECT_MS shl it, Timings.MAX_RECONNECT_MS) }
         val renewed = token(3600, 2)
         val world = SessionWorld(kept = token(3600, 1), renewals = waits.map { unansweredByTheIssuer() } + renewed)
+        world.clock = { testScheduler.currentTime }
         world.session().use { session ->
             session.start()
             session.ready()
             assertNull(session.refresh())
-            // Each wait doubles from the reconnect wait, up to the longest.
-            for ((n, wait) in waits.withIndex()) {
-                advanceTimeBy(wait - 1)
-                runCurrent()
-                assertEquals(n + 1, world.renewed, "renewed again before the wait was up")
-                advanceTimeBy(1)
-                runCurrent()
-                assertEquals(n + 2, world.renewed)
+            advanceTimeBy(waits.sum() + 1)
+            runCurrent()
+            assertEquals(waits.size + 1, world.renewed)
+            // Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
+            for ((gap, wait) in world.renewedAt.zipWithNext { earlier, later -> later - earlier }.zip(waits)) {
+                assertTrue(gap in wait / 2..wait, "waited $gap of a step of $wait")
             }
             assertEquals(renewed, session.token.value)
             // The renewal made ends the waits, and asks nobody.

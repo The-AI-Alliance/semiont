@@ -732,8 +732,9 @@ token — is terminal on the first answer, because retrying cannot change it. A 
 because the network dropped, the gateway restarted, or the issuer answered `5xx` is retried under
 a bounded budget. When the budget runs out the session is not over: it holds no token, keeps
 what is stored, and says `session.refresh-exhausted` with nothing told to `onAuthFailed`. It
-renews again at the next refusal, and on its own on the reconnect backoff (`RECONNECT_MS`,
-doubling to `MAX_RECONNECT_MS`), until a renewal is made or refused. The error names both the last cause and how many attempts it took, so
+renews again at the next refusal, and on its own on the reconnect backoff (each wait a jittered
+share of a step that doubles from `RECONNECT_MS` to `MAX_RECONNECT_MS`), until a renewal is made or
+refused; one made while nobody has said who the token is asks the gateway once. The error names both the last cause and how many attempts it took, so
 "tried once and refused" reads differently from "tried four times and never got an answer".
 
 The gateway refusing a token the issuer has just issued: `session.credential-refused`. A token the

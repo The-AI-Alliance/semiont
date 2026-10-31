@@ -119,6 +119,8 @@ type world struct {
 	token    *semiont.Variable[string]
 	renewals []renewal // what refresh answers, in order; nothing once they are spent
 	renewed  int
+	// renewedAt is when each renewal was asked for.
+	renewedAt []time.Time
 	// takes is how long the issuer takes to answer a renewal.
 	takes       time.Duration
 	validations []error // what the gateway says of a token, in order: nil accepts
@@ -146,6 +148,7 @@ func (w *world) refresh(context.Context, string) (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.renewed++
+	w.renewedAt = append(w.renewedAt, time.Now())
 	if len(w.renewals) == 0 {
 		return "", nil
 	}
@@ -798,13 +801,15 @@ func TestARenewalThatGotNoAnswerKeepsWhatIsKeptAndTheNextRefusalRenewsAgain(t *t
 }
 
 // A renewal that got no answer is tried again on the reconnect backoff, each
-// wait double the one before up to the longest, until one is made; and the
-// issuer's refusal ends the attempts. On the test's own clock.
+// wait the equal jitter of a step double the one before up to the longest,
+// until one is made; the issuer's refusal ends the attempts; and one made
+// while nobody has said who the token is asks the gateway once. On the test's
+// own clock.
 func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) {
 	timing := semiont.DefaultTiming()
-	var waits []time.Duration
-	for wait := timing.Reconnect; len(waits) < 6; wait = min(2*wait, timing.MaxReconnect) {
-		waits = append(waits, wait)
+	var steps []time.Duration
+	for step := timing.Reconnect; len(steps) < 6; step = min(2*step, timing.MaxReconnect) {
+		steps = append(steps, step)
 	}
 	unanswered := fromTheIssuer(t, 0)
 	refused := fromTheIssuer(t, http.StatusBadRequest)
@@ -813,7 +818,7 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 		synctest.Test(t, func(t *testing.T) {
 			first, renewed := tokenFor(time.Hour, 0), tokenFor(time.Hour, 2)
 			w := newWorld(t, first)
-			for range waits {
+			for range steps {
 				w.renewals = append(w.renewals, renewal{err: unanswered})
 			}
 			w.renewals = append(w.renewals, renewal{token: renewed})
@@ -821,26 +826,32 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 			if _, ok := session.Refresh(context.Background(), first); ok {
 				t.Fatal("a renewal that got no answer gave a token")
 			}
-			for n, wait := range waits {
-				time.Sleep(wait - time.Second)
-				synctest.Wait()
-				if _, renewals := w.counts(); renewals != n+1 {
-					t.Fatalf("renewed %d times %v into wait %d, want %d", renewals, wait-time.Second, n, n+1)
-				}
-				time.Sleep(time.Second)
-				synctest.Wait()
-				if _, renewals := w.counts(); renewals != n+2 {
-					t.Fatalf("renewed %d times once wait %d was up, want %d", renewals, n, n+2)
+			var all time.Duration
+			for _, step := range steps {
+				all += step
+			}
+			time.Sleep(all)
+			synctest.Wait()
+			w.mu.Lock()
+			renewedAt := slices.Clone(w.renewedAt)
+			w.mu.Unlock()
+			if len(renewedAt) != len(steps)+1 {
+				t.Fatalf("renewed %d times, want %d", len(renewedAt), len(steps)+1)
+			}
+			for n, step := range steps {
+				if gap := renewedAt[n+1].Sub(renewedAt[n]); gap < step/2 || gap > step {
+					t.Errorf("waited %v for a step of %v", gap, step)
 				}
 			}
 			if w.token.Value() != renewed {
 				t.Error("the renewal made is not the session's token")
 			}
-			// The renewal made ends the waits, and asks nobody.
+			// The renewal made ends the waits, and asks nobody: the gateway
+			// said who the token is at the start.
 			time.Sleep(4 * timing.MaxReconnect)
 			synctest.Wait()
-			if asks, renewals := w.counts(); renewals != len(waits)+1 || asks != 1 {
-				t.Errorf("then renewed %d times and asked %d, want %d and 1", renewals, asks, len(waits)+1)
+			if asks, renewals := w.counts(); renewals != len(steps)+1 || asks != 1 {
+				t.Errorf("then renewed %d times and asked %d, want %d and 1", renewals, asks, len(steps)+1)
 			}
 		})
 	})
@@ -861,6 +872,34 @@ func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) 
 			synctest.Wait()
 			if _, renewals := w.counts(); renewals != 2 {
 				t.Errorf("renewed %d times, want 2", renewals)
+			}
+		})
+	})
+
+	t.Run("asking once who a token is that nobody has said", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			renewed := tokenFor(time.Hour, 2)
+			w := newWorld(t, tokenFor(-time.Minute, 0))
+			w.renewals = []renewal{{err: unanswered}, {token: renewed}}
+			session := w.start(t)
+			if asks, _ := w.counts(); asks != 0 || session.User().Value() != nil {
+				t.Fatalf("an offline start asked %d times, or says who signed in", asks)
+			}
+			time.Sleep(timing.Reconnect)
+			synctest.Wait()
+			if w.token.Value() != renewed {
+				t.Fatal("the renewal on the backoff was not made")
+			}
+			w.mu.Lock()
+			answered := w.answered
+			w.mu.Unlock()
+			if user := session.User().Value(); user == nil || answered == nil || *user.Name != *answered.Name {
+				t.Error("the session does not say who the gateway said the renewed token is")
+			}
+			time.Sleep(4 * timing.MaxReconnect)
+			synctest.Wait()
+			if asks, renewals := w.counts(); asks != 1 || renewals != 2 {
+				t.Errorf("asked %d times and renewed %d, want once and twice", asks, renewals)
 			}
 		})
 	})

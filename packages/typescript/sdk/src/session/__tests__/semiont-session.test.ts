@@ -287,19 +287,30 @@ describe('SemiontSession — refresh', () => {
       const waits = Array.from({ length: 6 }, (_, n) => Math.min(RECONNECT_MS * 2 ** n, MAX_RECONNECT_MS));
       seedStoredSession(storage, KB.id, freshJwt(), 'refresh-tok');
       const renewed = freshJwt();
-      waits.forEach(() => refresh.mockRejectedValueOnce(new SignInError('exchange', 'The issuer did not answer: TypeError')));
-      refresh.mockResolvedValueOnce(renewed);
+      // What each renewal answers, in order, and when it was asked for.
+      const answers = [
+        ...waits.map(() => async (): Promise<string> => {
+          throw new SignInError('exchange', 'The issuer did not answer: TypeError');
+        }),
+        async (): Promise<string> => renewed,
+      ];
+      const renewedAt: number[] = [];
+      refresh.mockImplementation(async () => {
+        renewedAt.push(Date.now());
+        return answers.shift()!();
+      });
 
       const session = newSession();
       await session.ready;
       await expect(session.refresh()).resolves.toBeNull();
-      // Each wait doubles from the reconnect wait, up to the longest.
-      for (const [n, wait] of waits.entries()) {
-        await vi.advanceTimersByTimeAsync(wait - 1);
-        expect(refresh, 'renewed again before the wait was up').toHaveBeenCalledTimes(n + 1);
-        await vi.advanceTimersByTimeAsync(1);
-        expect(refresh).toHaveBeenCalledTimes(n + 2);
-      }
+      await vi.advanceTimersByTimeAsync(waits.reduce((all, wait) => all + wait, 0));
+      expect(refresh).toHaveBeenCalledTimes(waits.length + 1);
+      // Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
+      waits.forEach((wait, n) => {
+        const gap = renewedAt[n + 1]! - renewedAt[n]!;
+        expect(gap, `wait ${n}`).toBeGreaterThanOrEqual(wait / 2);
+        expect(gap, `wait ${n}`).toBeLessThanOrEqual(wait);
+      });
       expect(session.token$.getValue()).toBe(renewed);
       // The renewal made ends the waits, and asks nobody.
       await vi.advanceTimersByTimeAsync(4 * MAX_RECONNECT_MS);
