@@ -155,7 +155,7 @@ func machineNoun(role string) string {
 
 // machineServing: the machine's container that `stop --service role` stops,
 // and whether one does: the one `start --service role` would start. st, the
-// local stack a stop run here means (unaskedStack), names the container
+// local stack the stop is asked of (askedLocalStack), names the container
 // serving the role in its record, and the role runs it when it is the first
 // the start walk reaches that names it — a later one shares it (embedding, on
 // the Ollama inference runs). With no record of the role, the roles table's
@@ -179,24 +179,6 @@ func machineServing(st *StackState, role string) (string, bool) {
 		return "", false
 	}
 	return machineContainer(role), true
-}
-
-// unaskedStack: the local stack a command run here means without being told —
-// the one of the knowledge base you stand in, else the one recorded; nil when
-// neither answers.
-func unaskedStack(ss *StackSet) *StackState {
-	locals := localStacks(ss)
-	if root, err := CwdKBRoot(); err == nil && root != "" {
-		for _, st := range locals {
-			if st.KBRoot == root {
-				return st
-			}
-		}
-	}
-	if len(locals) == 1 {
-		return locals[0]
-	}
-	return nil
 }
 
 // stopCodespaceAndMachine: a bare stop that resolved to a codespace stack.
@@ -302,7 +284,11 @@ func Stop(args []string) int {
 	// start that runs it brings it back.
 	if service != "" && repo == "" {
 		ss := LoadStackSet()
-		if name, ok := machineServing(unaskedStack(ss), service); ok {
+		asked, _, ok := askedLocalStack(u, "stop", ss, root, false)
+		if !ok {
+			return 1
+		}
+		if name, ok := machineServing(asked, service); ok {
 			noun := machineNoun(machineRoleByContainer[name])
 			if dryRun {
 				printMachineStop("the machine's "+noun, installedRuntimes(), name, ss.Machine[name])
@@ -639,9 +625,9 @@ func (sc stopScope) stagingPattern() string {
 // resolveStop: the stack a local stop acts on, or the codespace stack a bare
 // stop means instead (codespace non-nil). The ladder is SelectVerbStack's,
 // with one difference: with no stack recorded for it, the knowledge base
-// asked of — by --root, or by standing in it — is still swept by name, and
-// with none asked of and none recorded, every known one is. ok=false:
-// refused, the choices listed.
+// asked of — by --root, or by standing in it — is swept by name, and with
+// none asked of and none recorded, every known one is. ok=false: refused,
+// the choices listed.
 func resolveStop(u *UI, ss *StackSet, root, runtime string, del bool) (scope stopScope, codespace *StackState, ok bool) {
 	var asked kbRoot
 	if root != "" {
@@ -659,6 +645,10 @@ func resolveStop(u *UI, ss *StackSet, root, runtime string, del bool) (scope sto
 		}
 		asked = kb
 	}
+	locals, cs := localStacks(ss), codespaceStacks(ss)
+	if runtime != "" {
+		cs = nil
+	}
 	if asked.dir != "" {
 		st := localStack(ss, asked.key())
 		if st != nil && st.KBRoot != asked.dir {
@@ -666,13 +656,13 @@ func resolveStop(u *UI, ss *StackSet, root, runtime string, del bool) (scope sto
 			fmt.Fprintln(os.Stderr, "  Stop it there:  semiont stop --root "+st.KBRoot)
 			return stopScope{}, nil, false
 		}
-		if st != nil || root != "" {
+		// A clone whose stack is not recorded is still the knowledge base
+		// asked of, as --root would name it: its names are swept, not the
+		// lone stack of another. Only a codespace, which that clone's origin
+		// may name, keeps the choice open.
+		if st != nil || root != "" || len(locals) > 0 && len(cs) == 0 {
 			return stopScope{st: st, dir: asked.dir, keys: []string{asked.key()}}, nil, true
 		}
-	}
-	locals, cs := localStacks(ss), codespaceStacks(ss)
-	if runtime != "" {
-		cs = nil
 	}
 	switch {
 	case len(locals) == 1 && len(cs) == 0:

@@ -107,7 +107,7 @@ func Logs(args []string) int {
 	// key: the state key of the knowledge base whose containers are
 	// followed, which names them — a codespace's own launcher names its
 	// stack's as this one does.
-	st, key, ok := logsLocalStack(u, ss, rootFlag, repoFlag != "")
+	st, key, ok := askedLocalStack(u, "logs", ss, rootFlag, repoFlag != "")
 	if !ok {
 		return 1
 	}
@@ -309,13 +309,14 @@ func Logs(args []string) int {
 	return 0
 }
 
-// logsLocalStack: the local stack logs follows, and the state key of its
-// knowledge base: --root's, else the one you stand in, else the one recorded.
-// st is nil for a knowledge base with no stack recorded, whose containers are
-// found by name; key is "" when no knowledge base answers, and a codespace
-// may. ok=false: refused — a codespace was named alongside --root, or several
-// local stacks are recorded and none was named.
-func logsLocalStack(u *UI, ss *StackSet, root string, repo bool) (st *StackState, key string, ok bool) {
+// askedLocalStack: the local stack verb acts on by its containers' names, and
+// the state key of its knowledge base: --root's, else the one you stand in,
+// else, standing in none, the one recorded. st is nil for a knowledge base
+// with no stack recorded, whose containers are found by name; key is "" when
+// no knowledge base answers, and a codespace may. ok=false: refused — a
+// codespace was named alongside --root, or several local stacks are recorded
+// and none was named.
+func askedLocalStack(u *UI, verb string, ss *StackSet, root string, repo bool) (st *StackState, key string, ok bool) {
 	if repo && root != "" {
 		u.Fail("--repo and --root are contradictory: one names a codespace stack, the other a local one.")
 		return nil, "", false
@@ -338,23 +339,19 @@ func logsLocalStack(u *UI, ss *StackSet, root string, repo bool) (st *StackState
 		asked = kb
 	}
 	if asked.dir != "" {
-		// A copy of the knowledge base running from another clone is still
-		// its stack, under the names it has here too.
-		if st := localStack(ss, asked.key()); st != nil || root != "" {
-			return st, asked.key(), true
-		}
+		// The knowledge base asked of names its own containers, recorded or
+		// not. A copy of it running from another clone is still its stack,
+		// under the names it has here too.
+		return localStack(ss, asked.key()), asked.key(), true
 	}
 	switch locals := localStacks(ss); len(locals) {
 	case 0:
-		if asked.dir != "" {
-			return nil, asked.key(), true
-		}
 		return nil, "", true
 	case 1:
 		return locals[0], rootKey(locals[0].KBDid, locals[0].KBRoot), true
 	default:
 		u.Fail("Multiple stacks are recorded — say which:")
-		printStackMenu("logs", "", locals, codespaceStacks(ss))
+		printStackMenu(verb, "", locals, codespaceStacks(ss))
 		return nil, "", false
 	}
 }

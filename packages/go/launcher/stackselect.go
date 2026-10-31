@@ -17,10 +17,10 @@ import (
 // stack is recorded and none was named, which each verb refuses in its own
 // words. ok=false = refused, message printed with verb-specific fix-it lines.
 //
-// --repo names a codespace stack and --root a local one; else the stack of the
-// knowledge base you stand in; else the one stack recorded; else, with no
-// local stack, the codespace this clone's origin names. --runtime narrows the
-// choice to the local stacks.
+// --repo names a codespace stack and --root a local one; else the knowledge
+// base you stand in names its own; else, standing in none, the one stack
+// recorded; else, with no local stack, the codespace this clone's origin
+// names. --runtime narrows the choice to the local stacks.
 func SelectVerbStack(u *UI, verb string, ss *StackSet, repo, root string, wantLocal bool) (*StackState, bool) {
 	// Every knowledge verb resolves its target through here, so this is also
 	// where they all learn that the record could not be read — without it
@@ -55,6 +55,12 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo, root string, wantLo
 		if cwdRoot != "" && st.KBRoot == cwdRoot {
 			return st, true
 		}
+	}
+	// A clone whose stack is not recorded still says which, as --root would:
+	// not the lone stack of another knowledge base. Only a codespace, which
+	// that clone's origin may name, keeps the choice open.
+	if cwdRoot != "" && len(locals) > 0 && len(cs) == 0 {
+		return rootLocalStack(u, ss, cwdRoot)
 	}
 	if wantLocal {
 		cs = nil

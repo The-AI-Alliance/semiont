@@ -104,6 +104,23 @@ func TestRootNamesTheCloneItsStackRunsFrom(t *testing.T) {
 	}
 }
 
+// Standing in a knowledge base nothing started names that knowledge base, as
+// --root would: a verb is refused, naming its start, rather than handed the
+// lone stack of another. Standing in no clone, the lone stack answers.
+func TestAKnowledgeBaseNothingStartedIsHandedNoOtherStack(t *testing.T) {
+	harness.Home(t)
+	running, idle := kbNamed(t, "example.org:a"), kbNamed(t, "example.org:c")
+	recordedAt(t, running)
+	t.Chdir(idle)
+	if st, ok, said := selected(t, ""); ok || st != nil || !strings.Contains(said, "semiont start --root "+idle) {
+		t.Errorf("standing in %s, which nothing started, gather chose %+v (ok %v):\n%s", idle, st, ok, said)
+	}
+	t.Chdir(t.TempDir())
+	if st, ok, said := selected(t, ""); !ok || st == nil || st.KBRoot != running {
+		t.Errorf("standing in no clone, gather chose %+v (ok %v), want the lone stack of %s:\n%s", st, ok, running, said)
+	}
+}
+
 // A stop sweeps the staged documents of the knowledge base it stops alone.
 // Another's are live mounts of its running stack, and a key may begin
 // another's, so a staging dir is a knowledge base's only when MkdirTemp's

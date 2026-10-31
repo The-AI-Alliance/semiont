@@ -2263,6 +2263,14 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	argv, _, stderr = run("a start on a held gateway port", 1, "start")
 	mustContain(t, "a start on a held gateway port", stderr, first+"'s stack holds port 4000", "knowledge-base.yaml", "semiont stop --root "+first)
 	mustNotContain(t, "a start on a held gateway port", argv, "run -d")
+	// A stop standing in it sweeps its own names, which nothing runs, and
+	// leaves both stacks that do.
+	argv, _, _ = run("a stop standing in a knowledge base nothing started", 0, "stop")
+	mustContain(t, "a stop standing in a knowledge base nothing started", argv, "stop semiont-example.github.io-third-kb-gateway")
+	mustNotContain(t, "a stop standing in a knowledge base nothing started", argv, "test-kb-", "other-kb-", "semiont-worker")
+	if got := recordedStacks(t, s); !slices.Equal(got, []string{otherKey, localKey}) {
+		t.Errorf("after a stop of a knowledge base nothing started, stack.json records %v, want both", got)
+	}
 
 	s.kb = first
 	argv, stdout, _ := run("the first knowledge base's stop", 0, "stop")

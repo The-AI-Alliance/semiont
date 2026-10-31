@@ -303,10 +303,11 @@ semiont stop
   `status` opens with a STACKS fleet overview (each stack's state and
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
   details any); bare `logs`, `stop`, `useradd` and the knowledge verbs
-  let the working directory disambiguate — inside the clone whose local
-  stack is running they mean that stack; inside a clone whose origin names a
-  recorded codespace stack (no local stack) they mean that one; a lone
-  recorded stack answers for itself — and refuse anywhere less certain:
+  let the working directory disambiguate — inside a clone they mean its
+  knowledge base, as `--root` would name it, unless its origin names a
+  recorded codespace stack and no local stack is recorded, when they mean
+  that one; standing in no clone, a lone recorded stack answers for itself —
+  and refuse anywhere less certain:
   `--root <path>` targets a local KB's stack, `--repo <owner/name>` a
   codespace stack, and `--runtime` narrows the choice to local stacks.
 - Codespace preflights fail fast with fixes: `gh` missing/unauthenticated, the
