@@ -360,7 +360,9 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 	x.note("browser: keep if running with image identity matching %s, recorded at %s with %s; else stop/rm + pull + run",
 		desired, doc.endpoint(), doc.spec.Resources.Limits.Memory)
 	x.note("(the Browser is not a stack member: semiont stop --service browser stops it alone)")
-	return x.either(func() bool { return !forceRestart && recordedAs(x.browserRecord(), doc) && x.browserCurrent(desired) },
+	return x.either(func() bool {
+		return !forceRestart && recordedAs(x.browserRecord(), doc) && x.containerCurrent("semiont-browser", desired)
+	},
 		func() int {
 			x.say(sayOK, "Browser already running on %s %s", doc.endpoint(),
 				x.dim("(as its document says — left alone; semiont stop --service browser stops it)"))
@@ -729,67 +731,103 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 	return 0
 }
 
-// flowOllama: host-Ollama reuse when serving and reachable from containers;
-// else the semiont-ollama container with the model-cache choice. role names
-// the OWNER — "inference" when the bindings run through Ollama, "embedding"
-// when Ollama exists solely to serve embeddings (all-remote bindings).
+// flowOllama: the machine's Ollama, which runs outside every stack (its
+// record is the machine's, StackSet.Ollama) and serves every KB whose engines
+// name Ollama. A start keeps the running one when its record says it is
+// published where this start would publish it, under this start's runtime,
+// with the model cache --ollama-cache asks for (any, when it asks none), and
+// it runs the image this start would. `start --service` restarts it, as
+// `--service browser` restarts the Browser. Otherwise: host-Ollama reuse when
+// serving and reachable from containers; else the semiont-ollama container
+// with the model-cache choice. role names the role this stack records it
+// under — "inference" when the engines run through Ollama, "embedding" when
+// Ollama exists solely to serve embeddings (all-remote engines).
 func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) int {
 	title := "Inference"
 	if role != "inference" {
 		title = depRoleTitles[role]
 	}
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
-	// Our own container goes BEFORE the probe: a semiont-ollama left by the
-	// last start publishes the same port and answers the same /api/version,
-	// so probing first would take the stack's own Ollama for a host install.
-	// This is also the only removal it gets — the preflight sweep exempts
-	// inference, and --service inference has no preflight at all.
-	if x.stopRm("semiont-ollama") {
-		x.settle(rp.Port)
-	}
-	x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
-	x.note(`if present — probe: %s run --rm %s sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), probeImage, addr, rp.Port)
-	return x.either(probeHostOllama(rp.Port),
+	rec := x.ollamaRecord()
+	health := healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr))
+	base := fmt.Sprintf("http://%s:%d", x.exposure(addr).probeHost(role, rp.Port), rp.Port)
+	asked := ollamaCacheAsked(fc.opts.ollamaCache)
+	x.note("ollama: keep the machine's Ollama if its record says %s under %s%s and it runs %s; else stop/rm it, then reuse a host Ollama or run the container",
+		base, x.rtName(), cacheClause(asked), rp.Image)
+	return x.either(func() bool {
+		return !fc.restart && ollamaRecordedAs(rec, x.rtName(), base, asked) && x.containerCurrent("semiont-ollama", rp.Image)
+	},
 		func() int {
-			if !x.hostOllamaReachable(addr, rp.Port) {
-				return 1
-			}
-			x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
-			x.record(role, "", "", providedHost, healthEndpoint(role, rp.Driver, fc.plan, exposure{}), rp.Driver)
-			x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
+			x.say(sayOK, "%s — the machine's Ollama already running on %s %s", role, base,
+				x.dim("(kept: it serves every KB here; semiont stop --service "+role+" stops it)"))
+			x.record(role, "", "", providedMachine, health, rp.Driver)
+			x.ensureModels(base, fc.plan.OllamaModels)
 			return 0
 		},
 		func() int {
-			x.say(sayLog, "No host Ollama detected — starting container...")
-			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
-				return 1
+			// The machine's own container goes BEFORE the probe: a
+			// semiont-ollama left running publishes the same port and answers
+			// the same /api/version, so probing first would take it for a
+			// host install. It goes wherever it runs — its record may name
+			// another runtime — and with no record, by name under this one.
+			if x.stopMachine("semiont-ollama", rec) {
+				x.settle(rp.Port)
 			}
-			x.recordPorts([]portNeed{{rp.Port, "Ollama"}})
-			volume := x.ollamaVolume(fc.opts)
-			// The container is semiont-ollama whichever role owns it — the
-			// process is the same; only the accounting differs.
-			args := ollamaRunArgs(x.exposure(addr), rp, "-v", volume+":/root/.ollama")
-			id, ok := x.runDetached(args)
-			if !ok {
-				x.say(sayFail, "Ollama container failed to start.")
-				return 1
-			}
-			d, ok := x.waitHTTP(role+" (Ollama)", "semiont-ollama", healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 30)
-			if !ok {
-				x.dumpLogs("semiont-ollama", role)
-				return 1
-			}
-			base := fmt.Sprintf("http://%s:%d", x.exposure(addr).probeHost(role, rp.Port), rp.Port)
-			x.say(sayOK, "%s — Ollama container on %s (24 GB memory) %s", role, base, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
-			if descriptorFor(role, "ollama").container == "" {
-				// embedding owns this launch: record the container it ran,
-				// or stop could never find it.
-				x.noteContainer(role, "semiont-ollama")
-			}
-			x.ensureModels(base, fc.plan.OllamaModels)
-			return 0
+			x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
+			x.note(`if present — probe: %s run --rm %s sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), probeImage, addr, rp.Port)
+			return x.either(probeHostOllama(rp.Port),
+				func() int {
+					if !x.hostOllamaReachable(addr, rp.Port) {
+						return 1
+					}
+					x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
+					x.forgetOllama()
+					x.record(role, "", "", providedHost, healthEndpoint(role, rp.Driver, fc.plan, exposure{}), rp.Driver)
+					x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
+					return 0
+				},
+				func() int {
+					x.say(sayLog, "No host Ollama detected — starting container...")
+					if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
+						return 1
+					}
+					volume := x.ollamaVolume(fc.opts)
+					// The container is semiont-ollama whichever role this
+					// stack records it under — the process is the same.
+					args := ollamaRunArgs(x.exposure(addr), rp, "-v", volume+":/root/.ollama")
+					id, ok := x.runDetached(args)
+					if !ok {
+						x.say(sayFail, "Ollama container failed to start.")
+						return 1
+					}
+					d, ok := x.waitHTTP(role+" (Ollama)", "semiont-ollama", health, 30)
+					if !ok {
+						x.dumpLogs("semiont-ollama", role)
+						return 1
+					}
+					x.say(sayOK, "%s — Ollama container on %s (24 GB memory) %s", role, base, x.dim("("+took(d)+")"))
+					x.recordOllama(id, rp.Image, base, volume)
+					x.record(role, "", "", providedMachine, health, rp.Driver)
+					x.ensureModels(base, fc.plan.OllamaModels)
+					return 0
+				})
 		})
+}
+
+// ollamaRecordedAs: whether the machine's Ollama record says it was started
+// where this start would publish it (base), under its runtime rt, and on the
+// model cache asked for, when one is. No record says nothing, so an Ollama
+// running without one is restarted into one.
+func ollamaRecordedAs(rec *ServiceState, rt, base, asked string) bool {
+	return rec != nil && rec.Runtime == rt && rec.Endpoint == base && (asked == "" || rec.Cache == asked)
+}
+
+// cacheClause: the plan note's words for the cache a start asks for.
+func cacheClause(asked string) string {
+	if asked == "" {
+		return ""
+	}
+	return " on the model cache " + asked
 }
 
 // flowGateway: run + host-side health gate + container-gateway reachability

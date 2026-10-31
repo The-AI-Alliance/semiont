@@ -1332,26 +1332,178 @@ func TestStartHostOllamaBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
-// A re-run start over a live stack must not take its OWN Ollama container for
-// a host install — "using host Ollama at http://localhost:11434", with
-// semiont-ollama left running and recorded as the host's. Moving a KB's
-// issuer port reruns start over a live stack, so this is the normal path: the
-// re-run removes its own container before it probes.
-func TestRerunStartReplacesItsOwnOllama(t *testing.T) {
+// machineOllama: the machine's Ollama record, and how the local stack
+// records the role it serves, read from the PARSED record: the machine-level
+// record and a stack service could both say "ollama", so a substring cannot
+// say where it appeared.
+type machineOllama struct {
+	Ollama *struct {
+		Container string `json:"container"`
+		ID        string `json:"id"`
+		Image     string `json:"image"`
+		Runtime   string `json:"runtime"`
+		Endpoint  string `json:"endpoint"`
+		Cache     string `json:"cache"`
+	} `json:"ollama"`
+	Stacks map[string]struct {
+		Ports    []int `json:"ports"`
+		Services map[string]struct {
+			Container string `json:"container"`
+			ID        string `json:"id"`
+			Provided  string `json:"provided"`
+		} `json:"services"`
+	} `json:"stacks"`
+}
+
+func readMachineOllama(t *testing.T, s *scenario) machineOllama {
+	t.Helper()
+	rec, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatalf("stack.json: %v", err)
+	}
+	var m machineOllama
+	if err := json.Unmarshal(rec, &m); err != nil {
+		t.Fatalf("stack.json: %v\n%s", err, rec)
+	}
+	return m
+}
+
+func TestTheMachinesOllamaLifecycle(t *testing.T) {
+	// The machine's Ollama keeps a record of its own, apart from the stack's,
+	// as the Browser does. A start keeps a current one; another cache asked
+	// for, a stale image or `start --service inference` restarts it; a stop of
+	// one of the stack's services leaves it; `stop --service inference` stops
+	// it alone, and a bare stop with everything else.
 	s := newScenario(t, "container")
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	before := len(s.argv(t))
+	first := readMachineOllama(t, s)
+	if first.Ollama == nil || first.Ollama.Container != "semiont-ollama" || first.Ollama.ID == "" || first.Ollama.Runtime != "container" {
+		t.Fatalf("no machine-level Ollama record naming its container, ID and runtime: %+v", first.Ollama)
+	}
+	if first.Ollama.Cache != "semiont-ollama-models" {
+		t.Errorf("the record's cache is %q: want the named volume a home with no ~/.ollama gets", first.Ollama.Cache)
+	}
+	inference := first.Stacks["local"].Services["inference"]
+	if inference.Provided != "machine" || inference.Container != "" || inference.ID != "" {
+		t.Errorf("the stack records inference as %+v: want provided by the machine, with no container of its own", inference)
+	}
+	// Ollama's port is the machine's, not among the stack's claims.
+	for _, p := range first.Stacks["local"].Ports {
+		if p == 11434 {
+			t.Errorf("Ollama's port recorded among the stack's claims: %v", first.Stacks["local"].Ports)
+		}
+	}
+
+	// A re-run that finds it running as its record says, on the image it
+	// would run, keeps it: no stop, no rm, no run, and the record unchanged.
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_ollama=running",
+		"FAKERT_IMAGE_ollama="+first.Ollama.Image)
+	before := s.mustLog(t)
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
-		t.Fatalf("second start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		t.Fatalf("keeping start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "keep message", stdout, "the machine's Ollama already running")
 	if strings.Contains(stdout, "using host Ollama") {
-		t.Errorf("the re-run took the stack's own semiont-ollama for a host install:\n%s", stdout)
+		t.Errorf("the re-run took the machine's own semiont-ollama for a host install:\n%s", stdout)
 	}
-	second := s.argv(t)[before:]
-	mustContain(t, "second run's argv", second, "rm semiont-ollama", "--name semiont-ollama")
+	for _, churn := range []string{"rm semiont-ollama", "--name semiont-ollama"} {
+		if strings.Contains(fresh, churn) {
+			t.Errorf("a current Ollama was churned (%q):\n%s", churn, fresh)
+		}
+	}
+	if kept := readMachineOllama(t, s); kept.Ollama == nil || kept.Ollama.ID != first.Ollama.ID {
+		t.Errorf("the kept Ollama's record changed: %+v, was %+v", kept.Ollama, first.Ollama)
+	}
+
+	// A stop of one of the stack's own services leaves it.
+	before = s.mustLog(t)
+	if _, stderr, code := s.run(t, "stop", "--service", "gateway"); code != 0 {
+		t.Fatalf("stop --service gateway: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); strings.Contains(fresh, "semiont-ollama") || strings.Contains(fresh, first.Ollama.ID) {
+		t.Errorf("stopping the gateway touched the machine's Ollama:\n%s", fresh)
+	}
+	if left := readMachineOllama(t, s); left.Ollama == nil {
+		t.Errorf("stopping the gateway forgot the machine's Ollama")
+	}
+
+	// Another cache asked for restarts it, on that cache.
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "start", "--ollama-cache", "host")
+	if code != 0 {
+		t.Fatalf("start --ollama-cache host: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	hostCache := filepath.Join(s.home, ".ollama")
+	mustContain(t, "another cache's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama", "-v "+hostCache+":/root/.ollama")
+	if moved := readMachineOllama(t, s); moved.Ollama == nil || moved.Ollama.Cache != hostCache {
+		t.Errorf("the restarted Ollama's record does not name the cache asked for: %+v", moved.Ollama)
+	}
+
+	// A stale image restarts it.
+	for i, e := range s.extraEnv {
+		if strings.HasPrefix(e, "FAKERT_IMAGE_ollama=") {
+			s.extraEnv[i] = "FAKERT_IMAGE_ollama=ollama/ollama:0.0.1"
+		}
+	}
+	before = s.mustLog(t)
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("stale-image start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "stale image's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama")
+
+	// `start --service inference` is the explicit refresh: it restarts a
+	// current one.
+	for i, e := range s.extraEnv {
+		if strings.HasPrefix(e, "FAKERT_IMAGE_ollama=") {
+			s.extraEnv[i] = "FAKERT_IMAGE_ollama=" + first.Ollama.Image
+		}
+	}
+	before = s.mustLog(t)
+	if stdout, stderr, code := s.run(t, "start", "--service", "inference"); code != 0 {
+		t.Fatalf("start --service inference: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "--service inference's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama")
+
+	// `stop --service inference` stops it alone and forgets its record; the
+	// stack's record stands.
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "stop", "--service", "inference")
+	if code != 0 {
+		t.Fatalf("stop --service inference: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop --service inference", stdout, "Ollama stopped")
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "stop --service inference's argv", fresh, "container stop semiont-ollama", "container rm semiont-ollama")
+	if strings.Contains(fresh, "semiont-gateway") {
+		t.Errorf("stop --service inference touched the stack:\n%s", fresh)
+	}
+	if after := readMachineOllama(t, s); after.Ollama != nil || after.Stacks["local"].Services["gateway"].Provided == "" {
+		t.Errorf("after stop --service inference: want no Ollama record and the stack's standing, got %+v", after)
+	}
+
+	// A bare stop stops it with everything else.
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start before the bare stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "bare stop", stdout, "Ollama stopped", "Browser stopped")
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "bare stop's argv", fresh, "container stop semiont-ollama", "container rm semiont-ollama")
+	if left, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("stack.json after a bare stop: %v\n%s", err, left)
+	}
 }
 
 // localImages: the scenario's documents naming each of Semiont's images at
@@ -2777,7 +2929,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 16 container(s) across container, docker, podman",
+		"Sweeping 15 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -7948,6 +8100,23 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	if strings.Contains(got, "gemma4:26b") {
 		t.Errorf("re-pulled a model Ollama already had:\n%s", got)
 	}
+
+	// A start that keeps the machine's Ollama still pulls what is missing:
+	// another knowledge base's config may ask it for a model it lacks.
+	if err := os.Remove(filepath.Join(s.fakertDir, "ollama-pulls")); err != nil {
+		t.Fatalf("clearing the first start's pulls: %v", err)
+	}
+	s.extraEnv = append(s.extraEnv,
+		"FAKERT_STATE_ollama=running",
+		"FAKERT_IMAGE_ollama="+readMachineOllama(t, s).Ollama.Image)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("keeping start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "keep message", stdout, "the machine's Ollama already running")
+	if got := pulls(s); !strings.Contains(got, "gemma4:e2b") || !strings.Contains(got, "nomic-embed-text") {
+		t.Errorf("a kept Ollama was not asked for the missing models; pulled:\n%s", got)
+	}
 	s.killServes(t) // else this fake Ollama looks like a HOST one to the next case
 
 	// Ollama unlistable: we know NOTHING, so pull nothing. Blindly pulling
@@ -7966,7 +8135,7 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	// and the user may prefer to pull by hand.
 	s3 := newScenario(t, "container")
 	s3.extraEnv = append(s3.extraEnv, "FAKERT_OLLAMA_TAGS=", "FAKERT_OLLAMA_PULL_FAILS=1")
-	stdout, stderr, code := s3.run(t, "start")
+	stdout, stderr, code = s3.run(t, "start")
 	if code != 0 {
 		t.Fatalf("a failed model pull must not fail the stack: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -8042,14 +8211,38 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 	// The ollama-served embedding still gets a real install state.
 	mustContain(t, "embedding model", stdout, "nomic-embed-text")
 
-	// And stop finds the embedding-owned Ollama container — the one hazard
-	// of ownership sitting with a role other than inference.
+	// The stack records embedding as served by the machine's Ollama, so
+	// --service embedding is what stops that Ollama alone; --service
+	// inference, which Claude performs, leaves it.
+	if m := readMachineOllama(t, s); m.Ollama == nil || m.Stacks["local"].Services["embedding"].Provided != "machine" {
+		t.Errorf("want the machine's Ollama recorded and embedding provided by it, got %+v", m)
+	}
+	before := s.mustLog(t)
+	if _, stderr, code := s.run(t, "stop", "--service", "inference"); code != 0 {
+		t.Fatalf("stop --service inference: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); strings.Contains(fresh, "semiont-ollama") {
+		t.Errorf("stop --service inference, which Claude performs, touched the embedding's Ollama:\n%s", fresh)
+	}
+	before = s.mustLog(t)
+	stdout, stderr, code := s.run(t, "stop", "--service", "embedding")
+	if code != 0 {
+		t.Fatalf("stop --service embedding: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop --service embedding", stdout, "Ollama stopped")
+	mustContain(t, "stop --service embedding's argv", strings.TrimPrefix(string(s.mustLog(t)), string(before)), "stop semiont-ollama")
+
+	// And a bare stop finds the embedding-owned Ollama — the one hazard of
+	// ownership sitting with a role other than inference.
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start again: exit %d\nstderr:\n%s", code, stderr)
+	}
+	before = s.mustLog(t)
 	if _, stderr, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
 	}
-	log, _ := os.ReadFile(s.log)
-	if !strings.Contains(string(log), "stop fid-semiont-ollama") && !strings.Contains(string(log), "stop semiont-ollama") {
-		t.Errorf("stop never targeted the embedding-owned Ollama container:\n%s", log)
+	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); !strings.Contains(fresh, "stop semiont-ollama") {
+		t.Errorf("stop never targeted the embedding-owned Ollama container:\n%s", fresh)
 	}
 }
 

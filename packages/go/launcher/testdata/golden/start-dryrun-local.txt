@@ -97,6 +97,9 @@ container run -d --name semiont-neo4j --memory 2G -p 127.0.0.1:7474:7474 -p 127.
 # vectors state: <data-home>/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
 container run -d --name semiont-qdrant --memory 2G -p <host-addr>:6333:6333 -v <data-home>/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
 # wait: http://<host-addr>:6333/readyz (15s)
+# ollama: keep the machine's Ollama if its record says http://<host-addr>:11434 under container and it runs ollama/ollama:0.40.10@sha256:4c5b27871a3239a717048f9b93057680a51b60c8119a7016aebb57f938e25e35; else stop/rm it, then reuse a host Ollama or run the container
+# ensure inference, embedding models present at http://<host-addr>:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
+# else:
 container stop semiont-ollama
 container rm semiont-ollama
 # probe: host Ollama at http://localhost:11434/api/version

@@ -41,6 +41,7 @@ type runner interface {
 	pull(img string) bool
 	runDetached(args []string) (string, bool)        // echo + run -d; returns runtime-reported id
 	stopRm(name string) bool                         // teardown; reports whether anything existed
+	stopMachine(name string, rec *ServiceState) bool // a machine-level container's teardown, under this runtime and the one its record names; reports whether anything existed
 	sweepStray(names []string) bool                  // stop+rm the names under every OTHER installed runtime; reports whether anything existed
 	settle(ports ...int)                             // wait for torn-down ports to be released
 	snapshotLogs(kb kbRoot, names []string)          // crash evidence: capture container logs into the root's state area before a teardown deletes them
@@ -70,11 +71,13 @@ type recorder interface {
 	initStack(kb kbRoot, config, addr, stage string) // begin the belief record
 	recordPorts(ports []portNeed)                    // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
-	providerOf(role string) string        // how an already-recorded role was provided
-	noteContainer(role, container string) // stamp a launched container on a container-less role
-	browserCurrent(desired string) bool   // running AND image identity matches
-	browserRecord() *ServiceState         // the machine-level browser record
+	providerOf(role string) string              // how an already-recorded role was provided
+	containerCurrent(name, desired string) bool // running under this runtime AND image identity matches
+	browserRecord() *ServiceState               // the machine-level browser record
 	recordBrowser(id, image string, doc browserDocument)
+	ollamaRecord() *ServiceState // the machine's Ollama record
+	recordOllama(id, image, endpoint, cache string)
+	forgetOllama() // the machine runs no Ollama container of the launcher's
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
@@ -232,6 +235,27 @@ func (x *liveExec) stopRm(name string) bool {
 	rmed := runSilent(x.rt, "rm", name) == nil
 	delete(x.existing[x.rt], name)
 	return stopped || rmed
+}
+
+// stopMachine: a machine-level container may run under another runtime than
+// this start's, the one its record names, so both are looked in, its recorded
+// ID among the handles there. Like stopRm, it stops only what is there.
+func (x *liveExec) stopMachine(name string, rec *ServiceState) bool {
+	runtimes := []string{x.rt}
+	if rec != nil && rec.Runtime != "" && rec.Runtime != x.rt && onPath(rec.Runtime) {
+		runtimes = append(runtimes, rec.Runtime)
+	}
+	var holding []string
+	for _, rt := range runtimes {
+		if x.present(rt)[name] {
+			holding = append(holding, rt)
+		}
+	}
+	stopped := stopMachineContainer(holding, name, rec)
+	for _, rt := range holding {
+		delete(x.existing[rt], name)
+	}
+	return stopped
 }
 
 // sweepStray: the cross-runtime belt-and-braces — after this, no semiont-*
@@ -766,23 +790,6 @@ func (x *liveExec) providerOf(role string) string {
 	return x.st.Services[role].Provided
 }
 
-// noteContainer marks a container-less role (embedding) as the OWNER of a
-// container it launched itself — the shared Ollama under all-remote
-// bindings. Only the launching flow may call this; it is what stop's
-// ownership checks key on.
-func (x *liveExec) noteContainer(role, container string) {
-	if x.st == nil {
-		return
-	}
-	e, ok := x.st.Services[role]
-	if !ok {
-		return
-	}
-	e.Container = container
-	x.st.Services[role] = e
-	saveStack(x.st)
-}
-
 // verifyRemoteModels records what /v1/models says about the configured
 // models — and says out loud when one is NOT listed for this key (withdrawn,
 // or a typo'd id): the remote analog of a MISSING ollama model, and the
@@ -964,15 +971,15 @@ func (x *liveExec) dumpLogs(container, svc string) {
 	fmt.Fprintf(os.Stderr, "  Full logs:  semiont logs --service %s\n", svc)
 }
 
-// browserCurrent: is semiont-browser RUNNING on an image identical to the
-// one this start would run? Identity, not tag order: the running container's
-// image reference must match the desired ref, and when both sides expose an
-// image ID those must match too (a moved :latest). Reference match without
-// obtainable IDs KEEPS the browser (restart-on-doubt would negate the
-// feature on runtimes that expose no ID through inspect) — the explicit
-// refresh is `semiont start --service browser`.
-func (x *liveExec) browserCurrent(desired string) bool {
-	out, err := capture(x.rt, "inspect", "semiont-browser")
+// containerCurrent: is the container `name` RUNNING under this start's
+// runtime on an image identical to the one this start would run? Identity,
+// not tag order: the running container's image reference must match the
+// desired ref, and when both sides expose an image ID those must match too (a
+// moved :latest). Reference match without obtainable IDs KEEPS it
+// (restart-on-doubt would negate keeping on runtimes that expose no ID
+// through inspect) — the explicit refresh is `semiont start --service`.
+func (x *liveExec) containerCurrent(name, desired string) bool {
+	out, err := capture(x.rt, "inspect", name)
 	if err != nil || out == "" {
 		return false
 	}
@@ -1017,6 +1024,20 @@ func (x *liveExec) recordBrowser(id, img string, doc browserDocument) {
 		StartedAt: time.Now().UTC(),
 	})
 }
+
+func (x *liveExec) ollamaRecord() *ServiceState {
+	return LoadStackSet().Ollama
+}
+
+func (x *liveExec) recordOllama(id, img, endpoint, cache string) {
+	saveOllama(&ServiceState{
+		Container: "semiont-ollama", ID: id, Image: img, Provided: providedLauncher,
+		Runtime: x.rt, Endpoint: endpoint, Cache: cache,
+		StartedAt: time.Now().UTC(),
+	})
+}
+
+func (x *liveExec) forgetOllama() { clearOllama() }
 
 func (x *liveExec) ensureModels(base string, models []modelNeed) {
 	ensureOllamaModels(x.u, base, models)
@@ -1193,8 +1214,12 @@ func (x *planExec) snapshotLogs(kbRoot, []string) {
 	x.c("snapshot container logs into <state-root>/logs/<timestamp>/ before removal")
 }
 func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name); return false }
-func (x *planExec) settle(...int)           {} // plan mode tears nothing down
-func (x *planExec) sweepStaging()           { x.c("remove staged configs: %s", stagingPattern()) }
+
+// --dry-run reads no record, so the machine-level container is the name under
+// this runtime alone, as stopRm prints it.
+func (x *planExec) stopMachine(name string, _ *ServiceState) bool { return x.stopRm(name) }
+func (x *planExec) settle(...int)                                 {} // plan mode tears nothing down
+func (x *planExec) sweepStaging()                                 { x.c("remove staged configs: %s", stagingPattern()) }
 
 func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {
@@ -1415,25 +1440,16 @@ func (x *planExec) createDatabase(user, name string) bool {
 }
 
 func (x *planExec) ollamaVolume(opts startOptions) string {
-	volume := "<ollama-volume>"
-	switch opts.ollamaCache {
-	case "host":
-		if home, err := os.UserHomeDir(); err == nil {
-			volume = filepath.Join(home, ".ollama")
-		}
-	case "volume":
-		volume = "semiont-ollama-models"
+	if asked := ollamaCacheAsked(opts.ollamaCache); asked != "" {
+		return asked
 	}
-	return volume
+	return "<ollama-volume>"
 }
 
 func (x *planExec) record(_, _, _, _, _, _ string) {}
 
 // --dry-run records nothing, so there is nothing to read back.
 func (x *planExec) providerOf(string) string { return "" }
-
-// --dry-run records nothing, so ownership notes have nowhere to land.
-func (x *planExec) noteContainer(string, string) {}
 
 // --dry-run launches nothing, so nothing can crash.
 func (x *planExec) dumpLogs(string, string) {}
@@ -1449,9 +1465,12 @@ func (x *planExec) retireIssuerProxy() {
 
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
-func (x *planExec) browserCurrent(string) bool                    { return false }
+func (x *planExec) containerCurrent(string, string) bool          { return false }
 func (x *planExec) browserRecord() *ServiceState                  { return nil }
 func (x *planExec) recordBrowser(string, string, browserDocument) {}
+func (x *planExec) ollamaRecord() *ServiceState                   { return nil }
+func (x *planExec) recordOllama(string, string, string, string)   {}
+func (x *planExec) forgetOllama()                                 {}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the

@@ -116,6 +116,23 @@ semiont stop
   restarts the Browser, bypassing keep-if-current. Its port moves with an
   edit of its document; the realm's origin for the new port is added by
   `semiont identity sync`, which the preflight names when it is missing.
+- **The machine's Ollama is not a stack member either**: one Ollama serves
+  every KB on the machine whose documents name `ollama` with no address.
+  When the launcher runs it as a container (`semiont-ollama`, when none is
+  installed on the machine), its record lives beside the stacks, as the
+  Browser's does, with its runtime, image, the address it is published at
+  and the model cache it mounts; its port is never among a stack's claims,
+  and the stack records the role it serves as provided by the machine. A
+  start KEEPS a running one when it runs the image the start would and its
+  record says it was started under this start's runtime, at the address
+  this start would publish it on, and on the model cache `--ollama-cache`
+  asks for, when it asks for one; it is restarted otherwise, and when no
+  record names it. Kept or not, the start pulls the models its documents
+  name that Ollama lacks. `semiont start --service inference` always
+  restarts it. `semiont stop` stops it with the stack; `semiont stop
+  --service inference` stops it alone (`--service embedding`, where the
+  stack runs it for the embeddings alone), and a stop of any other one
+  service leaves it.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
   own secrets come from (`secret`), the Browser's document (`browser`: its
@@ -401,8 +418,8 @@ semiont stop
   SaaS role that launches nothing. In that second shape the local Ollama the
   KnowledgeIndex's embedding still needs exists solely for the embedding, so
   **embedding owns it** — the row reads `embedding (Ollama)` with the
-  host/container runtime, the model pulls ride on it, and its launched
-  container is embedding's to stop. With engines on `ollama`, embedding instead
+  host/container runtime, the model pulls ride on it, and `--service
+  embedding` restarts and stops it. With engines on `ollama`, embedding instead
   rides the inference role's Ollama and reports the same provider — one
   process is never described two ways. A `voyage` embedding is remote SaaS;
   either way embedding has a status row and start/stop belongs to whatever

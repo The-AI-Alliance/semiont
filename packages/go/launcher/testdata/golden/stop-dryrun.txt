@@ -13,8 +13,6 @@ container stop semiont-librarian
 container rm semiont-librarian
 container stop semiont-archivist
 container rm semiont-archivist
-container stop semiont-ollama
-container rm semiont-ollama
 container stop semiont-qdrant
 container rm semiont-qdrant
 container stop semiont-neo4j
@@ -45,8 +43,6 @@ docker stop semiont-librarian
 docker rm semiont-librarian
 docker stop semiont-archivist
 docker rm semiont-archivist
-docker stop semiont-ollama
-docker rm semiont-ollama
 docker stop semiont-qdrant
 docker rm semiont-qdrant
 docker stop semiont-neo4j
@@ -77,8 +73,6 @@ podman stop semiont-librarian
 podman rm semiont-librarian
 podman stop semiont-archivist
 podman rm semiont-archivist
-podman stop semiont-ollama
-podman rm semiont-ollama
 podman stop semiont-qdrant
 podman rm semiont-qdrant
 podman stop semiont-neo4j
@@ -98,6 +92,13 @@ podman rm semiont-prometheus
 podman stop semiont-jaeger
 podman rm semiont-jaeger
 # remove staged configs: <config-stages>
+# stop the machine's Ollama:
+container stop semiont-ollama
+container rm semiont-ollama
+docker stop semiont-ollama
+docker rm semiont-ollama
+podman stop semiont-ollama
+podman rm semiont-ollama
 # stop the Browser:
 container stop semiont-browser
 container rm semiont-browser

@@ -171,6 +171,9 @@ func Logs(args []string) int {
 				case providedNone:
 					u.Fail("%s is not referenced by the running stack's config — nothing to follow.", svc)
 					return "", false
+				case providedMachine:
+					// The machine's Ollama, by the handle its own record names.
+					return machineHandles(rt, "semiont-ollama", LoadStackSet().Ollama)[0], true
 				}
 				if e.ID != "" {
 					return e.ID, true

@@ -1078,28 +1078,43 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	return 0
 }
 
+// ollamaCacheAsked: the model cache an --ollama-cache value names — the
+// ~/.ollama share for "host", the named volume for "volume" — and "" for no
+// value, which leaves the choice to chooseOllamaVolume, and a running Ollama
+// on whichever cache it has.
+func ollamaCacheAsked(cache string) string {
+	switch cache {
+	case "host":
+		home, _ := os.UserHomeDir()
+		return filepath.Join(home, ".ollama")
+	case "volume":
+		return "semiont-ollama-models"
+	}
+	return ""
+}
+
 // chooseOllamaVolume: --ollama-cache override, else the ~/.ollama share
 // prompt (auto-yes in 10s), else the named volume.
 func chooseOllamaVolume(u *UI, opts startOptions) string {
-	home, _ := os.UserHomeDir()
 	switch opts.ollamaCache {
 	case "host":
 		u.Log("Using host model cache.")
-		return filepath.Join(home, ".ollama")
+		return ollamaCacheAsked("host")
 	case "volume":
 		u.Log("Using named volume semiont-ollama-models for model cache.")
-		return "semiont-ollama-models"
+		return ollamaCacheAsked("volume")
 	}
+	home, _ := os.UserHomeDir()
 	if home != "" {
 		if _, err := os.Stat(filepath.Join(home, ".ollama")); err == nil {
 			if promptShareCache(home) {
 				u.Log("Using host model cache.")
-				return filepath.Join(home, ".ollama")
+				return ollamaCacheAsked("host")
 			}
 		}
 	}
 	u.Log("Using named volume semiont-ollama-models for model cache.")
-	return "semiont-ollama-models"
+	return ollamaCacheAsked("volume")
 }
 
 // promptShareCache asks whether to mount ~/.ollama, auto-yes after 10s (and

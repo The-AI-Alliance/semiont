@@ -12,10 +12,10 @@ import (
 var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
-and the Browser, and clean up the staged configs. Safe to run when nothing is up:
-every step is a no-op then. Persistent stack state (PostgreSQL, Qdrant,
-Neo4j data) is deliberately LEFT: the next start reuses it. Removing it is
-its own explicit command: semiont clean.
+and the machine's Ollama and the Browser, and clean up the staged configs.
+Safe to run when nothing is up: every step is a no-op then. Persistent stack
+state (PostgreSQL, Qdrant, Neo4j data) is deliberately LEFT: the next start
+reuses it. Removing it is its own explicit command: semiont clean.
 
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
@@ -24,7 +24,10 @@ With --service <name>, stop just that one service:
 
 %s.
 
---service browser stops the Browser alone.
+--service browser stops the Browser alone. --service inference stops the
+machine's Ollama alone, as --service embedding does where the stack runs it
+for the embeddings alone: it serves every KB whose engines name Ollama, so a
+stop of any other one service leaves it.
 
 The staged configs are left in place — the rest of the stack is still
 mounting them.
@@ -46,67 +49,141 @@ with --repo stops that codespace stack alone, and leaves the Browser.
 // order — the start walk reversed, so nothing spends teardown alive with its
 // upstream already gone.
 //
-// `browser` is not among them: the Browser has a record of its own, and may
-// run under another runtime than the stack, so stopBrowser stops it after the
-// stack, from that record. The exemption, and the one name this sweep has
-// beyond the start preflight (semiont-ollama, which start handles in its own
-// section), are gated by descriptor_census_test.go.
-var stopNames = sweepNames("browser")
+// The machine-level containers are not among them: the Browser and the
+// machine's Ollama each have a record of their own, and may run under another
+// runtime than the stack, so stopMachineServices stops them after the stack,
+// from those records. The exemptions are gated by descriptor_census_test.go.
+var stopNames = sweepNames("browser", "inference")
 
-// browserHandles: what names the Browser's container under rt: its name, and
-// its recorded ID where rt is the runtime its record names, an ID being that
-// runtime's own. Both are swept: a stale ID (the container recreated outside
-// the record) would no-op while the name still runs.
-func browserHandles(rt string, b *ServiceState) []string {
-	if b != nil && b.ID != "" && b.Runtime == rt {
-		return []string{b.ID, "semiont-browser"}
+// machineHandles: what names the machine-level container `name` under rt:
+// its name, and its recorded ID where rt is the runtime its record names, an
+// ID being that runtime's own. Both are swept: a stale ID (the container
+// recreated outside the record) would no-op while the name still runs.
+func machineHandles(rt, name string, rec *ServiceState) []string {
+	if rec != nil && rec.ID != "" && rec.Runtime == rt {
+		return []string{rec.ID, name}
 	}
-	return []string{"semiont-browser"}
+	return []string{name}
 }
 
-// stopBrowser stops and removes the Browser under each of runtimes, and
-// forgets its record b. True when there was a container to stop.
-func stopBrowser(runtimes []string, b *ServiceState) bool {
+// stopMachineContainer stops and removes the machine-level container `name`
+// under each of runtimes. True when there was one to stop.
+func stopMachineContainer(runtimes []string, name string, rec *ServiceState) bool {
 	stopped := false
 	for _, rt := range runtimes {
-		for _, h := range browserHandles(rt, b) {
+		for _, h := range machineHandles(rt, name, rec) {
 			s1 := runSilent(rt, "stop", h) == nil
 			s2 := runSilent(rt, "rm", h) == nil
 			stopped = stopped || s1 || s2
 		}
 	}
-	clearBrowser()
 	return stopped
 }
 
-// printBrowserStop prints what stopBrowser would run, for a dry run.
-func printBrowserStop(runtimes []string, b *ServiceState) {
-	fmt.Println("# stop the Browser:")
+// printMachineStop prints what stopMachineContainer would run, for a dry run.
+func printMachineStop(noun string, runtimes []string, name string, rec *ServiceState) {
+	fmt.Println("# stop " + noun + ":")
 	for _, rt := range runtimes {
-		for _, h := range browserHandles(rt, b) {
+		for _, h := range machineHandles(rt, name, rec) {
 			fmt.Println(renderCmd(rt, "stop", h))
 			fmt.Println(renderCmd(rt, "rm", h))
 		}
 	}
 }
 
-// stopCodespaceAndBrowser: a bare stop that resolved to a codespace stack.
-// Bare, a stop stops everything, so the Browser goes too, as it does with a
-// local stack; a stop of one service leaves it.
-func stopCodespaceAndBrowser(u *UI, st *StackState, service string, del, dryRun bool) int {
+// stopBrowser stops and removes the Browser under each of runtimes, and
+// forgets its record b. True when there was a container to stop.
+func stopBrowser(runtimes []string, b *ServiceState) bool {
+	stopped := stopMachineContainer(runtimes, "semiont-browser", b)
+	clearBrowser()
+	return stopped
+}
+
+// stopOllama stops and removes the machine's Ollama under each of runtimes,
+// and forgets its record o. True when there was a container to stop.
+func stopOllama(runtimes []string, o *ServiceState) bool {
+	stopped := stopMachineContainer(runtimes, "semiont-ollama", o)
+	clearOllama()
+	return stopped
+}
+
+// machineStopped: what stopMachineServices stopped, and the ports they
+// held, for the release check.
+type machineStopped struct {
+	any   bool
+	ports []int
+}
+
+// stopMachineServices stops the machine-level containers under each of
+// runtimes: Ollama first, then the Browser. A bare stop stops everything, so
+// it ends with these; a stop of one service leaves them. Every start runs a
+// Browser, so its name is swept with no record of one; Ollama runs only for
+// engines that name it, so with no record of one its name is swept only by a
+// blind stop, one with no stack record to go by.
+func stopMachineServices(u *UI, runtimes []string, ss *StackSet, blind bool) machineStopped {
+	var out machineStopped
+	held := func(rec *ServiceState) {
+		if rec == nil {
+			return
+		}
+		if _, p := parseHostPort(rec.Endpoint); p != 0 {
+			out.ports = append(out.ports, p)
+		}
+	}
+	if (ss.Ollama != nil || blind) && stopOllama(runtimes, ss.Ollama) {
+		u.Ok("Ollama stopped")
+		out.any = true
+		held(ss.Ollama)
+	}
+	if stopBrowser(runtimes, ss.Browser) {
+		u.Ok("Browser stopped")
+		out.any = true
+		held(ss.Browser)
+	}
+	return out
+}
+
+// printMachineServicesStop prints what stopMachineServices would run.
+func printMachineServicesStop(runtimes []string, ss *StackSet, blind bool) {
+	if ss.Ollama != nil || blind {
+		printMachineStop("the machine's Ollama", runtimes, "semiont-ollama", ss.Ollama)
+	}
+	printMachineStop("the Browser", runtimes, "semiont-browser", ss.Browser)
+}
+
+// ollamaRole: the role the local stack runs the machine's Ollama under, the
+// one `start --service` names to start it: inference where the engines run on
+// it, else embedding where it serves the embeddings alone; "" where the stack
+// runs it under neither. With no stack record, inference, the role the roles
+// table runs it under.
+func ollamaRole(ss *StackSet) string {
+	st := ss.Stacks["local"]
+	if st == nil {
+		return "inference"
+	}
+	for _, role := range []string{"inference", "embedding"} {
+		if st.Services[role].Provided == providedMachine {
+			return role
+		}
+	}
+	return ""
+}
+
+// stopCodespaceAndMachine: a bare stop that resolved to a codespace stack.
+// Bare, a stop stops everything, so the machine's Ollama and the Browser go
+// too, as they do with a local stack; a stop of one service leaves them.
+func stopCodespaceAndMachine(u *UI, st *StackState, service string, del, dryRun bool) int {
 	code := stopCodespace(u, st, service, del, dryRun)
 	if code != 0 || service != "" {
 		return code
 	}
 	runtimes := installedRuntimes()
-	b := LoadStackSet().Browser
+	ss := LoadStackSet()
 	if dryRun {
-		printBrowserStop(runtimes, b)
+		printMachineServicesStop(runtimes, ss, false)
 		return 0
 	}
-	if stopBrowser(runtimes, b) {
-		u.Ok("Browser stopped")
-	}
+	stopMachineServices(u, runtimes, ss, false)
 	return 0
 }
 
@@ -169,7 +246,7 @@ func Stop(args []string) int {
 			u.Log("No Browser is recorded — sweeping the container name to be sure.")
 		}
 		if dryRun {
-			printBrowserStop(installedRuntimes(), b)
+			printMachineStop("the Browser", installedRuntimes(), "semiont-browser", b)
 			return 0
 		}
 		if stopBrowser(installedRuntimes(), b) {
@@ -180,10 +257,27 @@ func Stop(args []string) int {
 		return 0
 	}
 
-	// serviceContainer: the container --service targets. Usually the roles
-	// table's; a container-less role (embedding) normally has nothing to
-	// stop — UNLESS it launched the shared Ollama itself (all-remote
-	// bindings), in which case the record names the container it ran.
+	// --service on the role the stack runs the machine's Ollama under stops
+	// that Ollama alone, from its own record, under every installed runtime.
+	// A stack's record goes on naming the provider of its roles: the next
+	// start whose engines name Ollama brings it back.
+	if service != "" && repo == "" {
+		if ss := LoadStackSet(); service == ollamaRole(ss) {
+			if dryRun {
+				printMachineStop("the machine's Ollama", installedRuntimes(), "semiont-ollama", ss.Ollama)
+				return 0
+			}
+			if stopOllama(installedRuntimes(), ss.Ollama) {
+				u.Ok("Ollama stopped %s", u.Dim("(every KB it served goes without; a start whose engines name Ollama brings it back)"))
+			} else {
+				u.Log("Ollama was not running.")
+			}
+			return 0
+		}
+	}
+
+	// serviceContainer: the container --service targets, the roles table's.
+	// A container-less role (embedding) has nothing to stop.
 	serviceContainer := ""
 	if service != "" {
 		if !knownRole(service) {
@@ -191,13 +285,6 @@ func Stop(args []string) int {
 			return 1
 		}
 		serviceContainer = roleContainer(service)
-		if serviceContainer == "" {
-			if st := loadLocalState(); st != nil {
-				if e, ok := st.Services[service]; ok && e.Provided == providedLauncher && e.Container != "" {
-					serviceContainer = e.Container
-				}
-			}
-		}
 		if serviceContainer == "" {
 			u.Log("%s is externally provided — nothing to stop.", service)
 			fmt.Fprintf(os.Stdout, "  %s\n", u.Dim("(external roles participate in status; start and stop belong to whatever provides them)"))
@@ -247,11 +334,11 @@ func Stop(args []string) int {
 		if !localHere {
 			if st == nil {
 				if len(cs) == 1 {
-					return stopCodespaceAndBrowser(u, cs[0], service, del, dryRun)
+					return stopCodespaceAndMachine(u, cs[0], service, del, dryRun)
 				}
 				if c := originCodespace(cs, root); c != nil {
 					u.Log("Stopping %s %s", u.Bold(c.Codespace.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
-					return stopCodespaceAndBrowser(u, c, service, del, dryRun)
+					return stopCodespaceAndMachine(u, c, service, del, dryRun)
 				}
 			}
 			// The menu repeats what was asked: a --delete menu that drops the
@@ -322,24 +409,11 @@ func Stop(args []string) int {
 		for _, c := range names {
 			role := roleByContainer[c]
 			if e, ok := st.Services[role]; ok {
-				// Only containers this launcher started are ours to stop:
-				// host processes, external endpoints, and unreferenced roles
-				// have nothing to sweep.
+				// Only containers this launcher started for the stack are
+				// ours to stop here: the machine's Ollama, host processes,
+				// external endpoints, and unreferenced roles have nothing to
+				// sweep.
 				if e.Provided != "" && e.Provided != providedLauncher {
-					// …unless a container-less role launched this very
-					// container under its own account: an embedding-owned
-					// semiont-ollama while inference is external Anthropic.
-					// Skipping here would leak a running Ollama past stop.
-					for _, e2 := range st.Services {
-						if e2.Container == c && e2.Provided == providedLauncher {
-							if e2.ID != "" {
-								out = append(out, e2.ID)
-							} else {
-								out = append(out, c)
-							}
-							break
-						}
-					}
 					continue
 				}
 				if e.ID != "" {
@@ -409,7 +483,7 @@ func Stop(args []string) int {
 			fmt.Println("# staged configs and stack.json left in place (recorded stack is under " + st.Runtime + ")")
 		default:
 			fmt.Println("# remove staged configs: " + stagingPattern())
-			printBrowserStop(slices.Concat(runtimes, strayRuntimes), ss.Browser)
+			printMachineServicesStop(slices.Concat(runtimes, strayRuntimes), ss, !useState)
 			fmt.Println("# wait until the stack's ports are released; report any still-held holder")
 		}
 		return 0
@@ -502,16 +576,13 @@ func Stop(args []string) int {
 	}
 	forgetStack("local")
 
-	// The Browser goes with the stack, wherever this stop swept.
-	browser := ss.Browser
-	browserStopped := stopBrowser(slices.Concat(runtimes, strayRuntimes), browser)
-	if browserStopped {
-		u.Ok("Browser stopped")
-	}
+	// The machine's Ollama and the Browser go with the stack, wherever this
+	// stop swept.
+	machine := stopMachineServices(u, slices.Concat(runtimes, strayRuntimes), ss, !useState)
 
 	// Say what actually happened: a stop that found nothing anywhere (the
 	// second stop in a row) is a no-op, not a teardown.
-	if totalRemoved == 0 && len(staged) == 0 && !browserStopped {
+	if totalRemoved == 0 && len(staged) == 0 && !machine.any {
 		fmt.Println("No Semiont containers found — nothing to stop.")
 		return 0
 	}
@@ -519,12 +590,7 @@ func Stop(args []string) int {
 	if len(ports) == 0 {
 		ports = fiatPorts
 	}
-	if browserStopped && browser != nil {
-		if _, p := parseHostPort(browser.Endpoint); p != 0 {
-			ports = append(slices.Clone(ports), p)
-		}
-	}
-	verifyPortsReleased(u, ports)
+	verifyPortsReleased(u, slices.Concat(ports, machine.ports))
 	fmt.Println("Semiont stack stopped.")
 	return 0
 }

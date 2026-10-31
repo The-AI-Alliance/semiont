@@ -37,7 +37,7 @@ semiont start --config anthropic    # start on one of them
 semiont settings config anthropic   # make it this knowledge base's default on this machine
 ```
 
-- **With local models (Ollama)**, no key is needed. The first start downloads the models the document names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not.
+- **With local models (Ollama)**, no key is needed. The first start downloads the models the document names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not. That Ollama is the machine's, not one knowledge base's: it serves every knowledge base that names it, a start keeps it running, and `semiont stop` stops it with the stack. `semiont stop --service inference` stops it alone.
 - **With Anthropic**, the document names the variable that holds the key: `apiKey: { fromEnv: ANTHROPIC_API_KEY }`. Tell the launcher where the key lives with `semiont settings secret set ANTHROPIC_API_KEY`, or export the variable. See [Secrets](services/SECRETS.md).
 
 What the documents can say is in [Configuration](administration/CONFIGURATION.md).
