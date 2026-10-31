@@ -2,6 +2,7 @@ from typing import assert_never
 
 from semiont.cache import Failed, Pending, Ready
 from semiont.client import SemiontClient
+from semiont.errors import SemiontError
 from semiont.identifiers import ResourceId
 from semiont.transport import Transport
 
@@ -14,7 +15,9 @@ async def watch(client: SemiontClient[Transport], resource: ResourceId) -> None:
                     print("asking")
                 case Ready(value=annotations):
                     print(len(annotations), "annotations")
-                case Failed(error=error):  # a state, not a raise: the query lives on
+                case Failed(error=SemiontError() as error):  # a state, not a raise: the query lives on
                     print("failed:", error.code)
+                case Failed(error=error):  # whatever else the request failed with
+                    print("failed:", error)
                 case _:
                     assert_never(state)

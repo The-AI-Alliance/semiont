@@ -362,12 +362,12 @@ public abstract interface class semiont/cache/CacheState {
 }
 
 public final class semiont/cache/CacheState$Failed : semiont/cache/CacheState {
-	public fun <init> (Lsemiont/errors/SemiontError;)V
-	public final fun component1 ()Lsemiont/errors/SemiontError;
-	public final fun copy (Lsemiont/errors/SemiontError;)Lsemiont/cache/CacheState$Failed;
-	public static synthetic fun copy$default (Lsemiont/cache/CacheState$Failed;Lsemiont/errors/SemiontError;ILjava/lang/Object;)Lsemiont/cache/CacheState$Failed;
+	public fun <init> (Ljava/lang/Exception;)V
+	public final fun component1 ()Ljava/lang/Exception;
+	public final fun copy (Ljava/lang/Exception;)Lsemiont/cache/CacheState$Failed;
+	public static synthetic fun copy$default (Lsemiont/cache/CacheState$Failed;Ljava/lang/Exception;ILjava/lang/Object;)Lsemiont/cache/CacheState$Failed;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getError ()Lsemiont/errors/SemiontError;
+	public final fun getError ()Ljava/lang/Exception;
 	public fun getStatus ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

@@ -25,6 +25,7 @@ import semiont.cache.CacheState;
 import semiont.cache.Cached;
 import semiont.bus.Typed;
 import semiont.channels.Channels;
+import semiont.errors.BusRequestError;
 import semiont.errors.SpanRefusal;
 import semiont.errors.SpanRefusedError;
 import semiont.http.HttpContentTransport;
@@ -292,7 +293,7 @@ final class ClientTest {
                 @Override
                 public void onComplete() {}
             });
-            assertEquals("bus.rejected", failed.get(10, SECONDS).getError().getCode());
+            assertEquals("bus.rejected", assertInstanceOf(BusRequestError.class, failed.get(10, SECONDS).getError()).getCode());
         }
     }
 }

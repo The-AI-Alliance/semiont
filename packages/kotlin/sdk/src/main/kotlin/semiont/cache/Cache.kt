@@ -184,20 +184,27 @@ public class Cache<K : Any, V : Any> internal constructor(
         throw cancelled
     }
 
-    /** Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed. Called under the lock. */
+    /**
+     * Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed.
+     * Whatever a fetch failed with is a failure; a cancellation is not one. Called under the lock.
+     */
     private fun revalidate(key: K) {
         val first = fetching(key)
         scope.launch {
             try {
                 joined(first)
                 return@launch
-            } catch (_: SemiontError) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
                 // Tried once more, below.
             }
             val again = synchronized(lock) { if (disposed) null else fetching(key) } ?: return@launch
             try {
                 joined(again)
-            } catch (failure: SemiontError) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
                 synchronized(lock) {
                     val held = keys[key]
                     if (held != null && held.state.value !is CacheState.Ready) held.state.value = CacheState.Failed(failure)

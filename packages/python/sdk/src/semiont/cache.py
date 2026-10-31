@@ -62,9 +62,9 @@ class Ready[T]:
 @final
 @dataclass(frozen=True, slots=True)
 class Failed:
-    """No value, and the fetch for one failed, and failed again."""
+    """No value, and the fetch for one failed, and failed again: `error` is what the second failed with, whatever it was."""
 
-    error: SemiontError
+    error: Exception
     status: Literal["failed"] = field(default="failed", init=False)
 
 
@@ -221,9 +221,10 @@ class Cache[K: Hashable, V](StateUnit):
         self._tasks.run(self._chain(key, self._fetching(key)))
 
     async def _chain(self, key: K, first: asyncio.Task[V]) -> None:
+        # Whatever a fetch failed with is a failure; a cancellation is not one.
         try:
             await _joined(first)
-        except SemiontError:
+        except Exception:
             pass
         else:
             return
@@ -231,7 +232,7 @@ class Cache[K: Hashable, V](StateUnit):
             return
         try:
             await _joined(self._fetching(key))
-        except SemiontError as failure:
+        except Exception as failure:
             held = self._keys.get(key)
             if held is not None and not isinstance(held.state.value, Ready):
                 held.state.set(Failed(failure))

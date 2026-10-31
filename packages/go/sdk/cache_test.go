@@ -526,6 +526,26 @@ func TestB15AKeyWithNoValueWhoseRetryFailsTooIsFailedForEveryObserverWhoLiveOn(t
 	}
 }
 
+func TestB14AndB15AFetchThatFailsWithAnyErrorIsMadeOnceMoreAndThenTheKeyIsFailedWithIt(t *testing.T) {
+	c, service, _ := cacheWorld(t, nil, 0)
+	o := watching(t, c, cacheKeyOne)
+	isState(t, o.now(t), Pending{})
+	service.reply(t, 0, replied{err: errors.New("not an answer")})
+	// Made once more, as any failure is.
+	service.askedJust(t, cacheKeyOne, cacheKeyOne)
+	failure := errors.New("not an answer either")
+	service.reply(t, 1, replied{err: failure})
+	isState(t, o.now(t), Failed{Err: failure})
+
+	// And a one-shot read gives it to its caller.
+	read := aRead(context.Background(), c, cacheKeyOne)
+	broken := errors.New("no such thing")
+	service.reply(t, 2, replied{err: broken})
+	if got := readEnded(t, read); got.err != broken {
+		t.Fatalf("the read failed with %v, want the service's failure", got.err)
+	}
+}
+
 func TestB15AFailedKeyIsMadeReadyByAValueHoweverItComesWithNoPendingBetween(t *testing.T) {
 	failed := func(t *testing.T) (*Cache[string, int], *answering, *observer) {
 		c, service, _ := cacheWorld(t, nil, 0)

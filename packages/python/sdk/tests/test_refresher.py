@@ -144,6 +144,7 @@ def test_each_row_of_the_refresh_table_does_what_it_states_to_what_is_held(trigg
             if "annotation" in row.removes:
                 state = await soon(anext(one))
                 assert isinstance(state, Failed)
+                assert isinstance(state.error, BusRequestError)
                 assert state.error.code == "bus.not-found"
             assert set(row.writes) <= {"annotation", "annotations"}
             assert set(row.removes) <= {"annotation"}
@@ -398,6 +399,7 @@ def test_b13a_an_annotation_that_is_gone_ends_as_not_found_and_its_next_watcher_
             transport.deliver(event("mark:delete-ok"))
             state = await soon(anext(one))
             assert isinstance(state, Failed)
+            assert isinstance(state.error, BusRequestError)
             assert (state.error.code, str(state.error)) == ("bus.not-found", f"Annotation {ANNOTATION} was removed")
             await turns(20)
             assert len(asked_for(transport, "browse:annotation-requested")) == asked

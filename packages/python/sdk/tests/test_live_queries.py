@@ -271,6 +271,7 @@ def test_engines_that_fail_are_a_failed_state_whatever_their_holders_report_and_
                 state = await soon(anext(live))
                 while not isinstance(state, Failed):
                     state = await soon(anext(live))
+                assert isinstance(state.error, BusRequestError)
                 assert state.error.code == "bus.rejected"
         # A closed client's engines are nobody's to watch.
         async with client.browse.engines() as live:

@@ -1,7 +1,5 @@
 package semiont.cache
 
-import semiont.errors.SemiontError
-
 /**
  * The state of a live query: no value yet, a value, or a failure. A failure is
  * a state, never a throw: whoever observes the query lives through it, and the
@@ -22,8 +20,8 @@ public sealed interface CacheState<out T> {
         override val status: String get() = "ready"
     }
 
-    /** No value, and the fetch for one failed, and failed again. */
-    public data class Failed(public val error: SemiontError) : CacheState<Nothing> {
+    /** No value, and the fetch for one failed, and failed again: `error` is what the second failed with, whatever it was. */
+    public data class Failed(public val error: Exception) : CacheState<Nothing> {
         override val status: String get() = "failed"
     }
 }
