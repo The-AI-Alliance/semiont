@@ -30,11 +30,14 @@ type SessionFactory interface {
 	// Session builds the session of a knowledge base, and the client it
 	// uses, and starts it. end ends the session, then its client. A
 	// knowledge base this factory cannot reach is refused with a
-	// *semiont.SessionError of code session.construct-failed.
+	// *semiont.SessionError of code session.construct-failed. ctx ends when
+	// the registry is closed: the registry stops waiting then, and ends a
+	// session handed back afterwards at once.
 	Session(ctx context.Context, options SessionFactoryOptions) (session *semiont.Session, end func(), err error)
 	// Revoke tells whoever issued a stored session that it has been
 	// forgotten, so its refresh token is good for nothing. Best effort: the
-	// sign-out has happened whether or not the issuer hears of it.
+	// sign-out has happened whether or not the issuer hears of it, and the
+	// registry does not wait for it.
 	Revoke(ctx context.Context, stored StoredSession)
 }
 

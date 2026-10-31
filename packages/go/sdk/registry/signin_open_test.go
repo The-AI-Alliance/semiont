@@ -1052,3 +1052,72 @@ func TestClosingTheRegistryClosesItsSessionAndEndsWhatItHolds(t *testing.T) {
 		}
 	})
 }
+
+// closingAsItBuilds is a factory that closes its registry while the registry
+// is building the session it began with, and says what closing returned.
+type closingAsItBuilds struct {
+	registry.SessionFactory
+	browser chan *registry.SemiontBrowser
+	closed  chan error
+}
+
+func (c closingAsItBuilds) Session(ctx context.Context, _ registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
+	c.closed <- (<-c.browser).Close()
+	// Closing ended the registry's wait for this session, which is never built.
+	<-ctx.Done()
+	return nil, nil, ctx.Err()
+}
+
+func TestClosingFromWithinTheFactoryEndsTheRegistryWithoutWaitingForItself(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		factory := closingAsItBuilds{SessionFactory: w.factory.sessions, browser: make(chan *registry.SemiontBrowser, 1), closed: make(chan error, 1)}
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: factory})
+		must(t, err)
+		factory.browser <- browser
+
+		must(t, <-factory.closed)
+		if !ended(browser.KnowledgeBases()) || !ended(browser.ActiveSession()) || !ended(browser.ActiveSignals()) {
+			t.Error("what the registry holds has not ended")
+		}
+		// Closing again is closing once.
+		must(t, browser.Close())
+	})
+}
+
+// deaf is a factory that builds a session once the test lets it, and does not
+// hear the registry end meanwhile.
+type deaf struct {
+	registry.SessionFactory
+	asked chan struct{}
+	open  chan struct{}
+}
+
+func (d deaf) Session(_ context.Context, options registry.SessionFactoryOptions) (*semiont.Session, func(), error) {
+	close(d.asked)
+	<-d.open
+	return d.SessionFactory.Session(context.Background(), options)
+}
+
+func TestClosingDoesNotWaitForAFactoryThatDoesNotHearTheRegistryEnd(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		factory := deaf{SessionFactory: w.factory.sessions, asked: make(chan struct{}), open: make(chan struct{})}
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: factory})
+		must(t, err)
+		<-factory.asked
+
+		// The factory is still building: closing returns all the same.
+		must(t, browser.Close())
+		if !ended(browser.ActiveSession()) || sessionOf(browser) != "" {
+			t.Error("a session is shown after closing")
+		}
+
+		// What the factory hands back afterwards is ended at once.
+		close(factory.open)
+		synctest.Wait()
+		if !closed(w.factory.sessions.Transports(kbA)[0]) {
+			t.Error("the session built after closing is still open")
+		}
+	})
+}
