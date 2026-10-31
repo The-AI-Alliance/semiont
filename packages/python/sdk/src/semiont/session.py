@@ -13,9 +13,9 @@ shows nobody anything. What it needs of its surroundings it is given:
   with, and raises `SignInError` when the renewal failed.
 - `validate` asks the gateway who a token is: when the session starts, and of
   a token renewed because the gateway refused the one before.
-- `on_auth_failed` is told when the session is over, and why: it could not be
-  renewed (`expired`), or the gateway refused a token the issuer had just
-  issued (`refused`). A reason is not a sentence: what a person reads is the
+- `on_auth_failed` is told when the session is over, and why: its issuer
+  refused to renew it (`expired`), or the gateway refused a token the issuer
+  had just issued (`refused`). A reason is not a sentence: what a person reads is the
   host's to say. `on_error` is told of every failure that makes the session
   unusable.
 
@@ -35,12 +35,11 @@ renewed once and asked about once more, and a token the issuer has just
 issued and the gateway refuses is final. So one refusal costs at most one
 renewal and one ask, whatever the gateway and the issuer answer.
 
-A session that cannot be renewed clears its token and what it kept, so a dead
-credential is never used again. One that never had a credential is only
-signed out: there is nothing to end, and nothing is said. A kept token that
-has expired is forgotten at the start only when the issuer refuses to renew
-it; one whose renewal got no answer is kept, and renewed when a request is
-refused.
+A session whose issuer refuses to renew it clears its token and what it kept,
+so a dead credential is never used again. One that never had a credential is
+only signed out: there is nothing to end, and nothing is said. A renewal that
+got no answer, whenever it is made, leaves the session no usable token and
+keeps what is kept, and the next refusal renews again.
 """
 
 import asyncio
@@ -83,8 +82,8 @@ __all__ = [
 ]
 
 type SessionEndReason = Literal["expired", "refused"]
-"""Why a session ended: its token could not be renewed (`expired`), or the
-gateway refused a token its issuer had just issued (`refused`)."""
+"""Why a session ended: its issuer refused to renew its token (`expired`), or
+the gateway refused a token its issuer had just issued (`refused`)."""
 
 type Refresh = Callable[[], Awaitable[str | None]]
 """Renew the token: the new one, or nothing when there is nothing to renew with. Raises `SignInError` when the renewal failed."""
@@ -405,8 +404,8 @@ class SemiontSession[T: Transport](StateUnit):
         """The gateway refused the session's token: renew it, and ask the gateway who the new one is.
 
         Returns the token the session then holds, or nothing: it holds no
-        token, and if it had a kept sign-in it is over. A transport asks this
-        when the gateway refuses it.
+        token, and if the issuer refused to renew a kept sign-in it is over. A
+        transport asks this when the gateway refuses it.
 
         One refusal is answered at a time, so however many requests were
         refused at once, they cost one renewal and one ask. A gateway that
@@ -467,8 +466,22 @@ class SemiontSession[T: Transport](StateUnit):
         # out, which is no failure. Ending the session below also forgets the
         # credential, so the refusals that follow it are quiet too.
         if await self._kept.held() is not None:
-            await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id))
+            await self._unrenewed(failure)
         return None
+
+    async def _unrenewed(self, failure: SignInError | None) -> None:
+        """A renewal of what is kept gave no token, and the session holds none.
+
+        The issuer's refusal, or nothing left to renew with, ends the session.
+        Any other failure keeps what is kept, and says why: the next refusal
+        renews again.
+        """
+        self._token.set(None)
+        not_renewed = SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id)
+        if failure is not None and not _refused(failure):
+            self._failed(not_renewed)
+        else:
+            await self._signed_out("expired", not_renewed)
 
     async def _signed_out(self, told: SessionEndReason, error: SessionError) -> None:
         """The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended."""
@@ -539,7 +552,7 @@ class SemiontSession[T: Transport](StateUnit):
             if self._closing.is_set():
                 return
             if renewed is None:
-                await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id))
+                await self._unrenewed(failure)
                 return
             self._token.set(renewed)
             token, just_issued = renewed, True

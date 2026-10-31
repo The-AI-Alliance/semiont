@@ -32,8 +32,8 @@ import { BehaviorSubject } from 'rxjs';
 import { watched, type StateUnit, type Watched } from '@semiont/core';
 
 /**
- * Why a session ended: its token could not be renewed (`expired`), or the
- * gateway refused a token its issuer had just issued (`refused`). The
+ * Why a session ended: its issuer refused to renew its token (`expired`), or
+ * the gateway refused a token its issuer had just issued (`refused`). The
  * vocabulary is specs/src/session/cases.json's `told`.
  */
 export type SessionEndReason = 'expired' | 'refused';

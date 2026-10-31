@@ -529,8 +529,8 @@ def test_a_session_that_cannot_be_renewed_is_over_and_says_so_once() -> None:
     run(scenario())
 
 
-def test_a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_cause() -> None:
-    world = World(kept=token(3600, 1), renewals=[SignInError("exchange", "the network is down")])
+def test_a_renewal_the_issuer_refused_ends_the_session_and_names_its_cause() -> None:
+    world = World(kept=token(3600, 1), renewals=[refused_by_the_issuer()])
 
     async def scenario() -> None:
         async with world.its_session() as session:
@@ -538,9 +538,28 @@ def test_a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_
             assert await soon(session.refresh()) is None
             assert not await world.is_kept()
             assert world.told == ["expired"]
-            assert world.said() == [("session.refresh-exhausted", "Token refresh failed: the network is down")]
+            assert world.said() == [("session.refresh-exhausted", f"Token refresh failed: {refused_by_the_issuer().message}")]
 
     run(scenario())
+
+
+def test_a_renewal_that_got_no_answer_keeps_what_is_kept_and_the_next_refusal_renews_again() -> None:
+    renewed = token(3600, 2)
+    spent_on_not_now = SignInError("exchange", "The session could not be renewed after 4 attempts: HTTP 503", status=503)
+
+    async def scenario(failure: SignInError) -> None:
+        world = World(kept=token(3600, 1), renewals=[failure, renewed])
+        async with world.its_session() as session:
+            await soon(session.ready())
+            assert await soon(session.refresh()) is None
+            # No usable token, what is kept stays, and the session is not over.
+            assert (session.token.value, await world.is_kept(), world.told) == (None, True, [])
+            assert world.said() == [("session.refresh-exhausted", f"Token refresh failed: {failure.message}")]
+            assert await soon(session.refresh()) == renewed
+            assert session.token.value == renewed
+
+    run(scenario(unanswered_by_the_issuer()))
+    run(scenario(spent_on_not_now))
 
 
 def test_a_session_that_never_signed_in_cannot_expire() -> None:

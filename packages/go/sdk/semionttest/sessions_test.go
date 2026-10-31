@@ -268,7 +268,7 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 		}
 
 		// A renewal nobody scripted is a renewal that failed, and says so: the
-		// session ends as it does when its issuer cannot be reached.
+		// session holds no token, as when its issuer cannot be reached.
 		if token, ok := session.Refresh(context.Background(), session.Token().Value()); ok || token != "" {
 			t.Errorf("an unscripted renewal gives %q, %v", token, ok)
 		}
@@ -282,9 +282,9 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 		if !mentioned {
 			t.Errorf("said: %+v", a.errors())
 		}
-		// The session says it is over through the signals the registry gave.
-		if a.signals.SessionEnded().Value() == nil {
-			t.Error("the session did not say it is over")
+		// Nobody refused it, so the session is not over.
+		if a.signals.SessionEnded().Value() != nil {
+			t.Error("the session said it is over")
 		}
 	})
 }

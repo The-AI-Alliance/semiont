@@ -1034,13 +1034,10 @@ async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_en
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_cause() {
+async fn a_renewal_the_issuer_refused_ends_the_session_and_names_its_cause() {
     let world = World::new()
         .storing(&token(3600, 1))
-        .renewing([Err(SignInError::new(
-            SignInErrorCode::Exchange,
-            "the network is down",
-        ))]);
+        .renewing([Err(refused_by_the_issuer())]);
     let session = world.session();
     ready(&session).await;
 
@@ -1051,9 +1048,41 @@ async fn a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_
         world.errors(),
         [(
             SessionErrorCode::RefreshExhausted,
-            "Token refresh failed: the network is down".to_owned()
+            format!("Token refresh failed: {}", refused_by_the_issuer().message)
         )]
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_renewal_that_got_no_answer_keeps_what_is_stored_and_the_next_refusal_renews_again() {
+    let spent_on_not_now = SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The session could not be renewed after 4 attempts: HTTP 503",
+        503,
+    );
+    for failure in [unanswered_by_the_issuer(), spent_on_not_now] {
+        let renewed = token(3600, 2);
+        let world = World::new()
+            .storing(&token(3600, 1))
+            .renewing([Err(failure.clone()), Ok(Some(renewed.clone()))]);
+        let session = world.session();
+        ready(&session).await;
+
+        assert_eq!(session.refresh().await, None);
+        // No usable token, what is stored stays, and the session is not over.
+        assert_eq!(*session.token().borrow(), None);
+        assert!(world.has_stored());
+        assert!(world.auth_failed().is_empty());
+        assert_eq!(
+            world.errors(),
+            [(
+                SessionErrorCode::RefreshExhausted,
+                format!("Token refresh failed: {}", failure.message)
+            )]
+        );
+        assert_eq!(session.refresh().await, Some(renewed.clone()));
+        assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    }
 }
 
 #[tokio::test(start_paused = true)]

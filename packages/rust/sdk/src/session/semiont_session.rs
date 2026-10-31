@@ -11,17 +11,17 @@
 //! - `validate` asks the gateway who a token is: when the session starts,
 //!   and of a token renewed because the gateway refused the one before. A
 //!   session of a service has none: there is nobody to ask about.
-//! - `on_auth_failed` is told when the session is over, and why: it could
-//!   not be renewed (`Expired`), or the gateway refused a token the issuer
-//!   had just issued (`Refused`). What a person reads of it is the host's.
+//! - `on_auth_failed` is told when the session is over, and why: its issuer
+//!   refused to renew it (`Expired`), or the gateway refused a token the
+//!   issuer had just issued (`Refused`). What a person reads of it is the host's.
 //!   `on_error` is told of every failure that makes the session unusable.
 //!
-//! A session that cannot be renewed clears its token and what it stored, so a
-//! dead credential is never used again. One that never had a credential is
-//! only signed out: there is nothing to end, and nothing is said. A stored
-//! token that has expired is forgotten at the start only when the issuer
-//! refuses to renew it; one whose renewal got no answer is kept, and renewed
-//! when a request is refused.
+//! A session whose issuer refuses to renew it clears its token and what it
+//! stored, so a dead credential is never used again. One that never had a credential is
+//! only signed out: there is nothing to end, and nothing is said. Whenever a
+//! token is renewed, what is stored is forgotten only when the issuer
+//! refuses: a renewal that got no answer leaves the session no usable token
+//! and keeps what is stored, and the next refusal renews again.
 //!
 //! The token is renewed before it expires, by the schedule every Semiont
 //! client keeps (`super::refresh_delay`). What another context writes under
@@ -254,8 +254,9 @@ impl SemiontSession {
 
     /// The gateway refused the session's token: renew it, and ask the
     /// gateway who the new one is. The token the session then holds, or
-    /// none: it holds no token, and if it had a stored credential it is
-    /// over. See `SessionRenewer`, through which a transport asks.
+    /// none: it holds no token, and if the issuer refused to renew a stored
+    /// credential it is over. See `SessionRenewer`, through which a transport
+    /// asks.
     pub async fn refresh(&self) -> Option<String> {
         self.shared.refused().await
     }
@@ -381,12 +382,27 @@ impl Shared {
         // out, which is no failure. Ending the session below also clears the
         // credential, so the refusals that follow it are quiet too.
         stored_session(self.storage.as_ref(), &self.kb.id)?;
-        self.signed_out(
-            SessionEndReason::Expired,
-            SessionErrorCode::RefreshExhausted,
-            not_renewed(failure.as_deref()),
-        );
+        self.unrenewed(failure);
         None
+    }
+
+    /// A renewal of what is stored gave no token, and the session holds
+    /// none. The issuer's refusal, or nothing left to renew with, ends the
+    /// session; any other failure keeps what is stored, and says why: the
+    /// next refusal renews again.
+    fn unrenewed(&self, failure: Option<Arc<dyn std::error::Error + Send + Sync>>) {
+        self.token.set(None);
+        let why = not_renewed(failure.as_deref());
+        match failure {
+            Some(failure) if !refused(failure.as_ref()) => {
+                self.failed(SessionErrorCode::RefreshExhausted, why);
+            }
+            _ => self.signed_out(
+                SessionEndReason::Expired,
+                SessionErrorCode::RefreshExhausted,
+                why,
+            ),
+        }
     }
 
     /// The gateway refused the session's token: renew it, and ask the
@@ -553,11 +569,7 @@ impl Shared {
                             just_issued = true;
                         }
                         None => {
-                            self.signed_out(
-                                SessionEndReason::Expired,
-                                SessionErrorCode::RefreshExhausted,
-                                not_renewed(failure.as_deref()),
-                            );
+                            self.unrenewed(failure);
                             return;
                         }
                     }

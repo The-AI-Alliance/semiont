@@ -1695,12 +1695,12 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await browser.dispose();
   });
 
-  it('fires the session-ended signal via the session onAuthFailed callback on refresh failure', async () => {
-    // Fresh stored token (no initial refresh), but subsequent refresh fails.
+  it('fires the session-ended signal via the session onAuthFailed callback when the issuer refuses a refresh', async () => {
+    // Fresh stored token (no initial refresh), but the issuer refuses the subsequent refresh.
     seedStoredSession(storage, KB_A.id, freshJwt(), 'bad-refresh');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
-    tokenEndpointAnswers(new Error('down'));
+    tokenEndpointAnswers(issuerReply({ error: 'invalid_grant', error_description: 'Token is not active' }, 400));
 
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));

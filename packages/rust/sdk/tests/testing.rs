@@ -413,7 +413,7 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
     assert!(asked.signals.session_ended().borrow().is_none());
 
     // A renewal nobody scripted is a renewal that failed, and says so: the
-    // session ends as it does when its issuer cannot be reached.
+    // session holds no token, as when its issuer cannot be reached.
     assert_eq!(session.refresh().await, None);
     assert_eq!(sessions.renewed(), 2);
     let said = asked.errors();
@@ -423,8 +423,8 @@ async fn scripted_sessions_renew_as_told_in_order_and_refuse_a_renewal_nobody_sc
             .contains("ScriptedSessions: not scripted: a renewal of \"kb-a\"")),
         "{said:?}"
     );
-    // The session says it is over through the signals the registry gave.
-    assert!(asked.signals.session_ended().borrow().is_some());
+    // Nobody refused it, so the session is not over.
+    assert!(asked.signals.session_ended().borrow().is_none());
 }
 
 #[tokio::test(start_paused = true)]

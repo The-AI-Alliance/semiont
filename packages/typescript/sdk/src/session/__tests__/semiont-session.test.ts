@@ -299,17 +299,17 @@ describe('SemiontSession — refresh', () => {
 
   // ── A thrown refresh is a failed refresh ────────────────────────────
   // A refresh callback makes an HTTP call, so it can THROW as easily as it can
-  // return null — a network blip, DNS failure, or gateway 5xx. Both mean the
-  // same thing to the session (this token cannot be renewed), so both must
-  // land on the same terminal path. A throw that escaped the renewal would
-  // skip all four terminal behaviours; via the proactive timer's un-awaited
-  // call it would become an unhandled rejection with no further refresh
-  // ever scheduled — a session holding an expired token forever.
+  // return null — a network blip, DNS failure, or gateway 5xx. A throw that
+  // escaped the renewal would skip every behaviour that follows a failed
+  // renewal; via the proactive timer's un-awaited call it would become an
+  // unhandled rejection with no further refresh ever scheduled — a session
+  // holding an expired token forever. Only the issuer's refusal ends the
+  // session; any other throw keeps what is stored.
 
-  it('a THROWN refresh terminates the session exactly like one that returns null', async () => {
+  it('a THROWN refresh the issuer refused terminates the session exactly like one that returns null', async () => {
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'refresh-tok');
-    refresh.mockRejectedValue(new Error('ECONNREFUSED'));
+    refresh.mockRejectedValue(new SignInError('exchange', 'The issuer refused the token request (invalid_grant)', 400));
     const onAuthFailed = vi.fn();
     const onError = vi.fn();
 
@@ -326,6 +326,35 @@ describe('SemiontSession — refresh', () => {
     expect(onError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'session.refresh-exhausted' }),
     );
+
+    session.dispose();
+  });
+
+  it.each([
+    { why: 'a network failure', failure: new Error('ECONNREFUSED') },
+    { why: 'no answer from the issuer', failure: new SignInError('exchange', 'The issuer did not answer: TypeError') },
+    { why: 'a budget spent on not now', failure: new SignInError('exchange', 'The session could not be renewed after 4 attempts: HTTP 503', 503) },
+  ])('a THROWN refresh that is $why keeps what is stored, and the next refusal renews again', async ({ failure }) => {
+    seedStoredSession(storage, KB.id, freshJwt(), 'refresh-tok');
+    const renewed = freshJwt();
+    refresh.mockRejectedValueOnce(failure).mockResolvedValueOnce(renewed);
+    const onAuthFailed = vi.fn();
+    const onError = vi.fn();
+
+    const session = newSession({ onAuthFailed, onError });
+    await session.ready;
+
+    await expect(session.refresh()).resolves.toBeNull();
+    // No usable token, what is stored stays, and the session is not over.
+    expect(session.token$.getValue()).toBeNull();
+    expect(getStoredSession(storage, KB.id)).not.toBeNull();
+    expect(onAuthFailed).not.toHaveBeenCalled();
+    expect(onError.mock.calls).toEqual([
+      [expect.objectContaining({ code: 'session.refresh-exhausted', message: `Token refresh failed: ${failure.message}` })],
+    ]);
+
+    expect(await session.refresh()).toBe(renewed);
+    expect(session.token$.getValue()).toBe(renewed);
 
     session.dispose();
   });

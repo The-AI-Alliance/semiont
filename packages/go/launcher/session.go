@@ -142,10 +142,10 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 	// right.
 	if s.ended.Err() == nil && s.token.Value() == "" {
 		if why := s.whyUnconfirmed(); why != "" {
-			s.Close()
-			return nil, fmt.Errorf("the session for %s could not be renewed, and is kept: %s", key, why)
+			s.end(&SessionRejected{refresh: errors.New(why), kept: true})
+		} else {
+			s.end(&SessionRejected{refresh: errExpired})
 		}
-		s.end(&SessionRejected{refresh: errExpired})
 	}
 	if rejected, over := context.Cause(s.ended).(*SessionRejected); over {
 		s.Close()
@@ -165,15 +165,16 @@ func (s *Session) noteRenewal(before string) {
 }
 
 // failed is a failure the SDK's session reported. One that ends it ends the
-// command: a renewal the issuer would not make, or a token the issuer had just
-// issued that the gateway refused. A gateway that could not be asked at the
+// command: a renewal that failed, or a token the issuer had just issued that
+// the gateway refused. A renewal the issuer did not refuse leaves the sign-in
+// kept, and the command says so. A gateway that could not be asked at the
 // start refuses nothing: the command goes on, and its requests are the judge.
 // An issuer that did not refuse to renew an expired token leaves no token to
 // go on with: the command says why.
 func (s *Session) failed(err *semiont.SessionError) {
 	switch err.Code {
 	case semiont.SessionErrorCodeRefreshExhausted:
-		s.end(&SessionRejected{refresh: errors.New(err.Message)})
+		s.end(&SessionRejected{refresh: errors.New(err.Message), kept: s.stillKept()})
 	case semiont.SessionErrorCodeCredentialRefused:
 		s.end(&SessionRejected{})
 	case semiont.SessionErrorCodeAuthFailed:
@@ -181,6 +182,17 @@ func (s *Session) failed(err *semiont.SessionError) {
 		defer s.mu.Unlock()
 		s.unconfirmed = err.Message
 	}
+}
+
+// stillKept is whether the store still holds this session's sign-in: the
+// SDK's session forgets one only when the issuer refuses to renew it.
+func (s *Session) stillKept() bool {
+	store, ok := signInStore()
+	if !ok {
+		return false
+	}
+	_, held, err := store.Entry(s.key).Held(context.Background())
+	return err == nil && held
 }
 
 // whyUnconfirmed is why the SDK's session could not confirm its token at its
@@ -282,10 +294,13 @@ func unauthorized(err error) bool {
 type SessionRejected struct {
 	refresh error // why the renewal failed; nil when it succeeded and the renewed token was refused too
 	cause   error // the gateway's rejection
+	kept    bool  // the issuer did not refuse the renewal, and the sign-in is kept
 }
 
 func (r *SessionRejected) Error() string {
 	switch {
+	case r.kept:
+		return "the session could not be renewed, and its sign-in is kept (" + r.refresh.Error() + ")"
 	case r.refresh == nil:
 		return "the session was rejected even after a successful refresh — the gateway no longer accepts this account's tokens"
 	case errors.Is(r.refresh, errNoRefreshToken):
@@ -301,7 +316,9 @@ func (r *SessionRejected) Unwrap() error { return r.cause }
 // fix that applies — the same line for every verb, whatever wire it spoke.
 func RejectedFail(u *UI, verb string, rej *SessionRejected) int {
 	u.Fail("%s: %v.", verb, rej)
-	fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
+	if !rej.kept {
+		fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
+	}
 	return 1
 }
 

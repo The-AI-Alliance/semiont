@@ -742,6 +742,45 @@ func TestAnExpiredTokenWhoseRenewalGotNoAnswerIsKeptAndRenewedWhenARequestIsRefu
 	}
 }
 
+// A running session whose renewal got no answer, or only answers worth
+// another attempt, holds no usable token and keeps what is kept: it says why,
+// is not over, and the next refusal renews again.
+func TestARenewalThatGotNoAnswerKeepsWhatIsKeptAndTheNextRefusalRenewsAgain(t *testing.T) {
+	for _, row := range []struct {
+		why     string
+		failure error
+	}{
+		{"no answer", fromTheIssuer(t, 0)},
+		{"not now", fromTheIssuer(t, http.StatusServiceUnavailable)},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			refused, renewed := tokenFor(time.Hour, 0), tokenFor(time.Hour, 2)
+			w := newWorld(t, refused)
+			w.renewals = []renewal{{err: row.failure}, {token: renewed}}
+			session := w.start(t)
+			if _, ok := session.Refresh(context.Background(), refused); ok {
+				t.Fatal("a renewal that got no answer gave a token")
+			}
+			if _, kept, _ := w.kept.Held(context.Background()); !kept {
+				t.Fatal("the sign-in was forgotten")
+			}
+			w.mu.Lock()
+			told, said := slices.Clone(w.told), slices.Clone(w.errors)
+			w.mu.Unlock()
+			if w.token.Value() != "" || len(told) != 0 {
+				t.Errorf("the session holds a token: %v; told %v", w.token.Value() != "", told)
+			}
+			want := "Token refresh failed: " + row.failure.Error()
+			if len(said) != 1 || said[0].Code != semiont.SessionErrorCodeRefreshExhausted || said[0].Message != want {
+				t.Fatalf("the session said %v, want %s: %q", said, semiont.SessionErrorCodeRefreshExhausted, want)
+			}
+			if given, ok := session.Refresh(context.Background(), ""); !ok || given != renewed {
+				t.Errorf("the next refusal was given the renewed token: %v", ok && given == renewed)
+			}
+		})
+	}
+}
+
 // A session that never signed in cannot expire: a renewal that gives nothing
 // says nothing.
 func TestASessionThatNeverSignedInCannotExpire(t *testing.T) {

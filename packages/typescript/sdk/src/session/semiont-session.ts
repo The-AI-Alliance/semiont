@@ -25,7 +25,7 @@
  *     omit this.
  *
  *   - `onAuthFailed(reason)` — optional. Invoked when the session is
- *     over, with why: `expired`, its token could not be renewed, or
+ *     over, with why: `expired`, its issuer refused to renew its token, or
  *     `refused`, the gateway refused a token the issuer had just issued.
  *     UI hosts typically wire this to `SessionSignals.notifySessionEnded`
  *     so a modal surfaces, in the person's language; headless consumers
@@ -321,10 +321,10 @@ export class SemiontSession implements StateUnit {
           justIssued = true;
           continue;
         }
-        const { token: renewed, failure } = await this.tryRefresh();
+        const { token: renewed, failure, refused } = await this.tryRefresh();
         if (this.disposed) return;
         if (!renewed) {
-          this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
+          this.unrenewed(failure, refused);
           return;
         }
         this.#heldToken$.next(accessToken(renewed));
@@ -361,9 +361,9 @@ export class SemiontSession implements StateUnit {
    *
    * The reason is returned rather than swallowed, and whether it is the
    * issuer's refusal: a network failure and a revoked session are not the
-   * same event. A running session ends on either, and an operator reading
-   * the error needs to know which one happened; at its start, only the
-   * refusal forgets the stored session.
+   * same event. Only the refusal ends the session and forgets what is
+   * stored, and an operator reading the error needs to know which one
+   * happened.
    */
   private async tryRefresh(): Promise<{ token: string | null; failure?: string; refused: boolean }> {
     if (!this.doRefresh) return { token: null, refused: false };
@@ -427,7 +427,7 @@ export class SemiontSession implements StateUnit {
   private async renew(): Promise<AccessToken | null> {
     if (this.disposed) return null;
     if (!this.doRefresh) return null;
-    const { token: newAccess, failure } = await this.tryRefresh();
+    const { token: newAccess, failure, refused } = await this.tryRefresh();
     if (this.disposed) return null;
     if (newAccess) {
       const tok = accessToken(newAccess);
@@ -448,8 +448,24 @@ export class SemiontSession implements StateUnit {
       this.#heldToken$.next(null);
       return null;
     }
-    this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
+    this.unrenewed(failure, refused);
     return null;
+  }
+
+  /**
+   * A renewal of what is stored gave no token, and the session holds none.
+   * The issuer's refusal, or nothing left to renew with, ends the session; any
+   * other failure keeps what is stored, and says why: the next refusal renews
+   * again.
+   */
+  private unrenewed(failure: string | undefined, refused: boolean): void {
+    if (failure === undefined || refused) {
+      this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
+      return;
+    }
+    this.clearRefreshTimer();
+    this.#heldToken$.next(null);
+    this.onError(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
   }
 
   private scheduleProactiveRefresh(token: string): void {

@@ -19,8 +19,8 @@ use crate::state_unit::StateUnit;
 use serde::{Serialize, Serializer};
 use tokio::sync::watch;
 
-/// Why a session ended: its token could not be renewed (`Expired`), or the
-/// gateway refused a token its issuer had just issued (`Refused`). The
+/// Why a session ended: its issuer refused to renew its token (`Expired`), or
+/// the gateway refused a token its issuer had just issued (`Refused`). The
 /// vocabulary is specs/src/session/cases.json's `told`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionEndReason {

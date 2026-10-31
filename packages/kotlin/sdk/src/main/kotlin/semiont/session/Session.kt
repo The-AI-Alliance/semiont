@@ -33,7 +33,7 @@ import semiont.types.UserResponse
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-/** Why a session ended: its token could not be renewed (`EXPIRED`), or the gateway refused a token its issuer had just issued (`REFUSED`). */
+/** Why a session ended: its issuer refused to renew its token (`EXPIRED`), or the gateway refused a token its issuer had just issued (`REFUSED`). */
 public enum class SessionEndReason(
     /** The reason as every SDK spells it. */
     public val wire: String,
@@ -63,9 +63,10 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
  * At its start it asks the gateway who the kept token is. A token the gateway
  * refuses is renewed once and asked about once more; a token its issuer had
  * just issued and the gateway refuses is final. So the gateway is asked at most
- * twice and the issuer at most once. A kept token that has expired is renewed
- * before anyone is asked, and forgotten only when the issuer refuses: one whose
- * renewal got no answer is kept, and renewed when a request is refused.
+ * twice and the issuer at most once. Whenever a token is renewed, what is kept
+ * is forgotten only when the issuer refuses: a renewal that got no answer leaves
+ * the session no usable token and keeps what is kept, and the next refusal
+ * renews again.
  */
 public class SemiontSession internal constructor(
     /** The knowledge base the session is with: where it is reached, and `id`, the key its credentials are kept under. */
@@ -140,7 +141,7 @@ public class SemiontSession internal constructor(
     /**
      * The gateway refused the session's token: renew it, and ask the gateway
      * who the new one is. Returns the token the session then holds, or null:
-     * it holds no token, and if it had a kept sign-in it is over. One refusal
+     * it holds no token, and if the issuer refused to renew a kept sign-in it is over. One refusal
      * is answered at a time, so refusals that arrive together cost one renewal
      * and one ask. A gateway that cannot be asked refuses nothing: the renewed
      * token is given.
@@ -196,8 +197,18 @@ public class SemiontSession internal constructor(
         }
         tokens.value = null
         // A session that never had a credential cannot expire: it is signed out, which is no failure.
-        if (kept.held() != null) signedOut(SessionEndReason.EXPIRED, SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id))
+        if (kept.held() != null) unrenewed(failure)
         return null
+    }
+
+    /**
+     * A renewal of what is kept gave no token, and the session holds none. The issuer's refusal, or nothing left to renew
+     * with, ends the session; any other failure keeps what is kept, and says why: the next refusal renews again.
+     */
+    private suspend fun unrenewed(failure: SignInError?) {
+        tokens.value = null
+        val notRenewed = SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id)
+        if (failure != null && !refused(failure)) onError?.invoke(notRenewed) else signedOut(SessionEndReason.EXPIRED, notRenewed)
     }
 
     /** The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended. */
@@ -273,7 +284,7 @@ public class SemiontSession internal constructor(
             if (closing) return
             val (renewed, failure) = renewal
             if (renewed == null) {
-                signedOut(SessionEndReason.EXPIRED, SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id))
+                unrenewed(failure)
                 return
             }
             token = renewed

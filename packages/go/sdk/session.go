@@ -7,10 +7,10 @@ package semiont
 // the gateway at most twice and renews at most once at its start, and one
 // refusal costs at most one renewal and one ask. A token the issuer has just
 // issued and the gateway refuses ends it, as session.credential-refused;
-// renewing again cannot change the answer. A kept token that has expired is
-// renewed before anyone is asked, and forgotten only when the issuer refuses:
-// one whose renewal got no answer is kept, and renewed when a request is
-// refused.
+// renewing again cannot change the answer. Whenever a token is renewed, what
+// is kept is forgotten only when the issuer refuses: a renewal that got no
+// answer leaves the session no usable token and keeps what is kept, and the
+// next refusal renews again.
 
 import (
 	"context"
@@ -29,7 +29,7 @@ import (
 type SessionEndReason string
 
 const (
-	// SessionEndExpired: its token could not be renewed.
+	// SessionEndExpired: its issuer refused to renew its token.
 	SessionEndExpired SessionEndReason = "expired"
 	// SessionEndRefused: the gateway refused a token its issuer had just
 	// issued.
@@ -268,8 +268,9 @@ func (s *Session) Close() {
 
 // Refresh answers the gateway's refusal of refused, the session's token: it
 // renews the token and asks the gateway who the new one is. It gives the
-// token the session then holds; false when it holds none, and if it had a
-// sign-in kept it is over. A token the session no longer holds was answered
+// token the session then holds; false when it holds none, and if the issuer
+// refused to renew a kept sign-in it is over. A token the session no longer
+// holds was answered
 // already, renewed or ended: what the session holds is given, and nothing is
 // renewed or asked. So however many requests were refused one token, at once
 // or one after another, they cost one renewal and one ask. A refusal met while
@@ -338,9 +339,23 @@ func (s *Session) renew(renewing string) (string, bool) {
 	// which is no failure. One whose store cannot say is ended, which forgets
 	// what may be there.
 	if _, held, err := s.config.Kept.Held(s.alive); err != nil || held {
-		s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id})
+		s.unrenewed(failure)
 	}
 	return "", false
+}
+
+// unrenewed is a renewal of what is kept that gave no token: the session holds
+// none. The issuer's refusal, or nothing left to renew with, ends the session;
+// any other failure keeps what is kept, and says why: the next refusal renews
+// again.
+func (s *Session) unrenewed(failure error) {
+	s.config.Token.Set("")
+	err := &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id}
+	if failure != nil && !refusedRenewal(failure) {
+		s.failed(err)
+		return
+	}
+	s.signedOut(SessionEndExpired, err)
 }
 
 // signedOut is the session's end, whichever way it ended: its credential is
@@ -454,7 +469,7 @@ func (s *Session) answerAtStart(token, held string, justIssued bool) (string, bo
 		return "", false
 	}
 	if renewed == "" {
-		s.signedOut(SessionEndExpired, &SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id})
+		s.unrenewed(failure)
 		return "", false
 	}
 	s.config.Token.Set(renewed)

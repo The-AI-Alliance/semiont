@@ -410,6 +410,30 @@ func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
 	}
 }
 
+// A rejected session whose renewal the issuer does not answer is not over:
+// the command cannot go on and says why, its sign-in is kept, and logging in
+// again is not what puts it right.
+func TestBusVerbReportsAKeptSignInWhenTheIssuerDoesNotAnswer(t *testing.T) {
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, time.Hour)
+	issuer.Close()
+
+	_, stderr := harness.CaptureOutput(t, func() {
+		if code := Browse(nil); code == 0 {
+			t.Errorf("browse must fail when the session is rejected and the issuer does not answer")
+		}
+	})
+	harness.MustContainAll(t, "stderr", stderr, "browse", "could not be renewed", "is kept", "did not answer")
+	if strings.Contains(stderr, "semiont login") {
+		t.Errorf("a sign-in that is kept sent the user to log in again")
+	}
+	if _, still := kept(t); !still {
+		t.Errorf("a sign-in whose issuer did not answer was forgotten")
+	}
+}
+
 func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	gateway := newGatewayStub(t, nothing)
 	gatewayFixture(t, gateway)
