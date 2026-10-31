@@ -1,5 +1,7 @@
-// Package stack reads a knowledge base's documents: the kinds of its stack,
-// committed in .semiont/stack/, and its project file, .semiont/config.yaml.
+// Package stack reads the launcher's documents: a knowledge base's, the kinds
+// of its stack, committed in .semiont/stack/, and its project file,
+// .semiont/config.yaml; and the Browser's, which belongs to no knowledge base
+// and is kept in the launcher's state home.
 //
 // A document is held to its schema in specs/src/stack/ or
 // specs/src/kb-identity/ (schemas_gen.go carries their text), the schema
@@ -55,9 +57,9 @@ func (r *Refused) Error() string {
 }
 
 // Read reads the document at path as a document of the kind named, into its
-// type: KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference, or
-// ProjectConfig. A document that does not hold to its schema is refused with
-// every place it does not.
+// type: KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference,
+// ProjectConfig, or Browser. A document that does not hold to its schema is
+// refused with every place it does not.
 func Read[T any](path, kindName string) (T, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {

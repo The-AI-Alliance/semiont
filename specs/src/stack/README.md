@@ -1,4 +1,4 @@
-# stack — the documents that describe a knowledge base's stack
+# stack — the documents that describe a knowledge base's stack, and the Browser
 
 A knowledge base's repository commits its stack as documents in Kubernetes'
 resource format (`apiVersion`, `kind`, `metadata`, `spec`), one file for each
@@ -25,6 +25,20 @@ Every kind's `apiVersion` is [`ApiVersion.json`](ApiVersion.json)'s:
 [`Runner.json`](Runner.json) is the one rule every daemon follows: the
 launcher runs it, from `image` with `resources`, or somebody else does, at
 `external`, never both.
+
+## Documents outside any knowledge base
+
+What serves every knowledge base on a machine belongs to none of them, so its
+document is kept in the launcher's state home, in `stack/`, and in no
+knowledge base's repository. The first command that needs one and
+finds none writes it from the launcher's catalog and says where; from then on
+the file is what runs.
+
+| Kind | Schema | File | Holds |
+|---|---|---|---|
+| `Browser` | [`Browser.json`](Browser.json) | `stack/browser.yaml` | the Browser: its image, its memory, and the port it is published on, on the machine's loopback |
+
+## The project file
 
 A knowledge base's project file, `.semiont/config.yaml`, is held to
 [`../kb-identity/ProjectConfig.json`](../kb-identity/ProjectConfig.json): its

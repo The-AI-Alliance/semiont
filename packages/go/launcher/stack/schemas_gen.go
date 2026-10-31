@@ -17,6 +17,8 @@ var schemaFiles = map[string]string{
 
 	"specs/src/stack/ApiVersion.json": "{\"title\":\"ApiVersion\",\"type\":\"string\",\"const\":\"semiont.the-ai-alliance.github.io/v1alpha1\",\"description\":\"The group and version of Semiont's kinds. The group names who defines a kind, under the domain the knowledge bases' DIDs use; which knowledge base a document is about is said inside it.\"}",
 
+	"specs/src/stack/Browser.json": "{\"title\":\"Browser\",\"type\":\"object\",\"description\":\"The Browser a machine runs: one viewer for every knowledge base the machine reaches. It belongs to no knowledge base, so its document is kept in the launcher's state home, in `stack/browser.yaml`, not in a knowledge base's repository.\",\"properties\":{\"apiVersion\":{\"$ref\":\"./ApiVersion.json\"},\"kind\":{\"type\":\"string\",\"const\":\"Browser\"},\"metadata\":{\"$ref\":\"./Metadata.json\"},\"spec\":{\"type\":\"object\",\"description\":\"How the Browser runs.\",\"properties\":{\"image\":{\"$ref\":\"./Image.json\"},\"resources\":{\"$ref\":\"./Resources.json\"},\"port\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":65535,\"description\":\"The port the Browser is published on, on this machine's loopback: where a person opens it, and the origin the issuer's realm allows its sign-in from.\"}},\"required\":[\"image\",\"resources\",\"port\"],\"additionalProperties\":false}},\"required\":[\"apiVersion\",\"kind\",\"metadata\",\"spec\"],\"additionalProperties\":false}",
+
 	"specs/src/stack/HostPort.json": "{\"title\":\"HostPort\",\"type\":\"object\",\"description\":\"Where somebody else's daemon listens.\",\"properties\":{\"host\":{\"type\":\"string\",\"minLength\":1,\"description\":\"A host name or address the stack's containers can reach.\"},\"port\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":65535,\"description\":\"The port it listens on.\"}},\"required\":[\"host\",\"port\"],\"additionalProperties\":false}",
 
 	"specs/src/stack/Image.json": "{\"title\":\"Image\",\"type\":\"string\",\"minLength\":1,\"description\":\"The container image a service runs, as a registry names it: `ghcr.io/the-ai-alliance/semiont-gateway:latest`.\"}",
@@ -53,6 +55,8 @@ var schemaOf = map[string]string{
 	"WorkerPool": "specs/src/stack/WorkerPool.json",
 
 	"Inference": "specs/src/stack/Inference.json",
+
+	"Browser": "specs/src/stack/Browser.json",
 
 	"ProjectConfig": "specs/src/kb-identity/ProjectConfig.json",
 }

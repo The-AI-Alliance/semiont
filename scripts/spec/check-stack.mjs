@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// lint:spec-stack — the documents a knowledge base's repository commits, held
-// to their schemas.
+// lint:spec-stack — the documents the launcher reads, held to their schemas:
+// those a knowledge base's repository commits, and the Browser's.
 //
 // specs/src/stack/ holds one schema for each kind of the stack (KnowledgeBase,
-// KnowledgeIndex, Issuer, WorkerPool, Inference), and specs/src/kb-identity/
-// the project file's (ProjectConfig). The launcher reads every document
+// KnowledgeIndex, Issuer, WorkerPool, Inference) and for the Browser, which
+// belongs to no knowledge base; specs/src/kb-identity/ holds the project
+// file's (ProjectConfig). The launcher reads every document
 // against these schemas, with the same cases (specs/src/stack/cases.json),
 // so the schema is the one thing that decides a document's shape. It fails
 // when:
@@ -39,6 +40,7 @@ const SCHEMAS = {
   Issuer: 'specs/src/stack/Issuer.json',
   WorkerPool: 'specs/src/stack/WorkerPool.json',
   Inference: 'specs/src/stack/Inference.json',
+  Browser: 'specs/src/stack/Browser.json',
   ProjectConfig: 'specs/src/kb-identity/ProjectConfig.json',
 };
 

@@ -131,7 +131,8 @@
   color: "bfd4f2"
   description: "An OCaml SDK, not yet written"
 
-# stack: one for each kind of document in a knowledge base's .semiont/stack/.
+# stack: one for each kind of document the launcher reads: those in a knowledge
+# base's .semiont/stack/, and the Browser's, in the launcher's state home.
 - name: "stack:knowledge-base"
   color: "c2ece8"
   description: "KnowledgeBase: the Gateway, the Dispatcher, the Archivist, the broker, the issuer trusted"
@@ -147,6 +148,9 @@
 - name: "stack:inference"
   color: "c2ece8"
   description: "Inference: the model providers, and which provider and model serve each role"
+- name: "stack:browser"
+  color: "c2ece8"
+  description: "Browser: the machine's Browser, its image, memory and port; in no knowledge base"
 
 # spec: the parts of specs/src/, by who honours them.
 - name: "spec:protocol"
