@@ -29,7 +29,7 @@ use semiont::types::{
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::mpsc;
 
 // ── The examples ────────────────────────────────────────────────────────
 
@@ -177,14 +177,14 @@ async fn an_application(
     session_factory: Arc<dyn SessionFactory>,
     resource_id: ResourceId,
     mut render: impl FnMut(Option<&PendingAnnotation>),
-) -> Result<(), watch::error::RecvError> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // <readme:application>
     // What an application holds: its knowledge bases, which one is active,
     // and the active one's session.
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage,
         session_factory,
-    });
+    })?;
     let mut live = browser.active_session();
     let session = live.wait_for(Option::is_some).await?.clone();
 
@@ -628,7 +628,8 @@ async fn the_application_renders_the_annotation_being_composed_in_the_active_kno
             endpoint: KbEndpoint::HttpEndpoint(endpoint),
             last_read: None,
         }],
-    );
+    )
+    .expect("stored");
     let clients: Arc<Mutex<Vec<Arc<SemiontClient>>>> = Arc::default();
     let factory = Keeping {
         sessions: ScriptedSessions::answering(|_, operation, payload| {

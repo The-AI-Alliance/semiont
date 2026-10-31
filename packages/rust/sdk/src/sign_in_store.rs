@@ -28,9 +28,10 @@
 //!
 //! A file that cannot be read or written is said to `on_failure`, and the
 //! store then behaves as if the file held nothing, or the write was not
-//! made: a `SessionStorage` has no other way to say so. So is a session
-//! whose access token does not say who it is for or who issued it: the
-//! file states both of every sign-in, and nothing is made up for one.
+//! made. So is a session whose access token does not say who it is for or
+//! who issued it: the file states both of every sign-in, and nothing is made
+//! up for one. A write the storage beneath refuses is the write's error, and
+//! the file is left as it was.
 
 use crate::locked;
 use crate::rfc3339;
@@ -230,27 +231,33 @@ impl SignInStore {
     }
 
     /// Change the document as one step: read it, change it, and write it
-    /// when `change` says it changed, with the lock held throughout.
-    fn change<T>(&self, change: impl FnOnce(&mut Map<String, Value>) -> (bool, T)) -> Option<T> {
+    /// when `change` says it changed, with the lock held throughout. What
+    /// the storage beneath refused is the error.
+    fn change(
+        &self,
+        change: impl FnOnce(
+            &mut Map<String, Value>,
+        ) -> (bool, Result<(), Box<dyn std::error::Error + Send + Sync>>),
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let _turn = locked(&self.turn);
-        let changed = (|| -> io::Result<T> {
+        let changed = (|| -> io::Result<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
             if let Some(directory) = self.path.parent() {
                 fs::create_dir_all(directory)?;
             }
             let lock = File::create(self.path.with_extension("lock"))?;
             lock.lock()?;
             let mut document = self.read()?;
-            let (changed, answer) = change(&mut document);
+            let (changed, beneath) = change(&mut document);
             if changed {
                 self.write(&document)?;
             }
-            Ok(answer)
+            Ok(beneath)
         })();
         match changed {
-            Ok(answer) => Some(answer),
+            Ok(beneath) => beneath,
             Err(error) => {
                 self.failed("Could not change", &error);
-                None
+                Ok(())
             }
         }
     }
@@ -284,7 +291,8 @@ impl SignInStore {
     /// neither. `renewed` is the sign-in a session of the script client
     /// renews, and none when the session is a sign-in of its own: one that
     /// is no sign-in is kept nowhere, and that is said. `document` is the
-    /// file's, held under the lock. Whether the document changed.
+    /// file's, held under the lock. Whether the document changed, and what
+    /// the storage beneath refused, which changes nothing.
     fn put(
         &self,
         document: &mut Map<String, Value>,
@@ -292,7 +300,7 @@ impl SignInStore {
         kb_id: &str,
         next: Option<&str>,
         renewed: Option<&SignIn>,
-    ) -> bool {
+    ) -> (bool, Result<(), Box<dyn std::error::Error + Send + Sync>>) {
         match (next, next.and_then(StoredSession::read)) {
             (_, Some(session)) if session.client_id == SCRIPT_CLIENT_ID => {
                 let signed_in = match renewed {
@@ -301,29 +309,28 @@ impl SignInStore {
                 };
                 match signed_in {
                     Ok((email, issuer)) => {
+                        if let Err(refused) = self.rest.delete(key) {
+                            return (false, Err(refused));
+                        }
                         document.insert(
                             kb_id.to_owned(),
                             entry_of(&session, email, issuer, SystemTime::now()),
                         );
-                        self.rest.delete(key);
-                        true
+                        (true, Ok(()))
                     }
                     Err(lacking) => {
                         (self.on_failure)(&format!(
                             "The sign-in to {kb_id} was not kept: {lacking}"
                         ));
-                        false
+                        (false, Ok(()))
                     }
                 }
             }
-            (Some(next), _) => {
-                self.rest.set(key, next);
-                false
-            }
-            (None, _) => {
-                self.rest.delete(key);
-                document.remove(kb_id).is_some()
-            }
+            (Some(next), _) => (false, self.rest.set(key, next)),
+            (None, _) => match self.rest.delete(key) {
+                Ok(()) => (document.remove(kb_id).is_some(), Ok(())),
+                Err(refused) => (false, Err(refused)),
+            },
         }
     }
 }
@@ -336,25 +343,27 @@ impl SessionStorage for SignInStore {
         })
     }
 
-    fn set(&self, key: &str, value: &str) {
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match kb_of_session_key(key) {
             Some(kb_id) => {
-                self.change(|document| (self.put(document, key, kb_id, Some(value), None), ()));
+                self.change(|document| self.put(document, key, kb_id, Some(value), None))
             }
             None => self.rest.set(key, value),
         }
     }
 
-    fn delete(&self, key: &str) {
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         match kb_of_session_key(key) {
-            Some(kb_id) => {
-                self.change(|document| (self.put(document, key, kb_id, None, None), ()));
-            }
+            Some(kb_id) => self.change(|document| self.put(document, key, kb_id, None, None)),
             None => self.rest.delete(key),
         }
     }
 
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let Some(kb_id) = kb_of_session_key(key) else {
             return self.rest.update(key, change);
         };
@@ -373,13 +382,10 @@ impl SessionStorage for SignInStore {
             let current = beneath.or(held);
             let next = change(current.as_deref());
             if next == current {
-                return (false, ());
+                return (false, Ok(()));
             }
-            (
-                self.put(document, key, kb_id, next.as_deref(), renewed.as_ref()),
-                (),
-            )
-        });
+            self.put(document, key, kb_id, next.as_deref(), renewed.as_ref())
+        })
     }
 
     /// What another context writes to the storage beneath. The file is not

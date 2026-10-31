@@ -31,7 +31,10 @@
 //! expired. A request refused for lack of permission is said at once.
 //!
 //! Every change to what is open is made against what the storage holds, as
-//! one step, so two contexts that each open a resource both keep theirs.
+//! one step, so two contexts that each open a resource both keep theirs. A
+//! write the storage refuses changes nothing, there or here: a method that
+//! writes returns the storage's error, and `close` returns one made in the
+//! background.
 //!
 //! `close` is the graceful end. A browser is built inside a Tokio runtime.
 
@@ -148,6 +151,8 @@ struct Inner {
     /// One activation at a time.
     turn: tokio::sync::Mutex<()>,
     tasks: Tasks,
+    /// The first failure of what it ran in the background: `close` returns it.
+    task_failure: Mutex<Option<Box<dyn std::error::Error + Send + Sync>>>,
     storage_changes: Mutex<Option<StorageSubscription>>,
     closed: AtomicBool,
 }
@@ -169,7 +174,13 @@ fn milliseconds(at: SystemTime) -> u64 {
 }
 
 impl SemiontBrowser {
-    pub fn new(config: SemiontBrowserConfig) -> SemiontBrowser {
+    /// A browser over what the storage holds. What was read is what is
+    /// kept: an entry that did not read as a knowledge base is gone from the
+    /// storage too. A storage that refuses those writes is the error, and no
+    /// browser is made.
+    pub fn new(
+        config: SemiontBrowserConfig,
+    ) -> Result<SemiontBrowser, Box<dyn std::error::Error + Send + Sync>> {
         let storage = config.storage;
         let kbs = load_knowledge_bases(storage.as_ref());
         let active = storage
@@ -196,13 +207,12 @@ impl SemiontBrowser {
             bus: EventBus::new(),
             turn: tokio::sync::Mutex::new(()),
             tasks: Tasks::new(),
+            task_failure: Mutex::new(None),
             storage_changes: Mutex::new(None),
             closed: AtomicBool::new(false),
         });
-        // What was read is what is kept: an entry that did not read as a
-        // knowledge base is gone from the storage too.
-        inner.put_kbs(kbs);
-        inner.put_active_id(active.clone());
+        inner.put_kbs(kbs)?;
+        inner.put_active_id(active.clone())?;
 
         let heard = Arc::downgrade(&inner);
         *locked(&inner.storage_changes) = inner.storage.subscribe(Arc::new(move |key, value| {
@@ -213,11 +223,9 @@ impl SemiontBrowser {
 
         if let Some(active) = active {
             let starting = inner.clone();
-            inner
-                .tasks
-                .spawn(async move { starting.set_active_kb(Some(active)).await });
+            inner.spawn(async move { starting.set_active_kb(Some(active)).await });
         }
-        SemiontBrowser { inner }
+        Ok(SemiontBrowser { inner })
     }
 
     // ── What it holds ───────────────────────────────────────────────────
@@ -295,17 +303,24 @@ impl SemiontBrowser {
 
     /// Register a knowledge base that a sign-in reached, keep its tokens,
     /// and make it the active one.
-    pub async fn add_kb(&self, input: NewKnowledgeBase, session: &StoredSession) -> KnowledgeBase {
+    pub async fn add_kb(
+        &self,
+        input: NewKnowledgeBase,
+        session: &StoredSession,
+    ) -> Result<KnowledgeBase, Box<dyn std::error::Error + Send + Sync>> {
         self.inner.add_kb(input, session).await
     }
 
     /// Forget a knowledge base: its entry, its tokens, what was open in it
     /// and where the person was. If it was active, the first of the others
     /// becomes active.
-    pub async fn remove_kb(&self, id: &str) {
+    pub async fn remove_kb(
+        &self,
+        id: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
-        clear_stored_session(inner.storage.as_ref(), id);
-        inner.forget_kept_of(id);
+        clear_stored_session(inner.storage.as_ref(), id)?;
+        inner.forget_kept_of(id)?;
         let rest: Vec<KnowledgeBase> = inner
             .kbs
             .now()
@@ -313,16 +328,22 @@ impl SemiontBrowser {
             .filter(|kb| kb.id != id)
             .collect();
         let next = rest.first().map(|kb| kb.id.clone());
-        inner.put_kbs(rest);
+        inner.put_kbs(rest)?;
         if inner.active_kb_id.now().as_deref() == Some(id) {
-            inner.set_active_kb(next).await;
+            inner.set_active_kb(next).await?;
         }
+        Ok(())
     }
 
     /// Write what a knowledge base last said of itself onto its entry. Its
     /// endpoint is not changed in place, and its did is never changed.
-    pub fn update_kb(&self, id: &str, label: Option<&str>, last_read: Option<KbRead>) {
-        self.inner.update_kb(id, label, last_read);
+    pub fn update_kb(
+        &self,
+        id: &str,
+        label: Option<&str>,
+        last_read: Option<KbRead>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.update_kb(id, label, last_read)
     }
 
     /// What the credential stored for a knowledge base says, read without
@@ -339,19 +360,29 @@ impl SemiontBrowser {
 
     /// Make a knowledge base the active one, or none. Resolves when its
     /// session is up, or when it is known there will be none.
-    pub async fn set_active_kb(&self, id: Option<&str>) {
-        self.inner.set_active_kb(id.map(str::to_owned)).await;
+    pub async fn set_active_kb(
+        &self,
+        id: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.set_active_kb(id.map(str::to_owned)).await
     }
 
     /// Keep new tokens for a registered knowledge base and bring its session
     /// up on them. A session it already had is closed and replaced.
-    pub async fn sign_in(&self, id: &str, session: &StoredSession) {
-        self.inner.sign_in(id, session).await;
+    pub async fn sign_in(
+        &self,
+        id: &str,
+        session: &StoredSession,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.sign_in(id, session).await
     }
 
     /// The registry's half of a sign-in: land it on the entry for the
     /// knowledge base that answered. See the module's documentation.
-    pub async fn signed_in(&self, signed_in: SignedIn) -> SignInOutcome {
+    pub async fn signed_in(
+        &self,
+        signed_in: SignedIn,
+    ) -> Result<SignInOutcome, Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         let did = crate::identity::kb_did(&signed_in.description.domain);
         let label = signed_in.description.name.clone();
@@ -387,8 +418,8 @@ impl SemiontBrowser {
                     last_read: Some(last_read.clone()),
                     ..(*answered).clone()
                 };
-                inner.update_kb(&id, Some(&label), Some(last_read));
-                inner.sign_in(&id, &signed_in.session).await;
+                inner.update_kb(&id, Some(&label), Some(last_read))?;
+                inner.sign_in(&id, &signed_in.session).await?;
                 kb
             }
             None => {
@@ -402,26 +433,30 @@ impl SemiontBrowser {
                         },
                         &signed_in.session,
                     )
-                    .await
+                    .await?
             }
         };
-        SignInOutcome { kb, expected }
+        Ok(SignInOutcome { kb, expected })
     }
 
     /// Sign out of a knowledge base: forget its tokens, and have the issuer
     /// told so its refresh token is good for nothing. If it is active, its
     /// session is closed.
-    pub async fn sign_out(&self, id: &str) {
+    pub async fn sign_out(&self, id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed() {
-            return;
+            return Ok(());
         }
         let stored = stored_session(inner.storage.as_ref(), id);
-        clear_stored_session(inner.storage.as_ref(), id);
+        clear_stored_session(inner.storage.as_ref(), id)?;
         if let Some(stored) = stored {
             // The sign-out is the local act: an issuer that cannot be
             // reached does not keep anyone in a session they asked to end.
-            inner.tasks.spawn(inner.factory.revoke(stored));
+            let revoking = inner.factory.revoke(stored);
+            inner.spawn(async move {
+                revoking.await;
+                Ok(())
+            });
         }
         // Said again, so whoever shows each knowledge base's status reads it anew.
         inner.kbs.raise(inner.kbs.now());
@@ -430,6 +465,7 @@ impl SemiontBrowser {
         {
             ended.close().await;
         }
+        Ok(())
     }
 
     // ── What is open ────────────────────────────────────────────────────
@@ -442,7 +478,7 @@ impl SemiontBrowser {
         name: &str,
         media_type: Option<&str>,
         storage_uri: Option<&str>,
-    ) {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.inner.mutate_open_resources(|mut open| {
             match open.iter_mut().find(|resource| &resource.id == id) {
                 Some(resource) => {
@@ -470,28 +506,39 @@ impl SemiontBrowser {
                 }),
             }
             open
-        });
+        })
     }
 
-    pub fn remove_open_resource(&self, id: &ResourceId) {
+    pub fn remove_open_resource(
+        &self,
+        id: &ResourceId,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.inner.mutate_open_resources(|mut open| {
             open.retain(|resource| &resource.id != id);
             open
-        });
+        })
     }
 
-    pub fn update_open_resource_name(&self, id: &ResourceId, name: &str) {
+    pub fn update_open_resource_name(
+        &self,
+        id: &ResourceId,
+        name: &str,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.inner.mutate_open_resources(|mut open| {
             for resource in open.iter_mut().filter(|resource| &resource.id == id) {
                 resource.name = name.to_owned();
             }
             open
-        });
+        })
     }
 
     /// Move the open resource at one place in the visible list to another.
     /// A place that is not in the list moves nothing.
-    pub fn reorder_open_resources(&self, from: usize, to: usize) {
+    pub fn reorder_open_resources(
+        &self,
+        from: usize,
+        to: usize,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         self.inner.mutate_open_resources(|open| {
             if from >= open.len() || to >= open.len() {
                 return open;
@@ -503,39 +550,51 @@ impl SemiontBrowser {
                 resource.order = place as u64;
             }
             ordered
-        });
+        })
     }
 
     /// The resource a person is looking at, in the active knowledge base.
     /// Nothing is recorded while it has no live session.
-    pub fn set_last_viewed_resource(&self, resource_id: &ResourceId) {
-        self.inner.set_last_viewed_resource(resource_id);
+    pub fn set_last_viewed_resource(
+        &self,
+        resource_id: &ResourceId,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.inner.set_last_viewed_resource(resource_id)
     }
 
     /// Ask the active knowledge base to describe itself again, and say what
     /// it answered. Asking is not activating: an answer as the entry is
     /// recorded on it, and a different knowledge base answering is reported.
     /// Nothing is voided and nothing raised.
-    pub async fn read_active_kb(&self) -> KbReadVerdict {
+    pub async fn read_active_kb(
+        &self,
+    ) -> Result<KbReadVerdict, Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         match (inner.active_session.now(), inner.active_kb_id.now()) {
             (Some(session), Some(kb_id)) => inner.read_kb(&session, &kb_id).await,
-            _ => KbReadVerdict::NoVerdict,
+            _ => Ok(KbReadVerdict::NoVerdict),
         }
     }
 
     /// End the browser: its session is closed, and everything it holds ends.
-    /// Closing twice is closing once.
-    pub async fn close(&self) {
+    /// It returns once what it was running has stopped, and the first
+    /// failure of any of it is the error. Closing twice is closing once.
+    pub async fn close(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed.swap(true, Ordering::SeqCst) {
-            return;
+            return Ok(());
         }
-        let ended = inner.take_session();
-        inner.end();
-        if let Some(ended) = ended {
+        if let Some(ended) = inner.take_session() {
             ended.close().await;
         }
+        // A close made from inside the browser's own work does not wait for
+        // the task it runs in, and stops it last, after its own last wait.
+        let own = inner.tasks.stop_and_wait().await;
+        inner.end();
+        if let Some(own) = own {
+            own.abort();
+        }
+        locked(&inner.task_failure).take().map_or(Ok(()), Err)
     }
 }
 
@@ -604,26 +663,60 @@ impl Inner {
         }
     }
 
-    fn put_kbs(&self, kbs: Vec<KnowledgeBase>) {
-        if self.closed() {
-            return;
-        }
-        save_knowledge_bases(self.storage.as_ref(), &kbs);
-        self.kbs.raise(kbs);
+    /// Run `work` for as long as the browser lives: `close` returns the
+    /// first failure of what it ran.
+    fn spawn(
+        self: &Arc<Self>,
+        work: impl Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
+        + Send
+        + 'static,
+    ) {
+        let failing = Arc::downgrade(self);
+        self.tasks.spawn(async move {
+            if let Err(failure) = work.await
+                && let Some(inner) = failing.upgrade()
+            {
+                let mut first = locked(&inner.task_failure);
+                if first.is_none() {
+                    *first = Some(failure);
+                }
+            }
+        });
     }
 
-    fn put_active_id(&self, id: Option<String>) {
+    fn put_kbs(
+        &self,
+        kbs: Vec<KnowledgeBase>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if self.closed() {
-            return;
+            return Ok(());
+        }
+        save_knowledge_bases(self.storage.as_ref(), &kbs)?;
+        self.kbs.raise(kbs);
+        Ok(())
+    }
+
+    fn put_active_id(
+        &self,
+        id: Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if self.closed() {
+            return Ok(());
         }
         match &id {
             Some(id) => self.storage.set(ACTIVE_KEY, id),
             None => self.storage.delete(ACTIVE_KEY),
-        }
+        }?;
         self.active_kb_id.set(id);
+        Ok(())
     }
 
-    fn update_kb(&self, id: &str, label: Option<&str>, last_read: Option<KbRead>) {
+    fn update_kb(
+        &self,
+        id: &str,
+        label: Option<&str>,
+        last_read: Option<KbRead>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut kbs = self.kbs.now();
         for kb in kbs.iter_mut().filter(|kb| kb.id == id) {
             if let Some(label) = label {
@@ -633,14 +726,14 @@ impl Inner {
                 kb.last_read = Some(last_read.clone());
             }
         }
-        self.put_kbs(kbs);
+        self.put_kbs(kbs)
     }
 
     async fn add_kb(
         self: &Arc<Self>,
         input: NewKnowledgeBase,
         session: &StoredSession,
-    ) -> KnowledgeBase {
+    ) -> Result<KnowledgeBase, Box<dyn std::error::Error + Send + Sync>> {
         let kb = KnowledgeBase {
             id: uuid::Uuid::new_v4().to_string(),
             label: input.label,
@@ -648,19 +741,23 @@ impl Inner {
             endpoint: input.endpoint,
             last_read: input.last_read,
         };
-        store_session(self.storage.as_ref(), &kb.id, session);
+        store_session(self.storage.as_ref(), &kb.id, session)?;
         let mut kbs = self.kbs.now();
         kbs.push(kb.clone());
-        self.put_kbs(kbs);
-        self.set_active_kb(Some(kb.id.clone())).await;
-        kb
+        self.put_kbs(kbs)?;
+        self.set_active_kb(Some(kb.id.clone())).await?;
+        Ok(kb)
     }
 
-    async fn sign_in(self: &Arc<Self>, id: &str, session: &StoredSession) {
+    async fn sign_in(
+        self: &Arc<Self>,
+        id: &str,
+        session: &StoredSession,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if self.closed() {
-            return;
+            return Ok(());
         }
-        store_session(self.storage.as_ref(), id, session);
+        store_session(self.storage.as_ref(), id, session)?;
         // A session it already has is on the old tokens: it is closed, and
         // the one built next reads the new ones.
         if self.active_kb_id.now().as_deref() == Some(id)
@@ -668,7 +765,7 @@ impl Inner {
         {
             ended.close().await;
         }
-        self.set_active_kb(Some(id.to_owned())).await;
+        self.set_active_kb(Some(id.to_owned())).await
     }
 
     // ── The active session ──────────────────────────────────────────────
@@ -692,22 +789,24 @@ impl Inner {
         self.active_session.raise(Some(session.clone()));
         self.project();
         let checking = self.clone();
-        self.tasks
-            .spawn(async move { checking.validate_open_resources(session).await });
+        self.spawn(async move { checking.validate_open_resources(session).await });
     }
 
-    async fn set_active_kb(self: &Arc<Self>, id: Option<String>) {
+    async fn set_active_kb(
+        self: &Arc<Self>,
+        id: Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if self.closed() {
-            return;
+            return Ok(());
         }
         let previous = self.active_kb_id.now();
         if id == previous && self.active_session.now().is_some() {
-            return;
+            return Ok(());
         }
         // Said at once: what is meant now is `id`, and no session is live.
         // An activation that waited reads this to learn it was overtaken.
         if previous != id {
-            self.put_active_id(id.clone());
+            self.put_active_id(id.clone())?;
         }
         let ended = self.take_session();
 
@@ -728,6 +827,7 @@ impl Inner {
             }
         }
         self.activating(-1);
+        Ok(())
     }
 
     fn activating(&self, change: isize) {
@@ -761,7 +861,11 @@ impl Inner {
                 return;
             }
         };
-        self.tasks.spawn(route(session.clone(), signals.clone()));
+        let routing = route(session.clone(), signals.clone());
+        self.spawn(async move {
+            routing.await;
+            Ok(())
+        });
         session.ready().await;
         if self.closed() || self.active_kb_id.now().as_deref() != Some(id) {
             Ended {
@@ -807,9 +911,12 @@ impl Inner {
 
     /// Change what is open in the active knowledge base, against what the
     /// storage holds, as one step.
-    fn mutate_open_resources(&self, mutate: impl Fn(Vec<OpenResource>) -> Vec<OpenResource>) {
+    fn mutate_open_resources(
+        &self,
+        mutate: impl Fn(Vec<OpenResource>) -> Vec<OpenResource>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let Some(kb_id) = self.live_kb_id() else {
-            return;
+            return Ok(());
         };
         let mut committed = None;
         self.storage
@@ -821,23 +928,30 @@ impl Inner {
                 let written = serde_json::to_string(&open).unwrap_or_default();
                 committed = Some(open);
                 Some(written)
-            });
+            })?;
         if let Some(open) = committed {
             locked(&self.kept).open_by_kb = open;
         }
         self.project();
+        Ok(())
     }
 
-    fn set_last_viewed_resource(&self, resource_id: &ResourceId) {
+    fn set_last_viewed_resource(
+        &self,
+        resource_id: &ResourceId,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let Some(kb_id) = self.live_kb_id() else {
-            return;
+            return Ok(());
         };
         self.mutate_last_viewed(|viewed| {
             viewed.insert(kb_id.clone(), resource_id.clone());
-        });
+        })
     }
 
-    fn mutate_last_viewed(&self, mutate: impl Fn(&mut HashMap<String, ResourceId>)) {
+    fn mutate_last_viewed(
+        &self,
+        mutate: impl Fn(&mut HashMap<String, ResourceId>),
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut committed = None;
         self.storage
             .update(LAST_VIEWED_RESOURCE_BY_KB_KEY, &mut |stored| {
@@ -846,15 +960,16 @@ impl Inner {
                 let written = serde_json::to_string(&viewed).unwrap_or_default();
                 committed = Some(viewed);
                 Some(written)
-            });
+            })?;
         if let Some(viewed) = committed {
             locked(&self.kept).last_viewed_by_kb = viewed;
         }
         self.project();
+        Ok(())
     }
 
     /// Forget what was open in a knowledge base and where the person was.
-    fn forget_kept_of(&self, kb_id: &str) {
+    fn forget_kept_of(&self, kb_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut open = None;
         self.storage
             .update(OPEN_RESOURCES_BY_KB_KEY, &mut |stored| {
@@ -863,13 +978,13 @@ impl Inner {
                 let written = serde_json::to_string(&by).unwrap_or_default();
                 open = Some(by);
                 Some(written)
-            });
+            })?;
         if let Some(open) = open {
             locked(&self.kept).open_by_kb = open;
         }
         self.mutate_last_viewed(|viewed| {
             viewed.remove(kb_id);
-        });
+        })
     }
 
     /// Another context changed what is open, or where the person was.
@@ -896,7 +1011,10 @@ impl Inner {
 
     // ── The checks a session's arrival starts ───────────────────────────
 
-    async fn validate_open_resources(self: &Arc<Self>, session: Arc<SemiontSession>) {
+    async fn validate_open_resources(
+        self: &Arc<Self>,
+        session: Arc<SemiontSession>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // The session's own knowledge base: by the time this runs, another
         // may be the active one.
         let kb_id = session.kb().id.clone();
@@ -911,13 +1029,14 @@ impl Inner {
         // Who it is, first: if a different knowledge base is answering,
         // every answer about a resource would be an answer to a question
         // asked of the wrong one.
-        if let KbReadVerdict::Conflict { observed_did, .. } = self.read_kb(&session, &kb_id).await {
+        if let KbReadVerdict::Conflict { observed_did, .. } = self.read_kb(&session, &kb_id).await?
+        {
             // The read was of this session's knowledge base: what it voids
             // is the active one's, so only while this is still the active one.
             if is_live(self) {
-                self.void_for_conflict(&kb_id, observed_did);
+                return self.void_for_conflict(&kb_id, observed_did);
             }
-            return;
+            return Ok(());
         }
 
         // What the storage holds, not what is in memory: another context
@@ -930,7 +1049,7 @@ impl Inner {
                 .map(|resource| resource.id)
                 .collect();
         if ids.is_empty() {
-            return;
+            return Ok(());
         }
         let waiting = Arc::new(Mutex::new(ids));
         let mut lanes = JoinSet::new();
@@ -951,9 +1070,10 @@ impl Inner {
         while let Some(lane) = lanes.join_next().await {
             checks.extend(lane.unwrap_or_default());
         }
-        if is_live(self) {
-            self.mutate_open_resources(|open| apply_tab_checks(open, &checks));
+        if !is_live(self) {
+            return Ok(());
         }
+        self.mutate_open_resources(|open| apply_tab_checks(open, &checks))
     }
 
     /// Ask the knowledge base to describe itself, against the entry it is
@@ -963,7 +1083,11 @@ impl Inner {
     /// A did is read one way only. It is not unique, so one that differs
     /// says a different knowledge base answered, and one that matches says
     /// nothing about what is in it: that is each resource's own check.
-    async fn read_kb(&self, session: &SemiontSession, kb_id: &str) -> KbReadVerdict {
+    async fn read_kb(
+        &self,
+        session: &SemiontSession,
+        kb_id: &str,
+    ) -> Result<KbReadVerdict, Box<dyn std::error::Error + Send + Sync>> {
         let Some(expected_did) = self
             .kbs
             .now()
@@ -971,34 +1095,38 @@ impl Inner {
             .find(|kb| kb.id == kb_id)
             .map(|kb| kb.did)
         else {
-            return KbReadVerdict::NoVerdict;
+            return Ok(KbReadVerdict::NoVerdict);
         };
         let Ok(description) = session.client().browse.kb().await else {
-            return KbReadVerdict::NoVerdict;
+            return Ok(KbReadVerdict::NoVerdict);
         };
         let observed_did = crate::identity::kb_did(&description.domain);
         if observed_did != expected_did {
-            return KbReadVerdict::Conflict {
+            return Ok(KbReadVerdict::Conflict {
                 observed_did,
                 observed_name: description.name,
-            };
+            });
         }
         if self.closed() {
-            return KbReadVerdict::NoVerdict;
+            return Ok(KbReadVerdict::NoVerdict);
         }
         self.update_kb(
             kb_id,
             Some(&description.name),
             Some(KbRead::of(&description, SystemTime::now())),
-        );
-        KbReadVerdict::Recorded
+        )?;
+        Ok(KbReadVerdict::Recorded)
     }
 
     /// What an activation does when a different knowledge base answered for
     /// the active entry: void what claims to be about the entry's contents,
     /// both at once, and raise the conflict. Registering the knowledge base
     /// that answered is a person's act.
-    fn void_for_conflict(&self, kb_id: &str, observed_did: String) {
+    fn void_for_conflict(
+        &self,
+        kb_id: &str,
+        observed_did: String,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let Some(expected_did) = self
             .kbs
             .now()
@@ -1006,18 +1134,19 @@ impl Inner {
             .find(|kb| kb.id == kb_id)
             .map(|kb| kb.did)
         else {
-            return;
+            return Ok(());
         };
-        self.mutate_open_resources(|_| Vec::new());
+        self.mutate_open_resources(|_| Vec::new())?;
         self.mutate_last_viewed(|viewed| {
             viewed.remove(kb_id);
-        });
+        })?;
         if let Some(signals) = self.active_signals.now() {
             signals.notify_kb_identity_conflict(KbIdentityConflict {
                 expected_did,
                 observed_did,
             });
         }
+        Ok(())
     }
 }
 
@@ -1169,21 +1298,26 @@ mod tests {
         kbs: [KnowledgeBase; 2],
     ) -> (SemiontBrowser, Arc<SemiontSession>) {
         let storage = Arc::new(SharedStorage::new());
-        save_knowledge_bases(storage.as_ref(), &kbs);
-        storage.set(ACTIVE_KEY, B);
+        save_knowledge_bases(storage.as_ref(), &kbs).expect("stored");
+        storage.set(ACTIVE_KEY, B).expect("stored");
         let opened = json!([{ "id": "r1", "name": "R1", "openedAt": 1, "order": 0 }]);
-        storage.set(
-            OPEN_RESOURCES_BY_KB_KEY,
-            &json!({ A: opened, B: opened }).to_string(),
-        );
-        storage.set(
-            LAST_VIEWED_RESOURCE_BY_KB_KEY,
-            &json!({ A: "r1", B: "r1" }).to_string(),
-        );
+        storage
+            .set(
+                OPEN_RESOURCES_BY_KB_KEY,
+                &json!({ A: opened, B: opened }).to_string(),
+            )
+            .expect("stored");
+        storage
+            .set(
+                LAST_VIEWED_RESOURCE_BY_KB_KEY,
+                &json!({ A: "r1", B: "r1" }).to_string(),
+            )
+            .expect("stored");
         let browser = SemiontBrowser::new(SemiontBrowserConfig {
             storage: storage.clone(),
             session_factory: Arc::new(gateways.sessions.clone()),
-        });
+        })
+        .expect("a browser");
         let mut live = browser.active_session();
         tokio::time::timeout(Duration::from_secs(60), live.wait_for(Option::is_some))
             .await
@@ -1233,7 +1367,11 @@ mod tests {
         let kbs = [entry(A, "example.org", 4000), entry(B, "example.org", 4001)];
         let (browser, stale) = replaced(&gateways, kbs).await;
 
-        browser.inner.validate_open_resources(stale).await;
+        browser
+            .inner
+            .validate_open_resources(stale)
+            .await
+            .expect("the checks are kept");
 
         let said = |id: &str| {
             let kbs = browser.kbs().borrow().clone();
@@ -1263,7 +1401,11 @@ mod tests {
         let kbs = [entry(A, "a.example", 4000), entry(B, "b.example", 4001)];
         let (browser, stale) = replaced(&gateways, kbs).await;
 
-        browser.inner.validate_open_resources(stale).await;
+        browser
+            .inner
+            .validate_open_resources(stale)
+            .await
+            .expect("the checks are kept");
 
         // A knowledge base that turned out to be another is asked who it is
         // and nothing of any resource.

@@ -362,7 +362,7 @@ to this machine. `open` shows the person the URL.
 let browser = SemiontBrowser::new(SemiontBrowserConfig {
     storage,
     session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
-});
+})?;
 
 // A person signs in at the issuer the knowledge base trusts, in their
 // own browser, and is sent back to a port on this machine.

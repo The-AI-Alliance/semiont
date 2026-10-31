@@ -136,16 +136,18 @@ fn script(access: &str, refresh: &str) -> StoredSession {
 /// Renew a knowledge base's session as a client does: its new tokens, written
 /// against what is stored.
 fn renew(store: &SignInStore, kb_id: &str, access: &str, refresh: &str) {
-    store.update(&session_key(kb_id), &mut |current| {
-        StoredSession::read(current?).map(|current| {
-            StoredSession {
-                access: access.to_owned(),
-                refresh: refresh.to_owned(),
-                ..current
-            }
-            .written()
+    store
+        .update(&session_key(kb_id), &mut |current| {
+            StoredSession::read(current?).map(|current| {
+                StoredSession {
+                    access: access.to_owned(),
+                    refresh: refresh.to_owned(),
+                    ..current
+                }
+                .written()
+            })
         })
-    });
+        .expect("stored");
 }
 
 #[test]
@@ -262,7 +264,7 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
 fn the_file_is_written_whole_for_its_owner_alone() {
     use std::os::unix::fs::PermissionsExt;
     let home = Home::new();
-    store_session(&home.store(), "local", &script(&issued("a1"), "r1"));
+    store_session(&home.store(), "local", &script(&issued("a1"), "r1")).expect("stored");
 
     let text = std::fs::read_to_string(home.path()).expect("the file is there");
     assert!(
@@ -295,8 +297,8 @@ fn a_new_sign_in_states_who_signed_in_and_at_which_issuer() {
     let store = home.store();
     let named = jwt(json!({ "iss": ISSUER, "email": "bob@example.org", "exp": 4_102_444_799u64 }));
 
-    store_session(&store, "local", &script(&named, "r1"));
-    store_session(&store, "codespace:owner/name", &script(&issued("a2"), "r2"));
+    store_session(&store, "local", &script(&named, "r1")).expect("stored");
+    store_session(&store, "codespace:owner/name", &script(&issued("a2"), "r2")).expect("stored");
 
     assert_eq!(
         home.document()["local"],
@@ -327,12 +329,12 @@ fn a_sign_in_over_another_persons_states_who_signed_in_now_and_at_which_issuer()
     let home = Home::new();
     let store = home.store();
     let alices = jwt(json!({ "iss": ISSUER, "email": "alice@example.org" }));
-    store_session(&store, "local", &script(&alices, "r-alice"));
+    store_session(&store, "local", &script(&alices, "r-alice")).expect("stored");
     assert_eq!(home.document()["local"]["email"], "alice@example.org");
 
     let elsewhere = "https://elsewhere.test/realms/semiont";
     let bobs = jwt(json!({ "iss": elsewhere, "email": "bob@example.org" }));
-    store_session(&store, "local", &script(&bobs, "r-bob"));
+    store_session(&store, "local", &script(&bobs, "r-bob")).expect("stored");
 
     let document = home.document();
     let entry = &document["local"];
@@ -349,7 +351,7 @@ fn a_sign_in_whose_token_names_no_address_is_kept_without_one() {
     let store = home.store();
     let unaddressed = jwt(json!({ "iss": ISSUER, "sub": "an-account" }));
 
-    store_session(&store, "local", &script(&unaddressed, "r1"));
+    store_session(&store, "local", &script(&unaddressed, "r1")).expect("stored");
 
     let document = home.document();
     let entry = &document["local"];
@@ -376,8 +378,8 @@ fn a_session_whose_token_names_no_issuer_is_not_kept_and_that_is_said() {
     let store = home.store();
     let from_nowhere = jwt(json!({ "email": "bob@example.org" }));
 
-    store_session(&store, "local", &script(&from_nowhere, "r1"));
-    store_session(&store, "local", &script("opaque", "r1"));
+    store_session(&store, "local", &script(&from_nowhere, "r1")).expect("stored");
+    store_session(&store, "local", &script("opaque", "r1")).expect("stored");
 
     // Nothing is made up for it, and it is kept nowhere.
     assert_eq!(
@@ -404,7 +406,7 @@ fn a_session_of_another_client_is_kept_beneath_and_the_launchers_entry_is_left()
         ..script("b1", "rb")
     };
 
-    store_session(&store, "local", &browsers);
+    store_session(&store, "local", &browsers).expect("stored");
 
     // It is this application's session of that knowledge base now.
     assert_eq!(stored_session(&store, "local"), Some(browsers.clone()));
@@ -413,7 +415,7 @@ fn a_session_of_another_client_is_kept_beneath_and_the_launchers_entry_is_left()
 
     // A sign-in as the script client replaces it, in the file.
     let signed_in = issued("a2");
-    store_session(&store, "local", &script(&signed_in, "r2"));
+    store_session(&store, "local", &script(&signed_in, "r2")).expect("stored");
     assert_eq!(
         stored_session(&store, "local"),
         Some(script(&signed_in, "r2"))
@@ -431,8 +433,10 @@ fn signing_out_removes_the_entry_and_no_other() {
     }));
     let store = home.store();
 
-    store.delete(&session_key("local"));
-    store.delete(&session_key("never-signed-in"));
+    store.delete(&session_key("local")).expect("stored");
+    store
+        .delete(&session_key("never-signed-in"))
+        .expect("stored");
 
     assert_eq!(
         home.document(),
@@ -448,29 +452,35 @@ fn a_change_is_made_against_what_the_file_holds_and_one_that_changes_nothing_wri
     let before = std::fs::read_to_string(home.path()).expect("the file is there");
 
     let mut seen = None;
-    store.update(&session_key("local"), &mut |current| {
-        seen = current.map(str::to_owned);
-        current.map(str::to_owned)
-    });
+    store
+        .update(&session_key("local"), &mut |current| {
+            seen = current.map(str::to_owned);
+            current.map(str::to_owned)
+        })
+        .expect("stored");
     assert_eq!(seen, Some(script("a1", "r1").written()));
     assert_eq!(
         std::fs::read_to_string(home.path()).expect("the file is there"),
         before
     );
 
-    store.update(&session_key("local"), &mut |current| {
-        StoredSession::read(current?).map(|session| {
-            StoredSession {
-                access: "a2".to_owned(),
-                ..session
-            }
-            .written()
+    store
+        .update(&session_key("local"), &mut |current| {
+            StoredSession::read(current?).map(|session| {
+                StoredSession {
+                    access: "a2".to_owned(),
+                    ..session
+                }
+                .written()
+            })
         })
-    });
+        .expect("stored");
     assert_eq!(home.document()["local"]["token"], "a2");
     assert_eq!(home.document()["local"]["refreshToken"], "r1");
 
-    store.update(&session_key("local"), &mut |_| None);
+    store
+        .update(&session_key("local"), &mut |_| None)
+        .expect("stored");
     assert_eq!(home.document(), json!({}));
 }
 
@@ -479,14 +489,16 @@ fn everything_that_is_not_a_sign_in_is_kept_beneath() {
     let home = Home::new();
     let store = home.store();
 
-    store.set("semiont.knowledgeBases", "[]");
-    store.update("semiont.openResourcesByKb", &mut |_| Some("{}".to_owned()));
+    store.set("semiont.knowledgeBases", "[]").expect("stored");
+    store
+        .update("semiont.openResourcesByKb", &mut |_| Some("{}".to_owned()))
+        .expect("stored");
     assert_eq!(store.get("semiont.knowledgeBases").as_deref(), Some("[]"));
     assert_eq!(
         home.rest.get("semiont.openResourcesByKb").as_deref(),
         Some("{}")
     );
-    store.delete("semiont.knowledgeBases");
+    store.delete("semiont.knowledgeBases").expect("stored");
     assert_eq!(store.get("semiont.knowledgeBases"), None);
     // The file was never needed.
     assert!(!home.path().exists());
@@ -500,8 +512,8 @@ fn a_file_that_cannot_be_read_is_said_and_is_never_written_over() {
     let store = home.store();
 
     assert_eq!(stored_session(&store, "local"), None);
-    store_session(&store, "local", &script("a1", "r1"));
-    store.delete(&session_key("local"));
+    store_session(&store, "local", &script("a1", "r1")).expect("stored");
+    store.delete(&session_key("local")).expect("stored");
 
     assert_eq!(home.failures().len(), 3);
     assert!(
@@ -531,7 +543,8 @@ fn two_writers_of_one_file_lose_nothing_of_each_others() {
             let store = home.store();
             std::thread::spawn(move || {
                 for n in 0..rounds {
-                    store_session(&store, key, &script(&issued(&format!("{key}-{n}")), "r"));
+                    store_session(&store, key, &script(&issued(&format!("{key}-{n}")), "r"))
+                        .expect("stored");
                 }
             })
         })

@@ -72,6 +72,11 @@ fn not_renewed(failure: Option<String>) -> String {
     }
 }
 
+/// Why a session failed, and why its credential could not be forgotten.
+fn not_forgotten(why: String, forgotten: &(dyn std::error::Error + Send + Sync)) -> String {
+    format!("{why}; and the sign-in could not be forgotten: {forgotten}")
+}
+
 pub struct SemiontSessionConfig {
     pub kb: KbTarget,
     /// Where the session's tokens are kept.
@@ -406,7 +411,10 @@ impl Shared {
     /// the session ended.
     fn signed_out(&self, told: SessionEndReason, code: SessionErrorCode, why: String) {
         self.token.set(None);
-        clear_stored_session(self.storage.as_ref(), &self.kb.id);
+        let why = match clear_stored_session(self.storage.as_ref(), &self.kb.id) {
+            Ok(()) => why,
+            Err(forgotten) => not_forgotten(why, forgotten.as_ref()),
+        };
         if let Some(on_auth_failed) = &self.on_auth_failed {
             on_auth_failed(told);
         }
@@ -431,10 +439,18 @@ impl Shared {
         let Some(stored) = stored else { return };
         let expired = is_token_expired(&stored.access, SystemTime::now());
         let mut token = if expired {
-            match self.try_refresh().await.0 {
-                Some(renewed) => renewed,
-                None => {
-                    clear_stored_session(self.storage.as_ref(), &self.kb.id);
+            match self.try_refresh().await {
+                (Some(renewed), _) => renewed,
+                (None, failure) => {
+                    // There was no session to end: the credential is
+                    // forgotten, and nothing is said unless it could not be.
+                    if let Err(forgotten) = clear_stored_session(self.storage.as_ref(), &self.kb.id)
+                    {
+                        self.failed(
+                            SessionErrorCode::RefreshExhausted,
+                            not_forgotten(not_renewed(failure), forgotten.as_ref()),
+                        );
+                    }
                     return;
                 }
             }

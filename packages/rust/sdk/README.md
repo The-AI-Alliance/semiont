@@ -222,7 +222,7 @@ flow over that session's client. Each is read through a
 let browser = SemiontBrowser::new(SemiontBrowserConfig {
     storage,
     session_factory,
-});
+})?;
 let mut live = browser.active_session();
 let session = live.wait_for(Option::is_some).await?.clone();
 
@@ -433,7 +433,9 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
   end together: what a script's sign-in gives.
 - **`SemiontBrowser`** is what an application holds: the knowledge bases a
   person has registered, which one is active, the active one's session, and
-  what the person has open in each. One session is live at a time.
+  what the person has open in each. One session is live at a time. A write
+  its storage refuses changes nothing: the method that wrote returns the
+  storage's own error, and `close` returns one made in the background.
 - **`SessionSignals`** is what a host shows about a session: that it ended
   and why, that a request was refused for lack of permission, or that a
   different knowledge base is answering. A signal says what happened. The
@@ -443,7 +445,10 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
   `semiont-http-transport` has the one over a gateway.
 
 What must outlive a client is kept in a `SessionStorage`
-(`semiont::storage`). `semiont::sign_in_store` is the sign-ins
+(`semiont::storage`). A write it could not make is its own error, a
+`Box<dyn std::error::Error + Send + Sync>`; a cache's save that fails is a
+warning through the `log` facade, and the cache goes on as it was.
+`semiont::sign_in_store` is the sign-ins
 `semiont login` keeps ([sign-in store](../../../specs/src/sign-in-store/README.md)),
 as a `SessionStorage`, so one sign-in serves the launcher and an application
 built on this SDK.
@@ -478,7 +483,7 @@ dropping cannot do: wait.
 | `SemiontClient` | Its queries end, its transport closes so that every request still pending fails as closed, and its own bus ends. | Its queries and its own bus end. The transport is left to whoever else holds it. |
 | `SemiontSession` | It is a state unit: `dispose()`, which is not async, stops its renewal and ends what it holds. Its client is left open. | The same. |
 | `OpenedSession` | Its session ends, then its client is closed. | Its session ends. The client is dropped with it, not closed. |
-| `SemiontBrowser` | The active session ends, then its client is closed, and everything it holds ends. | Everything it holds ends. The active session is dropped, and its client with it, not closed. |
+| `SemiontBrowser` | The active session ends, then its client is closed, and everything it holds ends. The first failure of what it ran in the background is its error. | Everything it holds ends. The active session is dropped, and its client with it, not closed. |
 | a state unit | `dispose()`, which is not async: it is inert and its readers have ended. | The same. |
 | `Running<T>`, `Delegation<C>`, `Upload` | | The operation is abandoned; an upload is cancelled. |
 | a watcher of a query | | The resource's scope it held is let go. |
