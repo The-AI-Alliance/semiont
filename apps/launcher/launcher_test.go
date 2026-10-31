@@ -8118,7 +8118,7 @@ func otherLocalKB(t *testing.T) string {
 // knowledge base added from the first, offered its engines, goes unserved
 // until the first's next start, which says so too; that start takes the
 // second off in turn. A re-run that finds the worker serving its list keeps
-// it.
+// it; a start that finds it serving another restarts it.
 func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
 	gateway := otherKBGateway(t)
 	s := newScenario(t, "container")
@@ -8175,11 +8175,15 @@ func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
 	if again := strings.TrimPrefix(s.argv(t), before); strings.Contains(again, "run -d --name semiont-worker") {
 		t.Errorf("a re-run serving the same list restarted the worker:\n%s", again)
 	}
-	stop()
-	s.extraEnv = nil
 
+	// The first's next start finds the worker running, serving another list,
+	// and restarts it.
 	s.kb = first
+	before = s.argv(t)
 	stdout = start("the first knowledge base's next start")
+	if again := strings.TrimPrefix(s.argv(t), before); !strings.Contains(again, "run -d --name semiont-worker") {
+		t.Errorf("a start whose list differs kept the worker:\n%s", again)
+	}
 	mustContain(t, "the first's next start", stdout,
 		"worker — example.github.io:other-kb leaves its list: this start's gateway takes the port its gateway was on")
 	mustNotContain(t, "the first's next start", stdout, "goes unserved")
