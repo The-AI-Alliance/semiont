@@ -28,6 +28,7 @@ use semiont::types::{
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -1831,6 +1832,95 @@ async fn a_browser_closed_from_inside_its_own_work_ends_everything_and_its_close
     assert!(session.has_changed().is_err());
     assert!(browser.bus().destroyed());
     assert_eq!(said(browser.close().await), None);
+}
+
+/// The world's storage, whose first update of what is open waits until it
+/// is let go, and is then refused.
+struct Holding {
+    beneath: SharedStorage,
+    /// Told when that update has begun.
+    begun: Mutex<Option<mpsc::Sender<()>>>,
+    let_go: Mutex<mpsc::Receiver<()>>,
+}
+
+impl SessionStorage for Holding {
+    fn get(&self, key: &str) -> Option<String> {
+        self.beneath.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.set(key, value)
+    }
+
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.beneath.delete(key)
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let begun = match key {
+            OPEN_RESOURCES_BY_KB_KEY => self.begun.lock().expect("begun").take(),
+            _ => None,
+        };
+        let Some(begun) = begun else {
+            return self.beneath.update(key, change);
+        };
+        begun.send(()).expect("the test listens");
+        self.let_go
+            .lock()
+            .expect("let go")
+            .recv()
+            .expect("the test lets it go");
+        Err(full())
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.beneath.subscribe(on_change)
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_failure_of_work_still_running_when_the_browser_is_closed_is_what_closing_says() {
+    let world = World::with(&[kb_a()]);
+    opened(&world, A, &["kept", "gone"]);
+    world.factory.behind().gone.insert("gone".to_owned());
+    let (begun, has_begun) = mpsc::channel();
+    let (let_go, letting_go) = mpsc::channel();
+    let browser = Arc::new(world.browser_over(Arc::new(Holding {
+        beneath: world.storage.context(),
+        begun: Mutex::new(Some(begun)),
+        let_go: Mutex::new(letting_go),
+    })));
+    // The checks of the session's arrival are writing what they found.
+    tokio::task::spawn_blocking(move || has_begun.recv_timeout(Duration::from_secs(10)))
+        .await
+        .expect("the wait ran")
+        .expect("the checks write");
+
+    let closing = tokio::spawn({
+        let browser = browser.clone();
+        async move { said(browser.close().await) }
+    });
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !closed(&world.factory.transports(A)[0]) {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+    })
+    .await
+    .expect("the session is closed");
+    // The session is closed, and closing waits for the checks to stop.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(!closing.is_finished());
+
+    let_go.send(()).expect("the write waits");
+    let failure = tokio::time::timeout(Duration::from_secs(10), closing)
+        .await
+        .expect("closing returns")
+        .expect("closing ran");
+    assert_eq!(failure.as_deref(), Some("the storage is full"));
 }
 
 #[tokio::test(start_paused = true)]

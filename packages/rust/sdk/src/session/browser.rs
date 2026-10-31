@@ -577,19 +577,23 @@ impl SemiontBrowser {
     }
 
     /// End the browser: its session is closed, and everything it holds ends.
-    /// The first failure of what it ran in the background is the error.
-    /// Closing twice is closing once.
+    /// It returns once what it was running has stopped, and the first
+    /// failure of any of it is the error. Closing twice is closing once.
     pub async fn close(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let inner = &self.inner;
         if inner.closed.swap(true, Ordering::SeqCst) {
             return Ok(());
         }
-        // What it runs is stopped after the last wait: a close made from
-        // inside that work returns before the work is stopped with it.
         if let Some(ended) = inner.take_session() {
             ended.close().await;
         }
+        // A close made from inside the browser's own work does not wait for
+        // the task it runs in, and stops it last, after its own last wait.
+        let own = inner.tasks.stop_and_wait().await;
         inner.end();
+        if let Some(own) = own {
+            own.abort();
+        }
         locked(&inner.task_failure).take().map_or(Ok(()), Err)
     }
 }
