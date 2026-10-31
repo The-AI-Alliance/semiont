@@ -22,7 +22,8 @@ use std::fs;
 use std::path::PathBuf;
 
 /// The schemas only the services read.
-const SERVICE_SCHEMAS: [&str; 16] = [
+const SERVICE_SCHEMAS: [&str; 17] = [
+    "KbIdentity",
     "GatewayConfig",
     "DispatcherConfig",
     "JobRecord",

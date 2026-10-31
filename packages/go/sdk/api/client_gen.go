@@ -3346,6 +3346,9 @@ type DispatcherConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	Kb KbIdentity `json:"kb"`
+
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`
 
@@ -3660,14 +3663,8 @@ type GatewayConfig struct {
 		SubjectClaim string `json:"subjectClaim"`
 	} `json:"identity"`
 
-	// Kb The knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml).
-	Kb struct {
-		// Domain Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.
-		Domain string `json:"domain"`
-
-		// Name Its name, published as the resource metadata's `resource_name`.
-		Name string `json:"name"`
-	} `json:"kb"`
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`
@@ -4929,6 +4926,15 @@ type KbEndpoint struct {
 	union json.RawMessage
 }
 
+// KbIdentity A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+type KbIdentity struct {
+	// Domain Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.
+	Domain string `json:"domain"`
+
+	// Name Its name. The gateway publishes it as its resource metadata's `resource_name`.
+	Name string `json:"name"`
+}
+
 // KbRead When a knowledge base last described itself, and what it said beyond its name. A client shows it as current only while a session to the knowledge base is live, and as of `at` otherwise.
 type KbRead struct {
 	// At When the description arrived.
@@ -5022,6 +5028,9 @@ type LibrarianConfig struct {
 		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
+
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`
@@ -6409,6 +6418,9 @@ type SmelterConfig struct {
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
 
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	Kb KbIdentity `json:"kb"`
+
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`
 
@@ -6707,6 +6719,9 @@ type WeaverConfig struct {
 		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
 		Issuer string `json:"issuer"`
 	} `json:"identity"`
+
+	// Kb A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+	Kb KbIdentity `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
 	LogFormat LogFormat `json:"logFormat"`

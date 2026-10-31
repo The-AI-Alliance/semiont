@@ -107,7 +107,7 @@ eachLibrarian('what a Librarian exports', (world) => {
 
     const answered = spanName('bus.emit:{channel}', { channel: 'gather:resource-complete' });
     const span = await eventually('the span of a gather it answered', 15_000, () => otlp().spans.find((s) => s.name === answered));
-    expect(span.service).toBe('semiont-librarian');
+    expect(span.resource['service.name']).toBe('semiont-librarian');
 
     // Each way a request of a model ends, the tokens read and written, and each thing a gather went without.
     await everyValueOf('semiont.inference.calls', 'inference.outcome');
@@ -115,6 +115,6 @@ eachLibrarian('what a Librarian exports', (world) => {
     await everyValueOf('semiont.inference.tokens', 'inference.direction');
     await everyValueOf('semiont.gather.degraded', 'projection');
 
-    expect(await outsideTheTable(otlp(), 'librarian'), received(otlp())).toEqual([]);
+    expect(await outsideTheTable(otlp(), 'librarian', world().kb.world.served.domain), received(otlp())).toEqual([]);
   }, 300_000);
 });

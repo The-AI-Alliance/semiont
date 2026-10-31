@@ -32,14 +32,11 @@ func gatewaySecrets(p placement) []string {
 }
 
 // gatewayDocument renders the document from the start's placement and the
-// KB's committed identity.
-func gatewayDocument(p placement, kbName, kbDomain string) ([]byte, error) {
-	if kbDomain == "" {
-		return nil, fmt.Errorf("the knowledge base declares no site.domain in its .semiont/config.yaml: the gateway has no identity to run under")
-	}
+// knowledge base it serves.
+func gatewayDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	kb := p.st.KnowledgeBase.Spec
 	var doc api.GatewayConfig
-	doc.Kb.Name, doc.Kb.Domain = kbName, kbDomain
+	doc.Kb = served
 	doc.Port = p.plan.GatewayPort
 	doc.PublicUrl = kb.Gateway.PublicURL
 	doc.Identity.Issuer = p.issuer()

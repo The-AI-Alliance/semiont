@@ -100,6 +100,7 @@ names. The launcher writes it for the Weaver it starts, resolved, and mounts it 
 
 | Member | |
 | --- | --- |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | where the Archivist listens: it reads the record by position there, and a resource's annotations |
@@ -114,8 +115,9 @@ password (`NEO4J_PASSWORD`, for a Neo4j the launcher runs). It signs in as itsel
 gateway names it by its account: `did:web:<the knowledge base's domain>:agents:<its subject at
 the issuer>`.
 
-**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-weaver`: what every
-service says of its own process, and a span for each frame it sends and receives on the bus
+**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-weaver`, naming the
+knowledge base it serves by its DID (`semiont.kb`): what every service says of its own process,
+and a span for each frame it sends and receives on the bus
 ([WEAVER.md § Telemetry](../../docs/protocol/WEAVER.md#telemetry)). The launcher sets the
 endpoint for a stack it runs. Without it the Weaver exports nothing, unless
 `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the

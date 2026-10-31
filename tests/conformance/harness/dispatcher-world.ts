@@ -284,6 +284,7 @@ export class DispatcherWorld {
       ...options.env,
     };
     const settings: DispatcherSettings = {
+      kb: world.served,
       gatewayUrl: world.origin,
       identity: { issuer: world.issuer.origin },
       queue: { servers: broker.url, ...credentials },

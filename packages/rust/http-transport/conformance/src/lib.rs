@@ -194,9 +194,12 @@ async fn answer(running: Arc<Running>, id: u64, operation: JoinHandle<Result<Val
 pub async fn serve<D: Driver>(driver: D) {
     let _ = rustls::crypto::ring::default_provider().install_default();
     // Exports only when the suite names an OTLP endpoint in the environment.
-    if let Err(error) =
-        telemetry::initialize("semiont-conformance-driver", env!("CARGO_PKG_VERSION"))
-    {
+    // A driver serves no knowledge base, so its resource names none.
+    if let Err(error) = telemetry::initialize(
+        "semiont-conformance-driver",
+        env!("CARGO_PKG_VERSION"),
+        None,
+    ) {
         eprintln!("telemetry: {error}");
     }
     let driver = Arc::new(driver);

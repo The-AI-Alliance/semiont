@@ -18,6 +18,7 @@ import { eachSmelter } from '../harness/smelter-world';
  * refusal names.
  */
 const REQUIRED: ReadonlyArray<[what: string, without: (settings: SmelterSettings) => SmelterSettings, named: RegExp]> = [
+  ['the knowledge base it serves', (settings) => ({ ...settings, kb: undefined }), /Missing required property: kb\b/],
   ["the gateway's URL", (settings) => ({ ...settings, gatewayUrl: undefined }), /gatewayUrl/],
   ['the issuer', (settings) => ({ ...settings, issuer: undefined }), /issuer/],
   ["the Archivist's address", (settings) => ({ ...settings, archivist: undefined }), /archivist/],

@@ -157,7 +157,8 @@ def main() -> int:
     exporting: Exporting | None = None
     try:
         started = boot(sys.argv[1:], os.environ)
-        exporting = install(SERVICE, os.environ)
+        # Its document names no knowledge base, and its telemetry names none.
+        exporting = install(SERVICE, os.environ, kb=None)
         asyncio.run(_serve(started, exporting))
     except Exception as failure:
         # Whatever ends the service that was not its being told to stop is said once, as every service says it.

@@ -874,7 +874,9 @@ focused on a resource or on an annotation.
 ## Telemetry
 
 - **T1.** A service started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
-  `semiont-worker`, exactly what
+  `semiont-worker`, under a resource of exactly the keys the table's
+  `resource` rows list for the worker: its name and its version, and no
+  knowledge base. It exports exactly what
   [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
   lists for the worker, and the rows of
   [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)

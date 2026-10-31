@@ -40,6 +40,7 @@ from pydantic import JsonValue
 from semiont.bus import reply_channels_for
 from semiont.channels import PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.identity import kb_did
 from semiont.types import SmelterConfig
 from semiont_service.archivist import Archivist
 from semiont_service.config import Refused, config_path_of, service_account_of
@@ -212,7 +213,7 @@ def main() -> int:
     exporting: Exporting | None = None
     try:
         started = boot(sys.argv[1:], os.environ)
-        exporting = install(SERVICE, os.environ)
+        exporting = install(SERVICE, os.environ, kb=kb_did(started.config.kb.domain))
         asyncio.run(_serve(started, exporting))
     except Exception as failure:
         # Whatever ends the service that was not its being told to stop is said once, as every service says it.

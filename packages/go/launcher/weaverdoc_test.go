@@ -41,7 +41,7 @@ func weaverDocumentFrom(t *testing.T, b []byte) (api.WeaverConfig, api.Neo4jGrap
 
 func weaverDocumentOf(t *testing.T, p placement) (api.WeaverConfig, api.Neo4jGraphConfig) {
 	t.Helper()
-	b, err := weaverDocument(p)
+	b, err := weaverDocument(p, exampleKB)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -333,8 +333,28 @@ export interface Telemetry {
   metrics: TelemetryRow[];
 }
 
+/** A row of the service table's `resource`: an attribute of the resource a service exports under, and the services that carry it. */
+interface ResourceRow {
+  key: string;
+  services: TelemetryService[];
+  meaning: string;
+}
+
+function resourceRows(rows: unknown): ResourceRow[] {
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error(`${SERVICE_TABLE} states no \`resource\`: the attributes every service's spans and metrics are exported under`);
+  return rows.map((r) => {
+    if (!isObject(r) || typeof r['key'] !== 'string' || typeof r['meaning'] !== 'string') throw new Error(`${SERVICE_TABLE}: a resource row is malformed: ${JSON.stringify(r)}`);
+    const { key, services, meaning } = r;
+    if (!Array.isArray(services) || services.length === 0 || !services.every(isTelemetryService)) {
+      throw new Error(`${SERVICE_TABLE}: the resource's ${key} names no services, or one that is not ${TELEMETRY_SERVICES.join(' or ')}`);
+    }
+    return { key, services, meaning };
+  });
+}
+
 interface Tables {
   service: { spans: ServiceRow[]; metrics: ServiceRow[] };
+  resource: ResourceRow[];
   /**
    * For each service that reaches the bus through an SDK, what of the SDK
    * table it exports: each entry a transport, for all of its rows, or the
@@ -363,6 +383,7 @@ function telemetryTables(): Tables {
   }
   tables = {
     service: { spans: serviceRows(service['spans'], 'kind'), metrics: serviceRows(service['metrics'], 'instrument') },
+    resource: resourceRows(service['resource']),
     through,
     sdk: { spans: sdkRows(sdk['spans'], 'kind'), metrics: sdkRows(sdk['metrics'], 'instrument') },
   };
@@ -385,6 +406,11 @@ export function telemetry(service: TelemetryService): Telemetry {
   const used = through[service] ?? [];
   const of = (rows: ServiceRow[], shared: SdkRow[]): TelemetryRow[] => [...rows.filter((r) => r.services.includes(service)), ...shared.filter((r) => used.includes(r.transport) || used.includes(r.name))];
   return { spans: of(own.spans, sdk.spans), metrics: of(own.metrics, sdk.metrics) };
+}
+
+/** The keys of the resource `service` exports every span and metric under: exactly these (the service table's `resource`). */
+export function resourceKeys(service: TelemetryService): string[] {
+  return telemetryTables().resource.filter((r) => r.services.includes(service)).map((r) => r.key);
 }
 
 /**

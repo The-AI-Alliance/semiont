@@ -34,6 +34,8 @@ export interface ModelSettings {
  * holds what a Librarian does without it.
  */
 export interface LibrarianSettings {
+  /** The knowledge base it serves, which its telemetry names. */
+  kb?: LibrarianDocument['kb'];
   gatewayUrl?: LibrarianDocument['gatewayUrl'];
   /** The issuer its service account signs in at. */
   issuer?: LibrarianDocument['identity']['issuer'];
@@ -112,6 +114,7 @@ const actor = (settings: ModelSettings | undefined): LibrarianDocument['matcher'
  */
 function document(settings: LibrarianSettings, port: number): string {
   const written: WrittenDocument = {
+    kb: settings.kb,
     gatewayUrl: settings.gatewayUrl,
     identity: { issuer: settings.issuer },
     archivist: settings.archivist,

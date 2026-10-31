@@ -172,7 +172,6 @@ __all__ = [
     "GatewayConfigArchivist",
     "GatewayConfigCapacity",
     "GatewayConfigIdentity",
-    "GatewayConfigKb",
     "GatewayConfigSignal",
     "GatewayConfigSignalType",
     "GatherAnnotationComplete",
@@ -281,6 +280,7 @@ __all__ = [
     "JobType",
     "KbDescription",
     "KbEndpoint",
+    "KbIdentity",
     "KbRead",
     "KbTarget",
     "KnowledgeBase",
@@ -2228,6 +2228,28 @@ type ReplyEventId = Annotated[
 ]
 
 
+class KbIdentity(WireModel, frozen=True, extra="forbid"):
+    """
+    A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+    """
+
+    name: Annotated[
+        str,
+        Field(
+            description="Its name. The gateway publishes it as its resource metadata's `resource_name`.",
+            min_length=1,
+        ),
+    ]
+    domain: Annotated[
+        str,
+        Field(
+            description="Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.",
+            min_length=1,
+            pattern="^\\S+$",
+        ),
+    ]
+
+
 class ResourceUpload(WireModel, frozen=True):
     """
     The multipart upload that creates a resource. A client sends it to the gateway's `POST /resources`; the gateway forwards it untouched to the Archivist's `POST /resources`, which stores the bytes and records the resource. One body, two hops.
@@ -3297,27 +3319,6 @@ type BusResumeGapReason = Annotated[
         description="`unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read."
     ),
 ]
-
-
-class GatewayConfigKb(WireModel, frozen=True, extra="forbid"):
-    """
-    The knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml).
-    """
-
-    name: Annotated[
-        str,
-        Field(
-            description="Its name, published as the resource metadata's `resource_name`.",
-            min_length=1,
-        ),
-    ]
-    domain: Annotated[
-        str,
-        Field(
-            description="Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.",
-            min_length=1,
-        ),
-    ]
 
 
 class GatewayConfigIdentity(WireModel, frozen=True, extra="forbid"):
@@ -5112,6 +5113,7 @@ class DispatcherConfig(WireModel, frozen=True, extra="forbid"):
     Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
     """
 
+    kb: KbIdentity
     gateway_url: Annotated[
         str,
         Field(
@@ -5765,7 +5767,7 @@ class GatewayConfig(WireModel, frozen=True, extra="forbid"):
     Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
     """
 
-    kb: GatewayConfigKb
+    kb: KbIdentity
     port: Annotated[
         int,
         Field(
@@ -5889,6 +5891,7 @@ class WeaverConfig(WireModel, frozen=True, extra="forbid"):
     Everything a Weaver reads at boot: nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the knowledge base's stack documents, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
     """
 
+    kb: KbIdentity
     gateway_url: Annotated[
         str,
         Field(
@@ -5914,6 +5917,7 @@ class SmelterConfig(WireModel, frozen=True, extra="forbid"):
     Everything a Smelter reads at boot: nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the knowledge base's stack documents, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
     """
 
+    kb: KbIdentity
     gateway_url: Annotated[
         str,
         Field(
@@ -6437,6 +6441,7 @@ class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
     Everything a Librarian reads at boot: nothing in it is defaulted by the Librarian. Whoever starts a Librarian writes it, from the knowledge base's stack documents, and the Librarian reads it from the path its `--config` flag names. This schema is the contract, and a Librarian needs no launcher. Started without `--config`, or with a path that names no file, the Librarian refuses to start and says which. No secret is a value here: the graph database's password, an embedding provider's key and a model provider's key are each named by the environment variable that holds it, and the Librarian's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
     """
 
+    kb: KbIdentity
     gateway_url: Annotated[
         str,
         Field(

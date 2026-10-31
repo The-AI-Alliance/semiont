@@ -10,7 +10,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { metricName, spanName, spec, telemetry, type TelemetryRow } from '../harness/spec';
-import { outsideTheTable, SPAN_KIND } from '../harness/telemetry';
+import { outsideTheTable, received, SPAN_KIND } from '../harness/telemetry';
 import { eachWorkerService, type RunningJob, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { counting, markJob, settled, TEXT } from './support';
 
@@ -126,20 +126,6 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
   return { served, jobs };
 }
 
-/** Everything the receiver got, by name: for a failing case to show. */
-function received(): string {
-  const spans = new Map<string, { kind: number; keys: Set<string>; service: Set<string | undefined> }>();
-  for (const span of otlp().spans) {
-    const name = span.name.replace(/^(bus\.(?:emit|recv)):.*$/, '$1:{channel}');
-    const seen = spans.get(name) ?? { kind: span.kind, keys: new Set<string>(), service: new Set<string | undefined>() };
-    for (const key of Object.keys(span.attributes)) seen.keys.add(`${key}=${name.startsWith('bus.') || key.endsWith('.id') ? '…' : String(span.attributes[key])}`);
-    seen.service.add(span.service);
-    spans.set(name, seen);
-  }
-  const metrics = [...otlp().metrics].map(([name, m]) => `${name} [${[...m.instruments].join(',')}] ${[...m.attributes].map(([k, v]) => `${k}=${k === 'bus.channel' ? '…' : [...v].sort().join('|')}`).join(' ')}`);
-  return ['spans:', ...[...spans].map(([name, s]) => `  ${name} kind=${s.kind} service=${[...s.service].join('|')} ${[...s.keys].sort().join(' ')}`), 'metrics:', ...metrics.sort().map((m) => `  ${m}`)].join('\n');
-}
-
 const valuesOf = (row: TelemetryRow | undefined, key: string): string[] | undefined => row?.attributes.find((a) => a.key === key)?.values;
 
 eachWorkerService('what a worker exports', (world) => {
@@ -173,7 +159,7 @@ eachWorkerService('what a worker exports', (world) => {
       const job = jobs[name]!;
       const span = await eventually(`the span of ${job.metadata.id}`, 15_000, () => otlp().spans.find((s) => s.name === spanName('job:{jobType}', { jobType: job.metadata.type }) && s.attributes['job.id'] === job.metadata.id));
       expect(span.kind).toBe(SPAN_KIND[row.kind]);
-      expect(span.service).toBe('semiont-worker');
+      expect(span.resource['service.name']).toBe('semiont-worker');
       expect(span.attributes).toEqual({ ...attributes, 'job.id': job.metadata.id, 'resource.id': job.params.resourceId });
     }
 
@@ -192,6 +178,6 @@ eachWorkerService('what a worker exports', (world) => {
       return directions?.size === 2 ? true : undefined;
     });
 
-    expect(await outsideTheTable(otlp(), 'worker'), received()).toEqual([]);
+    expect(await outsideTheTable(otlp(), 'worker', null), received(otlp())).toEqual([]);
   });
 });

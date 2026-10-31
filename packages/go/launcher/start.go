@@ -681,7 +681,10 @@ func prometheusArgs(e exposure, stage string) []string {
 // KB's. `traces` says whether Jaeger is running: without it the traces
 // pipeline ends in `nop`, so services export identically and the collector
 // accepts and discards. Every component here is in the CORE collector image
-// (`components` on 0.137.0); contrib is not needed.
+// (`components` on 0.137.0); contrib is not needed. The readout labels each
+// series with its resource's attributes, so it names the knowledge base that
+// exported it (`semiont.kb` as `semiont_kb`): status reads its own KB's numbers
+// by it (observed.go).
 func collectorConfig(addr string, traces bool) string {
 	tracesExporter := "nop"
 	tracesNote := "  # No Jaeger this run: traces are accepted and discarded.\n  nop: {}"
@@ -702,6 +705,8 @@ exporters:
   # Metrics readout: curl :24110/metrics (no storage runs).
   prometheus:
     endpoint: 0.0.0.0:24110
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   pipelines:

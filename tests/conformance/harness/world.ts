@@ -6,6 +6,7 @@
  * carried a message the spec does not allow.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import type { components } from '@semiont/core';
 import { SignJWT } from 'jose';
 import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest';
 import { startArchivist, type FakeArchivist } from './archivist';
@@ -36,8 +37,14 @@ export interface WorldOptions {
   accounts?: Record<string, ServiceAccount>;
 }
 
+/** The knowledge base as a service's document names the one it serves. */
+function servedOf(kb: { name: string; domain: string }): components['schemas']['KbIdentity'] {
+  return { name: kb.name, domain: kb.domain };
+}
+
 export class World {
   readonly kb = kbIdentity();
+  readonly served = servedOf(this.kb);
   private readonly streams: BusStream[] = [];
   /** Streams that outlive a case — a participant set up for the whole file. */
   private readonly standing: BusStream[] = [];
@@ -68,7 +75,7 @@ export class World {
       ...options.env,
     };
     const base = await defaultSettings({
-      kb: { name: kb.name, domain: kb.domain },
+      kb: servedOf(kb),
       issuer: issuer.origin,
       archivist: { host: archivist.host, port: archivist.port },
       plane,

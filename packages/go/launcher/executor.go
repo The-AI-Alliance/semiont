@@ -19,6 +19,7 @@ import (
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // stager: writes what a container will read: each service's configuration document, the launcher-owned
@@ -370,20 +371,21 @@ const gatewayDocumentFile = "gateway.json"
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // serviceDocuments: each stack service's configuration document — the file it
-// is staged as, the name a refusal gives it, and its writer.
+// is staged as, the name a refusal gives it, and its writer, handed the
+// knowledge base the service serves. The worker's names none, and the
+// Archivist's none either: the Archivist reads its knowledge base's identity
+// from the tree it keeps.
 var serviceDocuments = map[string]struct {
 	file, noun string
-	write      func(p placement, kb kbRoot) ([]byte, error)
+	write      func(p placement, served api.KbIdentity) ([]byte, error)
 }{
-	"gateway": {gatewayDocumentFile, "the gateway's", func(p placement, kb kbRoot) ([]byte, error) {
-		return gatewayDocument(p, kb.ident.name(kb.dir), kb.ident.domain())
-	}},
-	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", func(p placement, _ kbRoot) ([]byte, error) { return dispatcherDocument(p) }},
-	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ kbRoot) ([]byte, error) { return archivistDocument(p) }},
-	"worker":     {workerDocumentFile, "the worker's", func(p placement, _ kbRoot) ([]byte, error) { return workerDocument(p) }},
-	"smelter":    {smelterDocumentFile, "the Smelter's", func(p placement, _ kbRoot) ([]byte, error) { return smelterDocument(p) }},
-	"weaver":     {weaverDocumentFile, "the Weaver's", func(p placement, _ kbRoot) ([]byte, error) { return weaverDocument(p) }},
-	"librarian":  {librarianDocumentFile, "the Librarian's", func(p placement, _ kbRoot) ([]byte, error) { return librarianDocument(p) }},
+	"gateway":    {gatewayDocumentFile, "the gateway's", gatewayDocument},
+	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", dispatcherDocument},
+	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ api.KbIdentity) ([]byte, error) { return archivistDocument(p) }},
+	"worker":     {workerDocumentFile, "the worker's", func(p placement, _ api.KbIdentity) ([]byte, error) { return workerDocument(p) }},
+	"smelter":    {smelterDocumentFile, "the Smelter's", smelterDocument},
+	"weaver":     {weaverDocumentFile, "the Weaver's", weaverDocument},
+	"librarian":  {librarianDocumentFile, "the Librarian's", librarianDocument},
 }
 
 // stageService writes one service's configuration document into the stage:
@@ -395,7 +397,11 @@ func (x *liveExec) stageService(stage, svc string, fc flowCtx, addr string) bool
 		x.u.Fail("%s has no configuration document to stage", svc)
 		return false
 	}
-	doc, err := document.write(placementOf(fc, x.exposure(addr)), fc.kb)
+	served, err := fc.kb.served()
+	var doc []byte
+	if err == nil {
+		doc, err = document.write(placementOf(fc, x.exposure(addr)), served)
+	}
 	if err == nil {
 		err = os.WriteFile(filepath.Join(stage, document.file), doc, 0o644)
 	}

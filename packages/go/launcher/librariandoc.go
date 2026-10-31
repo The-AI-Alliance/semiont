@@ -75,13 +75,15 @@ func librarianSecrets(p placement) []string {
 	return names
 }
 
-// librarianDocument renders the document from the start's placement. The
-// graph is the Weaver's (graphConfig), and the vector index and the embedding
-// provider the Smelter's (vectorsConfig, embeddingConfig).
-func librarianDocument(p placement) ([]byte, error) {
+// librarianDocument renders the document from the start's placement and the
+// knowledge base it serves. The graph is the Weaver's (graphConfig), and the
+// vector index and the embedding provider the Smelter's (vectorsConfig,
+// embeddingConfig).
+func librarianDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	index := p.st.KnowledgeIndex.Spec
 	var doc api.LibrarianConfig
 	var err error
+	doc.Kb = served
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()

@@ -71,7 +71,7 @@ eachWorkerService("the worker's environment", (world) => {
         (otlp) => ({ OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint, OTEL_BSP_SCHEDULE_DELAY: '100', OTEL_SERVICE_NAME: name }),
         async (_served, otlp) => {
           const span = await eventually(`the ${CLAIM} it sent`, 10_000, () => otlp.spans.find(sent(CLAIM)));
-          expect(span.service).toBe(expected);
+          expect(span.resource['service.name']).toBe(expected);
         },
       );
     }

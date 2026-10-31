@@ -62,10 +62,9 @@ func (k *kbIdentity) didWeb() string {
 }
 
 // domain is the KB's permanent did:web identity as its project file declares
-// it, "" when there is none. The launcher stages this into the services that
-// describe the KB without mounting it; staging "" is deliberate — a consumer
-// that needs an identity must refuse, and a fabricated one ('localhost', the
-// dial address) is how two knowledge bases end up sharing a did.
+// it, "" when there is none — never a fabricated one ('localhost', the dial
+// address), which is how two knowledge bases end up sharing a did. Whatever
+// needs an identity refuses its absence (served).
 func (k *kbIdentity) domain() string {
 	if k == nil {
 		return ""
@@ -87,13 +86,25 @@ func (k *kbIdentity) resource() string {
 
 // name is the name the Archivist computes for the knowledge base at root: the
 // committed project.name, else the directory basename when there is no project
-// file (docs/protocol/ARCHIVIST.md). The launcher writes it into the gateway's
-// document as `kb.name`.
+// file (docs/protocol/ARCHIVIST.md). The launcher writes it as `kb.name` into
+// each document that names the knowledge base (served).
 func (k *kbIdentity) name(root string) string {
 	if k == nil {
 		return filepath.Base(root)
 	}
 	return k.Name
+}
+
+// served: the knowledge base as a service's document names the one it serves
+// (KbIdentity): the one source of every document's `kb`. A knowledge base
+// that declares no domain has no identity for a service to run under, and is
+// refused.
+func (r kbRoot) served() (api.KbIdentity, error) {
+	domain := r.ident.domain()
+	if domain == "" {
+		return api.KbIdentity{}, fmt.Errorf("the knowledge base declares no site.domain in its .semiont/config.yaml: its services have no identity to run under")
+	}
+	return api.KbIdentity{Name: r.ident.name(r.dir), Domain: domain}, nil
 }
 
 // readKBIdentity reads <root>'s project file: nil when there is none. One

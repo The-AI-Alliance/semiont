@@ -1,4 +1,4 @@
-"""The metric rows of `specs/src/service-telemetry/telemetry.json`, for the tests that hold what a process reports of itself."""
+"""The metric and resource rows of `specs/src/service-telemetry/telemetry.json`, for the tests that hold what a process exports."""
 
 from typing import Final
 
@@ -21,7 +21,13 @@ class MetricRow(BaseModel, frozen=True):
     attributes: list[Attribute]
 
 
+class ResourceRow(BaseModel, frozen=True):
+    key: str
+    services: list[str]
+
+
 class Table(BaseModel, frozen=True):
+    resource: list[ResourceRow]
     metrics: list[MetricRow]
 
 
@@ -31,6 +37,11 @@ TABLE: Final = Table.model_validate_json((SPEC / "service-telemetry/telemetry.js
 def metrics_named(prefix: str) -> dict[str, MetricRow]:
     """The metrics of the table whose names begin `prefix`, by name."""
     return {row.name: row for row in TABLE.metrics if row.name.startswith(prefix)}
+
+
+def resource_keys(service: str) -> list[str]:
+    """The keys of the resource a service's telemetry is exported under, as the table lists them for it, sorted."""
+    return sorted(row.key for row in TABLE.resource if service in row.services)
 
 
 def as_the_table_writes(value: object) -> str:

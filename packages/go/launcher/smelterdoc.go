@@ -82,12 +82,14 @@ func vectorsConfig(p placement, who string) (vectors api.VectorsConfig, err erro
 	return vectors, err
 }
 
-// smelterDocument renders the document from the start's placement. The
-// Smelter keeps the anchored-text store at the Archivist (placement).
-func smelterDocument(p placement) ([]byte, error) {
+// smelterDocument renders the document from the start's placement and the
+// knowledge base it serves. The Smelter keeps the anchored-text store at the
+// Archivist (placement).
+func smelterDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	index := p.st.KnowledgeIndex.Spec
 	var doc api.SmelterConfig
 	var err error
+	doc.Kb = served
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()

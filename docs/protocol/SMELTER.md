@@ -50,7 +50,7 @@ A Smelter reads its settings from a configuration document, the protocol's
 [`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json), at
 the path its `--config` flag names. The document is resolved: every address in
 it is literal, every credential is named by the variable that holds it, and the
-Smelter defaults nothing it leaves out. It states the
+Smelter defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the
 gateway's URL; the issuer the Smelter's service account signs in at; where
 the Archivist is, for a resource's bytes; the embedding provider
 ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json):
@@ -671,7 +671,10 @@ every resource had a cursor at its start.
   receives on the bus, and a count of the frames it sent. Every span and
   metric it exports is one of those rows, of the row's kind, carrying only
   the row's attributes; and every one of those rows that its work can make
-  arrives, with every attribute the row does not mark as conditional.
+  arrives, with every attribute the row does not mark as conditional. All of
+  it is exported under the resource the table's `resource` rows list for the
+  smelter: its name, its version, and `semiont.kb`, the DID of the knowledge
+  base its document's `kb` names.
   *Held by `smelter/telemetry`.*
 - **`semiont.vector.index.size` is the number of points its index holds,** of
   resources and of annotations together. A Smelter that exports asks its

@@ -82,7 +82,17 @@ fn boot() -> Result<(), String> {
     let (client_id, client_secret) =
         config::service_account(&DOCUMENT).map_err(|e| e.to_string())?;
     logging::initialize(document.log_level, document.log_format);
-    telemetry::initialize("semiont-archivist", semiont_core::spec::VERSION)?;
+    // What the knowledge base says of itself is read from its tree.
+    let root = PathBuf::from(&document.root);
+    let committed = kb::committed(&root)?;
+    let Some(domain) = committed.domain.clone() else {
+        return Err("The knowledge base commits no .semiont/config.yaml, so declares no site.domain: it is the identity this knowledge base acts under, and the audience it accepts tokens for".to_owned());
+    };
+    telemetry::initialize(
+        "semiont-archivist",
+        semiont_core::spec::VERSION,
+        Some(&kb_did(&domain)),
+    )?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -92,13 +102,19 @@ fn boot() -> Result<(), String> {
         client_id,
         client_secret,
     };
-    let outcome = runtime.block_on(serve(document, credential));
+    let outcome = runtime.block_on(serve(document, credential, root, committed, domain));
     runtime.shutdown_timeout(Duration::from_secs(1));
     telemetry::shutdown(Duration::from_secs(2));
     outcome
 }
 
-async fn serve(document: ArchivistConfig, credential: SecretCredential) -> Result<(), String> {
+async fn serve(
+    document: ArchivistConfig,
+    credential: SecretCredential,
+    root: PathBuf,
+    committed: kb::Committed,
+    domain: String,
+) -> Result<(), String> {
     telemetry::register_supervisor_restarts();
     telemetry::sample_lag();
     let http = reqwest::Client::builder()
@@ -113,9 +129,6 @@ async fn serve(document: ArchivistConfig, credential: SecretCredential) -> Resul
     .map_err(|e| format!("cannot sign in: {e}"))?;
     logging::info("Authenticated", json!({ "component": "archivist" }));
 
-    // What the knowledge base says of itself is read from its tree.
-    let root = PathBuf::from(&document.root);
-    let committed = kb::committed(&root)?;
     let staging = staging_for(
         &root,
         committed.git_sync,
@@ -125,9 +138,6 @@ async fn serve(document: ArchivistConfig, credential: SecretCredential) -> Resul
         },
     );
     staging.ready().await.map_err(|e| e.to_string())?;
-    let Some(domain) = committed.domain.clone() else {
-        return Err("The knowledge base commits no .semiont/config.yaml, so declares no site.domain: it is the identity this knowledge base acts under, and the audience it accepts tokens for".to_owned());
-    };
 
     let state_dir = PathBuf::from(&document.state_home)
         .join("semiont")

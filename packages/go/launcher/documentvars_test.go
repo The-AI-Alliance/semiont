@@ -10,20 +10,6 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
-// documentWriters: each stack service's document writer, by the service's name
-// in serviceSecrets.
-var documentWriters = map[string]func(placement) ([]byte, error){
-	"gateway": func(p placement) ([]byte, error) {
-		return gatewayDocument(p, "Example KB", "example.github.io:example-kb")
-	},
-	"dispatcher": dispatcherDocument,
-	"archivist":  archivistDocument,
-	"worker":     workerDocument,
-	"smelter":    smelterDocument,
-	"weaver":     weaverDocument,
-	"librarian":  librarianDocument,
-}
-
 // namedVariables: every variable a document names — the string under each key
 // ending in `Env`, at any depth, so a member a schema gains is counted without
 // this test naming it.
@@ -93,7 +79,7 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 		}
 		sort.Strings(services)
 		var written []string
-		for svc := range documentWriters {
+		for svc := range serviceDocuments {
 			written = append(written, svc)
 		}
 		sort.Strings(written)
@@ -104,7 +90,7 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 		handed := withDaemonCredentialVars(byService, p.plan, st.KnowledgeBase.Spec.Messaging.Signal.Type == "nats")
 		found := map[string]bool{}
 		for _, svc := range services {
-			document, err := documentWriters[svc](p)
+			document, err := serviceDocuments[svc].write(p, exampleKB)
 			if err != nil {
 				t.Fatalf("%s: %s: %v", c.why, svc, err)
 			}

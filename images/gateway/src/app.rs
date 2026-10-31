@@ -79,7 +79,11 @@ fn boot() -> Result<i32, String> {
     let (client_id, client_secret) =
         config::service_account(&crate::config::DOCUMENT).map_err(|e| e.to_string())?;
     logging::initialize(config.log_level, config.log_format);
-    telemetry::initialize("semiont-gateway", semiont_core::spec::VERSION)?;
+    telemetry::initialize(
+        "semiont-gateway",
+        semiont_core::spec::VERSION,
+        Some(&identity::kb_did(&config.kb.domain)),
+    )?;
     // One worker per CPU the process may use (its cgroup quota and affinity),
     // stated here so tokio never reads TOKIO_WORKER_THREADS: the container's
     // CPU limit is the one thing that sizes the gateway.

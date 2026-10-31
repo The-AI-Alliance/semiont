@@ -572,12 +572,12 @@ that follows the signal does not wait.
 The Archivist boots in this order, and a failure at any step ends the process with status 1:
 
 1. Read and validate the configuration document.
-2. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
+2. Read the project file ([Configuration](#configuration)).
+3. Refuse to start without a `site.domain`.
+4. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
    names it by that account, as an agent, and answers its DID at `GET /api/users/me`. The token is
    renewed before it expires.
-3. Read the project file ([Configuration](#configuration)).
-4. Ask staging whether it can work ([Staging](#staging)).
-5. Refuse to start without a `site.domain`.
+5. Ask staging whether it can work ([Staging](#staging)).
 6. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
    into its three projections, each begun empty; then, with the storage-uri index begun empty, for
    every stream, build the view from its events and write it, and replay its events into the
@@ -595,7 +595,9 @@ status 0.
 
 ## Telemetry
 
-The Archivist exports as `semiont-archivist`. Its spans and metrics are the rows
+The Archivist exports as `semiont-archivist`, under the resource the table's
+`resource` rows list for it: its name, its version, and `semiont.kb`, the DID
+of the knowledge base its committed project file's `site.domain` names. Its spans and metrics are the rows
 [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
 lists for it, and those
 [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json) lists for

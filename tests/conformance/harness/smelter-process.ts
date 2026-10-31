@@ -15,6 +15,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call } from './http';
 import { runEnvironment } from './paths';
@@ -31,6 +32,8 @@ export const CURSORS = 'cursors.json';
  * holds the refusal.
  */
 export interface SmelterSettings {
+  /** The knowledge base it serves, which its telemetry names. */
+  kb?: components['schemas']['KbIdentity'];
   gatewayUrl?: string;
   /** The issuer its service account signs in at. */
   issuer?: string;
@@ -133,6 +136,7 @@ const stated = (members: Record<string, unknown>): Record<string, unknown> =>
 function document(settings: SmelterSettings, home: string): string {
   return JSON.stringify(
     stated({
+      kb: settings.kb,
       gatewayUrl: settings.gatewayUrl,
       identity: stated({ issuer: settings.issuer }),
       archivist: settings.archivist,
