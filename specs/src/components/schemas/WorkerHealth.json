@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "The Worker service's health answer (WORKER-SERVICE H1). It answers only once a knowledge base of its document is confirmed, so a 200 means it is working somewhere.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok"
+      ]
+    },
+    "knowledgeBases": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry for each of the document's `knowledgeBases`, in its order.",
+      "items": {
+        "$ref": "./WorkerKnowledgeBaseHealth.json"
+      }
+    }
+  },
+  "required": [
+    "status",
+    "knowledgeBases"
+  ],
+  "additionalProperties": false
+}

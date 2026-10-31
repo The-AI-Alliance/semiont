@@ -21,22 +21,42 @@ runs against every entry.
 ## The world around a Worker service
 
 Each file runs its cases in a world of its own
-([harness/worker-service-world.ts](../harness/worker-service-world.ts)):
+([harness/worker-service-world.ts](../harness/worker-service-world.ts)). Its
+knowledge base, which every case's service serves, is the suite's own
+identity in [`kb-identity/cases.json`](../../../specs/src/kb-identity/cases.json),
+and a case of a service of two knowledge bases has it serve the world's
+second beside it, another case of that table. Each knowledge base has:
 
-- the trusted issuer, which grants the service's account the service and
-  worker roles, and marks it an agent's: the gateway names the service by
-  that account, as one agent, whatever engines it runs. The engines a case's
-  service runs, two of Ollama and two of Anthropic, are the world's own
-  fixtures;
+- the trusted issuer, which holds the public half of the service's key on a
+  client of that knowledge base's own (the two clients are named apart), and
+  grants that account the service and worker roles and marks it an agent's:
+  the gateway names the service by that account, as one agent there,
+  whatever engines it runs. A case can have it fail a grant first, answered
+  503 or its connection ended unanswered;
 - a real gateway, on the in-process plane, with the harness's stand-in
   Archivist behind it for a resource's bytes, for uploads, and for a
   resource's anchored text, the text the Smelter read out of a PDF: a case
   scripts what the Archivist answers a read of it, and a resource it scripts
   nothing for is one the Archivist does not know;
-- a recording proxy in front of the gateway, which the service's `gatewayUrl`
-  names: everything the service sends the gateway is read from it as a
-  transcript, in order (its sign-in, the stream it opens, each emit, each
-  read of bytes or of anchored text, each upload);
+- a recording proxy in front of the gateway, which that knowledge base's
+  `gatewayUrl` names in the service's document: everything the service sends
+  the gateway is read from it as a transcript, in order (its sign-in, the
+  stream it opens and what that stream carries, each emit, each read of bytes
+  or of anchored text, each upload), and a case can end the service's
+  connections through it, which the service meets as a stream that drops;
+- the suite itself on the gateway's bus, as the two parties a worker asks
+  things of there. As the dispatcher it answers `job:claim` from the jobs a
+  case queued at that knowledge base, with `none-pending` when no queued job
+  matches the claim's filters. As the record it answers `browse:kb-requested`
+  with that knowledge base's domain, or as a case scripts it (another domain,
+  `browse:kb-failed`, or no answer until the case lets it give one), and
+  `browse:resource-requested`, `mark:commit` (an annotation is recorded once,
+  by its id) and `browse:annotation-requested`.
+
+Beside them, shared by every knowledge base's engines:
+
+- the engines a case's service runs, two of Ollama and two of Anthropic, the
+  world's own fixtures;
 - a stand-in Ollama ([harness/ollama.ts](../harness/ollama.ts)), which the
   `baseUrl` of an Ollama engine names. It answers `POST /api/show` with the
   context length a case set, or refuses it, or ends the connection
@@ -53,23 +73,20 @@ Each file runs its cases in a world of its own
   connection ended unanswered. A refusal may carry headers, and so may one
   of the Models API. It records every request with its headers.
   Its key reaches the service in the variable the engine's `apiKeyEnv` names,
-  which is none the provider's own library reads;
-- the suite itself on the bus, as the two parties a worker asks things of
-  there. As the dispatcher it answers `job:claim` from the jobs a case queued,
-  with `none-pending` when no queued job matches the claim's filters. As the
-  record it answers `browse:resource-requested`, `mark:commit` (an annotation
-  is recorded once, by its id) and `browse:annotation-requested`.
+  which is none the provider's own library reads.
 
 No dispatcher, no Archivist, no Smelter and no model runs. This is the tier
 that sees every message the service sends.
 
-A case starts a fresh service, which is stopped when the case ends.
+The service's key is the world's own, in `SEMIONT_OIDC_CLIENT_KEY`; which
+client it signs in as at each knowledge base is its document's. A case starts
+a fresh service, which is stopped when the case ends.
 
 ## What every case holds a Worker service to
 
 Whatever a case is about, it also fails a service that:
 
-- asks the gateway for anything the gateway refuses: the gateway is the real
+- asks a gateway for anything the gateway refuses: each gateway is the real
   one, and holds every emit to its channel's schema and every route to its
   rules;
 - asks a provider for a generation the case did not script, or for any path
@@ -103,7 +120,12 @@ the Archivist's spec.
 - **Messages a service waits on** (the claim, `job:start`, the read of the
   description and of the bytes or the anchored text, each commit and each
   checkpoint, the settle, the next claim) are compared in the order the
-  gateway received them.
+  gateway received them. What a service says at a knowledge base as it
+  starts there (its sign-in, its stream, the question of which knowledge base
+  this is, and what the agent is called) is compared apart, against the
+  frames its stream carried, on the one clock the proxy keeps.
+- **Health** is held to the spec's `WorkerHealth` each time a case reads it,
+  and then compared as the case needs.
 - **Progress reports** are compared as a set with repeats: every report, as
   often as it was made, in no order. A service does not wait for the gateway
   to take one before it goes on, so where they fall among the other messages
@@ -122,8 +144,9 @@ the Archivist's spec.
 
 | Case | File | Rules of WORKER-SERVICE.md |
 |---|---|---|
-| `boot` | `boot.test.ts` | B1 to B6 |
-| `started` | `started.test.ts` | G1 to G4, H1 |
+| `boot` | `boot.test.ts` | B1 to B7, R5 |
+| `started` | `started.test.ts` | G1 to G5, H1 |
+| `knowledge-bases` | `knowledge-bases.test.ts` | G1, G4, G5, H1, R1 to R4 |
 | `limits` | `limits.test.ts` | M1 to M3, M5 |
 | `highlighting` | `highlighting.test.ts` | J1, J2, D1 to D3, D8, D9, D11 to D13, D15 to D17, K1 |
 | `commenting` | `commenting.test.ts` | D8, D9, D12, D17, K2 |
@@ -144,7 +167,7 @@ the Archivist's spec.
 | `telemetry` | `telemetry.test.ts` | T1 to T3 |
 | `environment` | `environment.test.ts` | E1 to E11 |
 | `output` | `output.test.ts` | O1 |
-| `stop` | `stop.test.ts` | P1 to P3 |
+| `stop` | `stop.test.ts` | P1 to P3, R2, R5 |
 | `anthropic` | `anthropic.test.ts` | M5, D20, D21, K8, F3 to F5, F10 to F14, Q4, Y3, Y9, T3, P2 |
 
 `npm run lint:transport-contract` holds the two to each other: every case a
@@ -161,7 +184,12 @@ rule names exists, and every case is named by a rule.
 | A request of Anthropic refused with 408 or 409 (F10) | Not written. `anthropic.test.ts` holds 429, 500, 529 and a connection that ends as asked for three times, and 400 as asked for once. A 409 is asked for three times and then fails its job as deterministic ([F3](../../../docs/protocol/WORKER-SERVICE.md#failures)): whether both are meant is not settled |
 | A `yield` job to PDF, and the citations of a generated PDF | It needs the `typst` binary in the suite's environment |
 | A real dispatcher, Archivist or Smelter | The suite stands in for them, so that it can hand a service answers a correct one never gives and see every message |
-| M4, F9, P4: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation and every asking of it, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
+| How long a knowledge base in trouble waits after its first start again, and its ceiling (R3) | The first wait is stated in the log and held as waited; the doubling and `maxReconnectMs` take seconds to a minute that a case cannot shorten. `images/worker/tests/test_service.py` holds them, on a clock it moves |
+| A knowledge base whose confirmation is not answered in time (R1, R3) | The request's deadline is the SDK's `busRequestTimeoutMs`, thirty seconds, which a case cannot shorten. `knowledge-bases.test.ts` holds a confirmation held unanswered for less, and, as the trouble that is started again, a grant its issuer answers 503 or ends unanswered |
+| A sign-in, or the gateway's naming of the agent, accepted and never answered (R3) | Its deadline is the SDK's `httpRequestTimeoutMs`, thirty seconds, which a case cannot shorten. `knowledge-bases.test.ts` holds a grant whose connection ends unanswered |
+| A knowledge base whose stream is closed, so that nothing more can be claimed there (R3) | Nothing outside a service closes its stream: a transport's stream is `closed` only once its client is disposed ([TRANSPORT-CONTRACT § State](../../../docs/protocol/TRANSPORT-CONTRACT.md#state)). One a case ends through the proxy drops and is opened again, which `knowledge-bases.test.ts` holds as no trouble |
+| A knowledge base whose gateway refuses to name the agent (R2), or answers its naming with a status the `refresh` rule tries again (R3) | Not written: `knowledge-bases.test.ts` holds an issuer that refuses the sign-in, and one that answers it 503 or not at all, and `stop.test.ts` a claim refused as unauthorized |
+| M4, F9, P4 and R3's stalled job: the clocks | 1.5 seconds for a provider's limits, ten minutes for a generation and every asking of it, fifteen minutes for a stalled job. A service takes them from no document a case could shorten |
 | D7, the size of a piece following the provider's usage | Not written. On a model whose window is shared, as the stand-in Ollama's is, the ceiling of a piece is where it opens unless the window is far over what any fixture fills. A model of the stand-in Anthropic has two ceilings, and a case on it could hold the rule |
 | K6 for a piece taken to have missed mentions that can be cut smaller, and F7 for an answer not had in time or unreadable for a reason the provider does not state | Not written: `linking.test.ts` holds a count that answers no count, `halved.test.ts` holds the halving of a piece whose answer is cut off, and `failures.test.ts` that of one whose model finished and could not be read. A generation not had in time takes the ten minutes of F9 |
 | The commit whose acknowledgement is lost | [WORKER-CONTRACT A5](../../../docs/protocol/WORKER-CONTRACT.md#committing-annotations), held by the worker suite: a service waits a minute for an acknowledgement |

@@ -15,7 +15,7 @@ import { call, type Reply } from './http';
 import { freePort } from './net';
 import { startIssuer, type IssuerServer, type ServiceAccount } from './issuer';
 import { SERVICE_ROLE } from './roles';
-import { kbIdentity, principals } from './spec';
+import { kbIdentity, principals, SUITE_KB, type KbIdentity } from './spec';
 import { subscribe, type BusFrame, type BusStream, type SubscribeBody } from './stream';
 
 export const PLANES: readonly Plane[] = ['in-process', 'nats'];
@@ -34,16 +34,18 @@ export interface WorldOptions {
   broker?: BrokerOptions;
   /** Service accounts the issuer grants beside the gateway's: another service the world runs. */
   accounts?: Record<string, ServiceAccount>;
+  /** The knowledge base the world is, when it is not the suite's own: one of kb-identity/cases.json. */
+  kb?: KbIdentity;
 }
 
 export class World {
-  readonly kb = kbIdentity();
   private readonly streams: BusStream[] = [];
   /** Streams that outlive a case — a participant set up for the whole file. */
   private readonly standing: BusStream[] = [];
   private readonly extraGateways: GatewayProcess[] = [];
 
   private constructor(
+    readonly kb: KbIdentity,
     readonly plane: Plane,
     readonly issuer: IssuerServer,
     readonly archivist: FakeArchivist,
@@ -53,7 +55,7 @@ export class World {
   ) {}
 
   static async create(plane: Plane, options: WorldOptions = {}): Promise<World> {
-    const kb = kbIdentity();
+    const kb = options.kb ?? kbIdentity(SUITE_KB);
     const secret = randomBytes(24).toString('hex');
     const issuer = await startIssuer(kb.resource, {
       ...options.accounts,
@@ -76,7 +78,7 @@ export class World {
     });
     const settings = options.settings ? options.settings(base) : base;
     const gateway = await startGateway({ settings, env });
-    return new World(plane, issuer, archivist, broker, env, gateway);
+    return new World(kb, plane, issuer, archivist, broker, env, gateway);
   }
 
   get origin(): string {

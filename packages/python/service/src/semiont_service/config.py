@@ -7,7 +7,7 @@ it starts, and anyone else to the same schema. So it is read and refused
 here, and nothing is decided: no TOML is parsed, no `${VAR}` resolved, and no
 value supplied that the document left out. A secret or a key is never in the
 document. The document names the variable that holds it, or the variable is
-the account's own, and the service reads its environment for it.
+the service's own, and the service reads its environment for it.
 
 A refusal is worded as the gateway's, the Dispatcher's and the Archivist's
 are, so an operator reads one kind of message from every service: it names
@@ -75,7 +75,7 @@ and some of them repeat what the document held.
 
 
 def _member(location: Sequence[int | str]) -> str:
-    """A member of the document, as the document's own names reach it: `engines[0].jobs`. The document itself is `root`."""
+    """A member of the document, as the document's own names reach it: `knowledgeBases[0].engines[0].jobs`. The document is `root`."""
     path = ""
     for step in location:
         path += f"[{step}]" if isinstance(step, int) else f".{step}" if path else step
@@ -140,13 +140,13 @@ def service_account_of(service: str, issuer: str, environment: Mapping[str, str]
     )
 
 
-def key_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> KeyCredential:
-    """The service's own account at `issuer`, which its document names, proven by its key.
+def key_account_of(service: str, issuer: str, client_id: str, environment: Mapping[str, str]) -> KeyCredential:
+    """The service's account at `issuer`, the client `client_id` that its document names there, proven by its key.
 
     `SEMIONT_OIDC_CLIENT_KEY` holds the key: an RSA private key, PKCS#8 PEM
-    and unencrypted. A refusal names the variable and never what it holds.
+    and unencrypted. Which client holds its public half at an issuer is the
+    document's to say. A refusal names the variable and never what it holds.
     """
-    client_id = _held(service, environment, "SEMIONT_OIDC_CLIENT_ID")
     pem = _held(service, environment, "SEMIONT_OIDC_CLIENT_KEY")
     try:
         key = private_key_from_pem(pem)

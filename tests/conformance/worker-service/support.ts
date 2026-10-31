@@ -7,10 +7,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { components } from '@semiont/core';
 import { expect } from 'vitest';
 import type { RecordedMessage } from '../harness/anthropic';
 import type { RecordedGeneration } from '../harness/ollama';
-import { sortedProgress, type RunningJob, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { errorsOf, spec } from '../harness/spec';
+import type { WorkerProcess } from '../harness/worker-service-process';
+import { sortedProgress, type RunningJob, type Served, type StandInKnowledgeBase } from '../harness/worker-service-world';
 
 /** The members of every object in order of their names by code point, at every depth; arrays in their own order; no white space. */
 function canonical(value: unknown): string {
@@ -73,6 +76,25 @@ export const SMALL_CONTEXT_LENGTH = 1200;
 
 /** A context length at which a linking job and a tagging job each cut `LONG_TEXT` into two pieces. */
 export const MIDDLING_CONTEXT_LENGTH = 2400;
+
+/** What `GET /health` answers (WORKER-SERVICE.md H1). */
+export type WorkerHealth = components['schemas']['WorkerHealth'];
+
+/** What the worker's health says of one knowledge base. */
+export type WorkerKnowledgeBaseHealth = components['schemas']['WorkerKnowledgeBaseHealth'];
+
+/** The worker's health: answered 200, as JSON, and held to the spec's `WorkerHealth` before a case reads it. */
+export async function health(process: WorkerProcess): Promise<WorkerHealth> {
+  const reply = await process.http('GET', '/health');
+  expect(reply.status).toBe(200);
+  expect(reply.headers.get('content-type')).toMatch(/^application\/json/);
+  const validate = spec().component('WorkerHealth');
+  expect(validate(reply.json), errorsOf(validate)).toBe(true);
+  return reply.json as WorkerHealth;
+}
+
+/** What an idle engine that has done nothing says of itself in the worker's health. */
+export const IDLE = { lastQueuedEventAt: null, lastClaimAt: null, lastFinishedAt: null, lastActivityAt: null, activeJob: null, jobsCompleted: 0 };
 
 /** The context length the stand-in Ollama reports unless a case sets another. */
 export const CONTEXT_LENGTH = 8192;
@@ -216,7 +238,7 @@ export async function settled(served: Served, job: RunningJob, channel: 'job:com
  * sent after the cancellation (its limits) says the cancellation has
  * arrived.
  */
-export async function cancelRequested(world: WorkerServiceWorld, job: RunningJob): Promise<void> {
+export async function cancelRequested(world: StandInKnowledgeBase, job: RunningJob): Promise<void> {
   const listener = await world.listen(['job:limits-result', 'job:limits-failed']);
   await world.emit('job:cancel-requested', { jobId: job.metadata.id });
   const correlationId = randomUUID();
@@ -226,10 +248,39 @@ export async function cancelRequested(world: WorkerServiceWorld, job: RunningJob
 }
 
 /** A text resource about `text`, and a `mark` job on it, queued for the worker's next claim that takes it. */
-export function markJob(world: WorkerServiceWorld, name: string, params: Record<string, unknown>, metadata: Partial<RunningJob['metadata']> = {}, text = TEXT): RunningJob {
+export function markJob(world: StandInKnowledgeBase, name: string, params: Record<string, unknown>, metadata: Partial<RunningJob['metadata']> = {}, text = TEXT): RunningJob {
   const resourceId = `res-ws-${name}`;
   world.resource(resourceId, text);
   return world.queued(`job-ws-${name}`, 'mark', { resourceId, ...params }, metadata);
+}
+
+/**
+ * What a worker's log says of a knowledge base it serves, as WORKER-SERVICE.md
+ * R1 to R3 state it, each line with the knowledge base's `domain`: that it is
+ * confirmed, at `info`, with the agent's `did` there (R1); that it refused the
+ * worker, at `error`, with the `reason` (R2); and that it is in trouble and is
+ * started again, at `warn`, with the `error` and the `waitMs` waited first (R3).
+ */
+export const KB_LOG = {
+  confirmed: 'Knowledge base confirmed',
+  refused: 'Knowledge base refused the worker',
+  trouble: 'Knowledge base in trouble — starting it again',
+} as const;
+
+/**
+ * The lines of a worker's log, written in the `json` form, whose message is
+ * `message`: each the one JSON object it is, its facts members of it.
+ */
+export function logged(stdout: readonly string[], message: string): Array<Record<string, unknown>> {
+  return stdout.flatMap((line) => {
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      return [];
+    }
+    return typeof entry === 'object' && entry !== null && !Array.isArray(entry) && (entry as Record<string, unknown>)['message'] === message ? [entry as Record<string, unknown>] : [];
+  });
 }
 
 /**

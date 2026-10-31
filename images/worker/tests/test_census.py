@@ -250,7 +250,7 @@ def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_t
     section = re.search(r"\n## Environment\n(.*?)\n## ", document, re.DOTALL)
     assert section is not None
     listed = set(re.findall(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`", section.group(1)))
-    assert len(listed) >= 14
+    assert len(listed) >= 13
     not_read_here = {
         # Named by the section as the two the service does not read: how much it logs is its document's to say.
         "LOG_LEVEL",
@@ -261,10 +261,13 @@ def test_one_module_reads_the_process_s_environment_and_the_variables_read_are_t
         "SEMIONT_BUS_LOG",
     }
     assert not_read_here <= listed
-    # The shared package reads a secret too, for the services that prove themselves with one: the worker proves
-    # itself with its key (B3), and reads no secret.
-    assert "SEMIONT_OIDC_CLIENT_SECRET" in named
-    assert named - {"SEMIONT_OIDC_CLIENT_SECRET"} == listed - not_read_here
+    # The shared package reads a secret account too, a client id and its secret, for the services that prove
+    # themselves with one. The worker proves itself with its key (B3), and each knowledge base's entry names the
+    # client it is there: it never asks for that account.
+    secret_account = {"SEMIONT_OIDC_CLIENT_ID", "SEMIONT_OIDC_CLIENT_SECRET"}
+    assert secret_account <= named
+    assert not any("service_account_of" in source for source in sources.values())
+    assert named - secret_account == listed - not_read_here
 
 
 def test_a_providers_library_is_an_extra_and_the_image_asks_for_every_one() -> None:

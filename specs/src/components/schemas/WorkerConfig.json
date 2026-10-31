@@ -1,33 +1,13 @@
 {
   "type": "object",
-  "description": "Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its environment: its client id and the RSA key it signs in with. A document that does not validate is refused at boot, naming each failing field.",
+  "description": "Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents and the knowledge bases added to this machine's worker (`semiont worker kb add`), and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the key the worker signs in with at every knowledge base is `SEMIONT_OIDC_CLIENT_KEY` in its environment, an RSA private key; each knowledge base names the client that holds its public half there. A document that does not validate is refused at boot, naming each failing field.",
   "properties": {
-    "gatewayUrl": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds."
-    },
-    "identity": {
-      "type": "object",
-      "description": "The issuer the worker's service account signs in at.",
-      "properties": {
-        "issuer": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The issuer URL, exactly as tokens carry it in `iss`."
-        }
-      },
-      "required": [
-        "issuer"
-      ],
-      "additionalProperties": false
-    },
-    "engines": {
+    "knowledgeBases": {
       "type": "array",
       "minItems": 1,
-      "description": "The engines this worker runs, and the jobs it does with each. The worker signs in once, as its own account, and claims each engine's jobs for it. They are the knowledge base's Inference document's engines as they stand, with no fallback, so a job no engine here is used for is not claimed by this worker.",
+      "description": "The knowledge bases this worker does jobs for. At each it signs in, confirms which knowledge base it reached and claims for its engines, apart from every other: one knowledge base's trouble stops that knowledge base's work alone (`docs/protocol/WORKER-SERVICE.md` \u00a7 Knowledge bases). No two name one `domain`, which the worker refuses at boot.",
       "items": {
-        "$ref": "./WorkerEngineConfig.json"
+        "$ref": "./WorkerKnowledgeBaseConfig.json"
       }
     },
     "modelCatalogue": {
@@ -49,9 +29,7 @@
     }
   },
   "required": [
-    "gatewayUrl",
-    "identity",
-    "engines",
+    "knowledgeBases",
     "modelCatalogue",
     "port",
     "logLevel",

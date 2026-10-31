@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
 import { AGENT_KIND, KIND_CLAIM, SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { identifiers, kbIdentity, principals, spec } from '../harness/spec';
+import { identifiers, kbIdentity, principalCases, spec, SUITE_KB } from '../harness/spec';
 import { eachPlane } from '../harness/world';
 
 function decode(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } {
@@ -66,7 +66,7 @@ eachPlane('credentials', (world) => {
     }
   });
 
-  const { people, agents } = principals(kbIdentity().domain);
+  const { people, agents } = principalCases(kbIdentity(SUITE_KB).domain);
 
   for (const person of people) {
     it(`a person is named exactly by their subject (principals/cases.json): ${person.why}`, async () => {
