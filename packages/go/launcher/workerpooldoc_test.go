@@ -108,3 +108,66 @@ func TestAPlanRunsTheWorkerAsItsDocumentSays(t *testing.T) {
 		t.Errorf("the worker logs at %q, want the document's debug", config.LogLevel)
 	}
 }
+
+// brokenWorkerPoolDocument: a worker document whose memory is in a unit no
+// container takes, on line 10, kept where the worker's is.
+func brokenWorkerPoolDocument(t *testing.T) string {
+	t.Helper()
+	path := workerPoolDocumentPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text := `apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: WorkerPool
+metadata:
+  name: workers
+spec:
+  logLevel: info
+  worker:
+    image: ghcr.io/the-ai-alliance/semiont-worker:latest
+    resources:
+      limits: { memory: 2GB }
+`
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// `semiont settings worker` shows a document that does not hold as refused,
+// with every start that runs a worker; `--path` refuses it too.
+func TestABrokenWorkerDocumentIsShownRefused(t *testing.T) {
+	harness.Home(t)
+	path := brokenWorkerPoolDocument(t)
+	lines := showWorkerPoolDocument(NewUI(true), kbRoot{})
+	if len(lines) != 1 || lines[0].value != path || !strings.Contains(lines[0].source, "refused, and so is every start that runs a worker") {
+		t.Errorf("a broken document is shown as %+v, want it at %s, refused", lines, path)
+	}
+	if code := workerPoolDocumentPathCmd(); code != 1 {
+		t.Errorf("settings worker --path on a broken document exits %d, want 1", code)
+	}
+}
+
+// --path is for the Browser's and the worker's documents, alone: it takes no
+// value, and no other setting has one. The worker's is changed by editing it,
+// never set.
+func TestTheWorkerDocumentIsChangedByEditingIt(t *testing.T) {
+	harness.Home(t)
+	for _, args := range [][]string{{"worker", "--path", "elsewhere"}, {"runtime", "--path"}, {"worker", "debug"}} {
+		if code := Settings(args); code != 1 {
+			t.Errorf("settings %v exits %d, want 1", args, code)
+		}
+	}
+	if _, err := os.Stat(workerPoolDocumentPath()); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("a refused setting wrote the worker's document (%v)", err)
+	}
+	if code := Settings([]string{"worker", "--path"}); code != 0 {
+		t.Fatalf("settings worker --path exits %d", code)
+	}
+	if _, err := os.Stat(workerPoolDocumentPath()); err != nil {
+		t.Errorf("settings worker --path did not write the document: %v", err)
+	}
+	if got := editWorkerPoolDocument(); !strings.Contains(got, workerPoolDocumentPath()) {
+		t.Errorf("the worker's setting is changed by %q, which names no document", got)
+	}
+}

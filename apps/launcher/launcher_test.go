@@ -5704,6 +5704,30 @@ func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
 	}
 }
 
+// A worker document that does not hold is refused, with its file and the
+// line of what it refuses, before anything is stopped or started: by a start,
+// by a start of the worker alone, and by a dry run.
+func TestAWorkerDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
+	s := newScenario(t, "container")
+	editMachineDocument(t, s, "worker", "workers.yaml", "memory: 2G", "memory: 2GB")
+	path := machineDocumentFor(s.home, "workers.yaml")
+	for _, args := range [][]string{{"start"}, {"start", "--service", "worker"}, {"start", "--dry-run"}} {
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, args...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		}
+		mustContain(t, fmt.Sprintf("%v's refusal", args), stderr, path+" is not a WorkerPool", "line 11, /spec/worker/resources/limits/memory")
+		// Finding the knowledge base's root (git rev-parse) comes first, and
+		// changes nothing; no runtime command may run.
+		for _, line := range strings.Split(strings.TrimSpace(strings.TrimPrefix(s.argv(t), before)), "\n") {
+			if line != "" && !strings.HasPrefix(line, "git ") {
+				t.Errorf("%v ran %q before refusing the worker's document", args, line)
+			}
+		}
+	}
+}
+
 // A start that finds no Browser document writes the launcher's, says where,
 // and runs what it says. A dry run before it writes nothing, and says what a
 // start would write.
