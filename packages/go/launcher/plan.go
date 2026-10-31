@@ -7,12 +7,13 @@ package launcher
 // that does not is the launcher's, run from the image and with the memory it
 // states, at the address the launcher places it. The driver catalog owns what
 // no document states: the ports of the daemons the launcher runs, and their
-// aux ports. What the schemas cannot state, a rule that spans fields or
+// aux ports, which a knowledge base's port block places (hostPort). What the schemas cannot state, a rule that spans fields or
 // documents, is refused here, naming the document and the field.
 
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -52,7 +53,7 @@ type rolePlan struct {
 	Driver           string        // the document's `type` (catalog key)
 	Image            string        // the document's, for provided/host-fallback launches
 	Address          string        // external host, for reachability probes
-	Port             int           // primary port (an external daemon's, else the driver's); zero for a launcher-fiat port, the descriptor's
+	Port             int           // primary port (an external daemon's, else the driver's on the knowledge base's port block); zero for a launcher-fiat port, the plan's (servicePort)
 	SharesOllamaWith string        // role under which the launcher runs the Ollama this one uses
 	Models           []servedModel // models this role uses, each with the provider that serves it
 	Env              []string      // container env derived from the documents (no credential: those are added at launch)
@@ -89,6 +90,10 @@ type launchPlan struct {
 	// stack and have no row (runs).
 	Roles       map[string]rolePlan
 	GatewayPort int
+	// Block: the knowledge base's port block (portBlockOf), which places each
+	// port of its stack the launcher publishes but the gateway's and the
+	// Keycloak's, whose ports this start was handed (hostPort).
+	Block int
 	// Inference: the file of the Inference document this start chose, for the
 	// messages that name it.
 	Inference string
@@ -344,10 +349,11 @@ func driverDisplay(role, driver string) string {
 }
 
 // providedRunArgs builds the `run -d` argv for a launcher-provided role from
-// its plan: aux ports first, then the primary publish (host side the plan's,
+// its row of plan: aux ports first, where plan publishes them, then the primary publish (host side the plan's,
 // container side the driver default), driver extras, the env the documents
 // derive, image — with the memory its document states.
-func providedRunArgs(e exposure, role string, rp rolePlan, extra ...string) []string {
+func providedRunArgs(e exposure, plan *launchPlan, rp rolePlan, extra ...string) []string {
+	role := rp.Role
 	spec := descriptorFor(role, rp.Driver)
 	// NO --rm: a crashed container must remain inspectable — its logs are
 	// the diagnosis, and --rm destroys them (the runtime's `logs` answers
@@ -355,7 +361,7 @@ func providedRunArgs(e exposure, role string, rp rolePlan, extra ...string) []st
 	// start's preflight and stop both stop+rm by name.
 	a := []string{"run", "-d", "--name", spec.container, "--memory", rp.Memory}
 	for _, ap := range spec.auxPorts {
-		a = append(a, e.publish("-p", role, ap.port, ap.port)...)
+		a = append(a, e.publish("-p", role, plan.hostPort(role, ap.port), ap.port)...)
 	}
 	a = append(a, e.publish("-p", role, rp.Port, spec.defaultPort)...)
 	a = append(a, extra...)
@@ -414,9 +420,9 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 			return
 		}
 		spec := descriptorFor(role, rp.Driver)
-		checks = append(checks, spec.auxPorts...)
+		checks = append(checks, plan.AuxPorts(role)...)
 		need := portNeed{rp.Port, spec.portLabel}
-		checks = append(append(checks, need), e.containersSideNeed(role, need)...)
+		checks = append(append(checks, need), e.containersSideNeed(role, need, spec.defaultPort)...)
 	}
 	addRole("graph")
 	addRole("vectors")
@@ -424,14 +430,14 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 	addRole("messaging")
 	addRole("identity")
 	// The gateway's port is config-owned; every other Semiont port is
-	// launcher fiat and comes from the descriptor set. No browser here: the
+	// launcher fiat, on the knowledge base's port block. No browser here: the
 	// Browser is not a stack member — its port is checked inside flowBrowser,
 	// and only when (re)starting.
 	gateway := portNeed{plan.GatewayPort, "Gateway"}
-	checks = append(append(checks, gateway), e.containersSideNeed("gateway", gateway)...)
+	checks = append(append(checks, gateway), e.containersSideNeed("gateway", gateway, plan.GatewayPort)...)
 	for _, role := range fiatRoles() {
 		if plan.runs(role) {
-			checks = append(checks, stackPortNeeds(role)...)
+			checks = append(checks, plan.portNeeds(role)...)
 		}
 	}
 	return checks
@@ -451,10 +457,52 @@ func knownDrivers(role string) string {
 	return strings.Join(driversFor(role), ", ")
 }
 
+// blockRoles: the roles whose ports a knowledge base's port block places —
+// Semiont's services behind the gateway, and the daemons of its stack whose
+// port is the launcher's to choose. The gateway's is its document's, the
+// Keycloak's this start's (keycloakPort), and the machine's containers' the
+// machine's.
+var blockRoles = slices.Concat(fiatRoles(), []string{"graph", "vectors", "database", "messaging"})
+
+// hostPort: where this start publishes role's port that its container
+// listens on at ctrPort — on the knowledge base's port block for one of
+// blockRoles the launcher runs, else at ctrPort itself. A nil plan, a probe
+// of a stack no start recorded, is on block 0.
+func (p *launchPlan) hostPort(role string, ctrPort int) int {
+	if p == nil || !slices.Contains(blockRoles, role) {
+		return ctrPort
+	}
+	if rp, planned := p.Roles[role]; planned && rp.Presence != presenceLauncher {
+		return ctrPort
+	}
+	return blockPort(ctrPort, p.Block)
+}
+
+// servicePort: where this start publishes one of Semiont's services behind
+// the gateway (fiatRoles).
+func (p *launchPlan) servicePort(role string) int {
+	return p.hostPort(role, semiontDescriptor(role).ports[0].port)
+}
+
+// portNeeds: role's launcher-fiat port claims (stackPortNeeds), where this
+// start publishes them.
+func (p *launchPlan) portNeeds(role string) []portNeed {
+	var out []portNeed
+	for _, n := range stackPortNeeds(role) {
+		out = append(out, portNeed{p.hostPort(role, n.port), n.label})
+	}
+	return out
+}
+
 // AuxPorts: catalog-owned secondary ports for a role's selected driver
-// (Neo4j's 7474 browser — the config only declares bolt).
+// (Neo4j's 7474 browser — the config only declares bolt), where this start
+// publishes them.
 func (p *launchPlan) AuxPorts(role string) []portNeed {
-	return descriptorFor(role, p.Roles[role].Driver).auxPorts
+	var out []portNeed
+	for _, ap := range descriptorFor(role, p.Roles[role].Driver).auxPorts {
+		out = append(out, portNeed{p.hostPort(role, ap.port), ap.label})
+	}
+	return out
 }
 
 // parseHostPort splits "scheme://host:port", "host:port", or bare "host".
@@ -491,12 +539,14 @@ func planErr(file, field, format string, a ...any) error {
 
 // derivePlan maps a knowledge base's documents to each role's presence.
 // keycloakPort is the port this launch gives the Keycloak it runs
-// (keycloakPort in root.go).
-func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
+// (keycloakPort in root.go), and block the knowledge base's port block
+// (portBlockOf).
+func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 	kb, index, files := st.KnowledgeBase.Spec, st.KnowledgeIndex.Spec, st.Files
 	plan := &launchPlan{
 		Roles:        map[string]rolePlan{},
 		GatewayPort:  kb.Gateway.Port,
+		Block:        block,
 		Inference:    files.Inference,
 		OllamaModels: ollamaModels(st),
 		Images: map[string]string{
@@ -542,6 +592,7 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 			rp.Presence, rp.Address = presenceExternal, host
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *g.Image, g.Resources.Limits.Memory
+			rp.Port = plan.hostPort("graph", spec.defaultPort)
 			rp.User = g.Username
 			rp.Env = []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
 		}
@@ -567,6 +618,7 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 			rp.Presence, rp.Address, rp.Port = presenceExternal, v.External.Host, v.External.Port
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *v.Image, v.Resources.Limits.Memory
+			rp.Port = plan.hostPort("vectors", spec.defaultPort)
 		}
 		plan.Roles["vectors"] = rp
 	}
@@ -586,6 +638,7 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 			rp.Presence, rp.Address, rp.Port = presenceExternal, d.External.Host, d.External.Port
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *d.Image, d.Resources.Limits.Memory
+			rp.Port = plan.hostPort("database", spec.defaultPort)
 			rp.Env = []string{"POSTGRES_DB=" + d.Name}
 			// POSTGRES_USER only when it departs from the image's own.
 			if d.User != "postgres" {
@@ -619,6 +672,7 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 			rp.Presence, rp.Address = presenceExternal, host
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *m.Image, m.Resources.Limits.Memory
+			rp.Port = plan.hostPort("messaging", spec.defaultPort)
 			// The pair arrives as the daemon's own environment at launch.
 			// nats-server reads no credential from the environment by itself,
 			// so the staged config interpolates the two names.

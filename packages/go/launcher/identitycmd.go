@@ -176,7 +176,8 @@ func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminReal
 	if !ok {
 		return adminRealm{}, false
 	}
-	plan, err := derivePlan(st, kcPort)
+	block, _ := portBlockOf(root)
+	plan, err := derivePlan(st, kcPort, block)
 	if err != nil {
 		u.Fail("%v", err)
 		return adminRealm{}, false

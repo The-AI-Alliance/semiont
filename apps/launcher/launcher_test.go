@@ -2083,6 +2083,126 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	mustContain(t, "roots", roots, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
 }
 
+// Each knowledge base's stack is published on a port block of its own, taken
+// at its first start and kept: block k places each port the launcher chooses
+// at its block-0 port + 10k, and every document the start stages names the
+// block's ports. Each container listens where it always does. A dry run plans
+// on the block a start would take and keeps none; a re-run keeps its block;
+// `semiont forget` frees one, and the next knowledge base's first start takes
+// it. `semiont init` writes a gateway port no known knowledge base commits.
+func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	run := func(label string, args ...string) string {
+		t.Helper()
+		stdout, stderr, code := s.run(t, args...)
+		if code != 0 {
+			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", label, code, stdout, stderr)
+		}
+		return stdout
+	}
+	startOf := func(label string) string {
+		t.Helper()
+		before := s.argv(t)
+		run(label, "start")
+		return strings.TrimPrefix(s.argv(t), before)
+	}
+	kept := func() map[string]*int {
+		t.Helper()
+		var reg struct {
+			Roots []struct {
+				Path      string `json:"path"`
+				PortBlock *int   `json:"portBlock"`
+			} `json:"roots"`
+		}
+		b, err := os.ReadFile(rootsPathFor(s.home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(b, &reg); err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]*int{}
+		for _, r := range reg.Roots {
+			out[r.Path] = r.PortBlock
+		}
+		return out
+	}
+	blockOf := func(root string) string {
+		if b := kept()[root]; b != nil {
+			return strconv.Itoa(*b)
+		}
+		return "none"
+	}
+
+	if got := startOf("the first knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:5432:5432") {
+		t.Errorf("the first knowledge base's start is not on block 0:\n%s", got)
+	}
+	run("stop", "stop")
+	if got := blockOf(first); got != "0" {
+		t.Errorf("the first knowledge base keeps port block %s, want 0", got)
+	}
+
+	// Registered, as `init` or a setting registers a knowledge base, so a dry
+	// run that kept a block would have a row to keep it on.
+	s.kb = other
+	run("register the second knowledge base", "settings", "config", "ollama-gemma")
+	plan := run("the second knowledge base's dry run", "start", "--dry-run")
+	mustContain(t, "the second knowledge base's dry run", plan, "-p <host-addr>:5442:5432")
+	if got := blockOf(other); got != "none" {
+		t.Errorf("a dry run kept port block %s for the second knowledge base", got)
+	}
+	second := startOf("the second knowledge base's start")
+	mustContain(t, "the second knowledge base's start", second,
+		"-p 192.168.64.1:5442:5432", "-p 192.168.64.1:4232:4222", "-p 192.168.64.1:6343:6333",
+		"-p 127.0.0.1:7484:7474 -p 127.0.0.1:7697:7687 -p 192.168.64.1:17697:7687",
+		"-p 192.168.64.1:8090:8080",
+		"KC_DB_URL=jdbc:postgresql://192.168.64.1:5442/keycloak", "KC_HOSTNAME=http://192.168.64.1:8090",
+		"--publish 192.168.64.1:24111:24101", "--publish 192.168.64.1:24112:24102", "--publish 192.168.64.1:24113:24103",
+		"--publish 192.168.64.1:24114:24104", "--publish 192.168.64.1:24115:24105")
+	// The Neo4j Browser's port is a person's alone, wherever a block places it.
+	mustNotContain(t, "the second knowledge base's start", second, ":5432:5432", ":24103:24103", "17484")
+	mustContain(t, "the second start's librarian.json", stagedFile(t, s, "librarian.json"),
+		"bolt://192.168.64.1:17697", "http://192.168.64.1:8090/realms/semiont", `"port": 24113`)
+	mustContain(t, "the second start's dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4232")
+	mustContain(t, "the second start's smelter.json", stagedFile(t, s, "smelter.json"), `"port": 6343`, `"port": 24113`)
+	if got := blockOf(other); got != "1" {
+		t.Errorf("the second knowledge base keeps port block %s, want 1", got)
+	}
+	run("stop", "stop")
+
+	s.kb = first
+	if got := startOf("the first knowledge base's next start"); !strings.Contains(got, "-p 192.168.64.1:5432:5432") || strings.Contains(got, ":5442:") {
+		t.Errorf("the first knowledge base's next start left block 0:\n%s", got)
+	}
+	run("stop", "stop")
+
+	mustContain(t, "forget", run("forget the second knowledge base", "forget", other), "Forgot "+other)
+	third := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, third, "example.github.io:third-kb")
+	s.kb = third
+	if got := startOf("the third knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:5442:5432") {
+		t.Errorf("the third knowledge base's start did not take the block forget freed:\n%s", got)
+	}
+	run("stop", "stop")
+
+	// The first commits 4000 and the third 4000 too; a new knowledge base is
+	// given the next a block would place the gateway at.
+	s.cwd = t.TempDir()
+	s.extraEnv = append(s.extraEnv, "FAKERT_GIT_ROOT="+s.cwd)
+	run("init", "init", "--name", "fourth", "--domain", "d.io:fourth", "--yes",
+		"--inference", "anthropic", "--model", "claude-sonnet-4-5-20250929",
+		"--embedding", "ollama:nomic-embed-text", "--config-name", "anthropic",
+		"--ollama-base", "http://127.0.0.1:1", "--ollama-registry", "http://127.0.0.1:1")
+	kb, err := os.ReadFile(filepath.Join(s.cwd, ".semiont", "stack", "knowledge-base.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "the fourth knowledge base's knowledge-base.yaml", string(kb), "port: 4010", "publicURL: http://localhost:4010")
+}
+
 func TestStatePersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
 	_, stderr, code := s.run(t, "start")

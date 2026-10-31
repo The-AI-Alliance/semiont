@@ -601,7 +601,7 @@ func Stop(args []string) int {
 	}
 	ports := recordedPorts
 	if len(ports) == 0 {
-		ports = fiatPorts
+		ports = fiatPorts()
 	}
 	verifyPortsReleased(u, slices.Concat(ports, machine.ports))
 	fmt.Println("Semiont stack stopped.")
@@ -610,18 +610,28 @@ func Stop(args []string) int {
 
 // fiatPorts: the launcher-owned ports a stack can claim whatever its config
 // says — the release-verification fallback when no record captured the
-// stack's exact claims (older launcher's record, name-sweep path): every
-// launcher-fiat role's, since a stop with no record cannot know which of them
-// the stack ran, then the broker's, then the machine's worker's and
-// telemetry's, which a blind stop sweeps with no record of their ports. 3000
-// is absent: the Browser's port is its document's, not the stack's to verify.
-var fiatPorts = func() []int {
+// stack's exact claims (the name-sweep path): every launcher-fiat role's and
+// the broker's, on every port block a root keeps, since a stop with no record
+// cannot know which of them the stack ran, nor whose stack it was; then the
+// machine's worker's and telemetry's, which a blind stop sweeps with no
+// record of their ports. 3000 is absent: the Browser's port is its
+// document's, not the stack's to verify.
+func fiatPorts() []int {
 	var needs []portNeed
-	for _, role := range slices.Concat(fiatRoles(), []string{"messaging", "worker"}, telemetryRoles) {
+	for _, e := range loadRoots().Roots {
+		if e.PortBlock == nil {
+			continue
+		}
+		onBlock := &launchPlan{Block: *e.PortBlock}
+		for _, role := range append(fiatRoles(), "messaging") {
+			needs = append(needs, onBlock.portNeeds(role)...)
+		}
+	}
+	for _, role := range slices.Concat([]string{"worker"}, telemetryRoles) {
 		needs = append(needs, stackPortNeeds(role)...)
 	}
 	return portNumbers(needs)
-}()
+}
 
 // verifyPortsReleased: stop's job isn't done until the ports are actually
 // free — runtimes release published ports asynchronously (Apple container's

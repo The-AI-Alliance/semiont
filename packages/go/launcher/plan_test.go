@@ -16,6 +16,7 @@ import (
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
@@ -23,7 +24,7 @@ import (
 // run as the catalog's worker document says.
 func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 	t.Helper()
-	plan, err := derivePlan(st, 8080)
+	plan, err := derivePlan(st, 8080, 0)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
 	}
@@ -38,7 +39,7 @@ func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 // refused BEFORE anything is launched, and saying where is the whole value.
 func mustRefuse(t *testing.T, st *stack.Stack, want ...string) {
 	t.Helper()
-	plan, err := derivePlan(st, 8080)
+	plan, err := derivePlan(st, 8080, 0)
 	if err == nil {
 		t.Fatalf("derivePlan accepted documents the stack cannot run: %+v", plan.Roles)
 	}
@@ -262,7 +263,7 @@ func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
 	if got := plan.Roles["database"].Image; got != dbImage {
 		t.Errorf("database image: got %q", got)
 	}
-	args := providedRunArgs(exposure{}, "graph", plan.Roles["graph"])
+	args := providedRunArgs(exposure{}, plan, plan.Roles["graph"])
 	if args[len(args)-1] != graphImage {
 		t.Errorf("run argv image: got %q", args[len(args)-1])
 	}
@@ -430,7 +431,7 @@ func TestLauncherRunBrokerIsAlwaysAuthenticated(t *testing.T) {
 // Keycloak publishes on, what the port check guards, and what the realm is
 // reached at.
 func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
-	plan, err := derivePlan(fixtureStack(t, "anthropic"), 8081)
+	plan, err := derivePlan(fixtureStack(t, "anthropic"), 8081, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +493,7 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	} {
 		st := fixtureStack(t, "anthropic")
 		c.engines(&st.Inference.Spec.Engines)
-		plan, err := derivePlan(st, 8080)
+		plan, err := derivePlan(st, 8080, 0)
 		if err != nil {
 			t.Fatalf("%s: %v", c.why, err)
 		}
@@ -558,21 +559,34 @@ func TestServicePortNeedsOfTheBrowserAreItsDocuments(t *testing.T) {
 }
 
 // A stop holding no record of the stack's claims verifies fiatPorts instead,
-// so every stack-level claim such a stop can know must be in it: one it
-// misses is a survivor nobody reports, and the next start fails on it.
+// so every stack-level claim such a stop can know must be in it, on every
+// port block a root keeps: one it misses is a survivor nobody reports, and
+// the next start fails on it.
 func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
+	harness.Home(t)
+	first, third := 0, 2
+	if err := writeRoots(rootsRegistry{Roots: []rootEntry{{Path: "/kb/one", PortBlock: &first}, {Path: "/kb/three", PortBlock: &third}, {Path: "/kb/never-started"}}}); err != nil {
+		t.Fatal(err)
+	}
+	verified := fiatPorts()
 	// The documents set these roles' ports and may bind them to somebody
 	// else's service, and a stop with no record reads no document.
 	configOwned := []string{"gateway", "graph", "vectors", "database", "identity"}
-	for _, role := range startOrder {
-		if slices.Contains(configOwned, role) {
-			continue
-		}
-		for _, need := range stackPortNeeds(role) {
-			if !slices.Contains(fiatPorts, need.port) {
-				t.Errorf("%s claims %d (%s) at stack level, but a stop with no record never verifies it released", role, need.port, need.label)
+	for _, block := range []int{first, third} {
+		onBlock := &launchPlan{Block: block}
+		for _, role := range startOrder {
+			if slices.Contains(configOwned, role) {
+				continue
+			}
+			for _, need := range onBlock.portNeeds(role) {
+				if !slices.Contains(verified, need.port) {
+					t.Errorf("%s claims %d (%s) on port block %d, but a stop with no record never verifies it released", role, need.port, need.label, block)
+				}
 			}
 		}
+	}
+	if blockOne := blockPort(semiontDescriptor("archivist").ports[0].port, 1); slices.Contains(verified, blockOne) {
+		t.Errorf("a stop with no record verifies %d, on port block 1, which no root keeps", blockOne)
 	}
 }
 

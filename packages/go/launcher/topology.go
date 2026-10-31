@@ -53,7 +53,7 @@ func (p placement) placed(role string) bool {
 // start's address on the gateway's port. The publicURL is where clients
 // reach it, and is written into the gateway's own document alone.
 func (p placement) gatewayURL() string {
-	return fmt.Sprintf("http://%s:%d", p.addr, p.exposure().containersPort("gateway", p.plan.GatewayPort))
+	return fmt.Sprintf("http://%s:%d", p.addr, p.exposure().containersPort("gateway", p.plan.GatewayPort, p.plan.GatewayPort))
 }
 
 // exposure: where this start publishes and probes each port, by who dials it.
@@ -87,12 +87,12 @@ func (p placement) keycloakHostname() string {
 
 // archivist: where a service that reads the record reaches the Archivist —
 // the address the KnowledgeBase states for one somebody else runs, else this
-// start's, on its descriptor's port.
+// start's, where the plan publishes it.
 func (p placement) archivist() (host string, port int) {
 	if stated := p.st.KnowledgeBase.Spec.Archivist.Address; stated != nil {
 		return stated.Host, stated.Port
 	}
-	return p.addr, semiontDescriptor("archivist").ports[0].port
+	return p.addr, p.plan.servicePort("archivist")
 }
 
 // graphURI: where the graph database is.
@@ -100,7 +100,8 @@ func (p placement) graphURI() string {
 	if external := p.st.KnowledgeIndex.Spec.Graph.External; external != nil {
 		return external.Uri
 	}
-	return fmt.Sprintf("bolt://%s:%d", p.addr, p.exposure().containersPort("graph", p.plan.Roles["graph"].Port))
+	rp := p.plan.Roles["graph"]
+	return fmt.Sprintf("bolt://%s:%d", p.addr, p.exposure().containersPort("graph", rp.Port, descriptorFor("graph", rp.Driver).defaultPort))
 }
 
 // vectors: where the vector index is.

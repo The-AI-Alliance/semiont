@@ -104,7 +104,7 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 // it — else the gateway advertises one issuer and the realm stamps another.
 func TestGatewayDocumentNamesTheIssuerAtItsPort(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	plan, err := derivePlan(st, 8081)
+	plan, err := derivePlan(st, 8081, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

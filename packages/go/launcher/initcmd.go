@@ -442,6 +442,7 @@ site:
 		if genFiles, err = generateStack(genParams{
 			Inference: inference, Model: model, ModelLight: modelLight,
 			EmbeddingModel: embModel, AnthropicEndpoint: anthropicEndpoint,
+			GatewayPort: freeGatewayPort(dir),
 		}, genName); err != nil {
 			u.Fail("%v", err)
 			return 1

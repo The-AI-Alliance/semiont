@@ -113,7 +113,7 @@ func TestWriteVettedStackRefusesUnstartable(t *testing.T) {
 	root := t.TempDir()
 	u := NewUI(true)
 	generated := func() map[string][]byte {
-		files, err := generateStack(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "nomic-embed-text", AnthropicEndpoint: "https://api.anthropic.com"}, "anthropic")
+		files, err := generateStack(genParams{Inference: "anthropic", Model: "m", EmbeddingModel: "nomic-embed-text", AnthropicEndpoint: "https://api.anthropic.com", GatewayPort: 4000}, "anthropic")
 		if err != nil {
 			t.Fatal(err)
 		}
