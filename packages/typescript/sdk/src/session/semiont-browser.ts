@@ -95,7 +95,8 @@ function lastViewedByKbOf(stored: string | null): Record<string, string> {
 /**
  * Change what `storage` keeps under `key`, against what it holds, as one
  * step: `read` reads what is stored, and `change` says what is kept next.
- * Gives what was written. A write the storage refuses throws.
+ * Gives what was written: what the last call of the storage's change
+ * produced. A write the storage refuses throws.
  */
 function changeKept<T>(
   storage: SessionStorage,
@@ -103,13 +104,13 @@ function changeKept<T>(
   read: (stored: string | null) => T,
   change: (kept: T) => T,
 ): T {
-  const written: T[] = [];
+  let written: T | undefined;
   storage.update(key, (stored) => {
-    const next = change(read(stored));
-    written.push(next);
-    return JSON.stringify(next);
+    written = change(read(stored));
+    return JSON.stringify(written);
   });
-  return written[0];
+  if (written === undefined) throw new Error(`The storage did not change ${key}`);
+  return written;
 }
 
 /**

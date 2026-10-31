@@ -196,13 +196,12 @@ export async function completeAuthorization(
   callbackUrl: string,
   pending: SessionStorage,
 ): Promise<{ pending: PendingAuthorization; tokens: IssuedTokens }> {
-  const taken: Array<string | null> = [];
+  let taken: string | null = null;
   pending.update(PENDING_AUTHORIZATION_KEY, (stored) => {
-    taken.push(stored);
+    taken = stored;
     return null;
   });
-  const [raw] = taken;
-  const record = raw === null ? null : parsePending(raw);
+  const record = taken === null ? null : parsePending(taken);
   if (!record) throw new SignInError('no-pending', 'No sign-in is pending here');
 
   const url = new URL(callbackUrl);
