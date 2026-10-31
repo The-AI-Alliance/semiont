@@ -376,18 +376,21 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
     // session that is over a credential again. A session that no longer
     // holds the tokens read was renewed some other way meanwhile: that
     // stands, and its access token is the one given.
-    const given: string[] = [];
+    let given: string | null = null;
     storage.update(sessionKey(kbId), (held) => {
       const current = storedSessionIn(held);
-      if (!current) return held;
-      if (current.access !== stored.access || current.refresh !== stored.refresh) {
-        given.push(current.access);
+      if (!current) {
+        given = null;
         return held;
       }
-      given.push(access);
+      if (current.access !== stored.access || current.refresh !== stored.refresh) {
+        given = current.access;
+        return held;
+      }
+      given = access;
       return JSON.stringify({ ...current, access, refresh });
     });
-    return given.length > 0 ? given[0] : null;
+    return given;
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
     // One attempt means the issuer answered and the answer was final; more
