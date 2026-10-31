@@ -26,7 +26,9 @@ import semiont.namespaces.EngineWithLimits
 import semiont.sameJson
 import semiont.storage.CachePersistence
 import semiont.storage.MemoryStorage
+import semiont.storage.SessionStorage
 import semiont.transport.Frame
+import java.util.concurrent.CountDownLatch
 
 /** A client's live queries: what collecting one holds, and what a read gives its collectors. */
 class LiveQueriesTest {
@@ -217,7 +219,9 @@ class LiveQueriesTest {
     @Test
     fun aClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThemAnew() = runBlocking {
         val storage = MemoryStorage()
-        val persistence = CachePersistence(storage, "kb")
+        // The client's write of the annotation's detail lands late, once the test lets it.
+        val late = LateWrite(storage, "semiont.cache.kb.annotation-detail")
+        val persistence = CachePersistence(late, "kb")
         fun kept(name: String): JsonObject? = storage.get("semiont.cache.kb.$name")?.let { Json.parseToJsonElement(it).jsonObject }
 
         val world = KbWorld(persistence = persistence)
@@ -241,6 +245,7 @@ class LiveQueriesTest {
         eventually { client.persistenceSettled }
         // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed, and nothing is written.
         val written = storage.get("semiont.cache.kb.annotation-detail")
+        late.letGo()
         world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
         delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
         assertTrue(client.persistenceSettled)
@@ -321,3 +326,15 @@ class LiveQueriesTest {
 
 /** The queries a client with a storage keeps. */
 private val KEPT = setOf(CacheQuery.Resource, CacheQuery.Annotations, CacheQuery.Annotation, CacheQuery.EntityTypes, CacheQuery.TagSchemas)
+
+/** A storage whose write of `key` waits until `letGo`. Every other read and write is the storage's own. */
+private class LateWrite(private val beneath: SessionStorage, private val key: String) : SessionStorage by beneath {
+    private val open = CountDownLatch(1)
+
+    fun letGo() = open.countDown()
+
+    override fun set(key: String, value: String) {
+        if (key == this.key) open.await()
+        beneath.set(key, value)
+    }
+}
