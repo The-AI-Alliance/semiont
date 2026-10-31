@@ -171,7 +171,7 @@ eachPlane('credentials', (world) => {
     }
   });
 
-  it('a media token is refused when it is not one, has expired, or was signed with a key the gateway does not hold; and it never opens a write', async () => {
+  it('a media token is refused when it is not one, has expired, was signed with a key the gateway does not hold, or names another knowledge base or none; and it never opens a write', async () => {
     const id = 'res-media-edges';
     world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
     world().archivist.content.set(`file://${id}`, Buffer.from('media bytes'));
@@ -181,11 +181,14 @@ eachPlane('credentials', (world) => {
     expect(opened.status, opened.text).toBe(200);
     expect(opened.text).toBe('media bytes');
 
+    const iss = world().kb.domain;
     const refused: Array<[string, string]> = [
       ['garbage', 'garbage'],
-      ['expired', await world().signed({ purpose: 'media', sub: id, iat: now() - 600, exp: now() - 300 })],
-      ['another key', await world().signed({ purpose: 'media', sub: id, iat: now(), exp: now() + 300 }, randomBytes(32).toString('hex'))],
-      ['not a media token', await world().signed({ purpose: 'download', sub: id, iat: now(), exp: now() + 300 })],
+      ['expired', await world().signed({ purpose: 'media', iss, sub: id, iat: now() - 600, exp: now() - 300 })],
+      ['another key', await world().signed({ purpose: 'media', iss, sub: id, iat: now(), exp: now() + 300 }, randomBytes(32).toString('hex'))],
+      ['not a media token', await world().signed({ purpose: 'download', iss, sub: id, iat: now(), exp: now() + 300 })],
+      ['another knowledge base, on the same key ring', await world().signed({ purpose: 'media', iss: `another.${iss}`, sub: id, iat: now(), exp: now() + 300 })],
+      ['no knowledge base', await world().signed({ purpose: 'media', sub: id, iat: now(), exp: now() + 300 })],
     ];
     for (const [why, token] of refused) {
       const reply = await call(world().origin, 'GET', `/api/resources/${id}?token=${token}`);
@@ -221,14 +224,14 @@ eachPlane('credentials', (world) => {
     expectRefused(await call(world().origin, 'GET', '/api/users/me', { token: forged }), 'get', '/api/users/me');
   });
 
-  it('a media token names one resource for five minutes', async () => {
+  it('a media token names its knowledge base and one resource, for five minutes', async () => {
     const token = await world().person('viewer');
     const reply = await call(world().origin, 'POST', '/api/tokens/media', { token, json: { resourceId: 'res-media-1' } });
     expect(reply.status, reply.text).toBe(200);
     expect(nonConformance('post', '/api/tokens/media', reply)).toEqual([]);
     const { payload, header } = decode((reply.json as { token: string }).token);
     expect(header['alg']).toBe('HS256');
-    expect(payload).toMatchObject({ purpose: 'media', sub: 'res-media-1' });
+    expect(payload).toMatchObject({ purpose: 'media', iss: world().kb.domain, sub: 'res-media-1' });
     expect(Number(payload['exp']) - Number(payload['iat'])).toBe(300);
 
     const missing = await call(world().origin, 'POST', '/api/tokens/media', { token, json: {} });

@@ -100,14 +100,16 @@ each knowledge base's own store. `semiont settings` lists them with the launcher
 **Generated once, then kept.** Each value is generated on the first start that needs it and
 written to its file before use. Every later start reuses it, because replacing it breaks
 something that outlived the stack:
-- A new token-signing key invalidates every agent and media token already issued.
+- A new token-signing key invalidates every media token already issued.
 - A data directory keeps the password it was initialized with, so a new daemon password
   locks the services out of their own data.
 - Keycloak creates its admin, and imports the service accounts, on its first boot.
 
 **What you may set yourself.**
-- An exported `JWT_SECRET` wins. It is an ordered ring, `<new>,<old>`, which is how the key
-  rotates without cutting off the sidecars. See
+- An exported `JWT_SECRET` wins, for every knowledge base you start with it. Each gateway's
+  media tokens still name their own knowledge base, so one knowledge base's links open nothing of
+  another's. It is an ordered ring, `<new>,<old>`, which is how the key rotates without breaking
+  the media links in hand. See
   [Authentication](../administration/AUTHENTICATION.md#rotating-jwt_secret).
 - An exported `KC_BOOTSTRAP_ADMIN_PASSWORD`, or `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`, wins:
   one variable per service, never one shared by all.

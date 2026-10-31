@@ -2,7 +2,9 @@
 //! JWT_SECRET: comma-separated keys, whitespace around each
 //! ignored, every one at least 32 characters. The first key signs; a token
 //! signed by any key verifies, so the signing key can change without
-//! invalidating what is outstanding (`JWT_SECRET=<new>,<old>`).
+//! invalidating what is outstanding (`JWT_SECRET=<new>,<old>`). A media token
+//! names the knowledge base whose gateway minted it, and no other's gateway
+//! accepts it, so two knowledge bases sharing a ring share no access.
 
 use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
@@ -16,6 +18,9 @@ const MEDIA_TOKEN_SECONDS: u64 = 5 * 60;
 
 pub struct KeyRing {
     keys: Vec<String>,
+    /// The domain of the knowledge base the gateway serves: the `iss` of every
+    /// media token it mints, and of every one it accepts.
+    domain: String,
 }
 
 /// JWT_SECRET, as a ring, or why it cannot be one. The message never carries a key.
@@ -49,6 +54,7 @@ enum Refusal {
 #[derive(Serialize)]
 struct MediaToken<'a> {
     purpose: &'static str,
+    iss: &'a str,
     sub: &'a str,
     iat: u64,
     exp: u64,
@@ -62,8 +68,8 @@ fn now() -> u64 {
 }
 
 impl KeyRing {
-    pub fn new(keys: Vec<String>) -> KeyRing {
-        KeyRing { keys }
+    pub fn new(keys: Vec<String>, domain: String) -> KeyRing {
+        KeyRing { keys, domain }
     }
 
     fn sign(&self, claims: &impl Serialize) -> String {
@@ -75,11 +81,13 @@ impl KeyRing {
         .unwrap_or_else(|e| panic!("signing a token: {e}"))
     }
 
-    /// A token naming one resource, for five minutes, and nothing else.
+    /// A token naming one resource of this knowledge base, for five minutes,
+    /// and nothing else.
     pub fn media_token(&self, resource_id: &str) -> String {
         let iat = now();
         self.sign(&MediaToken {
             purpose: "media",
+            iss: &self.domain,
             sub: resource_id,
             iat,
             exp: iat + MEDIA_TOKEN_SECONDS,
@@ -111,7 +119,7 @@ impl KeyRing {
         Err(Refusal::Invalid)
     }
 
-    /// A media token for `resource_id`.
+    /// A media token this knowledge base's gateway minted for `resource_id`.
     pub fn verify_media(&self, token: &str, resource_id: &str) -> Result<(), String> {
         let claims = match self.verify_across(token) {
             Ok(claims) => claims,
@@ -120,6 +128,9 @@ impl KeyRing {
         };
         if claims["purpose"] != "media" {
             return Err("Invalid media token".to_owned());
+        }
+        if claims["iss"] != self.domain {
+            return Err("Media token of another knowledge base".to_owned());
         }
         if claims["sub"] != resource_id {
             return Err("Media token resource mismatch".to_owned());
@@ -134,10 +145,19 @@ mod tests {
 
     const OLD: &str = "0123456789abcdef0123456789abcdef";
     const NEW: &str = "fedcba9876543210fedcba9876543210";
+    const DOMAIN: &str = "example.org:kb";
+
+    /// A ring of `keys` for the knowledge base at `domain`.
+    fn ring(keys: &[&str], domain: &str) -> KeyRing {
+        KeyRing::new(
+            keys.iter().map(|key| (*key).to_owned()).collect(),
+            domain.to_owned(),
+        )
+    }
 
     #[test]
     fn a_media_token_opens_the_resource_it_names_and_no_other() {
-        let keys = KeyRing::new(vec![NEW.to_owned()]);
+        let keys = ring(&[NEW], DOMAIN);
         let token = keys.media_token("r1");
         assert_eq!(keys.verify_media(&token, "r1"), Ok(()));
         assert!(keys.verify_media(&token, "r2").is_err());
@@ -145,13 +165,34 @@ mod tests {
 
     #[test]
     fn a_media_token_signed_by_a_key_still_on_the_ring_verifies() {
-        let token = KeyRing::new(vec![OLD.to_owned()]).media_token("r1");
-        let rotated = KeyRing::new(vec![NEW.to_owned(), OLD.to_owned()]);
+        let token = ring(&[OLD], DOMAIN).media_token("r1");
+        let rotated = ring(&[NEW, OLD], DOMAIN);
         assert_eq!(rotated.verify_media(&token, "r1"), Ok(()));
-        assert!(
-            KeyRing::new(vec![NEW.to_owned()])
-                .verify_media(&token, "r1")
-                .is_err()
+        assert!(ring(&[NEW], DOMAIN).verify_media(&token, "r1").is_err());
+    }
+
+    #[test]
+    fn a_media_token_opens_nothing_of_another_knowledge_base_on_the_same_ring() {
+        let token = ring(&[NEW], DOMAIN).media_token("r1");
+        assert_eq!(
+            ring(&[NEW], "example.org:another-kb").verify_media(&token, "r1"),
+            Err("Media token of another knowledge base".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_media_token_naming_no_knowledge_base_is_refused() {
+        let keys = ring(&[NEW], DOMAIN);
+        let iat = now();
+        let token = keys.sign(&serde_json::json!({
+            "purpose": "media",
+            "sub": "r1",
+            "iat": iat,
+            "exp": iat + MEDIA_TOKEN_SECONDS,
+        }));
+        assert_eq!(
+            keys.verify_media(&token, "r1"),
+            Err("Media token of another knowledge base".to_owned())
         );
     }
 }

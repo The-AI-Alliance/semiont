@@ -109,8 +109,11 @@ per address is an ingress's.
 ## The token the gateway mints
 
 **Media tokens** — `POST /api/tokens/media` with `{ "resourceId": … }`: a
-token naming that one resource (`purpose: "media"`, `sub`) for five minutes,
-accepted only by `GET /api/resources/{id}` for that id.
+token naming this knowledge base (`iss`, the domain the gateway's document
+names) and that one resource (`purpose: "media"`, `sub`) for five minutes,
+accepted only by `GET /api/resources/{id}` for that id, and only by a gateway
+serving that knowledge base: two gateways sharing a `JWT_SECRET` accept none
+of each other's.
 
 **Signing out** needs nothing here: the gateway never issued the session. A
 client forgets its session and revokes its refresh token at the issuer; the
