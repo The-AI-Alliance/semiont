@@ -22,6 +22,8 @@ base64.workspace = true
 bytes.workspace = true
 encoding_rs = { workspace = true, optional = true }
 futures-core.workspace = true
+# A cache's failed save, said as a warning to whichever logger the application installs.
+log.workspace = true
 percent-encoding.workspace = true
 proptest = { workspace = true, optional = true }
 # The SHA-256 an annotation's id is derived with.

@@ -40,7 +40,6 @@ use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
 use semiont::types::{HttpEndpoint, KbDescription, KbEndpoint, KbTarget, ResourceId};
 use std::collections::HashMap;
-use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::watch;
 
@@ -201,10 +200,13 @@ pub struct IssuedSession {
 /// A session over tokens an issuer has already issued: a completed sign-in,
 /// a device grant, a pair minted for a test. They are kept under the
 /// knowledge base's id, the session renews at the issuer they name, and it
-/// is ready when this returns.
-pub async fn session_from_issued(issued: IssuedSession) -> OpenedSession {
-    store_session(issued.storage.as_ref(), &issued.kb.id, &issued.session);
-    over_stored(
+/// is ready when this returns. A storage that would not keep them is the
+/// error, and no session is opened.
+pub async fn session_from_issued(
+    issued: IssuedSession,
+) -> Result<OpenedSession, Box<dyn std::error::Error + Send + Sync>> {
+    store_session(issued.storage.as_ref(), &issued.kb.id, &issued.session)?;
+    Ok(over_stored(
         StoredSignIn {
             kb: issued.kb,
             storage: issued.storage,
@@ -216,7 +218,7 @@ pub async fn session_from_issued(issued: IssuedSession) -> OpenedSession {
         },
         issued.session.access,
     )
-    .await
+    .await)
 }
 
 /// A sign-in a storage already holds, and the knowledge base it is for.
@@ -283,11 +285,12 @@ pub struct SignInDevice {
 /// with the client it was built with.
 /// The issuer the knowledge base trusts mints a code, `on_code` shows the
 /// person where to approve it, and the tokens come back here: no password
-/// passes through this process.
+/// passes through this process. A failure is a `SignInError`, or the
+/// storage's own error when it would not keep the tokens.
 pub async fn sign_in_device(
     options: SignInDevice,
     on_code: impl FnOnce(DeviceCode),
-) -> Result<OpenedSession, SignInError> {
+) -> Result<OpenedSession, Box<dyn std::error::Error + Send + Sync>> {
     let Some(target) = options.kb.endpoint.http().cloned() else {
         return Err(SignInError::new(
             SignInErrorCode::Discovery,
@@ -295,13 +298,14 @@ pub async fn sign_in_device(
                 "The device grant needs an HTTP endpoint; this knowledge base's is \"{}\"",
                 options.kb.endpoint.kind()
             ),
-        ));
+        )
+        .into());
     };
     let base_url = target
         .gateway_url()
         .map_err(|invalid| SignInError::new(SignInErrorCode::Discovery, invalid))?;
     let (issuer, tokens) = sign_in_with_device_grant(&target, on_code, &options.http).await?;
-    Ok(session_from_issued(IssuedSession {
+    session_from_issued(IssuedSession {
         kb: options.kb,
         storage: options.storage,
         base_url,
@@ -317,7 +321,7 @@ pub async fn sign_in_device(
         on_error: options.on_error,
         http: options.http,
     })
-    .await)
+    .await
 }
 
 // ── For a registry of knowledge bases ───────────────────────────────────
@@ -488,51 +492,32 @@ pub async fn describe_connection(
 
 /// Begin a sign-in for a registry: find the issuer the target trusts,
 /// remember the pending sign-in in the registry's storage, and give the URL
-/// to send the person to.
+/// to send the person to. A failure is a `SignInError`, or the storage's own
+/// error when it would not keep the pending sign-in.
 pub async fn begin_sign_in(
     browser: &SemiontBrowser,
     options: BeginAuthorization,
     http: &reqwest::Client,
-) -> Result<String, SignInError> {
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     begin_authorization(options, browser.storage().as_ref(), http).await
 }
-
-/// Why a sign-in did not complete: the grant failed, or it succeeded and
-/// the knowledge base could not say who it is.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CompleteSignInError {
-    SignIn(SignInError),
-    Identity(IdentityUnverifiable),
-}
-
-impl fmt::Display for CompleteSignInError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CompleteSignInError::SignIn(error) => error.fmt(f),
-            CompleteSignInError::Identity(error) => error.fmt(f),
-        }
-    }
-}
-
-impl std::error::Error for CompleteSignInError {}
 
 /// Finish a sign-in from the URL the issuer sent the person back to:
 /// exchange the code, ask the knowledge base who it is, and have the
 /// registry land the sign-in on the entry for the knowledge base that
 /// answered (`SemiontBrowser::signed_in`). A knowledge base that cannot say
-/// who it is is not registered, and nothing is stored.
+/// who it is is not registered, and nothing is stored. A failure is a
+/// `SignInError` when the grant failed, an `IdentityUnverifiable` when the
+/// knowledge base could not say who it is, or the storage's own error.
 pub async fn complete_sign_in(
     browser: &SemiontBrowser,
     callback_url: &str,
     http: &reqwest::Client,
-) -> Result<SignInOutcome, CompleteSignInError> {
-    let (pending, tokens) = complete_authorization(callback_url, browser.storage().as_ref(), http)
-        .await
-        .map_err(CompleteSignInError::SignIn)?;
-    let identity = describe_connection(&pending.target, &tokens.access, http)
-        .await
-        .map_err(CompleteSignInError::Identity)?;
-    Ok(browser
+) -> Result<SignInOutcome, Box<dyn std::error::Error + Send + Sync>> {
+    let (pending, tokens) =
+        complete_authorization(callback_url, browser.storage().as_ref(), http).await?;
+    let identity = describe_connection(&pending.target, &tokens.access, http).await?;
+    browser
         .signed_in(SignedIn {
             endpoint: KbEndpoint::HttpEndpoint(pending.target),
             description: identity.description,
@@ -547,5 +532,5 @@ pub async fn complete_sign_in(
             expected_did: pending.expected_did,
             expected_name: pending.expected_name,
         })
-        .await)
+        .await
 }

@@ -59,19 +59,25 @@ impl SessionStorage for SharedStorage {
         locked(&self.shared).stored.get(key).cloned()
     }
 
-    fn set(&self, key: &str, value: &str) {
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         locked(&self.shared)
             .stored
             .insert(key.to_owned(), value.to_owned());
         self.tell(key, Some(value));
+        Ok(())
     }
 
-    fn delete(&self, key: &str) {
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         locked(&self.shared).stored.remove(key);
         self.tell(key, None);
+        Ok(())
     }
 
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let next = {
             let mut shared = locked(&self.shared);
             let next = change(shared.stored.get(key).map(String::as_str));
@@ -82,6 +88,7 @@ impl SessionStorage for SharedStorage {
             next
         };
         self.tell(key, next.as_deref());
+        Ok(())
     }
 
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {

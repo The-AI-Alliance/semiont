@@ -13,7 +13,7 @@ use semiont::session::{
     session_key, store_session, stored_session,
 };
 use semiont::state_unit::StateUnit;
-use semiont::storage::SessionStorage;
+use semiont::storage::{SessionStorage, StorageChange, StorageSubscription};
 use semiont::testing::axioms::{AxiomSubject, Fresh, Surface, assert_state_unit_axioms};
 use semiont::testing::{
     FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
@@ -121,7 +121,7 @@ impl World {
     }
 
     fn storing(self, access: &str) -> World {
-        store_session(self.storage.as_ref(), KB, &stored(access));
+        store_session(self.storage.as_ref(), KB, &stored(access)).expect("stored");
         self
     }
 
@@ -303,6 +303,59 @@ async fn an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is
         assert!(!world.has_stored());
         assert!(world.validated().is_empty());
     }
+}
+
+/// A storage that holds what it has, and forgets none of it: every delete
+/// is refused.
+struct Unforgetting(SharedStorage);
+
+impl SessionStorage for Unforgetting {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.get(key)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.0.set(key, value)
+    }
+
+    fn delete(&self, _: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Err("the storage is full".into())
+    }
+
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.0.update(key, change)
+    }
+
+    fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
+        self.0.subscribe(on_change)
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
+    let world = World::new()
+        .storing(&expired())
+        .renewing([Err("the network is down".to_owned())]);
+    let session = SemiontSession::new(SemiontSessionConfig {
+        storage: Arc::new(Unforgetting(world.storage.context())),
+        ..world.config()
+    });
+    ready(&session).await;
+
+    assert_eq!(*session.token().borrow(), None);
+    assert!(world.has_stored());
+    assert_eq!(
+        world.errors(),
+        [(
+            SessionErrorCode::RefreshExhausted,
+            "Token refresh failed: the network is down; and the sign-in could not be forgotten: the storage is full".to_owned()
+        )]
+    );
+    assert!(world.auth_failed().is_empty());
 }
 
 #[tokio::test(start_paused = true)]
@@ -806,7 +859,8 @@ async fn a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() {
     // Another context signs in again while the gateway is being asked.
     world
         .elsewhere
-        .set(&session_key(KB), &stored(&other).written());
+        .set(&session_key(KB), &stored(&other).written())
+        .expect("stored");
     release.notify_one();
 
     assert_eq!(
@@ -885,6 +939,29 @@ async fn a_session_that_cannot_be_renewed_is_over_and_says_so_once() {
     assert_eq!(session.refresh().await, None);
     assert_eq!(world.auth_failed().len(), 1);
     assert_eq!(world.errors().len(), 1);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_ends() {
+    let world = World::new().storing(&token(3600, 1));
+    let session = SemiontSession::new(SemiontSessionConfig {
+        storage: Arc::new(Unforgetting(world.storage.context())),
+        ..world.config()
+    });
+    ready(&session).await;
+
+    assert_eq!(session.refresh().await, None);
+    assert_eq!(*session.token().borrow(), None);
+    assert!(world.has_stored());
+    assert_eq!(world.auth_failed(), ["expired"]);
+    assert_eq!(
+        world.errors(),
+        [(
+            SessionErrorCode::RefreshExhausted,
+            "Token refresh failed; and the sign-in could not be forgotten: the storage is full"
+                .to_owned()
+        )]
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -999,7 +1076,8 @@ async fn a_token_another_context_renewed_is_taken_up() {
     let renewed = token(3600, 2);
     world
         .elsewhere
-        .set(&session_key(KB), &stored(&renewed).written());
+        .set(&session_key(KB), &stored(&renewed).written())
+        .expect("stored");
 
     assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
     assert_eq!(*session.user().borrow(), Some(alice()));
@@ -1011,7 +1089,7 @@ async fn a_sign_out_in_another_context_signs_this_one_out() {
     let session = world.session();
     ready(&session).await;
 
-    world.elsewhere.delete(&session_key(KB));
+    world.elsewhere.delete(&session_key(KB)).expect("stored");
 
     assert_eq!(*session.token().borrow(), None);
     assert_eq!(*session.user().borrow(), None);
@@ -1026,13 +1104,25 @@ async fn what_another_context_writes_elsewhere_or_unreadably_changes_nothing() {
     let session = world.session();
     ready(&session).await;
 
-    world.elsewhere.set(
-        &session_key("another-kb"),
-        &stored(&token(3600, 2)).written(),
-    );
-    world.elsewhere.set("semiont.knowledgeBases", "[]");
-    world.elsewhere.set(&session_key(KB), "not a session");
-    world.elsewhere.set(&session_key(KB), r#"{"access": 7}"#);
+    world
+        .elsewhere
+        .set(
+            &session_key("another-kb"),
+            &stored(&token(3600, 2)).written(),
+        )
+        .expect("stored");
+    world
+        .elsewhere
+        .set("semiont.knowledgeBases", "[]")
+        .expect("stored");
+    world
+        .elsewhere
+        .set(&session_key(KB), "not a session")
+        .expect("stored");
+    world
+        .elsewhere
+        .set(&session_key(KB), r#"{"access": 7}"#)
+        .expect("stored");
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
     assert_eq!(*session.user().borrow(), Some(alice()));
@@ -1048,7 +1138,8 @@ async fn an_ended_session_hears_nothing_of_the_storage() {
 
     world
         .elsewhere
-        .set(&session_key(KB), &stored(&token(3600, 2)).written());
+        .set(&session_key(KB), &stored(&token(3600, 2)).written())
+        .expect("stored");
     settle().await;
 
     // What it held when it ended is what it shows: nothing after is taken up.

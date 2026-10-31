@@ -2170,6 +2170,7 @@ dependencies = [
  "bytes",
  "encoding_rs",
  "futures-core",
+ "log",
  "opentelemetry",
  "percent-encoding",
  "proptest",

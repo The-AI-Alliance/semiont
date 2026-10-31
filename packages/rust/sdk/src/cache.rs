@@ -26,6 +26,8 @@
 //! A cache with a `CachePersister` begins with what was kept and saves its
 //! values as they change. A value that was kept is shown at once and asked
 //! for again the first time it is observed: nothing says it is still true.
+//! Keeping its values is a convenience: a save that fails is logged as a
+//! warning, the cache goes on as it was, and its next save tries again.
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, SemiontError};
 use crate::state_unit::StateUnit;
@@ -91,14 +93,26 @@ pub trait CachePersister<K, V>: Send + Sync + 'static {
     /// What was kept, asked once, when the cache is built.
     fn load(&self) -> Option<HashMap<K, V>>;
 
-    /// Keep these: the cache's values, after they changed.
-    fn save(&self, entries: &HashMap<K, V>);
+    /// Keep these: the cache's values, after they changed. The error when
+    /// they could not be kept.
+    fn save(&self, entries: &HashMap<K, V>)
+    -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
     /// Hear of what another context saved. `None` where there is no other.
     fn subscribe(
         &self,
         on_external_change: Box<dyn Fn(HashMap<K, V>) + Send + Sync>,
     ) -> Option<StorageSubscription>;
+}
+
+/// Save a cache's values; one that fails is a warning.
+fn saved<K: CacheKey, V: CacheValue>(
+    persister: &dyn CachePersister<K, V>,
+    entries: &HashMap<K, V>,
+) {
+    if let Err(unsaved) = persister.save(entries) {
+        log::warn!("semiont: the cache's values were not kept: {unsaved}");
+    }
 }
 
 type Fetch<K, V> = dyn Fn(K) -> BoxFuture<'static, Result<V, SemiontError>> + Send + Sync;
@@ -209,7 +223,7 @@ where
                         Inner::values(&state)
                     };
                     if let Some(persister) = &cache.persister {
-                        persister.save(&entries);
+                        saved(persister.as_ref(), &entries);
                     }
                 }
             })
@@ -309,7 +323,7 @@ where
         if let Some(waiting) = state.saving.take() {
             waiting.abort();
             if let Some(persister) = &self.persister {
-                persister.save(&Inner::values(state));
+                saved(persister.as_ref(), &Inner::values(state));
             }
         }
     }
@@ -584,7 +598,7 @@ where
             owed
         };
         if let (Some(entries), Some(persister)) = (owed, &self.inner.persister) {
-            persister.save(&entries);
+            saved(persister.as_ref(), &entries);
         }
     }
 }
@@ -682,7 +696,10 @@ where
         Some(entries(document))
     }
 
-    fn save(&self, entries: &HashMap<K, V>) {
+    fn save(
+        &self,
+        entries: &HashMap<K, V>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |since| {
@@ -726,7 +743,7 @@ where
             .map(|(key, value, at)| (key.to_string(), (value.to_string(), *at)))
             .collect();
         drop(written);
-        self.storage.set(&self.storage_key, &text);
+        self.storage.set(&self.storage_key, &text)
     }
 
     fn subscribe(

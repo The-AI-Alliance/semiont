@@ -25,7 +25,8 @@ use semiont::discovery::{
     DiscoveryAbsentReason, DiscoveryRead, DiscoveryState, DiscoveryTransport,
 };
 use semiont::errors::{
-    BusRequestErrorCode, IdentityUnverifiableReason, SessionErrorCode, SignInError, SignInErrorCode,
+    BusRequestErrorCode, IdentityUnverifiable, IdentityUnverifiableReason, SessionErrorCode,
+    SignInError, SignInErrorCode,
 };
 use semiont::identity::agent_did;
 use semiont::roles::{AGENT_KIND, KIND_CLAIM, is_agent};
@@ -58,9 +59,8 @@ use semiont_http_transport::service_account::{
     Credential, KeyCredential, KeyError, SecretCredential, ServiceToken, private_key_from_pem,
 };
 use semiont_http_transport::session::{
-    CompleteSignInError, HttpSessionFactory, IssuedSession, SignInDevice, StoredSignIn,
-    begin_sign_in, complete_sign_in, describe_connection, session_from_issued, session_from_stored,
-    sign_in_device,
+    HttpSessionFactory, IssuedSession, SignInDevice, StoredSignIn, begin_sign_in, complete_sign_in,
+    describe_connection, session_from_issued, session_from_stored, sign_in_device,
 };
 use semiont_http_transport::transport::{HttpTransportConfig, Timing, TokenRefresher};
 use serde_json::{Value, json};
@@ -814,6 +814,7 @@ async fn completing_a_sign_in_exchanges_the_code_with_its_verifier_once() {
     assert_eq!(storage.get(PENDING_AUTHORIZATION_KEY), None);
     let replayed = complete_authorization(&callback, &storage, &world.http)
         .await
+        .map_err(sign_in_error)
         .expect_err("nothing is pending");
     assert_eq!(replayed.code, SignInErrorCode::NoPending);
     assert_eq!(world.token_forms().len(), 1);
@@ -842,6 +843,7 @@ async fn a_response_that_is_not_the_pending_sign_ins_is_refused_and_nothing_is_e
             &world.http,
         )
         .await
+        .map_err(sign_in_error)
         .expect_err("the response is refused");
         assert_eq!(refused.code, expected, "{response}");
         // Refused or not, a sign-in is completed once.
@@ -856,6 +858,7 @@ async fn a_response_that_is_not_the_pending_sign_ins_is_refused_and_nothing_is_e
         &world.http,
     )
     .await
+    .map_err(sign_in_error)
     .expect_err("there is no code");
     assert_eq!(without_a_code.code, SignInErrorCode::Exchange);
 }
@@ -873,6 +876,7 @@ async fn tokens_with_no_refresh_token_are_refused() {
         &world.http,
     )
     .await
+    .map_err(sign_in_error)
     .expect_err("the session could not outlive its first token");
 
     assert_eq!(refused.code, SignInErrorCode::Exchange);
@@ -938,7 +942,7 @@ async fn a_refused_renewal_says_what_the_issuer_said_and_the_status_it_answered(
 
 fn storing(world: &World, kb_id: &str, access: &str) -> Arc<InMemorySessionStorage> {
     let storage = Arc::new(InMemorySessionStorage::new());
-    store_session(storage.as_ref(), kb_id, &world.stored(access, "r1"));
+    store_session(storage.as_ref(), kb_id, &world.stored(access, "r1")).expect("stored");
     storage
 }
 
@@ -952,9 +956,11 @@ async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_kee
         granted("a2", Some("r2")),
     ]);
 
-    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http).await;
+    let renewed = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
+        .await
+        .expect("renewed");
 
-    assert_eq!(renewed, Ok(Some("a2".to_owned())));
+    assert_eq!(renewed, Some("a2".to_owned()));
     assert_eq!(world.token_forms().len(), 3);
     assert_eq!(
         stored_session(storage.as_ref(), "kb-a"),
@@ -976,6 +982,7 @@ async fn a_refused_grant_is_final_on_its_first_answer() {
 
         let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
             .await
+            .map_err(sign_in_error)
             .expect_err("the grant is refused");
 
         assert_eq!(refused.status, Some(refusal.0));
@@ -1002,6 +1009,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
 
     let refused = refresh_stored_session(storage.as_ref(), "kb-a", Some("a1"), &world.http)
         .await
+        .map_err(sign_in_error)
         .expect_err("the budget is spent");
 
     assert_eq!(world.token_forms().len(), 4);
@@ -1019,9 +1027,11 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
             token_endpoint: "http://127.0.0.1:9/token".to_owned(),
             ..world.stored("a1", "r1")
         },
-    );
+    )
+    .expect("stored");
     let unanswered = refresh_stored_session(nowhere.as_ref(), "kb-a", Some("a1"), &world.http)
         .await
+        .map_err(sign_in_error)
         .expect_err("nothing is there");
     assert_eq!(unanswered.status, None);
     assert!(
@@ -1036,6 +1046,14 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
 //
 // Every renewal of specs/src/sign-in-store/cases.json, through
 // refresh_stored_session, over each storage a sign-in is kept in here.
+
+/// The sign-in error a failure is.
+fn sign_in_error(failure: Box<dyn Error + Send + Sync>) -> SignInError {
+    match failure.downcast::<SignInError>() {
+        Ok(refused) => *refused,
+        Err(other) => panic!("{other} is not a sign-in error"),
+    }
+}
 
 /// The renewer's storage, on which another program acts between the
 /// renewal's read and its write: while its grant is in flight.
@@ -1052,14 +1070,18 @@ impl SessionStorage for Meanwhile {
         }
         found
     }
-    fn set(&self, key: &str, value: &str) {
-        self.renewer.set(key, value);
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.renewer.set(key, value)
     }
-    fn delete(&self, key: &str) {
-        self.renewer.delete(key);
+    fn delete(&self, key: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.renewer.delete(key)
     }
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
-        self.renewer.update(key, change);
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        self.renewer.update(key, change)
     }
     fn subscribe(
         &self,
@@ -1134,19 +1156,21 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
         token_endpoint: format!("{}/token", world.issuer()),
         revocation_endpoint: None,
     };
-    store_session(another.as_ref(), "local", &session(&row["kept"]));
+    store_session(another.as_ref(), "local", &session(&row["kept"])).expect("stored");
     let meanwhile = &row["meanwhile"];
     let act: Option<Box<dyn FnOnce() + Send>> = match meanwhile["does"].as_str() {
         None => None,
         Some("renews") => {
             let (another, theirs) = (another.clone(), session(&meanwhile["theirs"]));
             Some(Box::new(move || {
-                store_session(another.as_ref(), "local", &theirs)
+                store_session(another.as_ref(), "local", &theirs).expect("stored")
             }))
         }
         Some("signs-out") => {
             let another = another.clone();
-            Some(Box::new(move || another.delete(&session_key("local"))))
+            Some(Box::new(move || {
+                another.delete(&session_key("local")).expect("forgotten")
+            }))
         }
         Some(other) => panic!("another program {other}"),
     };
@@ -1433,7 +1457,9 @@ async fn a_session_over_issued_tokens_keeps_them_is_ready_and_says_who_it_is() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
 
-    let opened = session_from_issued(issued(&world, storage.clone(), &access)).await;
+    let opened = session_from_issued(issued(&world, storage.clone(), &access))
+        .await
+        .expect("a session");
     let session = opened.session();
 
     assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
@@ -1459,7 +1485,9 @@ async fn asking_who_a_token_is_opens_no_stream_of_its_own() {
     let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
 
-    let opened = session_from_issued(issued(&world, storage, &access)).await;
+    let opened = session_from_issued(issued(&world, storage, &access))
+        .await
+        .expect("a session");
     until("the session's stream is open", || {
         !world.staged.subscriptions.lock().unwrap().is_empty()
     })
@@ -1495,7 +1523,8 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
         })),
         ..issued(&world, storage.clone(), &jwt(3600, 1))
     }))
-    .await;
+    .await
+    .expect("a session");
     let session = opened.session();
 
     assert_eq!(world.staged.asked_who.lock().unwrap().len(), 2);
@@ -1544,7 +1573,8 @@ async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refus
         })),
         ..issued(&world, storage.clone(), &first)
     }))
-    .await;
+    .await
+    .expect("a session");
     let session = opened.session();
     assert_eq!(
         *world.staged.asked_who.lock().unwrap(),
@@ -1590,7 +1620,9 @@ async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
     let (first, second) = (jwt(3600, 1), jwt(3600, 2));
-    let opened = session_from_issued(issued(&world, storage.clone(), &first)).await;
+    let opened = session_from_issued(issued(&world, storage.clone(), &first))
+        .await
+        .expect("a session");
     let session = opened.session();
     world.answers([granted(&second, Some("r2"))]);
 
@@ -1619,7 +1651,8 @@ async fn a_token_the_gateway_refuses_is_renewed_and_the_request_made_again() {
         validate: false,
         ..issued(&world, storage, &first)
     })
-    .await;
+    .await
+    .expect("a session");
     let session = opened.session();
     world.staged.refused.lock().unwrap().push(first.clone());
     world.answers([granted(&second, Some("r2"))]);
@@ -1693,7 +1726,7 @@ async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
     )
     .await;
     assert_eq!(
-        local.err().map(|refused| refused.message),
+        local.err().map(|refused| sign_in_error(refused).message),
         Some(
             "The device grant needs an HTTP endpoint; this knowledge base's is \"local\""
                 .to_owned()
@@ -1718,6 +1751,7 @@ fn browser(world: &World, storage: Arc<InMemorySessionStorage>) -> SemiontBrowse
         storage,
         session_factory: Arc::new(HttpSessionFactory::new(world.http.clone())),
     })
+    .expect("a browser")
 }
 
 async fn live(browser: &SemiontBrowser) -> Arc<SemiontSession> {
@@ -1736,9 +1770,9 @@ const DID_A: &str = "did:web:example.org:kb-a";
 async fn a_registry_brings_up_a_session_that_says_who_it_is_and_renews_an_expired_token() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
-    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]);
+    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]).expect("stored");
     let renewed = jwt(3600, 2);
-    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(-60, 1), "r1"));
+    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(-60, 1), "r1")).expect("stored");
     world.answers([granted(&renewed, Some("r2"))]);
 
     let browser = browser(&world, storage.clone());
@@ -1761,15 +1795,15 @@ async fn a_registry_brings_up_a_session_that_says_who_it_is_and_renews_an_expire
         stored_session(storage.as_ref(), "kb-a"),
         Some(world.stored(&renewed, "r2"))
     );
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test]
 async fn renewals_asked_for_together_are_one_request_of_the_issuer() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
-    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]);
-    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1"));
+    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]).expect("stored");
+    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1")).expect("stored");
     let browser = browser(&world, storage);
     let session = live(&browser).await;
     let renewed = jwt(3600, 2);
@@ -1782,7 +1816,7 @@ async fn renewals_asked_for_together_are_one_request_of_the_issuer() {
         [Some(renewed.clone()), Some(renewed.clone()), Some(renewed)]
     );
     assert_eq!(world.token_forms().len(), 1);
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test]
@@ -1795,7 +1829,8 @@ async fn a_registry_over_http_cannot_build_a_session_for_what_is_not_at_a_gatewa
             endpoint: KbEndpoint::LocalEndpoint(LocalEndpoint::new("here")),
             ..registered(&world, "kb-local", DID_A)
         }],
-    );
+    )
+    .expect("stored");
     let browser = browser(&world, storage);
     let mut errors = browser.errors();
 
@@ -1810,19 +1845,19 @@ async fn a_registry_over_http_cannot_build_a_session_for_what_is_not_at_a_gatewa
         refused.message,
         "HTTP session factory cannot construct a session for endpoint kind \"local\""
     );
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test]
 async fn signing_out_of_a_registry_revokes_the_refresh_token_at_its_issuer() {
     let world = World::start().await;
     let storage = Arc::new(InMemorySessionStorage::new());
-    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]);
-    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1"));
+    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]).expect("stored");
+    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1")).expect("stored");
     let browser = browser(&world, storage.clone());
     live(&browser).await;
 
-    browser.sign_out("kb-a").await;
+    browser.sign_out("kb-a").await.expect("signed out");
     until("the issuer is told", || {
         !world.staged.revoke_forms.lock().unwrap().is_empty()
     })
@@ -1834,7 +1869,7 @@ async fn signing_out_of_a_registry_revokes_the_refresh_token_at_its_issuer() {
         "semiont-browser"
     );
     assert_eq!(stored_session(storage.as_ref(), "kb-a"), None);
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 /// Begin a sign-in through the registry and give the callback URL the
@@ -1902,7 +1937,7 @@ async fn a_registrys_sign_in_registers_the_knowledge_base_under_what_it_says_it_
         })
     );
     assert_eq!(live(&browser).await.kb().id, outcome.kb.id);
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test]
@@ -1917,12 +1952,10 @@ async fn a_knowledge_base_that_cannot_say_who_it_is_is_not_registered() {
     let refused = complete_sign_in(&browser, &callback, &world.http)
         .await
         .expect_err("it cannot say who it is");
-    match refused {
-        CompleteSignInError::Identity(unverifiable) => {
-            assert_eq!(unverifiable.reason, IdentityUnverifiableReason::NotReported);
-        }
-        other => panic!("an identity failure was expected, not {other:?}"),
-    }
+    let unverifiable = refused
+        .downcast_ref::<IdentityUnverifiable>()
+        .expect("an identity failure");
+    assert_eq!(unverifiable.reason, IdentityUnverifiableReason::NotReported);
 
     // An emit the gateway refuses reaches nobody to ask.
     let unwelcome = jwt(3600, 2);
@@ -1937,16 +1970,14 @@ async fn a_knowledge_base_that_cannot_say_who_it_is_is_not_registered() {
     let unreached = complete_sign_in(&browser, &callback, &world.http)
         .await
         .expect_err("it was not reached");
-    match unreached {
-        CompleteSignInError::Identity(unverifiable) => {
-            assert_eq!(unverifiable.reason, IdentityUnverifiableReason::Unreachable);
-        }
-        other => panic!("an identity failure was expected, not {other:?}"),
-    }
+    let unverifiable = unreached
+        .downcast_ref::<IdentityUnverifiable>()
+        .expect("an identity failure");
+    assert_eq!(unverifiable.reason, IdentityUnverifiableReason::Unreachable);
 
     assert!(browser.kbs().borrow().is_empty());
     assert_eq!(*browser.active_kb_id().borrow(), None);
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test]
@@ -1964,14 +1995,14 @@ async fn a_callback_that_is_not_the_pending_sign_ins_registers_nothing() {
     .expect_err("the state is another's");
 
     assert_eq!(
-        refused,
-        CompleteSignInError::SignIn(SignInError::new(
+        refused.downcast_ref::<SignInError>(),
+        Some(&SignInError::new(
             SignInErrorCode::State,
             "The sign-in response does not belong to the pending sign-in"
         ))
     );
     assert!(browser.kbs().borrow().is_empty());
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 #[tokio::test]
@@ -2001,12 +2032,14 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
         ),
     );
     let storage = Arc::new(InMemorySessionStorage::new());
-    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]);
-    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1"));
-    storage.set(
-        "semiont.lastEventId.kb-a",
-        &json!({ "res-1": "p-5" }).to_string(),
-    );
+    save_knowledge_bases(storage.as_ref(), &[registered(&world, "kb-a", DID_A)]).expect("stored");
+    store_session(storage.as_ref(), "kb-a", &world.stored(&jwt(3600, 1), "r1")).expect("stored");
+    storage
+        .set(
+            "semiont.lastEventId.kb-a",
+            &json!({ "res-1": "p-5" }).to_string(),
+        )
+        .expect("stored");
     let browser = browser(&world, storage.clone());
     let session = live(&browser).await;
 
@@ -2048,7 +2081,7 @@ async fn a_registrys_session_resumes_its_stream_from_the_place_its_storage_kept(
         kept() == Some(json!({ "res-1": "p-9" }))
     })
     .await;
-    browser.close().await;
+    browser.close().await.expect("closed");
 }
 
 // ── The launcher's document over HTTP ───────────────────────────────────
@@ -2880,6 +2913,7 @@ async fn a_renewal_the_issuer_never_answers_is_tried_inside_the_budget_and_then_
         &world.http,
     ))
     .await
+    .map_err(sign_in_error)
     .expect_err("the budget is spent");
 
     let attempts = REFRESH_RETRY.attempts;
@@ -3031,7 +3065,7 @@ async fn a_first_sign_in(
     kb: KbTarget,
     storage: Arc<dyn SessionStorage>,
     http: reqwest::Client,
-) -> Result<OpenedSession, SignInError> {
+) -> Result<OpenedSession, Box<dyn Error + Send + Sync>> {
     // <readme:device>
     // The issuer mints a code, and the person approves it wherever they
     // have a browser. No password passes through this process.
@@ -3243,13 +3277,13 @@ async fn an_application(
     gateway: HttpEndpoint,
     http: reqwest::Client,
     open: impl FnOnce(&str),
-) -> Result<KnowledgeBase, Box<dyn Error>> {
+) -> Result<KnowledgeBase, Box<dyn Error + Send + Sync>> {
     // <readme:application>
     // The registry an application holds, with its sessions over HTTP.
     let browser = SemiontBrowser::new(SemiontBrowserConfig {
         storage,
         session_factory: Arc::new(HttpSessionFactory::new(http.clone())),
-    });
+    })?;
 
     // A person signs in at the issuer the knowledge base trusts, in their
     // own browser, and is sent back to a port on this machine.
@@ -3272,7 +3306,7 @@ async fn an_application(
     // The knowledge base that answered is registered, signed in and active.
     let signed_in = complete_sign_in(&browser, &callback, &http).await?;
     // </readme:application>
-    browser.close().await;
+    browser.close().await?;
     Ok(signed_in.kb)
 }
 

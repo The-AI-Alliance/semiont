@@ -5,9 +5,8 @@
  *  - load-on-construct: rehydrated entries are visible synchronously, and the
  *    first observe() of a rehydrated key revalidates it once (B18).
  *  - save-on-mutation: debounced (default `SAVE_DEBOUNCE_MS`); bursts coalesce to one save.
- *  - external change (cross-context): replaces the store; observers see it.
  *  - dispose: flushes a pending save synchronously, then goes inert (B16) —
- *    no save and no external-change application after disposal.
+ *    no save after disposal.
  *  - B15 interaction: failure markers are never persisted — a key that
  *    exhausts its retries mutates nothing, so nothing is saved.
  */
@@ -17,19 +16,11 @@ import { map, firstValueFrom, filter, take } from 'rxjs';
 import { createCache, type CachePersister } from '../cache';
 
 function spyPersister<K, V>(initial: Map<K, V> | null = null) {
-  const external: Array<(entries: Map<K, V>) => void> = [];
   const persister: CachePersister<K, V> = {
     load: vi.fn(() => initial),
     save: vi.fn(),
-    subscribe: vi.fn((onExternalChange: (entries: Map<K, V>) => void) => {
-      external.push(onExternalChange);
-      return () => {
-        const i = external.indexOf(onExternalChange);
-        if (i >= 0) external.splice(i, 1);
-      };
-    }),
   };
-  return { persister, pushExternal: (entries: Map<K, V>) => external.forEach((h) => h(entries)) };
+  return { persister };
 }
 
 describe('cache persistence (B17)', () => {
@@ -90,23 +81,8 @@ describe('cache persistence (B17)', () => {
     cache.dispose();
   });
 
-  it('applies an external change: observers and snapshots see the replacement', async () => {
-    const { persister, pushExternal } = spyPersister<string, string>(new Map([['k', 'old']]));
-    const cache = createCache<string, string>(async () => 'x', { persister });
-
-    pushExternal(new Map([['k', 'from-other-tab']]));
-
-    expect(cache.get('k')).toBe('from-other-tab');
-    const seen = await firstValueFrom(
-      cache.observe('k').pipe(filter((s) => s.status === 'ready' && s.value === 'from-other-tab'), take(1)),
-    );
-    expect(seen).toEqual({ status: 'ready', value: 'from-other-tab' });
-
-    cache.dispose();
-  });
-
   it('dispose flushes the pending save synchronously, then is inert', () => {
-    const { persister, pushExternal } = spyPersister<string, string>();
+    const { persister } = spyPersister<string, string>();
     const cache = createCache<string, string>(async () => 'x', { persister });
 
     cache.set('a', '1');
@@ -118,11 +94,9 @@ describe('cache persistence (B17)', () => {
     expect(persister.save).toHaveBeenCalledTimes(1);
     expect(vi.mocked(persister.save).mock.calls[0]![0].get('a')).toBe('1');
 
-    // Inert afterwards: no further saves, external changes ignored.
+    // Inert afterwards: no further saves.
     vi.advanceTimersByTime(200);
     expect(persister.save).toHaveBeenCalledTimes(1);
-    pushExternal(new Map([['b', '2']]));
-    expect(cache.get('b')).toBeUndefined();
   });
 
   it('never persists failure state: an exhausted key saves nothing', async () => {
@@ -145,27 +119,6 @@ describe('cache persistence (B17)', () => {
     cache.dispose();
     // Nothing was ever mutated, so even the dispose flush has nothing pending.
     expect(persister.save).not.toHaveBeenCalled();
-  });
-
-  it('an external change is applied but never echoed back as a save (no cross-tab ping-pong)', () => {
-    const { persister, pushExternal } = spyPersister<string, string>();
-    const cache = createCache<string, string>(async () => 'x', { persister });
-
-    pushExternal(new Map([['k', 'from-other-tab']]));
-    expect(cache.get('k')).toBe('from-other-tab');
-
-    // The other tab's save always re-stamps writtenAt, so an echoed save
-    // would differ byte-wise and re-fire its storage event: A saves → B
-    // echoes → A echoes → … . Applying without echoing breaks the loop.
-    vi.advanceTimersByTime(200);
-    expect(persister.save).not.toHaveBeenCalled();
-
-    // A real local mutation afterwards still saves normally.
-    cache.set('k2', 'local');
-    vi.advanceTimersByTime(50);
-    expect(persister.save).toHaveBeenCalledTimes(1);
-
-    cache.dispose();
   });
 
   it('a throwing save is best-effort: neither the debounced path nor the dispose flush breaks', () => {

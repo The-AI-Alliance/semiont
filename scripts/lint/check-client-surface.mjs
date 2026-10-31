@@ -102,7 +102,23 @@
  * - a member the table lists that an SDK's unit lacks;
  * - a public member an SDK's unit has that the table does not list;
  * - a unit the table says an SDK lacks (`absent`) that the SDK declares;
- * - a member the table says an SDK's unit lacks (`absent`) that it has.
+ * - a member the table says an SDK's unit lacks (`absent`) that it has;
+ * - a unit no public way makes from outside its SDK;
+ * - a maker the row names for an SDK (`madeBy`) that the SDK lacks, or has
+ *   but not publicly.
+ *
+ * With no maker named, a unit is made by its type's own constructor, which
+ * is public: a TypeScript class's, unless it is private or protected; Rust's
+ * `pub fn new` in the type's own `impl`; a Python class's; a Kotlin class's
+ * primary or secondary constructor, or the one a class with none declared
+ * has. Go has no constructors, so every Go unit names its maker. Public is
+ * reachable from outside the SDK: what packages/typescript/sdk/src/index.ts
+ * exports, following its `export *` and `export { … } from` through the
+ * SDK's files; an item a module that packages/rust/sdk/src/lib.rs reaches
+ * through `pub mod` declares `pub` or re-exports with `pub use`; a name in
+ * the `__all__` of a Python module whose path has no part that begins with
+ * an underscore; what Kotlin declares `public`; and what Go exports from a
+ * package that is not internal.
  *
  * A TypeScript unit is an interface that extends StateUnit, or a class that
  * implements it. `dispose` is no member: every unit has it, being a
@@ -895,8 +911,9 @@ const kotlinSources = (directory) => sources(directory, '.kt').map((file) => ({ 
 
 /**
  * The classes, interfaces and objects declared at the top of Kotlin files:
- * each one's name, its file, the types it is made from (its supertypes, each
- * by its name alone), its primary constructor's parameters and its body.
+ * each one's name, its file, its modifiers, the types it is made from (its
+ * supertypes, each by its name alone), its primary constructor's visibility
+ * (`null` when it declares none) and parameters, and its body.
  */
 function kotlinTypes(files) {
   const types = [];
@@ -910,13 +927,16 @@ function kotlinTypes(files) {
       skip();
       if (code[i] === '<') i = closing(code, i);
       skip();
-      const constructor = /^(?:(?:private|internal|protected|public)\s+)?(?:@\w+\s+)*constructor\b/.exec(code.slice(i));
+      const constructor = /^(?:(private|internal|protected|public)\s+)?(?:@\w+\s+)*constructor\b/.exec(code.slice(i));
       if (constructor) i += constructor[0].length;
       skip();
       let parameterList = '';
+      // A constructor that states no visibility is public, as Kotlin's default is.
+      let primary = constructor ? (constructor[1] ?? 'public') : null;
       if (code[i] === '(') {
         parameterList = parenthesised(code, i);
         i = closing(code, i);
+        if (primary === null) primary = 'public';
       }
       skip();
       let supertypes = [];
@@ -927,7 +947,7 @@ function kotlinTypes(files) {
       }
       skip();
       const body = code[i] === '{' ? braced(code, i) : '';
-      types.push({ name: declared.name, keyword: declared.keyword, file, supertypes, parameterList, body });
+      types.push({ name: declared.name, keyword: declared.keyword, modifiers: declared.modifiers, file, supertypes, primary, parameterList, body });
     }
   }
   return types;
@@ -1611,16 +1631,16 @@ for (const [sdk, readWorker] of Object.entries(WORKERS)) {
 
 /**
  * Each SDK whose state units this reads: its reader of one unit, where its
- * units are declared, its reader of every unit it declares, and what it
- * names a unit's `dispose`, which every unit has, being a StateUnit, and is
- * no member.
+ * units are declared, its reader of every unit it declares, what it names a
+ * unit's `dispose`, which every unit has, being a StateUnit, and is no
+ * member, and its reader of how a unit is made from outside it (`makeable`).
  */
 const UNITS = {
-  typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits, dispose: 'dispose' },
-  rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits, dispose: 'dispose' },
-  python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits, dispose: 'dispose' },
-  go: { read: goUnit, sources: GO_SDK, declared: goUnits, dispose: 'close' },
-  kotlin: { read: kotlinUnit, sources: KOTLIN_SDK, declared: kotlinUnits, dispose: 'close' },
+  typescript: { read: typescriptUnit, sources: TS_SDK, declared: typescriptUnits, dispose: 'dispose', makeable: typescriptMakeable },
+  rust: { read: rustUnit, sources: RUST_SDK, declared: rustUnits, dispose: 'dispose', makeable: rustMakeable },
+  python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits, dispose: 'dispose', makeable: pythonMakeable },
+  go: { read: goUnit, sources: GO_SDK, declared: goUnits, dispose: 'close', makeable: goMakeable },
+  kotlin: { read: kotlinUnit, sources: KOTLIN_SDK, declared: kotlinUnits, dispose: 'close', makeable: kotlinMakeable },
 };
 const UNIT_SDKS = Object.keys(UNITS);
 
@@ -1632,7 +1652,7 @@ for (const unit of table.stateUnits ?? []) {
   if (units.has(unit.unit)) fail(`${what} is listed twice`);
   const members = new Map();
   units.set(unit.unit, { ...unit, members });
-  const strays = Object.keys(unit).filter((key) => !['unit', 'docs', 'made', 'members', 'absent', 'notYetReached'].includes(key));
+  const strays = Object.keys(unit).filter((key) => !['unit', 'docs', 'made', 'madeBy', 'members', 'absent', 'notYetReached'].includes(key));
   if (strays.length > 0) fail(`${what} states ${strays.join(', ')}, which a unit's row does not: what a unit does is its SDKs' tests' to hold`);
   if (typeof unit.docs !== 'string' || unit.docs === '') fail(`${what} does not say what it is (\`docs\`)`);
   heldWaiting(what, unit, UNIT_SDKS, 'state units');
@@ -1642,6 +1662,11 @@ for (const unit of table.stateUnits ?? []) {
   }
   for (const sdk of Object.keys(unit.made ?? {})) {
     if (!UNIT_SDKS.includes(sdk)) fail(`${what}: \`made\` names "${sdk}", which is no SDK whose state units this lint reads`);
+  }
+  for (const [sdk, maker] of Object.entries(unit.madeBy ?? {})) {
+    if (!UNIT_SDKS.includes(sdk)) fail(`${what}: \`madeBy\` names "${sdk}", which is no SDK whose state units this lint reads`);
+    if (typeof maker !== 'string' || !/^\w+$/.test(maker)) fail(`${what}: \`madeBy\` does not name what makes it in ${sdk}`);
+    if (unit.absent?.[sdk] !== undefined) fail(`${what}: \`madeBy\` names ${sdk}, which has no ${unit.unit} unit at all`);
   }
   for (const [sdk, why] of Object.entries(unit.absent ?? {})) {
     if (!UNIT_SDKS.includes(sdk)) fail(`${what}: \`absent\` names "${sdk}", which is no SDK whose state units this lint reads`);
@@ -1700,6 +1725,8 @@ function typescriptUnit(made, directory) {
   if (found.length > 1) fail(`${found.map((declared) => declared.file).join(', ')}: \`${made}\` is declared ${found.length} times, and this reads the one`);
   const body = braced(source, header.index + header[0].length - 1);
   const members = new Set();
+  // Whether `new` makes it from outside: a class, unless its constructor is private or protected.
+  let constructible = kind === 'class';
   if (kind === 'interface') {
     for (const member of splitOutside(body, ';')) {
       const text = squeezed(member);
@@ -1712,6 +1739,7 @@ function typescriptUnit(made, directory) {
     }
   } else {
     for (const declaration of classDeclarations(body)) {
+      if (/^(?:private|protected)\s+constructor\b/.test(declaration)) constructible = false;
       // How it is made is no member, nor what is its own.
       if (/^(?:constructor|static)\b/.test(declaration) || isPrivate(declaration)) continue;
       const named = declaredName(declaration);
@@ -1723,7 +1751,7 @@ function typescriptUnit(made, directory) {
     }
   }
   const stated = splitOutside(header[1] ?? '', ',').map(squeezed);
-  return { where: `${kind} ${made} in ${file}`, isUnit: stated.includes('StateUnit'), members };
+  return { where: `${kind} ${made} in ${file}`, isUnit: stated.includes('StateUnit'), members, constructible };
 }
 
 function rustUnit(made, directory) {
@@ -1734,6 +1762,8 @@ function rustUnit(made, directory) {
   if (declared.length > 1) fail(`${declared.map(({ file }) => file).join(', ')}: \`pub struct ${made}\` is declared ${declared.length} times, and this reads the one`);
   const [{ file, source }] = declared;
   const members = new Set();
+  /** The `pub fn`s of its own `impl`s that take no unit: how it is made, each as Rust spells it. */
+  const makers = new Set();
   // An `impl`'s header, with its generics and any `where` clause, up to the brace that opens its body.
   const header = (of) => new RegExp(`^impl(?:<[^>{]*>)? ${of}(?:<[^>{]*>)?(?:\\s+where\\b[^{]*)?\\s*\\{`, 'gm');
   for (const impl of source.matchAll(header(made))) {
@@ -1742,10 +1772,11 @@ function rustUnit(made, directory) {
       // A member takes the unit; a function that takes none is how it is made (`new`, `persisted`).
       const taken = parenthesised(body, body.indexOf('(', fn.index + fn[0].length));
       if (/^\s*(?:&\s*(?:'\w+\s+)?)?(?:mut\s+)?self\b/.test(taken)) members.add(camel(fn[1]));
+      else makers.add(fn[1]);
     }
   }
   const isUnit = header(`StateUnit for ${made}`).test(source);
-  return { where: `${made} in ${file}`, isUnit, members };
+  return { where: `${made} in ${file}`, isUnit, members, makers };
 }
 
 function pythonUnit(made, directory) {
@@ -1873,6 +1904,160 @@ function pythonUnits() {
   );
 }
 
+// ── How a unit is made ──────────────────────────────────────────────────
+
+/**
+ * Each SDK's reader of how it makes a unit from outside it, given the name it
+ * makes the unit as, what its reader of a unit read of it, and the maker the
+ * row's `madeBy` names for it (`undefined` when it names none): what is wrong,
+ * or `undefined` when nothing is. With no maker named, the type's own
+ * constructor makes it, and is public; a named maker is a function the SDK
+ * has, and has publicly. Public is reachable from outside the SDK: what
+ * TypeScript's packages/typescript/sdk/src/index.ts exports, an item of a
+ * module Rust's crate root reaches, a name a Python module lists in its
+ * `__all__`, in a module whose path has no private part, what Kotlin declares
+ * `public`, and what Go exports from a package that is not internal.
+ */
+
+const TS_ENTRY = `${TS_SDK}/index.ts`;
+
+/** The file of the SDK a relative import of `file` names; `undefined` for another package's. */
+function typescriptModule(file, specifier) {
+  if (!specifier.startsWith('.')) return undefined;
+  const base = join(dirname(file), specifier);
+  const found = [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`].find((candidate) => REPOSITORY.includes(candidate));
+  if (!found) fail(`${file}: \`${specifier}\` names no file of the SDK this lint can find`);
+  return found;
+}
+
+/** The names TypeScript's entry exports: its own, and each `export *` and `export { … }` of the SDK's files it reaches, followed. */
+function typescriptEntryNames() {
+  const names = new Set();
+  const seen = new Set();
+  const visit = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const source = withoutComments(read(file), `'"\``);
+    for (const star of source.matchAll(/^export (?:type )?\*(?: as (\w+))? from (['"])([^'"]+)\2/gm)) {
+      if (star[1]) names.add(star[1]);
+      else {
+        const target = typescriptModule(file, star[3]);
+        if (target) visit(target);
+      }
+    }
+    for (const list of source.matchAll(/^export (?:type )?\{([^}]*)\}/gm)) {
+      for (const item of list[1].split(',').map(squeezed).filter((text) => text !== '')) names.add(/(\w+)$/.exec(item)[1]);
+    }
+    for (const declared of source.matchAll(/^export (?:declare )?(?:async )?(?:abstract )?(?:function\*?|const|let|class|interface|type|enum) (\w+)/gm)) names.add(declared[1]);
+  };
+  visit(TS_ENTRY);
+  return names;
+}
+const TS_ENTRY_NAMES = typescriptEntryNames();
+
+function typescriptMakeable(made, declared, maker) {
+  if (maker !== undefined) {
+    if (TS_ENTRY_NAMES.has(maker)) return undefined;
+    const has = sources(TS_SDK, '.ts').some((file) => new RegExp(`\\b(?:function\\*?|const|let)\\s+${maker}\\b`).test(typescriptCode(read(file))));
+    return has ? `which ${TS_ENTRY} does not export` : 'which TypeScript does not declare';
+  }
+  if (!declared.constructible) return `${declared.where} has no constructor that is public: make it public, or name in the row's \`madeBy\` the function that makes it`;
+  if (!TS_ENTRY_NAMES.has(made)) return `${TS_ENTRY} does not export ${made}: export it there`;
+  return undefined;
+}
+
+/**
+ * The names Rust's crate makes public: each item declared `pub` at the top of
+ * a module its root, packages/rust/sdk/src/lib.rs, reaches through `pub mod`,
+ * and each name such a module re-exports with `pub use`.
+ */
+function rustCrateNames() {
+  const names = new Set();
+  const visit = (file) => {
+    const source = withoutComments(read(file), '"');
+    for (const item of source.matchAll(/^pub (?:async )?(?:fn|struct|enum|trait|const|type|static) (\w+)/gm)) names.add(item[1]);
+    for (const used of source.matchAll(/^pub use ([^;]+);/gm)) {
+      // Each leaf of the tree, by the name it is used under: `a::{B, c::D as E}` is B and E.
+      for (const leaf of used[1].replace(/[{}]/g, ',').split(',').map(squeezed)) {
+        const name = /(\w+)$/.exec(leaf)?.[1];
+        if (name && name !== 'self') names.add(name);
+        if (leaf.endsWith('*')) fail(`${file} re-exports \`${leaf}\` whole, which this lint does not read`);
+      }
+    }
+    const directory = /(?:^|\/)(?:lib|mod)\.rs$/.test(file) ? dirname(file) : file.slice(0, -'.rs'.length);
+    for (const child of source.matchAll(/^pub mod (\w+);/gm)) {
+      const target = [`${directory}/${child[1]}.rs`, `${directory}/${child[1]}/mod.rs`].find((candidate) => REPOSITORY.includes(candidate));
+      if (target) visit(target);
+      else fail(`${file}: \`pub mod ${child[1]}\` names no file this lint can find`);
+    }
+  };
+  visit(`${RUST_SDK}/lib.rs`);
+  return names;
+}
+const RUST_CRATE_NAMES = rustCrateNames();
+
+function rustMakeable(made, declared, maker) {
+  const reached = RUST_CRATE_NAMES.has(made);
+  if (maker === undefined) {
+    if (!declared.makers.has('new')) return `${declared.where} has no \`pub fn new\` in its own \`impl\`: give it one, or name in the row's \`madeBy\` the function that makes it`;
+    return reached ? undefined : `${made} is not reached from ${RUST_SDK}/lib.rs: make it public there`;
+  }
+  if (declared.makers.has(maker)) return reached ? undefined : `which is ${made}'s, and ${made} is not reached from ${RUST_SDK}/lib.rs`;
+  if (RUST_CRATE_NAMES.has(maker)) return undefined;
+  const has = sources(RUST_SDK, '.rs').some((file) => new RegExp(`\\bfn ${maker}\\b`).test(withoutComments(read(file), '"')));
+  return has ? `which is not reached from ${RUST_SDK}/lib.rs` : 'which Rust does not declare';
+}
+
+/** Why `file`, a module of Python's, and a name in it are not public; `undefined` when they are. */
+function pythonPrivate(file, name) {
+  const parts = file.slice(PYTHON_SDK.length + 1).split('/');
+  const module = parts.pop();
+  if ([...parts, module === '__init__.py' ? '' : module].some((part) => part.startsWith('_'))) return `${file} is a private module`;
+  if (name.startsWith('_')) return `${name} is private`;
+  if (!pythonExports([file]).includes(name)) return `the \`__all__\` of ${file} does not list ${name}`;
+  return undefined;
+}
+
+function pythonMakeable(made, declared, maker) {
+  const declaring = (pattern) => sources(PYTHON_SDK, '.py').filter((file) => pattern.test(withoutPythonComments(read(file))));
+  if (maker === undefined) {
+    const [file] = declaring(new RegExp(`^class ${made}\\b`, 'm'));
+    const wrong = pythonPrivate(file, made);
+    return wrong === undefined ? undefined : `${wrong}: make it public, or name in the row's \`madeBy\` the function that makes it`;
+  }
+  const files = declaring(new RegExp(`^(?:async )?def ${maker}\\b`, 'm'));
+  if (files.length === 0) return 'which Python does not declare';
+  const wrong = files.map((file) => pythonPrivate(file, maker));
+  return wrong.includes(undefined) ? undefined : `which is not public: ${wrong.join('; ')}`;
+}
+
+function kotlinMakeable(made, declared, maker) {
+  const files = kotlinSources(KOTLIN_SDK);
+  if (maker !== undefined) {
+    if (files.some(({ file, code }) => kotlinDeclarations(code, file, () => {}).some((top) => top.keyword === 'fun' && top.name === maker))) return undefined;
+    const has = files.some(({ code }) => new RegExp(`\\bfun\\s+(?:<[^>]*>\\s*)?(?:[\\w.<>]+\\.)?${maker}\\s*\\(`).test(code));
+    return has ? 'which is not public' : 'which Kotlin does not declare';
+  }
+  const type = kotlinTypes(files).find((found) => found.name === made);
+  const remedy = `make it public, or name in the row's \`madeBy\` the function that makes it`;
+  if (type.keyword !== 'class') return `${declared.where} is an ${type.keyword}, which no constructor makes: name in the row's \`madeBy\` the function that makes it`;
+  if (type.modifiers.includes('abstract') || type.modifiers.includes('sealed')) return `${declared.where} is ${type.modifiers.includes('abstract') ? 'abstract' : 'sealed'}: name in the row's \`madeBy\` the function that makes it`;
+  const secondary = kotlinDeclarations(type.body, type.file, () => {}).some((inside) => inside.keyword === 'constructor');
+  if (type.primary === 'public' || secondary) return undefined;
+  // With no constructor declared, the class has one of its own, which is public.
+  if (type.primary === null && !/\bconstructor\s*\(/.test(type.body)) return undefined;
+  return `${declared.where} has no constructor that is public: ${remedy}`;
+}
+
+function goMakeable(made, declared, maker) {
+  if (maker === undefined) return `Go has no constructors, so ${declared.where} is made by a function of its package: name it in the row's \`madeBy\``;
+  if (!/^[A-Z]/.test(maker)) return 'which Go does not export: its name begins with a small letter';
+  const files = goSources().filter(({ code }) => new RegExp(`^func ${maker}\\s*[[(]`, 'm').test(code));
+  if (files.length === 0) return 'which Go does not declare';
+  if (files.every(({ file }) => file.split('/').includes('internal'))) return `which is in an internal package (${files.map(({ file }) => file).join(', ')})`;
+  return undefined;
+}
+
 for (const [sdk, { declared }] of Object.entries(UNITS)) {
   const listed = new Set([...units.values()].map((unit) => unit.made?.[sdk]));
   for (const { name, file } of declared()) {
@@ -1882,7 +2067,7 @@ for (const [sdk, { declared }] of Object.entries(UNITS)) {
 
 for (const [name, unit] of units) {
   const row = `the \`${name}\` row of \`stateUnits\` in ${TABLE}`;
-  for (const [sdk, { read: readUnit, sources: where, dispose }] of Object.entries(UNITS)) {
+  for (const [sdk, { read: readUnit, sources: where, dispose, makeable }] of Object.entries(UNITS)) {
     const made = unit.made?.[sdk];
     if (typeof made !== 'string') continue;
     const declared = readUnit(made, where);
@@ -1902,8 +2087,14 @@ for (const [name, unit] of units) {
     const its = `${sdk}'s ${name} unit (${declared.where})`;
     if (!declared.isUnit) fail(`${its} is not a StateUnit: say so where it is declared, so it ends by \`dispose\` as every unit does`);
     heldToMembers(sdk, its, row, unit.members, declared.members);
+    const maker = unit.madeBy?.[sdk];
+    const wrong = makeable(made, declared, maker);
+    if (wrong === undefined) continue;
+    if (maker === undefined) fail(`${its} has no public way to be made: ${wrong}`);
+    else fail(`${row} says ${sdk} makes the ${name} unit by ${maker}, ${wrong}: name in the row's \`madeBy\` a function of ${sdk}'s public surface that makes it, or take ${sdk} out of it if the unit's own constructor is public`);
   }
 }
+
 
 /**
  * Hold the members `sdk` declares (`declared`, of what `its` names) to those

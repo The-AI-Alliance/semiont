@@ -36,12 +36,12 @@ impl Coupling {
     }
 
     /// Write what is remembered, when the gate allows it.
-    fn flush(&self) {
+    fn flush(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let reached = {
             let mut pending = locked(&self.pending);
             let at_rest = locked(&self.gate).as_ref().is_none_or(|gate| gate());
             if pending.is_empty() || !at_rest {
-                return;
+                return Ok(());
             }
             std::mem::take(&mut *pending)
         };
@@ -50,7 +50,7 @@ impl Coupling {
             places.extend(reached.clone());
             // A map of strings always serializes.
             serde_json::to_string(&places).ok()
-        });
+        })
     }
 }
 
@@ -104,18 +104,23 @@ impl SessionStorage for Carrying {
         self.0.storage.get(key)
     }
 
-    fn set(&self, key: &str, value: &str) {
-        self.0.storage.set(key, value);
-        self.0.flush();
+    /// A write that failed carries no place.
+    fn set(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.0.storage.set(key, value)?;
+        self.0.flush()
     }
 
-    fn delete(&self, key: &str) {
-        self.0.storage.delete(key);
+    fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.0.storage.delete(key)
     }
 
-    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
-        self.0.storage.update(key, change);
-        self.0.flush();
+    fn update(
+        &self,
+        key: &str,
+        change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        self.0.storage.update(key, change)?;
+        self.0.flush()
     }
 
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
@@ -150,7 +155,9 @@ mod tests {
         bookmarks.save(&"res-2".parse().unwrap(), "p-3");
         assert_eq!(storage.get(KEY), None);
 
-        caches.set("semiont.cache.kb-a.resource", "{}");
+        caches
+            .set("semiont.cache.kb-a.resource", "{}")
+            .expect("written");
         assert_eq!(
             storage.get("semiont.cache.kb-a.resource").as_deref(),
             Some("{}")
@@ -162,9 +169,11 @@ mod tests {
 
         // A later place of one scope leaves the other's as it was.
         bookmarks.save(&"res-2".parse().unwrap(), "p-4");
-        caches.update("semiont.cache.kb-a.resource", &mut |_| {
-            Some("{}".to_owned())
-        });
+        caches
+            .update("semiont.cache.kb-a.resource", &mut |_| {
+                Some("{}".to_owned())
+            })
+            .expect("written");
         assert_eq!(
             bookmarks.load(),
             places(&[("res-1", "p-8"), ("res-2", "p-4")])
@@ -181,13 +190,17 @@ mod tests {
         bookmarks.set_flush_gate(move || gate.load(Ordering::SeqCst));
 
         bookmarks.save(&"res-1".parse().unwrap(), "p-7");
-        caches.set("semiont.cache.kb-a.resource", "{}");
+        caches
+            .set("semiont.cache.kb-a.resource", "{}")
+            .expect("written");
         // Late, which is safe: the cache that was written may not be the one
         // still taking the event in.
         assert_eq!(storage.get(KEY), None);
 
         at_rest.store(true, Ordering::SeqCst);
-        caches.set("semiont.cache.kb-a.annotations", "{}");
+        caches
+            .set("semiont.cache.kb-a.annotations", "{}")
+            .expect("written");
         assert_eq!(bookmarks.load(), places(&[("res-1", "p-7")]));
     }
 
@@ -195,7 +208,7 @@ mod tests {
     fn what_is_kept_under_the_key_and_is_not_places_is_nothing_kept() {
         let storage = Arc::new(InMemorySessionStorage::new());
         for kept in ["not json", "[1, 2]", r#"{"res-1": 7}"#] {
-            storage.set(KEY, kept);
+            storage.set(KEY, kept).expect("written");
             assert!(
                 CoupledBookmarks::new(storage.clone(), KEY)
                     .load()
@@ -206,7 +219,74 @@ mod tests {
         // And is written over by the first places that are.
         let bookmarks = CoupledBookmarks::new(storage.clone(), KEY);
         bookmarks.save(&"res-1".parse().unwrap(), "p-1");
-        bookmarks.storage().set("semiont.cache.kb-a.resource", "{}");
+        bookmarks
+            .storage()
+            .set("semiont.cache.kb-a.resource", "{}")
+            .expect("written");
         assert_eq!(bookmarks.load(), places(&[("res-1", "p-1")]));
+    }
+
+    /// A storage that holds what it has, and takes no write of the cache
+    /// `CACHE` names.
+    #[derive(Default)]
+    struct Full(InMemorySessionStorage);
+
+    const CACHE: &str = "semiont.cache.kb-a.resource";
+
+    impl SessionStorage for Full {
+        fn get(&self, key: &str) -> Option<String> {
+            self.0.get(key)
+        }
+
+        fn set(
+            &self,
+            key: &str,
+            value: &str,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            if key == CACHE {
+                return Err("the storage is full".into());
+            }
+            self.0.set(key, value)
+        }
+
+        fn delete(&self, key: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            self.0.delete(key)
+        }
+
+        fn update(
+            &self,
+            key: &str,
+            change: &mut dyn FnMut(Option<&str>) -> Option<String>,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            match change(self.0.get(key).as_deref()) {
+                Some(next) => self.set(key, &next),
+                None => self.delete(key),
+            }
+        }
+
+        fn subscribe(&self, _: StorageChange) -> Option<StorageSubscription> {
+            None
+        }
+    }
+
+    #[test]
+    fn a_place_is_written_after_the_caches_own_write_so_one_that_fails_leaves_no_place_ahead_of_it()
+    {
+        let storage = Arc::new(Full::default());
+        let bookmarks = CoupledBookmarks::new(storage.clone(), KEY);
+        bookmarks.save(&"res-1".parse().unwrap(), "p-7");
+
+        let failed = bookmarks.storage().set(CACHE, "{}");
+        assert_eq!(
+            failed.map_err(|error| error.to_string()),
+            Err("the storage is full".to_owned())
+        );
+        // The cache kept nothing of what the place names, and no place says it did.
+        assert_eq!(storage.get(KEY), None);
+        bookmarks
+            .storage()
+            .set("semiont.cache.kb-a.annotations", "{}")
+            .expect("written");
+        assert_eq!(bookmarks.load(), places(&[("res-1", "p-7")]));
     }
 }

@@ -36,10 +36,11 @@ use crate::client::SemiontClient;
 use crate::errors::{JobErrorCode, SemiontError};
 use crate::locked;
 use crate::transport::{Envelope, Frame};
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Mutex;
 use tokio::sync::watch;
-use tokio::task::JoinSet;
+use tokio::task::{self, AbortHandle, JoinSet};
 
 /// One state a unit holds. Anyone reads it and only the unit writes it. Once
 /// it has ended every reader has ended, and a write does nothing.
@@ -127,21 +128,34 @@ impl<T: PartialEq> Held<Option<T>> {
 /// Stopped when the unit is disposed, after which nothing more is started.
 pub(crate) struct Tasks {
     /// `None` once stopped.
-    running: Mutex<Option<JoinSet<()>>>,
+    running: Mutex<Option<Running>>,
+}
+
+struct Running {
+    tasks: JoinSet<()>,
+    /// Each task's handle, by its id, until it is let go.
+    handles: HashMap<task::Id, AbortHandle>,
 }
 
 impl Tasks {
     pub fn new() -> Tasks {
         Tasks {
-            running: Mutex::new(Some(JoinSet::new())),
+            running: Mutex::new(Some(Running {
+                tasks: JoinSet::new(),
+                handles: HashMap::new(),
+            })),
         }
     }
 
     pub fn spawn(&self, work: impl Future<Output = ()> + Send + 'static) {
         if let Some(running) = locked(&self.running).as_mut() {
             // What finished is let go here, where the next is started.
-            while running.try_join_next().is_some() {}
-            running.spawn(work);
+            while let Some(finished) = running.tasks.try_join_next_with_id() {
+                let id = finished.map_or_else(|ended| ended.id(), |(id, ())| id);
+                running.handles.remove(&id);
+            }
+            let handle = running.tasks.spawn(work);
+            running.handles.insert(handle.id(), handle);
         }
     }
 
@@ -152,6 +166,24 @@ impl Tasks {
     /// Stop everything running. A `JoinSet` that is dropped aborts its tasks.
     pub fn stop(&self) {
         *locked(&self.running) = None;
+    }
+
+    /// Stop everything running, and wait for it to have stopped. Asked from
+    /// inside one of its own tasks, it does not wait for that one: its
+    /// handle is given back, for the caller to stop it after its own last
+    /// wait.
+    pub async fn stop_and_wait(&self) -> Option<AbortHandle> {
+        let mut running = locked(&self.running).take()?;
+        let own = task::try_id().and_then(|id| running.handles.remove(&id));
+        for handle in running.handles.values() {
+            handle.abort();
+        }
+        while running.tasks.len() > usize::from(own.is_some()) {
+            running.tasks.join_next().await;
+        }
+        // Only its own is left, if any: it is the caller's to stop.
+        running.tasks.detach_all();
+        own
     }
 }
 

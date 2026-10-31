@@ -227,12 +227,13 @@ fn query(pairs: &[(&str, &str)]) -> String {
 
 /// Begin the authorization-code grant: find the issuer, remember the pending
 /// sign-in in `pending`, and give the URL to send the person to. Sending
-/// them is the host's act.
+/// them is the host's act. A failure is a `SignInError`, or the storage's
+/// own error when it would not keep the pending sign-in.
 pub async fn begin_authorization(
     options: BeginAuthorization,
     pending: &dyn SessionStorage,
     http: &reqwest::Client,
-) -> Result<String, SignInError> {
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let issuer = discover_issuer(&options.target, http).await?;
     let record = PendingAuthorization {
         state: random_url_safe(24)?,
@@ -248,7 +249,7 @@ pub async fn begin_authorization(
     pending.set(
         PENDING_AUTHORIZATION_KEY,
         &serde_json::to_string(&record).unwrap_or_default(),
-    );
+    )?;
     let asked = query(&[
         ("response_type", "code"),
         ("client_id", BROWSER_CLIENT_ID),
@@ -275,17 +276,18 @@ pub struct IssuedTokens {
 /// Finish the authorization-code grant from the URL the issuer sent the
 /// person back to. The pending record is taken before anything else
 /// happens: a code is good once, and a callback that is replayed finds
-/// nothing to complete.
+/// nothing to complete. A failure is a `SignInError`, or the storage's own
+/// error when it would not give the pending sign-in up.
 pub async fn complete_authorization(
     callback_url: &str,
     pending: &dyn SessionStorage,
     http: &reqwest::Client,
-) -> Result<(PendingAuthorization, IssuedTokens), SignInError> {
+) -> Result<(PendingAuthorization, IssuedTokens), Box<dyn std::error::Error + Send + Sync>> {
     let mut taken = None;
     pending.update(PENDING_AUTHORIZATION_KEY, &mut |stored| {
         taken = stored.map(str::to_owned);
         None
-    });
+    })?;
     let record: PendingAuthorization = taken
         .and_then(|stored| serde_json::from_str(&stored).ok())
         .ok_or_else(|| {
@@ -311,13 +313,15 @@ pub async fn complete_authorization(
                 SignInErrorCode::Exchange
             },
             said("error_description").unwrap_or(error),
-        ));
+        )
+        .into());
     }
     if said("state").as_deref() != Some(record.state.as_str()) {
         return Err(SignInError::new(
             SignInErrorCode::State,
             "The sign-in response does not belong to the pending sign-in",
-        ));
+        )
+        .into());
     }
     let code = said("code").ok_or_else(|| {
         SignInError::new(
@@ -468,12 +472,13 @@ pub async fn refresh_at_issuer(
 /// is the one given. A session that was signed out, or ended, while it was
 /// being renewed is gone: it is not written back, and its new token is given
 /// to nobody, since a session that is over is not handed a credential again.
+/// What the storage would not keep is the storage's own error.
 pub async fn refresh_stored_session(
     storage: &dyn SessionStorage,
     kb_id: &str,
     holding: Option<&str>,
     http: &reqwest::Client,
-) -> Result<Option<String>, SignInError> {
+) -> Result<Option<String>, Box<dyn std::error::Error + Send + Sync>> {
     let Some(stored) = semiont::session::stored_session(storage, kb_id) else {
         return Ok(None);
     };
@@ -526,16 +531,17 @@ pub async fn refresh_stored_session(
                     }
                     .written(),
                 )
-            });
+            })?;
             Ok(given)
         }
         // One attempt: the issuer answered, and its answer was final.
-        Err(error) if attempts <= 1 => Err(error),
+        Err(error) if attempts <= 1 => Err(error.into()),
         Err(error) => Err(SignInError {
             code: SignInErrorCode::Exchange,
             message: format!("The session could not be renewed after {attempts} attempts: {error}"),
             status: error.status,
-        }),
+        }
+        .into()),
     }
 }
 

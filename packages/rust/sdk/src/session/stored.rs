@@ -62,12 +62,19 @@ pub fn stored_session(storage: &dyn SessionStorage, kb_id: &str) -> Option<Store
     StoredSession::read(&storage.get(&session_key(kb_id))?)
 }
 
-pub fn store_session(storage: &dyn SessionStorage, kb_id: &str, session: &StoredSession) {
-    storage.set(&session_key(kb_id), &session.written());
+pub fn store_session(
+    storage: &dyn SessionStorage,
+    kb_id: &str,
+    session: &StoredSession,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    storage.set(&session_key(kb_id), &session.written())
 }
 
-pub fn clear_stored_session(storage: &dyn SessionStorage, kb_id: &str) {
-    storage.delete(&session_key(kb_id));
+pub fn clear_stored_session(
+    storage: &dyn SessionStorage,
+    kb_id: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    storage.delete(&session_key(kb_id))
 }
 
 /// Whether a token is past its expiry at `now`. One that names no expiry is
@@ -92,8 +99,11 @@ pub fn load_knowledge_bases(storage: &dyn SessionStorage) -> Vec<KnowledgeBase> 
         .collect()
 }
 
-pub fn save_knowledge_bases(storage: &dyn SessionStorage, knowledge_bases: &[KnowledgeBase]) {
+pub fn save_knowledge_bases(
+    storage: &dyn SessionStorage,
+    knowledge_bases: &[KnowledgeBase],
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // A list of structs of strings and numbers always serializes.
     let written = serde_json::to_string(knowledge_bases).unwrap_or_default();
-    storage.set(KNOWLEDGE_BASES_KEY, &written);
+    storage.set(KNOWLEDGE_BASES_KEY, &written)
 }
