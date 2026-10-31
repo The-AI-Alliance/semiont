@@ -17,6 +17,7 @@ use semiont::testing::axioms::{
     AxiomSubject, Fresh, StreamSurface, Surface, assert_state_unit_axioms,
 };
 use semiont::timing::{MAX_STORED_BYTES_COUNT, SAVE_DEBOUNCE};
+use semiont::transport::BoxFuture;
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
@@ -48,8 +49,12 @@ struct Service {
 impl Service {
     fn fetching(
         &self,
-    ) -> impl Fn(String) -> std::pin::Pin<Box<dyn Future<Output = Answer> + Send>> + Send + Sync + 'static
-    {
+    ) -> impl Fn(
+        String,
+    ) -> BoxFuture<'static, Result<String, Box<dyn std::error::Error + Send + Sync>>>
+    + Send
+    + Sync
+    + 'static {
         let service = self.clone();
         move |key: String| {
             let number = {
@@ -59,13 +64,14 @@ impl Service {
             };
             let scripted = service.script.lock().expect("script").pop_front();
             Box::pin(async move {
-                match scripted {
+                let answer = match scripted {
                     None => Ok(format!("{key}-v{number}")),
                     Some(Scripted::Now(answer)) => answer,
                     Some(Scripted::When(answer)) => answer
                         .await
                         .unwrap_or_else(|_| Err(refused("never answered"))),
-                }
+                };
+                answer.map_err(Into::into)
             })
         }
     }
@@ -112,6 +118,21 @@ fn key(name: &str) -> String {
 
 fn ready(value: &str) -> CacheState<String> {
     CacheState::Ready(value.to_owned())
+}
+
+/// A one-shot read's value, or what its failure says.
+fn read(
+    fetched: Result<String, Arc<dyn std::error::Error + Send + Sync>>,
+) -> Result<String, String> {
+    fetched.map_err(|failure| failure.to_string())
+}
+
+/// What a failed state says failed; none for a state that has not failed.
+fn failure<T>(state: &CacheState<T>) -> Option<String> {
+    match state {
+        CacheState::Failed(failure) => Some(failure.to_string()),
+        CacheState::Pending | CacheState::Ready(_) => None,
+    }
 }
 
 /// Let what is ready run: fetches are answered and their states written.
@@ -307,11 +328,11 @@ async fn b13a_a_removed_key_fails_at_once_with_what_it_was_given_and_nothing_is_
     let mut observer = cache.observe(&key("a"));
     assert_eq!(holds(&mut observer).await, ready("a-v1"));
 
-    cache.remove(&key("a"), refused("gone"));
+    cache.remove(&key("a"), refused("gone").into());
     // Straight from ready: no pending with no request behind it.
     assert_eq!(
-        next(&mut observer).await,
-        Some(CacheState::Failed(refused("gone")))
+        next(&mut observer).await.as_ref().and_then(failure),
+        Some("gone".to_owned())
     );
     settle().await;
     assert_eq!(service.asked(), 1);
@@ -325,7 +346,7 @@ async fn b13a_an_observer_arriving_at_a_removed_key_asks_the_service() {
     let cache = service.cache();
     let mut present = cache.observe(&key("a"));
     holds(&mut present).await;
-    cache.remove(&key("a"), refused("gone"));
+    cache.remove(&key("a"), refused("gone").into());
 
     let mut arriving = cache.observe(&key("a"));
     assert_eq!(next(&mut arriving).await, Some(CacheState::Pending));
@@ -395,7 +416,7 @@ async fn a_one_shot_read_always_asks_and_its_observers_are_given_the_answer() {
     let mut observer = cache.observe(&key("a"));
     assert_eq!(holds(&mut observer).await, ready("a-v1"));
 
-    assert_eq!(cache.fetch(&key("a")).await, Ok(key("a-v2")));
+    assert_eq!(read(cache.fetch(&key("a")).await), Ok(key("a-v2")));
     assert_eq!(holds(&mut observer).await, ready("a-v2"));
 }
 
@@ -411,8 +432,8 @@ async fn one_shot_reads_made_together_share_one_fetch() {
     answer
         .send(Ok(key("shared")))
         .expect("the fetch is waiting");
-    assert_eq!(one.await.expect("the read ran"), Ok(key("shared")));
-    assert_eq!(other.await.expect("the read ran"), Ok(key("shared")));
+    assert_eq!(read(one.await.expect("the read ran")), Ok(key("shared")));
+    assert_eq!(read(other.await.expect("the read ran")), Ok(key("shared")));
 }
 
 #[tokio::test(start_paused = true)]
@@ -423,7 +444,7 @@ async fn b14_a_one_shot_read_that_fails_is_not_tried_again_and_fails_only_its_ca
     assert_eq!(holds(&mut observer).await, ready("a-v1"));
 
     service.then(Err(refused("down")));
-    assert_eq!(cache.fetch(&key("a")).await, Err(refused("down")));
+    assert_eq!(read(cache.fetch(&key("a")).await), Err("down".to_owned()));
     settle().await;
     assert_eq!(service.asked(), 2);
     assert_eq!(cache.get(&key("a")), Some(key("a-v1")));
@@ -449,13 +470,49 @@ async fn b14_b15_a_key_that_keeps_failing_is_failed_after_one_retry_and_no_more_
     let cache = service.cache();
     let mut observer = cache.observe(&key("a"));
     assert_eq!(
-        holds(&mut observer).await,
-        CacheState::Failed(refused("still down"))
+        failure(&holds(&mut observer).await),
+        Some("still down".to_owned())
     );
     tokio::time::sleep(Duration::from_secs(60)).await;
     assert_eq!(service.asked(), 2);
     // The stream lives through the failure.
     assert!(!ended(&mut observer).await);
+}
+
+/// A failure of the host's own: no `SemiontError`.
+#[derive(Debug)]
+struct Unreadable;
+
+impl std::fmt::Display for Unreadable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the disk could not be read")
+    }
+}
+
+impl std::error::Error for Unreadable {}
+
+#[tokio::test(start_paused = true)]
+async fn b14_b15_any_failure_of_a_fetch_is_the_keys_after_one_retry() {
+    let asked = Arc::new(Mutex::new(0));
+    let counting = asked.clone();
+    let cache: Cache<String, String> = Cache::new(move |_| {
+        *counting.lock().expect("asked") += 1;
+        async { Err(Unreadable.into()) }
+    });
+    let mut observer = cache.observe(&key("a"));
+
+    match holds(&mut observer).await {
+        CacheState::Failed(failure) => assert!(failure.downcast_ref::<Unreadable>().is_some()),
+        other => panic!("the key was to fail, not be {other:?}"),
+    }
+    assert_eq!(*asked.lock().expect("asked"), 2);
+    // A one-shot read is given it too, as it is.
+    let fetched = cache.fetch(&key("a")).await;
+    assert!(
+        fetched
+            .err()
+            .is_some_and(|failure| failure.downcast_ref::<Unreadable>().is_some())
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -488,17 +545,17 @@ async fn b15_a_recovery_that_fails_again_gives_every_observer_its_own_failure() 
     let cache = service.cache();
     let mut present = cache.observe(&key("a"));
     assert_eq!(
-        holds(&mut present).await,
-        CacheState::Failed(refused("first again"))
+        failure(&holds(&mut present).await),
+        Some("first again".to_owned())
     );
     let mut arriving = cache.observe(&key("a"));
     assert_eq!(
-        holds(&mut arriving).await,
-        CacheState::Failed(refused("second again"))
+        failure(&holds(&mut arriving).await),
+        Some("second again".to_owned())
     );
     assert_eq!(
-        holds(&mut present).await,
-        CacheState::Failed(refused("second again"))
+        failure(&holds(&mut present).await),
+        Some("second again".to_owned())
     );
 }
 
@@ -534,7 +591,7 @@ async fn b15_a_one_shot_read_that_succeeds_ends_the_failure_for_everyone() {
     let mut observer = cache.observe(&key("a"));
     assert!(matches!(holds(&mut observer).await, CacheState::Failed(_)));
 
-    assert_eq!(cache.fetch(&key("a")).await, Ok(key("a-v3")));
+    assert_eq!(read(cache.fetch(&key("a")).await), Ok(key("a-v3")));
     assert_eq!(next(&mut observer).await, Some(ready("a-v3")));
     // And a later observer is given the value, asking nothing.
     assert_eq!(
@@ -579,9 +636,14 @@ async fn b16_a_disposed_cache_asks_nothing_and_a_one_shot_read_of_it_fails_as_cl
     cache.invalidate(&key("a"));
     cache.invalidate_all();
     cache.set(&key("a"), key("written"));
-    cache.remove(&key("a"), refused("gone"));
+    cache.remove(&key("a"), refused("gone").into());
     let refusal = cache.fetch(&key("a")).await.expect_err("it is closed");
-    assert_eq!(refusal.code(), "bus.closed");
+    assert_eq!(
+        refusal
+            .downcast_ref::<SemiontError>()
+            .map(SemiontError::code),
+        Some("bus.closed")
+    );
     settle().await;
     assert_eq!(service.asked(), 1);
     assert_eq!(cache.get(&key("a")), None);
@@ -959,7 +1021,7 @@ impl AxiomSubject for Caches {
             Box::new(move || cache.invalidate(&a())),
             Box::new(move || cache.invalidate_all()),
             Box::new(move || cache.set(&a(), "written".to_owned())),
-            Box::new(move || cache.remove(&a(), refused("gone"))),
+            Box::new(move || cache.remove(&a(), refused("gone").into())),
             Box::new(move || drop(tokio::spawn(cache.fetch(&a())))),
         ]
     }

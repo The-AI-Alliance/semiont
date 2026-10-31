@@ -146,7 +146,7 @@ fn emission<T: Serialize>(name: &str, state: CacheState<T>) -> Value {
     let state = match state {
         CacheState::Pending => json!({ "status": "pending" }),
         CacheState::Ready(value) => json!({ "status": "ready", "value": value }),
-        CacheState::Failed(error) => json!({ "status": "failed", "error": failed(&error) }),
+        CacheState::Failed(error) => json!({ "status": "failed", "error": failed(error.as_ref()) }),
     };
     json!({ "emission": { "observer": name, "state": state } })
 }

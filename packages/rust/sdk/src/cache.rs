@@ -4,8 +4,9 @@
 //! **A key has one state, and every observer of the key holds it**: `Pending`
 //! (no value yet; a fetch may be in flight), `Ready` (a value, which may be
 //! the one shown while a newer is fetched), or `Failed` (a key with no value
-//! whose fetch, and its one retry, failed). `Failed` is a state, not the end
-//! of anything: an observer lives through it, and the next act on the key
+//! whose fetch, and its one retry, failed, holding what the retry failed
+//! with: any error the fetch gives). `Failed` is a state, not the end of
+//! anything: an observer lives through it, and the next act on the key
 //! tries again.
 //!
 //! Two ways to read:
@@ -47,14 +48,27 @@ use tokio::task::AbortHandle;
 use tokio_stream::wrappers::WatchStream;
 
 /// The state of a key.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum CacheState<T> {
     /// No value yet.
     Pending,
     /// A value.
     Ready(T),
-    /// No value, and the fetch for one failed, and failed again.
-    Failed(SemiontError),
+    /// No value, and the fetch for one failed, and failed again: what it
+    /// failed with. Shared, as every observer of the key holds it.
+    Failed(Arc<dyn std::error::Error + Send + Sync>),
+}
+
+/// Two failed states are one when they hold the one failure.
+impl<T: PartialEq> PartialEq for CacheState<T> {
+    fn eq(&self, other: &CacheState<T>) -> bool {
+        match (self, other) {
+            (CacheState::Pending, CacheState::Pending) => true,
+            (CacheState::Ready(one), CacheState::Ready(other)) => one == other,
+            (CacheState::Failed(one), CacheState::Failed(other)) => Arc::ptr_eq(one, other),
+            _ => false,
+        }
+    }
 }
 
 impl<T> CacheState<T> {
@@ -115,9 +129,11 @@ fn saved<K: CacheKey, V: CacheValue>(
     }
 }
 
-type Fetch<K, V> = dyn Fn(K) -> BoxFuture<'static, Result<V, SemiontError>> + Send + Sync;
+type Fetch<K, V> = dyn Fn(K) -> BoxFuture<'static, Result<V, Arc<dyn std::error::Error + Send + Sync>>>
+    + Send
+    + Sync;
 /// Where a fetch in flight puts what it was answered.
-type Outcome<V> = watch::Receiver<Option<Result<V, SemiontError>>>;
+type Outcome<V> = watch::Receiver<Option<Result<V, Arc<dyn std::error::Error + Send + Sync>>>>;
 
 struct Key<V> {
     state: watch::Sender<CacheState<V>>,
@@ -164,11 +180,16 @@ where
     state: Mutex<State<K, V>>,
 }
 
-fn closed() -> SemiontError {
-    BusRequestError::new(BusRequestErrorCode::Closed, "The client is closed").into()
+fn closed() -> Arc<dyn std::error::Error + Send + Sync> {
+    Arc::new(SemiontError::from(BusRequestError::new(
+        BusRequestErrorCode::Closed,
+        "The client is closed",
+    )))
 }
 
-async fn outcome<V: Clone>(mut of: Outcome<V>) -> Result<V, SemiontError> {
+async fn outcome<V: Clone>(
+    mut of: Outcome<V>,
+) -> Result<V, Arc<dyn std::error::Error + Send + Sync>> {
     loop {
         if let Some(outcome) = of.borrow_and_update().clone() {
             return outcome;
@@ -349,11 +370,11 @@ where
     V: CacheValue,
 {
     /// A cache that fetches a key's value with `fetch`, and keeps nothing
-    /// beyond its own life.
+    /// beyond its own life. A fetch fails with any error.
     pub fn new<F, Fut>(fetch: F) -> Cache<K, V>
     where
         F: Fn(K) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
+        Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
     {
         Cache::build(fetch, None, crate::timing::SAVE_DEBOUNCE)
     }
@@ -367,7 +388,7 @@ where
     ) -> Cache<K, V>
     where
         F: Fn(K) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
+        Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
     {
         Cache::build(fetch, Some(persister), save_debounce)
     }
@@ -379,14 +400,17 @@ where
     ) -> Cache<K, V>
     where
         F: Fn(K) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
+        Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
     {
         let kept = persister
             .as_ref()
             .and_then(|persister| persister.load())
             .unwrap_or_default();
         let inner = Arc::new(Inner {
-            fetch: Box::new(move |key| Box::pin(fetch(key))),
+            fetch: Box::new(move |key| {
+                let fetching = fetch(key);
+                Box::pin(async move { fetching.await.map_err(Arc::from) })
+            }),
             save_debounce,
             state: Mutex::new(State {
                 disposed: false,
@@ -466,7 +490,11 @@ where
     /// Ask for the key's value now: what the service answers, which every
     /// observer of the key is given too, or the failure, which only this
     /// caller is. Concurrent asks for one key share one fetch.
-    pub fn fetch(&self, key: &K) -> impl Future<Output = Result<V, SemiontError>> + Send + 'static {
+    pub fn fetch(
+        &self,
+        key: &K,
+    ) -> impl Future<Output = Result<V, Arc<dyn std::error::Error + Send + Sync>>> + Send + 'static
+    {
         let cache = self.inner.clone();
         let key = key.clone();
         async move {
@@ -535,7 +563,7 @@ where
 
     /// The key's entity is gone: its value is dropped and the key is failed
     /// with `gone`, at once, for every observer. Nothing is asked for.
-    pub fn remove(&self, key: &K, gone: SemiontError) {
+    pub fn remove(&self, key: &K, gone: Box<dyn std::error::Error + Send + Sync>) {
         let mut state = self.inner.state();
         if state.disposed {
             return;
@@ -546,7 +574,7 @@ where
             .entry(key.clone())
             .or_insert_with(|| Key::new(CacheState::Pending));
         held.in_flight = None;
-        held.state.send_replace(CacheState::Failed(gone));
+        held.state.send_replace(CacheState::Failed(Arc::from(gone)));
         self.inner.owe_a_save(&mut state);
     }
 

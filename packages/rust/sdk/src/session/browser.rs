@@ -1158,7 +1158,12 @@ async fn check_open_resource(session: &SemiontSession, id: &ResourceId) -> TabCh
             media_type: primary_media_type(&descriptor).map(str::to_owned),
             name: descriptor.name,
         },
-        Err(SemiontError::Bus(answer)) if answer.code == BusRequestErrorCode::NotFound => {
+        Err(failure)
+            if matches!(
+                failure.downcast_ref::<SemiontError>(),
+                Some(SemiontError::Bus(answer)) if answer.code == BusRequestErrorCode::NotFound
+            ) =>
+        {
             TabCheck::Gone
         }
         // Anything else is a symptom, not a verdict.

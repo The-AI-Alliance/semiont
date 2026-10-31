@@ -17,7 +17,6 @@
 //! shown meanwhile.
 
 use crate::cache::{Cache, CacheKey, CacheState, CacheValue};
-use crate::errors::SemiontError;
 use crate::transport::{BoxFuture, ResourceHold, Transport};
 use crate::types::ResourceId;
 use futures_core::Stream;
@@ -28,7 +27,7 @@ use tokio_stream::wrappers::WatchStream;
 
 /// What a query answers from: the namespace that made the query supplies it.
 pub(crate) trait Source<T>: Send + Sync {
-    fn fresh(&self) -> BoxFuture<'static, Result<T, SemiontError>>;
+    fn fresh(&self) -> BoxFuture<'static, Result<T, Arc<dyn std::error::Error + Send + Sync>>>;
     fn watch(&self) -> Observed<T>;
     fn invalidate(&self);
 }
@@ -45,8 +44,9 @@ impl<T> Cached<T> {
         }
     }
 
-    /// The value now, from the service.
-    pub async fn fresh(&self) -> Result<T, SemiontError> {
+    /// The value now, from the service, or what its fetch failed with: for
+    /// a client's query, a `SemiontError`.
+    pub async fn fresh(&self) -> Result<T, Arc<dyn std::error::Error + Send + Sync>> {
         self.source.fresh().await
     }
 
@@ -127,7 +127,7 @@ where
     V: CacheValue,
     T: 'static,
 {
-    fn fresh(&self) -> BoxFuture<'static, Result<T, SemiontError>> {
+    fn fresh(&self) -> BoxFuture<'static, Result<T, Arc<dyn std::error::Error + Send + Sync>>> {
         let fetching = self.cache.fetch(&self.key);
         let view = self.view;
         Box::pin(async move { fetching.await.map(view) })
