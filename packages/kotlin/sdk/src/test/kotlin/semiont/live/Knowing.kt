@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -55,6 +56,8 @@ import semiont.types.wireJson
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 
 /*
  * A knowledge base's answers and events, as small as their shapes allow: what
@@ -124,6 +127,7 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     private val holds = ConcurrentHashMap<ResourceId, Int>()
     private val queued = ConcurrentHashMap<String, ArrayDeque<JsonElement>>()
     private val refused = ConcurrentHashMap.newKeySet<String>()
+    private val holding = ConcurrentHashMap.newKeySet<String>()
 
     /** Answer the next requests of `operation` with these responses, one each, before what the knowledge base would. */
     fun queue(operation: String, vararg responses: JsonElement) {
@@ -133,6 +137,11 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     /** Refuse every request of `operation` from now on. */
     fun refuse(operation: String) {
         refused += operation
+    }
+
+    /** Answer no request of `operation` from now on: each waits for the test to answer or refuse it. */
+    fun hold(operation: String) {
+        holding += operation
     }
 
     /** Every request of `operation`, in the order they were made. */
@@ -161,6 +170,9 @@ internal class Kb(private val answered: Boolean = true) : Transport {
         deliver(Frame(operation.result.name, JsonObject(named + ("response" to response)), request.correlationId))
     }
 
+    /** Answer a request as the knowledge base would. */
+    fun answer(request: Frame): Unit = answer(request, ANSWERS.getValue(request.channel))
+
     /** Answer a request with a failure. */
     fun refuse(request: Frame, message: String = "the service refused") {
         deliver(Frame(OPERATIONS.getValue(request.channel).failure.name, json("""{"code":"rejected","message":"$message"}"""), request.correlationId))
@@ -172,7 +184,7 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
         val request = Frame(channel, payload, correlationId, scope)
         emitted += request
-        if (!answered || correlationId == null) return 1
+        if (!answered || correlationId == null || channel in holding) return 1
         when {
             channel in refused -> refuse(request, "the scripted gateway refuses $channel")
             else -> {
@@ -300,6 +312,36 @@ internal class Watcher<T : Any>(query: Cached<T>, scope: CoroutineScope) {
 
     /** It stops collecting. */
     fun leave(): Unit = collecting.cancel()
+}
+
+/**
+ * A thread a watcher can collect on, which a test keeps busy: while it is,
+ * the watcher lags, and when it catches up it is given only the latest state.
+ */
+internal class LaggingThread : AutoCloseable {
+    private val thread = Executors.newSingleThreadExecutor()
+    val scope = CoroutineScope(SupervisorJob() + thread.asCoroutineDispatcher())
+
+    /** Do `block` while the thread is busy, and let it go after. */
+    suspend fun <R> whileBusy(block: suspend () -> R): R {
+        val busy = CountDownLatch(1)
+        val letGo = CountDownLatch(1)
+        thread.execute {
+            busy.countDown()
+            letGo.await()
+        }
+        busy.await()
+        try {
+            return block()
+        } finally {
+            letGo.countDown()
+        }
+    }
+
+    override fun close() {
+        scope.cancel()
+        thread.shutdownNow()
+    }
 }
 
 /** Wait until `done`, as soon as it is so. */
