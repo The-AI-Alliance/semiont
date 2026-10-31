@@ -597,10 +597,9 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.openAdminToThisMachine(adminPassword)
 			// The realm is up and imported; prove it honours the credentials
 			// this start is about to inject, BEFORE the first process that
-			// holds one. `keycloakEndpoint` is the realm as THIS host reaches
-			// it — see verifyServiceAccounts on why the token's `iss` is not
-			// compared against it.
-			if !x.preflightIdentity(keycloakEndpoint(rp, e), fc.kb.ident.resource(), accounts, rp.AccessTokenLifespan, fc.browser.spec.Port, true) {
+			// holds one, at the issuer those processes sign in at — see
+			// verifyServiceAccounts on why not where the launcher reaches it.
+			if !x.preflightIdentity(placementOf(fc, e).issuer(), fc.kb.ident.resource(), accounts, rp.AccessTokenLifespan, fc.browser.spec.Port, true) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
@@ -666,15 +665,12 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// while an external one had its clients created by hand. Reachability
 		// alone says nothing about whether the six service accounts grant a
 		// usable token, or whether anybody can sign in.
-		//
-		// The base is the CONFIGURED issuer, not identityEndpoint's localhost
-		// form — nothing of this one is on this host.
 		if role == "identity" {
 			accounts, ok := realmAccountsOf(x, fc.kb)
 			if !ok {
 				return 1
 			}
-			if !x.preflightIdentity(rp.Issuer, fc.kb.ident.resource(), accounts, 0, fc.browser.spec.Port, false) {
+			if !x.preflightIdentity(placementOf(fc, x.exposure(addr)).issuer(), fc.kb.ident.resource(), accounts, 0, fc.browser.spec.Port, false) {
 				return 1
 			}
 		}

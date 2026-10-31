@@ -61,13 +61,15 @@ var preflightNoRedirect = &http.Client{
 // in `secretClients`, and for the machine's worker by an assertion signed with
 // its key, against `issuerBase`, and checks what comes back.
 //
-// `issuerBase` is the realm as THIS PROCESS can reach it, which for a
-// launcher-run Keycloak is localhost and for an external issuer is the
-// configured URL. Deliberately not compared against the token's `iss`: a
-// Keycloak token is stamped with the URL it was requested FROM, so the
-// services — which ask through the host the launcher places it at — get an `iss` matching their
-// own configuration whatever this function used. Checking it here would
-// refuse a healthy realm.
+// `issuerBase` is the issuer the services sign in at, as their documents name
+// it (placement.issuer), and not where the launcher reaches its own Keycloak
+// for its waits and its administration (keycloakEndpoint). A secret proves
+// itself at any address, but a key's assertion names the token endpoint it is
+// for: a Keycloak whose hostname is fixed admits one only under that name,
+// while its discovery, asked at another address, names the token endpoint
+// there. Asked at localhost, it refuses the worker's key for a realm the
+// worker signs in at. The launcher dials keycloak.localhost at loopback
+// (launcherTransport), and an issuer behind the proxy where everyone dials it.
 func verifyServiceAccounts(issuerBase, audience string, accounts realmAccounts) ([]serviceAccountFinding, int) {
 	eps, err := discoverEndpoints(issuerBase)
 	endpoint := eps.token
