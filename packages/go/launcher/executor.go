@@ -25,13 +25,13 @@ import (
 // stager: writes what a container will read: each service's configuration document, the launcher-owned
 // collector and Prometheus configs, the realm document, the broker's authorization block.
 type stager interface {
-	stageAll(fc flowCtx, addr string) (string, bool)             // each service's configuration document + the collector's own; returns stage dir
+	stageAll(fc flowCtx, addr string) (string, bool)             // each service's configuration document; returns stage dir
 	stageOne(svc string, fc flowCtx, addr string) (string, bool) // one service's configuration document, written afresh
-	stageCollector(addr string) (string, bool)                   // the collector's own config: launcher-owned, no KB config involved
-	stageMetrics(addr string) (string, bool)                     // Prometheus's scrape config: same launcher-owned pattern
 	stageRealm(realm string, doc []byte) (string, bool)          // the realm file Keycloak imports; returns its staged path
 	stageNatsConf(doc []byte) (string, bool)                     // the broker's authorization block (no secret in it); returns its staged path
 	sweepStaging()                                               // /tmp/semiont-config.* removal (+ state forget)
+	machineConfigCurrent(file, want string) bool                 // whether the machine container's config file says want, byte for byte
+	writeMachineConfig(file, content string) (string, bool)      // a machine container's config, outside every stack's staging; returns its path
 }
 
 // runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
@@ -63,6 +63,7 @@ type prober interface {
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool)     // container→host address ("<host-addr>" in plan mode)
 	otelDetect(addr string) []string // --service: OTel iff the collector is up
+	tracesUp(url string) bool        // whether Jaeger answers at url: where the collector sends traces
 }
 
 // recorder: the belief record: what this machine thinks is running, and how each role was
@@ -71,13 +72,12 @@ type recorder interface {
 	initStack(kb kbRoot, config, addr, stage string) // begin the belief record
 	recordPorts(ports []portNeed)                    // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
-	providerOf(role string) string              // how an already-recorded role was provided
-	containerCurrent(name, desired string) bool // running under this runtime AND image identity matches
-	browserRecord() *ServiceState               // the machine-level browser record
-	recordBrowser(id, image string, doc browserDocument)
-	ollamaRecord() *ServiceState // the machine's Ollama record
-	recordOllama(id, image, endpoint, cache string)
-	forgetOllama() // the machine runs no Ollama container of the launcher's
+	servedByMachine(role, container, endpoint, driver string) // the stack's role is served by the machine's container
+	recorded(role string) ServiceState                        // the stack's record of a role, zero when it has none
+	containerCurrent(name, desired string) bool               // running under this runtime AND image identity matches
+	machineRecord(name string) *ServiceState                  // a machine container's record, by name
+	recordMachine(rec ServiceState)                           // a machine container this start ran, under this runtime
+	forgetMachine(name string)                                // the machine runs no such container of the launcher's
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
@@ -454,44 +454,39 @@ func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
 			return "", false
 		}
 	}
-	// The collector's config is the launcher's own; the variant follows
-	// --observe (traces → Jaeger or nop).
-	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, fc.opts.observe)), 0o644); err != nil {
-		x.u.Fail("Staging the collector config: %v", err)
-		return "", false
-	}
-	if err := os.WriteFile(filepath.Join(stage, "prometheus.yml"), []byte(prometheusConfig(addr)), 0o644); err != nil {
-		x.u.Fail("Staging the Prometheus config: %v", err)
-		return "", false
-	}
 	return stage, true
 }
 
-func (x *liveExec) stageMetrics(addr string) (string, bool) {
-	stage, ok := x.stageDir()
-	if !ok {
-		return "", false
-	}
-	if err := os.WriteFile(filepath.Join(stage, "prometheus.yml"), []byte(prometheusConfig(addr)), 0o644); err != nil {
-		x.u.Fail("Staging the Prometheus config: %v", err)
-		return "", false
-	}
-	return stage, true
+// machineConfigDir: where the configs of the machine's own containers live,
+// beside the record. A stack's staging dir goes with its stop, and a machine
+// container outlives every stack, so its live bind mount cannot be there.
+func machineConfigDir() string {
+	return filepath.Join(StateDir(), "telemetry")
 }
 
-// stageCollector: --service collector has no document of the KB's stack; it
-// stages only the launcher-written YAML. Traces route to Jaeger
-// iff Jaeger is actually up — the otelDetect rule.
-func (x *liveExec) stageCollector(addr string) (string, bool) {
-	stage, ok := x.stageDir()
-	if !ok {
+func (x *liveExec) machineConfigCurrent(file, want string) bool {
+	have, err := os.ReadFile(filepath.Join(machineConfigDir(), file))
+	return err == nil && string(have) == want
+}
+
+// writeMachineConfig: written only when its container is about to (re)start,
+// never under a running one, so the file is the record of what the running
+// one was started with.
+func (x *liveExec) writeMachineConfig(file, content string) (string, bool) {
+	if StateDir() == "" {
+		x.u.Fail("Writing %s: no state home to keep it in", file)
 		return "", false
 	}
-	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, httpOK("http://localhost:16686"))), 0o644); err != nil {
-		x.u.Fail("Staging the collector config: %v", err)
+	path := filepath.Join(machineConfigDir(), file)
+	if err := os.MkdirAll(machineConfigDir(), 0o755); err != nil {
+		x.u.Fail("Writing %s: %v", file, err)
 		return "", false
 	}
-	return stage, true
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		x.u.Fail("Writing %s: %v", file, err)
+		return "", false
+	}
+	return path, true
 }
 
 func (x *liveExec) stageOne(svc string, fc flowCtx, addr string) (string, bool) {
@@ -652,6 +647,8 @@ func (x *liveExec) otelDetect(addr string) []string {
 	return nil
 }
 
+func (x *liveExec) tracesUp(url string) bool { return httpOK(url) }
+
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
 // the SAME value a full start did. Every credential the launcher hands out
 // works this way.
@@ -746,7 +743,19 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 	if x.plan != nil {
 		models = x.plan.Roles[role].Models
 	}
-	x.stack().recordService(role, id, image, provided, endpoint, driver, models)
+	container := ""
+	if provided == providedLauncher {
+		container = descriptorFor(role, driver).container
+	}
+	x.stack().recordService(role, container, id, image, provided, endpoint, driver, models)
+}
+
+func (x *liveExec) servedByMachine(role, container, endpoint, driver string) {
+	var models []servedModel
+	if x.plan != nil {
+		models = x.plan.Roles[role].Models
+	}
+	x.stack().recordService(role, container, "", "", providedMachine, endpoint, driver, models)
 }
 
 // stack: the record this start writes to. A full start began it (initStack);
@@ -780,14 +789,14 @@ func (x *liveExec) issuerProxy(listen, upstream, realm string) bool {
 
 func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u) }
 
-// providerOf reads back how an earlier step in THIS run resolved a role.
+// recorded reads back how an earlier step in THIS run resolved a role.
 // The host-Ollama-vs-container decision is made at runtime, not in the plan,
 // so a role sharing that Ollama can only learn the answer here.
-func (x *liveExec) providerOf(role string) string {
+func (x *liveExec) recorded(role string) ServiceState {
 	if x.st == nil {
-		return ""
+		return ServiceState{}
 	}
-	return x.st.Services[role].Provided
+	return x.st.Services[role]
 }
 
 // verifyRemoteModels records what /v1/models says about the configured
@@ -1013,31 +1022,18 @@ func (x *liveExec) containerCurrent(name, desired string) bool {
 	return strings.TrimSpace(idOut) == runningID
 }
 
-func (x *liveExec) browserRecord() *ServiceState {
-	return LoadStackSet().Browser
+func (x *liveExec) machineRecord(name string) *ServiceState {
+	return LoadStackSet().Machine[name]
 }
 
-func (x *liveExec) recordBrowser(id, img string, doc browserDocument) {
-	saveBrowser(&ServiceState{
-		Container: "semiont-browser", ID: id, Image: img, Provided: providedLauncher,
-		Runtime: x.rt, Endpoint: doc.endpoint(), Memory: doc.spec.Resources.Limits.Memory,
-		StartedAt: time.Now().UTC(),
-	})
+func (x *liveExec) recordMachine(rec ServiceState) {
+	rec.Provided = providedLauncher
+	rec.Runtime = x.rt
+	rec.StartedAt = time.Now().UTC()
+	saveMachine(&rec)
 }
 
-func (x *liveExec) ollamaRecord() *ServiceState {
-	return LoadStackSet().Ollama
-}
-
-func (x *liveExec) recordOllama(id, img, endpoint, cache string) {
-	saveOllama(&ServiceState{
-		Container: "semiont-ollama", ID: id, Image: img, Provided: providedLauncher,
-		Runtime: x.rt, Endpoint: endpoint, Cache: cache,
-		StartedAt: time.Now().UTC(),
-	})
-}
-
-func (x *liveExec) forgetOllama() { clearOllama() }
+func (x *liveExec) forgetMachine(name string) { forgetMachine(name) }
 
 func (x *liveExec) ensureModels(base string, models []modelNeed) {
 	ensureOllamaModels(x.u, base, models)
@@ -1248,14 +1244,14 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 	return true
 }
 
-func (x *planExec) stageMetrics(string) (string, bool) {
-	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
-	return "<config-stage>", true
-}
+// --dry-run: whether a running container's config is current is a runtime
+// fact; either() shows both branches.
+func (x *planExec) machineConfigCurrent(string, string) bool { return false }
 
-func (x *planExec) stageCollector(string) (string, bool) {
-	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff Jaeger is up)")
-	return "<config-stage>", true
+func (x *planExec) writeMachineConfig(file, _ string) (string, bool) {
+	path := "<state-home>/telemetry/" + file
+	x.c("write %s (the launcher's own; only as its container (re)starts)", path)
+	return path, true
 }
 
 func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
@@ -1272,8 +1268,6 @@ func (x *planExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	for _, line := range placementOf(fc, x.exposure(addr)).placedLines() {
 		x.c("  %s", line)
 	}
-	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
-	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
 	return "<config-stage>", true
 }
 
@@ -1381,8 +1375,13 @@ func (x *planExec) either(_ func() bool, then, els func() int) int {
 }
 
 func (x *planExec) otelDetect(string) []string {
-	x.c("probe: Jaeger at http://localhost:16686 — if running, add --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318")
+	x.c("probe: the collector's readout at :24110/metrics — if it answers, add --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318")
 	return nil
+}
+
+func (x *planExec) tracesUp(url string) bool {
+	x.c("probe: Jaeger at %s — the collector sends traces to it if it answers, else discards them", url)
+	return false
 }
 
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
@@ -1448,8 +1447,10 @@ func (x *planExec) ollamaVolume(opts startOptions) string {
 
 func (x *planExec) record(_, _, _, _, _, _ string) {}
 
+func (x *planExec) servedByMachine(_, _, _, _ string) {}
+
 // --dry-run records nothing, so there is nothing to read back.
-func (x *planExec) providerOf(string) string { return "" }
+func (x *planExec) recorded(string) ServiceState { return ServiceState{} }
 
 // --dry-run launches nothing, so nothing can crash.
 func (x *planExec) dumpLogs(string, string) {}
@@ -1465,12 +1466,10 @@ func (x *planExec) retireIssuerProxy() {
 
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
-func (x *planExec) containerCurrent(string, string) bool          { return false }
-func (x *planExec) browserRecord() *ServiceState                  { return nil }
-func (x *planExec) recordBrowser(string, string, browserDocument) {}
-func (x *planExec) ollamaRecord() *ServiceState                   { return nil }
-func (x *planExec) recordOllama(string, string, string, string)   {}
-func (x *planExec) forgetOllama()                                 {}
+func (x *planExec) containerCurrent(string, string) bool { return false }
+func (x *planExec) machineRecord(string) *ServiceState   { return nil }
+func (x *planExec) recordMachine(ServiceState)           {}
+func (x *planExec) forgetMachine(string)                 {}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the

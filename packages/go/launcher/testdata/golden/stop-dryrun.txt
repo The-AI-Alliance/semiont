@@ -25,12 +25,6 @@ container stop semiont-nats
 container rm semiont-nats
 container stop semiont-postgres
 container rm semiont-postgres
-container stop semiont-otel-collector
-container rm semiont-otel-collector
-container stop semiont-prometheus
-container rm semiont-prometheus
-container stop semiont-jaeger
-container rm semiont-jaeger
 docker stop semiont-weaver
 docker rm semiont-weaver
 docker stop semiont-smelter
@@ -55,12 +49,6 @@ docker stop semiont-nats
 docker rm semiont-nats
 docker stop semiont-postgres
 docker rm semiont-postgres
-docker stop semiont-otel-collector
-docker rm semiont-otel-collector
-docker stop semiont-prometheus
-docker rm semiont-prometheus
-docker stop semiont-jaeger
-docker rm semiont-jaeger
 podman stop semiont-weaver
 podman rm semiont-weaver
 podman stop semiont-smelter
@@ -85,13 +73,28 @@ podman stop semiont-nats
 podman rm semiont-nats
 podman stop semiont-postgres
 podman rm semiont-postgres
+# remove staged configs: <config-stages>
+# stop the machine's OTel collector:
+container stop semiont-otel-collector
+container rm semiont-otel-collector
+docker stop semiont-otel-collector
+docker rm semiont-otel-collector
 podman stop semiont-otel-collector
 podman rm semiont-otel-collector
+# stop the machine's Prometheus:
+container stop semiont-prometheus
+container rm semiont-prometheus
+docker stop semiont-prometheus
+docker rm semiont-prometheus
 podman stop semiont-prometheus
 podman rm semiont-prometheus
+# stop the machine's Jaeger:
+container stop semiont-jaeger
+container rm semiont-jaeger
+docker stop semiont-jaeger
+docker rm semiont-jaeger
 podman stop semiont-jaeger
 podman rm semiont-jaeger
-# remove staged configs: <config-stages>
 # stop the machine's Ollama:
 container stop semiont-ollama
 container rm semiont-ollama
@@ -99,7 +102,7 @@ docker stop semiont-ollama
 docker rm semiont-ollama
 podman stop semiont-ollama
 podman rm semiont-ollama
-# stop the Browser:
+# stop the machine's Browser:
 container stop semiont-browser
 container rm semiont-browser
 docker stop semiont-browser

@@ -1,9 +1,11 @@
 # semiont start --service metrics --dry-run — the exact runtime commands a real
 # run would execute, in order. Values known only at runtime appear as <placeholders>.
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
+# metrics: keep semiont-prometheus if its record says http://localhost:9090/-/healthy under container, its prometheus.yml is what this start writes, and it runs prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702; else stop/rm it, then run it
+# else:
 container stop semiont-prometheus
 container rm semiont-prometheus
 # require free ports: 9090
-# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
-# write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
-container run -d --name semiont-prometheus --memory 1G -p 127.0.0.1:9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
+# write <state-home>/telemetry/prometheus.yml (the launcher's own; only as its container (re)starts)
+container run -d --name semiont-prometheus --memory 1G -p 127.0.0.1:9090:9090 --volume <state-home>/telemetry/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1@sha256:1f0f50f06acaceb0f5670d2c8a658a599affe7b0d8e78b898c1035653849a702
 # wait: http://localhost:9090/-/healthy (30s)

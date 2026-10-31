@@ -12,9 +12,6 @@ container logs semiont-gateway
 container logs semiont-keycloak
 container logs semiont-nats
 container logs semiont-postgres
-container logs semiont-otel-collector
-container logs semiont-prometheus
-container logs semiont-jaeger
 container list -a
 lsof -nP -iTCP:7474 -sTCP:LISTEN
 ps -p 12345 -o comm=

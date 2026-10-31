@@ -74,7 +74,7 @@ A local stack publishes these for you to open:
 | 4000 | The gateway: the knowledge base's address |
 | 8080 | Keycloak, where people sign in |
 | 7474, 7687 | Neo4j's console and its bolt port |
-| 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)) |
+| 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)), the machine's: one each serves every knowledge base here |
 
 The services' own ports and the infrastructure's are in [the service catalog](services/OVERVIEW.md). `semiont start` checks that every port it needs is free before it starts anything.
 

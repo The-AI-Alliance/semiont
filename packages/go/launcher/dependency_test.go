@@ -79,7 +79,6 @@ func TestStopSweepDerivesTheTeardownOrder(t *testing.T) {
 		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
 		"semiont-qdrant", "semiont-neo4j",
 		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",
-		"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
 	})
 }
 
@@ -89,7 +88,6 @@ func TestPreflightSweepDerivesTheTeardownOrder(t *testing.T) {
 		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
 		"semiont-qdrant", "semiont-neo4j",
 		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",
-		"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
 	})
 }
 

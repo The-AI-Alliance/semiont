@@ -32,13 +32,11 @@ func startReadsBrowserDocument(opts startOptions) bool {
 // preflightNames: the containers start's stop-then-rm sweep removes. A
 // sweep is a teardown, so it runs in teardown order — dependents first.
 //
-// `inference` is exempt: flowOllama removes semiont-ollama itself, ahead of
-// its host probe, for both walks (--service inference has no preflight).
-// `browser` is exempt because the Browser is not a stack member — its
-// keep-or-refresh lifecycle lives in flowBrowser, and the preflight must not
-// sweep a viewer the user keeps open across stacks. Both exemptions are gated
-// by descriptor_census_test.go.
-var preflightNames = sweepNames("browser", "inference")
+// The machine's containers are exempt: the telemetry, the machine's Ollama
+// and the Browser serve every KB here, and each is kept or replaced from its
+// own record by its own flow (flowMachine, flowOllama, flowBrowser). The
+// exemptions are gated by descriptor_census_test.go.
+var preflightNames = sweepNames(machineRoles...)
 
 type startOptions struct {
 	configName  string
@@ -107,11 +105,12 @@ Options:
   --machine <class>     Codespace placement: VM class (default: premiumLinux
                         when your account can use it for the repo, else the
                         largest it can; only applies when creating)
-  --no-observe          Skip the observability backends — Jaeger (traces
-                        store + UI) and Prometheus (metrics history). The
-                        OTel collector always runs: current metric totals
-                        stay readable at :24110/metrics; traces are accepted
-                        and discarded
+  --no-observe          Start neither observability backend — Jaeger (traces
+                        store + UI) nor Prometheus (metrics history) — and
+                        leave running ones alone: they are the machine's.
+                        The OTel collector always runs: current metric
+                        totals stay readable at :24110/metrics; traces go to
+                        Jaeger when it answers, and are discarded otherwise
   --ollama-cache <c>    Model cache when starting an Ollama container: 'host'
                         (~/.ollama) or 'volume' (named volume) — skips the prompt
   --dry-run             Print the exact runtime commands a run would execute, then exit
@@ -558,7 +557,7 @@ func Start(args []string) int {
 		if opts.service != "" {
 			needs = servicePortNeeds(opts.service, plan, browser, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
 		} else {
-			needs = planPortChecks(plan, opts.observe, exposure{rt: rt, lan: lan}) // full start always has a plan
+			needs = planPortChecks(plan, exposure{rt: rt, lan: lan}) // full start always has a plan
 		}
 		dropCollidingForwards(u, needs)
 	}
@@ -692,11 +691,11 @@ scrape_configs:
 `, addr)
 }
 
-func prometheusArgs(e exposure, stage string) []string {
+func prometheusArgs(e exposure, configPath string) []string {
 	a := []string{"run", "-d", "--name", "semiont-prometheus", // no --rm: see providedRunArgs
 		"--memory", descriptorFor("metrics", "prometheus").mem}
 	a = append(a, e.publish("-p", "metrics", 9090, 9090)...)
-	return append(a, "--volume", stage+"/prometheus.yml:/etc/prometheus/prometheus.yml:ro",
+	return append(a, "--volume", configPath+":/etc/prometheus/prometheus.yml:ro",
 		descriptorFor("metrics", "prometheus").image)
 }
 
@@ -742,12 +741,12 @@ service:
 `, tracesNote, tracesExporter)
 }
 
-func collectorArgs(e exposure, stage string) []string {
+func collectorArgs(e exposure, configPath string) []string {
 	a := []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
 		"--memory", descriptorFor("collector", "otel").mem}
 	a = append(a, e.publish("-p", "collector", 4318, 4318)...)
 	a = append(a, e.publish("-p", "collector", 24110, 24110)...)
-	return append(a, "--volume", stage+"/collector.yaml:/etc/otelcol/config.yaml:ro",
+	return append(a, "--volume", configPath+":/etc/otelcol/config.yaml:ro",
 		descriptorFor("collector", "otel").image)
 }
 
@@ -1064,8 +1063,13 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	if store, ok := custodyFor(u, kb.key()); ok {
 		fmt.Printf("  Secrets            %s   %s\n", store.describe(), u.Dim("(semiont settings secret-store)"))
 	}
-	if opts.observe {
+	// The machine's, whichever start ran them: --no-observe leaves running
+	// ones alone.
+	machine := LoadStackSet().Machine
+	if machine[roleContainer("traces")] != nil {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
+	}
+	if machine[roleContainer("metrics")] != nil {
 		fmt.Println("  Prometheus         http://localhost:9090")
 	}
 	// The readout is the containers' (Prometheus scrapes it), published

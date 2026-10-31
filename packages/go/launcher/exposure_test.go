@@ -171,7 +171,7 @@ func TestNetworkLANPlacesTheIssuerAtTheNetworkAddress(t *testing.T) {
 	if got := p.gatewayURL(); got != "http://"+bridge+":14000" {
 		t.Errorf("under lan a container dials the gateway at %s, want its side on the bridge address", got)
 	}
-	claimed := portNumbers(planPortChecks(plan, false, appleContainerLAN))
+	claimed := portNumbers(planPortChecks(plan, appleContainerLAN))
 	for _, port := range []int{8080, 18080, 4000, 14000} {
 		if !slices.Contains(claimed, port) {
 			t.Errorf("a lan start claims %v, without %d", claimed, port)
@@ -229,7 +229,7 @@ func TestTheContainersDialTheirSideOfAPortAPersonDialsToo(t *testing.T) {
 	if got := apple.graphURI(); got != "bolt://"+bridge+":17687" {
 		t.Errorf("a container dials Neo4j at %s, want its side, :17687", got)
 	}
-	claimed := portNumbers(planPortChecks(plan, false, appleContainer))
+	claimed := portNumbers(planPortChecks(plan, appleContainer))
 	for _, p := range []int{14000, 17687} {
 		if !slices.Contains(claimed, p) {
 			t.Errorf("a start under Apple container claims %v, without the containers' side %d", claimed, p)
@@ -239,7 +239,7 @@ func TestTheContainersDialTheirSideOfAPortAPersonDialsToo(t *testing.T) {
 	if got := docker.gatewayURL(); got != "http://host.docker.internal:4000" {
 		t.Errorf("under Docker a container dials the gateway at %s, want :4000", got)
 	}
-	if claimed := portNumbers(planPortChecks(plan, false, exposure{rt: "docker"})); slices.Contains(claimed, 14000) || slices.Contains(claimed, 17687) {
+	if claimed := portNumbers(planPortChecks(plan, exposure{rt: "docker"})); slices.Contains(claimed, 14000) || slices.Contains(claimed, 17687) {
 		t.Errorf("a start under Docker claims a containers' side: %v", claimed)
 	}
 }

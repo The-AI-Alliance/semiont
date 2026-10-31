@@ -37,9 +37,9 @@ func TestEveryImageTheLauncherNamesIsPinnedByDigest(t *testing.T) {
 
 // The two sweeps are one list, asserted as a PREDICATE rather than left to a
 // reader diffing two: what start's preflight clears is what stop tears down.
-// The machine-level containers, the Browser and the machine's Ollama, are in
-// neither: each has a record of its own, by which start keeps or replaces it
-// and stop stops it.
+// The machine's containers, the telemetry, the machine's Ollama and the
+// Browser, are in neither: each has a record of its own, by which start keeps
+// or replaces it and stop stops it.
 func TestStopSweepIsThePreflightSweep(t *testing.T) {
 	if !slices.Equal(stopNames, preflightNames) {
 		t.Errorf("stop sweeps %v, start's preflight %v: a name in one alone survives the other", stopNames, preflightNames)
@@ -53,10 +53,16 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 	noPreflight := map[string]string{
 		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks",
 		"inference": "the machine's Ollama: kept or replaced in the Ollama section, from its own record, where a host instance may make the container unnecessary",
+		"collector": "the machine's collector: kept or replaced by flowMachine, from its own record, since it takes every KB's signals",
+		"metrics":   "the machine's Prometheus: kept or replaced by flowMachine, from its own record",
+		"traces":    "the machine's Jaeger: kept or replaced by flowMachine, from its own record",
 	}
 	noStop := map[string]string{
 		"browser":   "stopped after the stack by stopMachineServices, from the Browser's own record and under its own runtime",
 		"inference": "the machine's Ollama: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
+		"collector": "the machine's collector: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
+		"metrics":   "the machine's Prometheus: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
+		"traces":    "the machine's Jaeger: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
 	}
 	for _, d := range serviceDescriptors {
 		if d.container == "" {

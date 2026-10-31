@@ -47,7 +47,7 @@ func TestAbsentRecordIsACleanEmptySet(t *testing.T) {
 // and the reason "no stacks" cannot simply mean "unreadable".
 func TestEmptySetWithABrowserRecordIsReadable(t *testing.T) {
 	p := recordPath(t)
-	body := `{"schema":3,"stacks":{},"browser":{"id":"bid","endpoint":"http://localhost:3000"}}`
+	body := `{"schema":3,"stacks":{},"machine":{"semiont-browser":{"container":"semiont-browser","id":"bid","endpoint":"http://localhost:3000"}}}`
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +55,8 @@ func TestEmptySetWithABrowserRecordIsReadable(t *testing.T) {
 	if ss.unreadable != nil {
 		t.Fatalf("a stopped machine's record refused: %v", ss.unreadable)
 	}
-	if ss.Browser == nil || ss.Browser.ID != "bid" {
-		t.Errorf("browser record lost: %+v", ss.Browser)
+	if b := ss.Machine["semiont-browser"]; b == nil || b.ID != "bid" {
+		t.Errorf("browser record lost: %+v", ss.Machine)
 	}
 }
 

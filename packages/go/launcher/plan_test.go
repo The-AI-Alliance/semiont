@@ -451,12 +451,21 @@ func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
 // nothing for it.
 func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 	plan := mustPlan(t, fixtureStack(t, "anthropic"))
-	checked := portNumbers(planPortChecks(plan, true, exposure{}))
+	checked := portNumbers(planPortChecks(plan, exposure{}))
 	for _, role := range startOrder {
 		if rp, planned := plan.Roles[role]; planned && rp.Presence != presenceLauncher {
 			continue
 		}
 		for _, need := range stackPortNeeds(role) {
+			// The machine's containers are no stack's: each one's flow
+			// checks its ports as it (re)starts it, and a start that keeps
+			// a running one must not find them taken.
+			if contains(machineRoles, role) {
+				if slices.Contains(checked, need.port) {
+					t.Errorf("%s is the machine's, but a full start requires its %d (%s) free", role, need.port, need.label)
+				}
+				continue
+			}
 			if !slices.Contains(checked, need.port) {
 				t.Errorf("%s claims %d (%s) at stack level, but a full start never requires it free", role, need.port, need.label)
 			}
@@ -513,16 +522,16 @@ func TestPlanPortChecksClaimNoPortForAnAbsentWorker(t *testing.T) {
 	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
 	withoutWorker := mustPlan(t, st)
 	var want []int
-	for _, port := range portNumbers(planPortChecks(withWorker, true, exposure{})) {
+	for _, port := range portNumbers(planPortChecks(withWorker, exposure{})) {
 		if !slices.Contains(portNumbers(stackPortNeeds("worker")), port) {
 			want = append(want, port)
 		}
 	}
-	got := portNumbers(planPortChecks(withoutWorker, true, exposure{}))
+	got := portNumbers(planPortChecks(withoutWorker, exposure{}))
 	if !slices.Equal(got, want) {
 		t.Errorf("a stack without a worker requires %v free\nwant %v", got, want)
 	}
-	if len(want) == len(planPortChecks(withWorker, true, exposure{})) {
+	if len(want) == len(planPortChecks(withWorker, exposure{})) {
 		t.Fatal("a stack with a worker claims no worker port: this test would prove nothing")
 	}
 }
