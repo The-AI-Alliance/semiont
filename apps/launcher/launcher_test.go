@@ -5018,21 +5018,29 @@ func tarGzEntries(t *testing.T, path string) string {
 	return strings.Join(names, "\n")
 }
 
-// useradd administers the stack it selected. With a local stack running for
-// one knowledge base, running it from inside another must reach the running
-// stack's realm: that root's config, issuer port and admin password — not
-// start over from the current directory and refuse about a knowledge base
-// that has no stack at all.
-func TestUseraddLocalAdministersTheRunningStackNotTheCwd(t *testing.T) {
+// useradd administers the stack it selected. Asked of the running knowledge
+// base by --root from inside another, it must reach the running stack's
+// realm: that root's config, issuer port and admin password — not start over
+// from the current directory and refuse about a knowledge base that has no
+// stack at all. Asked of nothing there, it is refused: the clone underfoot
+// names its own knowledge base, which nothing started, not the running one.
+func TestUseraddAdministersTheStackItSelectedNotTheCwd(t *testing.T) {
 	s := newScenario(t, "container")
+	running := s.kb
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	s.cwd = mkKB(t) // another knowledge base, never started
-	_, stderr, _ := s.run(t, "useradd", "--runtime", "container", "--email", "a@b.co", "--generate-password")
+	s.cwd = asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, s.cwd, "example.github.io:other-kb")
+	_, stderr, _ := s.run(t, "useradd", "--root", running, "--email", "a@b.co", "--generate-password")
 	if strings.Contains(stderr, "Cannot tell which config this knowledge base runs") || strings.Contains(stderr, s.cwd) {
-		t.Errorf("useradd administered the knowledge base in the current directory, not the running stack's:\n%s", stderr)
+		t.Errorf("useradd --root %s administered the knowledge base in the current directory:\n%s", running, stderr)
 	}
+	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--generate-password")
+	if code != 1 {
+		t.Errorf("useradd standing in a knowledge base nothing started: exit %d, want 1", code)
+	}
+	mustContain(t, "useradd standing in a knowledge base nothing started", stderr, "semiont start --root "+s.cwd)
 }
 
 func TestUseraddAmbiguousStacks(t *testing.T) {
