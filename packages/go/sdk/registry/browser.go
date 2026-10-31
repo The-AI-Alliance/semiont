@@ -449,11 +449,9 @@ func (b *SemiontBrowser) SignOut(id string) error {
 	}
 	if ok {
 		// The sign-out is the local act: an issuer that cannot be reached
-		// does not keep anyone in a session they asked to end.
-		b.spawn(func() error {
-			b.factory.Revoke(b.alive, stored)
-			return nil
-		})
+		// does not keep anyone in a session they asked to end, and Close
+		// does not wait for it to be told.
+		go b.factory.Revoke(b.alive, stored)
 	}
 	// Said again, so whoever shows each knowledge base's status reads it anew.
 	b.knowledgeBases.raise(b.knowledgeBases.Value())
@@ -556,7 +554,12 @@ func (b *SemiontBrowser) ReadActiveKb(ctx context.Context) (KbReadVerdict, error
 
 // Close ends the registry: its session is closed, and everything it holds
 // ends. It returns once what it was running has stopped, with the first
-// failure of any of it. Closing twice is closing once.
+// failure of any of it. A call it made to the session factory is told to stop,
+// by the end of the context it was given, and is not waited for: a session the
+// factory hands back afterwards is ended at once. So Close called from within
+// the factory returns too. Called from within the storage, in a write the
+// registry is making, it does not return: it waits for that write. Closing
+// twice is closing once.
 func (b *SemiontBrowser) Close() error {
 	b.mu.Lock()
 	closing := !b.closed.Swap(true)
@@ -803,7 +806,11 @@ func (b *SemiontBrowser) activate(id string) {
 	// The signals exist before the session does: the session says it is over
 	// through them, and may be over before it is ready.
 	signals := semiont.NewSessionSignals()
-	session, end, err := b.factory.Session(b.alive, SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals, OnError: b.failed})
+	handed, ok := b.build(SessionFactoryOptions{Kb: kbs[i], Storage: b.storage, Signals: signals, OnError: b.failed})
+	if !ok {
+		return
+	}
+	session, end, err := handed.session, handed.end, handed.err
 	if err != nil {
 		signals.Close()
 		if !b.closed.Load() {
@@ -812,7 +819,7 @@ func (b *SemiontBrowser) activate(id string) {
 		return
 	}
 	b.spawn(func() error {
-		route(b.alive, session, signals)
+		b.route(session, signals)
 		return nil
 	})
 	_ = session.Ready(b.alive)
@@ -821,6 +828,39 @@ func (b *SemiontBrowser) activate(id string) {
 		return
 	}
 	b.putSession(session, end, signals)
+}
+
+// built is what the factory handed back for a session.
+type built struct {
+	session *semiont.Session
+	end     func()
+	err     error
+}
+
+// build asks the factory for a session on a goroutine of its own, which Close
+// does not wait for, and waits for what it hands back until the registry is
+// closed: ok is false when the registry closed first. A session handed back
+// after that is ended where it is handed back, with what a host was to be
+// shown of it.
+func (b *SemiontBrowser) build(options SessionFactoryOptions) (handed built, ok bool) {
+	handing := make(chan built)
+	go func() {
+		session, end, err := b.factory.Session(b.alive, options)
+		select {
+		case handing <- built{session: session, end: end, err: err}:
+		case <-b.alive.Done():
+			if err == nil {
+				end()
+			}
+			options.Signals.Close()
+		}
+	}()
+	select {
+	case handed = <-handing:
+		return handed, true
+	case <-b.alive.Done():
+		return built{}, false
+	}
 }
 
 // constructFailed is a factory's refusal as the failure a registry says: the
@@ -837,7 +877,7 @@ func constructFailed(err error, kbID string) *semiont.SessionError {
 // valid token renews the session: it heals quietly, or the session ends itself
 // and says so once. A refusal for lack of permission has no remedy, and is
 // said. It ends when the transport closes.
-func route(alive context.Context, session *semiont.Session, signals *semiont.SessionSignals) {
+func (b *SemiontBrowser) route(session *semiont.Session, signals *semiont.SessionSignals) {
 	for failure := range session.Errors() {
 		switch failure.Code {
 		case semiont.TransportErrorCodeUnauthorized:
@@ -845,7 +885,10 @@ func route(alive context.Context, session *semiont.Session, signals *semiont.Ses
 			// session holds them while it renews. A failure does not say which
 			// token was refused: the one the session holds as it is read is.
 			refused := session.Token().Value()
-			go session.Refresh(alive, refused)
+			b.spawn(func() error {
+				session.Refresh(b.alive, refused)
+				return nil
+			})
 		case semiont.TransportErrorCodeForbidden:
 			detail := failure.Message
 			signals.NotifyPermissionDenied(&detail)

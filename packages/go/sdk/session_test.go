@@ -650,6 +650,51 @@ func TestASessionThatNeverSignedInCannotExpire(t *testing.T) {
 	}
 }
 
+// refusesToForget is a kept sign-in whose storage will not forget it.
+type refusesToForget struct{ *semiont.MemorySignIn }
+
+func (refusesToForget) Forget(context.Context) error { return errors.New("the storage is full") }
+
+// A kept token that expired, and that the issuer will not renew, is forgotten
+// at the start with nothing said. One the storage will not forget is said,
+// with why.
+func TestAnExpiredSignInTheStorageWillNotForgetIsSaidAtTheStart(t *testing.T) {
+	kept := refusesToForget{&semiont.MemorySignIn{}}
+	if err := kept.Keep(context.Background(), semiont.HeldSignIn{Access: tokenFor(-time.Hour, 0), Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: "https://issuer.test/token"}); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	var said []*semiont.SessionError
+	session, err := semiont.StartSession(context.Background(), semiont.SessionConfig{
+		Kb: api.KbTarget{Id: kb}, Token: semiont.NewVariable(""), Kept: kept,
+		Refresh: func(context.Context, string) (string, error) { return "", invalidGrant },
+		OnError: func(err *semiont.SessionError) {
+			mu.Lock()
+			defer mu.Unlock()
+			said = append(said, err)
+		},
+		Timing: semiont.DefaultTiming(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(session.Close)
+	ready, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := session.Ready(ready); err != nil {
+		t.Fatalf("the session was not ready: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(said) != 1 || said[0].Code != semiont.SessionErrorCodeRefreshExhausted || !strings.Contains(said[0].Message, "the storage is full") {
+		t.Fatalf("the session said %+v", said)
+	}
+	if !strings.Contains(said[0].Message, "invalid_grant") {
+		t.Errorf("the session said %q, not why the issuer refused", said[0].Message)
+	}
+}
+
 // Closing a session ends what it runs: a session closed while it starts is
 // ready, and says nothing.
 func TestASessionClosedWhileItStartsIsReadyAndSaysNothing(t *testing.T) {

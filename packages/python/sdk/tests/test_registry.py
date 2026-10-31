@@ -14,8 +14,9 @@ a `SharedStorage`, so a second context can write it as another window would.
 import asyncio
 import dataclasses
 import json
-from collections.abc import Mapping
-from typing import Final, final
+from collections.abc import AsyncGenerator, Mapping
+from contextlib import asynccontextmanager
+from typing import Final, final, override
 
 import pytest
 from aio import hurried, run, soon, turns
@@ -31,6 +32,8 @@ from semiont.registry import (
     OpenResource,
     SemiontBrowser,
     SemiontBrowserConfig,
+    SessionFactory,
+    SessionFactoryOptions,
     SignedIn,
     TabCheck,
     apply_tab_checks,
@@ -1399,5 +1402,44 @@ def test_closing_the_registry_closes_its_session_and_ends_what_it_holds() -> Non
         await browser.sign_in(KB_A, tokens("late"))
         assert world.storage.get(ACTIVE_KEY) == KB_A
         assert world.stored_refresh(KB_A) == "r"
+
+    run(scenario())
+
+
+@final
+class ClosingAsItBuilds(SessionFactory):
+    """A factory that closes its registry while the registry is building the session it began with."""
+
+    def __init__(self, sessions: ScriptedSessions) -> None:
+        self.sessions: Final = sessions
+        self.browser: Final[asyncio.Future[SemiontBrowser]] = asyncio.get_running_loop().create_future()
+        self.closed: Final = asyncio.Event()
+
+    @override
+    @asynccontextmanager
+    async def session(self, options: SessionFactoryOptions) -> AsyncGenerator[SemiontSession[FaultyTransport]]:
+        await (await self.browser).close()
+        self.closed.set()
+        # Closing ended the work that closed it, and no session is ever built.
+        never: asyncio.Future[SemiontSession[FaultyTransport]] = asyncio.get_running_loop().create_future()
+        yield await never
+
+    @override
+    async def revoke(self, stored: StoredSession) -> None:
+        await self.sessions.revoke(stored)
+
+
+def test_closing_from_within_the_registrys_own_work_ends_it_without_waiting_for_itself() -> None:
+    async def scenario() -> None:
+        world = World().with_(kb_of_a())
+        factory = ClosingAsItBuilds(world.factory.sessions)
+        browser = SemiontBrowser(SemiontBrowserConfig(storage=world.storage, session_factory=factory))
+        factory.browser.set_result(browser)
+        async with browser:
+            await soon(factory.closed.wait())
+            assert await ended(browser.kbs)
+            assert await ended(browser.active_session)
+            assert browser.bus.destroyed
+        # Leaving it closes it again, which is closing once.
 
     run(scenario())

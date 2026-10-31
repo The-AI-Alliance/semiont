@@ -815,7 +815,9 @@ class SemiontBrowser:
         """End the registry: its session is closed, and everything it holds ends.
 
         Returns once what it was running has stopped, and raises what any of it
-        failed with. Closing twice is closing once.
+        failed with. Called from within what it runs, it ends that work too
+        but does not wait for it, which would be waiting for itself, and raises
+        what has failed so far. Closing twice is closing once.
         """
         if self._closing.is_set():
             return
@@ -825,10 +827,14 @@ class SemiontBrowser:
             self._stop_listening()
         if taken is not None:
             await taken.close()
-        running = list(self._tasks)
+        within = next((task for task in self._tasks if task is asyncio.current_task()), None)
+        running = [task for task in self._tasks if task is not within]
         for task in running:
             task.cancel()
         await asyncio.gather(*running, return_exceptions=True)
+        if within is not None:
+            # Ended once closing has nothing left to wait for: at its next wait, after this returns.
+            within.cancel()
         self._failures.close()
         for held in (
             self._kbs,
