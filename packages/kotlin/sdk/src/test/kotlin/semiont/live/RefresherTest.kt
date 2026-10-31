@@ -189,18 +189,27 @@ class RefresherTest {
     fun b20AKeyThatIsFailedOrBeingFetchedIsHeld() = runBlocking {
         LaggingThread().use { lagging ->
             val world = KbWorld(windowMs = 0)
-            world.kb.refuse("browse:events-requested")
+            val kb = world.kb
+            fun requests() = kb.askedFor("browse:events-requested")
+            // Each request waits until the test refuses it: until then the key is being fetched, whenever its watcher catches up.
+            kb.hold("browse:events-requested")
             val failing = Watcher(world.client.browse.events(RESOURCE), lagging.scope)
             assertEquals(CacheState.Pending, failing.next())
+            eventually { requests().size == 1 }
+            kb.refuse(requests()[0])
+            // Asked once more when that failed, and failed when that was refused too.
+            eventually { requests().size == 2 }
+            kb.refuse(requests()[1])
             assertInstanceOf(CacheState.Failed::class.java, failing.next())
-            assertEquals(2, world.kb.askedFor("browse:events-requested").size)
-            // Its watcher lags while the event asks again, and once more when that failed.
+            // Its watcher lags while the event asks again.
             lagging.whileBusy {
-                world.kb.deliver(event(CacheRefreshTrigger.MarkAdded))
-                eventually { world.kb.askedFor("browse:events-requested").size == 4 }
-                delay(SETTLE)
+                kb.deliver(event(CacheRefreshTrigger.MarkAdded))
+                eventually { requests().size == 3 }
             }
             assertEquals(CacheState.Pending, failing.next())
+            kb.refuse(requests()[2])
+            // And once more when that failed.
+            eventually { requests().size == 4 }
             world.close()
         }
 
@@ -318,11 +327,18 @@ class RefresherTest {
             delay(SETTLE)
             assertEquals(asked, kb.askedFor("browse:annotation-requested").size)
 
-            // Which resource it was of is kept, so the request an arriving watcher makes can name it. The first watcher lags meanwhile.
-            lagging.whileBusy { world.watch(world.client.browse.annotation(RESOURCE, ANNOTATION)).ready() }
+            // Which resource it was of is kept, so the request an arriving watcher makes can name it. The first watcher lags
+            // meanwhile, and the request waits until the test answers it: the key is being fetched when that watcher catches up.
+            kb.hold("browse:annotation-requested")
+            lagging.whileBusy {
+                world.watch(world.client.browse.annotation(RESOURCE, ANNOTATION))
+                eventually { kb.askedFor("browse:annotation-requested").size > asked }
+            }
             assertEquals(CacheState.Pending, one.next())
-            eventually { kb.askedFor("browse:annotation-requested").size > asked }
-            assertEquals(json("""{"resourceId":"${RESOURCE.value}","annotationId":"${ANNOTATION.value}"}"""), kb.askedFor("browse:annotation-requested").last().payload)
+            val request = kb.askedFor("browse:annotation-requested").last()
+            assertEquals(json("""{"resourceId":"${RESOURCE.value}","annotationId":"${ANNOTATION.value}"}"""), request.payload)
+            kb.answer(request)
+            assertInstanceOf(CacheState.Ready::class.java, one.next())
             world.close()
         }
     }

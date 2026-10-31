@@ -127,6 +127,7 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     private val holds = ConcurrentHashMap<ResourceId, Int>()
     private val queued = ConcurrentHashMap<String, ArrayDeque<JsonElement>>()
     private val refused = ConcurrentHashMap.newKeySet<String>()
+    private val holding = ConcurrentHashMap.newKeySet<String>()
 
     /** Answer the next requests of `operation` with these responses, one each, before what the knowledge base would. */
     fun queue(operation: String, vararg responses: JsonElement) {
@@ -136,6 +137,11 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     /** Refuse every request of `operation` from now on. */
     fun refuse(operation: String) {
         refused += operation
+    }
+
+    /** Answer no request of `operation` from now on: each waits for the test to answer or refuse it. */
+    fun hold(operation: String) {
+        holding += operation
     }
 
     /** Every request of `operation`, in the order they were made. */
@@ -164,6 +170,9 @@ internal class Kb(private val answered: Boolean = true) : Transport {
         deliver(Frame(operation.result.name, JsonObject(named + ("response" to response)), request.correlationId))
     }
 
+    /** Answer a request as the knowledge base would. */
+    fun answer(request: Frame): Unit = answer(request, ANSWERS.getValue(request.channel))
+
     /** Answer a request with a failure. */
     fun refuse(request: Frame, message: String = "the service refused") {
         deliver(Frame(OPERATIONS.getValue(request.channel).failure.name, json("""{"code":"rejected","message":"$message"}"""), request.correlationId))
@@ -175,7 +184,7 @@ internal class Kb(private val answered: Boolean = true) : Transport {
     override suspend fun emit(channel: String, payload: JsonObject, scope: ResourceId?, correlationId: String?): Long? {
         val request = Frame(channel, payload, correlationId, scope)
         emitted += request
-        if (!answered || correlationId == null) return 1
+        if (!answered || correlationId == null || channel in holding) return 1
         when {
             channel in refused -> refuse(request, "the scripted gateway refuses $channel")
             else -> {
