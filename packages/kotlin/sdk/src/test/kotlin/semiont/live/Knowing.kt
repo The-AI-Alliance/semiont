@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -55,6 +56,8 @@ import semiont.types.wireJson
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 
 /*
  * A knowledge base's answers and events, as small as their shapes allow: what
@@ -300,6 +303,36 @@ internal class Watcher<T : Any>(query: Cached<T>, scope: CoroutineScope) {
 
     /** It stops collecting. */
     fun leave(): Unit = collecting.cancel()
+}
+
+/**
+ * A thread a watcher can collect on, which a test keeps busy: while it is,
+ * the watcher lags, and when it catches up it is given only the latest state.
+ */
+internal class LaggingThread : AutoCloseable {
+    private val thread = Executors.newSingleThreadExecutor()
+    val scope = CoroutineScope(SupervisorJob() + thread.asCoroutineDispatcher())
+
+    /** Do `block` while the thread is busy, and let it go after. */
+    suspend fun <R> whileBusy(block: suspend () -> R): R {
+        val busy = CountDownLatch(1)
+        val letGo = CountDownLatch(1)
+        thread.execute {
+            busy.countDown()
+            letGo.await()
+        }
+        busy.await()
+        try {
+            return block()
+        } finally {
+            letGo.countDown()
+        }
+    }
+
+    override fun close() {
+        scope.cancel()
+        thread.shutdownNow()
+    }
 }
 
 /** Wait until `done`, as soon as it is so. */
