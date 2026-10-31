@@ -116,7 +116,9 @@ With `OTEL_EXPORTER_OTLP_ENDPOINT` set it exports, as `semiont-worker`, the rows
 [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
 lists for the worker: a span and an outcome for every job, every generation, and every
 detection call with its items, tokens and anchoring outcomes (the `semiont.detection.*`
-metrics), so a run's cost, yield and precision can be queried.
+metrics), so a run's cost, yield and precision can be queried. Its own spans and metrics
+name, as `semiont.kb`, the knowledge base whose job it was; what a provider's driver
+counts of a generation (`semiont.inference.*`) names none.
 See [Observability](../../docs/operator/administration/OBSERVABILITY.md) for the full
 inventory and where the metrics flow.
 

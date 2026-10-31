@@ -7,18 +7,24 @@ far: a test says which of it is its own.
 
 A process's logging is configured once too, by the service as it boots. A
 test that boots it, or configures it, asks for it to be put back.
+
+And every test is run as a knowledge base's claims are, so that what the
+worker records names it.
 """
 
 import logging
 from collections.abc import Generator
 
 import pytest
+from holding import KB
 from opentelemetry import metrics, trace
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+from semiont_worker.telemetry import serving
 
 
 @pytest.fixture(scope="session")
@@ -37,6 +43,13 @@ def metric_reader() -> InMemoryMetricReader:
     reader = InMemoryMetricReader()
     metrics.set_meter_provider(MeterProvider(metric_readers=[reader]))
     return reader
+
+
+@pytest.fixture(autouse=True)
+def served() -> Generator[None]:
+    """Run the test as the claims of the knowledge base `KB` are run: everything the worker records in it names `KB`."""
+    with serving(KB):
+        yield
 
 
 @pytest.fixture

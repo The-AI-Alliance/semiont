@@ -5,16 +5,22 @@ until the process it runs in installs a provider
 (`semiont_service.observability`). What a driver records of a generation, the
 `semiont.inference.*` rows, is the driver's own, and what the process says of
 itself is `semiont_service.observability`'s.
+
+A worker serves several knowledge bases, so its resource names none. Each of
+its own rows names, as `semiont.kb`, the knowledge base whose claims the work
+was run for (`serving`).
 """
 
 import time
 from collections.abc import Generator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Final, Literal
 
 from opentelemetry import metrics, trace
 from opentelemetry.trace import SpanKind
 from semiont.annotations import AnchorMethod
+from semiont.identifiers import UserId
 from semiont.types import JobType, Motivation
 from semiont_inference.interface import TokenUsage
 
@@ -40,6 +46,9 @@ _DETECTION_ANCHORS: Final = _METER.create_counter(
 _JOB_OUTCOME: Final = _METER.create_counter("semiont.job.outcome", description="The jobs a worker concluded, by how")
 _JOB_DURATION: Final = _METER.create_histogram("semiont.job.duration", unit="ms", description="How long a worker held a job")
 
+_SERVED: Final[ContextVar[UserId]] = ContextVar("semiont.kb")
+"""The DID of the knowledge base whose claims are being run, while `serving` holds it."""
+
 type JobOutcome = Literal["completed", "failed", "cancelled"]
 """How a held job ended. A job that was declined is one that completed."""
 
@@ -59,6 +68,25 @@ one is a reply that overflowed, and the other a silent under-report.
 """
 
 
+@contextmanager
+def serving(kb: UserId) -> Generator[None]:
+    """Run claims of the knowledge base whose DID is `kb`: every span and data point recorded within names it, as `semiont.kb`.
+
+    It holds for the task it is entered in, and for every task started there
+    while it holds.
+    """
+    held = _SERVED.set(kb)
+    try:
+        yield
+    finally:
+        _SERVED.reset(held)
+
+
+def _of_kb() -> dict[str, str]:
+    """What names the knowledge base a signal is of. Raises `LookupError` outside `serving`: no signal of the worker's own is of none."""
+    return {"semiont.kb": _SERVED.get()}
+
+
 def _of_job(job_type: JobType, motivation: Motivation | None) -> dict[str, str]:
     """What names a job's kind: its type and, of a `mark` job, its motivation in a label of its own."""
     kind: dict[str, str] = {"job.type": job_type}
@@ -76,7 +104,7 @@ def holding(job_type: JobType, motivation: Motivation | None, *, job_id: str, re
     failure raised while it is held is recorded on the span, which is then an
     error's.
     """
-    attributes = {**_of_job(job_type, motivation), "job.id": job_id, "resource.id": resource_id}
+    attributes = {**_of_kb(), **_of_job(job_type, motivation), "job.id": job_id, "resource.id": resource_id}
     with _TRACER.start_as_current_span(f"job:{job_type}", kind=SpanKind.CONSUMER, attributes=attributes):
         yield
 
@@ -87,7 +115,7 @@ def record_job_outcome(job_type: JobType, motivation: Motivation | None, outcome
     `started` is when the job was handed over, a reading of
     `time.perf_counter`.
     """
-    filed = {**_of_job(job_type, motivation), "job.outcome": outcome}
+    filed = {**_of_kb(), **_of_job(job_type, motivation), "job.outcome": outcome}
     _JOB_OUTCOME.add(1, filed)
     _JOB_DURATION.record((time.perf_counter() - started) * 1000, filed)
 
@@ -99,7 +127,7 @@ def preparing(*, resource_id: str, media_type: str) -> Generator[None]:
     A span of its own, because the read of a large resource is otherwise not
     told apart from the model's answer in a trace.
     """
-    attributes = {"resource.id": resource_id, "media.type": media_type}
+    attributes = {**_of_kb(), "resource.id": resource_id, "media.type": media_type}
     with _TRACER.start_as_current_span("detection:prepare", kind=SpanKind.INTERNAL, attributes=attributes):
         yield
 
@@ -111,7 +139,12 @@ def generating(kind: GenerationKind, *, provider: str, model: str, max_tokens: i
     A failure raised while it is held is recorded on the span, which is then
     an error's.
     """
-    attributes: dict[str, str | int] = {"inference.provider": provider, "inference.model": model, "inference.max_tokens": max_tokens}
+    attributes: dict[str, str | int] = {
+        **_of_kb(),
+        "inference.provider": provider,
+        "inference.model": model,
+        "inference.max_tokens": max_tokens,
+    }
     with _TRACER.start_as_current_span(f"inference:{kind}", kind=SpanKind.INTERNAL, attributes=attributes):
         yield
 
@@ -140,6 +173,7 @@ def record_detection_call(
     provider did not count adds no tokens.
     """
     filed: dict[str, str | int | bool] = {
+        **_of_kb(),
         "detection.label": label,
         "detection.outcome": outcome,
         "detection.depth": depth,
@@ -159,4 +193,4 @@ def record_anchor(label: DetectionLabel, method: AnchorMethod) -> None:
     Every anchor is counted, the sure ones too: the doubtful ones are a share
     of them all, and a count of the doubtful alone is a share of nothing.
     """
-    _DETECTION_ANCHORS.add(1, {"detection.label": label, "anchor.method": method})
+    _DETECTION_ANCHORS.add(1, {**_of_kb(), "detection.label": label, "anchor.method": method})

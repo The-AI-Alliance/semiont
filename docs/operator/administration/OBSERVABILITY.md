@@ -64,10 +64,10 @@ The Worker service:
 
 | Span                   | Kind     | Attributes                                              | When    | What it is                                    |
 |------------------------|----------|---------------------------------------------------------|---------|-----------------------------------------------|
-| `job:{jobType}`        | consumer | `job.type` (`mark`/`yield`), `job.motivation` on a `mark` job, `job.id`, `resource.id` | traffic | A job a worker held, from the claim that handed it over to its conclusion |
-| `detection:prepare`    | internal | `resource.id`, `media.type`                             | traffic | A `mark` job's reading of its resource: the description's media type, and the text read by it |
-| `inference:structured` | internal | `inference.provider` (`anthropic`/`google`/`llamacpp`/`ollama`/`openai`/`together`/`vllm`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for an array of objects, from the request to its answer or its time bound |
-| `inference:text`       | internal | `inference.provider` (`anthropic`/`google`/`llamacpp`/`ollama`/`openai`/`together`/`vllm`), `inference.model`, `inference.max_tokens` | traffic | One generation a worker asked of its provider for text, from the request to its answer or its time bound |
+| `job:{jobType}`        | consumer | `job.type` (`mark`/`yield`), `job.motivation` on a `mark` job, `job.id`, `resource.id`, `semiont.kb` | traffic | A job a worker held, from the claim that handed it over to its conclusion |
+| `detection:prepare`    | internal | `resource.id`, `media.type`, `semiont.kb` | traffic | A `mark` job's reading of its resource: the description's media type, and the text read by it |
+| `inference:structured` | internal | `inference.provider` (`anthropic`/`google`/`llamacpp`/`ollama`/`openai`/`together`/`vllm`), `inference.model`, `inference.max_tokens`, `semiont.kb` | traffic | One generation a worker asked of its provider for an array of objects, from the request to its answer or its time bound |
+| `inference:text`       | internal | `inference.provider` (`anthropic`/`google`/`llamacpp`/`ollama`/`openai`/`together`/`vllm`), `inference.model`, `inference.max_tokens`, `semiont.kb` | traffic | One generation a worker asked of its provider for text, from the request to its answer or its time bound |
 
 The `archivist.*` spans are the third hop on the byte path. The gateway's `content.{put,get}.server` span makes a network call to the archivist, and without a span of its own, a slow archivist would read as a slow gateway.
 
@@ -205,9 +205,13 @@ variables as above.
 
 Every service that serves one knowledge base exports under a resource naming it:
 `semiont.kb`, the knowledge base's DID (`did:web:<site.domain>`). The worker serves
-several, so its resource names none. In Jaeger the DID is a tag of each service's
-process; the collector writes it on every metric it hands Prometheus as the label
-`semiont_kb`:
+several, so its resource names none. It carries `semiont.kb` instead on each span and
+data point of its own rows, naming the knowledge base whose job the work was. What it
+shares with other services names none: the process's own metrics, and what a
+provider's driver counts of a generation (`semiont.inference.*`), since one engine
+can serve several knowledge bases. In Jaeger the DID is a tag of each service's
+process, and of each of the worker's spans of a job; the collector writes it on
+every metric it hands Prometheus as the label `semiont_kb`:
 
 ```bash
 # Traces of one knowledge base
@@ -219,7 +223,8 @@ curl -sG http://localhost:16686/api/traces --data-urlencode service=semiont-gate
 curl -sG http://localhost:9090/api/v1/label/semiont_kb/values | jq -r '.data[]'
 ```
 
-`semiont status` reads only its own knowledge base's metrics out of the collector.
+`semiont status` reads only its own knowledge base's metrics out of the collector,
+the jobs the worker concluded there among them.
 
 ## Two invariants
 
@@ -320,13 +325,13 @@ The Worker service is Python and exports its own too, specified in the same tabl
 
 | Metric                       | Type             | Attributes                                              | When    | What it is                                    |
 |------------------------------|------------------|---------------------------------------------------------|---------|-----------------------------------------------|
-| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`) | traffic | Every job a worker held, by how it ended |
-| `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome` | traffic | How long a worker held each job, in ms    |
-| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll` | traffic | Worker detection — one row per model call, failed attempts included |
-| `semiont.detection.call.duration` | histogram   | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll` | traffic | Worker detection per-call wall time |
-| `semiont.detection.call.items` | histogram      | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll` | traffic | Annotations returned per call — against input size, this is yield |
-| `semiont.detection.call.tokens` | histogram     | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll`, `detection.direction` (`input`/`output`) | traffic | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
-| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | traffic | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
+| `semiont.job.outcome`        | counter          | `job.type` (`mark` / `yield`), `job.motivation` on a `mark` job, `job.outcome` (`completed` / `failed` / `cancelled`), `semiont.kb` | traffic | Every job a worker held, by how it ended |
+| `semiont.job.duration`       | histogram        | `job.type`, `job.motivation` on a `mark` job, `job.outcome`, `semiont.kb` | traffic | How long a worker held each job, in ms    |
+| `semiont.detection.calls`    | counter          | `detection.label`, `detection.outcome` (`success`/`truncated`/`collapsed`/`timeout`/`error`), `detection.depth`, `detection.reroll`, `semiont.kb` | traffic | Worker detection — one row per model call, failed attempts included |
+| `semiont.detection.call.duration` | histogram   | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll`, `semiont.kb` | traffic | Worker detection per-call wall time |
+| `semiont.detection.call.items` | histogram      | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll`, `semiont.kb` | traffic | Annotations returned per call — against input size, this is yield |
+| `semiont.detection.call.tokens` | histogram     | `detection.label`, `detection.outcome`, `detection.depth`, `detection.reroll`, `detection.direction` (`input`/`output`), `semiont.kb` | traffic | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
+| `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`), `semiont.kb` | traffic | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
 
 Of its memory (`semiont.runtime.heap`) the Worker service reports `total`, `limit` and `rss`,
 and no `used`: Python keeps no count of how much of its heap is in use. Its `limit` is the

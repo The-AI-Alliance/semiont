@@ -164,7 +164,7 @@ the Archivist's spec.
 | `resume` | `resume.test.ts` | D13 to D15, D18, U1 to U3 |
 | `cancel` | `cancel.test.ts` | Q1 to Q5 |
 | `yield` | `yield.test.ts` | J3, Y1 to Y8 |
-| `telemetry` | `telemetry.test.ts` | T1 to T3 |
+| `telemetry` | `telemetry.test.ts` | T1 to T4 |
 | `environment` | `environment.test.ts` | E1 to E11 |
 | `output` | `output.test.ts` | O1 |
 | `stop` | `stop.test.ts` | P1 to P3, R2, R5 |

@@ -61,7 +61,7 @@
         "smelter",
         "weaver"
       ],
-      "meaning": "The DID of the knowledge base the service serves: `kb_did` of its document's `kb.domain`, or, for the Archivist, which reads what the knowledge base says of itself from its tree, of the `site.domain` its committed `.semiont/config.yaml` names. A service that serves several knowledge bases names none in its resource."
+      "meaning": "The DID of the knowledge base the service serves: `kb_did` of its document's `kb.domain`, or, for the Archivist, which reads what the knowledge base says of itself from its tree, of the `site.domain` its committed `.semiont/config.yaml` names. A service that serves several knowledge bases names none in its resource, and carries `semiont.kb` instead on each span and data point of its own rows that list it: the DID of the knowledge base whose job the work was."
     }
   ],
   "spans": [
@@ -258,6 +258,9 @@
         },
         {
           "key": "resource.id"
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -275,6 +278,9 @@
         },
         {
           "key": "media.type"
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -304,6 +310,9 @@
         },
         {
           "key": "inference.max_tokens"
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -333,6 +342,9 @@
         },
         {
           "key": "inference.max_tokens"
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     }
@@ -689,6 +701,9 @@
             "failed",
             "cancelled"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -726,6 +741,9 @@
             "failed",
             "cancelled"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -869,6 +887,9 @@
             "true",
             "false"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -910,6 +931,9 @@
             "true",
             "false"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -951,6 +975,9 @@
             "true",
             "false"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -999,6 +1026,9 @@
             "input",
             "output"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },
@@ -1029,6 +1059,9 @@
             "first-of-many",
             "fuzzy-match"
           ]
+        },
+        {
+          "key": "semiont.kb"
         }
       ]
     },

@@ -47,6 +47,7 @@ from semiont.client import SemiontClient
 from semiont.errors import BusRequestError, SemiontError
 from semiont.http import AgentToken, HttpTransport, ServiceToken
 from semiont.identifiers import UserId
+from semiont.identity import kb_did
 from semiont.model import written
 from semiont.operations import BROWSE_KB_REQUESTED, BROWSE_RESOURCE_REQUESTED, JOB_LIMITS_REQUESTED
 from semiont.retry import REFRESH, RetryFacts
@@ -68,6 +69,7 @@ from semiont_inference.limits_report import answer_limits_requests
 from semiont_worker.failure_class import words_of
 from semiont_worker.held_job import run_job
 from semiont_worker.log import LOG
+from semiont_worker.telemetry import serving
 
 WORKER_CHANNELS: Final[tuple[str, ...]] = (
     *JOB_CLAIM_CHANNELS,
@@ -134,17 +136,20 @@ async def run_what_is_claimed(
     A claim refused as unauthorized refuses the knowledge base (P3): the grant
     is gone, and no later claim there changes that. A claim refused for any
     other reason is said in the log, and the engine claims again at its next
-    idle moment.
+    idle moment. Everything the jobs record names the knowledge base at
+    `domain`.
     """
-    async for handed in claims:
-        if isinstance(handed, ClaimRefusal):
-            if handed.code == "bus.unauthorized":
-                raise KnowledgeBaseRefused("a claim there was refused as unauthorized: this worker's grant there is gone")
-            LOG.warning(
-                "Claim declined; parked until the next wake-up", extra={"domain": domain, "code": handed.code, "refusal": handed.message}
-            )
-            continue
-        await run_job(handed, client=client, inference=inference, generator=generator, accepts=accepts)
+    with serving(kb_did(domain)):
+        async for handed in claims:
+            if isinstance(handed, ClaimRefusal):
+                if handed.code == "bus.unauthorized":
+                    raise KnowledgeBaseRefused("a claim there was refused as unauthorized: this worker's grant there is gone")
+                LOG.warning(
+                    "Claim declined; parked until the next wake-up",
+                    extra={"domain": domain, "code": handed.code, "refusal": handed.message},
+                )
+                continue
+            await run_job(handed, client=client, inference=inference, generator=generator, accepts=accepts)
 
 
 async def watch_for_a_stall(claims: Claims) -> None:

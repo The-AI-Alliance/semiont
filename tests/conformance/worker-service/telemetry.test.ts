@@ -3,10 +3,13 @@
  * specs/src/service-telemetry/telemetry.json lists for it, and the rows of
  * specs/src/sdk-telemetry/telemetry.json it names there, exported over OTLP
  * to the endpoint the standard OpenTelemetry environment names; and nothing
- * else.
+ * else. What it records of a job names the knowledge base that handed the
+ * job over.
  */
 import { randomUUID } from 'node:crypto';
+import { kbDid } from '@semiont/core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { marks } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { metricName, spanName, spec, telemetry, type TelemetryRow } from '../harness/spec';
@@ -25,6 +28,9 @@ const otlp = (): OtlpReceiver => {
   if (!receiver) throw new Error('no OTLP receiver');
   return receiver;
 };
+
+/** Where the worker exports, and how soon it does. */
+const exporting = () => ({ OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' });
 
 const SCHEMA = {
   id: 'argument',
@@ -110,7 +116,7 @@ async function traffic(w: WorkerServiceWorld): Promise<{ served: Served; jobs: R
     { response: JSON.stringify([{ exact: 'Charles Babbage', entityType: 'Person' }]) },
     counting(1),
   );
-  const served = await w.start({ env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
+  const served = await w.start({ env: exporting() });
   for (const name of ['highlighting', 'commenting', 'assessing', 'linking', 'tagging', 'yield', 'pdf']) await settled(served, jobs[name]!);
   await settled(served, jobs['failed']!, 'job:fail');
   await settled(served, jobs['declined']!);
@@ -160,7 +166,7 @@ eachWorkerService('what a worker exports', (world) => {
       const span = await eventually(`the span of ${job.metadata.id}`, 15_000, () => otlp().spans.find((s) => s.name === spanName('job:{jobType}', { jobType: job.metadata.type }) && s.attributes['job.id'] === job.metadata.id));
       expect(span.kind).toBe(SPAN_KIND[row.kind]);
       expect(span.resource['service.name']).toBe('semiont-worker');
-      expect(span.attributes).toEqual({ ...attributes, 'job.id': job.metadata.id, 'resource.id': job.params.resourceId });
+      expect(span.attributes).toEqual({ ...attributes, 'job.id': job.metadata.id, 'resource.id': job.params.resourceId, 'semiont.kb': kbDid(w.domain) });
     }
 
     // Its jobs counted and timed by how they ended: nine completed, the two declined among them, two failed, and one cancelled.
@@ -170,6 +176,7 @@ eachWorkerService('what a worker exports', (world) => {
         return got && got.attributes.get('job.outcome')?.size === 3 && got.attributes.get('job.motivation')?.size === 5 && got.attributes.get('job.type')?.size === 2 ? got : undefined;
       });
       expect([...seen.attributes.get('job.outcome')!].sort()).toEqual(['cancelled', 'completed', 'failed']);
+      expect([...seen.attributes.get('semiont.kb')!]).toEqual([kbDid(w.domain)]);
     }
 
     // What the provider said it read and wrote, counted as it said it.
@@ -179,5 +186,32 @@ eachWorkerService('what a worker exports', (world) => {
     });
 
     expect(await outsideTheTable(otlp(), 'worker', null), received(otlp())).toEqual([]);
+  });
+
+  it('names, on what it records of each job, the knowledge base of the two it serves that handed the job over', async () => {
+    const w = world();
+    const second = await w.second();
+    const [here, there] = w.engines;
+    const jobs = [markJob(w, 'telemetry-here', { motivation: 'highlighting' }), markJob(second, 'telemetry-there', { motivation: 'highlighting' })];
+    // The two knowledge bases' engines work at once, so the provider answers by which model asked.
+    w.ollama.choose = (body) => ({ response: JSON.stringify([{ exact: body['model'] === here!.model ? 'the first program' : 'Charles Babbage' }]) });
+    const served = await w.start({
+      engines: [w.entry(here!, [marks('highlighting')])],
+      serving: [{ kb: second, engines: [w.entry(there!, [marks('highlighting')])] }],
+      env: exporting(),
+    });
+    for (const [kb, job] of [[w, jobs[0]!], [second, jobs[1]!]] as const) {
+      await settled(served.at(kb), job);
+      const span = await eventually(`the span of ${job.metadata.id}`, 15_000, () => otlp().spans.find((s) => s.name === spanName('job:{jobType}', { jobType: 'mark' }) && s.attributes['job.id'] === job.metadata.id));
+      expect(span.attributes['semiont.kb'], kb.domain).toBe(kbDid(kb.domain));
+    }
+    // Each job's count names its own knowledge base: between them, the two.
+    for (const metric of ['semiont.job.outcome', 'semiont.job.duration']) {
+      const seen = await eventually(`${metric} of the second knowledge base`, 15_000, () => {
+        const got = otlp().metrics.get(metricName(metric));
+        return got?.attributes.get('semiont.kb')?.has(kbDid(second.domain)) ? got : undefined;
+      });
+      expect([...seen.attributes.get('semiont.kb')!].sort(), metric).toEqual([kbDid(w.domain), kbDid(second.domain)].sort());
+    }
   });
 });
