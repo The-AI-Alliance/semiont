@@ -1,18 +1,34 @@
 package semiont.registry
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import semiont.identifiers.ResourceId
 import semiont.session.KbIdentityConflict
+import semiont.storage.SessionStorage
+import java.io.IOException
 
 private fun conflict(browser: SemiontBrowser): KbIdentityConflict? = browser.activeSignals.value?.kbIdentityConflict?.value
 
 private fun tab(named: String, openedAt: Long, order: Int) = OpenResource(ResourceId(named), "name of $named", openedAt, order, "text/plain")
+
+/** A storage that takes no `update`: it is told what to store, and refuses to store it. Every other read and write is the storage's own. */
+private class RefusingUpdates(private val beneath: SessionStorage) : SessionStorage by beneath {
+    /** Complete once an update has been refused. */
+    val refused = CompletableDeferred<Unit>()
+
+    override fun update(key: String, change: (String?) -> String?) {
+        change(beneath.get(key))
+        refused.complete(Unit)
+        throw IOException("the storage is full")
+    }
+}
 
 /** What is open in each knowledge base, and what a session's arrival checks of it: who the knowledge base is, and each open resource. */
 class OpenResourcesTest {
@@ -198,6 +214,30 @@ class OpenResourcesTest {
             // What could not be read is left exactly as it was.
             assertEquals("stale-unreadable", tabs[1].name)
         }
+    }
+
+    @Test
+    fun aCheckTheStorageWillNotKeepIsWhatClosingThrows() = runBlocking {
+        val world = World().with(kbOfA())
+        world.opened(KB_A, "kept", "gone")
+        world.factory.behind.gone += "gone"
+        val storage = RefusingUpdates(world.storage)
+        val browser = world.browser(storage)
+        live(browser)
+        soon { storage.refused.await() }
+
+        // What is open is as it was, there and here.
+        assertEquals(listOf("kept", "gone"), shown(browser))
+        assertEquals(listOf("kept", "gone"), world.storedOpen(KB_A))
+        val thrown = assertThrows(IOException::class.java) { browser.close() }
+        assertEquals("the storage is full", thrown.message)
+
+        // Over a storage that keeps it, the same check is kept, and closing throws nothing.
+        val keeping = world.browser()
+        live(keeping)
+        eventually("what is gone is closed") { shown(keeping) == listOf("kept") }
+        assertEquals(listOf("kept"), world.storedOpen(KB_A))
+        keeping.close()
     }
 
     @Test
