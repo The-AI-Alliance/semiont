@@ -48,7 +48,7 @@ private class Key<V : Any>(state: CacheState<V>) {
     val state = MutableStateFlow<CacheState<V>?>(state)
 
     /** The fetch in flight, by its number. An `invalidate` lets go of it without waiting: its answer may never come. */
-    var inFlight: Pair<Int, Deferred<V>>? = null
+    var inFlight: Pair<Int, Deferred<Result<V>>>? = null
 
     /** Whether anything asked for the key and has not let go of it. */
     fun known(): Boolean = inFlight != null || state.value !is CacheState.Pending
@@ -131,23 +131,28 @@ public class Cache<K : Any, V : Any> internal constructor(
      * lock. The fetch asks at once, in this thread, so the requests of fetches
      * started one after another are sent in that order; it is in flight before
      * it begins, so one that ends at once has let go of the key when it ends.
+     * Its failure is handed on as a value, so each waiter is given the very
+     * failure the fetch met, not the copy an awaited failure is rethrown as
+     * when the coroutine library recovers its stack trace.
      */
-    private fun fetching(key: K): Deferred<V> {
+    private fun fetching(key: K): Deferred<Result<V>> {
         // Asked for by this cache now, whichever path asked.
         kept -= key
         val held = held(key)
         held.inFlight?.let { return it.second }
         fetches += 1
         val number = fetches
-        val answer = CompletableDeferred<V>()
+        val answer = CompletableDeferred<Result<V>>()
         held.inFlight = number to answer
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                answer.complete(fetched(key, number))
-            } catch (failure: Throwable) {
+                answer.complete(Result.success(fetched(key, number)))
+            } catch (cancelled: CancellationException) {
                 // A fetch the client's closing ended is cancelled for whoever waits on it, who is then told the client closed.
-                if (failure is CancellationException) answer.cancel(failure) else answer.completeExceptionally(failure)
-                if (failure is CancellationException) throw failure
+                answer.cancel(cancelled)
+                throw cancelled
+            } catch (failure: Throwable) {
+                answer.complete(Result.failure(failure))
             }
         }
         return answer
@@ -175,12 +180,15 @@ public class Cache<K : Any, V : Any> internal constructor(
     }
 
     /** What a fetch gives, to one of those waiting on it: whoever stops waiting does not stop the fetch. */
-    private suspend fun joined(fetch: Deferred<V>): V = try {
-        fetch.await()
-    } catch (cancelled: CancellationException) {
-        // The fetch was ended by its client's closing, and its caller was not: that is a failure to hear, not a cancellation.
-        if (currentCoroutineContext().isActive && fetch.isCancelled) throw closed()
-        throw cancelled
+    private suspend fun joined(fetch: Deferred<Result<V>>): V {
+        val given = try {
+            fetch.await()
+        } catch (cancelled: CancellationException) {
+            // The fetch was ended by its client's closing, and its caller was not: that is a failure to hear, not a cancellation.
+            if (currentCoroutineContext().isActive && fetch.isCancelled) throw closed()
+            throw cancelled
+        }
+        return given.getOrThrow()
     }
 
     /**

@@ -43,27 +43,28 @@ private fun ready(value: Int): CacheState<Int> = CacheState.Ready(value)
 private class Service {
     /** The key of each request, in the order they were made. */
     val asked = mutableListOf<String>()
-    private val waiting = mutableListOf<CompletableDeferred<Int>>()
+    /** Each request's answer, a failure among them as a value: an awaited failure is rethrown as a copy of what the test gave. */
+    private val waiting = mutableListOf<CompletableDeferred<Result<Int>>>()
 
     /** Requests not yet made that are answered as soon as they are, by their number. */
     val answeredAtOnce = mutableMapOf<Int, Int>()
 
     suspend fun fetch(key: String): Int {
-        val answer = CompletableDeferred<Int>()
-        answeredAtOnce[asked.size]?.let(answer::complete)
+        val answer = CompletableDeferred<Result<Int>>()
+        answeredAtOnce[asked.size]?.let { answer.complete(Result.success(it)) }
         asked += key
         waiting += answer
-        return answer.await()
+        return answer.await().getOrThrow()
     }
 
     fun answer(request: Int, value: Int) {
-        waiting[request].complete(value)
+        waiting[request].complete(Result.success(value))
     }
 
     fun fail(request: Int, why: String = "the service is down"): BusRequestError = failWith(request, BusRequestError(BusRequestErrorCode.Timeout, why))
 
     fun <E : Exception> failWith(request: Int, error: E): E {
-        waiting[request].completeExceptionally(error)
+        waiting[request].complete(Result.failure(error))
         return error
     }
 }
