@@ -36,6 +36,7 @@ import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
 import { APIError, refusalBody } from './api-error';
+import { declaredBody } from './declared-body';
 import type { IContentTransport, PutBinaryRequest } from '@semiont/core';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
@@ -92,15 +93,19 @@ export class HttpContentTransport implements IContentTransport {
         const sent = options?.onProgress
           ? await inPieces(formData, options.onProgress, options.signal)
           : { body: formData, headers: {} };
-        const result = await this.transport.ask('POST', path, (http) =>
-          http
-            .post(url, {
+        const result = await this.transport.ask('POST', path, async (http) =>
+          declaredBody(
+            'CreateResourceResponse',
+            'POST',
+            path,
+            await http.post(url, {
               body: sent.body,
               headers: { ...headers, ...sent.headers },
               timeout: false,
               ...(options?.signal ? { signal: options.signal } : {}),
-            })
-            .json<components['schemas']['CreateResourceResponse']>());
+            }),
+            (failure) => this.transport.pushError(failure),
+          ));
 
         return { resourceId: result.resourceId };
       },
@@ -174,8 +179,9 @@ export class HttpContentTransport implements IContentTransport {
       'content.get_graph',
       () => {
         const path = `${this.pathOf(resourceId)}/jsonld`;
-        return this.transport.ask('GET', path, (http) =>
-          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<GetResourceResponse>());
+        return this.transport.ask('GET', path, async (http) =>
+          declaredBody('GetResourceResponse', 'GET', path, await http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }), (failure) =>
+            this.transport.pushError(failure)));
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
@@ -194,8 +200,9 @@ export class HttpContentTransport implements IContentTransport {
       'content.get_annotations',
       () => {
         const path = `${this.pathOf(resourceId)}/annotations`;
-        return this.transport.ask('GET', path, (http) =>
-          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<GetAnnotationsResponse>());
+        return this.transport.ask('GET', path, async (http) =>
+          declaredBody('GetAnnotationsResponse', 'GET', path, await http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }), (failure) =>
+            this.transport.pushError(failure)));
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
@@ -218,8 +225,9 @@ export class HttpContentTransport implements IContentTransport {
       'content.get_anchored_text',
       () => {
         const path = `${this.pathOf(resourceId)}/anchored-text`;
-        return this.transport.ask('GET', path, (http) =>
-          http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }).json<AnchoredTextAnswer>());
+        return this.transport.ask('GET', path, async (http) =>
+          declaredBody('AnchoredTextAnswer', 'GET', path, await http.get(`${this.transport.baseUrl}${path}`, { headers: this.requestHeaders(options?.auth) }), (failure) =>
+            this.transport.pushError(failure)));
       },
       { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
@@ -400,9 +408,9 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
+        let parsed: unknown;
         try {
-          const body = JSON.parse(xhr.responseText) as components['schemas']['CreateResourceResponse'];
-          resolve({ resourceId: body.resourceId });
+          parsed = JSON.parse(xhr.responseText);
         } catch (parseErr) {
           const err = APIError.fromStatus(
             `Upload succeeded but response was not valid JSON: ${(parseErr as Error).message}`,
@@ -413,7 +421,10 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
           );
           onApiError(err);
           reject(err);
+          return;
         }
+        const answer = { status: xhr.status, statusText: xhr.statusText, json: () => Promise.resolve(parsed) };
+        declaredBody('CreateResourceResponse', 'POST', '/resources', answer, onApiError).then((body) => resolve({ resourceId: body.resourceId }), reject);
         return;
       }
       const err = APIError.refusal(xhr.status, xhr.statusText, refusalBody(xhr.responseText), xhr.getResponseHeader('retry-after'));

@@ -99,11 +99,11 @@ function defaultResponses(): ResponseMap {
     }),
     'browse:annotation-history-requested': () => ({
       resultChannel: 'browse:annotation-history-result',
-      response: { events: [], total: 0 },
+      response: { events: [], total: 0, annotationId: 'ann-1', resourceId: 'res-1' },
     }),
     'browse:directory-requested': () => ({
       resultChannel: 'browse:directory-result',
-      response: { files: [] },
+      response: { path: '.', entries: [] },
     }),
   };
 }

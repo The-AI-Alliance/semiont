@@ -18,16 +18,22 @@ import { describe, it, expect } from 'vitest';
 import { Bus } from '../bus';
 import { BUS_OPERATIONS, type BusOperationKey } from '../bus-operations';
 import { FaultyTransport } from '../faulty-transport';
+import { resourceId } from '../identifiers';
+import type { GatheredContext } from '../payload-types';
+import type { components } from '../types';
 
 const OP = 'browse:resources-requested';
+
+/** A page of no resources, told apart from another by its `total`. */
+const pageOf = (total: number): components['schemas']['ListResourcesResponse'] => ({ resources: [], total, offset: 0, limit: 10 });
 
 describe('FaultyTransport.queueReply', () => {
   it('queued replies are consumed in FIFO order; an empty queue falls back to makeResponse', async () => {
     const transport = new FaultyTransport({
-      makeResponse: () => ({ resources: [], total: 99, offset: 0 }),
+      makeResponse: () => pageOf(99),
     });
-    transport.queueReply(OP, { resources: [], total: 1, offset: 0 });
-    transport.queueReply(OP, { resources: [], total: 2, offset: 0 });
+    transport.queueReply(OP, pageOf(1));
+    transport.queueReply(OP, pageOf(2));
 
     const r1 = await new Bus(transport).request(OP, {});
     const r2 = await new Bus(transport).request(OP, {});
@@ -43,10 +49,10 @@ describe('FaultyTransport.queueReply', () => {
   it('duplicate-reply replays ONE queued body twice — the queue models the gateway, not the wire', async () => {
     const transport = new FaultyTransport({
       schedule: [{ kind: 'duplicate-reply' }, { kind: 'deliver' }],
-      makeResponse: () => ({ resources: [], total: 99, offset: 0 }),
+      makeResponse: () => pageOf(99),
     });
-    transport.queueReply(OP, { resources: [], total: 1, offset: 0 });
-    transport.queueReply(OP, { resources: [], total: 2, offset: 0 });
+    transport.queueReply(OP, pageOf(1));
+    transport.queueReply(OP, pageOf(2));
 
     // Bus.request takes the first matching reply; the duplicate is ignored by
     // correlation machinery, but it must NOT have consumed a second entry.
@@ -62,10 +68,10 @@ describe('FaultyTransport.queueReply', () => {
   it('drop-reply consumes the entry: the gateway answered, the wire ate it', async () => {
     const transport = new FaultyTransport({
       schedule: [{ kind: 'drop-reply' }, { kind: 'deliver' }],
-      makeResponse: () => ({ resources: [], total: 99, offset: 0 }),
+      makeResponse: () => pageOf(99),
     });
-    transport.queueReply(OP, { resources: [], total: 1, offset: 0 });
-    transport.queueReply(OP, { resources: [], total: 2, offset: 0 });
+    transport.queueReply(OP, pageOf(1));
+    transport.queueReply(OP, pageOf(2));
 
     // First request: reply dropped → bus.timeout at the small budget.
     await expect(new Bus(transport).request(OP, {}, 40)).rejects.toMatchObject({
@@ -80,7 +86,7 @@ describe('FaultyTransport.queueReply', () => {
 
   it('composes with the attach gate: no emit reaches the gateway until state$ reports open', async () => {
     const transport = new FaultyTransport({
-      makeResponse: () => ({ resources: [], total: 7, offset: 0 }),
+      makeResponse: () => pageOf(7),
     });
     transport.state$.next('connecting');
 
@@ -145,12 +151,20 @@ describe('a reply that names what it answers for', () => {
   });
 
   it('so does a reply makeResponse answers, and each copy of a duplicated one', async () => {
+    const context: GatheredContext = {
+      focus: {
+        kind: 'resource',
+        resource: { '@context': 'https://schema.org/', '@id': resourceId('res-1'), name: 'A resource', representations: [] },
+      },
+      graph: { nodes: [], edges: [] },
+      metadata: {},
+    };
     const transport = new FaultyTransport({
       schedule: [{ kind: 'duplicate-reply' }],
-      makeResponse: (op) => ({ for: op }),
+      makeResponse: () => context,
     });
 
-    const whole = { resourceId: 'res-1', response: { for: 'gather:resource-requested' } };
+    const whole = { resourceId: 'res-1', response: context };
     expect(await repliesTo(transport, 'gather:resource-requested', { resourceId: 'res-1', options: {} })).toStrictEqual([
       whole,
       whole,
@@ -161,7 +175,7 @@ describe('a reply that names what it answers for', () => {
 
   it('a reply that names nothing is its response and no more', async () => {
     const transport = new FaultyTransport();
-    const page = { resources: [], total: 1, offset: 0 };
+    const page = pageOf(1);
     transport.queueReply(OP, page);
 
     expect(await repliesTo(transport, OP, { limit: 10 })).toStrictEqual([{ response: page }]);
@@ -190,7 +204,7 @@ describe('a reply that names what it answers for', () => {
 
 describe('requestLog payloads', () => {
   it('carries the emitted payload on each entry, in arrival order', async () => {
-    const transport = new FaultyTransport({ makeResponse: () => ({ resources: [], total: 0, offset: 0 }) });
+    const transport = new FaultyTransport({ makeResponse: () => pageOf(0) });
 
     await new Bus(transport).request(OP, { limit: 10, entityType: 'Concept' }, 5_000);
     await new Bus(transport).request(OP, { limit: 25 }, 5_000);
@@ -208,7 +222,7 @@ describe('requestLog payloads', () => {
   });
 
   it('snapshots the payload — a later mutation of the caller object cannot rewrite history', async () => {
-    const transport = new FaultyTransport({ makeResponse: () => ({ resources: [], total: 0, offset: 0 }) });
+    const transport = new FaultyTransport({ makeResponse: () => pageOf(0) });
 
     const payload: Record<string, unknown> = { limit: 10 };
     await new Bus(transport).request(OP, payload, 5_000);
@@ -222,7 +236,7 @@ describe('requestLog payloads', () => {
   it('logs the payload even when the wire eats the request (drop / reject)', async () => {
     const transport = new FaultyTransport({
       schedule: [{ kind: 'reject-emit' }],
-      makeResponse: () => ({ resources: [], total: 0, offset: 0 }),
+      makeResponse: () => pageOf(0),
     });
 
     await expect(new Bus(transport).request(OP, { limit: 3 }, 50)).rejects.toThrow();

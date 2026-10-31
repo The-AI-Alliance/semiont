@@ -3,11 +3,13 @@
  * specs/src/resources/reader-cases.json: the table every SDK's readers run, so
  * that every SDK gives one answer for one resource.
  *
- * An SDK that decodes each case's resource as the type it has of one refuses
- * a resource the schema does not allow. TypeScript reads what it is handed,
- * so here each resource is held to the schema too: a case that only
- * TypeScript could read is found by this run, and a refused case is one the
- * schema does not allow and the readers refuse.
+ * Every SDK refuses a resource that lacks a member its schema requires as it
+ * reads one in a reply, and TypeScript does (`memberLacking`): a refused case
+ * that `lacks` a member is refused there, naming it, and every other case
+ * lacks nothing. What else the schema does not allow, TypeScript's readers
+ * refuse: a refused case that lacks nothing is one the readers refuse. Each
+ * resource is held to the schema too: a case that only TypeScript could read
+ * is found by this run, and the schema allows no refused case.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -15,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { SemiontError } from '../errors';
 import type { ResourceDescriptor } from '../graph';
 import { formatErrors, validators } from '../openapi';
+import { memberLacking } from '../required';
 import { getPrimaryMediaType, getPrimaryRepresentation, getResourceEntityTypes } from '../resource-utils';
 import type { components } from '../types';
 
@@ -28,11 +31,12 @@ interface Case {
   entityTypes: string[];
 }
 
-/** A resource the schema does not allow: the readers refuse it. */
+/** A resource the schema does not allow, and the way to the member it lacks, where it lacks one. */
 interface Refused {
   why: string;
   resource: ResourceDescriptor;
   refused: true;
+  lacks?: string;
 }
 
 const table: { cases: (Case | Refused)[] } = JSON.parse(
@@ -45,6 +49,7 @@ const refused = table.cases.filter((stated): stated is Refused => 'refused' in s
 const ALWAYS = ['entityTypes', 'resource', 'why'];
 const OF_A_REPRESENTATION = ['primaryMediaType', 'primaryRepresentation'];
 const OF_A_REFUSAL = ['refused', 'resource', 'why'];
+const OF_A_REFUSAL_LACKING = ['lacks', 'refused', 'resource', 'why'];
 
 /** The reading is refused as the reader's own failure, naming the representations. */
 function refusedNamingRepresentations(reading: () => unknown, why: string): void {
@@ -67,7 +72,8 @@ describe('the readers of a resource (specs/src/resources/reader-cases.json)', ()
     expect(read.some((stated) => stated.primaryRepresentation === undefined)).toBe(true);
     expect(read.some((stated) => stated.entityTypes.length > 0)).toBe(true);
     expect(read.some((stated) => stated.entityTypes.length === 0)).toBe(true);
-    expect(refused.length).toBeGreaterThan(0);
+    expect(refused.some((stated) => stated.lacks !== undefined)).toBe(true);
+    expect(refused.some((stated) => stated.lacks === undefined)).toBe(true);
   });
 
   it('states in every case what each reader answers, and nothing no reader here reads', () => {
@@ -78,7 +84,7 @@ describe('the readers of a resource (specs/src/resources/reader-cases.json)', ()
       expect(Object.keys(stated).sort(), stated.why).toEqual(expected);
     }
     for (const stated of refused) {
-      expect(Object.keys(stated).sort(), stated.why).toEqual(OF_A_REFUSAL);
+      expect(Object.keys(stated).sort(), stated.why).toEqual(stated.lacks === undefined ? OF_A_REFUSAL : OF_A_REFUSAL_LACKING);
       expect(stated.refused, stated.why).toBe(true);
     }
   });
@@ -93,6 +99,15 @@ describe('the readers of a resource (specs/src/resources/reader-cases.json)', ()
     }
   });
 
+  it('refuses, as a reply is refused, a resource that lacks a member, naming the way to it, and finds no other lacking', () => {
+    for (const { why, resource, lacks } of refused) {
+      expect(memberLacking('ResourceDescriptor', resource), why).toBe(lacks);
+    }
+    for (const { why, resource } of read) {
+      expect(memberLacking('ResourceDescriptor', resource), why).toBeUndefined();
+    }
+  });
+
   for (const { why, resource, primaryRepresentation, primaryMediaType, entityTypes } of read) {
     it(why, () => {
       expect(getPrimaryRepresentation(resource)).toEqual(primaryRepresentation);
@@ -101,7 +116,7 @@ describe('the readers of a resource (specs/src/resources/reader-cases.json)', ()
     });
   }
 
-  for (const { why, resource } of refused) {
+  for (const { why, resource } of refused.filter((stated) => stated.lacks === undefined)) {
     it(why, () => {
       refusedNamingRepresentations(() => getPrimaryRepresentation(resource), `${why}: getPrimaryRepresentation`);
       refusedNamingRepresentations(() => getPrimaryMediaType(resource), `${why}: getPrimaryMediaType`);

@@ -216,7 +216,10 @@ describe('liveness axioms — the harness has teeth', () => {
         setup: (transport) => ({ outputs: [lateResendingQuery(transport, 'res-a')] }),
         timeoutMs: TIMEOUT_MS,
         scheduleArb: fc.constant([{ kind: 'deliver' }] as const),
-        makeResponse: (_operation, payload) => ({ resource: { '@id': payload.resourceId } }),
+        makeResponse: (_operation, payload) => ({
+          resource: { '@context': 'https://schema.org/', '@id': payload.resourceId, name: 'A resource', representations: [] },
+          lastSequence: 1,
+        }),
         numRuns: 3,
       }),
     ).rejects.toThrow(/^L2: .*issued 3 times — exceeds the retry budget/s);

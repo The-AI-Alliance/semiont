@@ -1177,8 +1177,10 @@ func (c *Claims) claim() {
 
 // claimNext asks once: the job claimed, the refusal, or neither when nothing
 // is pending. A claim names fields of the job description, never a job id. A
-// reply that does not read as a claimed job is refused here and never run
-// (WORKER-CONTRACT C9): it names no job id, no job type or no parameters.
+// reply that does not read as a claimed job is refused and never run
+// (WORKER-CONTRACT C9): one that lacks a member its schema requires, a job
+// id or parameters among them, as it is decoded, and one whose job type is
+// neither verb's here.
 //
 // The claim is made in no trace: it runs in the client's life, never in the
 // context of whatever settled the job before it.
@@ -1201,16 +1203,8 @@ func (c *Claims) claimNext() (HeldJob, *ClaimRefusal) {
 		return nil, &ClaimRefusal{Message: err.Error()}
 	}
 	running := answer.Payload.Response
-	unread := func(lacking string) *ClaimRefusal {
-		return &ClaimRefusal{Message: fmt.Sprintf("a payload on %s is not that channel's: it names no %s", bus.JobClaim.Result().Channel(), lacking)}
-	}
-	switch {
-	case running.Metadata.Id.IsZero():
-		return nil, unread("job id")
-	case running.Metadata.Type != api.JobTypeMark && running.Metadata.Type != api.JobTypeYield:
-		return nil, unread("job type")
-	case running.Params.ResourceId.IsZero():
-		return nil, unread("parameters")
+	if running.Metadata.Type != api.JobTypeMark && running.Metadata.Type != api.JobTypeYield {
+		return nil, &ClaimRefusal{Message: fmt.Sprintf("a payload on %s is not that channel's: it names no job type", bus.JobClaim.Result().Channel())}
 	}
 	// The verb's handle is made first, and its job filled in place: a held
 	// job holds a lock, and is never copied.

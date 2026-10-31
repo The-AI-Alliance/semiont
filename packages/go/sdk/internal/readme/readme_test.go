@@ -115,7 +115,7 @@ const (
 	alice       = `{"did":"did:web:kb.example:users:alice","domain":"kb.example","email":"alice@example.org","name":"Alice","image":null}`
 	statusOK    = `{"status":"ok","version":"0.7.0","message":"Semiont is running","features":{"collaboration":"enabled","semanticContent":"enabled"}}`
 	aResource   = `{"@context":"https://schema.org","@id":"res-1","name":"A page of notes","representations":[]}`
-	markAddedOn = `{"id":"e-1","type":"mark:added","userId":"did:web:kb.example:users:alice","version":1,"timestamp":"2026-10-26T00:00:00.000Z","payload":{}}`
+	markAddedOn = `{"id":"e-1","type":"mark:added","userId":"did:web:kb.example:users:alice","version":1,"timestamp":"2026-10-26T00:00:00.000Z","payload":{},"metadata":{"sequenceNumber":1}}`
 )
 
 // newIssuer is an issuer that grants a service account whose secret is
@@ -358,7 +358,7 @@ func TestAFirstProgram(t *testing.T) {
 
 func TestTheClient(t *testing.T) {
 	made := testClient(t, jobTiming())
-	made.Transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(`{"resource":`+aResource+`}`))
+	made.Transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(`{"resource":`+aResource+`,"lastSequence":1}`))
 	made.Transport.QueueReply(jobCreate, json.RawMessage(`{"jobId":"job-1"}`))
 	made.Transport.QueueReply(jobStatus, completed("job-1", "mark", `{"found":1,"persisted":1}`))
 	made.Transport.Counted(2)

@@ -42,10 +42,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { filter, map } from 'rxjs/operators';
 import type { Observable } from 'rxjs';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
-import { FaultyTransport } from '@semiont/core/testing';
+import { FaultyTransport, refuseUnscriptedOperation } from '@semiont/core/testing';
 import { assertLivenessAxioms } from '@semiont/core/testing/axioms';
 import { BrowseNamespace } from '../namespaces/browse';
 import { contentTransportSpies } from './helpers/in-memory-transport';
+import { mockResource } from './fixtures/resource';
 
 /** Small explicit Bus.request timeout — deterministic virtual time (no 30 s). */
 const TIMEOUT_MS = 50;
@@ -54,11 +55,11 @@ const TIMEOUT_MS = 50;
 function makeResponse(operation: string, payload: Record<string, unknown>): unknown {
   switch (operation) {
     case 'browse:resource-requested':
-      return { resource: { '@id': payload.resourceId, name: `Resource ${String(payload.resourceId)}` }, lastSequence: 1 };
+      return { resource: mockResource(String(payload.resourceId)), lastSequence: 1 };
     case 'browse:events-requested':
       return { events: [], total: 0, resourceId: payload.resourceId };
     default:
-      return {};
+      return refuseUnscriptedOperation(operation);
   }
 }
 

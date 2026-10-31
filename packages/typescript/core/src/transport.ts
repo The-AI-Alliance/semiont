@@ -152,7 +152,9 @@ export interface ITransport {
    * client → transport (the client owns the bus); transports never
    * construct or replace it. Concrete transports decide what "receives"
    * means: HTTP bridges every channel it observes on its SSE wire;
-   * a transport with no wire bridges from its own source.
+   * a transport with no wire bridges from its own source. Each payload is
+   * published as its channel types it (`asDeclared`), and one that lacks a
+   * member its channel's schema requires is published to nobody.
    */
   bridgeInto(bus: EventBus): void;
 
