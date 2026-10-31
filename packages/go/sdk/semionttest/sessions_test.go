@@ -343,7 +343,9 @@ func TestAContextHearsWhatAnotherWritesAndNotWhatItWritesItself(t *testing.T) {
 	if err := there.Update("b", func(string, bool) (string, bool) { return "updated", true }); err != nil {
 		t.Fatal(err)
 	}
-	there.Delete("a")
+	if err := there.Delete("a"); err != nil {
+		t.Fatal(err)
+	}
 	stop()
 	if err := there.Set("c", "unheard"); err != nil {
 		t.Fatal(err)

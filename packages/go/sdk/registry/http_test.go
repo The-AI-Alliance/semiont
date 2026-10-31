@@ -217,8 +217,9 @@ func (s *stage) issuerOf() semiont.Issuer {
 func (s *stage) browser(t *testing.T, storage semiont.SessionStorage) *registry.SemiontBrowser {
 	t.Helper()
 	issuer := s.issuerOf()
-	browser := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: registry.HttpSessionFactory{HTTP: issuer.HTTP, Timing: issuer.Timing}})
-	t.Cleanup(browser.Close)
+	browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: registry.HttpSessionFactory{HTTP: issuer.HTTP, Timing: issuer.Timing}})
+	must(t, err)
+	closedAtTheEnd(t, browser)
 	return browser
 }
 
@@ -327,8 +328,9 @@ func TestARegistryOverHTTPCannotBuildASessionForWhatIsNotAtAGateway(t *testing.T
 	must(t, local.Endpoint.FromLocalEndpoint(api.LocalEndpoint{Kind: api.LocalEndpointKindLocal, KbId: "here"}))
 	must(t, registry.SaveKnowledgeBases(storage, []api.KnowledgeBase{local}))
 	gate := gated{SessionFactory: registry.HttpSessionFactory{HTTP: &http.Client{}, Timing: semiont.DefaultTiming()}, open: make(chan struct{})}
-	browser := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: gate})
-	t.Cleanup(browser.Close)
+	browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: gate})
+	must(t, err)
+	closedAtTheEnd(t, browser)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	errs := browser.Errors(ctx)
@@ -352,7 +354,7 @@ func TestSigningOutOfARegistryRevokesTheRefreshTokenAtItsIssuer(t *testing.T) {
 	browser := s.browser(t, storage)
 	liveOver(t, browser)
 
-	browser.SignOut("kb-a")
+	must(t, browser.SignOut("kb-a"))
 	until(t, "the issuer is told", func() bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()

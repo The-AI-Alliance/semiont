@@ -91,9 +91,10 @@ func StoreSession(storage semiont.SessionStorage, kbID string, session StoredSes
 	return storage.Set(SessionKey(kbID), session.written())
 }
 
-// ClearStoredSession forgets a knowledge base's session.
-func ClearStoredSession(storage semiont.SessionStorage, kbID string) {
-	storage.Delete(SessionKey(kbID))
+// ClearStoredSession forgets a knowledge base's session; the error when the
+// storage could not.
+func ClearStoredSession(storage semiont.SessionStorage, kbID string) error {
+	return storage.Delete(SessionKey(kbID))
 }
 
 // LoadKnowledgeBases is the registered knowledge bases. Each entry is read on
@@ -194,8 +195,7 @@ func (k keptIn) Renewed(_ context.Context, read semiont.HeldSignIn, access, refr
 }
 
 func (k keptIn) Forget(context.Context) error {
-	ClearStoredSession(k.storage, k.kbID)
-	return nil
+	return ClearStoredSession(k.storage, k.kbID)
 }
 
 // KbSessionStatus is what the credential stored for a knowledge base says,

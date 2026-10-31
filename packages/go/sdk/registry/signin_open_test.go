@@ -7,9 +7,11 @@ package registry_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -55,7 +57,7 @@ func TestWhatAHostShowsAboutASessionIsThereExactlyWhenTheSessionIs(t *testing.T)
 			t.Error("the replaced signals still say things")
 		}
 
-		browser.SignOut(kbA)
+		must(t, browser.SignOut(kbA))
 		if browser.ActiveSignals().Value() != nil || sessionOf(browser) != "" {
 			t.Error("signing out leaves signals or a session")
 		}
@@ -260,7 +262,7 @@ func TestSigningOutForgetsTheTokensClosesTheSessionAndHasTheIssuerTold(t *testin
 		}()
 		synctest.Wait()
 
-		browser.SignOut(kbA)
+		must(t, browser.SignOut(kbA))
 		settle()
 
 		if _, ok := registry.StoredSessionOf(w.storage, kbA); ok {
@@ -287,7 +289,7 @@ func TestSigningOutForgetsTheTokensClosesTheSessionAndHasTheIssuerTold(t *testin
 		}
 
 		// Signing out of what is not signed in tells the issuer nothing.
-		browser.SignOut(kbA)
+		must(t, browser.SignOut(kbA))
 		settle()
 		if revoked := len(w.factory.sessions.Revoked()); revoked != 1 {
 			t.Errorf("the issuer was told %d times", revoked)
@@ -370,7 +372,7 @@ func TestNothingIsOpenOrOpenedOrViewedWithoutALiveSession(t *testing.T) {
 			t.Fatalf("open %v, last viewed %v", got, browser.LastViewedResource().Value())
 		}
 
-		browser.SignOut(kbA)
+		must(t, browser.SignOut(kbA))
 		if len(open(browser)) != 0 || !browser.LastViewedResource().Value().IsZero() {
 			t.Error("what is open is shown with no session")
 		}
@@ -543,8 +545,9 @@ func TestAResourceAnotherContextOpenedWhileTheChecksRanIsLeftOpen(t *testing.T) 
 		w.factory.behind.mu.Unlock()
 		elsewhere := w.storage.Context()
 		gate := gated{SessionFactory: w.factory.sessions, open: make(chan struct{})}
-		browser := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gate})
-		t.Cleanup(browser.Close)
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gate})
+		must(t, err)
+		closedAtTheEnd(t, browser)
 		// Before the session is up: the other context opens one more.
 		byKb := map[string][]map[string]any{}
 		w.stored(registry.OpenResourcesByKbKey, &byKb)
@@ -614,7 +617,7 @@ func TestTheKnowledgeBaseAnsweringAsItselfChangesNothingAndIsRecorded(t *testing
 		}
 
 		// And a new registry on the storage reads what was recorded.
-		browser.Close()
+		must(t, browser.Close())
 		if !same(t, w.browser().KnowledgeBases().Value()[0], entry) {
 			t.Error("a new registry does not read what was recorded")
 		}
@@ -641,8 +644,8 @@ func TestNoAnswerAndARefusalToSayAreNoVerdictAndVoidNothing(t *testing.T) {
 				if asked := w.factory.askedAbout(kbA); !equalStrings(asked, []string{"a1"}) {
 					t.Errorf("A was asked about %v", asked)
 				}
-				if verdict := browser.ReadActiveKb(context.Background()); verdict.Kind != registry.KbReadNoVerdict {
-					t.Errorf("asked again, it says %+v", verdict)
+				if verdict, err := browser.ReadActiveKb(context.Background()); err != nil || verdict.Kind != registry.KbReadNoVerdict {
+					t.Errorf("asked again, it says %+v, %v", verdict, err)
 				}
 			})
 		})
@@ -658,8 +661,8 @@ func TestAskingTheActiveKnowledgeBaseAgainRecordsWhatItSaysNow(t *testing.T) {
 		asked := w.factory.askedWho(kbA)
 
 		w.factory.says(kbA, description("KB A", "example.org:kb-a", ""))
-		if verdict := browser.ReadActiveKb(context.Background()); verdict.Kind != registry.KbReadRecorded {
-			t.Fatalf("asked again, it says %+v", verdict)
+		if verdict, err := browser.ReadActiveKb(context.Background()); err != nil || verdict.Kind != registry.KbReadRecorded {
+			t.Fatalf("asked again, it says %+v, %v", verdict, err)
 		}
 
 		if got := w.factory.askedWho(kbA); got != asked+1 {
@@ -681,7 +684,8 @@ func TestAskingAgainReportsADifferentKnowledgeBaseAndActsOnNothing(t *testing.T)
 		must(t, browser.SetLastViewedResource(id("a1")))
 
 		w.factory.says(kbA, description("KB B", "example.org:kb-b", ""))
-		verdict := browser.ReadActiveKb(context.Background())
+		verdict, err := browser.ReadActiveKb(context.Background())
+		must(t, err)
 
 		if verdict != (registry.KbReadVerdict{Kind: registry.KbReadConflict, ObservedDid: didB, ObservedName: "KB B"}) {
 			t.Errorf("asked again, it says %+v", verdict)
@@ -707,8 +711,8 @@ func TestAskingAgainDoesNotRaiseAConflictThatWasAcknowledged(t *testing.T) {
 		}
 		browser.ActiveSignals().Value().AcknowledgeKbIdentityConflict()
 
-		if verdict := browser.ReadActiveKb(context.Background()); verdict.Kind != registry.KbReadConflict {
-			t.Errorf("asked again, it says %+v", verdict)
+		if verdict, err := browser.ReadActiveKb(context.Background()); err != nil || verdict.Kind != registry.KbReadConflict {
+			t.Errorf("asked again, it says %+v, %v", verdict, err)
 		}
 		if conflict(browser) != nil {
 			t.Error("asking again raised the conflict again")
@@ -718,8 +722,8 @@ func TestAskingAgainDoesNotRaiseAConflictThatWasAcknowledged(t *testing.T) {
 
 func TestWithNoSessionThereIsNothingToAsk(t *testing.T) {
 	bubble(t, func(t *testing.T, w *world) {
-		if verdict := w.browser().ReadActiveKb(context.Background()); verdict.Kind != registry.KbReadNoVerdict {
-			t.Errorf("with no session, it says %+v", verdict)
+		if verdict, err := w.browser().ReadActiveKb(context.Background()); err != nil || verdict.Kind != registry.KbReadNoVerdict {
+			t.Errorf("with no session, it says %+v, %v", verdict, err)
 		}
 	})
 }
@@ -847,6 +851,168 @@ func TestARefusalForLackOfPermissionIsSaidAndAnyOtherFailureIsNot(t *testing.T) 
 	})
 }
 
+// ── A write the storage refuses ─────────────────────────────────────────
+
+var errFull = errors.New("the storage is full")
+
+// refusing is a storage that, while it refuses a kind of write, takes none of
+// that kind: what it holds stays as it was.
+type refusing struct {
+	*semionttest.SharedStorage
+	sets, deletes, updates atomic.Bool
+}
+
+func (r *refusing) Set(key, value string) error {
+	if r.sets.Load() {
+		return errFull
+	}
+	return r.SharedStorage.Set(key, value)
+}
+
+func (r *refusing) Delete(key string) error {
+	if r.deletes.Load() {
+		return errFull
+	}
+	return r.SharedStorage.Delete(key)
+}
+
+// Update is told what to store, and refuses to store it.
+func (r *refusing) Update(key string, change func(stored string, has bool) (string, bool)) error {
+	if r.updates.Load() {
+		change(r.Get(key))
+		return errFull
+	}
+	return r.SharedStorage.Update(key, change)
+}
+
+func TestARegistryOverAStorageThatRefusesWhatItReadIsNotMade(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		storage := &refusing{SharedStorage: w.storage}
+		storage.sets.Store(true)
+
+		if _, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: w.factory.sessions}); !errors.Is(err, errFull) {
+			t.Fatalf("made over a storage that refuses, it says %v", err)
+		}
+		settle()
+		if built := len(w.factory.sessions.Transports(kbA)); built != 0 {
+			t.Errorf("%d sessions were built", built)
+		}
+	})
+}
+
+func TestAKnowledgeBaseWhoseTokensTheStorageWillNotForgetIsNotRemoved(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA(), kbOfB())
+		storage := &refusing{SharedStorage: w.storage}
+		browser := w.browserOver(storage)
+		live(t, browser)
+		storage.deletes.Store(true)
+
+		if err := browser.RemoveKb(kbA); !errors.Is(err, errFull) {
+			t.Fatalf("removing A says %v", err)
+		}
+		both := []api.KnowledgeBase{kbOfA(), kbOfB()}
+		if !same(t, browser.KnowledgeBases().Value(), both) || !same(t, registry.LoadKnowledgeBases(w.storage), both) {
+			t.Errorf("registered %+v, stored %+v", browser.KnowledgeBases().Value(), registry.LoadKnowledgeBases(w.storage))
+		}
+		if _, ok := registry.StoredSessionOf(w.storage, kbA); !ok {
+			t.Error("A's tokens are gone")
+		}
+		if sessionOf(browser) != kbA || closed(w.factory.sessions.Transports(kbA)[0]) {
+			t.Error("A's session did not stay")
+		}
+	})
+}
+
+func TestASignOutTheStorageWillNotKeepLeavesTheSessionAsItWas(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		storage := &refusing{SharedStorage: w.storage}
+		browser := w.browserOver(storage)
+		live(t, browser)
+		storage.deletes.Store(true)
+
+		if err := browser.SignOut(kbA); !errors.Is(err, errFull) {
+			t.Fatalf("signing out says %v", err)
+		}
+		settle()
+		if refresh, ok := w.storedRefresh(kbA); !ok || refresh != "r" {
+			t.Errorf("the stored refresh token is %q", refresh)
+		}
+		if sessionOf(browser) != kbA || closed(w.factory.sessions.Transports(kbA)[0]) {
+			t.Error("the session did not stay")
+		}
+		if revoked := w.factory.sessions.Revoked(); len(revoked) != 0 {
+			t.Errorf("the issuer was told: %+v", revoked)
+		}
+	})
+}
+
+func TestMakingNoneActiveWhenTheStorageWillNotForgetTheActiveOneChangesNothing(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		storage := &refusing{SharedStorage: w.storage}
+		browser := w.browserOver(storage)
+		live(t, browser)
+		storage.deletes.Store(true)
+
+		if err := browser.SetActiveKb(""); !errors.Is(err, errFull) {
+			t.Fatalf("making none active says %v", err)
+		}
+		if browser.ActiveKbId().Value() != kbA || sessionOf(browser) != kbA {
+			t.Errorf("the active one is %q, its session %q", browser.ActiveKbId().Value(), sessionOf(browser))
+		}
+		if active, _ := w.storage.Get(registry.ActiveKey); active != kbA {
+			t.Errorf("the active one is stored as %q", active)
+		}
+	})
+}
+
+func TestAnAnswerTheStorageWillNotRecordIsWhatAskingAgainSays(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA())
+		w.factory.says(kbA, description("KB A", "example.org:kb-a", ""))
+		storage := &refusing{SharedStorage: w.storage}
+		browser := w.browserOver(storage)
+		live(t, browser)
+		storage.sets.Store(true)
+
+		w.factory.says(kbA, description("KB A, renamed", "example.org:kb-a", ""))
+		if _, err := browser.ReadActiveKb(context.Background()); !errors.Is(err, errFull) {
+			t.Fatalf("asking again says %v", err)
+		}
+		if label := browser.KnowledgeBases().Value()[0].Label; label != "KB A" {
+			t.Errorf("the entry is now named %q", label)
+		}
+		if label := registry.LoadKnowledgeBases(w.storage)[0].Label; label != "KB A" {
+			t.Errorf("the entry is stored as %q", label)
+		}
+	})
+}
+
+func TestACheckTheStorageWillNotKeepIsWhatClosingSays(t *testing.T) {
+	bubble(t, func(t *testing.T, w *world) {
+		w.with(kbOfA()).opened(kbA, "kept", "gone")
+		w.factory.behind.mu.Lock()
+		w.factory.behind.gone["gone"] = true
+		w.factory.behind.mu.Unlock()
+		storage := &refusing{SharedStorage: w.storage}
+		storage.updates.Store(true)
+		browser := w.browserOver(storage)
+		live(t, browser)
+
+		// What is open is as it was, there and here.
+		want := []string{"kept", "gone"}
+		if !equalStrings(open(browser), want) || !equalStrings(w.storedOpen(kbA), want) {
+			t.Errorf("open %v, stored %v", open(browser), w.storedOpen(kbA))
+		}
+		if err := browser.Close(); !errors.Is(err, errFull) {
+			t.Errorf("closing says %v", err)
+		}
+	})
+}
+
 // ── How it ends ─────────────────────────────────────────────────────────
 
 func TestClosingTheRegistryClosesItsSessionAndEndsWhatItHolds(t *testing.T) {
@@ -857,8 +1023,8 @@ func TestClosingTheRegistryClosesItsSessionAndEndsWhatItHolds(t *testing.T) {
 		defer cancel()
 		errs := browser.Errors(ctx)
 
-		browser.Close()
-		browser.Close()
+		must(t, browser.Close())
+		must(t, browser.Close())
 
 		if !closed(w.factory.sessions.Transports(kbA)[0]) {
 			t.Error("the session is not closed")

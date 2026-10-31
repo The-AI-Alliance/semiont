@@ -258,9 +258,20 @@ func (w *world) browser() *registry.SemiontBrowser { return w.browserOver(w.stor
 
 // browserOver is a registry over storage, closed when the test ends.
 func (w *world) browserOver(storage semiont.SessionStorage) *registry.SemiontBrowser {
-	browser := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: w.factory.sessions})
-	w.t.Cleanup(browser.Close)
+	browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: storage, SessionFactory: w.factory.sessions})
+	must(w.t, err)
+	closedAtTheEnd(w.t, browser)
 	return browser
+}
+
+// closedAtTheEnd closes a registry when the test ends: a failure of what it
+// ran fails the test.
+func closedAtTheEnd(t *testing.T, browser *registry.SemiontBrowser) {
+	t.Cleanup(func() {
+		if err := browser.Close(); err != nil {
+			t.Errorf("closing the registry: %v", err)
+		}
+	})
 }
 
 func (w *world) stored(key string, into any) {
@@ -385,7 +396,7 @@ func TestAKnowledgeBaseThatIsAddedIsKeptSignedInAndMadeActive(t *testing.T) {
 
 		// Its identity and what it last said survive a new registry on the
 		// storage.
-		browser.Close()
+		must(t, browser.Close())
 		reopened := w.browser()
 		kbs := reopened.KnowledgeBases().Value()
 		if !same(t, kbs, []api.KnowledgeBase{added}) || kbs[0].Did != didA || !same(t, kbs[0].LastRead, read) {
@@ -764,8 +775,9 @@ func TestASessionThatCannotBeBuiltIsSaidAndThereIsNone(t *testing.T) {
 		w.with(kbOfA())
 		w.factory.sessions.RefuseToBuild("this factory builds nothing")
 		gate := gated{SessionFactory: w.factory.sessions, open: make(chan struct{})}
-		browser := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gate})
-		t.Cleanup(browser.Close)
+		browser, err := registry.NewSemiontBrowser(registry.SemiontBrowserConfig{Storage: w.storage, SessionFactory: gate})
+		must(t, err)
+		closedAtTheEnd(t, browser)
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 		errs := browser.Errors(ctx)

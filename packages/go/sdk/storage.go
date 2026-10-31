@@ -27,8 +27,9 @@ type SessionStorage interface {
 	// Set stores value under key, in place of what was there; the error when
 	// it could not.
 	Set(key, value string) error
-	// Delete removes a key. One that is not there is left not there.
-	Delete(key string)
+	// Delete removes a key. One that is not there is left not there. The
+	// error when it could not be removed.
+	Delete(key string) error
 	// Update changes key's value as one step: change is given what is
 	// stored, false when nothing is, and says what is stored next, false for
 	// nothing. No other writer's change falls between the read and the
@@ -71,10 +72,11 @@ func (m *MemoryStorage) Set(key, value string) error {
 	return nil
 }
 
-func (m *MemoryStorage) Delete(key string) {
+func (m *MemoryStorage) Delete(key string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.stored, key)
+	return nil
 }
 
 func (m *MemoryStorage) Update(key string, change func(stored string, has bool) (string, bool)) error {

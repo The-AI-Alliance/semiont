@@ -37,7 +37,7 @@
 // Every change to what is open is made against what the storage holds, as one
 // step, so two contexts that each open a resource both keep theirs. A write the
 // storage refuses changes nothing, there or here; a method that writes returns
-// the refusal.
+// the refusal, and Close returns one made in the background.
 //
 // Close is the graceful end.
 package registry
@@ -167,9 +167,12 @@ type SemiontBrowser struct {
 	// which a paused test clock waits on.
 	turn chan struct{}
 	// alive ends when the registry is closed: what it runs runs under it.
-	alive         context.Context
-	stop          context.CancelFunc
-	tasks         sync.WaitGroup
+	alive context.Context
+	stop  context.CancelFunc
+	tasks sync.WaitGroup
+	// taskFailure is the first failure of what it ran in the background:
+	// Close returns it. Guarded by mu.
+	taskFailure   error
 	stopListening func()
 	closed        atomic.Bool
 }
@@ -177,8 +180,9 @@ type SemiontBrowser struct {
 // NewSemiontBrowser is a registry over what config.Storage holds. The active
 // knowledge base's session is brought up at once, in the background. What was
 // read is what is kept: an entry that did not read as a knowledge base is gone
-// from the storage too.
-func NewSemiontBrowser(config SemiontBrowserConfig) *SemiontBrowser {
+// from the storage too. A storage that refuses those writes is the error, and
+// no registry is made.
+func NewSemiontBrowser(config SemiontBrowserConfig) (*SemiontBrowser, error) {
 	storage := config.Storage
 	kbs := LoadKnowledgeBases(storage)
 	active, _ := storage.Get(ActiveKey)
@@ -208,18 +212,22 @@ func NewSemiontBrowser(config SemiontBrowserConfig) *SemiontBrowser {
 		alive:             alive,
 		stop:              stop,
 	}
-	// A storage that refuses these writes keeps the entries it had, which the
-	// next registry over it drops again.
-	_ = b.putKbs(kbs)
-	_ = b.putActiveID(active)
+	if err := b.putKbs(kbs); err != nil {
+		stop()
+		return nil, err
+	}
+	if err := b.putActiveID(active); err != nil {
+		stop()
+		return nil, err
+	}
 
 	if stopListening, ok := storage.Subscribe(b.writtenElsewhere); ok {
 		b.stopListening = stopListening
 	}
 	if active != "" {
-		b.spawn(func() { _ = b.setActiveKb(active) })
+		b.spawn(func() error { return b.setActiveKb(active) })
 	}
-	return b
+	return b, nil
 }
 
 // ── What it holds ───────────────────────────────────────────────────────
@@ -303,7 +311,9 @@ func (b *SemiontBrowser) AddKb(input api.NewKnowledgeBase, session StoredSession
 // it and where the person was. If it was active, the first of the others
 // becomes active.
 func (b *SemiontBrowser) RemoveKb(id string) error {
-	ClearStoredSession(b.storage, id)
+	if err := ClearStoredSession(b.storage, id); err != nil {
+		return err
+	}
 	if err := b.forgetKeptOf(id); err != nil {
 		return err
 	}
@@ -429,16 +439,21 @@ func (b *SemiontBrowser) SignedIn(signedIn SignedIn) (SignInOutcome, error) {
 // SignOut signs out of a knowledge base: its tokens are forgotten, and the
 // issuer is told so its refresh token is good for nothing. If it is active,
 // its session is closed.
-func (b *SemiontBrowser) SignOut(id string) {
+func (b *SemiontBrowser) SignOut(id string) error {
 	if b.closed.Load() {
-		return
+		return nil
 	}
 	stored, ok := StoredSessionOf(b.storage, id)
-	ClearStoredSession(b.storage, id)
+	if err := ClearStoredSession(b.storage, id); err != nil {
+		return err
+	}
 	if ok {
 		// The sign-out is the local act: an issuer that cannot be reached
 		// does not keep anyone in a session they asked to end.
-		b.spawn(func() { b.factory.Revoke(b.alive, stored) })
+		b.spawn(func() error {
+			b.factory.Revoke(b.alive, stored)
+			return nil
+		})
 	}
 	// Said again, so whoever shows each knowledge base's status reads it anew.
 	b.knowledgeBases.raise(b.knowledgeBases.Value())
@@ -447,6 +462,7 @@ func (b *SemiontBrowser) SignOut(id string) {
 			taken.close()
 		}
 	}
+	return nil
 }
 
 // ── What is open ────────────────────────────────────────────────────────
@@ -530,23 +546,23 @@ func (b *SemiontBrowser) SetLastViewedResource(id api.ResourceId) error {
 // says what it answered. Asking is not activating: an answer as the entry is
 // recorded on it, and a different knowledge base answering is reported.
 // Nothing is voided and nothing raised.
-func (b *SemiontBrowser) ReadActiveKb(ctx context.Context) KbReadVerdict {
+func (b *SemiontBrowser) ReadActiveKb(ctx context.Context) (KbReadVerdict, error) {
 	session, kbID := b.activeSession.Value(), b.activeKbID.Value()
 	if session == nil || kbID == "" {
-		return KbReadVerdict{Kind: KbReadNoVerdict}
+		return KbReadVerdict{Kind: KbReadNoVerdict}, nil
 	}
 	return b.readKb(ctx, session, kbID)
 }
 
 // Close ends the registry: its session is closed, and everything it holds
-// ends. It returns once what it was running has stopped. Closing twice is
-// closing once.
-func (b *SemiontBrowser) Close() {
+// ends. It returns once what it was running has stopped, with the first
+// failure of any of it. Closing twice is closing once.
+func (b *SemiontBrowser) Close() error {
 	b.mu.Lock()
 	closing := !b.closed.Swap(true)
 	b.mu.Unlock()
 	if !closing {
-		return
+		return nil
 	}
 	taken := b.takeSession()
 	b.stop()
@@ -567,16 +583,26 @@ func (b *SemiontBrowser) Close() {
 	b.lastViewed.End()
 	b.identityToken.End()
 	b.bus.Close()
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.taskFailure
 }
 
 // ── Within ──────────────────────────────────────────────────────────────
 
-// spawn runs work under the registry's lifetime; Close waits for it.
-func (b *SemiontBrowser) spawn(work func()) {
+// spawn runs work under the registry's lifetime; Close waits for it, and
+// returns what it failed with.
+func (b *SemiontBrowser) spawn(work func() error) {
 	b.tasks.Add(1)
 	go func() {
 		defer b.tasks.Done()
-		work()
+		if err := work(); err != nil {
+			b.mu.Lock()
+			if b.taskFailure == nil {
+				b.taskFailure = err
+			}
+			b.mu.Unlock()
+		}
 	}()
 }
 
@@ -655,9 +681,13 @@ func (b *SemiontBrowser) putActiveID(id string) error {
 	if b.closed.Load() {
 		return nil
 	}
+	var err error
 	if id == "" {
-		b.storage.Delete(ActiveKey)
-	} else if err := b.storage.Set(ActiveKey, id); err != nil {
+		err = b.storage.Delete(ActiveKey)
+	} else {
+		err = b.storage.Set(ActiveKey, id)
+	}
+	if err != nil {
 		return err
 	}
 	b.activeKbID.Set(id)
@@ -718,7 +748,7 @@ func (b *SemiontBrowser) putSession(session *semiont.Session, end func(), signal
 	b.activeSession.Set(session)
 	b.mu.Unlock()
 	b.project()
-	b.spawn(func() { b.validateOpenResources(session) })
+	b.spawn(func() error { return b.validateOpenResources(session) })
 }
 
 func (b *SemiontBrowser) setActiveKb(id string) error {
@@ -781,7 +811,10 @@ func (b *SemiontBrowser) activate(id string) {
 		}
 		return
 	}
-	b.spawn(func() { route(b.alive, session, signals) })
+	b.spawn(func() error {
+		route(b.alive, session, signals)
+		return nil
+	})
 	_ = session.Ready(b.alive)
 	if b.closed.Load() || b.activeKbID.Value() != id {
 		(&ended{end: end, signals: signals}).close()
@@ -938,7 +971,7 @@ func (b *SemiontBrowser) writtenElsewhere(key, value string, has bool) {
 
 // ── The checks a session's arrival starts ───────────────────────────────
 
-func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) {
+func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) error {
 	// The session's own knowledge base: by the time this runs, another may be
 	// the active one.
 	kbID := session.Kb().Id
@@ -950,13 +983,17 @@ func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) {
 	// Who it is, first: if a different knowledge base is answering, every
 	// answer about a resource would be an answer to a question asked of the
 	// wrong one.
-	if verdict := b.readKb(b.alive, session, kbID); verdict.Kind == KbReadConflict {
+	verdict, err := b.readKb(b.alive, session, kbID)
+	if err != nil {
+		return err
+	}
+	if verdict.Kind == KbReadConflict {
 		// The read was of this session's knowledge base: what it voids is the
 		// active one's, so only while this is still the active one.
 		if isLive() {
-			b.voidForConflict(kbID, verdict.ObservedDid)
+			return b.voidForConflict(kbID, verdict.ObservedDid)
 		}
-		return
+		return nil
 	}
 
 	// What the storage holds, not what is in memory: another context may have
@@ -966,7 +1003,7 @@ func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) {
 		waiting = append(waiting, resource.ID)
 	}
 	if len(waiting) == 0 {
-		return
+		return nil
 	}
 	ids := make(chan api.ResourceId, len(waiting))
 	for _, id := range waiting {
@@ -987,11 +1024,10 @@ func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) {
 		})
 	}
 	lanes.Wait()
-	if isLive() {
-		// A refused write leaves what is open as it was: the checks only
-		// refine it.
-		_ = b.mutateOpenResources(func(open []OpenResource) []OpenResource { return ApplyTabChecks(open, checks) })
+	if !isLive() {
+		return nil
 	}
+	return b.mutateOpenResources(func(open []OpenResource) []OpenResource { return ApplyTabChecks(open, checks) })
 }
 
 // readKb asks the knowledge base to describe itself, against the entry it is
@@ -1001,52 +1037,55 @@ func (b *SemiontBrowser) validateOpenResources(session *semiont.Session) {
 // A did is read one way only. It is not unique, so one that differs says a
 // different knowledge base answered, and one that matches says nothing about
 // what is in it: that is each resource's own check.
-func (b *SemiontBrowser) readKb(ctx context.Context, session *semiont.Session, kbID string) KbReadVerdict {
+func (b *SemiontBrowser) readKb(ctx context.Context, session *semiont.Session, kbID string) (KbReadVerdict, error) {
 	kbs := b.knowledgeBases.Value()
 	i := slices.IndexFunc(kbs, func(kb api.KnowledgeBase) bool { return kb.Id == kbID })
 	if i < 0 {
-		return KbReadVerdict{Kind: KbReadNoVerdict}
+		return KbReadVerdict{Kind: KbReadNoVerdict}, nil
 	}
 	description, err := session.Client().Browse.Kb(ctx)
 	if err != nil {
-		return KbReadVerdict{Kind: KbReadNoVerdict}
+		return KbReadVerdict{Kind: KbReadNoVerdict}, nil
 	}
 	observed, err := semiont.KbDid(description.Domain)
 	if err != nil {
 		// A domain no did can hold is a knowledge base that could not say who
 		// it is.
-		return KbReadVerdict{Kind: KbReadNoVerdict}
+		return KbReadVerdict{Kind: KbReadNoVerdict}, nil
 	}
 	if observed.String() != kbs[i].Did {
-		return KbReadVerdict{Kind: KbReadConflict, ObservedDid: observed.String(), ObservedName: description.Name}
+		return KbReadVerdict{Kind: KbReadConflict, ObservedDid: observed.String(), ObservedName: description.Name}, nil
 	}
 	if b.closed.Load() {
-		return KbReadVerdict{Kind: KbReadNoVerdict}
+		return KbReadVerdict{Kind: KbReadNoVerdict}, nil
 	}
 	read := kbReadOf(description, time.Now())
-	// A refused write leaves the entry as it was, and what it said is still
-	// what it said.
-	_ = b.UpdateKb(kbID, &description.Name, &read)
-	return KbReadVerdict{Kind: KbReadRecorded}
+	if err := b.UpdateKb(kbID, &description.Name, &read); err != nil {
+		return KbReadVerdict{}, err
+	}
+	return KbReadVerdict{Kind: KbReadRecorded}, nil
 }
 
 // voidForConflict is what an activation does when a different knowledge base
 // answered for the active entry: it voids what claims to be about the entry's
 // contents, both at once, and raises the conflict. Registering the knowledge
 // base that answered is a person's act.
-func (b *SemiontBrowser) voidForConflict(kbID, observedDid string) {
+func (b *SemiontBrowser) voidForConflict(kbID, observedDid string) error {
 	kbs := b.knowledgeBases.Value()
 	i := slices.IndexFunc(kbs, func(kb api.KnowledgeBase) bool { return kb.Id == kbID })
 	if i < 0 {
-		return
+		return nil
 	}
-	// A refused write leaves those as they were; the conflict is raised
-	// either way.
-	_ = b.mutateOpenResources(func([]OpenResource) []OpenResource { return []OpenResource{} })
-	_ = b.mutateLastViewed(func(viewed map[string]api.ResourceId) { delete(viewed, kbID) })
+	if err := b.mutateOpenResources(func([]OpenResource) []OpenResource { return []OpenResource{} }); err != nil {
+		return err
+	}
+	if err := b.mutateLastViewed(func(viewed map[string]api.ResourceId) { delete(viewed, kbID) }); err != nil {
+		return err
+	}
 	if signals := b.activeSignals.Value(); signals != nil {
 		signals.NotifyKbIdentityConflict(semiont.KbIdentityConflict{ExpectedDid: kbs[i].Did, ObservedDid: observedDid})
 	}
+	return nil
 }
 
 // checkOpenResource is one open resource's verdict. Asking for it freshly
