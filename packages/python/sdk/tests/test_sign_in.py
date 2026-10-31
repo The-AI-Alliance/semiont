@@ -1238,6 +1238,8 @@ def test_a_person_s_sign_in_session_and_sign_out_given_a_client_are_made_through
         ("GET", ME),
         ("GET", "/api/health"),
         ("POST", TOKEN),
+        # The session asks the gateway who the renewed token is before the request is made again with it.
+        ("GET", ME),
         ("GET", "/api/health"),
         ("POST", REVOKE),
     ]
