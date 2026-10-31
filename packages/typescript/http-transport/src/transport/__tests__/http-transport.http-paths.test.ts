@@ -79,6 +79,7 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
 
 import ky from 'ky';
 import { HttpTransport } from '../http-transport';
+import { APIError } from '../api-error';
 import { HttpContentTransport } from '../http-content-transport';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
@@ -577,6 +578,45 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(bridged).toEqual([failed]);
 
       bus.destroy();
+    });
+  });
+
+  describe('An answer that lacks a member its schema requires', () => {
+    // Refused as Rust's, Python's and Go's transports refuse it as they read
+    // it: an `error` that states the answer's status, says the answer is not
+    // its declared body and names the member, and is on `errors$` as well.
+    async function refusedAs(answering: () => Promise<unknown>, said: string): Promise<void> {
+      const reported: unknown[] = [];
+      const listening = transport.errors$.subscribe((failure) => reported.push(failure));
+      const refusal = await answering().then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      );
+      listening.unsubscribe();
+      expect(refusal).toBeInstanceOf(APIError);
+      expect(refusal).toMatchObject({ code: 'error', status: 200, message: said });
+      expect(reported).toEqual([refusal]);
+    }
+
+    test("is refused: the gateway's answer to who a token is", async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockResolvedValue({ did: 'did:web:example.org:users:alice', email: null, name: null, image: null }),
+      } as never);
+      await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: it has no `domain`');
+    });
+
+    test("is refused: a resource's description whose resource states no representations", async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockResolvedValue({ resource: { '@context': 'https://schema.org/', '@id': 'test-resource-id', name: 'A resource' }, annotations: [] }),
+      } as never);
+      await refusedAs(
+        () => content.getResourceGraph(testResourceId),
+        `GET /resources/${testResourceId}/jsonld answered what is not its declared body: it has no \`resource.representations\``,
+      );
     });
   });
 

@@ -806,3 +806,75 @@ describe('Bus.request abandoned by its caller', () => {
     await expect(second).rejects.toMatchObject({ code: 'bus.closed' });
   });
 });
+
+/**
+ * A result that lacks a member its schema requires is refused, wherever the
+ * member is missing, as Rust, Python, Kotlin and Go refuse it as they decode
+ * it: a `SemiontError` coded `error` that says the payload is not its
+ * channel's and names the member, by the members it is within.
+ */
+describe('Bus.request holds a result to what its schema requires', () => {
+  const EMIT = 'browse:resource-requested';
+  const RESULT = 'browse:resource-result';
+  const FAILURE = 'browse:resource-failed';
+
+  async function answered(payload: unknown): Promise<unknown> {
+    const bus = makeBus(RESULT, FAILURE);
+    const promise = new Bus(bus).request(EMIT, { resourceId: 'res-1' });
+    await Promise.resolve();
+    bus.resultSubject.next({ correlationId: bus.emitEnvelope!.correlationId, payload });
+    return promise;
+  }
+
+  const resource = { '@context': 'https://schema.org/', '@id': 'res-1', name: 'A resource', representations: [{ mediaType: 'text/plain' }] };
+
+  for (const [why, response, lacks] of [
+    ['no resource', { lastSequence: 1 }, 'response.resource'],
+    ['a resource that is null', { resource: null, lastSequence: 1 }, 'response.resource'],
+    ['a resource with no name', { resource: { ...resource, name: undefined }, lastSequence: 1 }, 'response.resource.name'],
+    ['a resource with no representations', { resource: { ...resource, representations: undefined }, lastSequence: 1 }, 'response.resource.representations'],
+    [
+      'a representation listed with no media type',
+      { resource: { ...resource, representations: [{ mediaType: 'text/plain' }, { storageUri: 'file://a.txt' }] }, lastSequence: 1 },
+      'response.resource.representations.mediaType',
+    ],
+    [
+      'one representation, with no media type',
+      { resource: { ...resource, representations: { storageUri: 'file://a.txt' } }, lastSequence: 1 },
+      'response.resource.representations.mediaType',
+    ],
+    [
+      'an agent of the type the discriminator names, without what that type requires',
+      { resource: { ...resource, wasAttributedTo: { '@type': 'Organization' } }, lastSequence: 1 },
+      'response.resource.wasAttributedTo.name',
+    ],
+  ] as const) {
+    it(`refuses ${why}, naming what it lacks`, async () => {
+      // JSON drops a member that is undefined, as the wire does.
+      const sent: unknown = JSON.parse(JSON.stringify({ response }));
+      const refusal = await answered(sent).then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      );
+      expect(refusal).toBeInstanceOf(SemiontError);
+      expect(refusal).toMatchObject({
+        code: 'error',
+        message: `a payload on ${RESULT} is not that channel's: it has no \`${lacks}\``,
+      });
+    });
+  }
+
+  it('refuses a result with no response, where its registry entry wraps one', async () => {
+    const bus = makeBus('job:cancel-ok', 'job:cancel-failed');
+    const promise = new Bus(bus).request('job:cancel-requested', { jobId: 'job-1' });
+    await Promise.resolve();
+    bus.resultSubject.next({ correlationId: bus.emitEnvelope!.correlationId, payload: {} });
+    await expect(promise).rejects.toMatchObject({ code: 'error', message: "a payload on job:cancel-ok is not that channel's: it has no `response`" });
+  });
+
+  it('resolves a result that carries what its schema requires, and leaves what it may leave out', async () => {
+    expect(await answered({ response: { resource, lastSequence: 1 } })).toEqual({ resource, lastSequence: 1 });
+    const attributed = { ...resource, wasAttributedTo: [{ '@type': 'Person' }] };
+    expect(await answered({ response: { resource: attributed, lastSequence: 1 } })).toEqual({ resource: attributed, lastSequence: 1 });
+  });
+});
