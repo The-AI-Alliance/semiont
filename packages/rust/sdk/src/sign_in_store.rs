@@ -24,10 +24,10 @@
 //! **Every change is a read, a change and a write under a lock**
 //! (`tokens.lock`, beside the file): another process renewing another stack
 //! at the same moment loses nothing. What the file holds that is not a
-//! sign-in as this release knows one is written back as it was. The file's
-//! directory is kept to its owner first, as the launcher keeps its state
-//! home: mode `0700`, and on Windows the launcher's access list, which what
-//! is made in it inherits.
+//! sign-in as this release knows one is written back as it was. Under the
+//! lock, the file's directory is kept to its owner, as the launcher keeps its
+//! state home: mode `0700`, and on Windows the launcher's access list, which
+//! what is made in it inherits.
 //!
 //! A file that cannot be read or written is said to `on_failure`, and the
 //! store then behaves as if the file held nothing, or the write was not
@@ -61,7 +61,9 @@ pub const FILE_NAME: &str = "tokens.json";
 /// above. A mode keeps nobody out on Windows; the access list is what does. A
 /// directory that has the list already is left as it is: setting a list
 /// hands it down to everything beneath, which in a state home is no small
-/// walk.
+/// walk. The two lists are compared as Windows writes each out, which names
+/// some users by an abbreviation (the built-in administrator is `LA`) rather
+/// than by their SID.
 #[cfg(windows)]
 #[allow(unsafe_code)]
 fn owner_only(directory: &Path) -> io::Result<()> {
@@ -101,6 +103,26 @@ fn owner_only(directory: &Path) -> io::Result<()> {
             }
         }
 
+        /// The access list `descriptor` holds, as Windows writes it out (SDDL).
+        unsafe fn written(descriptor: PSECURITY_DESCRIPTOR) -> io::Result<String> {
+            let mut text = null_mut();
+            // SAFETY: the descriptor is one the system made, and the text it
+            // writes out is taken once.
+            unsafe {
+                if ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                    descriptor,
+                    SDDL_REVISION_1,
+                    DACL_SECURITY_INFORMATION,
+                    &mut text,
+                    null_mut(),
+                ) == 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(taken(text))
+            }
+        }
+
         let mut size = 0u32;
         GetTokenInformation(CURRENT_PROCESS_TOKEN, TokenUser, null_mut(), 0, &mut size);
         // Aligned as a TOKEN_USER is: the SID it points to follows it.
@@ -119,43 +141,10 @@ fn owner_only(directory: &Path) -> io::Result<()> {
         if ConvertSidToStringSidW((*user.as_ptr().cast::<TOKEN_USER>()).User.Sid, &mut named) == 0 {
             return Err(io::Error::last_os_error());
         }
-        let list = format!(
+        let sddl = wide(OsStr::new(&format!(
             "D:PAI(A;OICI;FA;;;{})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
             taken(named)
-        );
-
-        let name = wide(directory.as_os_str());
-        let (mut dacl, mut descriptor): (*mut ACL, PSECURITY_DESCRIPTOR) = (null_mut(), null_mut());
-        let failed = GetNamedSecurityInfoW(
-            name.as_ptr(),
-            SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION,
-            null_mut(),
-            null_mut(),
-            &mut dacl,
-            null_mut(),
-            &mut descriptor,
-        );
-        if failed != 0 {
-            return Err(io::Error::from_raw_os_error(failed as i32));
-        }
-        let mut written = null_mut();
-        let read = ConvertSecurityDescriptorToStringSecurityDescriptorW(
-            descriptor,
-            SDDL_REVISION_1,
-            DACL_SECURITY_INFORMATION,
-            &mut written,
-            null_mut(),
-        );
-        LocalFree(descriptor);
-        if read == 0 {
-            return Err(io::Error::last_os_error());
-        }
-        if taken(written) == list {
-            return Ok(());
-        }
-
-        let sddl = wide(OsStr::new(&list));
+        )));
         let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
         if ConvertStringSecurityDescriptorToSecurityDescriptorW(
             sddl.as_ptr(),
@@ -166,13 +155,32 @@ fn owner_only(directory: &Path) -> io::Result<()> {
         {
             return Err(io::Error::last_os_error());
         }
-        let (mut present, mut defaulted) = (0, 0);
-        let mut dacl: *mut ACL = null_mut();
-        let kept = if GetSecurityDescriptorDacl(descriptor, &mut present, &mut dacl, &mut defaulted)
-            == 0
-        {
-            Err(io::Error::last_os_error())
-        } else {
+
+        let name = wide(directory.as_os_str());
+        let kept = (|| {
+            let (mut dacl, mut held): (*mut ACL, PSECURITY_DESCRIPTOR) = (null_mut(), null_mut());
+            let failed = GetNamedSecurityInfoW(
+                name.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                null_mut(),
+                null_mut(),
+                &mut dacl,
+                null_mut(),
+                &mut held,
+            );
+            if failed != 0 {
+                return Err(io::Error::from_raw_os_error(failed as i32));
+            }
+            let has = written(held);
+            LocalFree(held);
+            if has? == written(descriptor)? {
+                return Ok(());
+            }
+            let (mut present, mut defaulted) = (0, 0);
+            if GetSecurityDescriptorDacl(descriptor, &mut present, &mut dacl, &mut defaulted) == 0 {
+                return Err(io::Error::last_os_error());
+            }
             match SetNamedSecurityInfoW(
                 name.as_ptr(),
                 SE_FILE_OBJECT,
@@ -185,7 +193,7 @@ fn owner_only(directory: &Path) -> io::Result<()> {
                 0 => Ok(()),
                 failed => Err(io::Error::from_raw_os_error(failed as i32)),
             }
-        };
+        })();
         LocalFree(descriptor);
         kept
     }
@@ -395,9 +403,12 @@ impl SignInStore {
                 _ => Path::new("."),
             };
             fs::create_dir_all(directory)?;
-            owner_only(directory)?;
             let lock = File::create(self.path.with_extension("lock"))?;
             lock.lock()?;
+            // Under the lock: setting the list hands it down to the file, and
+            // another writer renaming over the file at that moment would be
+            // refused.
+            owner_only(directory)?;
             let mut document = self.read()?;
             let (changed, beneath) = change(&mut document);
             if changed {

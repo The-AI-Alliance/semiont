@@ -260,18 +260,28 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
 }
 
 /// The user this process runs as, and the access list of the file at
-/// `path` as Windows writes it out (SDDL), each as PowerShell reads it.
+/// `path` as Windows writes it out (SDDL), each as PowerShell reads it. The
+/// user is named as an access list written out names it: by its SID, or by
+/// an abbreviation (the built-in administrator is `LA`). Windows PowerShell
+/// is given no `PSModulePath`: the one PowerShell 7 sets, which a CI step's
+/// shell hands down, leads it to modules it cannot load.
 #[cfg(windows)]
 fn access_list_of(path: &std::path::Path) -> (String, String) {
     let script = format!(
-        "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; (Get-Acl -LiteralPath '{}').GetSecurityDescriptorSddlForm('Access')",
+        "[Security.AccessControl.RawSecurityDescriptor]::new('O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value).GetSddlForm('Owner').Substring(2); (Get-Acl -LiteralPath '{}').GetSecurityDescriptorSddlForm('Access')",
         path.display().to_string().replace('\'', "''")
     );
     let out = std::process::Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .env_remove("PSModulePath")
         .output()
         .expect("PowerShell runs");
-    assert!(out.status.success(), "PowerShell failed: {out:?}");
+    assert!(
+        out.status.success(),
+        "PowerShell exited {}: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
     let said: Vec<String> = String::from_utf8_lossy(&out.stdout)
         .split_whitespace()
         .map(str::to_owned)

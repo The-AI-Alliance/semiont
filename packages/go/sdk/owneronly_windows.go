@@ -30,7 +30,9 @@ const (
 // handed down to what is created in it, and nothing inherited from above. A
 // mode keeps nobody out on Windows; the access list is what does. A directory
 // that has the list already is left as it is: setting a list hands it down to
-// everything beneath, which in a state home is no small walk.
+// everything beneath, which in a state home is no small walk. The two lists
+// are compared as Windows writes each out, which names some users by an
+// abbreviation (the built-in administrator is LA) rather than by their SID.
 func ownerOnlyDir(dir string) error {
 	token, err := syscall.OpenCurrentProcessToken()
 	if err != nil {
@@ -45,15 +47,7 @@ func ownerOnlyDir(dir string) error {
 	if err != nil {
 		return fmt.Errorf("cannot name the current user: %w", err)
 	}
-	list := fmt.Sprintf("D:PAI(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", owner)
-	name, err := syscall.UTF16PtrFromString(dir)
-	if err != nil {
-		return err
-	}
-	if has, err := sddlOf(name); err != nil || has == list {
-		return err
-	}
-	sddl, err := syscall.UTF16PtrFromString(list)
+	sddl, err := syscall.UTF16PtrFromString(fmt.Sprintf("D:PAI(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", owner))
 	if err != nil {
 		return err
 	}
@@ -62,6 +56,17 @@ func ownerOnlyDir(dir string) error {
 		return fmt.Errorf("cannot make the access list: %w", err)
 	}
 	defer syscall.LocalFree(syscall.Handle(descriptor))
+	list, err := sddlOf(descriptor)
+	if err != nil {
+		return err
+	}
+	name, err := syscall.UTF16PtrFromString(dir)
+	if err != nil {
+		return err
+	}
+	if has, err := accessListAt(name); err != nil || has == list {
+		return err
+	}
 	var present, defaulted int32
 	var dacl uintptr
 	if read, _, err := getSecurityDescriptorDacl.Call(descriptor, uintptr(unsafe.Pointer(&present)), uintptr(unsafe.Pointer(&dacl)), uintptr(unsafe.Pointer(&defaulted))); read == 0 {
@@ -73,14 +78,20 @@ func ownerOnlyDir(dir string) error {
 	return nil
 }
 
-// sddlOf is the access list of what name names, as Windows writes it
+// accessListAt is the access list of what name names, as Windows writes it
 // out (SDDL).
-func sddlOf(name *uint16) (string, error) {
+func accessListAt(name *uint16) (string, error) {
 	var dacl, descriptor uintptr
 	if failed, _, _ := getNamedSecurityInfo.Call(uintptr(unsafe.Pointer(name)), seFileObject, daclSecurityInformation, 0, 0, uintptr(unsafe.Pointer(&dacl)), 0, uintptr(unsafe.Pointer(&descriptor))); failed != 0 {
 		return "", fmt.Errorf("cannot read the access list: %w", syscall.Errno(failed))
 	}
 	defer syscall.LocalFree(syscall.Handle(descriptor))
+	return sddlOf(descriptor)
+}
+
+// sddlOf is the access list a security descriptor holds, as Windows writes it
+// out (SDDL).
+func sddlOf(descriptor uintptr) (string, error) {
 	var text *uint16
 	if made, _, err := convertSecurityDescriptorToString.Call(descriptor, sddlRevision1, daclSecurityInformation, uintptr(unsafe.Pointer(&text)), 0); made == 0 {
 		return "", fmt.Errorf("cannot write out the access list: %w", err)

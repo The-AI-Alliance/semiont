@@ -55,17 +55,28 @@ def document(path: Path) -> JsonObject:
 
 
 def access_list_of(path: Path) -> tuple[str, str]:
-    """The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it."""
+    """The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it.
+
+    The user is named as an access list written out names it: by its SID, or by
+    an abbreviation (the built-in administrator is `LA`). Windows PowerShell is
+    given no `PSModulePath`: the one PowerShell 7 sets, which a CI step's shell
+    hands down, leads it to modules it cannot load.
+    """
     quoted = str(path).replace("'", "''")
     script = (
-        "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
+        "[Security.AccessControl.RawSecurityDescriptor]::new("
+        "'O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
+        ").GetSddlForm('Owner').Substring(2); "
         f"(Get-Acl -LiteralPath '{quoted}').GetSecurityDescriptorSddlForm('Access')"
     )
+    environment = {name: value for name, value in os.environ.items() if name.upper() != "PSMODULEPATH"}
     said = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, check=True
-    ).stdout.split()
-    assert len(said) == 2, said
-    return said[0], said[1]
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, env=environment
+    )
+    assert said.returncode == 0, f"PowerShell exited {said.returncode}: {said.stderr}"
+    words = said.stdout.split()
+    assert len(words) == 2, said
+    return words[0], words[1]
 
 
 def entry(path: Path, key: str) -> JsonObject:
@@ -127,10 +138,14 @@ def test_a_sign_in_is_kept_as_the_launcher_keeps_one(tmp_path: Path) -> None:
         def entries(flags: str) -> str:
             return rf"\(A;{flags};FA;;;{sid}\)\(A;{flags};FA;;;SY\)\(A;{flags};FA;;;BA\)"
 
-        assert re.fullmatch("D:P(AI)?" + entries("OICI"), listed), listed
+        assert re.fullmatch("D:P(AI)?" + entries("OICI"), listed), (
+            f"the state home's access list is {listed}, not its owner's ({user}) alone"
+        )
         for made in (path, path.parent / "tokens.lock"):
             _, listed = access_list_of(made)
-            assert re.fullmatch("D:(AI)?" + entries("ID"), listed), listed
+            assert re.fullmatch("D:(AI)?" + entries("ID"), listed), (
+                f"{made}'s access list is {listed}, not the one its directory hands down to its owner ({user})"
+            )
     assert sorted(found.name for found in path.parent.iterdir()) == ["tokens.json", "tokens.lock"]
     assert path.read_bytes().endswith(b"}\n")
 

@@ -167,13 +167,25 @@ func TestKeepingASignInRefusesAFileItCannotRead(t *testing.T) {
 	}
 }
 
-// accessListOf is the user this process runs as, and the access list of path
-// as Windows writes it out (SDDL), each as PowerShell reads it.
+// accessListOf is the user this process runs as, as an access list written
+// out names it (by its SID, or by an abbreviation: the built-in administrator
+// is LA), and the access list of path as Windows writes it out (SDDL), each as
+// PowerShell reads it. Windows PowerShell is given no PSModulePath: the one
+// PowerShell 7 sets, which a CI step's shell hands down, leads it to modules
+// it cannot load.
 func accessListOf(t *testing.T, path string) (user, list string) {
 	t.Helper()
-	script := "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; " +
+	script := "[Security.AccessControl.RawSecurityDescriptor]::new('O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value).GetSddlForm('Owner').Substring(2); " +
 		"(Get-Acl -LiteralPath '" + strings.ReplaceAll(path, "'", "''") + "').GetSecurityDescriptorSddlForm('Access')"
-	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).Output()
+	command := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	command.Env = slices.DeleteFunc(os.Environ(), func(variable string) bool {
+		name, _, _ := strings.Cut(variable, "=")
+		return strings.EqualFold(name, "PSModulePath")
+	})
+	out, err := command.Output()
+	if exited := (*exec.ExitError)(nil); errors.As(err, &exited) {
+		t.Fatalf("reading the access list of %s: %v: %s", path, err, exited.Stderr)
+	}
 	if err != nil {
 		t.Fatalf("reading the access list of %s: %v", path, err)
 	}
@@ -203,11 +215,11 @@ func TestTheSignInStoreIsWrittenPrivately(t *testing.T) {
 			return `\(A;` + flags + `;FA;;;` + sid + `\)\(A;` + flags + `;FA;;;SY\)\(A;` + flags + `;FA;;;BA\)$`
 		}
 		if !regexp.MustCompile(`^D:P(AI)?` + ownerOnly("OICI")).MatchString(list) {
-			t.Errorf("the state home's access list is %s, not its owner's alone", list)
+			t.Errorf("the state home's access list is %s, not its owner's (%s) alone", list, user)
 		}
 		for _, name := range []string{SignInFile, signInLock} {
 			if _, list := accessListOf(t, filepath.Join(dir, name)); !regexp.MustCompile(`^D:(AI)?` + ownerOnly("ID")).MatchString(list) {
-				t.Errorf("%s's access list is %s, not the one its directory hands down", name, list)
+				t.Errorf("%s's access list is %s, not the one its directory hands down to its owner (%s)", name, list, user)
 			}
 		}
 	} else {

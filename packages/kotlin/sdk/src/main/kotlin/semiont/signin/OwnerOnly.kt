@@ -76,11 +76,22 @@ internal object OwnerOnly {
             localFree.invoke(text)
         }
 
+    /** The access list `descriptor` holds, as Windows writes it out (SDDL). */
+    private fun written(arena: Arena, state: MemorySegment, descriptor: MemorySegment): String {
+        val text = arena.allocate(ADDRESS)
+        if (convertSecurityDescriptorToString.invoke(state, descriptor, SDDL_REVISION_1, DACL_SECURITY_INFORMATION, text, MemorySegment.NULL) as Int == 0) {
+            failed("ConvertSecurityDescriptorToStringSecurityDescriptorW", state)
+        }
+        return taken(text.get(ADDRESS, 0L))
+    }
+
     /**
      * Keep `directory`, and everything made in it from then on, to its owner.
      * A directory that has the list already is left as it is: setting a list
      * hands it down to everything beneath, which in a state home is no small
-     * walk.
+     * walk. The two lists are compared as Windows writes each out, which names
+     * some users by an abbreviation (the built-in administrator is `LA`)
+     * rather than by their SID.
      */
     fun keep(directory: Path): Unit = Arena.ofConfined().use { arena ->
         val state = arena.allocate(captured)
@@ -92,27 +103,24 @@ internal object OwnerOnly {
         val named = arena.allocate(ADDRESS)
         if (convertSidToStringSid.invoke(state, user.get(ADDRESS, 0L), named) as Int == 0) failed("ConvertSidToStringSidW", state)
         val list = "D:PAI(A;OICI;FA;;;${taken(named.get(ADDRESS, 0L))})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
-
-        val name = arena.allocateFrom(directory.toString(), StandardCharsets.UTF_16LE)
-        val dacl = arena.allocate(ADDRESS)
-        val held = arena.allocate(ADDRESS)
-        val unread = getNamedSecurityInfo.invoke(name, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, MemorySegment.NULL, MemorySegment.NULL, dacl, MemorySegment.NULL, held) as Int
-        if (unread != 0) throw IOException("could not read the access list of $directory (error $unread)")
-        val written = arena.allocate(ADDRESS)
-        val read = try {
-            convertSecurityDescriptorToString.invoke(state, held.get(ADDRESS, 0L), SDDL_REVISION_1, DACL_SECURITY_INFORMATION, written, MemorySegment.NULL) as Int
-        } finally {
-            localFree.invoke(held.get(ADDRESS, 0L))
-        }
-        if (read == 0) failed("ConvertSecurityDescriptorToStringSecurityDescriptorW", state)
-        if (taken(written.get(ADDRESS, 0L)) == list) return@use
-
         val made = arena.allocate(ADDRESS)
         if (convertStringSecurityDescriptor.invoke(state, arena.allocateFrom(list, StandardCharsets.UTF_16LE), SDDL_REVISION_1, made, MemorySegment.NULL) as Int == 0) {
             failed("ConvertStringSecurityDescriptorToSecurityDescriptorW", state)
         }
         val descriptor = made.get(ADDRESS, 0L)
         try {
+            val name = arena.allocateFrom(directory.toString(), StandardCharsets.UTF_16LE)
+            val dacl = arena.allocate(ADDRESS)
+            val held = arena.allocate(ADDRESS)
+            val unread = getNamedSecurityInfo.invoke(name, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, MemorySegment.NULL, MemorySegment.NULL, dacl, MemorySegment.NULL, held) as Int
+            if (unread != 0) throw IOException("could not read the access list of $directory (error $unread)")
+            val has = try {
+                written(arena, state, held.get(ADDRESS, 0L))
+            } finally {
+                localFree.invoke(held.get(ADDRESS, 0L))
+            }
+            if (has == written(arena, state, descriptor)) return@use
+
             val present = arena.allocate(JAVA_INT)
             val defaulted = arena.allocate(JAVA_INT)
             if (getSecurityDescriptorDacl.invoke(state, descriptor, present, dacl, defaulted) as Int == 0) failed("GetSecurityDescriptorDacl", state)

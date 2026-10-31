@@ -281,11 +281,19 @@ class SignInStoreTest {
 
     private fun entryOf(path: Path, key: String): JsonObject = SignInStore(path).read().getValue(key).jsonObject
 
-    /** The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it. */
+    /**
+     * The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it.
+     * The user is named as an access list written out names it: by its SID, or by an abbreviation (the built-in administrator
+     * is `LA`). Windows PowerShell is given no `PSModulePath`: the one PowerShell 7 sets, which a CI step's shell hands down,
+     * leads it to modules it cannot load.
+     */
     private fun accessListOf(path: Path): Pair<String, String> {
-        val script = "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; " +
+        val script = "[Security.AccessControl.RawSecurityDescriptor]::new('O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value)" +
+            ".GetSddlForm('Owner').Substring(2); " +
             "(Get-Acl -LiteralPath '${path.toString().replace("'", "''")}').GetSecurityDescriptorSddlForm('Access')"
-        val process = ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", script).redirectErrorStream(true).start()
+        val command = ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", script).redirectErrorStream(true)
+        command.environment().remove("PSModulePath")
+        val process = command.start()
         val said = process.inputStream.bufferedReader().readText().split(Regex("""\s+""")).filter { it.isNotEmpty() }
         assertEquals(0, process.waitFor(), "PowerShell said $said")
         assertEquals(2, said.size, "PowerShell said $said")
@@ -337,10 +345,10 @@ class SignInStoreTest {
             // The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
             val (user, list) = accessListOf(path.parent)
             fun entries(flags: String) = """\(A;$flags;FA;;;${Regex.escape(user)}\)\(A;$flags;FA;;;SY\)\(A;$flags;FA;;;BA\)"""
-            assertTrue(Regex("D:P(AI)?" + entries("OICI")).matches(list), list)
+            assertTrue(Regex("D:P(AI)?" + entries("OICI")).matches(list), "the state home's access list is $list, not its owner's ($user) alone")
             for (made in listOf(path, path.resolveSibling("tokens.lock"))) {
                 val (_, inherited) = accessListOf(made)
-                assertTrue(Regex("D:(AI)?" + entries("ID")).matches(inherited), inherited)
+                assertTrue(Regex("D:(AI)?" + entries("ID")).matches(inherited), "$made's access list is $inherited, not the one its directory hands down to its owner ($user)")
             }
         }
         assertEquals(listOf("tokens.json", "tokens.lock"), Files.list(path.parent).use { files -> files.map { it.fileName.toString() }.sorted().toList() })
