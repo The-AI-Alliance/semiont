@@ -392,14 +392,15 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
     });
     return given;
   } catch (error) {
-    const cause = error instanceof Error ? error.message : String(error);
     // One attempt means the issuer answered and the answer was final; more
     // means the budget ran out. Saying which is the whole point of counting.
-    if (attempts <= 1) throw error;
+    // What is not the issuer's, a storage that would not keep the renewal, is
+    // its own error.
+    if (attempts <= 1 || !(error instanceof SignInError)) throw error;
     throw new SignInError(
       'exchange',
-      `The session could not be renewed after ${attempts} attempts: ${cause}`,
-      error instanceof SignInError ? error.status : undefined,
+      `The session could not be renewed after ${attempts} attempts: ${error.message}`,
+      error.status,
     );
   }
 }

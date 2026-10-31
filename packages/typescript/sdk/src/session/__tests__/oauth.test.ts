@@ -454,6 +454,25 @@ describe('refresh and revocation', () => {
       await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow(/4 attempts.*HTTP 503/s);
     });
 
+    it('a storage that will not keep a renewal it took retries to make fails as itself, not as the issuer', async () => {
+      vi.useFakeTimers();
+      fetchMock
+        .mockImplementationOnce(async () => reply(undefined, 503))
+        .mockImplementationOnce(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
+      const storage = seeded();
+      const full = new Error('the storage is full');
+      vi.spyOn(storage, 'update').mockImplementation(() => {
+        throw full;
+      });
+
+      const failed = refreshStoredSession(storage, KB).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(await failed).toBe(full);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
     it('still answers null — not a throw — when there is simply nothing stored', async () => {
       // An absence is not a failure. The caller distinguishes "never signed in"
       // from "could not renew", and this is the only case that is the former.
