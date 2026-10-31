@@ -149,8 +149,8 @@ export function sessionStoragePersister<K, V>(opts: {
 
   /**
    * Prior write stamps, keyed by the serialized key. Seeded by load(),
-   * refreshed by save() and external changes — an unchanged value keeps its
-   * stamp so eviction order reflects real write recency.
+   * refreshed by save() — an unchanged value keeps its stamp so eviction
+   * order reflects real write recency.
    */
   let stamps = new Map<string, { valueJson: string; writtenAt: number }>();
 
@@ -208,17 +208,6 @@ export function sessionStoragePersister<K, V>(opts: {
 
       stamps = nextStamps;
       storage.set(storageKey, JSON.stringify({ version, writtenAt: now, entries: records }));
-    },
-
-    subscribe(onExternalChange: (entries: Map<K, V>) => void): () => void {
-      const unsubscribe = storage.subscribe((key, newValue) => {
-        if (key !== storageKey) return;
-        const doc = parseDocument(newValue, version);
-        if (!doc) return;
-        seedStamps(doc);
-        onExternalChange(toMap(doc));
-      });
-      return unsubscribe ?? (() => {});
     },
   };
 }

@@ -3,8 +3,7 @@
  *
  * Contract under test: round-trip through a storage adapter; version
  * mismatch and parse garbage read as "nothing stored" (never throw);
- * byte cap evicts oldest-written entries first; cross-context subscribe
- * delegates through the storage's own subscription seam.
+ * byte cap evicts oldest-written entries first.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { coupledLastEventId, sessionStoragePersister } from '../cache-persister';
@@ -93,26 +92,6 @@ describe('sessionStoragePersister (B17)', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.has('old')).toBe(false);
     expect(loaded!.has('new')).toBe(true);
-  });
-
-  it('delegates cross-context sync through storage.subscribe', () => {
-    const persister = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 });
-    const onExternalChange = vi.fn();
-    persister.subscribe!(onExternalChange);
-
-    // Another context writes the same key.
-    const other = sessionStoragePersister<string, string>({ storage, storageKey: KEY, version: 1 });
-    other.save(new Map([['r1', 'from-elsewhere']]));
-    storage.dispatch(KEY, storage.get(KEY));
-
-    expect(onExternalChange).toHaveBeenCalledTimes(1);
-    const received = onExternalChange.mock.calls[0]![0] as Map<string, string>;
-    expect(received.get('r1')).toBe('from-elsewhere');
-
-    // Unrelated keys and version-mismatched payloads are ignored.
-    storage.dispatch('some.other.key', '{}');
-    storage.dispatch(KEY, JSON.stringify({ version: 99, writtenAt: 1, entries: [] }));
-    expect(onExternalChange).toHaveBeenCalledTimes(1);
   });
 
   it('supports key transformers for non-string keys', () => {

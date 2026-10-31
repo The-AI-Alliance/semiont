@@ -337,7 +337,7 @@ A clause of CACHE-SEMANTICS that no case holds, and why:
 | B4, one observable per key | It is the identity of an object in the client's own language; nothing of it crosses to the suite. What it is for, shared work, is B3. |
 | B11, observables live as long as the cache | It is memory the client keeps, with no effect an observer or the wire can see. |
 | B12, handlers are additive | It is a rule about how the code is written. Its effect is the `refresh-*` cases, each holding one trigger to exactly what it refreshes. |
-| B17, the save's debounce, the storage document's version, sync between contexts | They are the storage adapter's, below what a driver's `persist` reaches. `rehydration` holds what they are for: a value saved by one client is the next one's. |
+| B17, the save's debounce, the storage document's version | They are the storage adapter's, below what a driver's `persist` reaches. `rehydration` holds what they are for: a value saved by one client is the next one's. |
 
 ## What an SDK cannot be put through
 
