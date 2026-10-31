@@ -1282,6 +1282,40 @@ func TestKeycloakRunsInProductionModeAtTheIssuerTheServicesTrust(t *testing.T) {
 	}
 }
 
+// The worker's key is proved where the worker signs in: at the issuer the
+// services trust. A key's assertion names the issuer it is for, and Keycloak,
+// its hostname fixed at the issuer's origin, admits one only under that name,
+// wherever the request reached it. Under Docker and Podman the launcher
+// reaches its Keycloak at localhost, not at keycloak.localhost, so a preflight
+// asked there is refused for a realm the worker signs in at, and the start
+// stops. fakert's Keycloak applies the same rule.
+func TestPreflightProvesTheWorkerKeyAtTheIssuerTheServicesTrust(t *testing.T) {
+	for _, rt := range []string{"container", "docker", "podman"} {
+		t.Run(rt, func(t *testing.T) {
+			s := newScenario(t, "container", "docker", "podman")
+			stdout, stderr, code := s.run(t, "start", "--runtime", rt)
+			if code != 0 {
+				t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			var gateway struct {
+				Identity struct {
+					Issuer string `json:"issuer"`
+				} `json:"identity"`
+			}
+			if err := json.Unmarshal([]byte(stagedFile(t, s, "gateway.json")), &gateway); err != nil {
+				t.Fatal(err)
+			}
+			aud, err := os.ReadFile(filepath.Join(s.fakertDir, "client-assertion-aud.txt"))
+			if err != nil {
+				t.Fatalf("no assertion reached the issuer — the preflight did not prove the worker's key: %v", err)
+			}
+			if got, want := strings.TrimSpace(string(aud)), gateway.Identity.Issuer+"/protocol/openid-connect/token"; got != want {
+				t.Errorf("the worker's assertion is for %s, not the token endpoint of the issuer the services trust, %s", got, want)
+			}
+		})
+	}
+}
+
 func TestStartNoObserveBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	stdout, stderr, code := s.run(t, "start", "--no-observe")
