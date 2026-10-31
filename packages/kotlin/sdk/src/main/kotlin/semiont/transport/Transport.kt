@@ -185,17 +185,24 @@ internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
             if (closed) return 0
             if (!listened && keepForFirst) early += value
         }
-        val now = listeners.toList()
+        val now = listenersNow()
         now.forEach { it.trySend(value) }
         return now.size
     }
+
+    /**
+     * Who listens now, read in one step. A listener leaves on its own, outside
+     * any lock, and `toList()` reads a list's size before its element, so a
+     * listener that leaves between the two would fail the read.
+     */
+    private fun listenersNow(): List<Channel<T>> = ArrayList(listeners)
 
     /** End every listener's events, and every later one's. */
     fun close() {
         val now = synchronized(this) {
             closed = true
             early.clear()
-            listeners.toList()
+            listenersNow()
         }
         now.forEach { it.close() }
     }
