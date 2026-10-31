@@ -379,7 +379,6 @@ function rustShape(isAsync, returns) {
   return undefined;
 }
 
-/** namespace → method → { shape, returns } */
 /**
  * Rust's trait under `directory`, given its name: the functions it declares,
  * each as the table spells it, a trait's functions being public. A default
@@ -401,6 +400,7 @@ function rustTrait(made, directory) {
   return { where: `trait ${made} in ${file}`, members };
 }
 
+/** namespace → method → { shape, returns } */
 function rustSurface() {
   const surface = new Map();
   const files = filesIn(RUST_NAMESPACES, '.rs');

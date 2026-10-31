@@ -27,7 +27,7 @@ import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
-import { getStoredSession, kbGatewayUrl, sessionKey, storedSessionIn, type StoredSession } from './storage';
+import { getStoredSession, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
 // `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
@@ -373,15 +373,21 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
     // before the grant: a session signed out, or ended, while it was being
     // renewed is gone. Writing it back would undo that with a refresh token
     // nobody revoked, and handing its token to the caller would give a
-    // session that is over a credential again.
-    const kept: StoredSession[] = [];
+    // session that is over a credential again. A session that no longer
+    // holds the tokens read was renewed some other way meanwhile: that
+    // stands, and its access token is the one given.
+    const given: string[] = [];
     storage.update(sessionKey(kbId), (held) => {
       const current = storedSessionIn(held);
       if (!current) return held;
-      kept.push(current);
+      if (current.access !== stored.access || current.refresh !== stored.refresh) {
+        given.push(current.access);
+        return held;
+      }
+      given.push(access);
       return JSON.stringify({ ...current, access, refresh });
     });
-    return kept.length > 0 ? access : null;
+    return given.length > 0 ? given[0] : null;
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
     // One attempt means the issuer answered and the answer was final; more
