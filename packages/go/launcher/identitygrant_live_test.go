@@ -38,7 +38,6 @@ func TestWorkerGrantLive(t *testing.T) {
 	const realm = "semiont-granttest"
 	const audience = "did:web:example.test:granttest"
 	const label = "granttest"
-	tokenEndpoint := base + "/realms/" + realm + "/protocol/openid-connect/token"
 
 	tok, err := adminToken(base, "admin", pw)
 	if err != nil {
@@ -50,6 +49,7 @@ func TestWorkerGrantLive(t *testing.T) {
 		t.Fatalf("creating the scratch realm: HTTP %d", code)
 	}
 	t.Cleanup(func() { liveAdmin(t, tok, http.MethodDelete, base+"/admin/realms/"+realm, nil) })
+	issuer, tokenEndpoint := liveTokenEndpoint(t, base, realm)
 
 	key := func() workerKey {
 		t.Helper()
@@ -64,7 +64,7 @@ func TestWorkerGrantLive(t *testing.T) {
 		return k
 	}
 	signIn := func(k workerKey) (map[string]any, error) {
-		return clientCredentialsClaims(tokenEndpoint, semiont.KeyCredential{Issuer: base + "/realms/" + realm, ClientID: workerClientID(label), PrivateKey: k.signer})
+		return clientCredentialsClaims(tokenEndpoint, semiont.KeyCredential{Issuer: issuer, ClientID: workerClientID(label), PrivateKey: k.signer})
 	}
 
 	// 1. A grant makes a client Keycloak admits the worker's assertion at, and

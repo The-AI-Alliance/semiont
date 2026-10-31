@@ -55,6 +55,7 @@ func TestIdentitySyncLive(t *testing.T) {
 		t.Fatalf("creating the scratch realm: HTTP %d", code)
 	}
 	t.Cleanup(func() { liveAdmin(t, tok, http.MethodDelete, base+"/admin/realms/"+realm, nil) })
+	issuer, tokenEndpoint := liveTokenEndpoint(t, base, realm)
 
 	// 1. An empty realm gets every client.
 	rep, err := syncServiceClients(base, realm, "admin", pw, audience, testAccounts())
@@ -68,7 +69,7 @@ func TestIdentitySyncLive(t *testing.T) {
 	// 2. Keycloak MINTS for what sync created, and the token is the shape the
 	//    gateway demands. This is the assertion a stub cannot make.
 	svc := secretClients[0]
-	claims := liveClientCredentials(t, base, realm, serviceClientID(svc), secretForTest(svc))
+	claims := liveClientCredentials(t, issuer, tokenEndpoint, serviceClientID(svc), secretForTest(svc))
 
 	if !flatRolesContain(claims["roles"], serviceRole) {
 		t.Fatalf("token's `roles` is not a flat array containing %q — got %#v (nested realm_access would be the classic wrong shape)", serviceRole, claims["roles"])
@@ -82,8 +83,8 @@ func TestIdentitySyncLive(t *testing.T) {
 
 	//    And for the worker, by the assertion the preflight signs: Keycloak
 	//    checks it with the key sync registered, and stamps the worker role.
-	worker, err := clientCredentialsClaims(base+"/realms/"+realm+"/protocol/openid-connect/token",
-		semiont.KeyCredential{Issuer: base + "/realms/" + realm, ClientID: serviceClientID("worker"), PrivateKey: testWorkerKey().signer})
+	worker, err := clientCredentialsClaims(tokenEndpoint,
+		semiont.KeyCredential{Issuer: issuer, ClientID: serviceClientID("worker"), PrivateKey: testWorkerKey().signer})
 	if err != nil {
 		t.Fatalf("the worker's grant: %v — the client sync created does not take the machine's key", err)
 	}
@@ -127,7 +128,7 @@ func TestIdentitySyncLive(t *testing.T) {
 	if !removed {
 		t.Fatalf("Keycloak lists %s with no %q mapper to remove", serviceClientID(svc), agentKindMapperName)
 	}
-	if claims := liveClientCredentials(t, base, realm, serviceClientID(svc), secretForTest(svc)); claims[kindClaim] != nil {
+	if claims := liveClientCredentials(t, issuer, tokenEndpoint, serviceClientID(svc), secretForTest(svc)); claims[kindClaim] != nil {
 		t.Fatalf("a token minted without the mapper still carries `%s`", kindClaim)
 	}
 	rep3, err := syncServiceClients(base, realm, "admin", pw, audience, testAccounts())
@@ -137,7 +138,7 @@ func TestIdentitySyncLive(t *testing.T) {
 	if len(rep3.updated) != 1 || !strings.Contains(rep3.updated[0], "kind mapper added") {
 		t.Fatalf("third run updated %v, want the kind mapper added to %s alone", rep3.updated, serviceClientID(svc))
 	}
-	if claims := liveClientCredentials(t, base, realm, serviceClientID(svc), secretForTest(svc)); claims[kindClaim] != agentKind {
+	if claims := liveClientCredentials(t, issuer, tokenEndpoint, serviceClientID(svc), secretForTest(svc)); claims[kindClaim] != agentKind {
 		t.Fatalf("after sync, the token's `%s` is %#v, not %q", kindClaim, claims[kindClaim], agentKind)
 	}
 }
@@ -161,10 +162,37 @@ func liveAdmin(t *testing.T, token, method, url string, body map[string]any) int
 	return resp.StatusCode
 }
 
-func liveClientCredentials(t *testing.T, base, realm, clientID, secret string) map[string]any {
+// liveTokenEndpoint: the realm's issuer as it names itself, and its token
+// endpoint asked there — where the services sign in and the preflight proves
+// their credentials — not at base, where the test administers the realm. A
+// Keycloak run as the launcher runs it has its hostname fixed at the issuer's
+// origin, and admits a key's assertion only for a token endpoint under that
+// name, though its discovery asked at base names the token endpoint at base.
+func liveTokenEndpoint(t *testing.T, base, realm string) (issuer, tokenEndpoint string) {
 	t.Helper()
-	claims, err := clientCredentialsClaims(base+"/realms/"+realm+"/protocol/openid-connect/token",
-		semiont.SecretCredential{Issuer: base + "/realms/" + realm, ClientID: clientID, ClientSecret: secret})
+	at := base + "/realms/" + realm + "/.well-known/openid-configuration"
+	resp, err := preflightHTTP.Get(at)
+	if err != nil {
+		t.Fatalf("discovery at %s: %v", at, err)
+	}
+	defer resp.Body.Close()
+	var doc struct {
+		Issuer string `json:"issuer"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil || doc.Issuer == "" {
+		t.Fatalf("discovery at %s names no issuer (HTTP %d): %v", at, resp.StatusCode, err)
+	}
+	eps, err := discoverEndpoints(doc.Issuer)
+	if err != nil {
+		t.Fatalf("discovery at the issuer's own name, %s: %v", doc.Issuer, err)
+	}
+	return doc.Issuer, eps.token
+}
+
+func liveClientCredentials(t *testing.T, issuer, tokenEndpoint, clientID, secret string) map[string]any {
+	t.Helper()
+	claims, err := clientCredentialsClaims(tokenEndpoint,
+		semiont.SecretCredential{Issuer: issuer, ClientID: clientID, ClientSecret: secret})
 	if err != nil {
 		t.Fatalf("client-credentials grant for %s: %v — the client sync created is not one Keycloak will mint for", clientID, err)
 	}

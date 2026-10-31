@@ -3383,6 +3383,14 @@ jobs:
   # `roles` and the audience the gateway checks, and that a new key and a
   # revoke do what they say. The live tests skip without a Keycloak to run
   # against; here one that skips fails the job.
+  #
+  # It runs as the launcher runs it under Docker: its hostname fixed at
+  # keycloak.localhost (KC_HOSTNAME), and the endpoints behind it following
+  # the address asked (--hostname-backchannel-dynamic). The tests administer
+  # it at localhost and sign in at the issuer's own name, as the services do.
+  # A Keycloak whose issuer follows the request admits a key's assertion at
+  # any address, so a check against one passes where the launcher's start is
+  # refused.
   test-launcher-keycloak:
     name: Launcher Tests (Go, Keycloak)
     runs-on: ubuntu-latest
@@ -3415,7 +3423,8 @@ jobs:
           image=$(scripts/ci/keycloak-image.sh)
           docker run -d --name keycloak -p 8080:8080 \
             -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD" \
-            "$image" start-dev
+            -e KC_HOSTNAME=http://keycloak.localhost:8080 \
+            "$image" start-dev --hostname-backchannel-dynamic=true
           for attempt in $(seq 1 90); do
             if curl -sf -o /dev/null "$SEMIONT_LIVE_KEYCLOAK/realms/master"; then
               exit 0
@@ -3425,6 +3434,17 @@ jobs:
           docker logs keycloak
           echo "Keycloak did not answer within three minutes"
           exit 1
+
+      - name: Keycloak names its issuer elsewhere than where the tests reach it
+        working-directory: .
+        run: |
+          discovery=$(curl -sf "$SEMIONT_LIVE_KEYCLOAK/realms/master/.well-known/openid-configuration")
+          issuer=$(echo "$discovery" | jq -r .issuer)
+          token=$(echo "$discovery" | jq -r .token_endpoint)
+          if [ "$issuer" != "http://keycloak.localhost:8080/realms/master" ] || [ "$token" != "$SEMIONT_LIVE_KEYCLOAK/realms/master/protocol/openid-connect/token" ]; then
+            echo "::error::Keycloak asked at $SEMIONT_LIVE_KEYCLOAK names its issuer $issuer and its token endpoint $token; the launcher's names the issuer at its fixed hostname and the token endpoint where it was asked"
+            exit 1
+          fi
 
       - name: Run the live tests against it
         run: |
