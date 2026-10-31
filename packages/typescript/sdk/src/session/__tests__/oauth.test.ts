@@ -323,6 +323,24 @@ describe('refresh and revocation', () => {
       expect(stored(storage)).toBeNull();
     });
 
+    it('a renewal that finds the stored session already renewed by another context leaves it as it found it, and gives its token', async () => {
+      const storage = seeded();
+      const renewedElsewhere = JSON.stringify({
+        access: 'acc-elsewhere',
+        refresh: 'ref-elsewhere',
+        clientId: BROWSER_CLIENT_ID,
+        tokenEndpoint: `${ISSUER}/token`,
+      });
+      fetchMock.mockImplementation(async () => {
+        // Another context's renewal lands while the grant is on its way.
+        storage.set(`semiont.session.${KB}`, renewedElsewhere);
+        return reply({ access_token: 'acc-2', refresh_token: 'ref-2' });
+      });
+
+      expect(await refreshStoredSession(storage, KB)).toBe('acc-elsewhere');
+      expect(storage.get(`semiont.session.${KB}`)).toBe(renewedElsewhere);
+    });
+
     it('rides out a 503 and returns the renewed token', async () => {
       fetchMock
         .mockImplementationOnce(async () => reply(undefined, 503))
