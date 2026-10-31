@@ -136,7 +136,7 @@
     "@exodus/bytes": "1.16.0",
     "@opencode-ai/models": "0.0.116",
     "@redocly/cli": "^2.34.0",
-    "glob": "^13.0.6",
+    "glob": "^14.0.3",
     "@types/node": "^26.0.0",
     "baseline-browser-mapping": "^2.9.6",
     "smol-toml": "^1.9.0",
