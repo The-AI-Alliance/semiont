@@ -34,6 +34,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1332,19 +1333,20 @@ func TestStartHostOllamaBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
-// machineOllama: the machine's Ollama record, and how the local stack
-// records the role it serves, read from the PARSED record: the machine-level
-// record and a stack service could both say "ollama", so a substring cannot
-// say where it appeared.
-type machineOllama struct {
-	Ollama *struct {
+// machineRecords: the machine's containers' records, and how the local stack
+// records the roles they serve, read from the PARSED record: a machine record
+// and a stack service could both say "ollama", so a substring cannot say
+// where it appeared.
+type machineRecords struct {
+	Machine map[string]*struct {
 		Container string `json:"container"`
 		ID        string `json:"id"`
 		Image     string `json:"image"`
 		Runtime   string `json:"runtime"`
 		Endpoint  string `json:"endpoint"`
 		Cache     string `json:"cache"`
-	} `json:"ollama"`
+		Ports     []int  `json:"ports"`
+	} `json:"machine"`
 	Stacks map[string]struct {
 		Ports    []int `json:"ports"`
 		Services map[string]struct {
@@ -1355,13 +1357,13 @@ type machineOllama struct {
 	} `json:"stacks"`
 }
 
-func readMachineOllama(t *testing.T, s *scenario) machineOllama {
+func readMachineRecords(t *testing.T, s *scenario) machineRecords {
 	t.Helper()
 	rec, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	var m machineOllama
+	var m machineRecords
 	if err := json.Unmarshal(rec, &m); err != nil {
 		t.Fatalf("stack.json: %v\n%s", err, rec)
 	}
@@ -1378,16 +1380,20 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	first := readMachineOllama(t, s)
-	if first.Ollama == nil || first.Ollama.Container != "semiont-ollama" || first.Ollama.ID == "" || first.Ollama.Runtime != "container" {
-		t.Fatalf("no machine-level Ollama record naming its container, ID and runtime: %+v", first.Ollama)
+	first := readMachineRecords(t, s)
+	ollama := first.Machine["semiont-ollama"]
+	if ollama == nil || ollama.Container != "semiont-ollama" || ollama.ID == "" || ollama.Runtime != "container" {
+		t.Fatalf("no machine-level Ollama record naming its container, ID and runtime: %+v", ollama)
 	}
-	if first.Ollama.Cache != "semiont-ollama-models" {
-		t.Errorf("the record's cache is %q: want the named volume a home with no ~/.ollama gets", first.Ollama.Cache)
+	if ollama.Cache != "semiont-ollama-models" {
+		t.Errorf("the record's cache is %q: want the named volume a home with no ~/.ollama gets", ollama.Cache)
+	}
+	if !slices.Equal(ollama.Ports, []int{11434}) {
+		t.Errorf("the record's ports are %v: want the 11434 its start required free", ollama.Ports)
 	}
 	inference := first.Stacks["local"].Services["inference"]
-	if inference.Provided != "machine" || inference.Container != "" || inference.ID != "" {
-		t.Errorf("the stack records inference as %+v: want provided by the machine, with no container of its own", inference)
+	if inference.Provided != "machine" || inference.Container != "semiont-ollama" || inference.ID != "" {
+		t.Errorf("the stack records inference as %+v: want provided by the machine's semiont-ollama, with no ID of its own", inference)
 	}
 	// Ollama's port is the machine's, not among the stack's claims.
 	for _, p := range first.Stacks["local"].Ports {
@@ -1400,7 +1406,7 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	// would run, keeps it: no stop, no rm, no run, and the record unchanged.
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_ollama=running",
-		"FAKERT_IMAGE_ollama="+first.Ollama.Image)
+		"FAKERT_IMAGE_ollama="+ollama.Image)
 	before := s.mustLog(t)
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
@@ -1416,19 +1422,27 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 			t.Errorf("a current Ollama was churned (%q):\n%s", churn, fresh)
 		}
 	}
-	if kept := readMachineOllama(t, s); kept.Ollama == nil || kept.Ollama.ID != first.Ollama.ID {
-		t.Errorf("the kept Ollama's record changed: %+v, was %+v", kept.Ollama, first.Ollama)
+	if kept := readMachineRecords(t, s).Machine["semiont-ollama"]; kept == nil || kept.ID != ollama.ID {
+		t.Errorf("the kept Ollama's record changed: %+v, was %+v", kept, ollama)
 	}
+
+	// The stack's inference row is the machine's Ollama: its logs are that
+	// container's, by the ID its own record names.
+	before = s.mustLog(t)
+	if stdout, stderr, code := s.run(t, "logs", "--service", "inference"); code != 0 {
+		t.Fatalf("logs --service inference: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "logs --service inference's argv", strings.TrimPrefix(string(s.mustLog(t)), string(before)), "container logs", ollama.ID)
 
 	// A stop of one of the stack's own services leaves it.
 	before = s.mustLog(t)
 	if _, stderr, code := s.run(t, "stop", "--service", "gateway"); code != 0 {
 		t.Fatalf("stop --service gateway: exit %d\nstderr:\n%s", code, stderr)
 	}
-	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); strings.Contains(fresh, "semiont-ollama") || strings.Contains(fresh, first.Ollama.ID) {
+	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); strings.Contains(fresh, "semiont-ollama") || strings.Contains(fresh, ollama.ID) {
 		t.Errorf("stopping the gateway touched the machine's Ollama:\n%s", fresh)
 	}
-	if left := readMachineOllama(t, s); left.Ollama == nil {
+	if readMachineRecords(t, s).Machine["semiont-ollama"] == nil {
 		t.Errorf("stopping the gateway forgot the machine's Ollama")
 	}
 
@@ -1441,8 +1455,8 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	hostCache := filepath.Join(s.home, ".ollama")
 	mustContain(t, "another cache's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama", "-v "+hostCache+":/root/.ollama")
-	if moved := readMachineOllama(t, s); moved.Ollama == nil || moved.Ollama.Cache != hostCache {
-		t.Errorf("the restarted Ollama's record does not name the cache asked for: %+v", moved.Ollama)
+	if moved := readMachineRecords(t, s).Machine["semiont-ollama"]; moved == nil || moved.Cache != hostCache {
+		t.Errorf("the restarted Ollama's record does not name the cache asked for: %+v", moved)
 	}
 
 	// A stale image restarts it.
@@ -1462,7 +1476,7 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	// current one.
 	for i, e := range s.extraEnv {
 		if strings.HasPrefix(e, "FAKERT_IMAGE_ollama=") {
-			s.extraEnv[i] = "FAKERT_IMAGE_ollama=" + first.Ollama.Image
+			s.extraEnv[i] = "FAKERT_IMAGE_ollama=" + ollama.Image
 		}
 	}
 	before = s.mustLog(t)
@@ -1471,6 +1485,20 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	}
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	mustContain(t, "--service inference's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama")
+
+	// Its dry run says so, from the record, and runs nothing.
+	restarted := readMachineRecords(t, s).Machine["semiont-ollama"]
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "stop", "--service", "inference", "--dry-run")
+	if code != 0 {
+		t.Fatalf("stop --service inference --dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop --service inference --dry-run", stdout, "# stop the machine's Ollama:",
+		"container stop "+restarted.ID, "container stop semiont-ollama", "container rm semiont-ollama")
+	mustNotContain(t, "stop --service inference --dry-run", stdout, "semiont-gateway")
+	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); fresh != "" {
+		t.Errorf("a dry run ran:\n%s", fresh)
+	}
 
 	// `stop --service inference` stops it alone and forgets its record; the
 	// stack's record stands.
@@ -1485,7 +1513,7 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	if strings.Contains(fresh, "semiont-gateway") {
 		t.Errorf("stop --service inference touched the stack:\n%s", fresh)
 	}
-	if after := readMachineOllama(t, s); after.Ollama != nil || after.Stacks["local"].Services["gateway"].Provided == "" {
+	if after := readMachineRecords(t, s); after.Machine["semiont-ollama"] != nil || after.Stacks["local"].Services["gateway"].Provided == "" {
 		t.Errorf("after stop --service inference: want no Ollama record and the stack's standing, got %+v", after)
 	}
 
@@ -1501,6 +1529,150 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	mustContain(t, "bare stop", stdout, "Ollama stopped", "Browser stopped")
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	mustContain(t, "bare stop's argv", fresh, "container stop semiont-ollama", "container rm semiont-ollama")
+	if left, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
+		t.Errorf("stack.json after a bare stop: %v\n%s", err, left)
+	}
+}
+
+func TestTheMachinesTelemetryLifecycle(t *testing.T) {
+	// The collector, Jaeger and Prometheus run for the machine, as its Ollama
+	// does: each keeps a record of its own, a start keeps a current one, and
+	// its config lives beside the record, written only as it (re)starts.
+	// --no-observe leaves Jaeger and Prometheus alone, and the collector's
+	// traces go to Jaeger whenever Jaeger answers.
+	s := newScenario(t, "container")
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	first := readMachineRecords(t, s)
+	for name, ports := range map[string][]int{
+		"semiont-otel-collector": {4318, 24110}, "semiont-jaeger": {16686, 14318}, "semiont-prometheus": {9090},
+	} {
+		if rec := first.Machine[name]; rec == nil || rec.ID == "" || rec.Runtime != "container" || !slices.Equal(rec.Ports, ports) {
+			t.Errorf("%s's machine record: %+v, want its ID, runtime container and ports %v", name, rec, ports)
+		}
+	}
+	for role, name := range map[string]string{"collector": "semiont-otel-collector", "traces": "semiont-jaeger", "metrics": "semiont-prometheus"} {
+		if svc := first.Stacks["local"].Services[role]; svc.Provided != "machine" || svc.Container != name || svc.ID != "" {
+			t.Errorf("the stack records %s as %+v: want provided by the machine's %s, with no ID of its own", role, svc, name)
+		}
+	}
+	for _, p := range first.Stacks["local"].Ports {
+		if slices.Contains([]int{4318, 24110, 16686, 14318, 9090}, p) {
+			t.Errorf("the telemetry's %d is among the stack's claims: %v", p, first.Stacks["local"].Ports)
+		}
+	}
+	telemetry := filepath.Join(stateHomeFor(s.home), "telemetry")
+	collectorYAML := func() string {
+		t.Helper()
+		b, err := os.ReadFile(filepath.Join(telemetry, "collector.yaml"))
+		if err != nil {
+			t.Fatalf("the collector's config: %v", err)
+		}
+		return string(b)
+	}
+	mustContain(t, "collector.yaml with Jaeger up", collectorYAML(), "otlphttp/jaeger")
+	if _, err := os.Stat(filepath.Join(telemetry, "prometheus.yml")); err != nil {
+		t.Errorf("Prometheus's config: %v", err)
+	}
+	mustContain(t, "first start's argv", string(s.mustLog(t)),
+		filepath.Join("telemetry", "collector.yaml")+":/etc/otelcol/config.yaml:ro",
+		filepath.Join("telemetry", "prometheus.yml")+":/etc/prometheus/prometheus.yml:ro")
+
+	// A re-run that finds each running as its record says, on the image it
+	// would run, keeps it.
+	for _, svc := range []string{"otel-collector", "jaeger", "prometheus"} {
+		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running",
+			"FAKERT_IMAGE_"+svc+"="+first.Machine["semiont-"+svc].Image)
+	}
+	churned := func(label, fresh string, names ...string) {
+		t.Helper()
+		for _, name := range names {
+			for _, churn := range []string{"rm " + name, "--name " + name} {
+				if strings.Contains(fresh, churn) {
+					t.Errorf("%s churned %s (%q):\n%s", label, name, churn, fresh)
+				}
+			}
+		}
+	}
+	before := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("keeping start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "keeping start", stdout, "traces — Jaeger already running", "metrics — Prometheus already running", "collector — OTel already running")
+	churned("a keeping start", strings.TrimPrefix(string(s.mustLog(t)), string(before)), "semiont-otel-collector", "semiont-jaeger", "semiont-prometheus")
+	kept := readMachineRecords(t, s)
+	for _, name := range []string{"semiont-otel-collector", "semiont-jaeger", "semiont-prometheus"} {
+		if k := kept.Machine[name]; k == nil || k.ID != first.Machine[name].ID {
+			t.Errorf("the kept %s's record changed: %+v, was %+v", name, k, first.Machine[name])
+		}
+	}
+
+	// --no-observe leaves Jaeger and Prometheus alone, and the collector,
+	// whose traces still have a Jaeger to go to, is kept.
+	before = s.mustLog(t)
+	if stdout, stderr, code := s.run(t, "start", "--no-observe"); code != 0 {
+		t.Fatalf("start --no-observe: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustNotContain(t, "start --no-observe's argv", fresh, "semiont-jaeger", "semiont-prometheus")
+	churned("start --no-observe", fresh, "semiont-otel-collector")
+
+	// `stop --service traces` stops Jaeger alone and forgets its record.
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "stop", "--service", "traces")
+	if code != 0 {
+		t.Fatalf("stop --service traces: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop --service traces", stdout, "Jaeger stopped")
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "stop --service traces' argv", fresh, "container stop "+first.Machine["semiont-jaeger"].ID, "container rm semiont-jaeger")
+	mustNotContain(t, "stop --service traces' argv", fresh, "semiont-otel-collector", "semiont-prometheus", "semiont-gateway")
+	if after := readMachineRecords(t, s); after.Machine["semiont-jaeger"] != nil || after.Machine["semiont-otel-collector"] == nil {
+		t.Errorf("after stop --service traces: want no Jaeger record and the collector's standing, got %+v", after.Machine)
+	}
+
+	// With no Jaeger to send them to, the collector is restarted into
+	// discarding traces; --no-observe still starts no Jaeger.
+	before = s.mustLog(t)
+	if stdout, stderr, code := s.run(t, "start", "--no-observe"); code != 0 {
+		t.Fatalf("start --no-observe without Jaeger: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "start --no-observe without Jaeger's argv", fresh, "container rm semiont-otel-collector", "--name semiont-otel-collector")
+	mustNotContain(t, "start --no-observe without Jaeger's argv", fresh, "--name semiont-jaeger")
+	mustNotContain(t, "collector.yaml with no Jaeger", collectorYAML(), "otlphttp/jaeger")
+
+	// An observing start brings Jaeger back and restarts the collector into
+	// sending to it; Prometheus, current, is kept.
+	before = s.mustLog(t)
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("observing start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	mustContain(t, "observing start's argv", fresh, "--name semiont-jaeger", "container rm semiont-otel-collector", "--name semiont-otel-collector")
+	churned("an observing start", fresh, "semiont-prometheus")
+	mustContain(t, "collector.yaml with Jaeger back", collectorYAML(), "otlphttp/jaeger")
+
+	// A bare stop stops them after the stack: the collector, Prometheus,
+	// Jaeger, then Ollama, then the Browser.
+	before = s.mustLog(t)
+	stdout, stderr, code = s.run(t, "stop")
+	if code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "bare stop", stdout, "OTel collector stopped", "Prometheus stopped", "Jaeger stopped", "Ollama stopped", "Browser stopped")
+	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
+	order := []string{"stop fid-semiont-gateway", "stop semiont-otel-collector", "stop semiont-prometheus", "stop semiont-jaeger", "stop semiont-ollama", "stop semiont-browser"}
+	at := -1
+	for _, step := range order {
+		i := strings.Index(fresh, step)
+		if i < 0 || i < at {
+			t.Errorf("a bare stop ran %q out of the order %v:\n%s", step, order, fresh)
+		}
+		at = i
+	}
 	if left, err := os.ReadFile(statePathFor(s.home)); !os.IsNotExist(err) {
 		t.Errorf("stack.json after a bare stop: %v\n%s", err, left)
 	}
@@ -2929,7 +3101,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 15 container(s) across container, docker, podman",
+		"Sweeping 12 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -5436,16 +5608,17 @@ func recordedBrowser(t *testing.T, s *scenario) (image, endpoint, memory string)
 		t.Fatal(err)
 	}
 	var rec struct {
-		Browser struct {
+		Machine map[string]struct {
 			Image    string `json:"image"`
 			Endpoint string `json:"endpoint"`
 			Memory   string `json:"memory"`
-		} `json:"browser"`
+		} `json:"machine"`
 	}
 	if err := json.Unmarshal(b, &rec); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	return rec.Browser.Image, rec.Browser.Endpoint, rec.Browser.Memory
+	browser := rec.Machine["semiont-browser"]
+	return browser.Image, browser.Endpoint, browser.Memory
 }
 
 // A start that finds no Browser document writes the launcher's, says where,
@@ -6264,22 +6437,21 @@ func TestStackStateLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stack.json not written: %v", err)
 	}
+	type recordedService struct {
+		Container string `json:"container"`
+		ID        string `json:"id"`
+		Image     string `json:"image"`
+		Provided  string `json:"provided"`
+		Endpoint  string `json:"endpoint"`
+	}
 	type recordedStack struct {
-		Runtime  string `json:"runtime"`
-		Services map[string]struct {
-			Container string `json:"container"`
-			ID        string `json:"id"`
-			Image     string `json:"image"`
-			Provided  string `json:"provided"`
-			Endpoint  string `json:"endpoint"`
-		} `json:"services"`
+		Runtime  string                     `json:"runtime"`
+		Services map[string]recordedService `json:"services"`
 	}
 	var set struct {
-		Schema  int                      `json:"schema"`
-		Stacks  map[string]recordedStack `json:"stacks"`
-		Browser *struct {
-			ID string `json:"id"`
-		} `json:"browser"`
+		Schema  int                        `json:"schema"`
+		Stacks  map[string]recordedStack   `json:"stacks"`
+		Machine map[string]recordedService `json:"machine"`
 	}
 	if err := json.Unmarshal(b, &set); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
@@ -6292,12 +6464,12 @@ func TestStackStateLifecycle(t *testing.T) {
 		t.Errorf("schema/runtime: got %d/%q", set.Schema, st.Runtime)
 	}
 	// browser is deliberately ABSENT from the stack's services: the Browser
-	// is machine-level, a viewer of every KB, recorded under "browser".
+	// is machine-level, a viewer of every KB, recorded among the machine's.
 	if _, ok := st.Services["browser"]; ok {
 		t.Error("browser recorded as a stack service — the Browser is machine-level")
 	}
-	if set.Browser == nil || set.Browser.ID != "fid-semiont-browser" {
-		t.Errorf("browser record missing or wrong: %+v", set.Browser)
+	if b := set.Machine["semiont-browser"]; b.ID != "fid-semiont-browser" {
+		t.Errorf("browser record missing or wrong: %+v", set.Machine)
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
@@ -6334,6 +6506,18 @@ func TestStackStateLifecycle(t *testing.T) {
 		}
 		if e.Endpoint == "" {
 			t.Errorf("%s: endpoint not recorded", role)
+		}
+		// A role the machine's container serves names that container; the
+		// machine's own record holds what runs.
+		if e.Provided == "machine" {
+			m, ok := set.Machine[e.Container]
+			if !ok || m.ID != "fid-"+e.Container || m.Image == "" {
+				t.Errorf("%s: served by the machine's %q, whose record is %+v", role, e.Container, m)
+			}
+			if e.ID != "" || e.Image != "" {
+				t.Errorf("%s: served by the machine, yet the stack's record carries id %q / image %q", role, e.ID, e.Image)
+			}
+			continue
 		}
 		if e.Container == "" {
 			if !driverDependent[role] {
@@ -8108,7 +8292,7 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	}
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_ollama=running",
-		"FAKERT_IMAGE_ollama="+readMachineOllama(t, s).Ollama.Image)
+		"FAKERT_IMAGE_ollama="+readMachineRecords(t, s).Machine["semiont-ollama"].Image)
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("keeping start: exit %d\nstderr:\n%s", code, stderr)
@@ -8214,7 +8398,7 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 	// The stack records embedding as served by the machine's Ollama, so
 	// --service embedding is what stops that Ollama alone; --service
 	// inference, which Claude performs, leaves it.
-	if m := readMachineOllama(t, s); m.Ollama == nil || m.Stacks["local"].Services["embedding"].Provided != "machine" {
+	if m := readMachineRecords(t, s); m.Machine["semiont-ollama"] == nil || m.Stacks["local"].Services["embedding"].Provided != "machine" {
 		t.Errorf("want the machine's Ollama recorded and embedding provided by it, got %+v", m)
 	}
 	before := s.mustLog(t)
@@ -8993,7 +9177,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	// place, or contradict itself.
 	rec, _ := os.ReadFile(statePathFor(s.home))
 	var placement struct {
-		Browser *json.RawMessage `json:"browser"`
+		Machine map[string]json.RawMessage `json:"machine"`
 		Stacks  map[string]struct {
 			Services map[string]json.RawMessage `json:"services"`
 		} `json:"stacks"`
@@ -9001,7 +9185,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	if err := json.Unmarshal(rec, &placement); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	if placement.Browser == nil {
+	if _, ok := placement.Machine["semiont-browser"]; !ok {
 		t.Errorf("no machine-level browser record:\n%s", rec)
 	}
 	if _, wrong := placement.Stacks["local"].Services["browser"]; wrong {
@@ -9027,12 +9211,12 @@ func TestBrowserLifecycle(t *testing.T) {
 
 	// The first start ran the verified image, by its digest.
 	var ran struct {
-		Browser struct {
+		Machine map[string]struct {
 			Image string `json:"image"`
-		} `json:"browser"`
+		} `json:"machine"`
 	}
-	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Browser.Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
-		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Browser.Image, err)
+	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Machine["semiont-browser"].Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
+		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Machine["semiont-browser"].Image, err)
 	}
 
 	// Stop: the stack and the Browser both, and both records. Slice the
@@ -9061,7 +9245,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	// ran.
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_browser=running",
-		"FAKERT_IMAGE_browser="+ran.Browser.Image)
+		"FAKERT_IMAGE_browser="+ran.Machine["semiont-browser"].Image)
 	before := s.mustLog(t)
 	stdout, stderr, code = s.run(t, "start")
 	if code != 0 {

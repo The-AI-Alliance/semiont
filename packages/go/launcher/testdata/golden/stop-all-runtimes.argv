@@ -10,9 +10,6 @@ container stop semiont-gateway
 container stop semiont-keycloak
 container stop semiont-nats
 container stop semiont-postgres
-container stop semiont-otel-collector
-container stop semiont-prometheus
-container stop semiont-jaeger
 container logs semiont-weaver
 container logs semiont-smelter
 container logs semiont-worker
@@ -25,9 +22,6 @@ container logs semiont-gateway
 container logs semiont-keycloak
 container logs semiont-nats
 container logs semiont-postgres
-container logs semiont-otel-collector
-container logs semiont-prometheus
-container logs semiont-jaeger
 container rm semiont-weaver
 container rm semiont-smelter
 container rm semiont-worker
@@ -40,9 +34,6 @@ container rm semiont-gateway
 container rm semiont-keycloak
 container rm semiont-nats
 container rm semiont-postgres
-container rm semiont-otel-collector
-container rm semiont-prometheus
-container rm semiont-jaeger
 docker stop semiont-weaver
 docker stop semiont-smelter
 docker stop semiont-worker
@@ -55,9 +46,6 @@ docker stop semiont-gateway
 docker stop semiont-keycloak
 docker stop semiont-nats
 docker stop semiont-postgres
-docker stop semiont-otel-collector
-docker stop semiont-prometheus
-docker stop semiont-jaeger
 docker logs --tail 5000 semiont-weaver
 docker logs --tail 5000 semiont-smelter
 docker logs --tail 5000 semiont-worker
@@ -70,9 +58,6 @@ docker logs --tail 5000 semiont-gateway
 docker logs --tail 5000 semiont-keycloak
 docker logs --tail 5000 semiont-nats
 docker logs --tail 5000 semiont-postgres
-docker logs --tail 5000 semiont-otel-collector
-docker logs --tail 5000 semiont-prometheus
-docker logs --tail 5000 semiont-jaeger
 docker rm semiont-weaver
 docker rm semiont-smelter
 docker rm semiont-worker
@@ -85,9 +70,6 @@ docker rm semiont-gateway
 docker rm semiont-keycloak
 docker rm semiont-nats
 docker rm semiont-postgres
-docker rm semiont-otel-collector
-docker rm semiont-prometheus
-docker rm semiont-jaeger
 podman stop semiont-weaver
 podman stop semiont-smelter
 podman stop semiont-worker
@@ -100,9 +82,6 @@ podman stop semiont-gateway
 podman stop semiont-keycloak
 podman stop semiont-nats
 podman stop semiont-postgres
-podman stop semiont-otel-collector
-podman stop semiont-prometheus
-podman stop semiont-jaeger
 podman logs --tail 5000 semiont-weaver
 podman logs --tail 5000 semiont-smelter
 podman logs --tail 5000 semiont-worker
@@ -115,9 +94,6 @@ podman logs --tail 5000 semiont-gateway
 podman logs --tail 5000 semiont-keycloak
 podman logs --tail 5000 semiont-nats
 podman logs --tail 5000 semiont-postgres
-podman logs --tail 5000 semiont-otel-collector
-podman logs --tail 5000 semiont-prometheus
-podman logs --tail 5000 semiont-jaeger
 podman rm semiont-weaver
 podman rm semiont-smelter
 podman rm semiont-worker
@@ -130,8 +106,23 @@ podman rm semiont-gateway
 podman rm semiont-keycloak
 podman rm semiont-nats
 podman rm semiont-postgres
+container stop semiont-otel-collector
+container rm semiont-otel-collector
+docker stop semiont-otel-collector
+docker rm semiont-otel-collector
+podman stop semiont-otel-collector
 podman rm semiont-otel-collector
+container stop semiont-prometheus
+container rm semiont-prometheus
+docker stop semiont-prometheus
+docker rm semiont-prometheus
+podman stop semiont-prometheus
 podman rm semiont-prometheus
+container stop semiont-jaeger
+container rm semiont-jaeger
+docker stop semiont-jaeger
+docker rm semiont-jaeger
+podman stop semiont-jaeger
 podman rm semiont-jaeger
 container stop semiont-ollama
 container rm semiont-ollama
@@ -151,9 +142,9 @@ lsof -nP -iTCP:24102 -sTCP:LISTEN
 lsof -nP -iTCP:24103 -sTCP:LISTEN
 lsof -nP -iTCP:24104 -sTCP:LISTEN
 lsof -nP -iTCP:24105 -sTCP:LISTEN
+lsof -nP -iTCP:4222 -sTCP:LISTEN
 lsof -nP -iTCP:4318 -sTCP:LISTEN
 lsof -nP -iTCP:24110 -sTCP:LISTEN
+lsof -nP -iTCP:9090 -sTCP:LISTEN
 lsof -nP -iTCP:16686 -sTCP:LISTEN
 lsof -nP -iTCP:14318 -sTCP:LISTEN
-lsof -nP -iTCP:9090 -sTCP:LISTEN
-lsof -nP -iTCP:4222 -sTCP:LISTEN

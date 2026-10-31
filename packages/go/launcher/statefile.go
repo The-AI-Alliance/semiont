@@ -27,14 +27,14 @@ import (
 // Provided values: who provides this role.
 const (
 	providedLauncher = "launcher" // a container this launcher started for this stack
-	providedMachine  = "machine"  // the machine's Ollama: a container this launcher runs outside every stack (StackSet.Ollama)
+	providedMachine  = "machine"  // a container this launcher runs for the machine, outside every stack (StackSet.Machine)
 	providedHost     = "host"     // a host process (reused, not launched)
 	providedExternal = "external" // config-declared external endpoint
 	providedNone     = "none"     // not referenced by the config
 )
 
 type ServiceState struct {
-	Container string `json:"container,omitempty"` // container name (launcher-provided only)
+	Container string `json:"container,omitempty"` // container name (launcher- and machine-provided only)
 	ID        string `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string `json:"image,omitempty"`     // full image ref
 	Provided  string `json:"provided,omitempty"`  // launcher|machine|host|external|none
@@ -48,7 +48,10 @@ type ServiceState struct {
 	// live only when the key happens to be in its environment.
 	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
 	Endpoint     string                     `json:"endpoint,omitempty"` // health probe: http(s) URL or tcp:<host>:<port>
-	Runtime      string                     `json:"runtime,omitempty"`  // the Browser's and Ollama's records only: the runtime that runs it (stack services get theirs from the stack)
+	Runtime      string                     `json:"runtime,omitempty"`  // machine records only: the runtime that runs it (stack services get theirs from the stack)
+	// Ports: machine records only — the host ports its start required free,
+	// which a stop verifies released, as a stack's record holds its own.
+	Ports []int `json:"ports,omitempty"`
 	// Memory: the Browser's record only — the ceiling its document gave it,
 	// which with its image and endpoint decides whether a start keeps it.
 	Memory string `json:"memory,omitempty"`
@@ -140,16 +143,13 @@ type StackSet struct {
 	UpdatedAt time.Time              `json:"updatedAt"`
 	Launcher  string                 `json:"launcherVersion"`
 	Stacks    map[string]*StackState `json:"stacks"`
-	// Browser: the machine-level viewer, deliberately OUTSIDE every stack:
-	// it serves any number of KBs, any start ensures it, and a bare stop
-	// stops it with everything else.
-	Browser *ServiceState `json:"browser,omitempty"`
-	// Ollama: the machine's Ollama container, outside every stack for the
-	// same reasons: one serves every KB whose engines name Ollama, a start
-	// keeps a current one, and only a bare stop or `stop --service` on the
-	// role a stack runs it under stops it. A host Ollama is the host's, and
-	// has no record.
-	Ollama *ServiceState `json:"ollama,omitempty"`
+	// Machine: the containers the launcher runs for the machine rather than
+	// for one stack, by container name: the Browser, the machine's Ollama,
+	// and the telemetry (the collector, Jaeger and Prometheus). Each serves
+	// every KB here, a start keeps a current one, and only a bare stop or a
+	// stop of its own role stops it. A host Ollama is the host's, and has no
+	// record.
+	Machine map[string]*ServiceState `json:"machine,omitempty"`
 	// unreadable: why the file on disk could not be understood, nil when it
 	// was (an ABSENT file included — no record is a clean, expected state).
 	//
@@ -273,7 +273,7 @@ func saveStackSet(ss *StackSet) {
 	if ss.unreadable != nil {
 		return
 	}
-	if len(ss.Stacks) == 0 && ss.Browser == nil && ss.Ollama == nil {
+	if len(ss.Stacks) == 0 && len(ss.Machine) == 0 {
 		_ = os.Remove(p)
 		writeDiscovery(ss) // empty list, not an absent file
 		return
@@ -314,44 +314,34 @@ func forgetStack(key string) {
 	saveStackSet(ss)
 }
 
-// saveBrowser upserts the machine-level browser record.
-func saveBrowser(e *ServiceState) {
+// saveMachine upserts the record of a container the launcher runs for the
+// machine, by its container name.
+func saveMachine(e *ServiceState) {
 	ss := LoadStackSet()
-	ss.Browser = e
+	if ss.Machine == nil {
+		ss.Machine = map[string]*ServiceState{}
+	}
+	ss.Machine[e.Container] = e
 	saveStackSet(ss)
 }
 
-// clearBrowser forgets it (the targeted `stop --service browser`).
-func clearBrowser() {
+// forgetMachine forgets the machine container name: stopped, or (Ollama)
+// replaced by a host install.
+func forgetMachine(name string) {
 	ss := LoadStackSet()
-	if ss.Browser == nil {
+	if ss.Machine[name] == nil {
 		return
 	}
-	ss.Browser = nil
-	saveStackSet(ss)
-}
-
-// saveOllama upserts the machine's Ollama record.
-func saveOllama(e *ServiceState) {
-	ss := LoadStackSet()
-	ss.Ollama = e
-	saveStackSet(ss)
-}
-
-// clearOllama forgets it: stopped, or replaced by a host Ollama.
-func clearOllama() {
-	ss := LoadStackSet()
-	if ss.Ollama == nil {
-		return
-	}
-	ss.Ollama = nil
+	delete(ss.Machine, name)
 	saveStackSet(ss)
 }
 
 // recordService updates one service's entry and saves. provided says who
-// provides the role; endpoint is the health probe status should use.
-func (st *StackState) recordService(role, id, image, provided, endpoint, driver string, models []servedModel) {
-	e := ServiceState{
+// provides the role, and container which container does, when one the
+// launcher runs does; endpoint is the health probe status should use.
+func (st *StackState) recordService(role, container, id, image, provided, endpoint, driver string, models []servedModel) {
+	st.Services[role] = ServiceState{
+		Container: container,
 		ID:        id,
 		Image:     image,
 		Provided:  provided,
@@ -360,9 +350,5 @@ func (st *StackState) recordService(role, id, image, provided, endpoint, driver 
 		Models:    models,
 		StartedAt: time.Now().UTC(),
 	}
-	if provided == providedLauncher {
-		e.Container = descriptorFor(role, driver).container
-	}
-	st.Services[role] = e
 	saveStack(st)
 }

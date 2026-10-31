@@ -133,6 +133,21 @@ semiont stop
   --service inference` stops it alone (`--service embedding`, where the
   stack runs it for the embeddings alone), and a stop of any other one
   service leaves it.
+- **The telemetry is the machine's too**: one OTel collector takes every
+  KB's signals, each labelled with the KB that sent it, with Jaeger and
+  Prometheus behind it. Their records live beside the stacks, as the
+  Browser's and Ollama's do, and their configs (`collector.yaml`,
+  `prometheus.yml`) in `telemetry/` in the state home, written only as
+  their container (re)starts; their ports are never among a stack's claims.
+  A start KEEPS a running one when it runs the image the start would, its
+  record says this start's runtime and address, and its config is what this
+  start would write; it is restarted otherwise, and when no record names it.
+  The collector sends traces to Jaeger whenever Jaeger answers, so a start
+  that brings Jaeger back restarts the collector into sending to it.
+  `--no-observe` starts neither Jaeger nor Prometheus, and leaves running
+  ones alone. `semiont start --service collector|traces|metrics` always
+  restarts that one; `semiont stop` stops them with the stack, and `semiont
+  stop --service collector|traces|metrics` stops that one alone.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
   own secrets come from (`secret`), the Browser's document (`browser`: its
@@ -533,7 +548,7 @@ semiont stop
   dispatcher, browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start reads the
   service's own credential from the per-root state a full start persisted —
-  nothing is recovered out of a running container — auto-enables OTel iff Jaeger is up, and stages the
+  nothing is recovered out of a running container — auto-enables OTel iff the collector is up, and stages the
   service's document afresh; a `--service` stop leaves the staged configs in
   place (the rest of the stack still mounts them); a `--service` status exits
   0/1 on that service alone.

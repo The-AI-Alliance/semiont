@@ -163,11 +163,17 @@ semiont start
 
 The OTel collector **always** runs (OTLP on `:4318`, its own readout on `:24110`) and
 `OTEL_EXPORTER_OTLP_ENDPOINT` is wired into all seven service containers; `--no-observe`
-skips only Jaeger and Prometheus — the collector then discards traces, and the metrics
-readout is still served for anything that wants to scrape it. Jaeger's own OTLP ingest
+starts neither Jaeger nor Prometheus, and leaves running ones alone. The collector sends
+traces to Jaeger whenever Jaeger answers, and discards them otherwise; the metrics readout
+is served either way, for anything that wants to scrape it. Jaeger's own OTLP ingest
 sits on `:14318` (the collector owns `:4318` and forwards). A single service started with
-`--service` exports only when the stack's collector is already running. Do not run a
+`--service` exports only when the collector is already running. Do not run a
 Jaeger of your own on `:4318`: that port is the collector's.
+
+The three are the machine's, not one knowledge base's: every knowledge base started on
+the machine exports to the one collector, a start keeps them running when they are as it
+would start them, and `semiont stop` stops them with the stack.
+`semiont stop --service collector|traces|metrics` stops one alone.
 
 ### Verifying spans are flowing
 

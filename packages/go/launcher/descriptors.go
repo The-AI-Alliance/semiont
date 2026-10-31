@@ -591,6 +591,17 @@ var stackServices = func() []string {
 // skipping the roles the caller names as exempt. Both sweeps are this
 // function; they differ only in what they exempt, which is the whole of the
 // difference between them.
+// telemetryRoles: the telemetry the launcher runs for the machine, in the
+// order a bare stop stops it — the collector before the backends it exports
+// to.
+var telemetryRoles = []string{"collector", "metrics", "traces"}
+
+// machineRoles: the roles whose container the launcher runs for the machine
+// rather than for one stack, in the order a bare stop stops them after the
+// stack: the telemetry, the machine's Ollama, the Browser. Neither sweep
+// names them; each is kept, replaced and stopped from its own record.
+var machineRoles = slices.Concat(telemetryRoles, []string{"inference", "browser"})
+
 func sweepNames(exempt ...string) []string {
 	var out []string
 	for _, r := range teardownOrder {
