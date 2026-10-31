@@ -16,8 +16,10 @@ once, and one in flight, which the closing ends, is not made again.
 """
 
 import asyncio
-from collections.abc import AsyncIterable, Awaitable, Callable, Coroutine
-from typing import final
+from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Awaitable, Callable, Coroutine
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from functools import partial
+from typing import final, override
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
@@ -68,6 +70,29 @@ def _names_refusal_rate(body: bytes) -> bool:
 
 
 @final
+class _Waited(httpx.AsyncByteStream):
+    """An answer's body, each piece of it awaited as a wait on the wire (`waiting`), which the transport's close ends."""
+
+    def __init__(self, body: httpx.AsyncByteStream, waiting: Callable[[], AbstractAsyncContextManager[None]]) -> None:
+        self._body = body
+        self._waiting = waiting
+
+    @override
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        pieces = aiter(self._body)
+        while True:
+            async with self._waiting():
+                piece = await anext(pieces, None)
+            if piece is None:
+                return
+            yield piece
+
+    @override
+    async def aclose(self) -> None:
+        await self._body.aclose()
+
+
+@final
 class Exchange:
     """A transport's requests of its gateway, and the tasks it runs for its callers."""
 
@@ -90,6 +115,10 @@ class Exchange:
         self._deadline_ms = deadline_ms
         self._closing = closing
         self._tasks: set[asyncio.Task[object]] = set()
+        self._waiting: set[asyncio.Task[object]] = set()
+        """The tasks waiting on the wire now."""
+        self._cut: set[asyncio.Task[object]] = set()
+        """The tasks whose wait `ended` cut."""
 
     def failed(self, error: TransportError) -> TransportError:
         """Report a failure on the error stream, and hand it back for its caller."""
@@ -129,8 +158,36 @@ class Exchange:
         return task
 
     async def ended(self) -> None:
-        """Wait for every task `run` began. Called once the HTTP client is closed, which ends each of them."""
+        """End every wait on the wire, each as a request that got no answer, and wait for every task `run` began: the transport is over."""
+        for task in self._waiting:
+            self._cut.add(task)
+            task.cancel()
         await asyncio.gather(*self._tasks, return_exceptions=True)
+
+    @asynccontextmanager
+    async def _on_wire(self, unanswered: str) -> AsyncGenerator[None]:
+        """A wait on the wire: a request's answer, or a piece of its body. Ended by `ended`, it fails as a request that got none.
+
+        `unanswered` says what got no answer. Once the transport is closing no
+        wait begins. It is ended as a deadline ends one, in its own task, so the
+        HTTP client, which may be its caller's, is never closed for it.
+        """
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("a request of a gateway is made in a task")
+        if self._closing.is_set():
+            raise self.failed(TransportError.without_response(f"{unanswered}: the transport is closed"))
+        cancelling = task.cancelling()
+        self._waiting.add(task)
+        try:
+            yield
+        except asyncio.CancelledError:
+            # Ended by `ended` alone, not by whoever runs the task as well: then it is a request that got no answer.
+            if task in self._cut and task.uncancel() <= cancelling:
+                raise self.failed(TransportError.without_response(f"{unanswered}: the transport is closed")) from None
+            raise
+        finally:
+            self._waiting.discard(task)
 
     async def begin(
         self,
@@ -144,8 +201,8 @@ class Exchange:
     ) -> httpx.Response:
         """Make a request, and return its answer once it has begun: the response, its body not yet read.
 
-        The caller reads the body and closes the response. A refusal is read
-        here and raised. The answer is to begin within the transport's
+        The caller reads the body and closes the response; the transport's
+        close ends a read under way. A refusal is read here and raised. The answer is to begin within the transport's
         deadline, unless the request is made `at_length`: then it may take as
         long as it takes. A body that is sent as it is made is given as what
         makes it, so a second attempt sends it from its start.
@@ -164,7 +221,10 @@ class Exchange:
                 content=content() if callable(content) else content,
             )
             try:
-                async with asyncio.timeout(None if at_length else self._deadline_ms / 1000):
+                async with (
+                    asyncio.timeout(None if at_length else self._deadline_ms / 1000),
+                    self._on_wire(f"{method} {path} got no answer"),
+                ):
                     response = await self._http.send(request, stream=True)
             except TimeoutError:
                 raise self.failed(self._unanswered(method, path)) from None
@@ -174,6 +234,10 @@ class Exchange:
                     await asyncio.sleep(REQUEST_RETRY_PAUSE_MS / 1000)
                     continue
                 raise self.failed(TransportError.without_response(f"{method} {path} got no answer: {why_unanswered(error)}")) from None
+            arriving = response.stream
+            if not isinstance(arriving, httpx.AsyncByteStream):
+                raise TypeError("an asynchronous client answers with an asynchronous body")
+            response.stream = _Waited(arriving, partial(self._on_wire, f"{method} {path} ended before its answer did"))
             if response.is_success:
                 return response
 

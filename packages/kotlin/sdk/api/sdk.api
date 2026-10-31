@@ -594,6 +594,8 @@ public final class semiont/errors/TransportError : semiont/errors/SemiontError {
 
 public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/http/TokenRefresher {
 	public fun <init> (Ljava/lang/String;Lsemiont/http/ServiceToken;)V
+	public fun <init> (Ljava/lang/String;Lsemiont/http/ServiceToken;Ljava/net/http/HttpClient;)V
+	public synthetic fun <init> (Ljava/lang/String;Lsemiont/http/ServiceToken;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public final fun getDid ()Lsemiont/identifiers/UserId;
 	public final fun getDid-lE7-m4I ()Ljava/lang/String;
@@ -605,11 +607,17 @@ public final class semiont/http/AgentToken : java/lang/AutoCloseable, semiont/ht
 }
 
 public final class semiont/http/AuthorizationKt {
-	public static final fun beginAuthorization (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun beginAuthorization (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun beginAuthorization$default (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun beginAuthorizationFuture (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun beginAuthorizationFuture (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun beginAuthorizationFuture$default (Lsemiont/http/BeginAuthorizationOptions;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public static final fun codeChallenge (Ljava/lang/String;)Ljava/lang/String;
-	public static final fun completeAuthorization (Ljava/lang/String;Lsemiont/storage/SessionStorage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun completeAuthorization (Ljava/lang/String;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun completeAuthorization$default (Ljava/lang/String;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun completeAuthorizationFuture (Ljava/lang/String;Lsemiont/storage/SessionStorage;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun completeAuthorizationFuture (Ljava/lang/String;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun completeAuthorizationFuture$default (Ljava/lang/String;Lsemiont/storage/SessionStorage;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/BeginAuthorizationOptions {
@@ -641,8 +649,11 @@ public abstract interface class semiont/http/Bookmarks {
 }
 
 public final class semiont/http/ConnectKt {
-	public static final fun describeConnection (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun describeConnection (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun describeConnection$default (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun describeConnectionFuture (Lsemiont/types/HttpEndpoint;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun describeConnectionFuture (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun describeConnectionFuture$default (Lsemiont/types/HttpEndpoint;Ljava/lang/String;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/ConnectionIdentity {
@@ -684,6 +695,8 @@ public final class semiont/http/DeviceCode {
 
 public final class semiont/http/DiscoveryKt {
 	public static final fun httpDiscovery (Ljava/lang/String;)Lsemiont/discovery/DiscoveryTransport;
+	public static final fun httpDiscovery (Ljava/lang/String;Ljava/net/http/HttpClient;)Lsemiont/discovery/DiscoveryTransport;
+	public static synthetic fun httpDiscovery$default (Ljava/lang/String;Ljava/net/http/HttpClient;ILjava/lang/Object;)Lsemiont/discovery/DiscoveryTransport;
 }
 
 public final class semiont/http/EndpointKt {
@@ -714,6 +727,8 @@ public final class semiont/http/HttpContentTransport : semiont/transport/Content
 
 public final class semiont/http/HttpSessionFactory : semiont/registry/SessionFactory {
 	public fun <init> ()V
+	public fun <init> (Ljava/net/http/HttpClient;)V
+	public synthetic fun <init> (Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun revoke (Lsemiont/registry/StoredSession;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public fun revokeFuture (Lsemiont/registry/StoredSession;)Ljava/util/concurrent/CompletableFuture;
 	public fun session (Lsemiont/registry/SessionFactoryOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -804,12 +819,21 @@ public final class semiont/http/IssuerEndpoints$Companion {
 }
 
 public final class semiont/http/IssuerKt {
-	public static final fun renewKept (Lsemiont/signin/SignInKept;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun renewKept (Lsemiont/signin/SignInKept;Ljava/lang/String;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun renewKept$default (Lsemiont/signin/SignInKept;Ljava/lang/String;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun renewKeptFuture (Lsemiont/signin/SignInKept;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun signInDevice (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun renewKeptFuture (Lsemiont/signin/SignInKept;Ljava/lang/String;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun renewKeptFuture$default (Lsemiont/signin/SignInKept;Ljava/lang/String;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun signInDevice (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Ljava/net/http/HttpClient;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun signInDevice$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Ljava/net/http/HttpClient;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun signInDeviceFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun signOut (Lsemiont/signin/SignInKept;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun signInDeviceFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun signInDeviceFuture$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun signOut (Lsemiont/signin/SignInKept;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun signOut$default (Lsemiont/signin/SignInKept;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun signOutFuture (Lsemiont/signin/SignInKept;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun signOutFuture (Lsemiont/signin/SignInKept;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun signOutFuture$default (Lsemiont/signin/SignInKept;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/KeyCredential : semiont/http/Credential {
@@ -878,18 +902,28 @@ public final class semiont/http/SecretCredential : semiont/http/Credential {
 
 public final class semiont/http/ServiceToken {
 	public fun <init> (Lsemiont/http/Credential;)V
+	public fun <init> (Lsemiont/http/Credential;Ljava/net/http/HttpClient;)V
+	public synthetic fun <init> (Lsemiont/http/Credential;Ljava/net/http/HttpClient;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun authorization (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun authorizationFuture ()Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/SessionsKt {
-	public static final fun beginSignIn (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun beginSignIn (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun beginSignIn$default (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun beginSignInFuture (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun completeSignIn (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun beginSignInFuture (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun beginSignInFuture$default (Lsemiont/registry/SemiontBrowser;Lsemiont/http/BeginAuthorizationOptions;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun completeSignIn (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun completeSignIn$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun completeSignInFuture (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
-	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun completeSignInFuture (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun completeSignInFuture$default (Lsemiont/registry/SemiontBrowser;Ljava/lang/String;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKept (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun sessionFromKept$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;Ljava/net/http/HttpClient;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/util/function/Consumer;)Ljava/util/concurrent/CompletableFuture;
+	public static final fun sessionFromKeptFuture (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun sessionFromKeptFuture$default (Lsemiont/types/KbTarget;Lsemiont/signin/SignInKept;ZLjava/util/List;Lsemiont/storage/SessionStorage;Ljava/util/function/Consumer;Ljava/util/function/Consumer;Ljava/net/http/HttpClient;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 }
 
 public final class semiont/http/Timing {

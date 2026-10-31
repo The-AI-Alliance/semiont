@@ -16,10 +16,8 @@ import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
 import java.time.Duration
 
-/** A transport that reads the discovery document at `url`, each read within `deadlineMs`. */
-private class HttpDiscovery(private val url: String, private val deadlineMs: Long) : DiscoveryTransport {
-    private val http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).followRedirects(HttpClient.Redirect.NORMAL).build()
-
+/** A transport that reads the discovery document at `url` with `http`, each read within `deadlineMs`. */
+private class HttpDiscovery(private val url: String, private val deadlineMs: Long, private val http: HttpClient) : DiscoveryTransport {
     /** The tag of the last document that read as managed; null when that document had none, or none has. */
     @Volatile
     private var tag: String? = null
@@ -46,13 +44,18 @@ private class HttpDiscovery(private val url: String, private val deadlineMs: Lon
     }
 }
 
+/** The discovery reader's own HTTP client: the JDK's, with its default proxy selector and trust store, following a redirect. */
+private fun redirecting(): HttpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).followRedirects(HttpClient.Redirect.NORMAL).build()
+
 /** `httpDiscovery`, each read within `deadlineMs`. */
-internal fun httpDiscovery(url: String, deadlineMs: Long): DiscoveryTransport = HttpDiscovery(url, deadlineMs)
+internal fun httpDiscovery(url: String, deadlineMs: Long): DiscoveryTransport = HttpDiscovery(url, deadlineMs, redirecting())
 
 /**
- * A transport that reads the discovery document at `url`, each read within
- * the timing table's request deadline. A redirect is followed. Its HTTP
- * client keeps the JDK's default proxy selector and trust store, and reads no
- * environment variable.
+ * A transport that reads the discovery document at `url` with `http`, each
+ * read within the timing table's request deadline. Its own client keeps the
+ * JDK's default proxy selector and trust store, reads no environment
+ * variable, and follows a redirect; a caller's client follows its own
+ * redirect policy, and trusts what it trusts.
  */
-public fun httpDiscovery(url: String): DiscoveryTransport = httpDiscovery(url, Timings.HTTP_REQUEST_TIMEOUT_MS)
+@JvmOverloads
+public fun httpDiscovery(url: String, http: HttpClient = redirecting()): DiscoveryTransport = HttpDiscovery(url, Timings.HTTP_REQUEST_TIMEOUT_MS, http)

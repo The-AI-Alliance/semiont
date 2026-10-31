@@ -30,6 +30,8 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
 from typing import Final, final, override
 
+import httpx
+
 from semiont.bus import reply_channels_for
 from semiont.channels import BRIDGED_CHANNELS
 from semiont.client import CachePersistence, SemiontClient
@@ -80,9 +82,10 @@ def _heard(renewal: asyncio.Task[str | None]) -> None:
 class _Renewing:
     """A kept sign-in's renewals at its issuer, one at a time: a renewal asked for while one is under way is that one."""
 
-    def __init__(self, kept: SignInKept, token: Variable[str | None]) -> None:
+    def __init__(self, kept: SignInKept, token: Variable[str | None], http: httpx.AsyncClient | None) -> None:
         self._kept: Final = kept
         self._token: Final = token
+        self._http: Final = http
         self._under_way: asyncio.Task[str | None] | None = None
 
     async def __call__(self) -> str | None:
@@ -95,7 +98,7 @@ class _Renewing:
 
     async def _once(self) -> str | None:
         try:
-            return await renew_kept(self._kept, self._token.value)
+            return await renew_kept(self._kept, self._token.value, http=self._http)
         finally:
             self._under_way = None
 
@@ -107,7 +110,7 @@ class _Renewing:
             await asyncio.gather(under_way, return_exceptions=True)
 
 
-def _asking(base_url: str) -> Validate:
+def _asking(base_url: str, http: httpx.AsyncClient | None) -> Validate:
     """Ask the gateway who a token is: one request, by a caller that holds nothing else.
 
     No stream is opened for it, and nothing renews the token: a refusal is
@@ -115,7 +118,7 @@ def _asking(base_url: str) -> Validate:
     """
 
     async def ask(token: str) -> UserResponse:
-        asking = HttpTransport(base_url, token=Variable[str | None](token), channels=())
+        asking = HttpTransport(base_url, token=Variable[str | None](token), channels=(), http=http)
         try:
             return await asking.get_current_user()
         finally:
@@ -151,6 +154,7 @@ async def session_from_kept(
     storage: SessionStorage | None = None,
     on_auth_failed: Callable[[SessionEndReason], None] | None = None,
     on_error: Callable[[SessionError], None] | None = None,
+    http: httpx.AsyncClient | None = None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """A session with the knowledge base `kb`, at the gateway its endpoint names, over the sign-in `kept` holds.
 
@@ -169,12 +173,16 @@ async def session_from_kept(
     it: the next session over the same storage shows what was kept at once,
     and is sent what was recorded since.
 
+    With `http`, every request of the session, of the gateway and of the
+    issuer, is made with that client, which its caller built and closes
+    (`HttpTransport`, `issuer_client`).
+
     Raises `SessionError` (`session.construct-failed`), before anything is
     asked, for a knowledge base that is not reached over HTTP or whose host is
     no host's name.
     """
     async with _session_started(
-        kb, kept=kept, validate=validate, channels=channels, storage=storage, on_auth_failed=on_auth_failed, on_error=on_error
+        kb, kept=kept, validate=validate, channels=channels, storage=storage, on_auth_failed=on_auth_failed, on_error=on_error, http=http
     ) as session:
         await session.ready()
         yield session
@@ -190,16 +198,17 @@ async def _session_started(
     storage: SessionStorage | None,
     on_auth_failed: Callable[[SessionEndReason], None] | None,
     on_error: Callable[[SessionError], None] | None,
+    http: httpx.AsyncClient | None,
 ) -> AsyncGenerator[SemiontSession[HttpTransport]]:
     """`session_from_kept`'s session as soon as it has started, before it is ready: what a registry holds, and waits on itself."""
     base_url = _gateway_of(kb)
     token = Variable[str | None](None)
-    renewing = _Renewing(kept, token)
+    renewing = _Renewing(kept, token, http)
     # The stream's place rides the caches' writes, and only when every cache is
     # at rest: a place kept ahead of a cache still taking in the event it names
     # would have the next session skip that event.
     places = None if storage is None else CoupledBookmarks(storage, f"semiont.lastEventId.{kb.id}")
-    transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels, bookmarks=places)
+    transport = HttpTransport(base_url, token=token, refresher=lambda: session.refresh(), channels=channels, bookmarks=places, http=http)
     client = SemiontClient(
         transport,
         transport.content,
@@ -214,7 +223,7 @@ async def _session_started(
         token=token,
         kept=kept,
         refresh=renewing,
-        validate=_asking(base_url) if validate else None,
+        validate=_asking(base_url, http) if validate else None,
         on_auth_failed=on_auth_failed,
         on_error=on_error,
     )
@@ -225,14 +234,17 @@ async def _session_started(
         await renewing.close()
 
 
-async def sign_in_device(kb: KbTarget, kept: SignInKept, on_code: Callable[[DeviceCode], None]) -> None:
+async def sign_in_device(
+    kb: KbTarget, kept: SignInKept, on_code: Callable[[DeviceCode], None], *, http: httpx.AsyncClient | None = None
+) -> None:
     """Sign in as a person from a process with no browser, and keep the sign-in in `kept`.
 
     The issuer the knowledge base `kb` trusts mints a code, `on_code` shows
     the person where to approve it, and the tokens come back here: no password
-    passes through this process. Raises `SignInError` when the person is not
-    signed in, and (`discovery`) for a knowledge base that is not reached
-    over HTTP or whose host is no host's name.
+    passes through this process. The knowledge base and the issuer are asked
+    with `http`, when one is given (`issuer_client`). Raises `SignInError`
+    when the person is not signed in, and (`discovery`) for a knowledge base
+    that is not reached over HTTP or whose host is no host's name.
     """
     endpoint = kb.endpoint
     if isinstance(endpoint, LocalEndpoint):
@@ -241,7 +253,7 @@ async def sign_in_device(kb: KbTarget, kept: SignInKept, on_code: Callable[[Devi
         base_url = gateway_url(endpoint)
     except ValueError as invalid:
         raise SignInError("discovery", str(invalid)) from None
-    issuer, tokens = await sign_in_with_device_grant(base_url, on_code)
+    issuer, tokens = await sign_in_with_device_grant(base_url, on_code, http=http)
     await kept.keep(
         HeldSignIn(
             access=tokens.access,
@@ -253,23 +265,24 @@ async def sign_in_device(kb: KbTarget, kept: SignInKept, on_code: Callable[[Devi
     )
 
 
-async def sign_out(kept: SignInKept) -> None:
+async def sign_out(kept: SignInKept, *, http: httpx.AsyncClient | None = None) -> None:
     """End the sign-in `kept` holds: it is revoked at its issuer, when the issuer says where, and kept no more.
 
-    The sign-in is forgotten whatever the issuer answers: a person who signs
-    out is signed out here, and an issuer that could not be told forgets the
-    token when it expires.
+    The issuer is told with `http`, when one is given (`issuer_client`). The
+    sign-in is forgotten whatever the issuer answers: a person who signs out
+    is signed out here, and an issuer that could not be told forgets the token
+    when it expires.
     """
     held = await kept.held()
     if held is None:
         return
     try:
-        await _revoked(held.revocation_endpoint, held.client_id, held.refresh)
+        await _revoked(held.revocation_endpoint, held.client_id, held.refresh, http)
     finally:
         await kept.forget()
 
 
-async def _revoked(revocation_endpoint: str | None, client_id: str, refresh: str) -> None:
+async def _revoked(revocation_endpoint: str | None, client_id: str, refresh: str, http: httpx.AsyncClient | None) -> None:
     """Tell the issuer, when it says where, to forget a refresh token.
 
     Best effort: one that could not be told forgets it when it expires.
@@ -277,8 +290,8 @@ async def _revoked(revocation_endpoint: str | None, client_id: str, refresh: str
     if revocation_endpoint is None:
         return
     try:
-        async with issuer_client() as http:
-            await revoke_at_issuer(http, revocation_endpoint, client_id, refresh)
+        async with issuer_client(http=http) as client:
+            await revoke_at_issuer(client, revocation_endpoint, client_id, refresh)
     except SignInError:
         pass
 
@@ -294,8 +307,12 @@ class HttpSessionFactory(SessionFactory):
     the registry's storage, under the knowledge base's id, and its token is
     renewed at the issuer its stored session names. Each session renews its
     own: a knowledge base's old session and its new one, during a sign-in,
-    are closed in turn.
+    are closed in turn. With `http`, every request of each session, and each
+    revocation, is made with that client, which its caller built and closes.
     """
+
+    def __init__(self, *, http: httpx.AsyncClient | None = None) -> None:
+        self._http: Final = http
 
     @override
     def session(self, options: SessionFactoryOptions) -> AbstractAsyncContextManager[SemiontSession[HttpTransport]]:
@@ -308,11 +325,12 @@ class HttpSessionFactory(SessionFactory):
             storage=options.storage,
             on_auth_failed=options.signals.notify_session_ended,
             on_error=options.on_error,
+            http=self._http,
         )
 
     @override
     async def revoke(self, stored: StoredSession) -> None:
-        await _revoked(stored.revocation_endpoint, stored.client_id, stored.refresh)
+        await _revoked(stored.revocation_endpoint, stored.client_id, stored.refresh, self._http)
 
 
 # ── What a completed sign-in learns ─────────────────────────────────────
@@ -327,8 +345,8 @@ class ConnectionIdentity:
     description: KbDescription
 
 
-async def describe_connection(target: HttpEndpoint, access: str) -> ConnectionIdentity:
-    """Ask the knowledge base at `target` what it is, with a token just issued.
+async def describe_connection(target: HttpEndpoint, access: str, *, http: httpx.AsyncClient | None = None) -> ConnectionIdentity:
+    """Ask the knowledge base at `target` what it is, with a token just issued, and with `http` when one is given.
 
     It describes itself only to a caller that is signed in, so this is asked
     after the sign-in, and never assumed from the address a person typed or
@@ -341,7 +359,7 @@ async def describe_connection(target: HttpEndpoint, access: str) -> ConnectionId
     except ValueError as invalid:
         raise IdentityUnverifiableError("unreachable", str(invalid)) from None
     # A client of this one operation: it hears its replies and nothing else.
-    transport = HttpTransport(base_url, token=Variable[str | None](access), channels=reply_channels_for(BROWSE_KB_REQUESTED))
+    transport = HttpTransport(base_url, token=Variable[str | None](access), channels=reply_channels_for(BROWSE_KB_REQUESTED), http=http)
     asking = SemiontClient(transport, transport.content, transport)
     try:
         async with transport, asking:
@@ -365,27 +383,28 @@ async def describe_connection(target: HttpEndpoint, access: str) -> ConnectionId
 # ── A registry's sign-in through the issuer ─────────────────────────────
 
 
-async def begin_sign_in(browser: SemiontBrowser, options: BeginAuthorizationOptions) -> str:
+async def begin_sign_in(browser: SemiontBrowser, options: BeginAuthorizationOptions, *, http: httpx.AsyncClient | None = None) -> str:
     """Begin a sign-in for a registry.
 
-    It finds the issuer the target trusts, remembers the pending sign-in in the
-    registry's storage, and gives the URL to send the person to.
+    It finds the issuer the target trusts, with `http` when one is given,
+    remembers the pending sign-in in the registry's storage, and gives the URL
+    to send the person to.
     """
-    return await begin_authorization(options, browser.storage)
+    return await begin_authorization(options, browser.storage, http=http)
 
 
-async def complete_sign_in(browser: SemiontBrowser, callback_url: str) -> SignInOutcome:
+async def complete_sign_in(browser: SemiontBrowser, callback_url: str, *, http: httpx.AsyncClient | None = None) -> SignInOutcome:
     """Finish a sign-in from the URL the issuer sent the person back to.
 
-    It exchanges the code, asks the knowledge base who it is, and has the
-    registry land the sign-in on the entry for the knowledge base that
-    answered (`SemiontBrowser.signed_in`). Raises `SignInError` when the grant
-    failed, and `IdentityUnverifiableError` when it succeeded and the
-    knowledge base could not say who it is: then nothing is registered, and
-    nothing is stored.
+    It exchanges the code, asks the knowledge base who it is, each with `http`
+    when one is given, and has the registry land the sign-in on the entry for
+    the knowledge base that answered (`SemiontBrowser.signed_in`). Raises
+    `SignInError` when the grant failed, and `IdentityUnverifiableError` when
+    it succeeded and the knowledge base could not say who it is: then nothing
+    is registered, and nothing is stored.
     """
-    pending, tokens = await complete_authorization(callback_url, browser.storage)
-    identity = await describe_connection(pending.target, tokens.access)
+    pending, tokens = await complete_authorization(callback_url, browser.storage, http=http)
+    identity = await describe_connection(pending.target, tokens.access, http=http)
     return await browser.signed_in(
         SignedIn(
             endpoint=pending.target,

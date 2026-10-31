@@ -33,6 +33,7 @@ import {
   type UserId,
 } from '@semiont/core';
 import { APIError, retryableUnlessRefused } from './api-error';
+import { fetchOf } from './fetch-of';
 
 export interface AgentSignIn {
   /** The gateway, e.g. `http://gateway:4000`: where the process dials, and nothing about who it is. */
@@ -41,6 +42,8 @@ export interface AgentSignIn {
   credential: ServiceAccountCredential;
   /** Told before each wait for a gateway or an issuer that could not be reached. */
   onRetry?: (info: RetryAttemptInfo) => void;
+  /** What the issuer's requests and the gateway's are sent with. Absent, the runtime's own `fetch`. */
+  fetch?: typeof fetch;
 }
 
 /**
@@ -58,14 +61,14 @@ export interface AgentSignIn {
  * status, the issuer's as a `SignInError`.
  */
 export async function agentToken(opts: AgentSignIn): Promise<{ token: string; did: UserId }> {
-  const { baseUrl, credential, onRetry } = opts;
+  const { baseUrl, credential, onRetry, fetch } = opts;
 
   return retryWithBackoff(
     async () => {
       // Both steps sit inside the retry: the issuer and the gateway come up
       // independently of this process, and of each other.
-      const token = await serviceAccountToken(credential, { renewed: false });
-      return { token, did: await named(baseUrl, token) };
+      const token = await serviceAccountToken(credential, { renewed: false, ...(fetch ? { fetch } : {}) });
+      return { token, did: await named(baseUrl, token, fetch) };
     },
     // A request that got no answer, its deadline passing among the ways it
     // gets none, and a status that says "not now": a sign-in against a
@@ -78,10 +81,10 @@ export async function agentToken(opts: AgentSignIn): Promise<{ token: string; di
 }
 
 /** The DID the gateway names the bearer of `token` by: `GET /api/users/me`. */
-async function named(baseUrl: string, token: string): Promise<UserId> {
+async function named(baseUrl: string, token: string, fetch: typeof globalThis.fetch | undefined): Promise<UserId> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/users/me`;
   const unanswered = (error: unknown) => new UnansweredError(url, error);
-  const response = await fetch(url, {
+  const response = await fetchOf(fetch)(url, {
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => {

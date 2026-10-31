@@ -36,8 +36,12 @@ import java.net.http.HttpResponse
 import java.time.Duration
 import java.util.concurrent.CompletableFuture
 
-/** The HTTP client of every request to an issuer. It keeps the JDK's default proxy selector and trust store, as a transport's does. */
-internal val issuerHttp: HttpClient by lazy { HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build() }
+/**
+ * The SDK's own HTTP client, which a part given no client of its caller's
+ * makes its requests with: the JDK's, keeping its default proxy selector and
+ * trust store, as a transport's own does.
+ */
+internal val ownHttp: HttpClient by lazy { HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build() }
 
 /** What a grant issued: the access token, and the refresh token that renews it. */
 public data class IssuedTokens(public val access: String, public val refresh: String)
@@ -72,7 +76,7 @@ internal fun objectIn(body: String): JsonObject? = try {
 private fun form(pairs: List<Pair<String, String>>): String = pairs.joinToString("&") { (name, value) -> "$name=${encodeUriComponent(value)}" }
 
 /** One form posted to an issuer. No answer at all, by the request's deadline or ever, is a failure with no status. */
-internal suspend fun postForm(endpoint: String, pairs: List<Pair<String, String>>): Answer {
+internal suspend fun postForm(endpoint: String, pairs: List<Pair<String, String>>, http: HttpClient): Answer {
     val request = HttpRequest.newBuilder(URI.create(endpoint))
         .POST(HttpRequest.BodyPublishers.ofString(form(pairs)))
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -80,7 +84,7 @@ internal suspend fun postForm(endpoint: String, pairs: List<Pair<String, String>
         .timeout(Duration.ofMillis(Timings.HTTP_REQUEST_TIMEOUT_MS))
         .build()
     val response = try {
-        issuerHttp.exchange(request, HttpResponse.BodyHandlers.ofString())
+        http.exchange(request, HttpResponse.BodyHandlers.ofString())
     } catch (error: IOException) {
         throw SignInError(SignInErrorCode.Exchange, "The issuer did not answer: ${error.message ?: error::class.simpleName}")
     }
@@ -88,8 +92,8 @@ internal suspend fun postForm(endpoint: String, pairs: List<Pair<String, String>
 }
 
 /** The refresh grant. An issuer that does not rotate refresh tokens returns none, and the one spent stays current. */
-internal suspend fun refreshAtIssuer(tokenEndpoint: String, clientId: String, refreshToken: String): IssuedTokens {
-    val answer = postForm(tokenEndpoint, listOf("grant_type" to "refresh_token", "refresh_token" to refreshToken, "client_id" to clientId))
+internal suspend fun refreshAtIssuer(tokenEndpoint: String, clientId: String, refreshToken: String, http: HttpClient): IssuedTokens {
+    val answer = postForm(tokenEndpoint, listOf("grant_type" to "refresh_token", "refresh_token" to refreshToken, "client_id" to clientId), http)
     val access = answer.text("access_token")
     if (answer.status != 200 || access == null) {
         throw SignInError(SignInErrorCode.Exchange, "The issuer refused the token request (${answer.refusal()})", answer.status)
@@ -111,15 +115,16 @@ internal suspend fun refreshAtIssuer(tokenEndpoint: String, clientId: String, re
  * given; a sign-in signed out meanwhile is not written back, and its new token
  * is given to nobody. A renewal that fails throws `SignInError` in the issuer's
  * own words, and, when the retry budget ran out, says how many attempts it took.
+ * The issuer is asked with `http`.
  */
-public suspend fun renewKept(kept: SignInKept, holding: String?): String? {
+public suspend fun renewKept(kept: SignInKept, holding: String?, http: HttpClient = ownHttp): String? {
     val held = kept.held() ?: return null
     if (held.access != holding && !isTokenExpired(held.access, System.currentTimeMillis() / 1000.0)) return held.access
     var attempts = 0
     val tokens = try {
         retryWithBackoff(Timings.REFRESH_RETRY, { REFRESH.retryable(RetryFacts(status = (it as? SignInError)?.status, method = "POST")) }) {
             attempts += 1
-            refreshAtIssuer(held.tokenEndpoint, held.clientId, held.refresh)
+            refreshAtIssuer(held.tokenEndpoint, held.clientId, held.refresh, http)
         }
     } catch (error: SignInError) {
         // One attempt: the issuer answered, and its answer was final.
@@ -130,8 +135,9 @@ public suspend fun renewKept(kept: SignInKept, holding: String?): String? {
 }
 
 /** `renewKept`, for Java. */
-public fun renewKeptFuture(kept: SignInKept, holding: String?): CompletableFuture<String?> =
-    CoroutineScope(Dispatchers.Default).futureOf { renewKept(kept, holding) }
+@JvmOverloads
+public fun renewKeptFuture(kept: SignInKept, holding: String?, http: HttpClient = ownHttp): CompletableFuture<String?> =
+    CoroutineScope(Dispatchers.Default).futureOf { renewKept(kept, holding, http) }
 
 /** RFC 8628 §3.5's grant type, which the token endpoint is asked under while a person approves the code. */
 private const val DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
@@ -168,10 +174,10 @@ private fun noIssuer() = SignInError(SignInErrorCode.NoIssuer, "The knowledge ba
 
 private fun expired() = SignInError(SignInErrorCode.Expired, "The code expired before it was approved")
 
-/** Ask the knowledge base at `baseUrl` which issuer it trusts, and the issuer where its endpoints are. */
-internal suspend fun discoverIssuer(baseUrl: String): IssuerEndpoints {
+/** Ask the knowledge base at `baseUrl` which issuer it trusts, and the issuer where its endpoints are, each with `http`. */
+internal suspend fun discoverIssuer(baseUrl: String, http: HttpClient): IssuerEndpoints {
     // Its resource metadata is public: asked with no token, by a transport that opens no stream.
-    val metadata = HttpTransport(baseUrl, MutableStateFlow(null), emptyList()).use { asking ->
+    val metadata = HttpTransport(baseUrl, MutableStateFlow(null), emptyList(), http = http).use { asking ->
         try {
             asking.getProtectedResourceMetadata()
         } catch (error: TransportError) {
@@ -184,7 +190,7 @@ internal suspend fun discoverIssuer(baseUrl: String): IssuerEndpoints {
     val request = HttpRequest.newBuilder(URI.create(url)).GET().header("Accept", "application/json")
         .timeout(Duration.ofMillis(Timings.HTTP_REQUEST_TIMEOUT_MS)).build()
     val response = try {
-        issuerHttp.exchange(request, HttpResponse.BodyHandlers.ofString())
+        http.exchange(request, HttpResponse.BodyHandlers.ofString())
     } catch (error: IOException) {
         throw SignInError(SignInErrorCode.Discovery, "Issuer $issuer: discovery was not answered: ${error.message ?: error::class.simpleName}")
     }
@@ -200,8 +206,8 @@ internal suspend fun discoverIssuer(baseUrl: String): IssuerEndpoints {
 }
 
 /** RFC 7009. The issuer answers 200 for a token it has already forgotten, so revoking twice is revoking once. */
-internal suspend fun revokeAtIssuer(revocationEndpoint: String, clientId: String, refreshToken: String) {
-    val answer = postForm(revocationEndpoint, listOf("token" to refreshToken, "token_type_hint" to "refresh_token", "client_id" to clientId))
+internal suspend fun revokeAtIssuer(revocationEndpoint: String, clientId: String, refreshToken: String, http: HttpClient) {
+    val answer = postForm(revocationEndpoint, listOf("token" to refreshToken, "token_type_hint" to "refresh_token", "client_id" to clientId), http)
     if (answer.status != 200) throw SignInError(SignInErrorCode.Exchange, "The issuer refused the revocation (HTTP ${answer.status})", answer.status)
 }
 
@@ -209,15 +215,16 @@ internal suspend fun revokeAtIssuer(revocationEndpoint: String, clientId: String
  * Sign in as a person from a process with no browser (RFC 8628): the issuer
  * the knowledge base at `baseUrl` trusts mints a code, `onCode` shows the
  * person where to approve it, and the token endpoint is asked at the issuer's
- * interval until the tokens arrive. Cancelling it abandons the sign-in.
+ * interval until the tokens arrive, each request with `http`. Cancelling it
+ * abandons the sign-in.
  */
-internal suspend fun signInWithDeviceGrant(baseUrl: String, onCode: (DeviceCode) -> Unit): Pair<IssuerEndpoints, IssuedTokens> {
-    val issuer = discoverIssuer(baseUrl)
+internal suspend fun signInWithDeviceGrant(baseUrl: String, http: HttpClient, onCode: (DeviceCode) -> Unit): Pair<IssuerEndpoints, IssuedTokens> {
+    val issuer = discoverIssuer(baseUrl, http)
     val device = issuer.device ?: throw SignInError(
         SignInErrorCode.Discovery,
         "Issuer ${issuer.issuer} offers no device authorization endpoint: the device grant needs one enabled for client $SCRIPT_CLIENT_ID",
     )
-    val minted = postForm(device, listOf("client_id" to SCRIPT_CLIENT_ID, "scope" to SIGN_IN_SCOPE))
+    val minted = postForm(device, listOf("client_id" to SCRIPT_CLIENT_ID, "scope" to SIGN_IN_SCOPE), http)
     val deviceCode = minted.text("device_code")
     val userCode = minted.text("user_code")
     val verificationUri = minted.text("verification_uri")
@@ -231,7 +238,7 @@ internal suspend fun signInWithDeviceGrant(baseUrl: String, onCode: (DeviceCode)
     while (true) {
         delay((interval * 1000).toLong())
         if (System.nanoTime() > deadline) throw expired()
-        val answer = postForm(issuer.token, listOf("grant_type" to DEVICE_GRANT, "device_code" to deviceCode, "client_id" to SCRIPT_CLIENT_ID))
+        val answer = postForm(issuer.token, listOf("grant_type" to DEVICE_GRANT, "device_code" to deviceCode, "client_id" to SCRIPT_CLIENT_ID), http)
         val access = answer.text("access_token")
         if (answer.status == 200 && access != null) {
             val refresh = answer.text("refresh_token")
@@ -252,11 +259,12 @@ internal suspend fun signInWithDeviceGrant(baseUrl: String, onCode: (DeviceCode)
  * Sign in as a person from a process with no browser, and keep the sign-in in
  * `kept`: the issuer the knowledge base `kb` trusts mints a code, `onCode`
  * shows the person where to approve it, and the tokens come back here; no
- * password passes through this process. Throws `SignInError` when the person
- * is not signed in, and (`discovery`) for a knowledge base that is not reached
- * over HTTP or whose host is no host's name.
+ * password passes through this process. The knowledge base and its issuer are
+ * asked with `http`. Throws `SignInError` when the person is not signed in,
+ * and (`discovery`) for a knowledge base that is not reached over HTTP or
+ * whose host is no host's name.
  */
-public suspend fun signInDevice(kb: KbTarget, kept: SignInKept, onCode: (DeviceCode) -> Unit) {
+public suspend fun signInDevice(kb: KbTarget, kept: SignInKept, http: HttpClient = ownHttp, onCode: (DeviceCode) -> Unit) {
     val endpoint = kb.endpoint as? HttpEndpoint
         ?: throw SignInError(SignInErrorCode.Discovery, "The device grant needs an HTTP endpoint; this knowledge base's is \"${(kb.endpoint as LocalEndpoint).kind.value}\"")
     val baseUrl = try {
@@ -264,26 +272,27 @@ public suspend fun signInDevice(kb: KbTarget, kept: SignInKept, onCode: (DeviceC
     } catch (invalid: IllegalArgumentException) {
         throw SignInError(SignInErrorCode.Discovery, invalid.message ?: "Invalid KB hostname")
     }
-    val (issuer, tokens) = signInWithDeviceGrant(baseUrl, onCode)
+    val (issuer, tokens) = signInWithDeviceGrant(baseUrl, http, onCode)
     kept.keep(HeldSignIn(tokens.access, tokens.refresh, SCRIPT_CLIENT_ID, issuer.token, issuer.revocation))
 }
 
 /** `signInDevice`, for Java. */
-public fun signInDeviceFuture(kb: KbTarget, kept: SignInKept, onCode: Consumer<DeviceCode>): CompletableFuture<Unit> =
-    CoroutineScope(Dispatchers.Default).futureOf { signInDevice(kb, kept, onCode::accept) }
+@JvmOverloads
+public fun signInDeviceFuture(kb: KbTarget, kept: SignInKept, onCode: Consumer<DeviceCode>, http: HttpClient = ownHttp): CompletableFuture<Unit> =
+    CoroutineScope(Dispatchers.Default).futureOf { signInDevice(kb, kept, http, onCode::accept) }
 
 /**
  * End the sign-in `kept` holds: it is revoked at its issuer, when the issuer
  * says where, and kept no more. It is forgotten whatever the issuer answers:
  * a person who signs out is signed out here, and an issuer that could not be
- * told forgets the token when it expires.
+ * told forgets the token when it expires. The issuer is told with `http`.
  */
-public suspend fun signOut(kept: SignInKept) {
+public suspend fun signOut(kept: SignInKept, http: HttpClient = ownHttp) {
     val held = kept.held() ?: return
     try {
         held.revocationEndpoint?.let { endpoint ->
             try {
-                revokeAtIssuer(endpoint, held.clientId, held.refresh)
+                revokeAtIssuer(endpoint, held.clientId, held.refresh, http)
             } catch (_: SignInError) {
                 // Best effort: one that could not be told forgets it when it expires.
             }
@@ -294,4 +303,5 @@ public suspend fun signOut(kept: SignInKept) {
 }
 
 /** `signOut`, for Java. */
-public fun signOutFuture(kept: SignInKept): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Default).futureOf { signOut(kept) }
+@JvmOverloads
+public fun signOutFuture(kept: SignInKept, http: HttpClient = ownHttp): CompletableFuture<Unit> = CoroutineScope(Dispatchers.Default).futureOf { signOut(kept, http) }

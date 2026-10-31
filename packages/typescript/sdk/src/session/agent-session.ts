@@ -57,6 +57,8 @@ export interface AgentSessionOptions {
   /** The agent's account at the issuer. */
   credential: ServiceAccountCredential;
   logger: SessionLogger;
+  /** What the issuer's requests and the gateway's are sent with. Absent, the runtime's own `fetch`. */
+  fetch?: typeof fetch;
 }
 
 export interface AgentSession {
@@ -83,13 +85,14 @@ export interface AgentSession {
  * process holding a still-valid token should not die over one bad round trip.
  */
 export async function startAgentSession(opts: AgentSessionOptions): Promise<AgentSession> {
-  const { baseUrl, credential, logger } = opts;
+  const { baseUrl, credential, logger, fetch } = opts;
 
   logger.info('Authenticating', { baseUrl, as: credential.clientId });
   // A gateway or an issuer that cannot be reached is tried again, and each wait is logged.
   const first = await agentToken({
     baseUrl,
     credential,
+    ...(fetch ? { fetch } : {}),
     onRetry: ({ attempt, attempts, delayMs, error }) => {
       logger.warn('Gateway unreachable, retrying authentication', {
         attempt,
@@ -139,7 +142,7 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
   };
 
   const refresh = async (): Promise<string | null> => {
-    const next = await serviceAccountToken(credential, { renewed: true });
+    const next = await serviceAccountToken(credential, { renewed: true, ...(fetch ? { fetch } : {}) });
     token$.next(makeAccessToken(next));
     rearm(next);
     return next;

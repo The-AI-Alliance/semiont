@@ -3,8 +3,9 @@
  * base trusts: issuer discovery from the KB's resource metadata (RFC 9728),
  * the authorization-code grant with PKCE (RFC 7636) for a browser, the
  * device authorization grant (RFC 8628) for a script, the refresh grant, and
- * token revocation (RFC 7009). Plain fetch against the issuer; nothing here
- * names a vendor, and no password ever passes through this module.
+ * token revocation (RFC 7009). Plain fetch against the issuer: the caller's
+ * when one is given, the runtime's otherwise. Nothing here names a vendor,
+ * and no password ever passes through this module.
  */
 
 import { APIError, HttpTransport } from '@semiont/http-transport';
@@ -28,6 +29,7 @@ import {
 } from '@semiont/core';
 import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from '@semiont/core';
+import { fetchOf } from '../fetch-of';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
 import { getStoredSession, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
@@ -56,8 +58,8 @@ export interface IssuerEndpoints {
  * its endpoints (OpenID discovery). A client that knows a gateway's address
  * knows everything — no configuration on this side.
  */
-export async function discoverIssuer(target: HttpEndpoint): Promise<IssuerEndpoints> {
-  const transport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(target)) });
+export async function discoverIssuer(target: HttpEndpoint, fetch?: typeof globalThis.fetch): Promise<IssuerEndpoints> {
+  const transport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(target)), ...(fetch ? { fetch } : {}) });
   let issuer: string;
   try {
     const metadata = await transport.getProtectedResourceMetadata();
@@ -79,7 +81,7 @@ export async function discoverIssuer(target: HttpEndpoint): Promise<IssuerEndpoi
 
   const unanswered = (error: unknown) =>
     new SignInError('discovery', `Issuer ${issuer}: discovery was not answered: ${whyUnanswered(error)}`);
-  const response = await fetch(`${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`, {
+  const response = await fetchOf(fetch)(`${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => {
@@ -156,10 +158,11 @@ export interface BeginAuthorizationOptions {
 
 /**
  * Start the authorization-code grant: discover the issuer, remember the
- * pending sign-in, and return the URL the host navigates the user to.
+ * pending sign-in, and return the URL the host navigates the user to. The
+ * knowledge base and its issuer are asked with `fetch`, or the runtime's own.
  */
-export async function beginAuthorization(opts: BeginAuthorizationOptions, pending: SessionStorage): Promise<string> {
-  const issuer = await discoverIssuer(opts.target);
+export async function beginAuthorization(opts: BeginAuthorizationOptions, pending: SessionStorage, fetch?: typeof globalThis.fetch): Promise<string> {
+  const issuer = await discoverIssuer(opts.target, fetch);
   const verifier = randomUrlSafe(48);
   const state = randomUrlSafe(24);
   const record: PendingAuthorization = {
@@ -193,11 +196,13 @@ export interface IssuedTokens {
  * Finish the authorization-code grant from the URL the issuer sent the user
  * back to. One-shot: the pending record is taken, in one step, before
  * anything else happens, because an authorization code is single-use and a
- * replayed callback must find nothing to complete.
+ * replayed callback must find nothing to complete. The code is exchanged
+ * with `fetch`, or the runtime's own.
  */
 export async function completeAuthorization(
   callbackUrl: string,
   pending: SessionStorage,
+  fetch?: typeof globalThis.fetch,
 ): Promise<{ pending: PendingAuthorization; tokens: IssuedTokens }> {
   let taken: string | null = null;
   pending.update(PENDING_AUTHORIZATION_KEY, (stored) => {
@@ -227,7 +232,7 @@ export async function completeAuthorization(
     redirect_uri: record.redirectUri,
     client_id: BROWSER_CLIENT_ID,
     code_verifier: record.verifier,
-  });
+  }, fetch);
   if (!tokens.refresh) {
     throw new SignInError('exchange', 'The issuer returned no refresh token — the session could not outlive its first access token');
   }
@@ -283,9 +288,10 @@ function parsePending(raw: string): PendingAuthorization | null {
 async function postForm(
   endpoint: string,
   form: Record<string, string>,
+  fetch: typeof globalThis.fetch | undefined,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
   const unanswered = (error: unknown) => new SignInError('exchange', `The issuer did not answer: ${whyUnanswered(error)}`);
-  const response = await fetch(endpoint, {
+  const response = await fetchOf(fetch)(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(form),
@@ -307,21 +313,33 @@ function refusal(status: number, body: Record<string, unknown> | null): string {
   return body && isString(body['error_description']) ? `${code}: ${body['error_description']}` : code;
 }
 
-async function tokenGrant(endpoint: string, form: Record<string, string>): Promise<{ access: string; refresh?: string }> {
-  const { status, body } = await postForm(endpoint, form);
+async function tokenGrant(
+  endpoint: string,
+  form: Record<string, string>,
+  fetch: typeof globalThis.fetch | undefined,
+): Promise<{ access: string; refresh?: string }> {
+  const { status, body } = await postForm(endpoint, form, fetch);
   if (status !== 200 || !body || !isString(body['access_token'])) {
     throw new SignInError('exchange', `The issuer refused the token request (${refusal(status, body)})`, status);
   }
   return { access: body['access_token'], ...(isString(body['refresh_token']) ? { refresh: body['refresh_token'] } : {}) };
 }
 
-/** The refresh grant. An issuer that does not rotate refresh tokens returns none; the one held stays current. */
-export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, refreshToken: string): Promise<IssuedTokens> {
+/**
+ * The refresh grant, asked with `fetch` or the runtime's own. An issuer that
+ * does not rotate refresh tokens returns none; the one held stays current.
+ */
+export async function refreshAtIssuer(
+  tokenEndpoint: string,
+  clientId: string,
+  refreshToken: string,
+  fetch?: typeof globalThis.fetch,
+): Promise<IssuedTokens> {
   const tokens = await tokenGrant(tokenEndpoint, {
     grant_type: 'refresh_token',
     refresh_token: refreshToken,
     client_id: clientId,
-  });
+  }, fetch);
   return { access: tokens.access, refresh: tokens.refresh ?? refreshToken };
 }
 
@@ -352,8 +370,10 @@ export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, r
  * to the objection to retrying before terminating — an invisible zombie
  * session would be worse than a visible re-login, so this only ever delays
  * the re-login, never replaces it.
+ *
+ * The issuer is asked with `fetch`, or the runtime's own.
  */
-export async function refreshStoredSession(storage: SessionStorage, kbId: string): Promise<string | null> {
+export async function refreshStoredSession(storage: SessionStorage, kbId: string, fetch?: typeof globalThis.fetch): Promise<string | null> {
   const stored = getStoredSession(storage, kbId);
   if (!stored) return null;
 
@@ -362,7 +382,7 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
     const { access, refresh } = await retryWithBackoff(
       () => {
         attempts += 1;
-        return refreshAtIssuer(stored.tokenEndpoint, stored.clientId, stored.refresh);
+        return refreshAtIssuer(stored.tokenEndpoint, stored.clientId, stored.refresh, fetch);
       },
       // `status` absent means `fetch` threw before a response existed, which
       // the rule reads as transient — the one place absence means "try again".
@@ -405,13 +425,21 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
   }
 }
 
-/** RFC 7009. The issuer answers 200 for a token it already forgot, so this is idempotent. */
-export async function revokeAtIssuer(revocationEndpoint: string, clientId: string, refreshToken: string): Promise<void> {
+/**
+ * RFC 7009, asked with `fetch` or the runtime's own. The issuer answers 200
+ * for a token it already forgot, so this is idempotent.
+ */
+export async function revokeAtIssuer(
+  revocationEndpoint: string,
+  clientId: string,
+  refreshToken: string,
+  fetch?: typeof globalThis.fetch,
+): Promise<void> {
   const { status } = await postForm(revocationEndpoint, {
     token: refreshToken,
     token_type_hint: 'refresh_token',
     client_id: clientId,
-  });
+  }, fetch);
   if (status !== 200) throw new SignInError('exchange', `The issuer refused the revocation (HTTP ${status})`);
 }
 
@@ -429,6 +457,8 @@ export interface DeviceGrantOptions {
   /** Where to send the person, once the issuer has minted a code. */
   onCode: (code: DeviceCode) => void;
   signal?: AbortSignal;
+  /** What the knowledge base and its issuer are asked with. Absent, the runtime's own `fetch`. */
+  fetch?: typeof fetch;
 }
 
 /**
@@ -437,11 +467,11 @@ export interface DeviceGrantOptions {
  * token endpoint at the issuer's interval until the tokens arrive.
  */
 export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{ issuer: IssuerEndpoints; tokens: IssuedTokens }> {
-  const issuer = await discoverIssuer(opts.target);
+  const issuer = await discoverIssuer(opts.target, opts.fetch);
   if (!issuer.device) {
     throw new SignInError('discovery', `Issuer ${issuer.issuer} offers no device authorization endpoint — the device grant needs one enabled for client ${SCRIPT_CLIENT_ID}`);
   }
-  const { status, body } = await postForm(issuer.device, { client_id: SCRIPT_CLIENT_ID, scope: SIGN_IN_SCOPE });
+  const { status, body } = await postForm(issuer.device, { client_id: SCRIPT_CLIENT_ID, scope: SIGN_IN_SCOPE }, opts.fetch);
   const expiresIn = body?.['expires_in'];
   if (
     status !== 200 || !body
@@ -466,7 +496,7 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
       grant_type: DEVICE_GRANT,
       device_code: body['device_code'],
       client_id: SCRIPT_CLIENT_ID,
-    });
+    }, opts.fetch);
     if (poll.status === 200 && poll.body && isString(poll.body['access_token'])) {
       const refresh = poll.body['refresh_token'];
       if (!isString(refresh)) {

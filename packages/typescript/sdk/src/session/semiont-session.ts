@@ -507,13 +507,15 @@ export class SemiontSession implements StateUnit {
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
    *
    * The remaining options (`refresh`, `validate`, `onAuthFailed`,
-   * `onError`) match `SemiontSessionConfig` exactly.
+   * `onError`) match `SemiontSessionConfig` exactly. `fetch` is what every
+   * request of the transport is sent with; absent, the runtime's own.
    */
   static fromHttp(opts: {
     kb: KbTarget;
     storage: SessionStorage;
     baseUrl: BaseUrl | string;
     token?: AccessToken | string | null;
+    fetch?: typeof fetch;
     refresh?: () => Promise<string | null>;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
@@ -524,7 +526,7 @@ export class SemiontSession implements StateUnit {
       ? null
       : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
-    const transport = new HttpTransport({ baseUrl: url, token$ });
+    const transport = new HttpTransport({ baseUrl: url, token$, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
     const content = new HttpContentTransport(transport);
     const client = new SemiontClient(transport, content, transport);
     const config: SemiontSessionConfig = { kb: opts.kb, storage: opts.storage, client, token$ };
@@ -551,13 +553,15 @@ export class SemiontSession implements StateUnit {
    *
    * `kb.id` is the storage key: distinct scripts sharing one
    * `SessionStorage` must use distinct ids or they trample each other's
-   * tokens. No default is synthesized; the consumer chooses.
+   * tokens. No default is synthesized; the consumer chooses. The gateway and
+   * the issuer are asked with `fetch`, or the runtime's own.
    */
   static async fromIssuedSession(opts: {
     kb: KbTarget;
     storage: SessionStorage;
     baseUrl: BaseUrl | string;
     session: StoredSession;
+    fetch?: typeof fetch;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
@@ -573,9 +577,10 @@ export class SemiontSession implements StateUnit {
       baseUrl: opts.baseUrl,
       token: opts.session.access,
       refresh: () => {
-        renewing ??= refreshStoredSession(opts.storage, opts.kb.id).finally(() => { renewing = null; });
+        renewing ??= refreshStoredSession(opts.storage, opts.kb.id, opts.fetch).finally(() => { renewing = null; });
         return renewing;
       },
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
       ...(opts.validate ? { validate: opts.validate } : {}),
       ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
       ...(opts.onError ? { onError: opts.onError } : {}),
@@ -591,12 +596,15 @@ export class SemiontSession implements StateUnit {
    * no password ever passes through the process. Throws a `SignInError`
    * when the KB trusts no issuer, the person denies, or the code expires.
    * Gives the session with the client it was built with, as `fromHttp` does.
+   * The knowledge base and its issuer are asked with `fetch`, or the
+   * runtime's own.
    */
   static async signInDevice(opts: {
     kb: KbTarget;
     storage: SessionStorage;
     onCode: (code: DeviceCode) => void;
     signal?: AbortSignal;
+    fetch?: typeof fetch;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (reason: SessionEndReason) => void;
     onError?: (err: SemiontSessionError) => void;
@@ -608,6 +616,7 @@ export class SemiontSession implements StateUnit {
       target: opts.kb.endpoint,
       onCode: opts.onCode,
       ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.fetch ? { fetch: opts.fetch } : {}),
     });
     const { onCode: _onCode, signal: _signal, ...rest } = opts;
     return SemiontSession.fromIssuedSession({

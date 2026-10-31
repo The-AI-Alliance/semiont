@@ -14,8 +14,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { accessToken, baseUrl, type AccessToken, type EventMap, annotationId, resourceId } from '@semiont/core';
-import { HttpTransport } from '../http-transport';
-import { mockFetch, mockSSEResponse, sseChunk } from './helpers/mock-conn';
+import { HttpContentTransport } from '../http-content-transport';
+import { HttpTransport, currentUserOf } from '../http-transport';
+import { createSSEStream, mockFetch, mockSSEResponse, sseChunk } from './helpers/mock-conn';
 
 const BASE = baseUrl('http://localhost:4000');
 
@@ -131,5 +132,50 @@ describe('HttpTransport ITransport delegation', () => {
     untrack();
 
     transport.dispose();
+  });
+});
+
+describe('HttpTransport given its caller\'s fetch', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  /** A fetch that answers as a gateway would, and records each request as `METHOD /path`. */
+  function recordingFetch() {
+    const asked: string[] = [];
+    const sse = createSSEStream();
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const url = new URL(input instanceof Request ? input.url : String(input));
+      asked.push(`${input instanceof Request ? input.method : (init?.method ?? 'GET')} ${url.pathname}`);
+      if (url.pathname === '/bus/subscribe') return new Response(sse.stream, { headers: { 'content-type': 'text/event-stream' } });
+      if (url.pathname === '/bus/emit') return Response.json({ subscribers: 1 });
+      if (url.pathname === '/api/users/me') return Response.json({ did: 'did:web:kb.test:users:alice', email: null, name: null, image: null, domain: 'kb.test' });
+      return new Response('the bytes', { headers: { 'content-type': 'text/plain' } });
+    });
+    return { asked, fetch };
+  }
+
+  it('sends its stream, its emits, its requests and its content through that fetch, and nothing through the runtime\'s', async () => {
+    const given = recordingFetch();
+    const transport = new HttpTransport({ baseUrl: BASE, token$: new BehaviorSubject<AccessToken | null>(accessToken('tok')), fetch: given.fetch });
+
+    await vi.waitFor(() => expect(given.asked).toContain('POST /bus/subscribe'));
+    await transport.emit('beckon:hover', { annotationId: annotationId('a-1') });
+    await transport.getCurrentUser();
+    await new HttpContentTransport(transport).getBinary(resourceId('res-1'));
+
+    // The stream's connect is asked first; whether it is asked again is the stream's own business.
+    expect(given.asked.filter((request) => request !== 'POST /bus/subscribe')).toEqual(['POST /bus/emit', 'GET /api/users/me', 'GET /resources/res-1']);
+    expect(mockFetch).not.toHaveBeenCalled();
+    transport.dispose();
+  });
+
+  it('currentUserOf asks through the fetch it is given', async () => {
+    const given = recordingFetch();
+
+    await currentUserOf(BASE, accessToken('tok'), given.fetch);
+
+    expect(given.asked).toEqual(['GET /api/users/me']);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

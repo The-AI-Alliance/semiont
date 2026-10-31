@@ -20,8 +20,8 @@ How the TypeScript SDK reaches a knowledge base over HTTP. It implements the thr
 |---|---|
 | `HttpTransport` | The bus over a gateway: `POST /bus/emit` for what a client sends, one stream (`POST /bus/subscribe`) for what it receives, and the gateway's plain operations |
 | `HttpContentTransport` | A resource's bytes, up with progress and cancellation, and down whole or as a stream; its linked-data description; and its anchored text |
-| `HttpTransportConfig` | What a transport is given: the gateway's address, a token source, a `TokenRefresher`, and the channels its stream names |
-| `currentUserOf(baseUrl, token)` | One request asking the gateway who a token is, with no transport behind it. A session asks this of a stored credential before it trusts it |
+| `HttpTransportConfig` | What a transport is given: the gateway's address, a token source, a `TokenRefresher`, the channels its stream names, and the `fetch` it sends with |
+| `currentUserOf(baseUrl, token, fetch?)` | One request asking the gateway who a token is, with no transport behind it. A session asks this of a stored credential before it trusts it |
 | `APIError` | What an HTTP failure is thrown as |
 
 ## Example
@@ -38,6 +38,23 @@ const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') })
 // HttpTransport is also the gateway's plain operations: passed third, it
 // gives the client its `auth` and `system` namespaces.
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+```
+
+## The fetch it sends with
+
+Every request of a transport is sent with the `fetch` its config gives, or with the runtime's own when it gives none: the stream, every emit, the gateway's plain operations, and the content transport's reads and uploads. `currentUserOf` takes one as its last argument, and `agentToken` as `fetch` beside its credential. The certificates a request trusts, and the proxy it goes through, are that fetch's: this package reads no setting of its own for either.
+
+- **In Node**, the runtime's `fetch` trusts Node's certificate authorities. A gateway whose certificate another authority signed is reached with a `fetch` that trusts that authority: undici's `fetch`, sent through an undici `Agent` whose `connect` options carry its `ca`. The application depends on `undici` for it; this package does not.
+- **In a browser page**, the browser decides what every request trusts, whatever `fetch` is given. An upload that asks for progress or gives a `signal` there goes through `XMLHttpRequest`, the one way a page can count the bytes it sends, and not through the `fetch` given.
+
+```typescript
+import { HttpTransport } from '@semiont/http-transport';
+import { baseUrl } from '@semiont/core';
+
+// A fetch that trusts the gateway's certificate authority.
+declare const trusting: typeof fetch;
+
+const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/'), fetch: trusting });
 ```
 
 ## What a change must keep

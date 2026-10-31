@@ -14,9 +14,10 @@ from collections.abc import AsyncGenerator, Sequence
 from contextlib import asynccontextmanager
 from typing import Final, final, override
 
+import httpx
 import pytest
 from aio import run, soon
-from gateway_server import Answer, GatewayServer
+from gateway_server import Answer, GatewayServer, Recording
 
 from semiont.bus import request
 from semiont.channels import BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS
@@ -193,6 +194,31 @@ def test_closing_ends_an_emit_that_is_waiting_to_be_made_again() -> None:
     code, stated_wait, attempts, took = run(scenario())
     assert (code, stated_wait, attempts) == ("rate-limited", 600_000, 1)
     assert took < 5
+
+
+def test_a_transport_given_a_client_sends_its_stream_its_emits_and_its_requests_through_it_and_leaves_it_open() -> None:
+    async def scenario() -> tuple[list[tuple[str, str]], bool, bool]:
+        recording = Recording()
+        async with GatewayServer() as gateway, httpx.AsyncClient(transport=recording) as http:
+            gateway.answers["/api/health"] = {
+                "status": "ok",
+                "message": "serving",
+                "version": "0.0.0",
+                "timestamp": "2026-10-06T05:04:06.111Z",
+            }
+            async with HttpTransport(
+                gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK, http=http
+            ) as transport:
+                await opened(transport)
+                await soon(transport.emit("beckon:focus", {"resourceId": "res-1"}))
+                await soon(transport.health_check())
+            return recording.seen, gateway.came_through(recording), http.is_closed
+
+    seen, came_through, closed = run(scenario())
+    assert {("POST", "/bus/subscribe"), ("POST", "/bus/emit"), ("GET", "/api/health")} <= set(seen)
+    assert came_through
+    # The client is its caller's: the transport leaves it open.
+    assert not closed
 
 
 def test_a_stream_that_cannot_open_is_tried_again_and_a_token_that_changes_reaches_the_next_request() -> None:

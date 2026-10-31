@@ -48,6 +48,15 @@ export interface KeyCredential {
 /** A service account at an issuer, by how it proves itself. */
 export type ServiceAccountCredential = SecretCredential | KeyCredential;
 
+/**
+ * The fetch a request is sent with: the one its caller gave, or the runtime's
+ * own, looked up as each request is made. Either is called as a plain
+ * function, never as a method of something else, which a browser refuses.
+ */
+function fetchOf(given: typeof fetch | undefined): typeof fetch {
+  return (...request: Parameters<typeof fetch>) => (given ?? globalThis.fetch)(...request);
+}
+
 /** Cache discovery per issuer: it is a fixed document and the process is long-lived. */
 const tokenEndpoints = new Map<string, Promise<string>>();
 
@@ -88,7 +97,7 @@ async function proof(credential: ServiceAccountCredential, endpoint: string): Pr
   });
 }
 
-async function tokenEndpoint(issuer: string): Promise<string> {
+async function tokenEndpoint(issuer: string, fetch: typeof globalThis.fetch | undefined): Promise<string> {
   let endpoint = tokenEndpoints.get(issuer);
   if (!endpoint) {
     endpoint = (async () => {
@@ -97,7 +106,7 @@ async function tokenEndpoint(issuer: string): Promise<string> {
         issuer.endsWith('/') ? issuer : `${issuer}/`,
       );
       const unanswered = (error: unknown) => new UnansweredError(`OIDC discovery for ${issuer}`, error);
-      const response = await fetch(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
+      const response = await fetchOf(fetch)(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
         throw unanswered(error);
       });
       if (!response.ok) {
@@ -133,11 +142,12 @@ async function tokenEndpoint(issuer: string): Promise<string> {
  * Both requests, the issuer's discovery and the grant, are bounded by
  * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
  * accepts a connection and never answers would otherwise hold a process's
- * start, and every renewal after it, for as long as the process lives.
+ * start, and every renewal after it, for as long as the process lives. Both
+ * are sent with `fetch`, or the runtime's own.
  */
 export async function serviceAccountToken(
   credential: ServiceAccountCredential,
-  { renewed }: { renewed: boolean },
+  { renewed, fetch }: { renewed: boolean; fetch?: typeof globalThis.fetch },
 ): Promise<string> {
   const { issuer, clientId } = credential;
 
@@ -147,11 +157,11 @@ export async function serviceAccountToken(
     return cached.token;
   }
 
-  const endpoint = await tokenEndpoint(issuer);
+  const endpoint = await tokenEndpoint(issuer, fetch);
   const form = await proof(credential, endpoint);
 
   const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
-  const response = await fetch(endpoint, {
+  const response = await fetchOf(fetch)(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: form,

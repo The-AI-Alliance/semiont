@@ -267,6 +267,53 @@ describe('SemiontSession.signInDevice', () => {
     }
   });
 
+  test('signs in, asks the gateway and renews through the fetch it is given, and nothing through the runtime\'s', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(HttpTransport.prototype, 'getProtectedResourceMetadata').mockResolvedValue({
+      resource: 'http://test.local', authorization_servers: [ISSUER], bearer_methods_supported: ['header'],
+    });
+    const runtimes = vi.fn(async () => issuerReply({ error: 'not this fetch' }, 400));
+    vi.stubGlobal('fetch', runtimes);
+    const accessJwt = freshJwt();
+    const given = vi.fn(async (input: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/.well-known/openid-configuration')) {
+        return issuerReply({
+          issuer: ISSUER, authorization_endpoint: `${ISSUER}/auth`, token_endpoint: `${ISSUER}/token`,
+          device_authorization_endpoint: `${ISSUER}/device`, revocation_endpoint: `${ISSUER}/revoke`,
+        });
+      }
+      if (url === `${ISSUER}/device`) {
+        return issuerReply({ device_code: 'dev', user_code: 'ABCD-EFGH', verification_uri: `${ISSUER}/verify`, expires_in: 600, interval: 1 });
+      }
+      if (url === `${ISSUER}/token`) return issuerReply({ access_token: accessJwt, refresh_token: 'refresh-tok' });
+      if (url.endsWith('/api/users/me')) return Response.json({ did: 'did:web:example.org:users:alice', email: null, name: 'Alice', image: null, domain: 'example.org' });
+      // The session's stream: held open, and saying nothing.
+      return new Promise<Response>(() => {});
+    });
+
+    const pending = SemiontSession.signInDevice({ kb: KB, storage, onCode: () => {}, fetch: given });
+    await vi.advanceTimersByTimeAsync(1500);
+    const opened = await pending;
+    vi.useRealTimers();
+
+    try {
+      await opened.session.client.auth!.me();
+      await opened.session.refresh();
+      const asked = given.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)));
+      expect(asked.filter((url) => !url.endsWith('/bus/subscribe'))).toEqual([
+        `${ISSUER}/.well-known/openid-configuration`,
+        `${ISSUER}/device`,
+        `${ISSUER}/token`,
+        'http://localhost:4000/api/users/me',
+        `${ISSUER}/token`,
+      ]);
+      expect(runtimes).not.toHaveBeenCalled();
+    } finally {
+      opened.dispose();
+    }
+  });
+
   test('forwards optional onAuthFailed / onError callbacks into the session config', async () => {
     const jwt = freshJwt();
     vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ access_token: jwt })));

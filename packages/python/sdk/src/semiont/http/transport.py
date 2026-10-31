@@ -79,7 +79,10 @@ class HttpTransport(Transport, GatewayOperations):
     client hears, unless a process that awaits only some operations names
     their reply channels and no others. With `bookmarks`, each scope's stream
     begins where they say the client's last life left it; with none, at the
-    present.
+    present. `http` is the HTTP client every request is made with, which its
+    caller built and closes: the certificates it trusts and the proxy it goes
+    through are that client's. With none, the transport makes its own, and
+    closes it once it is closed.
     """
 
     def __init__(
@@ -91,6 +94,7 @@ class HttpTransport(Transport, GatewayOperations):
         channels: Sequence[str] = BRIDGED_CHANNELS,
         timing: Timing | None = None,
         bookmarks: Bookmarks | None = None,
+        http: httpx.AsyncClient | None = None,
     ) -> None:
         self._base_url: Final = base_url.rstrip("/")
         self._token: Final = token
@@ -102,8 +106,10 @@ class HttpTransport(Transport, GatewayOperations):
         self._hub: Final = FrameHub()
         self._router: Final = ReplyRouter()
         self._failures: Final[Broadcast[SemiontError]] = Broadcast()
-        # It reads no environment variable: no proxy and no certificate file it was not given.
-        self._http: Final = httpx.AsyncClient(timeout=None, trust_env=False)
+        # Its own reads no environment variable: no proxy and no certificate file it was not given.
+        self._http: Final = httpx.AsyncClient(timeout=None, trust_env=False) if http is None else http
+        self._owns_http: Final = http is None
+        """Whether the client is the transport's own, which it closes. One its caller gave it, its caller closes."""
         self._stream: Final = Stream(
             base_url=self._base_url,
             http=self._http,
@@ -156,8 +162,10 @@ class HttpTransport(Transport, GatewayOperations):
             self._failures.close()
             try:
                 # Whatever else is on the wire ends here, as a request that got no answer.
-                await self._http.aclose()
+                self._closing.set()
                 await self._exchange.ended()
+                if self._owns_http:
+                    await self._http.aclose()
             finally:
                 self._closed.set()
 

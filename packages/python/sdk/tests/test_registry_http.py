@@ -12,10 +12,11 @@ from collections.abc import Callable
 from typing import Final, final
 from urllib.parse import parse_qs, urlsplit
 
+import httpx
 import pytest
 from aio import run, soon
-from gateway_server import Asked, GatewayServer
-from issuer import CONFIGURATION, ME, REFUSED, REVOKE, TOKEN, issuer_of, says, trusting
+from gateway_server import Asked, GatewayServer, Recording
+from issuer import CONFIGURATION, ME, METADATA, REFUSED, REVOKE, TOKEN, issuer_of, says, trusting
 from kb import recorded
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
@@ -421,6 +422,33 @@ def test_a_knowledge_base_at_a_host_that_is_no_hosts_name_is_not_asked_who_it_is
         assert (refused.value.code, refused.value.message) == ("unreachable", 'Invalid KB hostname: "evil.example/x"')
 
     run(scenario())
+
+
+def test_a_registry_given_a_client_signs_in_holds_its_session_and_signs_out_through_it_and_leaves_it_open() -> None:
+    async def scenario() -> tuple[set[tuple[str, str]], bool, bool]:
+        recording = Recording()
+        async with GatewayServer() as gateway, httpx.AsyncClient(transport=recording) as http:
+            trusting(gateway)
+            Describing(gateway)
+            gateway.answers[REVOKE] = {}
+            granting(gateway, (token(3600, 1), "a-refresh-token"))
+            factory = HttpSessionFactory(http=http)
+
+            async with SemiontBrowser(SemiontBrowserConfig(storage=MemoryStorage(), session_factory=factory)) as browser:
+                options = BeginAuthorizationOptions(target=endpoint_of(gateway), redirect_uri=REDIRECT)
+                address = await soon(begin_sign_in(browser, options, http=http))
+                callback = f"{REDIRECT}?state={query(address)['state']}&code=the-code"
+                outcome = await soon(complete_sign_in(browser, callback, http=http))
+                await live(browser)
+                await soon(browser.sign_out(outcome.kb.id))
+                await soon(gateway.arrived("POST", REVOKE))
+            return set(recording.seen), gateway.came_through(recording), http.is_closed
+
+    seen, came_through, closed = run(scenario())
+    # Finding the issuer, the code's exchange, the question who the knowledge base is, its session, and the revocation.
+    assert {("GET", METADATA), ("GET", CONFIGURATION), ("POST", TOKEN), ("POST", "/bus/emit"), ("GET", ME), ("POST", REVOKE)} <= seen
+    assert came_through
+    assert not closed
 
 
 # ── The authorization-code grant, with PKCE ─────────────────────────────

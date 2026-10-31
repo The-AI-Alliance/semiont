@@ -29,6 +29,7 @@ import {
 import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import { createActorStateUnit, renewedToken, type ActorStateUnit } from './actor-state-unit';
 import { APIError, refusalBody, refusesCredential } from './api-error';
+import { fetchOf } from './fetch-of';
 import type {
   ConnectionState,
   IGatewayOperations,
@@ -86,6 +87,12 @@ export interface HttpTransportConfig {
   lingerMs?: number;
   emitRetry?: RetryPolicy;
   seenEventIdsCount?: number;
+  /**
+   * What every request of the transport is sent with: its stream, its emits,
+   * its own requests and its content's. The certificates trusted, and the
+   * proxy, are this fetch's. Absent, the runtime's own `fetch`.
+   */
+  fetch?: typeof fetch;
 }
 
 /**
@@ -195,13 +202,15 @@ const CURRENT_USER = '/api/users/me';
  * holds nothing else. There is no transport behind it, so no stream is
  * opened for it, and nothing renews the token: a refusal is the answer. A
  * session asks this of a credential it found stored, before it trusts it.
+ * The request is sent with `fetch`, or the runtime's own.
  */
-export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<UserResponse> {
+export function currentUserOf(baseUrl: BaseUrl, token: AccessToken, fetch?: typeof globalThis.fetch): Promise<UserResponse> {
   return asked('GET', CURRENT_USER, () =>
     ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: HTTP_REQUEST_TIMEOUT_MS,
       retry: RETRY,
+      fetch: fetchOf(fetch),
       hooks: {
         beforeError: [
           async ({ request, error }) => {
@@ -257,6 +266,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.http = ky.create({
       timeout,
       retry: RETRY,
+      fetch: fetchOf(config.fetch),
       hooks: {
         beforeRequest: [
           ({ request }) => {
@@ -371,6 +381,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
         ...(this.config.seenEventIdsCount !== undefined ? { seenEventIdsCount: this.config.seenEventIdsCount } : {}),
+        ...(this.config.fetch ? { fetch: this.config.fetch } : {}),
         // The SAME hook a refused request is renewed with — the stream asks
         // it once per outage before parking `unauthenticated`, an emit once
         // per emit, and no second refresh mechanism exists.
