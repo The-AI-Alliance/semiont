@@ -1,5 +1,6 @@
 package semiont.registry
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.put
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
 import semiont.http.tokenFor
+import semiont.session.OpenedSession
 import semiont.session.SemiontSession
 import semiont.storage.SessionStorage
 import semiont.testing.FaultyTransport
@@ -113,6 +115,26 @@ internal class Factory {
 
     /** How often a knowledge base's sessions asked it who it is. */
     fun askedWho(kbId: String): Int = sessions.transports(kbId).sumOf { transport -> transport.emitted.count { it.channel == KB_REQUESTED } }
+}
+
+/** A factory that builds no session until `letGo`: a registry building one waits, and `sessions` builds it then. */
+internal class HeldSessions(private val sessions: ScriptedSessions) : SessionFactory {
+    private val released = CompletableDeferred<Unit>()
+
+    /** Complete once a registry has asked for a session. */
+    val asked = CompletableDeferred<Unit>()
+
+    fun letGo() {
+        released.complete(Unit)
+    }
+
+    override suspend fun session(options: SessionFactoryOptions): OpenedSession {
+        asked.complete(Unit)
+        released.await()
+        return sessions.session(options)
+    }
+
+    override suspend fun revoke(stored: StoredSession): Unit = sessions.revoke(stored)
 }
 
 internal fun endpoint(host: String, port: Long): HttpEndpoint =

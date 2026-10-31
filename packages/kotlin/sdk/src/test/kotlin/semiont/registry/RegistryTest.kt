@@ -281,10 +281,12 @@ class RegistryTest {
     @Test
     fun whatAHostShowsAboutASessionIsThereExactlyWhenTheSessionIs() = runBlocking {
         val world = World().with(kbOfA())
-        world.browser().use { browser ->
-            // The test looks late: the session the registry began with is up first.
-            eventually("a session came up") { sessionOf(browser) != null }
+        val held = HeldSessions(world.factory.sessions)
+        SemiontBrowser(SemiontBrowserConfig(world.storage, held)).use { browser ->
+            // The registry is building the session it began with, and the factory holds it: none is up, so none is shown.
+            soon { held.asked.await() }
             assertNull(browser.activeSignals.value)
+            held.letGo()
             live(browser)
             val first = checkNotNull(browser.activeSignals.value)
             assertNull(first.sessionEnded.value)
