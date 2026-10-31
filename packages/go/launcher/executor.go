@@ -372,9 +372,9 @@ const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // serviceDocuments: each stack service's configuration document — the file it
 // is staged as, the name a refusal gives it, and its writer, handed the
-// knowledge base the service serves. The worker's names none, and the
-// Archivist's none either: the Archivist reads its knowledge base's identity
-// from the tree it keeps.
+// knowledge base the service serves. The worker's names it among the
+// knowledge bases it serves, by its domain; the Archivist's names none: the
+// Archivist reads its knowledge base's identity from the tree it keeps.
 var serviceDocuments = map[string]struct {
 	file, noun string
 	write      func(p placement, served api.KbIdentity) ([]byte, error)
@@ -382,10 +382,16 @@ var serviceDocuments = map[string]struct {
 	"gateway":    {gatewayDocumentFile, "the gateway's", gatewayDocument},
 	"dispatcher": {dispatcherDocumentFile, "the dispatcher's", dispatcherDocument},
 	"archivist":  {archivistDocumentFile, "the Archivist's", func(p placement, _ api.KbIdentity) ([]byte, error) { return archivistDocument(p) }},
-	"worker":     {workerDocumentFile, "the worker's", func(p placement, _ api.KbIdentity) ([]byte, error) { return workerDocument(p) }},
-	"smelter":    {smelterDocumentFile, "the Smelter's", smelterDocument},
-	"weaver":     {weaverDocumentFile, "the Weaver's", weaverDocument},
-	"librarian":  {librarianDocumentFile, "the Librarian's", librarianDocument},
+	"worker": {workerDocumentFile, "the worker's", func(p placement, served api.KbIdentity) ([]byte, error) {
+		added, err := loadAddedKBs()
+		if err != nil {
+			return nil, err
+		}
+		return workerDocument(p, served.Domain, added)
+	}},
+	"smelter":   {smelterDocumentFile, "the Smelter's", smelterDocument},
+	"weaver":    {weaverDocumentFile, "the Weaver's", weaverDocument},
+	"librarian": {librarianDocumentFile, "the Librarian's", librarianDocument},
 }
 
 // stageService writes one service's configuration document into the stage:

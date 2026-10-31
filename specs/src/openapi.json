@@ -987,6 +987,18 @@
       "WorkerEngineConfig": {
         "$ref": "components/schemas/WorkerEngineConfig.json"
       },
+      "WorkerKnowledgeBaseConfig": {
+        "$ref": "components/schemas/WorkerKnowledgeBaseConfig.json"
+      },
+      "WorkerHealth": {
+        "$ref": "components/schemas/WorkerHealth.json"
+      },
+      "WorkerKnowledgeBaseHealth": {
+        "$ref": "components/schemas/WorkerKnowledgeBaseHealth.json"
+      },
+      "WorkerEngineHealth": {
+        "$ref": "components/schemas/WorkerEngineHealth.json"
+      },
       "CursorsPath": {
         "$ref": "components/schemas/CursorsPath.json"
       },

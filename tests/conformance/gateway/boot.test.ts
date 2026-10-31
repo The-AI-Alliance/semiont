@@ -16,12 +16,12 @@ import { startBroker } from '../harness/nats';
 import { freePort } from '../harness/net';
 import { startHoldingProxy } from '../harness/proxy';
 import { SERVICE_ROLE } from '../harness/roles';
-import { kbIdentity } from '../harness/spec';
+import { kbIdentity, SUITE_KB } from '../harness/spec';
 import { subscribe } from '../harness/stream';
 import { GATEWAY_CLIENT } from '../harness/world';
 
 describe('starting a gateway', () => {
-  const kb = kbIdentity();
+  const kb = kbIdentity(SUITE_KB);
   const secret = randomBytes(24).toString('hex');
   let issuer: IssuerServer;
   let archivist: FakeArchivist;

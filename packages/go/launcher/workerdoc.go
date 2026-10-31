@@ -147,16 +147,31 @@ func sameEngine(a, b api.WorkerEngineConfig) bool {
 	return a.Engine == b.Engine && a.BaseUrl == b.BaseUrl && reflect.DeepEqual(a.ApiKeyEnv, b.ApiKeyEnv)
 }
 
-// workerDocument renders the document from the start's placement. It is
-// staged only for a worker the plan runs, and derivePlan refuses an Inference
-// document that gives a job an engine when there is no WorkerPool document.
-func workerDocument(p placement) ([]byte, error) {
-	var doc api.WorkerConfig
-	var err error
-	doc.GatewayUrl = p.gatewayURL()
-	doc.Identity.Issuer = p.issuer()
-	if doc.Engines, err = workerEngines(p); err != nil {
+// workerDocument renders the document from the start's placement, the
+// committed identity of the knowledge base it starts, and the knowledge bases
+// added to this machine's worker (workerkbs.go). The first of its
+// knowledgeBases is the one this start runs, at the gateway and the issuer it
+// places, as this machine's own worker; then each added one, in the order
+// they are kept. Every one is offered the same engines: the ones this start's
+// Inference document gives jobs, on this machine's providers' keys
+// (workerSecrets). It is staged only for a worker the plan runs, and
+// derivePlan refuses an Inference document that gives a job an engine when
+// there is no WorkerPool document.
+func workerDocument(p placement, kbDomain string, added []addedKB) ([]byte, error) {
+	if err := refuseOwnKB(kbDomain, added); err != nil {
 		return nil, err
+	}
+	engines, err := workerEngines(p)
+	if err != nil {
+		return nil, err
+	}
+	own := api.WorkerKnowledgeBaseConfig{Domain: kbDomain, GatewayUrl: p.gatewayURL(), Engines: engines}
+	own.Identity.Issuer = p.issuer()
+	own.Identity.ClientId = serviceClientID("worker")
+	var doc api.WorkerConfig
+	doc.KnowledgeBases = []api.WorkerKnowledgeBaseConfig{own}
+	for _, kb := range added {
+		doc.KnowledgeBases = append(doc.KnowledgeBases, kb.entry(engines))
 	}
 	doc.ModelCatalogue = modelCatalogueTarget
 	doc.Port = semiontDescriptor("worker").ports[0].port

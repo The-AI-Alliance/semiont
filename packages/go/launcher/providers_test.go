@@ -25,15 +25,15 @@ func assessingWith(t *testing.T, provider api.EngineProvider, model string, entr
 // names one.
 func TestWorkerDocumentReachesAProviderAtTheAddressItsEntryStates(t *testing.T) {
 	baseURL := "http://vllm.internal:8000/v1"
-	b, err := workerDocument(placed(t, assessingWith(t, api.EngineProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})))
+	b, err := workerDocument(placed(t, assessingWith(t, api.EngineProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})), exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc := workerDocumentFrom(t, b)
+	engines := theKB(t, workerDocumentFrom(t, b)).Engines
 	var vllm *api.WorkerEngineConfig
-	for i := range doc.Engines {
-		if doc.Engines[i].Engine.Provider == api.EngineProviderVllm {
-			vllm = &doc.Engines[i]
+	for i := range engines {
+		if engines[i].Engine.Provider == api.EngineProviderVllm {
+			vllm = &engines[i]
 		}
 	}
 	if vllm == nil {
@@ -51,7 +51,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	baseURL := "https://api.openai.com/v1"
 	p := placed(t, assessingWith(t, api.EngineProviderOpenai, "gpt-listed",
 		stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OPENAI_API_KEY"}}))
-	b, err := workerDocument(p)
+	b, err := workerDocument(p, exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	if doc.ModelCatalogue != modelCatalogueTarget {
 		t.Errorf("the document's model catalogue is %q, want %s", doc.ModelCatalogue, modelCatalogueTarget)
 	}
-	plain, err := workerDocument(placed(t, fixtureStack(t, "ollama-gemma")))
+	plain, err := workerDocument(placed(t, fixtureStack(t, "ollama-gemma")), exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 		t.Errorf("the Librarian is told its model catalogue is %q, want %s", got, modelCatalogueTarget)
 	}
 	var keyed bool
-	for _, engine := range doc.Engines {
+	for _, engine := range theKB(t, doc).Engines {
 		if engine.Engine.Provider == api.EngineProviderOpenai {
 			keyed = engine.ApiKeyEnv != nil && *engine.ApiKeyEnv == "OPENAI_API_KEY" && engine.BaseUrl == baseURL
 		}
@@ -97,7 +97,7 @@ func TestAProviderWithNoAddressIsRefused(t *testing.T) {
 	mustRefuse(t, st, st.Files.Inference+": spec.engines.jobs.mark.assessing.provider", `"together"`, "spec.providers.together")
 
 	st = assessingWith(t, api.EngineProviderTogether, "m", stack.Provider{})
-	_, err := workerDocument(placed(t, st))
+	_, err := workerDocument(placed(t, st), exampleKB.Domain, nil)
 	if want := st.Files.Inference + ": spec.providers.together.baseURL"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("want a refusal naming %s, got %v", want, err)
 	}

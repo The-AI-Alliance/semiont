@@ -418,8 +418,14 @@ __all__ = [
     "WeaverConfigArchivist",
     "WeaverConfigIdentity",
     "WorkerConfig",
-    "WorkerConfigIdentity",
     "WorkerEngineConfig",
+    "WorkerEngineHealth",
+    "WorkerEngineHealthActiveJob",
+    "WorkerHealth",
+    "WorkerKnowledgeBaseConfig",
+    "WorkerKnowledgeBaseConfigIdentity",
+    "WorkerKnowledgeBaseHealth",
+    "WorkerKnowledgeBaseHealthState",
     "YieldCloneCreateCommand",
     "YieldCloneCreated",
     "YieldCloneCreatedResponse",
@@ -3504,9 +3510,9 @@ class DispatcherConfigTiming(WireModel, frozen=True, extra="forbid"):
     ]
 
 
-class WorkerConfigIdentity(WireModel, frozen=True, extra="forbid"):
+class WorkerKnowledgeBaseConfigIdentity(WireModel, frozen=True, extra="forbid"):
     """
-    The issuer the worker's service account signs in at.
+    Where the worker signs in for this knowledge base, and as which client.
     """
 
     issuer: Annotated[
@@ -3516,6 +3522,32 @@ class WorkerConfigIdentity(WireModel, frozen=True, extra="forbid"):
             min_length=1,
         ),
     ]
+    client_id: Annotated[
+        str,
+        Field(
+            alias="clientId",
+            description="The client the issuer holds the public half of the worker's key on: the worker's account at this knowledge base. It is also what the worker says it is called there (`principal:profile`).",
+            min_length=1,
+        ),
+    ]
+
+
+type WorkerKnowledgeBaseHealthState = Annotated[
+    Literal["starting", "working", "refused"],
+    Field(
+        description="`starting`: signing in, opening its stream, confirming it, or waiting to start again. `working`: confirmed, its engines claiming. `refused`: refused, until the service is started again."
+    ),
+]
+
+
+class WorkerEngineHealthActiveJob(WireModel, frozen=True, extra="forbid"):
+    """
+    The job it holds, or null.
+    """
+
+    job_id: Annotated[JobId, Field(alias="jobId")]
+    type: JobType
+    since: Annotated[str, Field(description="When it was handed the job.")]
 
 
 class WeaverConfigIdentity(WireModel, frozen=True, extra="forbid"):
@@ -5886,6 +5918,82 @@ class WorkerEngineConfig(WireModel, frozen=True, extra="forbid"):
     ] = None
 
 
+class WorkerKnowledgeBaseConfig(WireModel, frozen=True, extra="forbid"):
+    """
+    One knowledge base a worker does jobs for: which it is, where its gateway is, the account the worker signs in as there, and the engines it offers it. The worker signs in, confirms the knowledge base and claims at each knowledge base apart from every other.
+    """
+
+    domain: Annotated[
+        str,
+        Field(
+            description="The knowledge base's did:web domain, as it answers `browse:kb-requested`: which knowledge base this is. The worker confirms it there before it claims, and refuses a knowledge base that answers another domain, or none.",
+            min_length=1,
+        ),
+    ]
+    gateway_url: Annotated[
+        str,
+        Field(
+            alias="gatewayUrl",
+            description="The URL the worker reaches the knowledge base's gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.",
+            min_length=1,
+        ),
+    ]
+    identity: WorkerKnowledgeBaseConfigIdentity
+    engines: Annotated[
+        list[WorkerEngineConfig],
+        Field(
+            description="The engines the worker offers this knowledge base, and the jobs it does with each: its own choice, on its own providers' keys. It claims each engine's jobs there for it, so a job no engine here is used for is not claimed at this knowledge base.",
+            min_length=1,
+        ),
+    ]
+
+
+class WorkerEngineHealth(WireModel, frozen=True, extra="forbid"):
+    """
+    One engine at one knowledge base: which it is, the jobs it claims, and what its claims can say of themselves (WORKER-CONTRACT V1).
+    """
+
+    engine: Engine
+    jobs: Annotated[
+        list[JobFilter],
+        Field(description="The jobs it claims, as its claims state them.", min_length=1),
+    ]
+    last_queued_event_at: Annotated[
+        str | None,
+        Field(
+            alias="lastQueuedEventAt",
+            description="When a `job:queued` last reached it, or null.",
+        ),
+    ]
+    last_claim_at: Annotated[
+        str | None,
+        Field(
+            alias="lastClaimAt",
+            description="When it was last handed a job, or null. A claim answered with none pending is not one.",
+        ),
+    ]
+    last_finished_at: Annotated[
+        str | None,
+        Field(
+            alias="lastFinishedAt",
+            description="When a job it held last settled, or null.",
+        ),
+    ]
+    last_activity_at: Annotated[
+        str | None,
+        Field(alias="lastActivityAt", description="When it was last active, or null."),
+    ]
+    active_job: Annotated[WorkerEngineHealthActiveJob | None, Field(alias="activeJob")]
+    jobs_completed: Annotated[
+        int,
+        Field(
+            alias="jobsCompleted",
+            description="How many jobs it has completed since the service started.",
+            ge=0,
+        ),
+    ]
+
+
 class WeaverConfig(WireModel, frozen=True, extra="forbid"):
     """
     Everything a Weaver reads at boot: nothing in it is defaulted by the Weaver. The launcher writes it for the Weaver it starts, from the knowledge base's stack documents, and the Weaver reads it from the path its `--config` flag names (its image passes `/etc/semiont/weaver.json`). Whoever starts a Weaver another way writes the same document: this schema is the contract, and a Weaver needs no launcher. Started without `--config`, or with a path that names no file, the Weaver refuses to start and says which. No secret is a value here: the graph database's password is named by the environment variable that holds it, and the Weaver's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.
@@ -6401,22 +6509,14 @@ class JobClaimedResult(WireModel, frozen=True, extra="forbid"):
 
 class WorkerConfig(WireModel, frozen=True, extra="forbid"):
     """
-    Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_KEY` in its environment: its client id and the RSA key it signs in with. A document that does not validate is refused at boot, naming each failing field.
+    Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents and the knowledge bases added to this machine's worker (`semiont worker kb add`), and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the key the worker signs in with at every knowledge base is `SEMIONT_OIDC_CLIENT_KEY` in its environment, an RSA private key; each knowledge base names the client that holds its public half there. A document that does not validate is refused at boot, naming each failing field.
     """
 
-    gateway_url: Annotated[
-        str,
+    knowledge_bases: Annotated[
+        list[WorkerKnowledgeBaseConfig],
         Field(
-            alias="gatewayUrl",
-            description="The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds.",
-            min_length=1,
-        ),
-    ]
-    identity: WorkerConfigIdentity
-    engines: Annotated[
-        list[WorkerEngineConfig],
-        Field(
-            description="The engines this worker runs, and the jobs it does with each. The worker signs in once, as its own account, and claims each engine's jobs for it. They are the knowledge base's Inference document's engines as they stand, with no fallback, so a job no engine here is used for is not claimed by this worker.",
+            alias="knowledgeBases",
+            description="The knowledge bases this worker does jobs for. At each it signs in, confirms which knowledge base it reached and claims for its engines, apart from every other: one knowledge base's trouble stops that knowledge base's work alone (`docs/protocol/WORKER-SERVICE.md` § Knowledge bases). No two name one `domain`, which the worker refuses at boot.",
             min_length=1,
         ),
     ]
@@ -6434,6 +6534,29 @@ class WorkerConfig(WireModel, frozen=True, extra="forbid"):
     ]
     log_level: Annotated[LogLevel, Field(alias="logLevel")]
     log_format: Annotated[LogFormat, Field(alias="logFormat")]
+
+
+class WorkerKnowledgeBaseHealth(WireModel, frozen=True, extra="forbid"):
+    """
+    One knowledge base the worker serves, as its health says it. `did` and `engines` are there while it is `working`, and only then.
+    """
+
+    domain: Annotated[str, Field(description="The entry's `domain`.", min_length=1)]
+    state: WorkerKnowledgeBaseHealthState
+    did: Annotated[
+        str | None,
+        Field(
+            description="The agent's DID at this knowledge base, as its gateway named it.",
+            min_length=1,
+        ),
+    ] = None
+    engines: Annotated[
+        list[WorkerEngineHealth] | None,
+        Field(
+            description="One entry for each of the entry's engines, in its order.",
+            min_length=1,
+        ),
+    ] = None
 
 
 class LibrarianConfig(WireModel, frozen=True, extra="forbid"):
@@ -6645,6 +6768,22 @@ class KnowledgeGraph(WireModel, frozen=True):
             description="Whether the graph stopped taking resources at its ceiling of 200 resource nodes, so that a resource within the depth asked for is not in it. Present, and true, only then"
         ),
     ] = None
+
+
+class WorkerHealth(WireModel, frozen=True, extra="forbid"):
+    """
+    The Worker service's health answer (WORKER-SERVICE H1). It answers only once a knowledge base of its document is confirmed, so a 200 means it is working somewhere.
+    """
+
+    status: Literal["ok"]
+    knowledge_bases: Annotated[
+        list[WorkerKnowledgeBaseHealth],
+        Field(
+            alias="knowledgeBases",
+            description="One entry for each of the document's `knowledgeBases`, in its order.",
+            min_length=1,
+        ),
+    ]
 
 
 class ArchivistConfig(WireModel, frozen=True, extra="forbid"):

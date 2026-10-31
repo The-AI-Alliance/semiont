@@ -48,13 +48,24 @@ func workerDocumentFrom(t *testing.T, b []byte) api.WorkerConfig {
 	return doc
 }
 
+// workerDocumentOf: the worker's document for a start of the example
+// knowledge base, with none added to this machine's worker.
 func workerDocumentOf(t *testing.T, p placement) api.WorkerConfig {
 	t.Helper()
-	b, err := workerDocument(p)
+	b, err := workerDocument(p, exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return workerDocumentFrom(t, b)
+}
+
+// theKB: the one knowledge base of a document written with none added.
+func theKB(t *testing.T, doc api.WorkerConfig) api.WorkerKnowledgeBaseConfig {
+	t.Helper()
+	if len(doc.KnowledgeBases) != 1 {
+		t.Fatalf("the document names %d knowledge bases, want the one the start runs alone", len(doc.KnowledgeBases))
+	}
+	return doc.KnowledgeBases[0]
 }
 
 // jobOf: the job a filter names, as the engines' `jobs` key it:
@@ -82,12 +93,12 @@ func jobOf(t *testing.T, filter api.JobFilter) string {
 	return named.JobType
 }
 
-// jobsOfEngines: the jobs each engine of a document is given, in the
-// document's order, each engine written "provider/model: job job".
-func jobsOfEngines(t *testing.T, doc api.WorkerConfig) []string {
+// jobsOfEngines: the jobs each engine of a knowledge base's entry is given,
+// in the document's order, each engine written "provider/model: job job".
+func jobsOfEngines(t *testing.T, offered []api.WorkerEngineConfig) []string {
 	t.Helper()
 	var engines []string
-	for _, engine := range doc.Engines {
+	for _, engine := range offered {
 		var jobs []string
 		for _, filter := range engine.Jobs {
 			jobs = append(jobs, jobOf(t, filter))
@@ -97,12 +108,12 @@ func jobsOfEngines(t *testing.T, doc api.WorkerConfig) []string {
 	return engines
 }
 
-// documentEngines: the engine a document gives each job. A job two engines
-// are given is a job the worker would claim twice.
-func documentEngines(t *testing.T, doc api.WorkerConfig) map[string]api.Engine {
+// documentEngines: the engine a knowledge base's entry gives each job. A job
+// two engines are given is a job the worker would claim twice there.
+func documentEngines(t *testing.T, offered []api.WorkerEngineConfig) map[string]api.Engine {
 	t.Helper()
 	given := map[string]api.Engine{}
-	for _, engine := range doc.Engines {
+	for _, engine := range offered {
 		for _, filter := range engine.Jobs {
 			job := jobOf(t, filter)
 			if _, twice := given[job]; twice {
@@ -131,23 +142,30 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
 	st.Workers.Spec.LogLevel = api.LogLevelDebug
 	doc := workerDocumentOf(t, placed(t, st))
+	kb := theKB(t, doc)
 	want := []string{
 		"anthropic/claude-sonnet-4-5-20250929: mark.assessing mark.linking yield",
 		"anthropic/claude-haiku-4-5-20251001: mark.commenting mark.highlighting mark.tagging",
 	}
-	if got := jobsOfEngines(t, doc); !reflect.DeepEqual(got, want) {
+	if got := jobsOfEngines(t, kb.Engines); !reflect.DeepEqual(got, want) {
 		t.Errorf("engines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
-	for _, engine := range doc.Engines {
+	for _, engine := range kb.Engines {
 		if engine.BaseUrl != "https://api.anthropic.com" || engine.ApiKeyEnv == nil || *engine.ApiKeyEnv != "ANTHROPIC_API_KEY" {
 			t.Errorf("%s/%s is reached at %q under %v, want the provider's baseURL and its key named", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, engine.ApiKeyEnv)
 		}
 	}
-	if doc.GatewayUrl != "http://192.168.64.1:14000" {
-		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
+	if kb.Domain != exampleKB.Domain {
+		t.Errorf("domain = %q, want the knowledge base's committed domain", kb.Domain)
 	}
-	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
-		t.Errorf("issuer = %q", doc.Identity.Issuer)
+	if kb.GatewayUrl != "http://192.168.64.1:14000" {
+		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", kb.GatewayUrl)
+	}
+	if kb.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+		t.Errorf("issuer = %q", kb.Identity.Issuer)
+	}
+	if kb.Identity.ClientId != serviceClientID("worker") {
+		t.Errorf("clientId = %q, want this machine's worker's, %s", kb.Identity.ClientId, serviceClientID("worker"))
 	}
 	if doc.ModelCatalogue != "/usr/share/semiont/model-catalogue.json" {
 		t.Errorf("modelCatalogue = %q, want where the image carries it", doc.ModelCatalogue)
@@ -164,7 +182,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 // first job that needs each, each one's jobs in the jobs' order, and the same
 // documents are the same document every time.
 func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
-	b, err := workerDocument(placed(t, threeEngines(t)))
+	b, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,11 +191,11 @@ func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
 		"ollama/gemma4:e2b: mark.commenting mark.tagging",
 		"anthropic/claude-haiku-4-5-20251001: mark.highlighting",
 	}
-	if got := jobsOfEngines(t, workerDocumentFrom(t, b)); !reflect.DeepEqual(got, want) {
+	if got := jobsOfEngines(t, theKB(t, workerDocumentFrom(t, b)).Engines); !reflect.DeepEqual(got, want) {
 		t.Errorf("engines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
 	for i := 0; i < 50; i++ {
-		again, err := workerDocument(placed(t, threeEngines(t)))
+		again, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +225,7 @@ func TestWorkerDocumentGivesEachJobTheEngineTheEnginesSay(t *testing.T) {
 		if len(want) == 0 {
 			t.Fatalf("%s: the engines give no job an engine — this case compares nothing", why)
 		}
-		if got := documentEngines(t, workerDocumentOf(t, p)); !reflect.DeepEqual(got, want) {
+		if got := documentEngines(t, theKB(t, workerDocumentOf(t, p)).Engines); !reflect.DeepEqual(got, want) {
 			t.Errorf("%s: the document gives %v\nthe engines say      %v", why, got, want)
 		}
 	}
@@ -241,7 +259,7 @@ func TestPlanRunsAWorkerExactlyWhenAJobHasAnEngine(t *testing.T) {
 		if got := p.plan.Roles["worker"].Presence; got != c.want {
 			t.Errorf("%s: the plan's worker is %s, want %s", c.why, got, c.want)
 		}
-		_, err := workerDocument(p)
+		_, err := workerDocument(p, exampleKB.Domain, nil)
 		switch {
 		case c.want == presenceLauncher && err != nil:
 			t.Errorf("%s: the plan runs a worker, and its document is refused: %v", c.why, err)
@@ -282,7 +300,7 @@ func TestEveryEngineJobHasAFilter(t *testing.T) {
 // its document carries. An Ollama that names no key is asked without one.
 func TestWorkerDocumentNamesAKey(t *testing.T) {
 	p := placed(t, threeEngines(t))
-	for _, engine := range workerDocumentOf(t, p).Engines {
+	for _, engine := range theKB(t, workerDocumentOf(t, p)).Engines {
 		switch engine.Engine.Provider {
 		case api.EngineProviderAnthropic:
 			if engine.ApiKeyEnv == nil || *engine.ApiKeyEnv != "ANTHROPIC_API_KEY" {
@@ -305,7 +323,7 @@ func TestWorkerIsHandedOnlyTheKeysItsEnginesUse(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	withAnthropic(st)
 	p := placed(t, st)
-	b, err := workerDocument(p)
+	b, err := workerDocument(p, exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +342,7 @@ func TestWorkerDocumentNamesTheKeyOfEveryProviderThatStatesOne(t *testing.T) {
 	baseURL := "https://ollama.internal"
 	st.Inference.Spec.Providers[api.EngineProviderOllama] = stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OLLAMA_API_KEY"}}
 	p := placed(t, st)
-	for _, engine := range workerDocumentOf(t, p).Engines {
+	for _, engine := range theKB(t, workerDocumentOf(t, p)).Engines {
 		if engine.Engine.Provider != api.EngineProviderOllama {
 			continue
 		}
@@ -344,7 +362,7 @@ func TestWorkerDocumentStatesAProvidersAddressAsItsEntryDoes(t *testing.T) {
 	ollama, proxy := "http://ollama.internal:11434", "https://proxy.internal/v1"
 	st.Inference.Spec.Providers[api.EngineProviderOllama] = stack.Provider{BaseURL: &ollama}
 	st.Inference.Spec.Providers[api.EngineProviderAnthropic] = stack.Provider{BaseURL: &proxy, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
-	for _, engine := range workerDocumentOf(t, placed(t, st)).Engines {
+	for _, engine := range theKB(t, workerDocumentOf(t, placed(t, st))).Engines {
 		want := map[api.EngineProvider]string{
 			api.EngineProviderOllama:    ollama,
 			api.EngineProviderAnthropic: proxy,
@@ -367,11 +385,11 @@ func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 	if rp.Driver != "anthropic" {
 		t.Fatalf("the fixture's inference role is %q: this test compares against the remote-model check's address", rp.Driver)
 	}
-	doc := workerDocumentOf(t, p)
-	if len(doc.Engines) == 0 {
+	kb := theKB(t, workerDocumentOf(t, p))
+	if len(kb.Engines) == 0 {
 		t.Fatal("the fixture gives no job an engine")
 	}
-	for _, engine := range doc.Engines {
+	for _, engine := range kb.Engines {
 		if want := saasBase(rp.Address, rp.Port); engine.BaseUrl != want {
 			t.Errorf("%s/%s is reached at %q, and the launcher checks its models at %q", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, want)
 		}
@@ -382,12 +400,12 @@ func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 // start places it.
 func TestWorkerDocumentReachesTheOllamaTheLauncherPlaces(t *testing.T) {
 	p := placed(t, fixtureStack(t, "ollama-gemma"))
-	doc := workerDocumentOf(t, p)
-	if len(doc.Engines) == 0 {
+	kb := theKB(t, workerDocumentOf(t, p))
+	if len(kb.Engines) == 0 {
 		t.Fatal("the fixture gives no job an engine")
 	}
 	want := fmt.Sprintf("http://192.168.64.1:%d", p.plan.Roles["inference"].Port)
-	for _, engine := range doc.Engines {
+	for _, engine := range kb.Engines {
 		if engine.BaseUrl != want {
 			t.Errorf("%s/%s is reached at %q, and the launcher runs Ollama at %q", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, want)
 		}
@@ -415,13 +433,14 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 			t.Errorf("the worker is handed %s, which it does not read:\n%s", unread, args)
 		}
 	}
-	for _, handed := range []string{"SEMIONT_OIDC_CLIENT_ID=" + serviceClientID("worker"), "SEMIONT_OIDC_CLIENT_KEY=client-key"} {
-		if !strings.Contains(args, handed) {
-			t.Errorf("the worker is not handed its service account (%s):\n%s", handed, args)
-		}
+	if !strings.Contains(args, "SEMIONT_OIDC_CLIENT_KEY=client-key") {
+		t.Errorf("the worker is not handed the machine's key it signs in with:\n%s", args)
 	}
 	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_SECRET") {
 		t.Errorf("the worker is handed a secret; it proves itself with the machine's key:\n%s", args)
+	}
+	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_ID") {
+		t.Errorf("the worker is handed a client id; each knowledge base's entry in its document names the client it signs in as there:\n%s", args)
 	}
 
 	port := fmt.Sprint(workerDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma"))).Port)

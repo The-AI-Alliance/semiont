@@ -47,8 +47,10 @@ grant
   ` + "`semiont worker key`" + ` prints on the worker's machine, as a JWK Set or
   a PEM, in <file>. It creates one client, semiont-worker-<label>, that proves
   itself with that key and carries the worker's roles, and prints what the
-  worker's owner needs: its client id, and where the gateway is, which names
-  the issuer to sign in at. Neither is secret. Granting the same key again changes nothing;
+  worker's owner needs: this knowledge base's domain, its client id, and where
+  the gateway is, which names the issuer to sign in at, and the one
+  ` + "`semiont worker kb add`" + ` line that adds this knowledge base to their
+  worker. None is secret. Granting the same key again changes nothing;
   another key under the same label replaces the old on the same client, so the
   worker keeps its account.
 
@@ -85,9 +87,9 @@ func Identity(args []string) int {
 	return 1
 }
 
-// identityArgs: what one identity subcommand was given — the flags it takes,
+// subcommandArgs: what one subcommand was given — the flags it takes,
 // and its positional arguments.
-func identityArgs(u *UI, args []string, takes ...string) (map[string]string, []string, bool) {
+func subcommandArgs(u *UI, args []string, takes ...string) (map[string]string, []string, bool) {
 	flags := map[string]string{}
 	var positional []string
 	for i := 0; i < len(args); i++ {
@@ -214,7 +216,7 @@ func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminReal
 }
 
 func identitySync(u *UI, args []string) int {
-	flags, positional, ok := identityArgs(u, args, "--root", "--config")
+	flags, positional, ok := subcommandArgs(u, args, "--root", "--config")
 	if !ok {
 		return 1
 	}
@@ -269,7 +271,7 @@ func labelled(u *UI, verb string, positional []string) (string, bool) {
 }
 
 func identityGrant(u *UI, args []string) int {
-	flags, positional, ok := identityArgs(u, args, "--key", "--root", "--config")
+	flags, positional, ok := subcommandArgs(u, args, "--key", "--root", "--config")
 	if !ok {
 		return 1
 	}
@@ -310,12 +312,14 @@ func identityGrant(u *UI, args []string) int {
 	default:
 		u.Ok("identity — %s is already granted this key (%s)", u.Bold(label), k.thumbprint)
 	}
-	gateway := r.st.KnowledgeBase.Spec.Gateway.PublicURL
-	fmt.Printf("  Client id:  %s\n", workerClientID(label))
+	domain, gateway, clientID := r.kb.ident.domain(), r.st.KnowledgeBase.Spec.Gateway.PublicURL, workerClientID(label)
+	fmt.Printf("  Domain:     %s\n", domain)
+	fmt.Printf("  Client id:  %s\n", clientID)
 	fmt.Printf("  Gateway:    %s\n", gateway)
+	fmt.Printf("  On the worker's machine:  semiont worker kb add %s --gateway %s --client-id %s\n", domain, gateway, clientID)
 	// Not the issuer: the gateway names the one it trusts in its protected
 	// resource metadata, and a second statement of it here could only be wrong.
-	fmt.Fprintln(os.Stderr, "  Send these to whoever runs the worker. Neither is secret; the gateway names the issuer to sign in at.")
+	fmt.Fprintln(os.Stderr, "  Send these to whoever runs the worker. None is secret; the gateway names the issuer to sign in at.")
 	if parsed, err := url.Parse(gateway); err != nil || loopbackHost(parsed.Hostname()) {
 		u.Warn("The knowledge base's documents state the gateway at %s, which a worker on another machine cannot reach.", gateway)
 	}
@@ -323,7 +327,7 @@ func identityGrant(u *UI, args []string) int {
 }
 
 func identityRevoke(u *UI, args []string) int {
-	flags, positional, ok := identityArgs(u, args, "--root", "--config")
+	flags, positional, ok := subcommandArgs(u, args, "--root", "--config")
 	if !ok {
 		return 1
 	}

@@ -204,8 +204,8 @@ variables as above.
 ### Which knowledge base
 
 Every service that serves one knowledge base exports under a resource naming it:
-`semiont.kb`, the knowledge base's DID (`did:web:<site.domain>`). The worker's
-resource names none. In Jaeger the DID is a tag of each service's
+`semiont.kb`, the knowledge base's DID (`did:web:<site.domain>`). The worker serves
+several, so its resource names none. In Jaeger the DID is a tag of each service's
 process; the collector writes it on every metric it hands Prometheus as the label
 `semiont_kb`:
 

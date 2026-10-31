@@ -3,6 +3,7 @@
  * signed with the registered key, for this token endpoint and not expired, is
  * answered once; one signed by another key, expired, addressed elsewhere or
  * sent a second time is refused (specs/src/session/client-assertion-cases.json).
+ * A grant a case tells it to fail is answered 503, or not answered at all.
  */
 import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -78,5 +79,16 @@ describe('the issuer admits a key account by its assertion', () => {
       body: new URLSearchParams({ grant_type: 'client_credentials', client_id: CLIENT, client_secret: 'anything' }),
     });
     expect(bySecret.status).toBe(401);
+  });
+
+  it('fails the grants it is told to fail, in order, and grants again after them', async () => {
+    const before = issuer.grants.get(CLIENT) ?? 0;
+    issuer.failing.next.push('unavailable', 'unanswered');
+    expect((await grant(assertion(privateKey, claims()))).status).toBe(503);
+    await expect(grant(assertion(privateKey, claims()))).rejects.toThrow();
+    expect((await grant(assertion(privateKey, claims()))).status).toBe(200);
+    expect(issuer.failing.met.map(({ failure }) => failure)).toEqual(['unavailable', 'unanswered']);
+    expect(issuer.failing.next).toEqual([]);
+    expect(issuer.grants.get(CLIENT)).toBe(before + 1);
   });
 });

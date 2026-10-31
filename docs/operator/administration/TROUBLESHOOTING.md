@@ -99,7 +99,7 @@ A worker is a special case: its token must also carry the `semiont-worker` role,
 
 `semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client — and [the repair](#semiont-start-refuses-at-the-identity-preflight) — up front.
 
-A service restarted with `semiont start --service worker` reads the same per-root credential the full start wrote, so it rejoins with nothing to recover. One started by hand must be given its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
+A worker restarted with `semiont start --service worker` is handed the machine's key again and the same document, so it rejoins with nothing to recover. One started by hand must be given that key as `SEMIONT_OIDC_CLIENT_KEY`; its document names the client it signs in as at each knowledge base.
 
 ### Commands fail, or real-time updates stop
 

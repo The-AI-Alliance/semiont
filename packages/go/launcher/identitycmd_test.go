@@ -147,9 +147,10 @@ func keyFile(t *testing.T, k workerKey) string {
 }
 
 // A grant prints what the worker's owner needs to sign in and serve this
-// knowledge base: the client id, and where the gateway is, as the knowledge
-// base's documents state it — the gateway names its issuer itself. Neither is
-// secret. The fixture's gateway is on loopback, which no other machine
+// knowledge base: its domain, the client id, and where the gateway is, as the
+// knowledge base's documents state it — the gateway names its issuer itself —
+// and the one line that adds it to their worker, so nothing is retyped. None
+// is secret. The fixture's gateway is on loopback, which no other machine
 // reaches, and the grant says so.
 func TestIdentityGrantPrintsWhatTheWorkersOwnerNeeds(t *testing.T) {
 	admin := newStubAdmin(t, "semiont", correctRealm())
@@ -171,14 +172,17 @@ func TestIdentityGrantPrintsWhatTheWorkersOwnerNeeds(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
+	gateway := st.KnowledgeBase.Spec.Gateway.PublicURL
 	harness.MustContainAll(t, "stdout", stdout,
 		"granted alice",
-		"Client id:  semiont-worker-alice",
-		"Gateway:    "+st.KnowledgeBase.Spec.Gateway.PublicURL+"\n")
-	if strings.Contains(stdout, "Issuer") {
+		"Domain:     example.github.io:test-kb\n",
+		"Client id:  semiont-worker-alice\n",
+		"Gateway:    "+gateway+"\n",
+		"semiont worker kb add example.github.io:test-kb --gateway "+gateway+" --client-id semiont-worker-alice\n")
+	if strings.Contains(stdout, "Issuer") || strings.Contains(stdout, "--issuer") {
 		t.Errorf("the grant states an issuer; the gateway names the one it trusts:\n%s", stdout)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "Neither is secret")
+	harness.MustContainAll(t, "stderr", stderr, "None is secret")
 	harness.MustContainAll(t, "stdout", stdout, "a worker on another machine cannot reach")
 	if len(admin.created) != 1 || admin.created[0]["clientId"] != "semiont-worker-alice" {
 		t.Errorf("created %v, want semiont-worker-alice alone", admin.created)

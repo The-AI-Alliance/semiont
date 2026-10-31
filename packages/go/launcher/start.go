@@ -428,6 +428,19 @@ func Start(args []string) int {
 		if ident.SiteName != "" {
 			u.Log("KB: %s %s", u.Bold(ident.SiteName), u.Dim(ident.didWeb()))
 		}
+		// The worker's document refuses a knowledge base added to this
+		// machine's worker that is the one this start runs (workerDocument);
+		// that refusal is made here, before anything runs.
+		if plan.runs("worker") && (opts.service == "" || opts.service == "worker") {
+			added, err := loadAddedKBs()
+			if err == nil {
+				err = refuseOwnKB(ident.domain(), added)
+			}
+			if err != nil {
+				u.Fail("%v", err)
+				return 1
+			}
+		}
 		if !opts.dryRun {
 			warnICloudRoot(u, root)
 		}
@@ -875,13 +888,14 @@ func dispatcherArgs(stage string, e exposure, clientSecret, img, mem string, use
 }
 
 // workerArgs: the worker claims jobs and calls the models. It mounts no piece
-// of the knowledge base and no state: the gateway is its route to the bus and
-// to a resource's bytes. It reads a resolved configuration document
-// (workerdoc.go) at the path its image passes to `--config`, so it is handed
-// no *_HOST variables and no copy of the KB's documents: the document carries
-// every address already, and names the variable holding each provider's key
+// of the knowledge base and no state: each gateway is its route to that
+// knowledge base's bus and to a resource's bytes. It reads a resolved
+// configuration document (workerdoc.go) at the path its image passes to
+// `--config`, so it is handed no *_HOST variables and no copy of the KB's
+// documents: the document carries every address already, the client it signs
+// in as at each knowledge base, and the variable holding each provider's key
 // (workerSecrets), which arrives among the user's. It keeps the issuer's
-// host entry, because it signs in at the issuer by name.
+// host entry, because it signs in at this start's issuer by name.
 func workerArgs(stage string, e exposure, clientKey, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("worker").ports[0].port
 	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
@@ -891,12 +905,10 @@ func workerArgs(stage string, e exposure, clientKey, img, mem string, userEnv, o
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
-	a = append(a,
-		// This process's own account at the realm, and the machine's key it
-		// signs each sign-in with (workerkey.go): no secret is sent. Its token
-		// is its bearer at the gateway, whatever engines it runs.
-		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("worker"),
-		"--env", "SEMIONT_OIDC_CLIENT_KEY="+clientKey)
+	// The machine's key it signs each sign-in with (workerkey.go), at every
+	// knowledge base it serves: no secret is sent. Which client it signs in
+	// as at each is that knowledge base's entry in its document.
+	a = append(a, "--env", "SEMIONT_OIDC_CLIENT_KEY="+clientKey)
 	a = append(a, superviseEnv()...)
 	return append(a, img)
 }
