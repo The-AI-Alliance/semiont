@@ -6,7 +6,8 @@
     "python": ["packages/python/sdk/tests/test_identity.py"],
     "go": ["packages/go/sdk/identity_test.go"],
     "archivist": ["images/archivist/record/src/kb.rs"],
-    "launcher": ["packages/go/launcher/kbidentity_agreement_test.go", "packages/go/launcher/staging_test.go"]
+    "launcher": ["packages/go/launcher/kbidentity_agreement_test.go", "packages/go/launcher/staging_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/identity/IdentityTest.kt"]
   },
   "cases": [
     {

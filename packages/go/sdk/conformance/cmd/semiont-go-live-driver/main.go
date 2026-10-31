@@ -59,19 +59,19 @@ func liveQuery[T any](q *semiont.Cached[T], show func(T) any) query {
 	}
 }
 
-// collaborators is the directory as the wire had it, each entry with its
-// model's limits beside its own fields.
-func collaborators(listed []semiont.Collaborator) any {
+// engines is the engines as the wire had them, each entry with its limits
+// beside its own fields.
+func engines(listed []semiont.EngineWithLimits) any {
 	written := make([]any, 0, len(listed))
-	for _, collaborator := range listed {
-		encoded, err := json.Marshal(collaborator.Entry)
+	for _, engine := range listed {
+		encoded, err := json.Marshal(engine.Entry)
 		var entry map[string]any
 		if err != nil || json.Unmarshal(encoded, &entry) != nil {
-			written = append(written, collaborator.Entry)
+			written = append(written, engine.Entry)
 			continue
 		}
-		if collaborator.Limits != nil {
-			entry["limits"] = collaborator.Limits
+		if engine.Limits != nil {
+			entry["limits"] = engine.Limits
 		}
 		written = append(written, entry)
 	}
@@ -224,8 +224,8 @@ func queryOf(c *semiont.Client, q protocol.Arguments) (query, error) {
 		return liveQuery(c.Browse.EntityTypes(), itself[[]string]), nil
 	case semiont.CacheQueryTagSchemas:
 		return liveQuery(c.Browse.TagSchemas(), itself[[]api.TagSchema]), nil
-	case semiont.CacheQueryAgents:
-		return liveQuery(c.Browse.Agents(), collaborators), nil
+	case semiont.CacheQueryEngines:
+		return liveQuery(c.Browse.Engines(), engines), nil
 	}
 	return query{}, protocol.Misused("no live query %s", name)
 }

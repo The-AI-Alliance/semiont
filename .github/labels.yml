@@ -117,7 +117,7 @@
   description: "The Go SDK (packages/go/sdk)"
 - name: "sdk:kotlin"
   color: "bfd4f2"
-  description: "A Kotlin SDK, not yet written"
+  description: "The Kotlin SDK (packages/kotlin/sdk)"
 - name: "sdk:swift"
   color: "bfd4f2"
   description: "A Swift SDK, not yet written"

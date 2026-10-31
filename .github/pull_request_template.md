@@ -29,6 +29,7 @@
 - [ ] Rust crates (`packages/rust/`)
 - [ ] Python packages (`packages/python/sdk` and the others under `packages/python/`)
 - [ ] Go SDK (`packages/go/sdk`)
+- [ ] Kotlin SDK (`packages/kotlin/sdk`)
 - [ ] Conformance suites (`tests/conformance`)
 - [ ] End-to-end suite (`tests/e2e`)
 - [ ] Scripts (`scripts/`)
@@ -45,6 +46,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Python: from each project changed (`packages/python/sdk`, `packages/python/inference`, `packages/python/graph`, `packages/python/vectors`, `packages/python/service`, `images/worker`, `images/weaver`, `images/smelter`, `images/librarian`), `uv run mypy`, `uv run pyright`, `uv run ruff check`, `uv run ruff format --check` and `uv run pytest`
 - [ ] Launcher: `cd apps/launcher && go test -timeout 30m ./...` and `cd packages/go/launcher && go test -timeout 30m ./...`
 - [ ] Go SDK: `cd packages/go/sdk && go test -timeout 5m ./...`
+- [ ] Kotlin SDK: `./gradlew --no-daemon check` in `packages/kotlin/sdk`, in the JDK image its `.java-version` names
 - [ ] Gateway conformance: `cd tests/conformance && npm run test:gateway`
 - [ ] Dispatcher conformance: `cd tests/conformance && npm run test:dispatcher`
 - [ ] Archivist conformance: `cd tests/conformance && npm run test:archivist`

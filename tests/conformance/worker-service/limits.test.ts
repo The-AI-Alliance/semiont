@@ -1,17 +1,18 @@
 /**
  * The limits a worker answers (WORKER-SERVICE.md § Limits): one reply to
- * `job:limits-requested`, from its first agent, with what each of its models
- * can take as its provider states it.
+ * `job:limits-requested` on each knowledge base's stream, with what each of
+ * the engines it runs for that knowledge base can take as its provider states
+ * it.
  */
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { marks, YIELDS } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
-import { ANTHROPIC_MODEL, eachWorkerService, type Served, type WorkerAgent, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { ANTHROPIC_MODEL, eachWorkerService, type Engine, type Served, type StandInKnowledgeBase, type WorkerServiceWorld } from '../harness/worker-service-world';
 import { CONTEXT_LENGTH } from './support';
 
-/** Ask for the limits as a client does, and read the one reply. */
-async function limits(w: WorkerServiceWorld): Promise<{ payload: Record<string, unknown>; by: unknown }> {
+/** Ask for the limits on a knowledge base's bus as a client does, and read the one reply. */
+async function limits(w: StandInKnowledgeBase): Promise<{ payload: Record<string, unknown>; by: unknown }> {
   const listener = await w.listen(['job:limits-result', 'job:limits-failed']);
   const correlationId = randomUUID();
   const reply = await w.world.emit(listener.token, { channel: 'job:limits-requested', payload: {}, correlationId, clientId: listener.clientId });
@@ -25,41 +26,41 @@ async function limits(w: WorkerServiceWorld): Promise<{ payload: Record<string, 
 /** A window of `contextTokens`, as an Ollama model's is stated: one window, shared by what goes in and what comes out. */
 const shared = (contextTokens: number) => ({ contextTokens, maxOutputTokens: contextTokens, acceptsTemperature: true });
 
-/** A worker of two agents, the first two of `agents`: one that serves highlighting and one that serves generation. */
-async function started(w: WorkerServiceWorld, agents: WorkerAgent[]): Promise<Served> {
-  const [first, second] = agents;
-  const served = await w.start({ agents: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [YIELDS])] });
-  await eventually('both agents to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
+/** A worker of two engines, the first two of `engines`: one used for highlighting and one for generation. */
+async function started(w: WorkerServiceWorld, engines: readonly Engine[]): Promise<Served> {
+  const [first, second] = engines;
+  const served = await w.start({ engines: [w.entry(first!, [marks('highlighting')]), w.entry(second!, [YIELDS])] });
+  await eventually('both engines to have claimed', 15_000, () => (w.claims.length >= 2 ? true : undefined));
   return served;
 }
 
 eachWorkerService('the limits a worker answers', (world) => {
-  it('answers a request once, from its first agent, with the limits of every provider and model it works as, in the order of its agents', async () => {
+  it('answers a request once, as the agent, with the limits of every engine, in the order of its engines', async () => {
     const w = world();
-    const [first, second] = w.agents;
-    const served = await started(w, w.agents);
+    const [first, second] = w.engines;
+    const served = await started(w, w.engines);
     const answer = await limits(w);
     expect(answer.payload).toEqual({
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: shared(CONTEXT_LENGTH) },
-          { provider: second!.provider, model: second!.model, limits: shared(CONTEXT_LENGTH) },
+          { engine: { provider: first!.provider, model: first!.model }, limits: shared(CONTEXT_LENGTH) },
+          { engine: { provider: second!.provider, model: second!.model }, limits: shared(CONTEXT_LENGTH) },
         ],
       },
     });
-    expect(answer.by).toBe(first!.did);
+    expect(answer.by).toBe(w.did);
     // It asked its provider of each model once, by name.
     expect([...(w.ollama.shows as Array<{ model: string }>)].sort((a, b) => (a.model < b.model ? -1 : 1))).toEqual(
       [{ model: first!.model }, { model: second!.model }].sort((a, b) => (a.model < b.model ? -1 : 1)),
     );
-    expect(served.emits('job:limits-result').map((e) => e.by)).toEqual([first!.did]);
+    expect(served.emits('job:limits-result').map((e) => e.by)).toEqual([w.did]);
     expect(served.emits('job:limits-failed')).toEqual([]);
   });
 
   it('remembers what a provider said, and asks it again only for a model it could not learn of', async () => {
     const w = world();
-    const [first, second] = w.agents;
-    await started(w, w.agents);
+    const [first, second] = w.engines;
+    await started(w, w.engines);
 
     // A provider that cannot be asked: its models are left out, and the request is still answered.
     w.ollama.show = { status: 500 };
@@ -70,8 +71,8 @@ eachWorkerService('the limits a worker answers', (world) => {
     const learned = {
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: shared(4096) },
-          { provider: second!.provider, model: second!.model, limits: shared(4096) },
+          { engine: { provider: first!.provider, model: first!.model }, limits: shared(4096) },
+          { engine: { provider: second!.provider, model: second!.model }, limits: shared(4096) },
         ],
       },
     };
@@ -86,27 +87,56 @@ eachWorkerService('the limits a worker answers', (world) => {
 
   it('answers, of an Anthropic model, what its provider says it reads and writes, and that it takes no temperature, having asked of each model once and in one request', async () => {
     const w = world();
-    const [first, second] = w.anthropicAgents;
+    const [first, second] = w.anthropicEngines;
     // The second reads and writes less.
     w.anthropic.models.set(second!.model, { maxInputTokens: 180_000, maxOutputTokens: 8192, structuredOutputs: true });
-    await started(w, w.anthropicAgents);
+    await started(w, w.anthropicEngines);
     const stated = {
       response: {
         limits: [
-          { provider: first!.provider, model: first!.model, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: false } },
-          { provider: second!.provider, model: second!.model, limits: { contextTokens: 180_000, maxOutputTokens: 8192, acceptsTemperature: false } },
+          { engine: { provider: first!.provider, model: first!.model }, limits: { contextTokens: ANTHROPIC_MODEL.maxInputTokens, maxOutputTokens: ANTHROPIC_MODEL.maxOutputTokens, acceptsTemperature: false } },
+          { engine: { provider: second!.provider, model: second!.model }, limits: { contextTokens: 180_000, maxOutputTokens: 8192, acceptsTemperature: false } },
         ],
       },
     };
     const answer = await limits(w);
     expect(answer.payload).toEqual(stated);
-    expect(answer.by).toBe(first!.did);
+    expect(answer.by).toBe(w.did);
 
-    // Of each model, its ceilings, and nothing else. The two agents ask at once, so the two requests come in no fixed order.
+    // Of each model, its ceilings, and nothing else. The two engines ask at once, so the two requests come in no fixed order.
     expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`).sort()).toEqual([`GET /v1/models/${first!.model}`, `GET /v1/models/${second!.model}`].sort());
 
     // What it learned it keeps: the provider is asked nothing more.
     expect((await limits(w)).payload).toEqual(stated);
     expect(w.anthropic.requests).toHaveLength(2);
+  });
+
+  it("answers on each knowledge base's stream with the limits of the engines it runs for that knowledge base alone, in their order there, as the agent there", async () => {
+    const w = world();
+    const second = await w.second();
+    const [first, other] = w.engines;
+    // The second knowledge base is offered the first's engine too, after one of its own.
+    const served = await w.start({
+      engines: [w.entry(first!, [marks('highlighting')])],
+      serving: [{ kb: second, engines: [w.entry(other!, [marks('highlighting')]), w.entry(first!, [YIELDS])] }],
+    });
+    await eventually('every engine to have claimed', 15_000, () => (w.claims.length >= 1 && second.claims.length >= 2 ? true : undefined));
+
+    const here = await limits(w);
+    expect(here.payload).toEqual({ response: { limits: [{ engine: { provider: first!.provider, model: first!.model }, limits: shared(CONTEXT_LENGTH) }] } });
+    expect(here.by).toBe(w.did);
+    const there = await limits(second);
+    expect(there.payload).toEqual({
+      response: {
+        limits: [
+          { engine: { provider: other!.provider, model: other!.model }, limits: shared(CONTEXT_LENGTH) },
+          { engine: { provider: first!.provider, model: first!.model }, limits: shared(CONTEXT_LENGTH) },
+        ],
+      },
+    });
+    expect(there.by).toBe(second.did);
+    // Each was answered once, on the stream of the knowledge base it was asked at.
+    expect(served.emits('job:limits-result').map((e) => e.by)).toEqual([w.did]);
+    expect(served.at(second).emits('job:limits-result').map((e) => e.by)).toEqual([second.did]);
   });
 });

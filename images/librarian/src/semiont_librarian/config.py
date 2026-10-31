@@ -15,7 +15,7 @@ from typing import Final, Literal
 from semiont.timing import HELD_JOB_STALL_MS
 from semiont.types import (
     LibrarianConfig,
-    LibrarianModelConfig,
+    LibrarianEngineConfig,
     MemoryGraphConfig,
     MemoryVectorsConfig,
     Neo4jGraphConfig,
@@ -89,12 +89,12 @@ def embedding_key_of(config: LibrarianConfig, environment: Mapping[str, str]) ->
     return key
 
 
-def api_key_of(actor: Actor, model: LibrarianModelConfig, environment: Mapping[str, str]) -> str | None:
-    """The key of an actor's model, read from the variable the document names for it. `model` is the actor's part of the document.
+def api_key_of(actor: Actor, entry: LibrarianEngineConfig, environment: Mapping[str, str]) -> str | None:
+    """The key of an actor's engine, read from the variable the document names for it. `entry` is the actor's part of the document.
 
     An actor whose provider takes no key names no variable and has none.
     """
-    name = model.api_key_env
+    name = entry.api_key_env
     if name is None:
         return None
     key = set_in(environment, name)

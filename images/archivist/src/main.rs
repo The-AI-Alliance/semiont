@@ -12,6 +12,7 @@ mod browse;
 mod bus;
 mod commands;
 mod content;
+mod naming;
 mod surface;
 
 use archivist::Archivist;
@@ -25,8 +26,8 @@ use semiont_archivist_staging::{Bounds, staging_for};
 use semiont_core::config::{self, Document};
 use semiont_core::types::ArchivistConfig;
 use semiont_http_service::{IssuerVerifier, KeyTimings};
-use semiont_http_transport::agent::{Agent, AgentToken};
-use semiont_http_transport::service_account::{Credential, ServiceToken};
+use semiont_http_transport::agent::AgentToken;
+use semiont_http_transport::service_account::{Credential, SecretCredential, ServiceToken};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
 use serde_json::{Value, json};
@@ -86,20 +87,18 @@ fn boot() -> Result<(), String> {
         .enable_all()
         .build()
         .map_err(|e| format!("cannot start the runtime: {e}"))?;
-    let outcome = runtime.block_on(serve(
-        document,
-        Credential {
-            issuer: String::new(),
-            client_id,
-            client_secret,
-        },
-    ));
+    let credential = SecretCredential {
+        issuer: document.identity.issuer.clone(),
+        client_id,
+        client_secret,
+    };
+    let outcome = runtime.block_on(serve(document, credential));
     runtime.shutdown_timeout(Duration::from_secs(1));
     telemetry::shutdown(Duration::from_secs(2));
     outcome
 }
 
-async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), String> {
+async fn serve(document: ArchivistConfig, credential: SecretCredential) -> Result<(), String> {
     telemetry::register_supervisor_restarts();
     telemetry::sample_lag();
     let http = reqwest::Client::builder()
@@ -107,17 +106,7 @@ async fn serve(document: ArchivistConfig, credential: Credential) -> Result<(), 
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
     let agent = AgentToken::sign_in(
         &document.gateway_url,
-        Agent {
-            provider: "semiont".to_owned(),
-            model: "archivist".to_owned(),
-        },
-        ServiceToken::new(
-            Credential {
-                issuer: document.identity.issuer.clone(),
-                ..credential
-            },
-            http.clone(),
-        ),
+        ServiceToken::new(Credential::Secret(credential), http.clone()),
         http.clone(),
     )
     .await

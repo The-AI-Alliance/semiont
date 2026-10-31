@@ -59,7 +59,7 @@ import type {
   AnchorRect,
   GatheredContext,
   TagSchema,
-  Collaborator,
+  EngineWithLimits,
   KbDescription,
 } from '@semiont/core';
 
@@ -186,13 +186,13 @@ export interface BrowseNamespace {
   entityTypes(): CacheObservable<string[]>;
   tagSchemas(): CacheObservable<TagSchema[]>;
   /**
-   * The KB's collaborator directory — declared software agents (with
-   * `servesJobTypes` capabilities), not its members (Persons) —
-   * with each model's limits as the services holding its inference
-   * credentials report them. KB-wide singleton; cached for the client
-   * lifetime, asked again when the stream reopens after a drop.
+   * The KB's engines — each a provider and a model its Inference document
+   * names, with the jobs the document has it used for — with each engine's
+   * limits as the services holding its inference credentials report them.
+   * KB-wide singleton; cached for the client lifetime, asked again when the
+   * stream reopens after a drop.
    */
-  agents(): CacheObservable<Collaborator[]>;
+  engines(): CacheObservable<EngineWithLimits[]>;
   events(resourceId: ResourceId): CacheObservable<AttributedEvent[]>;
 
   // One-shot reads (Promise — no caching, no live update)

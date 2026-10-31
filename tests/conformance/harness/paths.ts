@@ -7,13 +7,20 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..
 /**
  * What a process a suite starts is given of the suite's own environment,
  * beside what its service's table lists: the PATH it is found on, and, when
- * the run measures coverage, the LLVM_PROFILE_FILE an instrumented binary
- * writes what it ran to as it exits. ci.yml sets it in every job that starts
- * one of the Rust binaries.
+ * the run measures coverage, how each kind of program is measured: the
+ * LLVM_PROFILE_FILE an instrumented binary writes what it ran to as it exits,
+ * which ci.yml sets in every job that starts one of the Rust binaries, and
+ * the JAVA_OPTS a JVM driver's start script runs it with, which carry JaCoCo's
+ * agent where ci.yml measures the Kotlin drivers.
  */
 export function runEnvironment(): Record<string, string> {
-  const profile = process.env['LLVM_PROFILE_FILE'];
-  return { PATH: process.env['PATH'] ?? '', ...(profile === undefined ? {} : { LLVM_PROFILE_FILE: profile }) };
+  const measured = Object.fromEntries(
+    ['LLVM_PROFILE_FILE', 'JAVA_OPTS'].flatMap((name) => {
+      const value = process.env[name];
+      return value === undefined ? [] : [[name, value]];
+    }),
+  );
+  return { PATH: process.env['PATH'] ?? '', ...measured };
 }
 
 /**
@@ -66,6 +73,12 @@ export const GO_LIVE_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/s
 /** The Go SDK's worker driver, built beside its wire driver. */
 export const GO_WORKER_DRIVER = join(REPO_ROOT, 'packages/go/sdk/conformance/bin/semiont-go-worker-driver');
 
+/** The Kotlin SDK's wire driver, laid out by `./gradlew installConformance` in packages/kotlin/sdk. */
+export const KOTLIN_WIRE_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-wire-driver');
+export const KOTLIN_LIVE_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-live-driver');
+/** The Kotlin SDK's worker driver, written in Java over the SDK's Java surface. */
+export const KOTLIN_WORKER_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-worker-driver');
+
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
@@ -94,6 +107,11 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
     wire: [GO_WIRE_DRIVER],
     live: { command: [GO_LIVE_DRIVER], tier: 'parity' },
     worker: [GO_WORKER_DRIVER],
+  },
+  kotlin: {
+    wire: [KOTLIN_WIRE_DRIVER],
+    live: { command: [KOTLIN_LIVE_DRIVER], tier: 'parity' },
+    worker: [KOTLIN_WORKER_DRIVER],
   },
 };
 

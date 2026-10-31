@@ -15,7 +15,7 @@ import { call, type Reply } from './http';
 import { freePort } from './net';
 import { startIssuer, type IssuerServer, type ServiceAccount } from './issuer';
 import { SERVICE_ROLE } from './roles';
-import { kbIdentity, principals } from './spec';
+import { kbIdentity, principals, SUITE_KB, type KbIdentity } from './spec';
 import { subscribe, type BusFrame, type BusStream, type SubscribeBody } from './stream';
 
 export const PLANES: readonly Plane[] = ['in-process', 'nats'];
@@ -34,16 +34,18 @@ export interface WorldOptions {
   broker?: BrokerOptions;
   /** Service accounts the issuer grants beside the gateway's: another service the world runs. */
   accounts?: Record<string, ServiceAccount>;
+  /** The knowledge base the world is, when it is not the suite's own: one of kb-identity/cases.json. */
+  kb?: KbIdentity;
 }
 
 export class World {
-  readonly kb = kbIdentity();
   private readonly streams: BusStream[] = [];
   /** Streams that outlive a case — a participant set up for the whole file. */
   private readonly standing: BusStream[] = [];
   private readonly extraGateways: GatewayProcess[] = [];
 
   private constructor(
+    readonly kb: KbIdentity,
     readonly plane: Plane,
     readonly issuer: IssuerServer,
     readonly archivist: FakeArchivist,
@@ -53,7 +55,7 @@ export class World {
   ) {}
 
   static async create(plane: Plane, options: WorldOptions = {}): Promise<World> {
-    const kb = kbIdentity();
+    const kb = options.kb ?? kbIdentity(SUITE_KB);
     const secret = randomBytes(24).toString('hex');
     const issuer = await startIssuer(kb.resource, {
       ...options.accounts,
@@ -76,7 +78,7 @@ export class World {
     });
     const settings = options.settings ? options.settings(base) : base;
     const gateway = await startGateway({ settings, env });
-    return new World(plane, issuer, archivist, broker, env, gateway);
+    return new World(kb, plane, issuer, archivist, broker, env, gateway);
   }
 
   get origin(): string {
@@ -128,12 +130,14 @@ export class World {
     return principals(this.kb.domain).personDid(sub);
   }
 
-  /** A software agent's token, minted by the gateway for a service account with `roles`. */
-  async agent(provider: string, model: string, roles: string[] = [SERVICE_ROLE], origin = this.origin): Promise<{ token: string; did: string }> {
-    const service = await this.issuer.service(PARTICIPANT_CLIENT, roles);
-    const reply = await call(origin, 'POST', '/api/tokens/agent', { token: service, json: { provider, model } });
-    if (reply.status !== 200) throw new Error(`agent token refused: ${reply.status} ${reply.text}`);
-    return reply.json as { token: string; did: string };
+  /**
+   * An agent's token: its own account's, from the issuer, for an account the
+   * suite names `name`, holding `roles`; and the DID the gateway names it by
+   * (principals/cases.json).
+   */
+  async agent(name: string, roles: string[] = [SERVICE_ROLE]): Promise<{ token: string; did: string }> {
+    const client = `conformance-agent-${name}`;
+    return { token: await this.issuer.service(client, roles), did: principals(this.kb.domain).agentDid(this.issuer.subjectOf(client)) };
   }
 
   /** Open a stream; fails unless the gateway answers 200. Checked for violations after the case. */
@@ -169,8 +173,8 @@ export class World {
     answer: (frame: BusFrame) => { channel: string; payload: Record<string, unknown> } | undefined | Promise<{ channel: string; payload: Record<string, unknown> } | undefined>,
     origin = this.origin,
   ): Promise<{ stream: BusStream; token: string; clientId: string }> {
-    // A sidecar reaches the bus as a software agent, with a token the gateway minted.
-    const { token } = await this.agent('conformance', 'participant', [SERVICE_ROLE], origin);
+    // A sidecar reaches the bus as an agent, with its own account's token.
+    const { token } = await this.agent('participant', [SERVICE_ROLE]);
     const clientId = randomUUID();
     const stream = await this.subscribe(token, { clientId, global: channels }, origin, true);
     stream.on((message) => {

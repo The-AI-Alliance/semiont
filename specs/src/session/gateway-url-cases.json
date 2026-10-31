@@ -4,7 +4,8 @@
     "typescript": ["packages/typescript/sdk/src/session/__tests__/gateway-url-cases.test.ts"],
     "rust": ["packages/rust/sdk/src/session/knowledge_base.rs"],
     "python": ["packages/python/sdk/tests/test_gateway_url.py"],
-    "go": ["packages/go/sdk/endpoint_test.go"]
+    "go": ["packages/go/sdk/endpoint_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/GatewayUrlTest.kt"]
   },
   "cases": [
     {

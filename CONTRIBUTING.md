@@ -26,7 +26,7 @@ We also welcome contributions that bring Semiont to new user interfaces and inte
 - **Browser extensions** (Chrome, Firefox, Safari)
 - **IDE integrations** (VS Code, IntelliJ)
 
-Each is a client of a knowledge base, built on the SDK. Start at [docs/builder](docs/builder/README.md), which covers the TypeScript, Rust, Python and Go SDKs and the embeddable React components.
+Each is a client of a knowledge base, built on the SDK. Start at [docs/builder](docs/builder/README.md), which covers the TypeScript, Rust, Python, Go and Kotlin SDKs and the embeddable React components.
 
 ## 📋 Table of Contents
 
@@ -54,7 +54,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 - Git
 - A container runtime: Apple Container, Docker or Podman
 
-That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, and for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/).
+That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/), and for the Kotlin SDK the JDK its [`.java-version`](packages/kotlin/sdk/.java-version) names (its wrapper, `./gradlew`, fetches Gradle).
 
 ### Initial Setup
 

@@ -633,7 +633,7 @@ The resource page (`images/browser/src/app/[locale]/know/resource/[id]/page.tsx`
 - **Annotations** (`UnifiedAnnotationsPanel`): the resource's annotations, grouped by motivation, with delegated annotation in Annotate mode
 - **History** (`AnnotationHistory`): the resource's append-only event log
 - **Info** (`ResourceInfoPanel`): metadata and provenance
-- **Collaboration** (`CollaborationPanel`): bus connection state and the KB's collaborators
+- **Collaboration** (`CollaborationPanel`): bus connection state and the KB's engines
 - **JSON-LD** (`JsonLdPanel`): the resource's JSON-LD graph
 
 **Toolbar** (far right, vertical icon strip):

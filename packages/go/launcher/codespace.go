@@ -2015,10 +2015,11 @@ func forwardIssuer(u *UI, st *StackState) int {
 }
 
 // loopbackHost: a host that names this machine — where an issuer the
-// codespace runs appears once forwarded. Anything else is an issuer on the
-// network, reachable as it is.
+// codespace runs appears once forwarded, and a gateway no other machine can
+// dial. Anything else is on the network, reachable as it is. IPv6's loopback
+// in either form: bracketed as a URL writes it, or bare as url.Hostname gives it.
 func loopbackHost(host string) bool {
-	return host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "127.0.0.1" || host == "[::1]"
+	return host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "127.0.0.1" || host == "[::1]" || host == "::1"
 }
 
 // restartRemoteStack reruns the codespace's own launcher with the issuer on

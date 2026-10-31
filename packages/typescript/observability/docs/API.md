@@ -20,7 +20,7 @@ Initialize once at the process entry point, before any spanning code runs:
 // main.ts
 import { initObservabilityNode } from '@semiont/observability/node';
 
-initObservabilityNode({ serviceName: 'my-program' });
+initObservabilityNode({ serviceName: 'my-program', serviceVersion: '1.0.0' });
 
 // ...rest of process startup
 ```

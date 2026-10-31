@@ -22,7 +22,6 @@ from semiont.operations import BROWSE_ANNOTATION_HISTORY_REQUESTED, BROWSE_DIREC
 from semiont.resources import decode_representation
 from semiont.transport import Content, ContentStream, ContentTransport, ResourceHold
 from semiont.types import (
-    AgentSoftware,
     AnchoredTextAnswer,
     Annotation,
     AttributedEvent,
@@ -34,19 +33,19 @@ from semiont.types import (
     BrowseKbRequest,
     BrowseResourceOpenEvent,
     BrowseResourceViewedEvent,
-    CollaboratorEntry,
+    EngineEntry,
+    EngineLimits,
     GetAnnotationHistoryResponse,
     GetAnnotationsResponse,
     GetResourceResponse,
     InferenceLimits,
-    InferencePairLimits,
     KbDescription,
     ListResourcesResponse,
     ResourceDescriptor,
     TagSchema,
 )
 
-__all__ = ["BrowseNamespace", "Collaborator"]
+__all__ = ["BrowseNamespace", "EngineWithLimits"]
 
 # How many resources a list asks for when its caller states no limit. Every
 # SDK asks for as many: the cases of specs/src/client/surface.json hold each to it.
@@ -55,29 +54,21 @@ _LIST_LIMIT: Final = 100
 
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Collaborator:
-    """One of the knowledge base's collaborators.
+class EngineWithLimits:
+    """One of the knowledge base's engines.
 
-    Its entry in the directory, and its model's limits when the service
-    holding that model's credentials reported them.
+    Its entry, and the engine's limits when the service holding its
+    provider's credentials reported them.
     """
 
-    entry: CollaboratorEntry
-    limits: InferenceLimits | None = None
+    entry: EngineEntry
+    limits: InferenceLimits | None
 
 
-def _joined(directory: list[CollaboratorEntry], reported: list[InferencePairLimits]) -> list[Collaborator]:
-    """The directory with each reported model's limits on its entries."""
-    by_model = {(pair.provider, pair.model): pair.limits for pair in reversed(reported)}
-    return [
-        Collaborator(
-            entry=entry,
-            limits=by_model.get((entry.agent.provider, entry.agent.model))
-            if isinstance(entry.agent, AgentSoftware) and entry.agent.provider is not None and entry.agent.model is not None
-            else None,
-        )
-        for entry in directory
-    ]
+def _joined(engines: list[EngineEntry], reported: list[EngineLimits]) -> list[EngineWithLimits]:
+    """The engines with each reported engine's limits on its entries."""
+    by_engine = {each.engine: each.limits for each in reversed(reported)}
+    return [EngineWithLimits(entry=entry, limits=by_engine.get(entry.engine)) for entry in engines]
 
 
 def _listed(answer: GetAnnotationsResponse) -> list[Annotation]:
@@ -91,31 +82,31 @@ async def _next[S](states: AsyncIterator[S]) -> S | None:
 
 @final
 class _Joined:
-    """The directory's state, with what the key holders have reported so far.
+    """The engines' state, with what the key holders have reported so far.
 
-    A holder that has not answered delays only its own models' limits.
+    A holder that has not answered delays only its own engines' limits.
     """
 
     def __init__(
         self,
-        directory: AsyncIterator[CacheState[list[CollaboratorEntry]]],
-        reports: list[AsyncIterator[CacheState[list[InferencePairLimits]]]],
+        engines: AsyncIterator[CacheState[list[EngineEntry]]],
+        reports: list[AsyncIterator[CacheState[list[EngineLimits]]]],
     ) -> None:
-        self._directory: Final = directory
+        self._engines: Final = engines
         self._reports: Final = reports
-        self._entries: CacheState[list[CollaboratorEntry]] | None = None
-        self._reported: Final[list[list[InferencePairLimits]]] = [[] for _ in reports]
-        self._shown: CacheState[list[Collaborator]] | None = None
+        self._entries: CacheState[list[EngineEntry]] | None = None
+        self._reported: Final[list[list[EngineLimits]]] = [[] for _ in reports]
+        self._shown: CacheState[list[EngineWithLimits]] | None = None
         """The state last given: a report that changes nothing a watcher is shown is not a state."""
 
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> CacheState[list[Collaborator]]:
+    async def __anext__(self) -> CacheState[list[EngineWithLimits]]:
         while True:
-            directory = asyncio.ensure_future(_next(self._directory))
+            engines = asyncio.ensure_future(_next(self._engines))
             reports = [asyncio.ensure_future(_next(report)) for report in self._reports]
-            waits: list[asyncio.Task[object]] = [directory, *reports]
+            waits: list[asyncio.Task[object]] = [engines, *reports]
             try:
                 await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
             finally:
@@ -123,8 +114,8 @@ class _Joined:
                 for wait in waits:
                     wait.cancel()
             changed = False
-            if directory.done():
-                entries = directory.result()
+            if engines.done():
+                entries = engines.result()
                 if entries is None:
                     raise StopAsyncIteration
                 self._entries, changed = entries, True
@@ -143,37 +134,37 @@ class _Joined:
                     self._shown = joined
                     return joined
 
-    def _with_limits(self, entries: list[CollaboratorEntry]) -> list[Collaborator]:
-        return _joined(entries, [pair for report in self._reported for pair in report])
+    def _with_limits(self, entries: list[EngineEntry]) -> list[EngineWithLimits]:
+        return _joined(entries, [each for report in self._reported for each in report])
 
 
 @final
-class _Collaborators(Source[list[Collaborator]]):
-    """The collaborator directory with each key holder's limits joined on."""
+class _EnginesWithLimits(Source[list[EngineWithLimits]]):
+    """The engines with each key holder's limits joined on."""
 
     def __init__(self, live: Live) -> None:
         self._live: Final = live
 
     @override
-    async def fresh(self) -> list[Collaborator]:
+    async def fresh(self) -> list[EngineWithLimits]:
         try:
             async with asyncio.TaskGroup() as asking:
-                # The directory is asked for first; each key holder's limits after it.
-                directory = asking.create_task(self._live.agents.fetch(WHOLE))
+                # The engines are asked for first; each key holder's limits after them.
+                engines = asking.create_task(self._live.engines.fetch(WHOLE))
                 reports = [asking.create_task(self._live.limits.fetch(holder)) for holder in LIMITS_HOLDERS]
         except* SemiontError as failed:
-            # The directory's failure, or the client's closing: a holder that fails reports none, and fails nothing.
+            # The engines' failure, or the client's closing: a holder that fails reports none, and fails nothing.
             raise failed.exceptions[0] from None
-        return _joined(directory.result(), [pair for report in reports for pair in report.result()])
+        return _joined(engines.result(), [each for report in reports for each in report.result()])
 
     @override
-    def watch(self) -> AsyncIterator[CacheState[list[Collaborator]]]:
-        directory = self._live.agents.observe(WHOLE)
-        return _Joined(directory, [self._live.limits.observe(holder) for holder in LIMITS_HOLDERS])
+    def watch(self) -> AsyncIterator[CacheState[list[EngineWithLimits]]]:
+        engines = self._live.engines.observe(WHOLE)
+        return _Joined(engines, [self._live.limits.observe(holder) for holder in LIMITS_HOLDERS])
 
     @override
     def invalidate(self) -> None:
-        self._live.invalidate_agents()
+        self._live.invalidate_engines()
 
     @override
     def hold(self) -> ResourceHold | None:
@@ -229,13 +220,14 @@ class BrowseNamespace:
         """The knowledge base's tag schemas."""
         return self._live.query(Keyed(self._live.tag_schemas, WHOLE, itself))
 
-    def agents(self) -> Cached[list[Collaborator]]:
-        """The knowledge base's collaborators.
+    def engines(self) -> Cached[list[EngineWithLimits]]:
+        """The knowledge base's engines.
 
-        The directory, asked for first, with each model's limits as the
-        services holding its credentials report them.
+        The engines its Inference document names, asked for first, with each
+        engine's limits as the services holding its provider's credentials
+        report them.
         """
-        return self._live.query(_Collaborators(self._live))
+        return self._live.query(_EnginesWithLimits(self._live))
 
     def events(self, resource_id: ResourceId) -> Cached[list[AttributedEvent]]:
         """A resource's events, each with who it is attributed to."""

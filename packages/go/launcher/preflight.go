@@ -58,7 +58,8 @@ var preflightNoRedirect = &http.Client{
 }
 
 // verifyServiceAccounts performs the client-credentials grant for every entry
-// in `serviceClients` against `issuerBase`, and checks what comes back.
+// in `secretClients`, and for the machine's worker by an assertion signed with
+// its key, against `issuerBase`, and checks what comes back.
 //
 // `issuerBase` is the realm as THIS PROCESS can reach it, which for a
 // launcher-run Keycloak is localhost and for an external issuer is the
@@ -67,14 +68,14 @@ var preflightNoRedirect = &http.Client{
 // services — which ask through the host the launcher places it at — get an `iss` matching their
 // own configuration whatever this function used. Checking it here would
 // refuse a healthy realm.
-func verifyServiceAccounts(issuerBase, audience string, secrets map[string]string) ([]serviceAccountFinding, int) {
+func verifyServiceAccounts(issuerBase, audience string, accounts realmAccounts) ([]serviceAccountFinding, int) {
 	eps, err := discoverEndpoints(issuerBase)
 	endpoint := eps.token
 	if err != nil {
 		// One finding, not six: the issuer is the common cause, and six copies
 		// of the same sentence buries it.
 		return []serviceAccountFinding{{
-			svc:    serviceClients[0],
+			svc:    secretClients[0],
 			reason: fmt.Sprintf("OIDC discovery at %s failed: %v", issuerBase, err),
 			fix:    "is the issuer reachable from this host?",
 		}}, 0
@@ -82,19 +83,14 @@ func verifyServiceAccounts(issuerBase, audience string, secrets map[string]strin
 
 	var findings []serviceAccountFinding
 	observedLifespan := 0
-	for _, svc := range serviceClients {
-		claims, err := serviceAccountClaims(endpoint, serviceClientID(svc), secrets[svc])
+	// Two causes for a refusal, and the grant cannot tell them apart: Keycloak
+	// answers `invalid_client` for both. Naming both in the fix and resolving
+	// them in the steps below is the honest shape — see preflightIdentity,
+	// where the remedy differs per cause.
+	check := func(svc string, claims map[string]any, err error, fix string) {
 		if err != nil {
-			findings = append(findings, serviceAccountFinding{
-				svc:    svc,
-				reason: err.Error(),
-				// Two causes, and the grant cannot tell them apart: Keycloak
-				// answers `invalid_client` for both. Naming both here and
-				// resolving them in the steps below is the honest shape —
-				// see preflightIdentity, where the remedy differs per cause.
-				fix: "the realm has no such client, or its secret differs",
-			})
-			continue
+			findings = append(findings, serviceAccountFinding{svc: svc, reason: err.Error(), fix: fix})
+			return
 		}
 		if observedLifespan == 0 {
 			observedLifespan = tokenLifespan(claims)
@@ -103,6 +99,12 @@ func verifyServiceAccounts(issuerBase, audience string, secrets map[string]strin
 			findings = append(findings, f)
 		}
 	}
+	for _, svc := range secretClients {
+		claims, err := clientCredentialsClaims(endpoint, semiont.SecretCredential{Issuer: issuerBase, ClientID: serviceClientID(svc), ClientSecret: accounts.secrets[svc]})
+		check(svc, claims, err, "the realm has no such client, or its secret differs")
+	}
+	claims, err := clientCredentialsClaims(endpoint, semiont.KeyCredential{Issuer: issuerBase, ClientID: serviceClientID("worker"), PrivateKey: accounts.worker.signer})
+	check("worker", claims, err, "the realm has no such client, or it holds another key than this machine's")
 	return findings, observedLifespan
 }
 
@@ -127,8 +129,9 @@ func tokenLifespan(claims map[string]any) int {
 	return exp - iat
 }
 
-// checkServiceAccountClaims: the two assertions that decide whether a token
-// this realm mints will be ACCEPTED by the services that receive it.
+// checkServiceAccountClaims: what decides whether a token this realm mints
+// will be ACCEPTED by the services that receive it — its roles and its
+// audience — and named as what it is: an agent's (kindClaim).
 func checkServiceAccountClaims(svc string, claims map[string]any, audience string) (serviceAccountFinding, bool) {
 	if !flatRolesContain(claims["roles"], serviceRole) {
 		reason := fmt.Sprintf("token carries no flat `roles` array containing %q", serviceRole)
@@ -166,6 +169,15 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 			svc:    svc,
 			reason: fmt.Sprintf("token's `aud` does not carry this knowledge base's resource identity (%s)", audience),
 			fix:    "the realm's audience mapper names a different knowledge base",
+		}, true
+	}
+	// The account's kind: without it the token reads as a person's, and the
+	// service is named as one.
+	if kind, _ := claims[kindClaim].(string); kind != agentKind {
+		return serviceAccountFinding{
+			svc:    svc,
+			reason: fmt.Sprintf("token carries no `%s` of %q, which the realm document stamps on every service's account and no person's", kindClaim, agentKind),
+			fix:    "the realm's hardcoded-claim mapper for this client — a realm imported before the claim",
 		}, true
 	}
 	return serviceAccountFinding{}, false
@@ -594,15 +606,16 @@ func discoverEndpoints(issuerBase string) (oidcEndpoints, error) {
 	return oidcEndpoints{token: doc.TokenEndpoint, authorization: doc.AuthEndpoint, device: doc.DeviceEnder}, nil
 }
 
-// serviceAccountClaims runs the grant and decodes what comes back.
+// clientCredentialsClaims runs the client-credentials grant of the account
+// credential names — by its secret, or by an assertion signed with its key for
+// this one request — and decodes what comes back.
 //
 // Errors carry the STATUS and never the body: a token endpoint's error body
-// can echo the request, and this request carried a client secret.
-func serviceAccountClaims(tokenEndpoint, clientID, clientSecret string) (map[string]any, error) {
-	form := url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
+// can echo the request, and the request carried the client's proof.
+func clientCredentialsClaims(tokenEndpoint string, credential semiont.Credential) (map[string]any, error) {
+	form, err := credential.GrantForm(tokenEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("making the client-credentials grant: %v", err)
 	}
 	resp, err := preflightHTTP.PostForm(tokenEndpoint, form)
 	if err != nil {

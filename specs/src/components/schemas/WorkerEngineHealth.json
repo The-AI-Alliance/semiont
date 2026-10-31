@@ -1,0 +1,81 @@
+{
+  "type": "object",
+  "description": "One engine at one knowledge base: which it is, the jobs it claims, and what its claims can say of themselves (WORKER-CONTRACT V1).",
+  "properties": {
+    "engine": {
+      "$ref": "./Engine.json"
+    },
+    "jobs": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The jobs it claims, as its claims state them.",
+      "items": {
+        "$ref": "./JobFilter.json"
+      }
+    },
+    "lastQueuedEventAt": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When a `job:queued` last reached it, or null."
+    },
+    "lastClaimAt": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When it was last handed a job, or null. A claim answered with none pending is not one."
+    },
+    "lastFinishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When a job it held last settled, or null."
+    },
+    "lastActivityAt": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When it was last active, or null."
+    },
+    "activeJob": {
+      "type": "object",
+      "nullable": true,
+      "description": "The job it holds, or null.",
+      "properties": {
+        "jobId": {
+          "$ref": "./JobId.json"
+        },
+        "type": {
+          "$ref": "./JobType.json"
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When it was handed the job."
+        }
+      },
+      "required": [
+        "jobId",
+        "type",
+        "since"
+      ],
+      "additionalProperties": false
+    },
+    "jobsCompleted": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many jobs it has completed since the service started."
+    }
+  },
+  "required": [
+    "engine",
+    "jobs",
+    "lastQueuedEventAt",
+    "lastClaimAt",
+    "lastFinishedAt",
+    "lastActivityAt",
+    "activeJob",
+    "jobsCompleted"
+  ],
+  "additionalProperties": false
+}

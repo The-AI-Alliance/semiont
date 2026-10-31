@@ -165,6 +165,7 @@ const table = {
     rust: ['packages/rust/sdk/src/resources.rs', 'packages/rust/sdk/tests/decode_cases.rs'],
     python: ['packages/python/sdk/tests/test_decode_cases.py'],
     go: ['packages/go/sdk/resources_test.go'],
+    kotlin: ['packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt'],
   },
   cases,
 };

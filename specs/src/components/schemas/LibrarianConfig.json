@@ -52,10 +52,10 @@
       "$ref": "./EmbeddingConfig.json"
     },
     "matcher": {
-      "$ref": "./LibrarianModelConfig.json"
+      "$ref": "./LibrarianEngineConfig.json"
     },
     "gatherer": {
-      "$ref": "./LibrarianModelConfig.json"
+      "$ref": "./LibrarianEngineConfig.json"
     },
     "modelCatalogue": {
       "type": "string",

@@ -25,8 +25,9 @@ from semiont.types import (
     AnchoredTextAbsent,
     AnchoredTextAnswer,
     Annotation,
+    EngineProvider,
     Motivation,
-    PersonProfile,
+    Profile,
     ResourceAnnotations,
     ResourceDescriptor,
     ResourceView,
@@ -48,7 +49,7 @@ from semiont_librarian.reads import (
     Degraded,
     Described,
     GraphReads,
-    People,
+    Profiles,
     Projection,
     Record,
     Settled,
@@ -66,8 +67,8 @@ ADA: Final[JsonObject] = {"@type": "Person", "@id": ADA_ID}
 RECORDED: Final = "2020-03-04T05:06:07.000Z"
 """The moment everything a rig's builders make was recorded at, where a test states no other."""
 
-LOVELACE: Final = {ADA_ID: PersonProfile(name="Ada Lovelace", since=RECORDED)}
-"""What the knowledge base calls its people, where Ada has a profile and nobody else has."""
+LOVELACE: Final = {ADA_ID: Profile(name="Ada Lovelace", since=RECORDED)}
+"""The profiles of the knowledge base's principals, where Ada has a profile and nobody else has."""
 
 DIMENSIONS: Final = 8
 """How wide the vectors of a rig's embedding provider are."""
@@ -165,22 +166,22 @@ class FakeRecord(Record):
 
 
 @final
-class FakePeople(People):
-    """What the knowledge base calls its people, as a test states it. `people` is each profile, by DID.
+class FakeProfiles(Profiles):
+    """The profiles of the knowledge base's principals, as a test states them. `profiles` is each profile, by DID.
 
     `asked` is the DIDs of each read, in order.
     """
 
-    def __init__(self, people: Mapping[str, PersonProfile] | None = None) -> None:
-        self.people: Final[dict[str, PersonProfile]] = dict(people or {})
+    def __init__(self, profiles: Mapping[str, Profile] | None = None) -> None:
+        self.profiles: Final[dict[str, Profile]] = dict(profiles or {})
         self.asked: Final[list[list[str]]] = []
         self.failing: Exception | None = None
 
     @override
-    async def of(self, dids: Sequence[str]) -> Mapping[str, PersonProfile]:
+    async def of(self, dids: Sequence[str]) -> Mapping[str, Profile]:
         self.asked.append([*dids])
         await _turn(self.failing)
-        return {did: self.people[did] for did in dids if did in self.people}
+        return {did: self.profiles[did] for did in dids if did in self.profiles}
 
 
 @final
@@ -456,7 +457,7 @@ class FakeInference(InferenceClient):
 
     @property
     @override
-    def provider(self) -> str:
+    def provider(self) -> EngineProvider:
         return self._mock.provider
 
     @property

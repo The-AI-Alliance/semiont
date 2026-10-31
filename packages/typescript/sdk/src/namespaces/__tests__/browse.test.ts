@@ -494,7 +494,7 @@ describe('BrowseNamespace', () => {
     it('the stream reopening after a drop → invalidates the KB-wide registries the cache knows', async () => {
       // Nothing replays what every client hears, so a drop is answered by
       // asking again, of each registry the cache knows (B20): here the two
-      // that were observed, and not the collaborator directory, which
+      // that were observed, and not the engines, which
       // nothing asked for.
       const fetches = (channel: string) =>
         emitSpy.mock.calls.filter((call: unknown[]) => call[0] === channel).length;
@@ -511,7 +511,7 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.tagSchemas());
       expect(fetches('browse:entity-types-requested')).toBe(2);
       expect(fetches('browse:tag-schemas-requested')).toBe(2);
-      expect(fetches('browse:agents-requested')).toBe(0);
+      expect(fetches('browse:engines-requested')).toBe(0);
     });
 
     it('the stream reopening fetches no registry nothing has asked for (B20)', async () => {

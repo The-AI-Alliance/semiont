@@ -182,8 +182,8 @@ is its mechanism over HTTP.
   which sends every string the table says a kind accepts and every one it
   refuses: in a payload and as a `scope` (`gateway/emit.test.ts`), in a
   subscription's `scoped` entry (`gateway/stream.test.ts`), to
-  `POST /api/tokens/media` and as an agent token's `did`
-  (`gateway/tokens.test.ts`), and in the path of a resource's routes, where
+  `POST /api/tokens/media` (`gateway/tokens.test.ts`), and in the path of
+  a resource's routes, where
   what is not an id names no resource and is a 404
   (`gateway/content.test.ts`).
 - **Claims.** A registry operation's request carrying a `correlationId`
@@ -199,9 +199,11 @@ is its mechanism over HTTP.
 - **The count.** `subscribers` is how many connections the frame's channel
   and scope reached, and is present only when the signal plane can count.
 - **Profile.** When the channel is one whose registry `effect` writes and
-  the principal is a person whose token carries `name`, the gateway also
-  publishes `person:profile` `{_userId, name}` — how the record learns
-  what a person is called.
+  the principal's token carries `name`, a person's or an agent's, the
+  gateway also publishes `principal:profile` `{_userId, name}` — how the
+  record learns what a principal is called. A principal may emit
+  `principal:profile` itself, as an agent whose token carries no name does;
+  it is stamped as every emit is, so it names only the sender.
 - **An unanswerable request fails fast.** When the plane can count
   observers (the in-process plane) and a request with a `correlationId`
   reaches none, the gateway publishes the operation's own failure channel

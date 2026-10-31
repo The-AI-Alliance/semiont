@@ -26,7 +26,7 @@ It is the only process that mounts the knowledge base's working tree, and the on
 log, the content and the views. It dials one thing, the gateway, for the bus. It holds no graph, no
 vector store and no model: finding things is the Librarian's.
 
-The Librarian reads the view files and the people projection. The Smelter keeps the anchored-text
+The Librarian reads the view files and the profiles projection. The Smelter keeps the anchored-text
 store through the Archivist's HTTP surface, and mounts none of it. Those formats are schemas in the
 spec, named where each file is described below.
 
@@ -35,8 +35,8 @@ spec, named where each file is described below.
 **The Archivist reads one document, named by its `--config` flag,** and defaults nothing. The
 document is an [`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json): the
 gateway's URL, the issuer, the working tree's root, the state volume, the anchored-text store's
-directory, the roster
-of who serves each role, the port of its HTTP surface, whether to skip the boot rebuild, the staging
+directory, the engine
+for each job and each actor, the port of its HTTP surface, whether to skip the boot rebuild, the staging
 bounds, and its log level and format. Its image passes `--config /etc/semiont/archivist.json`, and
 the launcher writes the document there, from the knowledge base's stack documents. Started without
 `--config`, or with a path that names no file, no JSON, or a document the schema refuses, the
@@ -60,13 +60,14 @@ A project file that is not YAML, or does not hold to its schema, is refused, eac
 the Archivist does not start. A tree with no project file is named by its directory, stages nothing,
 and declares no identity, so the Archivist does not start on it either.
 
-**The roster** is who serves each role, behind `browse:agents-requested`: for a `mark` job of each
-of the five motivations, for a `yield` job, and for the two actors that call a model (`gatherer`,
-`matcher`), a provider and a model, or nothing. The Archivist applies no fallback, and the
-launcher applies none either: the knowledge base's Inference document states the roster whole, and
-the launcher writes it into the document as it stands. It writes the same bindings into a
-worker's document as the worker's agents and into the Librarian's as its two models, so the
-roster names the agents the work is routed to.
+**The engines** are the provider and model each job is done with when software does it, and each
+Librarian actor asks, behind `browse:engines-requested`: for a `mark` job of each of the five
+motivations, for a `yield` job, and for the two actors that call a model (`gatherer`, `matcher`),
+a provider and a model, or nothing. The Archivist applies no fallback, and the launcher applies
+none either: the knowledge base's Inference document states the engines whole, and the launcher
+writes them into the document as they stand. It writes the same engines into a worker's document
+as the engines it runs, and into the Librarian's as its two actors' engines. An engine is not a
+principal: whichever worker claims a job does it, under its own account.
 
 ## The record on disk
 
@@ -156,7 +157,7 @@ place for the next write to replace.
 |---|---|---|
 | `entitytypes.json` | [`EntityTypesProjection`](../../specs/src/components/schemas/EntityTypesProjection.json) | Every entity type added, each once, in dictionary order |
 | `tagschemas.json` | [`TagSchemasProjection`](../../specs/src/components/schemas/TagSchemasProjection.json) | Every tag schema added, in dictionary order of `id` |
-| `people.json` | [`PeopleProjection`](../../specs/src/components/schemas/PeopleProjection.json) | Each person's current name and since when, by DID |
+| `profiles.json` | [`ProfilesProjection`](../../specs/src/components/schemas/ProfilesProjection.json) | Each principal's current name and since when, by DID |
 
 A projection file that is absent reads as empty. Each is written as a view is: to a temporary file,
 renamed onto the path.
@@ -195,7 +196,7 @@ number. An event type not in this table changes nothing else.
 | `job:started`, `job:assigned`, `job:completed`, `job:failed` | Nothing but the three counters above |
 | `frame:entity-type-added` | `entitytypes.json` gains the payload's `entityType`, once, and is sorted |
 | `frame:tag-schema-added` | `tagschemas.json` gains the payload's `schema`, in place of one with the same `id` if it holds one, and is sorted by `id` |
-| `person:profiled` | `people.json` records the sender's DID as `{name, since}`: the payload's `name` and the event's timestamp |
+| `principal:profiled` | `profiles.json` records the sender's DID as `{name, since}`: the payload's `name` and the event's timestamp |
 
 **An append is four steps in order:** write the line; change the views; attach the annotation to the
 event if its type calls for it ([Enrichment](#enrichment)); queue its fact for publishing
@@ -294,7 +295,7 @@ and why. A failure that cannot be sent is logged.
 | `mark:update-entity-types` | `mark:update-entity-types-ok` | `mark:update-entity-types-failed` | `mark:entity-tag-added` per type added, then `mark:entity-tag-removed` per type removed |
 | `frame:add-entity-type` | `frame:entity-type-add-ok` | `frame:entity-type-add-failed` | `frame:entity-type-added` |
 | `frame:add-tag-schema` | `frame:tag-schema-add-ok` | `frame:tag-schema-add-failed` | `frame:tag-schema-added` |
-| `person:profile` | none | none | `person:profiled`, when the name is new |
+| `principal:profile` | none | none | `principal:profiled`, when the name is new |
 | `job:start` | none | none | `job:started` |
 | `job:assign` | none | none | `job:assigned` |
 | `job:complete` | none | none | `job:completed` |
@@ -314,8 +315,8 @@ the requester is then whoever the job was assigned for.
 
 - `creator` is the requester, as an agent.
 - `generator` is the executor, when the executor is software (a DID of the form
-  `did:web:<domain>:agents:<provider>:<model>`). A command may supply the generator, to say more
-  about it; it must be the executor: `attribution: generator <id> is not the executor <did>`, and
+  `did:web:<domain>:agents:<subject>`). A command may supply the generator, to say more
+  about it — the engine it ran — and it must be the executor: `attribution: generator <id> is not the executor <did>`, and
   `attribution: a generator was supplied, but the executor <did> is not software`.
 - `wasAttributedTo` is the executor alone when it is also the requester, otherwise the creator then
   the executor.
@@ -389,12 +390,12 @@ skipped, so a batch sent twice records once. A sender holding the worker role mu
 **`bind:update-body`** is `mark:update-body` with a reply: `bind:body-updated` once the event is
 recorded.
 
-### Vocabulary, people and jobs
+### Vocabulary, profiles and jobs
 
 **`frame:add-entity-type`** and **`frame:add-tag-schema`** record the type or the schema in the
 `__system__` stream.
 
-**`person:profile`** records the sender's name in the `__system__` stream, unless it is the name the
+**`principal:profile`** records the sender's name in the `__system__` stream, unless it is the name the
 stream last recorded for them.
 
 **`job:start`**, **`job:assign`**, **`job:complete`** and **`job:fail`** record the lifecycle of a
@@ -429,9 +430,10 @@ The Archivist answers these reads. Each replies on the channel's `-result`, or o
 concurrently, in no particular order. A resource's annotations are no bus read: their number
 follows the document's, and they are read over HTTP (§ The HTTP surface).
 
-**Names.** A reply that mentions people names them from `people.json`: every agent of type `Person`
-whose DID has a profile carries that profile's name. If the projection cannot be read, the reply
-names no one.
+**Names.** A reply that mentions principals names them from `profiles.json`: every object of type
+`Person` or `Software`, a person or an agent, whose DID has a profile carries that profile's name, as
+[`naming-cases.json`](../../specs/src/principals/naming-cases.json) states. If the projection cannot
+be read, the reply names no one.
 
 | Request | Answers |
 |---|---|
@@ -442,22 +444,22 @@ names no one.
 | `browse:events-requested` `{resourceId, type?, userId?, limit?}` | `{events, total, resourceId}`: the resource's events in log order, filtered, then the first `limit`. Each event carries `agent`, its sender as an agent |
 | `browse:entity-types-requested` | `{entityTypes}` from `entitytypes.json` |
 | `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |
-| `browse:agents-requested` | `{agents}`: the roster; see below |
-| `browse:people-requested` `{dids}` | `{people}`: the profile of each DID asked after that has one, keyed by DID, from the people projection. A DID with no profile is left out. At most 500 DIDs are asked at once |
+| `browse:engines-requested` | `{engines}`: the knowledge base's engines; see below |
+| `browse:profiles-requested` `{dids}` | `{profiles}`: the profile of each DID asked after that has one, keyed by DID, from the profiles projection. A DID with no profile is left out. At most 500 DIDs are asked at once |
 | `browse:kb-requested` | `{name, domain, gitBranch?}`, the domain and the branch read when asked |
 | `browse:directory-requested` `{path, sort?}` | `{path, entries}`: the directories and regular files at a path of the working tree, without names that begin `.`. A file that is a resource's content, by its storage URI, is `tracked` and carries the resource's id, entity types, annotation count and creator. Sorted by `name` in dictionary order (the default), by `mtime` newest first, or by `annotationCount` highest first. A path outside the root: `path escapes project root`. No such path: `path not found` |
 
 **Anchored text** is not read on the bus. An answer is as large as its document, and a frame has a
 size limit, so it is a route of [the HTTP surface](#the-http-surface).
 
-**Agents.** The roster lists each agent once, in the order its first role appears: a `mark` job of
-each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), a `yield` job,
-then the actors `gatherer`, `matcher`. An entry is `{agent, serves?}`: the agent is
-`{"@type": "Software", "@id": "did:web:<domain>:agents:<provider>:<model>", name: "<provider>
-<model>", provider, model}`, and `serves` lists the jobs it serves, each a
+**The engines.** The answer lists each engine once, in the order it first appears: for a `mark`
+job of each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), for a
+`yield` job, then for the actors `gatherer`, `matcher`. An entry is
+[`{engine, jobs?}`](../../specs/src/components/schemas/EngineEntry.json): the engine is
+`{provider, model}`, with no identity of its own, and `jobs` lists the jobs it is used for, each a
 [`JobFilter`](../../specs/src/components/schemas/JobFilter.json) as a claim would name it
-(`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an agent that
-serves only actors. The domain is read from the tree when asked.
+(`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an engine only
+actors ask.
 
 ## Enrichment
 
@@ -492,8 +494,8 @@ token was presented, `Bearer` when none was.
 | `GET` `/events` | `200` `{"streams":[{"resourceId":…,"lastSequence":n},…]}`: every stream of the log, `__system__` among them, each with the sequence number of its last event (0 for a stream with none), in no order. A failed read: `500` `{"error":"stream listing failed"}` |
 | `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events":[…],"lastSequence":n}`: the stream's stored events from sequence `N` on, in log order, at most the operation's `x-semiont-limits.maxEvents` of them, and the sequence number of the stream's last event (0 for a stream with none). A reader that wants more asks again from the sequence after the last event it was given, until it has the last. The id `__system__` reads the knowledge base's own stream. A stream that is not there has no events. Only the files that hold events from `N` on are read. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
 | `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
-| `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: `{resource, annotations}` from the view, built from the log if there is none, people named. `404` `{"error":"Resource not found"}` |
-| `GET` `/resources/{id}/annotations` | `200`, `Content-Type: application/json`: `{annotations, total}` in the view's order, people named. No view, or an id that is not one: `404` `{"error":"Resource not found"}` |
+| `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: `{resource, annotations}` from the view, built from the log if there is none, principals named. `404` `{"error":"Resource not found"}` |
+| `GET` `/resources/{id}/annotations` | `200`, `Content-Type: application/json`: `{annotations, total}` in the view's order, principals named. No view, or an id that is not one: `404` `{"error":"Resource not found"}` |
 | `GET` `/resources/{id}/anchored-text` | `200`, `Content-Type: application/json`: the resource's anchored text, or why there is none; see below. A failed read: `500` `{"error":"anchored-text read failed"}` |
 | `PUT` `/resources/{id}/anchored-text` | Stores an entry for the resource's content; see below. The Smelter's |
 | `GET` `/resources/{id}/anchored-text/stored`, with `?contentChecksum=` | `200` with the entry stored for the resource's content, as stored, under the stamp stated, at once and never waiting for the Smelter. A `contentChecksum` missing or not 64 lowercase hex digits: `400`. No view, or an id that is not one: `404` `{"error":"Resource not found"}`. Content of another checksum, or none: `409`, as for the write. No entry: `404` `{"error":"No entry is stored for this content"}`. The Smelter's |
@@ -570,9 +572,9 @@ that follows the signal does not wait.
 The Archivist boots in this order, and a failure at any step ends the process with status 1:
 
 1. Read and validate the configuration document.
-2. Sign in: its service account's token at the issuer, exchanged at the gateway for the agent token
-   it reaches the bus with, as the software agent `semiont archivist`. The token is renewed before
-   it expires.
+2. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
+   names it by that account, as an agent, and answers its DID at `GET /api/users/me`. The token is
+   renewed before it expires.
 3. Read the project file ([Configuration](#configuration)).
 4. Ask staging whether it can work ([Staging](#staging)).
 5. Refuse to start without a `site.domain`.

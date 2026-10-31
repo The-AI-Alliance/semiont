@@ -46,7 +46,7 @@ import (
 // JWT_SECRET rotation ring is handed over (loadOrCreateJWTSecret).
 func custodyOwned(name string) bool {
 	switch name {
-	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET":
+	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET", "SEMIONT_OIDC_CLIENT_KEY":
 		return true
 	}
 	return daemonCredentialVar(name) || strings.HasPrefix(name, "SEMIONT_OIDC_CLIENT_SECRET_")
@@ -143,7 +143,7 @@ func storeHoldsData(dir string) bool {
 // store lists, moves and clears.
 func custodyNames() []string {
 	names := []string{custodyJWTSecret, custodyKeycloakAdmin}
-	for _, svc := range serviceClients {
+	for _, svc := range secretClients {
 		names = append(names, serviceClientCustody(svc))
 	}
 	for _, d := range daemonPasswords {

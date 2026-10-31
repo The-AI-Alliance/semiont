@@ -1,5 +1,5 @@
 /**
- * The max-length control is bounded by the generation-serving agent's
+ * The max-length control is bounded by the generation engine's
  * discovered output ceiling.
  *
  * With no ceiling known the control is bounded anyway: `min="100" max="4000"`.
@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { Collaborator, GatheredContext } from '@semiont/core';
+import type { EngineWithLimits, GatheredContext } from '@semiont/core';
 import { GENERATABLE_MEDIA_TYPES, capabilitiesOf } from '@semiont/core';
 import { ConfigureGenerationStep, freshGenerationDraft } from '../ConfigureGenerationStep';
 import type { GenerationDraft } from '../ConfigureGenerationStep';
@@ -42,17 +42,11 @@ const context = { resources: [], annotations: [] } as unknown as GatheredContext
 /** The wizard's initial draft. */
 const DRAFT: GenerationDraft = freshGenerationDraft('Untitled', 'en');
 
-const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
-  ({
-    agent: {
-      '@type': 'Software',
-      name: 'Claude Sonnet 5',
-      provider: 'anthropic',
-      model: 'claude-sonnet-5',
-    },
-    serves: [{ jobType: 'yield' }],
-    limits: { contextTokens: 200_000, maxOutputTokens },
-  }) as unknown as Collaborator;
+const engineWithCeiling = (maxOutputTokens: number): EngineWithLimits => ({
+  engine: { provider: 'anthropic', model: 'claude-sonnet-5' },
+  jobs: [{ jobType: 'yield' }],
+  limits: { contextTokens: 200_000, maxOutputTokens },
+});
 
 /**
  * The step is CONTROLLED — the wizard owns the draft so
@@ -60,7 +54,7 @@ const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
  * than the bare component: a `vi.fn()` for `onConfigChange` would swallow every edit
  * and quietly turn each assertion below into a test of nothing.
  */
-function Harness({ generationAgent, defaultFolder }: { generationAgent?: Collaborator; defaultFolder?: string }) {
+function Harness({ generationEngine, defaultFolder }: { generationEngine?: EngineWithLimits; defaultFolder?: string }) {
   const [draft, setDraft] = useState(DRAFT);
   return (
     <ConfigureGenerationStep
@@ -71,18 +65,18 @@ function Harness({ generationAgent, defaultFolder }: { generationAgent?: Collabo
       onBack={vi.fn()}
       onGenerate={onGenerateSpy}
       translations={translations}
-      {...(generationAgent ? { generationAgent } : {})}
+      {...(generationEngine ? { generationEngine } : {})}
     />
   );
 }
 
 let onGenerateSpy = vi.fn();
 
-function renderStep(generationAgent?: Collaborator, defaultFolder?: string) {
+function renderStep(generationEngine?: EngineWithLimits, defaultFolder?: string) {
   onGenerateSpy = vi.fn();
   const utils = render(
     <Harness
-      {...(generationAgent ? { generationAgent } : {})}
+      {...(generationEngine ? { generationEngine } : {})}
       {...(defaultFolder !== undefined ? { defaultFolder } : {})}
     />,
   );
@@ -97,8 +91,8 @@ function fillRequired() {
 }
 
 describe('ConfigureGenerationStep — ceiling awareness', () => {
-  it('bounds the control by the agent ceiling and names it in help text', () => {
-    const { input } = renderStep(agentWithCeiling(64_000));
+  it('bounds the control by the engine ceiling and names it in help text', () => {
+    const { input } = renderStep(engineWithCeiling(64_000));
 
     expect(input().max).toBe('64000');
     expect(screen.getByText(/Limited to 64000 tokens by claude-sonnet-5\./)).toBeInTheDocument();
@@ -108,7 +102,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     // A full sentence inside the 5.5rem Max Length column wraps one word per
     // line and its height taxes the whole flex row — the void under the other
     // controls IS this caption. It renders full-width under the row instead.
-    renderStep(agentWithCeiling(64_000));
+    renderStep(engineWithCeiling(64_000));
 
     const help = screen.getByText(/Limited to 64000 tokens/);
     expect(help).toHaveClass('semiont-form__help--row');
@@ -119,7 +113,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     // `max` on a number input does not prevent TYPING an over-value — it only
     // marks the field invalid. The ceiling is clamped on the control itself, so
     // assert the committed state, never the attribute alone.
-    const { input } = renderStep(agentWithCeiling(2_000));
+    const { input } = renderStep(engineWithCeiling(2_000));
 
     fireEvent.change(input(), { target: { value: '9999' } });
 
@@ -127,14 +121,14 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
   });
 
   it('clamps the 500 default down when the ceiling is smaller', () => {
-    const { input } = renderStep(agentWithCeiling(300));
+    const { input } = renderStep(engineWithCeiling(300));
 
     expect(input().value).toBe('300');
   });
 
   it('re-bounds and clamps when the ceiling arrives AFTER mount', () => {
     // The case that decides whether this feature works in the app at all:
-    // `browse.agents()` is asynchronous, so `generationAgent` is undefined on
+    // `browse.engines()` is asynchronous, so `generationEngine` is undefined on
     // first render and arrives later. An implementation that only consults the
     // ceiling in the `useState` initializer passes every test above and does
     // nothing in production.
@@ -144,7 +138,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     fireEvent.change(input(), { target: { value: '3000' } });
     expect(input().value).toBe('3000');
 
-    rerender(<Harness generationAgent={agentWithCeiling(1_000)} />);
+    rerender(<Harness generationEngine={engineWithCeiling(1_000)} />);
 
     expect(input().max).toBe('1000');
     // 3000 is now out of range and must not survive as a submittable value.
@@ -155,12 +149,12 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     const { input, rerender } = renderStep(undefined);
     fireEvent.change(input(), { target: { value: '800' } });
 
-    rerender(<Harness generationAgent={agentWithCeiling(4_000)} />);
+    rerender(<Harness generationEngine={engineWithCeiling(4_000)} />);
 
     expect(input().value).toBe('800');
   });
 
-  it('falls back to the hardcoded bounds and copy without an agent', () => {
+  it('falls back to the hardcoded bounds and copy without an engine', () => {
     // A missing ceiling is normal, never an error: the control keeps its
     // hardcoded bounds.
     const { input } = renderStep(undefined);
@@ -171,17 +165,17 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     expect(screen.queryByText(/Limited to/)).not.toBeInTheDocument();
   });
 
-  it('falls back when the agent is present but discovery could not answer', () => {
-    const noLimits = { ...agentWithCeiling(64_000) } as Record<string, unknown>;
+  it('falls back when the engine is present but discovery could not answer', () => {
+    const noLimits = engineWithCeiling(64_000);
     delete noLimits.limits;
-    const { input } = renderStep(noLimits as unknown as Collaborator);
+    const { input } = renderStep(noLimits);
 
     expect(input().max).toBe('4000');
     expect(screen.queryByText(/Limited to/)).not.toBeInTheDocument();
   });
 
   it('submits the clamped value, not the typed one', () => {
-    const { props } = renderStep(agentWithCeiling(1_500));
+    const { props } = renderStep(engineWithCeiling(1_500));
     const onGenerate = props.onGenerate;
 
     fillRequired();
@@ -199,7 +193,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
     // which would travel into the job config. Clearing must stay possible (you
     // cannot retype a number otherwise), so the contract is about what
     // SUBMITS, not about forbidding the empty state.
-    const { props } = renderStep(agentWithCeiling(4_000));
+    const { props } = renderStep(engineWithCeiling(4_000));
     const onGenerate = props.onGenerate;
     const input = screen.getByLabelText('Max length') as HTMLInputElement;
 
@@ -221,7 +215,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
 // right until someone pressed Back.
 describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   it('reports edits to title, instructions, language and creativity', async () => {
-    const { input } = renderStep(agentWithCeiling(4_000));
+    const { input } = renderStep(engineWithCeiling(4_000));
     expect(input()).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(translations.resourceTitle), { target: { value: 'Caspian Sea' } });
@@ -242,13 +236,13 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   it('lets the max-length field go empty while retyping', () => {
     // Clearing is a legitimate mid-edit state — you cannot retype a number
     // otherwise — so the field must accept '' and let submission clamp it.
-    const { input } = renderStep(agentWithCeiling(4_000));
+    const { input } = renderStep(engineWithCeiling(4_000));
     fireEvent.change(input(), { target: { value: '' } });
     expect(input().value).toBe('');
   });
 
   it('reports a language change to the owner', () => {
-    renderStep(agentWithCeiling(4_000));
+    renderStep(engineWithCeiling(4_000));
     const select = () => screen.getByLabelText(translations.language) as HTMLSelectElement;
     const other = Array.from(select().options).map((o) => o.value).find((v) => v !== select().value);
     fireEvent.change(select(), { target: { value: other } });
@@ -256,7 +250,7 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   });
 
   it('carries the typed instructions into the submitted config, trimmed', () => {
-    const { props } = renderStep(agentWithCeiling(4_000));
+    const { props } = renderStep(engineWithCeiling(4_000));
     fillRequired();
     fireEvent.change(screen.getByLabelText(translations.additionalInstructions), { target: { value: '  hydrology only  ' } });
     fireEvent.click(screen.getByText(new RegExp(translations.generate)));
@@ -268,7 +262,7 @@ describe('ConfigureGenerationStep — the draft is the owner\'s', () => {
   it('omits the prompt entirely when the field is blank', () => {
     // `prompt` is optional on the wire; sending "" would be a claim the user
     // never made, and the worker would prepend an empty instruction block.
-    const { props } = renderStep(agentWithCeiling(4_000));
+    const { props } = renderStep(engineWithCeiling(4_000));
     fillRequired();
     fireEvent.click(screen.getByText(new RegExp(translations.generate)));
     expect(props.onGenerate.mock.calls[0]![0]).not.toHaveProperty('prompt');
@@ -461,20 +455,14 @@ describe('temperature gating — the Creativity slider follows the model', () =>
   // including the wizard's own 0.7 default — so a rejecting model must neither
   // show the control nor receive the field. Only an EXPLICIT false hides it:
   // absence of discovery means no claim, and the control stays.
-  const rejectingAgent = (): Collaborator =>
-    ({
-      agent: {
-        '@type': 'Software',
-        name: 'Claude Sonnet 5',
-        provider: 'anthropic',
-        model: 'claude-sonnet-5',
-      },
-      serves: [{ jobType: 'yield' }],
-      limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
-    }) as unknown as Collaborator;
+  const rejectingEngine = (): EngineWithLimits => ({
+    engine: { provider: 'anthropic', model: 'claude-sonnet-5' },
+    jobs: [{ jobType: 'yield' }],
+    limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
+  });
 
   it('hides the slider and OMITS temperature from the submission when the model rejects it', () => {
-    const { props } = renderStep(rejectingAgent(), 'research');
+    const { props } = renderStep(rejectingEngine(), 'research');
 
     expect(screen.queryByLabelText(/Creativity/)).not.toBeInTheDocument();
 
@@ -484,7 +472,7 @@ describe('temperature gating — the Creativity slider follows the model', () =>
   });
 
   it('keeps the slider and sends temperature when discovery makes no claim about acceptance', () => {
-    const { props } = renderStep(agentWithCeiling(64_000), 'research');
+    const { props } = renderStep(engineWithCeiling(64_000), 'research');
 
     expect(screen.getByLabelText(/Creativity/)).toBeInTheDocument();
 

@@ -39,9 +39,6 @@
     "/api/tokens/media": {
       "$ref": "paths/api_tokens_media.json"
     },
-    "/api/tokens/agent": {
-      "$ref": "paths/api_tokens_agent.json"
-    },
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"
     },
@@ -87,13 +84,13 @@
           "refusalBurst": 100,
           "refusalHolders": 1024
         },
-        "description": "`Authorization: Bearer <JWT>` — the scheme name in any case (RFC 7235); a header naming another scheme, or none, carries no credential, and nor does a cookie. The gateway accepts two kinds of token, told apart by `iss`.\n\n**Issuer tokens** — people and service accounts, minted by the knowledge base's trusted issuer (`identity.issuer` in the gateway's configuration document). Signed RS256 by a key the issuer publishes at the `jwks_uri` its `/.well-known/openid-configuration` names. The gateway fetches that key set when it holds none, when the one it holds is `x-semiont-limits.keySetMaxAgeSeconds` old, and for a `kid` the set does not have once the set is `keyRefetchCooldownSeconds` old. A fetch is given `keyFetchDeadlineSeconds`, discovery included; one that fails is not tried again for `keyRefetchCooldownSeconds`, and requests that need the keys meanwhile share the one fetch or its failure. With no usable set, an issuer token is refused. `iss` must equal the configured issuer exactly. `aud` must contain this knowledge base's resource identifier: its did:web resolved to an https URL, the value `/.well-known/oauth-protected-resource` publishes as `resource`. Expired, not-yet-valid or wrongly signed tokens are refused. The holder is named `did:web:<domain>:users:<subject>`, where `<domain>` is the knowledge base's `site.domain` and `<subject>` is the value of the claim `identity.subjectClaim` selects, which must be a non-empty string, percent-encoded. `email` must be present, and `email_verified: false` is refused. `name` and `picture` are displayed when present. Capabilities ride a flat `roles` array: `semiont-service` lets a service account exchange its token at `POST /api/tokens/agent`, and `semiont-worker` additionally grants the agent token it receives the right to claim jobs.\n\n**Agent tokens** — minted by the gateway at `POST /api/tokens/agent`. Signed HS256 with the gateway's `JWT_SECRET` key ring (the first key signs, every key verifies); `iss` is the knowledge base's domain; they live one hour. One whose `iss` or `domain` is not this knowledge base's domain is refused: two knowledge bases can hold one key ring, so the signature alone does not say whose a token is. Claims: exactly `did` (`did:web:<domain>:agents:<provider>:<model>`, the provider and model each URI-encoded), `email` (`<provider>-<model>@agents.<host>`, every run of characters outside `[A-Za-z0-9-]` in `<provider>:<model>` becoming one `-` and none left at either end, and `<host>` the domain up to its first `:`), `name` (`<provider> <model>`), `domain`, `iss`, `iat`, `exp`, and `roles: [\"semiont-worker\"]` when the minter carried that role.\n\nEither kind names its holder by a `UserId`; a token whose claims do not make one names no principal and is refused. Whatever route it reaches, the verified holder's DID is what `POST /bus/emit` stamps as `_userId`, and the token's `roles` what it stamps as `_roles`. How every name here is formed — the encoding exactly, with cases — is specs/src/principals/cases.json.\n\n**Refused requests.** A request whose credential is refused is counted against the holder its token names, read without verifying it: the token's `iss`, and the claim the gateway names a holder by — `identity.subjectClaim` for a token naming the trusted issuer, `did` for any other. A request with no token, or with one that names no `iss` or no holder, is counted in one count shared by every such request. Each holder may have `x-semiont-limits.refusalBurst` requests refused at once, and `refusalsPerSecond` after, per gateway process; past that, a refused request is answered 429 with the `LimitRefusal` code `refusal-rate` and a `Retry-After` in place of its 401. A token that verifies is never counted and never limited, whatever its holder's count, so naming another's holder in a forged token cannot lock them out; and the roles a refused token claims are not read. The gateway counts at most `refusalHolders` holders, and drops the one it began counting first to count another."
+        "description": "`Authorization: Bearer <JWT>` — the scheme name in any case (RFC 7235); a header naming another scheme, or none, carries no credential, and nor does a cookie.\n\n**The issuer's token.** People and agents alike sign in at the knowledge base's trusted issuer (`identity.issuer` in the gateway's configuration document), and the token it mints is their bearer here. Signed RS256 by a key the issuer publishes at the `jwks_uri` its `/.well-known/openid-configuration` names. The gateway fetches that key set when it holds none, when the one it holds is `x-semiont-limits.keySetMaxAgeSeconds` old, and for a `kid` the set does not have once the set is `keyRefetchCooldownSeconds` old. A fetch is given `keyFetchDeadlineSeconds`, discovery included; one that fails is not tried again for `keyRefetchCooldownSeconds`, and requests that need the keys meanwhile share the one fetch or its failure. With no usable set, a token is refused. `iss` must equal the configured issuer exactly. `aud` must contain this knowledge base's resource identifier: its did:web resolved to an https URL, the value `/.well-known/oauth-protected-resource` publishes as `resource`. Expired, not-yet-valid or wrongly signed tokens are refused. The holder is named by the subject its issuer asserted, the value of the claim `identity.subjectClaim` selects, which must be a non-empty string, percent-encoded, under the knowledge base's `site.domain`: `did:web:<domain>:agents:<subject>` when the token's `kind` claim is `agent`, which the issuer stamps on every agent's account and no person's, and `did:web:<domain>:users:<subject>` otherwise. `email` is optional; when present, `email_verified: false` is refused. `name` and `picture` are displayed when present. Capabilities ride a flat `roles` array: `semiont-service` marks a service's account, and `semiont-worker` grants the right to claim jobs. A token whose claims do not make a `UserId` names no principal and is refused. Whatever route it reaches, the verified holder's DID is what `POST /bus/emit` stamps as `_userId`, and the token's `roles` what it stamps as `_roles`. How every name here is formed — the encoding exactly, with cases — is specs/src/principals/cases.json.\n\n**Refused requests.** A request whose credential is refused is counted against the holder its token names, read without verifying it: the claim the gateway names a holder by, `identity.subjectClaim`, of a token naming the trusted issuer as its `iss`. A request with no token, or with one that names another issuer or no holder, is counted in one count shared by every such request. Each holder may have `x-semiont-limits.refusalBurst` requests refused at once, and `refusalsPerSecond` after, per gateway process; past that, a refused request is answered 429 with the `LimitRefusal` code `refusal-rate` and a `Retry-After` in place of its 401. A token that verifies is never counted and never limited, whatever its holder's count, so naming another's holder in a forged token cannot lock them out; and the roles a refused token claims are not read. The gateway counts at most `refusalHolders` holders, and drops the one it began counting first to count another."
       },
       "mediaToken": {
         "type": "apiKey",
         "in": "query",
         "name": "token",
-        "description": "A media token from `POST /api/tokens/media`: HS256 under the same key ring as agent tokens, naming one resource (`purpose: \"media\"`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}`, and only for the resource it names — for `<img>`, PDF.js and download links, which cannot send a header."
+        "description": "A media token from `POST /api/tokens/media`: HS256 under the gateway's own key ring (`JWT_SECRET`), which signs nothing else, naming one resource (`purpose: \"media\"`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}`, and only for the resource it names — for `<img>`, PDF.js and download links, which cannot send a header."
       }
     },
     "responses": {
@@ -192,17 +189,17 @@
       "BodyPurpose": {
         "$ref": "components/schemas/BodyPurpose.json"
       },
-      "BrowseAgentsRequest": {
-        "$ref": "components/schemas/BrowseAgentsRequest.json"
+      "BrowseEnginesRequest": {
+        "$ref": "components/schemas/BrowseEnginesRequest.json"
       },
-      "BrowseAgentsResult": {
-        "$ref": "components/schemas/BrowseAgentsResult.json"
+      "BrowseEnginesResult": {
+        "$ref": "components/schemas/BrowseEnginesResult.json"
       },
-      "BrowsePeopleRequest": {
-        "$ref": "components/schemas/BrowsePeopleRequest.json"
+      "BrowseProfilesRequest": {
+        "$ref": "components/schemas/BrowseProfilesRequest.json"
       },
-      "BrowsePeopleResult": {
-        "$ref": "components/schemas/BrowsePeopleResult.json"
+      "BrowseProfilesResult": {
+        "$ref": "components/schemas/BrowseProfilesResult.json"
       },
       "BrowseAnnotationHistoryRequest": {
         "$ref": "components/schemas/BrowseAnnotationHistoryRequest.json"
@@ -324,8 +321,8 @@
       "CloneResourceWithTokenResponse": {
         "$ref": "components/schemas/CloneResourceWithTokenResponse.json"
       },
-      "CollaboratorEntry": {
-        "$ref": "components/schemas/CollaboratorEntry.json"
+      "EngineEntry": {
+        "$ref": "components/schemas/EngineEntry.json"
       },
       "CommandError": {
         "$ref": "components/schemas/CommandError.json"
@@ -471,8 +468,8 @@
       "InferenceLimitsResult": {
         "$ref": "components/schemas/InferenceLimitsResult.json"
       },
-      "InferencePairLimits": {
-        "$ref": "components/schemas/InferencePairLimits.json"
+      "EngineLimits": {
+        "$ref": "components/schemas/EngineLimits.json"
       },
       "GraphAnnotationNode": {
         "$ref": "components/schemas/GraphAnnotationNode.json"
@@ -585,11 +582,11 @@
       "JobAssignedPayload": {
         "$ref": "components/schemas/JobAssignedPayload.json"
       },
-      "PersonProfileCommand": {
-        "$ref": "components/schemas/PersonProfileCommand.json"
+      "PrincipalProfileCommand": {
+        "$ref": "components/schemas/PrincipalProfileCommand.json"
       },
-      "PersonProfiledPayload": {
-        "$ref": "components/schemas/PersonProfiledPayload.json"
+      "PrincipalProfiledPayload": {
+        "$ref": "components/schemas/PrincipalProfiledPayload.json"
       },
       "JobStatusRequest": {
         "$ref": "components/schemas/JobStatusRequest.json"
@@ -858,12 +855,6 @@
       "ReplyEventId": {
         "$ref": "components/schemas/ReplyEventId.json"
       },
-      "AgentTokenRequest": {
-        "$ref": "components/schemas/AgentTokenRequest.json"
-      },
-      "AgentTokenResponse": {
-        "$ref": "components/schemas/AgentTokenResponse.json"
-      },
       "GatewayConfig": {
         "$ref": "components/schemas/GatewayConfig.json"
       },
@@ -990,8 +981,20 @@
       "WorkerConfig": {
         "$ref": "components/schemas/WorkerConfig.json"
       },
-      "WorkerAgentConfig": {
-        "$ref": "components/schemas/WorkerAgentConfig.json"
+      "WorkerEngineConfig": {
+        "$ref": "components/schemas/WorkerEngineConfig.json"
+      },
+      "WorkerKnowledgeBaseConfig": {
+        "$ref": "components/schemas/WorkerKnowledgeBaseConfig.json"
+      },
+      "WorkerHealth": {
+        "$ref": "components/schemas/WorkerHealth.json"
+      },
+      "WorkerKnowledgeBaseHealth": {
+        "$ref": "components/schemas/WorkerKnowledgeBaseHealth.json"
+      },
+      "WorkerEngineHealth": {
+        "$ref": "components/schemas/WorkerEngineHealth.json"
       },
       "CursorsPath": {
         "$ref": "components/schemas/CursorsPath.json"
@@ -1020,8 +1023,8 @@
       "LibrarianConfig": {
         "$ref": "components/schemas/LibrarianConfig.json"
       },
-      "LibrarianModelConfig": {
-        "$ref": "components/schemas/LibrarianModelConfig.json"
+      "LibrarianEngineConfig": {
+        "$ref": "components/schemas/LibrarianEngineConfig.json"
       },
       "EmbeddingConfig": {
         "$ref": "components/schemas/EmbeddingConfig.json"
@@ -1059,11 +1062,11 @@
       "TagSchemasProjection": {
         "$ref": "components/schemas/TagSchemasProjection.json"
       },
-      "PeopleProjection": {
-        "$ref": "components/schemas/PeopleProjection.json"
+      "ProfilesProjection": {
+        "$ref": "components/schemas/ProfilesProjection.json"
       },
-      "PersonProfile": {
-        "$ref": "components/schemas/PersonProfile.json"
+      "Profile": {
+        "$ref": "components/schemas/Profile.json"
       },
       "StorageUriEntry": {
         "$ref": "components/schemas/StorageUriEntry.json"
@@ -1086,11 +1089,11 @@
       "AnchoredTextWrite": {
         "$ref": "components/schemas/AnchoredTextWrite.json"
       },
-      "ArchivistRoster": {
-        "$ref": "components/schemas/ArchivistRoster.json"
+      "ArchivistEngines": {
+        "$ref": "components/schemas/ArchivistEngines.json"
       },
-      "ArchivistRosterRole": {
-        "$ref": "components/schemas/ArchivistRosterRole.json"
+      "Engine": {
+        "$ref": "components/schemas/Engine.json"
       },
       "GatherFailed": {
         "$ref": "components/schemas/GatherFailed.json"

@@ -32,9 +32,9 @@ func archivistDocumentOf(t *testing.T, p placement) api.ArchivistConfig {
 }
 
 // Every address is the placement's and every path the one the launcher mounts
-// onto. The roster is the Inference document's, whole: the worker's document
-// and the Librarian's are written from the same one. The log level is the
-// KnowledgeBase's.
+// onto. The engines are the Inference document's, whole: the worker's
+// document and the Librarian's are written from the same ones. The log level
+// is the KnowledgeBase's.
 func TestArchivistDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
 	st.KnowledgeBase.Spec.LogLevel = api.LogLevelDebug
@@ -60,10 +60,10 @@ func TestArchivistDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.LogLevel != api.LogLevelDebug || doc.LogFormat != api.LogFormatJson {
 		t.Errorf("log = %q %q, want the KnowledgeBase's level and JSON", doc.LogLevel, doc.LogFormat)
 	}
-	if !reflect.DeepEqual(doc.Roster, st.Inference.Spec.Roster) {
-		got, _ := json.Marshal(doc.Roster)
-		want, _ := json.Marshal(st.Inference.Spec.Roster)
-		t.Errorf("roster = %s\nwant     %s, the Inference document's", got, want)
+	if !reflect.DeepEqual(doc.Engines, st.Inference.Spec.Engines) {
+		got, _ := json.Marshal(doc.Engines)
+		want, _ := json.Marshal(st.Inference.Spec.Engines)
+		t.Errorf("engines = %s\nwant      %s, the Inference document's", got, want)
 	}
 }
 

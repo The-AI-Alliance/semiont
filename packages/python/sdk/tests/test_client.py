@@ -24,7 +24,7 @@ from semiont.errors import BusRequestError, SemiontError, TransportError
 from semiont.event_bus import EventBus
 from semiont.events import Events
 from semiont.identifiers import AnnotationId, JobId, ResourceId
-from semiont.namespaces.browse import Collaborator
+from semiont.namespaces.browse import EngineWithLimits
 from semiont.running import Running
 from semiont.testing import FaultyTransport, GetAnchoredText, InMemoryContent, StubGateway, create_test_client
 from semiont.transport import (
@@ -214,51 +214,55 @@ def test_a_query_asks_when_its_fresh_is_called_and_gives_the_part_of_the_answer_
     run(scenario())
 
 
-def test_the_collaborators_are_the_directory_with_each_models_limits_as_its_key_holders_report_them() -> None:
+def test_the_engines_are_the_knowledge_bases_with_each_engines_limits_as_its_key_holders_report_them() -> None:
     async def scenario() -> None:
         client, transport = world()
-        gemma: JsonObject = {"@type": "Software", "name": "ollama gemma2", "provider": "ollama", "model": "gemma2:27b"}
+        gemma: JsonObject = {"provider": "ollama", "model": "gemma2:27b"}
+        claude: JsonObject = {"provider": "anthropic", "model": "claude"}
+        llama: JsonObject = {"provider": "ollama", "model": "llama3"}
         same_model_elsewhere: JsonObject = {
-            "provider": "elsewhere",
-            "model": "claude",
+            "engine": {"provider": "openai", "model": "claude"},
             "limits": {"contextTokens": 7, "maxOutputTokens": 7},
         }
-        said_again: JsonObject = {"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 9, "maxOutputTokens": 9}}
-        claude: JsonObject = {"@type": "Software", "name": "anthropic claude", "provider": "anthropic", "model": "claude"}
-        alice: JsonObject = {"@type": "Person", "name": "Alice"}
-        transport.queue_reply("browse:agents-requested", [{"agents": [{"agent": gemma}, {"agent": claude}, {"agent": alice}]}])
-        # One key holder answers, with a model of the directory and one that is not in it. The others are down.
-        # A model is its provider's: one of the same name under another is another model. And what is reported first stands.
+        said_again: JsonObject = {"engine": gemma, "limits": {"contextTokens": 9, "maxOutputTokens": 9}}
+        transport.queue_reply("browse:engines-requested", [{"engines": [{"engine": gemma}, {"engine": claude}, {"engine": llama}]}])
+        # One key holder answers, with an engine of the knowledge base's and one that is not. The others are down.
+        # An engine is a provider and a model: a model of the same name under another provider is another engine.
+        # And what is reported first stands.
         reported: JsonObject = {
             "limits": [
                 same_model_elsewhere,
-                {"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 8192, "maxOutputTokens": 2048}},
+                {"engine": gemma, "limits": {"contextTokens": 8192, "maxOutputTokens": 2048}},
                 said_again,
-                {"provider": "ollama", "model": "unlisted", "limits": {"contextTokens": 1, "maxOutputTokens": 1}},
+                {"engine": {"provider": "ollama", "model": "unlisted"}, "limits": {"contextTokens": 1, "maxOutputTokens": 1}},
             ]
         }
         transport.queue_reply("job:limits-requested", [reported])
 
-        collaborators = await soon(client.browse.agents().fresh())
-        assert [type(collaborator) for collaborator in collaborators] == [Collaborator] * 3
-        assert [collaborator.entry.agent.name for collaborator in collaborators] == ["ollama gemma2", "anthropic claude", "Alice"]
-        limits = collaborators[0].limits
+        engines = await soon(client.browse.engines().fresh())
+        assert [type(engine) for engine in engines] == [EngineWithLimits] * 3
+        assert [(each.entry.engine.provider, each.entry.engine.model) for each in engines] == [
+            ("ollama", "gemma2:27b"),
+            ("anthropic", "claude"),
+            ("ollama", "llama3"),
+        ]
+        limits = engines[0].limits
         assert limits is not None
         assert (limits.context_tokens, limits.max_output_tokens) == (8192, 2048)
-        # A holder that is down reports none: its models show no limits, and the directory is not held up by it.
-        assert (collaborators[1].limits, collaborators[2].limits) == (None, None)
-        # The directory is asked for first, and each key holder after it.
+        # A holder that is down reports none: its engines show no limits, and the engines are not held up by it.
+        assert (engines[1].limits, engines[2].limits) == (None, None)
+        # The engines are asked for first, and each key holder after them.
         assert [frame.channel for frame in transport.emitted] == [
-            "browse:agents-requested",
+            "browse:engines-requested",
             "gather:limits-requested",
             "job:limits-requested",
             "match:limits-requested",
         ]
 
-        # A directory that cannot be had is the query's failure, whatever the key holders say.
-        transport.refuse_when(refusing("browse:agents-requested"))
+        # Engines that cannot be had are the query's failure, whatever the key holders say.
+        transport.refuse_when(refusing("browse:engines-requested"))
         with pytest.raises(BusRequestError):
-            await soon(client.browse.agents().fresh())
+            await soon(client.browse.engines().fresh())
         await client.close()
 
     run(scenario())

@@ -33,16 +33,16 @@ type Timing struct {
 	EmitRetry RetryPolicy
 	// HttpRequestTimeout is httpRequestTimeoutMs: The deadline on one HTTP
 	// request that is neither the stream nor an emit: one of the gateway's own
-	// operations (who a token is, a media token, an agent's token, the resource
-	// metadata, health, status), the wait for a resource's bytes to begin
-	// arriving, a read of a resource's description or of its anchored text, a
-	// request to the issuer (its discovery, a grant, a revocation), and a read
-	// of a launcher's discovery document. Unanswered here, the request fails as
-	// one that got no answer. Without it, a gateway or an issuer that accepts a
-	// connection and never answers holds a session's start, and every renewal
-	// after it, for as long as the process lives. An upload has no deadline: how
-	// long it takes is how large the resource is. A read of anchored text may be
-	// held by the Archivist while the Smelter reads the content, for the time
+	// operations (who a token is, a media token, the resource metadata, health,
+	// status), the wait for a resource's bytes to begin arriving, a read of a
+	// resource's description or of its anchored text, a request to the issuer
+	// (its discovery, a grant, a revocation), and a read of a launcher's
+	// discovery document. Unanswered here, the request fails as one that got no
+	// answer. Without it, a gateway or an issuer that accepts a connection and
+	// never answers holds a session's start, and every renewal after it, for as
+	// long as the process lives. An upload has no deadline: how long it takes is
+	// how large the resource is. A read of anchored text may be held by the
+	// Archivist while the Smelter reads the content, for the time
 	// docs/protocol/ARCHIVIST.md states, and this deadline is longer than that
 	// wait.
 	HttpRequestTimeout time.Duration
@@ -209,6 +209,12 @@ type Timing struct {
 	// query last changed before it asks. A query still being typed is not asked
 	// for letter by letter.
 	SearchDebounce time.Duration
+	// DiscoveryInterval is discoveryIntervalMs: How often a launcher's discovery
+	// document is read again, unless a caller says otherwise. A launcher
+	// rewrites it on every change to its stack, so a list of the knowledge bases
+	// it manages is a few seconds behind at worst, and the document is not read
+	// without pause.
+	DiscoveryInterval time.Duration
 }
 
 // DefaultTiming is the table's values.
@@ -246,5 +252,6 @@ func DefaultTiming() Timing {
 		AnchoredTextReask:                 5000 * time.Millisecond,
 		HoverDelay:                        150 * time.Millisecond,
 		SearchDebounce:                    250 * time.Millisecond,
+		DiscoveryInterval:                 5000 * time.Millisecond,
 	}
 }

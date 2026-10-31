@@ -4,7 +4,8 @@
     "typescript": ["packages/typescript/core/src/__tests__/annotation-of-span.test.ts", "packages/typescript/core/src/__tests__/builder-cases.test.ts", "packages/typescript/sdk/src/__tests__/annotation-builders.test.ts", "packages/typescript/sdk/src/__tests__/worker-skill.test.ts"],
     "rust": ["packages/rust/sdk/tests/builder_cases.rs", "packages/rust/sdk/tests/readme.rs"],
     "python": ["packages/python/sdk/tests/test_annotation_builders.py"],
-    "go": ["packages/go/sdk/annotations/builders_test.go"]
+    "go": ["packages/go/sdk/annotations/builders_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationBuildersTest.kt"]
   },
   "unstated": {
     "cases": ["created"],
@@ -16,7 +17,7 @@
       "why": "a highlight of a text: no body, a position and a quote, and the id of the anchor `0:12:Ada Lovelace` (the first case of id-cases.json)",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0, "end": 12, "exact": "Ada Lovelace" },
       "annotation": {
@@ -24,7 +25,7 @@
         "type": "Annotation",
         "id": "8yQdnrBndVZasyRD7ORRX",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -39,7 +40,7 @@
       "why": "a comment on a text: the body is carried as given and goes into the id; the prefix and suffix, which are what the text has on either side, are written into the quote and are no part of the id",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "commenting",
       "span": { "start": 13, "end": 18, "exact": "wrote", "prefix": "Ada Lovelace ", "suffix": " the first algorithm." },
       "body": [
@@ -50,7 +51,7 @@
         "type": "Annotation",
         "id": "eTgxnCP0D9xM17AZIl7S_",
         "motivation": "commenting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -68,7 +69,7 @@
       "why": "a span that is the whole text has nothing before or after it: its empty prefix and suffix pass the check and are not written into the quote",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0, "end": 39, "exact": "Ada Lovelace wrote the first algorithm.", "prefix": "", "suffix": "" },
       "annotation": {
@@ -76,7 +77,7 @@
         "type": "Annotation",
         "id": "lBxliU73D1-YYmKhQhYbf",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -91,7 +92,7 @@
       "why": "a reference found in a text, whose body is the one object naming its entity type: carried as one object, not made a list; and a generator that states the parameters it ran with is carried with them",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3", "parameters": { "temperature": 0, "maxTokens": 2048 } },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3", "parameters": { "temperature": 0, "maxTokens": 2048 } },
       "motivation": "linking",
       "span": { "start": 0, "end": 12, "exact": "Ada Lovelace" },
       "body": { "type": "TextualBody", "value": "Person", "purpose": "tagging" },
@@ -100,7 +101,7 @@
         "type": "Annotation",
         "id": "xvw-OmqM0xvv7bmfSzDrA",
         "motivation": "linking",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3", "parameters": { "temperature": 0, "maxTokens": 2048 } },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3", "parameters": { "temperature": 0, "maxTokens": 2048 } },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -116,7 +117,7 @@
       "why": "the text at the span is not the words it is said to be: refused, not built",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0, "end": 12, "exact": "Grace Hopper" },
       "refused": "exact-mismatch"
@@ -125,7 +126,7 @@
       "why": "a prefix that is not what the text has just before the span: the eight characters before `wrote` are `ovelace ` with its space, not `Lovelace`",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 13, "end": 18, "exact": "wrote", "prefix": "Lovelace" },
       "refused": "prefix-mismatch"
@@ -134,7 +135,7 @@
       "why": "a prefix longer than all the text there is before the span cannot be that text",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 4, "end": 12, "exact": "Lovelace", "prefix": "Countess Ada " },
       "refused": "prefix-mismatch"
@@ -143,7 +144,7 @@
       "why": "a suffix that is not what the text has just after the span",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 13, "end": 18, "exact": "wrote", "suffix": " a first" },
       "refused": "suffix-mismatch"
@@ -152,7 +153,7 @@
       "why": "a suffix is the text just after the span, not text somewhere after it: ` the first` comes after `Lovelace`, and not next to it",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 4, "end": 12, "exact": "Lovelace", "suffix": " the first" },
       "refused": "suffix-mismatch"
@@ -161,7 +162,7 @@
       "why": "a suffix longer than all the text there is after the span cannot be that text",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 29, "end": 38, "exact": "algorithm", "suffix": ". The end" },
       "refused": "suffix-mismatch"
@@ -170,7 +171,7 @@
       "why": "a span after a character outside the Basic Multilingual Plane: its offsets count code points, so `Ada Lovelace` is from 2 to 14, the emoji before it being one; and the id is of the anchor `2:14:Ada Lovelace`",
       "text": "😀 Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 2, "end": 14, "exact": "Ada Lovelace" },
       "annotation": {
@@ -178,7 +179,7 @@
         "type": "Annotation",
         "id": "KxmaWULQ3qhFn7N21Bk5r",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -193,7 +194,7 @@
       "why": "the same words stated where a count of UTF-16 code units would put them, from 3 to 15, are not the words the text has there: refused",
       "text": "😀 Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 3, "end": 15, "exact": "Ada Lovelace" },
       "refused": "exact-mismatch"
@@ -202,7 +203,7 @@
       "why": "a span that is itself of characters outside the plane is two code points long, and they are written into the quote and the anchor as themselves",
       "text": "😀 said 𝑥𝑦 holds",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "commenting",
       "span": { "start": 7, "end": 9, "exact": "𝑥𝑦", "prefix": "😀 said ", "suffix": " holds" },
       "body": [
@@ -213,7 +214,7 @@
         "type": "Annotation",
         "id": "EC6ecBvKDj4WZEcB_2k2z",
         "motivation": "commenting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -231,7 +232,7 @@
       "why": "a prefix is as many code points of the text as it has itself: nine, of which two are emoji, and the text before them is no part of it",
       "text": "Intro. Rated 🎉🎉 good, then 😀 bad. Outro.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 16, "end": 20, "exact": "good", "prefix": "Rated 🎉🎉 " },
       "annotation": {
@@ -239,7 +240,7 @@
         "type": "Annotation",
         "id": "qEMILkz17tkjk3SmlwRU_",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -254,7 +255,7 @@
       "why": "a suffix is counted the same way: eight code points, the emoji one of them, and the text after them is no part of it",
       "text": "Intro. Rated 🎉🎉 good, then 😀 bad. Outro.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 16, "end": 20, "exact": "good", "suffix": ", then 😀" },
       "annotation": {
@@ -262,7 +263,7 @@
         "type": "Annotation",
         "id": "qEMILkz17tkjk3SmlwRU_",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -277,7 +278,7 @@
       "why": "a suffix longer than all the text there is after the span cannot be that text, where the text is shorter in code points than a string of it is in UTF-16 code units",
       "text": "😀 Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 31, "end": 40, "exact": "algorithm", "suffix": ". The end" },
       "refused": "suffix-mismatch"
@@ -286,7 +287,7 @@
       "why": "a span given backwards is refused, though the words between its two offsets are the words it states",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 12, "end": 0, "exact": "Ada Lovelace" },
       "refused": "span-out-of-range"
@@ -295,7 +296,7 @@
       "why": "a span that runs past the end of the text is refused, though the text from its start to the end is the words it states: the text is 39 code points long",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 29, "end": 45, "exact": "algorithm." },
       "refused": "span-out-of-range"
@@ -304,7 +305,7 @@
       "why": "a span that starts below zero is refused, though the text from 0 to its end is the words it states",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": -3, "end": 12, "exact": "Ada Lovelace" },
       "refused": "span-out-of-range"
@@ -313,7 +314,7 @@
       "why": "an offset is a whole number: a span stated in fractions is refused",
       "text": "Ada Lovelace wrote the first algorithm.",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0.5, "end": 12, "exact": "Ada Lovelace" },
       "refused": "span-out-of-range"
@@ -322,7 +323,7 @@
       "why": "the length a span must end within is the text's in code points: this text is 14 of them, the emoji being one, and a span that ends at 15, the length of a string of it in UTF-16 code units, runs past the end",
       "text": "😀 Ada Lovelace",
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 2, "end": 15, "exact": "Ada Lovelace" },
       "refused": "span-out-of-range"
@@ -339,7 +340,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0, "end": 10, "exact": "alpha beta" },
       "annotation": {
@@ -347,7 +348,7 @@
         "type": "Annotation",
         "id": "8mzsO4oS88lXiAeLOZ1ER",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -370,7 +371,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "commenting",
       "span": { "start": 6, "end": 16, "exact": "beta\ngamma", "prefix": "alpha ", "suffix": " delta" },
       "body": [
@@ -381,7 +382,7 @@
         "type": "Annotation",
         "id": "p2dUyK-07YuB-QXSOiLeI",
         "motivation": "commenting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -408,7 +409,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 6, "end": 16, "exact": "beta gamma" },
       "annotation": {
@@ -416,7 +417,7 @@
         "type": "Annotation",
         "id": "1Aqkd45MCQ6e-tkvEeO3f",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -440,7 +441,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "linking",
       "span": { "start": 11, "end": 22, "exact": "gamma delta" },
       "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
@@ -449,7 +450,7 @@
         "type": "Annotation",
         "id": "fnGCAyZpliTKBHb049emL",
         "motivation": "linking",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -473,7 +474,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 10, "end": 11, "exact": "\n" },
       "refused": "nothing-located"
@@ -490,7 +491,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0, "end": 5, "exact": "gamma" },
       "refused": "exact-not-covered"
@@ -509,7 +510,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 8, "end": 12, "exact": "beta" },
       "annotation": {
@@ -517,7 +518,7 @@
         "type": "Annotation",
         "id": "DYs4fnZVhO9IPwCRFg2hG",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -542,7 +543,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "commenting",
       "span": { "start": 8, "end": 20, "exact": "beta\ngamma 𝑥", "prefix": "alpha ", "suffix": " delta" },
       "body": [
@@ -553,7 +554,7 @@
         "type": "Annotation",
         "id": "Fe453bZz37I_t1ZATKfiq",
         "motivation": "commenting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -580,7 +581,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 17, "end": 30, "exact": "delta" },
       "refused": "span-out-of-range"
@@ -597,7 +598,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 30, "end": 35, "exact": "omega" },
       "refused": "span-out-of-range"
@@ -614,7 +615,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 6, "end": 16, "exact": "beta\ngamma", "prefix": "omega ", "suffix": " delta" },
       "refused": "prefix-mismatch"
@@ -631,7 +632,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 6, "end": 16, "exact": "beta\ngamma", "prefix": "alpha ", "suffix": " omega" },
       "refused": "suffix-mismatch"
@@ -650,7 +651,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 8, "end": 12, "exact": "beta", "prefix": "😀 alpha ", "suffix": "\ngamma 𝑥" },
       "annotation": {
@@ -658,7 +659,7 @@
         "type": "Annotation",
         "id": "DYs4fnZVhO9IPwCRFg2hG",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": {
           "type": "SpecificResource",
           "source": "res-1",
@@ -679,7 +680,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 19, "end": 24, "exact": "delta" },
       "refused": "item-out-of-range"
@@ -694,7 +695,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 2, "end": 7, "exact": "alpha" },
       "refused": "item-out-of-range"
@@ -711,7 +712,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 0, "end": 5, "exact": "alpha" },
       "refused": "item-out-of-range"
@@ -726,7 +727,7 @@
         ]
       },
       "resourceId": "res-1",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "motivation": "highlighting",
       "span": { "start": 6, "end": 11, "exact": "beta" },
       "refused": "item-out-of-range"
@@ -737,14 +738,14 @@
       "why": "the link from a resource to the one generated from it: its target is the resource and nothing else, and its id is the id of that resource, motivation and body with the anchor the empty string",
       "resourceId": "res-1",
       "motivation": "linking",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" },
       "annotation": {
         "@context": "http://www.w3.org/ns/anno.jsonld",
         "type": "Annotation",
         "id": "xdaSX40cMJa46S2JHwFtC",
         "motivation": "linking",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": { "source": "res-1" },
         "body": { "type": "SpecificResource", "source": "res-2", "purpose": "linking" }
       }
@@ -773,13 +774,13 @@
       "why": "with no body given the annotation has no `body` member, and three members go into its id",
       "resourceId": "res-1",
       "motivation": "highlighting",
-      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+      "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
       "annotation": {
         "@context": "http://www.w3.org/ns/anno.jsonld",
         "type": "Annotation",
         "id": "EqaovAwF9KTh47GpsGdT9",
         "motivation": "highlighting",
-        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:ollama:gemma3", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
+        "generator": { "@type": "Software", "@id": "did:web:kb.example:agents:semiont-worker", "name": "gemma3", "provider": "ollama", "model": "gemma3" },
         "target": { "source": "res-1" }
       }
     },

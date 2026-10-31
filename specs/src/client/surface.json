@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made (a TypeScript class's constructor and its static factories among it). `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`; nor is how a unit is made (a TypeScript class's constructor and its static factories among it). `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -125,10 +125,10 @@
           "cases": [{ "args": {}, "sends": {} }]
         },
         {
-          "method": "agents",
+          "method": "engines",
           "shape": "cache",
-          "via": { "request": "browse:agents-requested" },
-          "cases": [{ "why": "the directory is asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
+          "via": { "request": "browse:engines-requested" },
+          "cases": [{ "why": "the engines are asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
         },
         {
           "method": "events",
@@ -713,7 +713,7 @@
   "worker": [
     {
       "handed": "claims",
-      "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust, ranged over in Go.",
+      "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
       "members": [
         {
           "member": "next",
@@ -780,7 +780,7 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
-      "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit" },
+      "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit" },
       "members": [
         { "member": "pendingAnnotation" },
         { "member": "delegatingMotivation" },
@@ -796,7 +796,7 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
-      "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit" },
+      "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit" },
       "members": [
         { "member": "isGenerating" },
         { "member": "progress" },
@@ -810,7 +810,7 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
-      "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit" },
+      "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit" },
       "members": [
         { "member": "context" },
         { "member": "loading" },
@@ -826,13 +826,13 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
-      "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit" },
+      "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit" },
       "members": []
     },
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
-      "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit" },
+      "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit" },
       "members": [
         { "member": "hoveredAnnotationId" },
         { "member": "focus" }
@@ -841,7 +841,7 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
-      "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell" },
+      "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell" },
       "members": [
         { "member": "enter" },
         { "member": "leave" }
@@ -850,7 +850,7 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
-      "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline" },
+      "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline" },
       "members": [
         { "member": "query" },
         { "member": "state" },
@@ -860,7 +860,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
-      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals" },
+      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
       "members": [
         { "member": "sessionEnded" },
         { "member": "permissionDenied" },
@@ -876,7 +876,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
-      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache" },
+      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
       "members": [
         { "member": "observe" },
         { "member": "fetch" },
@@ -893,7 +893,7 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table.",
-      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session" },
+      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
       "members": [
         { "member": "id" },
         { "member": "kb" },
@@ -910,7 +910,8 @@
           "absent": {
             "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
             "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
-            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
           }
         }
       ]
@@ -918,7 +919,7 @@
   ],
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
-    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire" },
+    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
       { "member": "emit" },
       { "member": "frames" },
@@ -926,7 +927,8 @@
         "member": "framesOf",
         "absent": {
           "typescript": "`frames` is overloaded: a channel of a resource's scope is read as `frames(channel, resourceId)`. Rust, which has no overloading, names that read apart.",
-          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
+          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart.",
+          "kotlin": "`frames` is overloaded: a channel of a resource's scope (`ScopedChannel`) is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
         }
       },
       { "member": "request" },
@@ -934,21 +936,24 @@
         "member": "emitOn",
         "absent": {
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
-          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
         }
       },
       {
         "member": "framesOn",
         "absent": {
           "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
-          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
         }
       },
       {
         "member": "requestOf",
         "absent": {
           "typescript": "A TypeScript operation is a value, checked against the registry's operations, so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
-          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
+          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
+          "kotlin": "A Kotlin operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
         }
       }
     ]
@@ -970,13 +975,17 @@
         ],
         "go": [
           "packages/go/sdk/annotations"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/annotations"
         ]
       },
       "whole": [
         "typescript",
         "rust",
         "python",
-        "go"
+        "go",
+        "kotlin"
       ],
       "members": [
         {
@@ -1057,7 +1066,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1066,7 +1076,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1075,7 +1086,8 @@
           "absent": {
             "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
             "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
-            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
           }
         },
         {
@@ -1117,7 +1129,8 @@
           "member": "SpanRefusedError",
           "kind": "type",
           "absent": {
-            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error."
+            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusedError: a SemiontError, and that family is sealed, so every member of it is in semiont.errors."
           }
         },
         {
@@ -1126,7 +1139,8 @@
           "absent": {
             "typescript": "TypeScript's is with @semiont/core's other error codes.",
             "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
-            "go": "Go's is semiont.SpanRefusal, generated with the other error codes."
+            "go": "Go's is semiont.SpanRefusal, generated with the other error codes.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusal, generated with the other error codes."
           }
         },
         {
@@ -1135,7 +1149,8 @@
           "absent": {
             "typescript": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
             "python": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
-            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text."
+            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "kotlin": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where Kotlin's annotationOfSpan is overloaded for each."
           }
         },
         {
@@ -1144,7 +1159,8 @@
           "absent": {
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
-            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         },
         {
@@ -1153,7 +1169,8 @@
           "absent": {
             "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
             "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
-            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument."
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
           }
         }
       ]
@@ -1173,6 +1190,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
         ]
       },
       "whole": [
@@ -1182,6 +1202,41 @@
       "members": [
         {
           "member": "jobMatchesFilter",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "claims",
+      "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by specs/src/jobs/retry-cases.json.",
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/claims.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/claims.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/claims.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
+        ]
+      },
+      "members": [
+        {
+          "member": "jobClaimChannels",
+          "kind": "constant"
+        },
+        {
+          "member": "jobCommitChannels",
+          "kind": "constant"
+        },
+        {
+          "member": "willRetryAfter",
           "kind": "function"
         }
       ]
@@ -1201,6 +1256,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/retry"
         ]
       },
       "members": [
@@ -1225,6 +1283,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "members": [
@@ -1250,6 +1311,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/session"
         ]
       },
       "members": [
@@ -1305,6 +1369,9 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/storage"
         ]
       },
       "members": [
@@ -1337,6 +1404,10 @@
         "go": [
           "packages/go/sdk",
           "packages/go/sdk/bus"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/bus",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/transport"
         ]
       },
       "members": [
@@ -1387,6 +1458,10 @@
         ],
         "go": [
           "packages/go/sdk/registry"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "whole": [
@@ -1403,7 +1478,8 @@
           "absent": {
             "python": "Python makes one with `SemiontBrowser(config)`, held with `async with`.",
             "typescript": "TypeScript makes one with `new SemiontBrowser(config)`.",
-            "rust": "Rust makes one with `SemiontBrowser::new(config)`."
+            "rust": "Rust makes one with `SemiontBrowser::new(config)`.",
+            "kotlin": "Kotlin makes one with `SemiontBrowser(config)`, closed with `close()`."
           }
         },
         {
@@ -1572,7 +1648,8 @@
           "absent": {
             "python": "Python's `complete_sign_in` raises the `SignInError` or the `IdentityUnverifiableError` itself.",
             "typescript": "TypeScript's `completeSignIn` rejects with the `SignInError` or the `IdentityUnverifiableError` itself.",
-            "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`."
+            "go": "Go's `CompleteSignIn` returns the `*semiont.SignInError` or the `*semiont.IdentityUnverifiableError` itself, told apart with `errors.As`.",
+            "kotlin": "Kotlin's `completeSignIn` throws the `SignInError` or the `IdentityUnverifiableError` itself."
           }
         }
       ]
@@ -1598,6 +1675,11 @@
         ],
         "go": [
           "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/errors"
         ]
       },
       "members": [
@@ -1662,6 +1744,10 @@
         ],
         "go": [
           "packages/go/sdk/discovery"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/discovery",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
         ]
       },
       "whole": [
@@ -1761,6 +1847,9 @@
         ],
         "go": [
           "packages/go/sdk/semionttest"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/testing"
         ]
       },
       "members": [

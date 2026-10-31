@@ -97,7 +97,7 @@
     "reconnecting": "Verbindung zum Server wird wiederhergestellt...",
     "sharing": "Teilen",
     "collaborationComingSoon": "Zusammenarbeitsfunktionen folgen in Kürze",
-    "collaborators": "Mitwirkende",
+    "engines": "Engines",
     "ceilings": "{{contextTokens}} Eingabe / {{maxOutputTokens}} Ausgabe",
     "sharedWindow": "{{contextTokens}} Fenster"
   },

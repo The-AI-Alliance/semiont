@@ -53,6 +53,7 @@ function writesAnImageTag(file) {
 const MANIFESTS = {
   npm: (file) => basename(file) === 'package-lock.json',
   gomod: (file) => basename(file) === 'go.mod',
+  gradle: (file) => basename(file) === 'settings.gradle.kts',
   cargo: (file) => basename(file) === 'Cargo.toml',
   'rust-toolchain': (file) => ['rust-toolchain.toml', 'rust-toolchain'].includes(basename(file)),
   docker: (file) => /dockerfile/i.test(basename(file)) && writesAnImageTag(file),

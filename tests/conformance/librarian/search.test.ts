@@ -4,8 +4,8 @@
  * reference, from the graph, the vector index, the gathered context and its
  * model; the page it answers a search of resources by text, from the graph or,
  * where nothing matches there, from the index; the references it answers for
- * a resource they are bound to; the names it gives the people a page
- * mentions; and the limits it reports of each actor's model.
+ * a resource they are bound to; the names it gives the persons a page
+ * mentions; and the limits it reports of each actor's engine.
  *
  * The scores, the prompt's text and the arithmetic of a page are the case
  * tables' (specs/src/librarian): these cases hold what crosses the bus, the
@@ -28,8 +28,8 @@ import { embeddingOf } from '../harness/ollama-embed';
 import { pdfOf } from '../smelter/support';
 import { FOX, TIDE, prompts } from './support';
 
-/** What the people projection holds. */
-type People = components['schemas']['PeopleProjection'];
+/** What the profiles projection holds. */
+type Profiles = components['schemas']['ProfilesProjection'];
 
 /** How near the stand-in provider puts two texts: the cosine of their vectors, each of which has length 1. */
 function nearness(a: string, b: string): number {
@@ -70,9 +70,9 @@ function numbered(prompt: string, resourceId: string): string | undefined {
 /** A provider's refusal of one request. */
 const REFUSAL = { status: 500, body: JSON.stringify({ error: 'the stand-in refuses this request' }) };
 
-/** The limits a Librarian reports of a model an Ollama serves with a window of `window` tokens: an Ollama has one window, for what a model reads and what it writes. */
+/** The limits a Librarian reports of an engine of Ollama's with a window of `window` tokens: an Ollama has one window, for what a model reads and what it writes. */
 const limitsOf = (model: string, window: number) => ({
-  response: { limits: [{ provider: 'ollama', model, limits: { contextTokens: window, maxOutputTokens: window, acceptsTemperature: true } }] },
+  response: { limits: [{ engine: { provider: 'ollama', model }, limits: { contextTokens: window, maxOutputTokens: window, acceptsTemperature: true } }] },
 });
 
 eachLibrarian('a Librarian, asked to find', (world) => {
@@ -498,14 +498,14 @@ eachLibrarian('a Librarian, asked to find', (world) => {
     });
   });
 
-  describe('the people a page mentions', () => {
-    it('names who made a resource as the people projection holds them, on a lexical page and on a semantic one, where the record carries no name', async () => {
+  describe('the persons a page mentions', () => {
+    it('names who made a resource as the profiles projection holds them, on a lexical page and on a semantic one, where the record carries no name', async () => {
       const text = 'Thrift flowers pink along the shingle ridge';
       const resource = await world().created(text, { name: 'Thrift on the shingle', by: 'grace' });
       // A person is given a name when they first write through the gateway. An upload goes to the Archivist, and gives none.
       await world().tagged(resource, 'Coastal', 'grace');
       const did = world().personDid('grace');
-      const profile = await eventually(`the people projection to hold ${did}`, 10_000, () => world().kb.projection<People>('people.json')?.people[did]);
+      const profile = await eventually(`the profiles projection to hold ${did}`, 10_000, () => world().kb.projection<Profiles>('profiles.json')?.profiles[did]);
       await world().ready(resource);
       expect((await world().index.pointsOf('resources', resource)).map((point) => point.payload['text'])).toEqual([text]);
 
@@ -531,9 +531,9 @@ eachLibrarian('a Librarian, asked to find', (world) => {
     });
   });
 
-  describe('the limits of its models', () => {
+  describe('the limits of its engines', () => {
     it(
-      "answers each limits request with the limits of its own actor's model, as that model's provider shows them",
+      "answers each limits request with the limits of its own actor's engine, as that engine's provider shows them",
       async () => {
         // A Librarian may keep what a provider showed it, so it is started again to be shown these.
         world().matcher.show = { contextLength: 4096 };

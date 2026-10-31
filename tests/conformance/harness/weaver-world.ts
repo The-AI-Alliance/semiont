@@ -177,7 +177,7 @@ export class WeaverWorld {
     const hand = neo4j.driver(at.uri, neo4j.auth.basic(at.username, password));
 
     // A standing stream of what the Weaver says it has applied, open before any Weaver is.
-    const { token } = await kb.world.agent('conformance', 'weaver-watch', [SERVICE_ROLE]);
+    const { token } = await kb.world.agent('weaver-watch', [SERVICE_ROLE]);
     const signals = await kb.world.subscribe(token, { clientId: randomUUID(), global: ['weave:applied'] }, undefined, true);
 
     const world = new WeaverWorld(
@@ -188,7 +188,7 @@ export class WeaverWorld {
         gatewayUrl: kb.world.origin,
         issuer: kb.world.issuer.origin,
         archivist: { host: '127.0.0.1', port: kb.settings.port },
-        graph: { ...at, passwordEnv: GRAPH_PASSWORD },
+        graph: { type: 'neo4j', ...at, passwordEnv: GRAPH_PASSWORD },
       },
       { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, [GRAPH_PASSWORD]: password },
       mkdtempSync(join(tmpdir(), 'conformance-weaver-')),

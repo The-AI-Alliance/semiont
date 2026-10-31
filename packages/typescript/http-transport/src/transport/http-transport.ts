@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, REQUEST_RETRY_PAUSE_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
+import { asDeclared, BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, REQUEST_RETRY_PAUSE_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, watched, type RetryPolicy, type Watched } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -393,7 +393,8 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         this._actor,
         {
           emit: (channel, payload, envelope) => {
-            for (const bus of this.bridges) bus.emit(channel, payload, envelope);
+            const declared = asDeclared(channel, payload);
+            for (const bus of this.bridges) bus.emit(channel, declared, envelope);
           },
         },
         [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],

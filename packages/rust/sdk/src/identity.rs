@@ -1,8 +1,9 @@
 //! How a knowledge base is named, and the principals who act in it.
 //!
-//! Every function here is held to a shared case table that TypeScript and Go
-//! run too: `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, the rest to
-//! specs/src/principals/cases.json (tests/tables.rs).
+//! Every function here is held to a shared case table (tests/tables.rs):
+//! `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, `kind_of`
+//! to specs/src/principals/kind-cases.json, the rest to
+//! specs/src/principals/cases.json, which Python and Go run too.
 
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 
@@ -40,42 +41,32 @@ pub fn person_did(domain: &str, subject: &str) -> String {
     format!("did:web:{domain}:users:{}", encode_uri_component(subject))
 }
 
-/// A software agent: one per (provider, model) under the knowledge base's domain.
-pub fn agent_did(domain: &str, provider: &str, model: &str) -> String {
-    format!(
-        "did:web:{domain}:agents:{}:{}",
-        encode_uri_component(provider),
-        encode_uri_component(model)
-    )
+/// An agent, named by the subject its issuer asserted for its account, as a
+/// person is.
+pub fn agent_did(domain: &str, subject: &str) -> String {
+    format!("did:web:{domain}:agents:{}", encode_uri_component(subject))
 }
 
-/// An agent's address: `<provider>:<model>` with every run of characters
-/// outside `[A-Za-z0-9-]` one hyphen and none at either end, at
-/// `agents.<the domain up to its first colon>`.
-pub fn agent_address(domain: &str, provider: &str, model: &str) -> String {
-    let host = domain.split(':').next().unwrap_or(domain);
-    let mut slug = String::new();
-    for c in format!("{provider}:{model}").chars() {
-        let c = if c.is_ascii_alphanumeric() { c } else { '-' };
-        if !(c == '-' && slug.ends_with('-')) {
-            slug.push(c);
-        }
-    }
-    format!("{}@agents.{host}", slug.trim_matches('-'))
+/// What kind of principal a DID names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Person,
+    Software,
 }
 
-/// An agent's name.
-pub fn agent_name(provider: &str, model: &str) -> String {
-    format!("{provider} {model}")
-}
-
-/// Whether a DID names a software agent: its kind segment, read from the
-/// right past any `host:port` colons, is `agents` with a provider and model
-/// after it. Anything else names a person.
-pub fn names_software(did: &str) -> bool {
+/// What kind of principal a DID names, from the DID alone: the last segment
+/// that is exactly `users` or `agents`, with a segment after it, says which.
+/// A DID with no such segment names a person. What follows the kind segment is
+/// the principal's subject, and nothing here reads it.
+pub fn kind_of(did: &str) -> Kind {
     let parts: Vec<&str> = did.split(':').collect();
-    matches!(
-        (parts.iter().rposition(|p| *p == "agents"), parts.len().checked_sub(3)),
-        (Some(at), Some(expected)) if at == expected
-    )
+    let before_last = &parts[..parts.len().saturating_sub(1)];
+    match before_last
+        .iter()
+        .rev()
+        .find(|part| matches!(**part, "users" | "agents"))
+    {
+        Some(&"agents") => Kind::Software,
+        _ => Kind::Person,
+    }
 }

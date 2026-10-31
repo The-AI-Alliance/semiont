@@ -8,10 +8,12 @@
           "$ref": "./UserId.json"
         }
       ],
-      "description": "The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent."
+      "description": "The authenticated principal's DID: `did:web:<domain>:agents:<subject>` for an agent, whose token's `kind` claim is `agent`, and `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its principals by (`identity.subjectClaim`)."
     },
     "email": {
-      "type": "string"
+      "type": "string",
+      "nullable": true,
+      "description": "The address the token carries, when it carries one: an agent's account need not have one."
     },
     "name": {
       "type": "string",
@@ -23,7 +25,7 @@
     },
     "domain": {
       "type": "string",
-      "description": "Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's."
+      "description": "The knowledge base's domain: the authority the principal is named under."
     }
   },
   "required": [

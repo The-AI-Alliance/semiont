@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "description": "An engine: an inference provider and a model, which software does a job or an actor's step with. An engine is not a principal: the principal that used one names it on each write it produced with it (`generator`). A person who does a job uses none.",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": [
+        "anthropic",
+        "google",
+        "llamacpp",
+        "ollama",
+        "openai",
+        "together",
+        "vllm"
+      ],
+      "description": "The inference provider: who serves the model. `anthropic`, `google`, `openai` and `together` are those companies' own APIs. `llamacpp`, `ollama` and `vllm` are servers a deployment runs or reaches, each named for the server's software."
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The model identifier, as the provider names it."
+    }
+  },
+  "required": [
+    "provider",
+    "model"
+  ],
+  "additionalProperties": false
+}

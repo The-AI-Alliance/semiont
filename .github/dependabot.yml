@@ -241,6 +241,31 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
+  # The Kotlin SDK (packages/kotlin/sdk): a Gradle build whose version catalog
+  # states Kotlin and every dependency, whose lockfiles pin what they resolve
+  # to, and whose wrapper names the Gradle it runs. Dependabot updates all
+  # three. A bump of Kotlin past what CodeQL's extractor reads fails the
+  # nightly analysis (libs.versions.toml says which Kotlin that is).
+  - package-ecosystem: "gradle"
+    directory: "/packages/kotlin/sdk"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "sdk:kotlin"
+    groups:
+      sdk-kotlin:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "sdk-kotlin"
+      include: "scope"
+
   # The Python projects: the SDK, the inference drivers, the graph stores, the
   # vector stores and the service package Semiont's Python services are built
   # from, and the four services themselves, the Worker (images/worker), the

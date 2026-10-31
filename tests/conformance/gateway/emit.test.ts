@@ -7,8 +7,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { nonConformance } from '../harness/http';
-import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { identifiers, operationFor, registry, spec } from '../harness/spec';
+import { AGENT_KIND, KIND_CLAIM, SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
+import { identifiers, operationFor, principals, registry, spec } from '../harness/spec';
 import { eventually } from '../harness/net';
 import { eachPlane } from '../harness/world';
 
@@ -45,7 +45,7 @@ eachPlane('emitting', (world, plane) => {
     const body = { channel: UNVALIDATED, payload: { marker, filler } };
     expect(JSON.stringify(body).length).toBe(limit);
 
-    const emitter = await world().agent('conformance', 'largest-emit');
+    const emitter = await world().agent('largest-emit');
     const reply = await world().emit(emitter.token, body);
     expect(reply.status, reply.text.slice(0, 200)).toBe(202);
     const frame = await reader.frame(UNVALIDATED, (f) => f.payload['marker'] === marker, 20_000);
@@ -55,7 +55,7 @@ eachPlane('emitting', (world, plane) => {
   it('the gateway stamps the verified emitter as _userId and its token\'s roles as _roles, whoever issued the token, over whatever the caller wrote', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] });
     const person = await world().person('stamped');
-    const worker = await world().agent('ollama', 'stamp-model', [SERVICE_ROLE, WORKER_ROLE]);
+    const worker = await world().agent('stamp-model', [SERVICE_ROLE, WORKER_ROLE]);
     const forged = { _userId: 'did:web:forged.example:users:mallory', _roles: ['semiont-admin'] };
 
     const marker1 = randomUUID();
@@ -68,7 +68,8 @@ eachPlane('emitting', (world, plane) => {
     await world().emit(worker.token, { channel: BROADCAST, payload: { annotationId: marker2, resourceId: 'res-1', ...forged } });
     const fromWorker = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker2);
     expect(fromWorker.payload['_userId']).toBe(worker.did);
-    expect(fromWorker.payload['_roles']).toEqual([WORKER_ROLE]);
+    // The roles its account holds, as its token carries them.
+    expect(fromWorker.payload['_roles']).toEqual([SERVICE_ROLE, WORKER_ROLE]);
 
     // A person may hold a role as an agent may; the issuer's token carries it.
     const roled = await world().person('stamped-roled', { roles: [WORKER_ROLE] });
@@ -186,7 +187,7 @@ eachPlane('emitting', (world, plane) => {
   it('a client may have as many unanswered requests as pendingReplies may name, and no more until one is answered', async () => {
     // Something must hear the requests and not answer them: a request that
     // reaches nobody is answered at once (below).
-    const silent = await world().agent('conformance', 'silent');
+    const silent = await world().agent('silent');
     await world().subscribe(silent.token, { clientId: randomUUID(), global: [REQUEST] });
     const token = await world().person('busy');
     const clientId = randomUUID();
@@ -214,7 +215,7 @@ eachPlane('emitting', (world, plane) => {
     expect(other.status).toBe(202);
 
     // An answer frees a slot.
-    const responder = await world().agent('conformance', 'answerer');
+    const responder = await world().agent('answerer');
     const { result } = operationFor(REQUEST);
     const answered = await world().emit(responder.token, {
       channel: result,
@@ -237,33 +238,55 @@ eachPlane('emitting', (world, plane) => {
   });
 
   it('every write by a person publishes the name their token carries at that write, in order', async () => {
-    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['person:profile'] });
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
     expect(registry().effect.writes).toContain(WRITE);
     const did = world().personDid('writes');
     for (const name of ['Wanda Writer', 'Wanda Writer', 'Wanda Renamed']) {
       const reply = await world().emit(await world().person('writes', { name }), { channel: WRITE, payload: { tag: 'Conformance' } });
       expect(reply.status, reply.text).toBe(202);
     }
-    await watcher.next('the third profile', () => watcher.frames('person:profile').filter((f) => f.payload['_userId'] === did).length === 3);
-    expect(watcher.frames('person:profile').filter((f) => f.payload['_userId'] === did).map((f) => f.payload['name'])).toEqual([
+    await watcher.next('the third profile', () => watcher.frames('principal:profile').filter((f) => f.payload['_userId'] === did).length === 3);
+    expect(watcher.frames('principal:profile').filter((f) => f.payload['_userId'] === did).map((f) => f.payload['name'])).toEqual([
       'Wanda Writer',
       'Wanda Writer',
       'Wanda Renamed',
     ]);
   });
 
-  it('a read, an agent\'s write, or a write by a token with no name publishes no profile', async () => {
-    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['person:profile'] });
+  it('an agent\'s write publishes the name its token carries, as a person\'s does', async () => {
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
+    const subject = `named-writer-${randomUUID()}`;
+    const did = principals(world().kb.domain).agentDid(subject);
+    const token = await world().issuer.fixture.token({ claims: { sub: subject, [KIND_CLAIM]: AGENT_KIND, roles: [SERVICE_ROLE], name: 'The Named Agent' } });
+    expect((await world().emit(token, { channel: WRITE, payload: { tag: 'Named agent' } })).status).toBe(202);
+    const profile = await watcher.frame('principal:profile', (f) => f.payload['_userId'] === did);
+    expect(profile.payload['name']).toBe('The Named Agent');
+  });
+
+  it('a read, or a write by a token with no name, a person\'s or an agent\'s, publishes no profile', async () => {
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
     expect(registry().effect.reads).toContain(REQUEST);
 
     const reader = await world().person('only-reads', { name: 'Rita Reader' });
     await world().emit(reader, { channel: REQUEST, payload: { resourceId: 'r' } });
-    const agent = await world().agent('conformance', 'writer');
+    const agent = await world().agent('writer');
     expect((await world().emit(agent.token, { channel: WRITE, payload: { tag: 'Agent' } })).status).toBe(202);
     const nameless = await world().person('nameless', { name: undefined });
     expect((await world().emit(nameless, { channel: WRITE, payload: { tag: 'Nameless' } })).status).toBe(202);
 
-    await watcher.quiet('person:profile', 500);
+    await watcher.quiet('principal:profile', 500);
+  });
+
+  it('a principal that says what it is called says it of itself: its principal:profile is stamped with its own DID, over whatever it wrote', async () => {
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
+    const agent = await world().agent('says-its-name');
+    const someoneElse = principals(world().kb.domain).agentDid(`someone-else-${randomUUID()}`);
+    const name = `says-its-name-${randomUUID()}`;
+    const reply = await world().emit(agent.token, { channel: 'principal:profile', payload: { _userId: someoneElse, name } });
+    expect(reply.status, reply.text).toBe(202);
+    const profile = await watcher.frame('principal:profile', (f) => f.payload['name'] === name);
+    expect(profile.payload['_userId']).toBe(agent.did);
+    expect(watcher.frames('principal:profile').filter((f) => f.payload['_userId'] === someoneElse)).toEqual([]);
   });
 
   it('a request that reaches nobody is answered at once — to its requester only — with its operation\'s failure echoing the request, on either plane', async () => {
@@ -299,7 +322,7 @@ eachPlane('emitting', (world, plane) => {
     const request = 'browse:annotation-requested';
     const { failure } = operationFor(request);
     const stream = await world().subscribe(token, { clientId, global: [failure] });
-    const participant = await world().agent('conformance', 'server');
+    const participant = await world().agent('server');
     const server = await world().subscribe(participant.token, { clientId: randomUUID(), global: [request] });
     const correlationId = randomUUID();
     const reply = await world().emit(token, { channel: request, payload: { resourceId: 'r-11', annotationId: 'a-11' }, correlationId, clientId });
@@ -313,7 +336,7 @@ eachPlane('emitting', (world, plane) => {
   it('a reply with no correlationId reaches no one', async () => {
     const { result } = operationFor(REQUEST);
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [result] });
-    const participant = await world().agent('conformance', 'uncorrelated');
+    const participant = await world().agent('uncorrelated');
     const reply = await world().emit(participant.token, {
       channel: result,
       payload: { response: { resource: { '@context': 'https://schema.org/', '@id': 'x', name: 'x', representations: [] }, lastSequence: 1 } },

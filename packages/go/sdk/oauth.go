@@ -262,18 +262,7 @@ func (i Issuer) RenewKept(ctx context.Context, kept SignInKept, holding string) 
 			attempts++
 			return i.Refresh(ctx, held.TokenEndpoint, held.ClientID, held.Refresh)
 		},
-		func(err error) bool {
-			var failed *SignInError
-			if !errors.As(err, &failed) {
-				return false
-			}
-			post := http.MethodPost
-			facts := RetryFacts{Method: &post}
-			if status, ok := failed.Status(); ok {
-				facts.Status = &status
-			}
-			return RetryRuleRefresh.Retryable(facts)
-		},
+		transientRenewal,
 		func(error) (time.Duration, bool) { return 0, false })
 	if err != nil {
 		var failed *SignInError
@@ -364,4 +353,21 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 			return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
 		}
 	}
+}
+
+// transientRenewal: whether a renewal that failed this way is worth another
+// attempt. A renewal is a grant at the issuer, whose answer is the verdict
+// (RetryRuleRefresh): no answer, or one saying "not now", is worth another; a
+// refused grant is not, because the same credential gets the same answer.
+func transientRenewal(err error) bool {
+	var failed *SignInError
+	if !errors.As(err, &failed) {
+		return false
+	}
+	post := http.MethodPost
+	facts := RetryFacts{Method: &post}
+	if status, ok := failed.Status(); ok {
+		facts.Status = &status
+	}
+	return RetryRuleRefresh.Retryable(facts)
 }

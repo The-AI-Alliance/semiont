@@ -19,14 +19,14 @@ __all__ = [
     "LIMITS_OPERATIONS",
     "OPERATIONS",
     "BIND_UPDATE_BODY",
-    "BROWSE_AGENTS_REQUESTED",
     "BROWSE_ANNOTATION_HISTORY_REQUESTED",
     "BROWSE_ANNOTATION_REQUESTED",
     "BROWSE_DIRECTORY_REQUESTED",
+    "BROWSE_ENGINES_REQUESTED",
     "BROWSE_ENTITY_TYPES_REQUESTED",
     "BROWSE_EVENTS_REQUESTED",
     "BROWSE_KB_REQUESTED",
-    "BROWSE_PEOPLE_REQUESTED",
+    "BROWSE_PROFILES_REQUESTED",
     "BROWSE_RESOURCES_REQUESTED",
     "BROWSE_RESOURCE_REQUESTED",
     "BROWSE_TAG_SCHEMAS_REQUESTED",
@@ -101,15 +101,15 @@ BROWSE_TAG_SCHEMAS_REQUESTED: Final = Operation(
     result=channels.BROWSE_TAG_SCHEMAS_RESULT,
     failure=channels.BROWSE_TAG_SCHEMAS_FAILED,
 )
-BROWSE_AGENTS_REQUESTED: Final = Operation(
-    request=channels.BROWSE_AGENTS_REQUESTED,
-    result=channels.BROWSE_AGENTS_RESULT,
-    failure=channels.BROWSE_AGENTS_FAILED,
+BROWSE_ENGINES_REQUESTED: Final = Operation(
+    request=channels.BROWSE_ENGINES_REQUESTED,
+    result=channels.BROWSE_ENGINES_RESULT,
+    failure=channels.BROWSE_ENGINES_FAILED,
 )
-BROWSE_PEOPLE_REQUESTED: Final = Operation(
-    request=channels.BROWSE_PEOPLE_REQUESTED,
-    result=channels.BROWSE_PEOPLE_RESULT,
-    failure=channels.BROWSE_PEOPLE_FAILED,
+BROWSE_PROFILES_REQUESTED: Final = Operation(
+    request=channels.BROWSE_PROFILES_REQUESTED,
+    result=channels.BROWSE_PROFILES_RESULT,
+    failure=channels.BROWSE_PROFILES_FAILED,
 )
 BROWSE_KB_REQUESTED: Final = Operation(
     request=channels.BROWSE_KB_REQUESTED,
@@ -278,8 +278,8 @@ OPERATIONS: Final[Mapping[str, AnyOperation]] = MappingProxyType(
         "browse:events-requested": BROWSE_EVENTS_REQUESTED,
         "browse:entity-types-requested": BROWSE_ENTITY_TYPES_REQUESTED,
         "browse:tag-schemas-requested": BROWSE_TAG_SCHEMAS_REQUESTED,
-        "browse:agents-requested": BROWSE_AGENTS_REQUESTED,
-        "browse:people-requested": BROWSE_PEOPLE_REQUESTED,
+        "browse:engines-requested": BROWSE_ENGINES_REQUESTED,
+        "browse:profiles-requested": BROWSE_PROFILES_REQUESTED,
         "browse:kb-requested": BROWSE_KB_REQUESTED,
         "browse:directory-requested": BROWSE_DIRECTORY_REQUESTED,
         "frame:add-entity-type": FRAME_ADD_ENTITY_TYPE,

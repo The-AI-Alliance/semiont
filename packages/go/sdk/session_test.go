@@ -65,8 +65,8 @@ func tokenFor(lifetime time.Duration, n int) string {
 }
 
 func alice() api.UserResponse {
-	name := "Alice"
-	return api.UserResponse{Email: "alice@example.org", Name: &name, Domain: "example.org"}
+	name, email := "Alice", "alice@example.org"
+	return api.UserResponse{Email: &email, Name: &name, Domain: "example.org"}
 }
 
 // world is a session's surroundings, and a record of what the session did to

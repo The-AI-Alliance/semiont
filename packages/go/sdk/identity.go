@@ -46,31 +46,8 @@ func PersonDid(domain, subject string) (api.UserId, error) {
 	return api.ParseUserId("did:web:" + domain + ":users:" + EncodeUriComponent(subject))
 }
 
-// AgentDid is a software agent: one per provider and model, under the
-// knowledge base's domain.
-func AgentDid(domain, provider, model string) (api.UserId, error) {
-	return api.ParseUserId("did:web:" + domain + ":agents:" + EncodeUriComponent(provider) + ":" + EncodeUriComponent(model))
-}
-
-// AgentAddress is an agent's address: provider:model, with every run of
-// characters outside [A-Za-z0-9-] one hyphen and none at either end, at
-// agents. and the domain up to its first colon.
-func AgentAddress(domain, provider, model string) string {
-	var slug strings.Builder
-	for _, c := range provider + ":" + model {
-		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '-') {
-			c = '-'
-		}
-		if c == '-' && strings.HasSuffix(slug.String(), "-") {
-			continue
-		}
-		slug.WriteRune(c)
-	}
-	host, _, _ := strings.Cut(domain, ":")
-	return strings.Trim(slug.String(), "-") + "@agents." + host
-}
-
-// AgentName is an agent's name.
-func AgentName(provider, model string) string {
-	return provider + " " + model
+// AgentDid is an agent, named by the subject its issuer asserted for its
+// account, as a person is.
+func AgentDid(domain, subject string) (api.UserId, error) {
+	return api.ParseUserId("did:web:" + domain + ":agents:" + EncodeUriComponent(subject))
 }

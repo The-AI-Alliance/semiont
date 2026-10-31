@@ -54,7 +54,7 @@ export interface ChannelAttrs {
    * question does not arise. Every emittable channel names one side or the
    * other and the generator refuses — there is no default.
    *
-   * The gateway reads this to decide when the record learns a person's name:
+   * The gateway reads this to decide when the record learns a principal's name:
    * a `_userId` stamp is NOT the test, because a read carries one too.
    * Someone who signs in and only browses is never named, and the profile
    * publish rate is the WRITE rate rather than the emit rate — orders of
@@ -132,8 +132,8 @@ export const CHANNEL_ATTRS = {
   'frame:entity-type-add-failed':     { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:tag-schema-add-ok':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:tag-schema-add-failed':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'person:profiled':                  { recorded: true, direction: 'inbound', delivery: 'passing' },
-  'person:profile':                   { recorded: false, direction: 'outbound', writes: true, delivery: 'passing' },
+  'principal:profiled':               { recorded: true, direction: 'inbound', delivery: 'passing' },
+  'principal:profile':                { recorded: false, direction: 'outbound', writes: true, delivery: 'passing' },
   'bind:initiate':                    { recorded: false, direction: 'in-process' },
   'bind:update-body':                 { recorded: false, direction: 'outbound', writes: true, delivery: 'passing' },
   'bind:body-updated':                { recorded: false, direction: 'inbound', delivery: 'correlated' },
@@ -183,12 +183,12 @@ export const CHANNEL_ATTRS = {
   'browse:tag-schemas-requested':     { recorded: false, direction: 'outbound', writes: false, delivery: 'passing' },
   'browse:tag-schemas-result':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:tag-schemas-failed':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:agents-requested':          { recorded: false, direction: 'outbound', writes: false, delivery: 'passing' },
-  'browse:agents-result':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:agents-failed':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:people-requested':          { recorded: false, direction: 'outbound', writes: false, delivery: 'passing' },
-  'browse:people-result':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:people-failed':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
+  'browse:engines-requested':         { recorded: false, direction: 'outbound', writes: false, delivery: 'passing' },
+  'browse:engines-result':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
+  'browse:engines-failed':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
+  'browse:profiles-requested':        { recorded: false, direction: 'outbound', writes: false, delivery: 'passing' },
+  'browse:profiles-result':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
+  'browse:profiles-failed':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:kb-requested':              { recorded: false, direction: 'outbound', writes: false, delivery: 'passing' },
   'browse:kb-result':                 { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:kb-failed':                 { recorded: false, direction: 'inbound', delivery: 'correlated' },

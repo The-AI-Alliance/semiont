@@ -54,9 +54,9 @@
       "docs": "The knowledge base's tag schemas."
     },
     {
-      "name": "agents",
-      "asks": "browse:agents-requested",
-      "docs": "The collaborator directory, joined with the limits each inference key holder reports: asking again asks every `<flow>:limits-requested` operation of the registry again too."
+      "name": "engines",
+      "asks": "browse:engines-requested",
+      "docs": "The knowledge base's engines, joined with the limits each inference key holder reports: asking again asks every `<flow>:limits-requested` operation of the registry again too."
     }
   ],
   "refresh": [
@@ -69,7 +69,7 @@
         "resource",
         "entityTypes",
         "tagSchemas",
-        "agents"
+        "engines"
       ],
       "docs": "The stream is open again after a drop. Events every client hears carry no position, so the ones published meanwhile are lost and nothing replays them: the client asks again for everything they feed. What a resource's own scope feeds needs nothing here: its events are replayed from where the client left off, or `bus:resume-gap` says they could not be."
     },

@@ -30,7 +30,7 @@ from rig import (
     FakeEmbedding,
     FakeGraph,
     FakeInference,
-    FakePeople,
+    FakeProfiles,
     FakeRecord,
     FakeVectors,
     described,
@@ -40,7 +40,7 @@ from rig import (
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.testing import FaultyTransport
 from semiont.transport import Frame
-from semiont.types import Annotation, ResourceView
+from semiont.types import Annotation, EngineProvider, ResourceView
 from semiont_graph.interface import ResourceListing
 from semiont_inference.interface import ElementSchema, InferenceClient, InferenceLimits, InferenceResponse, StructuredResponse
 from semiont_service.content import Content
@@ -130,8 +130,8 @@ class Model(InferenceClient):
 
     @property
     @override
-    def provider(self) -> str:
-        return "rig"
+    def provider(self) -> EngineProvider:
+        return "ollama"
 
     @property
     @override
@@ -180,7 +180,7 @@ class World:
         matcher: InferenceClient | None = None,
         gatherer: InferenceClient | None = None,
     ) -> None:
-        self.people: Final = FakePeople()
+        self.profiles: Final = FakeProfiles()
         self.content: Final = FakeContent()
         self.graph: Final = FakeGraph()
         self.vectors: Final = FakeVectors()
@@ -195,7 +195,7 @@ class World:
         self.vectors.stated["search_by_resource"] = []
         self.librarian: Final = Librarian(
             record=FakeRecord(*held) if record is None else record,
-            people=self.people,
+            profiles=self.profiles,
             graph=self.graph,
             vectors=self.vectors,
             embedding=self.embedding,
@@ -410,7 +410,7 @@ def test_a_summary_is_answered_by_the_gatherers_model_and_fails_with_a_message()
     run(scenario())
 
 
-def test_each_limits_request_is_answered_with_the_limits_of_its_own_actors_model() -> None:
+def test_each_limits_request_is_answered_with_the_limits_of_its_own_actors_engine() -> None:
     async def scenario() -> None:
         async with World(matcher=Model("the-matchers"), gatherer=Model("the-gatherers")) as world:
             world.ask("match:limits-requested", {}, "c-1")
@@ -421,9 +421,9 @@ def test_each_limits_request_is_answered_with_the_limits_of_its_own_actors_model
             for channel, correlation_id, model in asked:
                 (result,) = world.answered(channel)
                 assert result.correlation_id == correlation_id
-                (pair,) = objects(thing(result.payload["response"], "the report")["limits"], "its limits")
-                assert (pair["provider"], pair["model"]) == ("rig", model)
-                assert thing(pair["limits"], "the model's limits")["contextTokens"] == 200_000
+                (reported,) = objects(thing(result.payload["response"], "the report")["limits"], "its limits")
+                assert thing(reported["engine"], "the engine") == {"provider": "ollama", "model": model}
+                assert thing(reported["limits"], "the engine's limits")["contextTokens"] == 200_000
             assert world.answered("match:limits-failed") == []
             assert world.answered("gather:limits-failed") == []
 

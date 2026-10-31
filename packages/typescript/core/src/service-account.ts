@@ -1,12 +1,12 @@
 /**
  * The client-credentials grant, for a process authenticating as ITSELF.
  *
- * A sidecar holds its own account at the knowledge base's issuer and exchanges
- * that credential for a short-lived token. It then presents that token to the
- * gateway to obtain a software-agent token — two different identities on
- * purpose: this is the PROCESS, and the agent DID is the WORK it is doing.
- * One worker process legitimately holds several agent identities at once, so
- * the two could never have been the same credential.
+ * A service or a worker holds its own account at the knowledge base's
+ * issuer and exchanges that credential for a short-lived token. That token is
+ * its bearer at the gateway, which names it by that account: an agent is an
+ * account, as a person is. The account proves itself with its client secret,
+ * or with a key: each grant then carries an assertion signed for it alone
+ * (`client-assertion.ts`), and no secret is sent.
  *
  * This replaced a single shared secret that every sidecar carried and that the
  * gateway compared by string equality. That secret granted any agent identity
@@ -17,16 +17,36 @@
  * code that has no other reason to know it.
  */
 
+import { JWT_BEARER, clientAssertion } from './client-assertion';
 import { HTTP_REQUEST_TIMEOUT_MS } from './generated/client-timing';
+import { uuidV4 } from './id-generation';
+import { SignInError } from './sign-in-error';
 import { isObject, isString } from './type-guards';
 import { UnansweredError, jsonOf } from './unanswered';
 
-export interface ServiceAccountCredential {
+/** A service account at an issuer, which proves itself with its client secret. */
+export interface SecretCredential {
   /** The issuer URL, exactly as it appears in tokens' `iss`. */
   issuer: string;
   clientId: string;
   clientSecret: string;
 }
+
+/**
+ * A service account at an issuer, which proves itself with a key: each grant
+ * carries an assertion signed with `privateKey`, which the issuer checks with
+ * the public half registered on the client. The key never leaves the process.
+ */
+export interface KeyCredential {
+  /** The issuer URL, exactly as it appears in tokens' `iss`. */
+  issuer: string;
+  clientId: string;
+  /** An RSA key that signs RS256, as `privateKeyFromPem` reads one. */
+  privateKey: CryptoKey;
+}
+
+/** A service account at an issuer, by how it proves itself. */
+export type ServiceAccountCredential = SecretCredential | KeyCredential;
 
 /** Cache discovery per issuer: it is a fixed document and the process is long-lived. */
 const tokenEndpoints = new Map<string, Promise<string>>();
@@ -48,6 +68,26 @@ const tokens = new Map<string, { token: string; expiresAt: number }>();
 /** Renew this long before expiry, so a token never expires mid-flight. */
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
 
+/** The client-credentials grant's form: the secret itself, or an assertion signed for this grant alone. */
+async function proof(credential: ServiceAccountCredential, endpoint: string): Promise<URLSearchParams> {
+  if ('clientSecret' in credential) {
+    return new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: credential.clientId,
+      client_secret: credential.clientSecret,
+    });
+  }
+  const assertion = await clientAssertion(credential.privateKey, credential.clientId, endpoint, {
+    issuedAt: Math.floor(Date.now() / 1000),
+    jti: uuidV4(),
+  });
+  return new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_assertion_type: JWT_BEARER,
+    client_assertion: assertion,
+  });
+}
+
 async function tokenEndpoint(issuer: string): Promise<string> {
   let endpoint = tokenEndpoints.get(issuer);
   if (!endpoint) {
@@ -61,11 +101,11 @@ async function tokenEndpoint(issuer: string): Promise<string> {
         throw unanswered(error);
       });
       if (!response.ok) {
-        throw new Error(`OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`);
+        throw new SignInError('discovery', `OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`, response.status);
       }
       const document = await jsonOf(response, unanswered);
       if (!isObject(document) || !isString(document['token_endpoint'])) {
-        throw new Error(`OIDC discovery for ${issuer} returned no \`token_endpoint\``);
+        throw new SignInError('discovery', `OIDC discovery for ${issuer} returned no \`token_endpoint\``);
       }
       return document['token_endpoint'];
     })().catch((error: unknown) => {
@@ -80,37 +120,41 @@ async function tokenEndpoint(issuer: string): Promise<string> {
 }
 
 /**
- * Obtain an access token for this service account.
+ * The service account's access token: the one held until it is due for
+ * renewal, and a new grant after it, or at once when `renewed` (the gateway
+ * refused the one held, or it is due by the holder's own schedule).
  *
  * Throws on refusal rather than returning null: a sidecar that cannot prove who
  * it is has nothing useful to do, and the caller's retry policy decides whether
- * this is worth attempting again.
+ * this is worth attempting again. A refusal is a `SignInError` carrying the
+ * status the issuer answered with; a request that got no answer is an
+ * `UnansweredError`.
  *
  * Both requests, the issuer's discovery and the grant, are bounded by
  * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
  * accepts a connection and never answers would otherwise hold a process's
  * start, and every renewal after it, for as long as the process lives.
  */
-export async function serviceAccountToken(credential: ServiceAccountCredential): Promise<string> {
-  const { issuer, clientId, clientSecret } = credential;
+export async function serviceAccountToken(
+  credential: ServiceAccountCredential,
+  { renewed }: { renewed: boolean },
+): Promise<string> {
+  const { issuer, clientId } = credential;
 
   const key = `${issuer}\u0000${clientId}`;
   const cached = tokens.get(key);
-  if (cached && cached.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
+  if (!renewed && cached && cached.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
     return cached.token;
   }
 
   const endpoint = await tokenEndpoint(issuer);
+  const form = await proof(credential, endpoint);
 
   const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
+    body: form,
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => {
     throw unanswered(error);
@@ -118,15 +162,17 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
 
   if (!response.ok) {
     // The status, not the body: a token endpoint's error body can echo the
-    // request, and this one carried a secret.
-    throw new Error(
+    // request, and this one carried the secret or the assertion.
+    throw new SignInError(
+      'exchange',
       `Client-credentials grant for ${clientId} at ${issuer} failed (HTTP ${response.status})`,
+      response.status,
     );
   }
 
   const body = await jsonOf(response, unanswered);
   if (!isObject(body) || !isString(body['access_token'])) {
-    throw new Error(`Token endpoint for ${issuer} returned no \`access_token\``);
+    throw new SignInError('exchange', `Token endpoint for ${issuer} returned no \`access_token\``);
   }
 
   const token = body['access_token'];

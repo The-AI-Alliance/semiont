@@ -20,8 +20,7 @@ import { runEnvironment } from './paths';
 export type WorkerSettings = components['schemas']['WorkerConfig'];
 
 export interface WorkerEnvironment {
-  SEMIONT_OIDC_CLIENT_ID?: string;
-  SEMIONT_OIDC_CLIENT_SECRET?: string;
+  SEMIONT_OIDC_CLIENT_KEY?: string;
   OTEL_EXPORTER_OTLP_ENDPOINT?: string;
   [name: string]: string | undefined;
 }
@@ -33,8 +32,7 @@ export interface WorkerEnvironment {
  * the OpenTelemetry SDK a service exports with.
  */
 export const READ_FROM_THE_ENVIRONMENT = [
-  'SEMIONT_OIDC_CLIENT_ID',
-  'SEMIONT_OIDC_CLIENT_SECRET',
+  'SEMIONT_OIDC_CLIENT_KEY',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
   'OTEL_SERVICE_NAME',
   'OTEL_SDK_DISABLED',
@@ -71,7 +69,13 @@ export interface WorkerProcess {
   readonly exited: Promise<number | null>;
   /** A request of its health port. */
   http(method: string, path: string): Promise<Reply>;
-  /** SIGTERM, and wait for it to exit: its exit code. */
+  /**
+   * Resolves once its health answers 200. Fails, with what it wrote, when it
+   * exits first, or when its health has not answered within `bootMs`: it is
+   * then killed.
+   */
+  healthy(bootMs?: number): Promise<void>;
+  /** SIGTERM, unless it has exited, and wait until it has and what it wrote is read to its end: its exit code. */
   stop(): Promise<number | null>;
   /** SIGKILL: nothing it would say on the way out is said. */
   crash(): Promise<void>;
@@ -84,7 +88,7 @@ export interface WorkerProcess {
  * them.
  */
 function checkEnvironment(env: WorkerEnvironment, settings: WorkerSettings, unlisted: Record<string, string>): void {
-  const named = settings.agents.flatMap((agent) => (agent.apiKeyEnv === undefined ? [] : [agent.apiKeyEnv]));
+  const named = settings.knowledgeBases.flatMap((kb) => kb.engines.flatMap((engine) => (engine.apiKeyEnv === undefined ? [] : [engine.apiKeyEnv])));
   const read = new Set<string>([...READ_FROM_THE_ENVIRONMENT, ...named, 'PATH']);
   const strays = Object.keys(env).filter((name) => env[name] !== undefined && !read.has(name));
   if (strays.length > 0) throw new Error(`the suite set ${strays.join(', ')}, which docs/protocol/WORKER-SERVICE.md § Environment does not say a worker reads and its document does not name`);
@@ -117,31 +121,10 @@ async function drained(child: ChildProcess): Promise<void> {
   await Promise.all([child.stdout, child.stderr].map((pipe) => (pipe && !pipe.readableEnded ? new Promise((resolve) => pipe.once('end', resolve)) : undefined)));
 }
 
-/** Start a Worker service and wait until its health answers. Fails with its output when it exits instead. */
-export async function startWorkerService(options: WorkerLaunch, bootMs = 30_000): Promise<WorkerProcess> {
+/** Start a Worker service, and go on without waiting for its health. */
+export function spawnWorkerService(options: WorkerLaunch): WorkerProcess {
   const { child, output, stdout, stderr, exited, dir } = launch(options);
   const origin = originOf(options.settings);
-  let gone = false;
-  void exited.then(() => {
-    gone = true;
-  });
-  const deadline = Date.now() + bootMs;
-  for (;;) {
-    if (gone) {
-      rmSync(dir, { recursive: true, force: true });
-      throw new Error(`the worker exited before its health answered (code ${child.exitCode}):\n${output.join('\n')}`);
-    }
-    try {
-      if ((await call(origin, 'GET', '/health')).status === 200) break;
-    } catch {
-      // not listening yet
-    }
-    if (Date.now() > deadline) {
-      child.kill('SIGKILL');
-      throw new Error(`the worker's health did not answer within ${bootMs} ms:\n${output.join('\n')}`);
-    }
-    await new Promise((r) => setTimeout(r, 50));
-  }
   const running = () => child.exitCode === null && child.signalCode === null;
   return {
     settings: options.settings,
@@ -151,14 +134,30 @@ export async function startWorkerService(options: WorkerLaunch, bootMs = 30_000)
     stderr,
     exited,
     http: (method, path) => call(origin, method, path),
+    async healthy(bootMs = 30_000) {
+      const deadline = Date.now() + bootMs;
+      for (;;) {
+        if (!running()) throw new Error(`the worker exited before its health answered (code ${child.exitCode}):\n${output.join('\n')}`);
+        try {
+          if ((await call(origin, 'GET', '/health')).status === 200) return;
+        } catch {
+          // not answering yet
+        }
+        if (Date.now() > deadline) {
+          child.kill('SIGKILL');
+          throw new Error(`the worker's health did not answer within ${bootMs} ms:\n${output.join('\n')}`);
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    },
     async stop() {
       if (running()) {
         child.kill('SIGTERM');
         const timer = setTimeout(() => child.kill('SIGKILL'), 15_000);
         await exited;
         clearTimeout(timer);
-        await drained(child);
       }
+      await drained(child);
       rmSync(dir, { recursive: true, force: true });
       return child.exitCode;
     },
@@ -172,13 +171,25 @@ export async function startWorkerService(options: WorkerLaunch, bootMs = 30_000)
   };
 }
 
+/** Start a Worker service and wait until its health answers. Fails with its output when it exits instead. */
+export async function startWorkerService(options: WorkerLaunch): Promise<WorkerProcess> {
+  const started = spawnWorkerService(options);
+  try {
+    await started.healthy();
+  } catch (error) {
+    await started.crash();
+    throw error;
+  }
+  return started;
+}
+
 /**
  * Start a Worker service that must refuse: it exits without its health ever
  * answering. Returns its exit code and what it wrote, with what it wrote to
- * stderr apart.
+ * stdout and to stderr apart.
  */
-export async function refusedWorkerBoot(options: WorkerLaunch, timeoutMs = 30_000): Promise<{ code: number | null; output: string; stderr: string }> {
-  const { child, output, stderr, exited, dir } = launch(options);
+export async function refusedWorkerBoot(options: WorkerLaunch, timeoutMs = 30_000): Promise<{ code: number | null; output: string; stdout: string[]; stderr: string }> {
+  const { child, output, stdout, stderr, exited, dir } = launch(options);
   const origin = originOf(options.settings);
   const timer = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
   let done = false;
@@ -201,5 +212,5 @@ export async function refusedWorkerBoot(options: WorkerLaunch, timeoutMs = 30_00
   await drained(child);
   rmSync(dir, { recursive: true, force: true });
   if (served) throw new Error(`the worker served although it should have refused to start:\n${output.join('\n')}`);
-  return { code, output: output.join('\n'), stderr: stderr.join('\n') };
+  return { code, output: output.join('\n'), stdout, stderr: stderr.join('\n') };
 }

@@ -1,5 +1,5 @@
 /**
- * Jobs in the record (ARCHIVIST.md § Attribution, § Vocabulary, people and
+ * Jobs in the record (ARCHIVIST.md § Attribution, § Vocabulary, profiles and
  * jobs): the lifecycle the dispatcher and a worker report, recorded in the
  * resource's stream, and a worker's writes attributed to whoever the job was
  * assigned for.
@@ -132,9 +132,11 @@ withArchivist('a job, in the record', (world) => {
       expect(event.userId).toBe(worker.did);
       expect(event.payload['annotation']).toMatchObject({
         creator: { '@type': 'Person', '@id': requester.did },
-        generator: { '@type': 'Software', '@id': worker.did, provider: 'conformance', model: 'annotator' },
+        generator: { '@type': 'Software', '@id': worker.did },
         wasAttributedTo: [{ '@id': requester.did }, { '@id': worker.did }],
       });
+      // The worker supplied no generator, and its DID says who it is and nothing it runs.
+      for (const said of ['name', 'provider', 'model']) expect(event.payload['annotation']).not.toHaveProperty(['generator', said]);
     }
   });
 
@@ -162,7 +164,7 @@ withArchivist('a job, in the record', (world) => {
     const worker = await world().worker('generator');
     const requester = await world().person('requester');
     const { id, jobId } = await assigned(world(), worker, requester);
-    const stranger = { '@type': 'Software', '@id': `did:web:${world().world.kb.domain}:agents:conformance:someone-else`, name: 'conformance someone-else', provider: 'conformance', model: 'someone-else' };
+    const stranger = { '@type': 'Software', '@id': `did:web:${world().world.kb.domain}:agents:someone-else`, name: 'conformance someone-else', provider: 'conformance', model: 'someone-else' };
 
     expect(await worker.refused('mark:commit', { resourceId: id, jobId, annotations: [whole(id, 'worker', { generator: stranger })] })).toBe(
       `attribution: generator ${stranger['@id']} is not the executor ${worker.did}`,

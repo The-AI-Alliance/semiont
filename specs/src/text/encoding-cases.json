@@ -13,6 +13,9 @@
     ],
     "go": [
       "packages/go/sdk/resources_test.go"
+    ],
+    "kotlin": [
+      "packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt"
     ]
   },
   "cases": [

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // generate-oauth-clients-go.mjs — generate the Go SDK's OAuth client ids and
 // the scope a sign-in asks for from specs/src/session/oauth.json, the file the
-// TypeScript, Rust and Python SDKs generate theirs from.
+// TypeScript, Rust, Python and Kotlin SDKs generate theirs from.
 //
 //   packages/go/sdk/oauthclients_gen.go
 //

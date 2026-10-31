@@ -3,7 +3,7 @@
 import type { AnnotationId } from '@semiont/core';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import type { GatheredContext, Collaborator, ResourceId } from '@semiont/core';
+import type { GatheredContext, EngineWithLimits, ResourceId } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
@@ -30,11 +30,11 @@ type WizardStep =
 
 export interface ReferenceWizardModalProps {
   /**
-   * Roster entry serving `generation`, forwarded to ConfigureGenerationStep so
+   * The engine used for `yield` jobs, forwarded to ConfigureGenerationStep so
    * the max-length control is bounded by the model's real output ceiling.
    * Optional: absent means the default bounds, never an error.
    */
-  generationAgent?: Collaborator;
+  generationEngine?: EngineWithLimits;
   isOpen: boolean;
   onClose: () => void;
   /** The annotation being resolved */
@@ -149,7 +149,7 @@ export function ReferenceWizardModal({
   entityTypeOptions = [],
   hoverDelayMs = 300,
   translations: t,
-  generationAgent,
+  generationEngine,
 }: ReferenceWizardModalProps) {
   const session = useObservable(useSemiont().activeSession$);
   // The host's callbacks are read through refs, so a host that passes a new
@@ -467,7 +467,7 @@ export function ReferenceWizardModal({
                     translations={displayTranslations}
                   />
                   <ConfigureGenerationStep
-                    {...(generationAgent ? { generationAgent } : {})}
+                    {...(generationEngine ? { generationEngine } : {})}
                     {...(userHint ? { hintEcho: { label: t.userHintLabel, value: userHint } } : {})}
                     context={contextWithHint ?? context}
                     config={generationDraft}

@@ -16,12 +16,12 @@ import { startBroker } from '../harness/nats';
 import { freePort } from '../harness/net';
 import { startHoldingProxy } from '../harness/proxy';
 import { SERVICE_ROLE } from '../harness/roles';
-import { kbIdentity } from '../harness/spec';
+import { kbIdentity, SUITE_KB } from '../harness/spec';
 import { subscribe } from '../harness/stream';
-import { GATEWAY_CLIENT, PARTICIPANT_CLIENT } from '../harness/world';
+import { GATEWAY_CLIENT } from '../harness/world';
 
 describe('starting a gateway', () => {
-  const kb = kbIdentity();
+  const kb = kbIdentity(SUITE_KB);
   const secret = randomBytes(24).toString('hex');
   let issuer: IssuerServer;
   let archivist: FakeArchivist;
@@ -199,37 +199,29 @@ describe('starting a gateway', () => {
     }
   }, 60_000);
 
-  it('signs with the first key of JWT_SECRET and accepts a token — agent or media — signed by any key of it, whitespace around the keys ignored', async () => {
+  it('signs a media token with the first key of JWT_SECRET and accepts one signed by any key of it, whitespace around the keys ignored', async () => {
     const [oldKey, newKey] = [randomBytes(32).toString('hex'), randomBytes(32).toString('hex')];
-    const mint = async (origin: string) => {
-      const service = await issuer.service(PARTICIPANT_CLIENT, [SERVICE_ROLE]);
-      const reply = await call(origin, 'POST', '/api/tokens/agent', { token: service, json: { provider: 'p', model: 'm' } });
-      expect(reply.status, reply.text).toBe(200);
-      return (reply.json as { token: string }).token;
-    };
-    const accepted = async (origin: string, token: string) => (await call(origin, 'GET', '/api/users/me', { token })).status === 200;
     const resource = 'res-ring';
     archivist.resources.set(resource, { storageUri: `file://${resource}`, mediaType: 'text/plain' });
     archivist.content.set(`file://${resource}`, Buffer.from('ring bytes'));
+    const person = await issuer.person('ring-viewer');
+    const mint = async (origin: string) =>
+      ((await call(origin, 'POST', '/api/tokens/media', { token: person, json: { resourceId: resource } })).json as { token: string }).token;
     const opens = async (origin: string, media: string) => (await call(origin, 'GET', `/api/resources/${resource}?token=${media}`)).status === 200;
 
     const first = await startGateway({ settings: await settings(), env: env({ JWT_SECRET: oldKey }) });
     const underOld = await mint(first.origin);
-    const person = await issuer.person('ring-viewer');
-    const mediaUnderOld = ((await call(first.origin, 'POST', '/api/tokens/media', { token: person, json: { resourceId: resource } })).json as { token: string }).token;
     await first.stop();
 
     const ring = await startGateway({ settings: await settings(), env: env({ JWT_SECRET: ` ${newKey} , ${oldKey} ` }) });
     const underNew = await mint(ring.origin);
-    expect(await accepted(ring.origin, underOld)).toBe(true);
-    expect(await accepted(ring.origin, underNew)).toBe(true);
-    expect(await opens(ring.origin, mediaUnderOld)).toBe(true);
+    expect(await opens(ring.origin, underOld)).toBe(true);
+    expect(await opens(ring.origin, underNew)).toBe(true);
     await ring.stop();
 
     const onlyNew = await startGateway({ settings: await settings(), env: env({ JWT_SECRET: newKey }) });
-    expect(await accepted(onlyNew.origin, underNew)).toBe(true);
-    expect(await accepted(onlyNew.origin, underOld)).toBe(false);
-    expect(await opens(onlyNew.origin, mediaUnderOld)).toBe(false);
+    expect(await opens(onlyNew.origin, underNew)).toBe(true);
+    expect(await opens(onlyNew.origin, underOld)).toBe(false);
     await onlyNew.stop();
   });
 });

@@ -401,6 +401,10 @@ this emit, never provenance.
 - A transport in the same process as the services stamps the identity of
   the process it runs as.
   *Held by no case.*
+- An SDK delivers a payload as its channel types it: a stamp the channel's
+  payload schema does not declare is the bus's, not the payload's, and is
+  left out. A transport's own frames are the wire's, and keep every stamp.
+  *Held by `sdk/live/job-failed`, `sdk/live/generation-retried`, `sdk/live/job-created`, `sdk/wire/chunked-stream`.*
 
 ## Content and the gateway's own operations
 

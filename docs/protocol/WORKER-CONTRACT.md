@@ -21,10 +21,13 @@ here does not exist, and when a case of the worker suite is named by no rule.
 
 ## What a worker is
 
-A worker signs in as an agent whose token carries the `semiont-worker` role;
-the dispatcher refuses a claim from anyone else
+A worker signs in as an agent, an account whose token carries the
+`semiont-worker` role; the dispatcher refuses a claim from anyone else
 ([JOBS.md § `job:claim`](./JOBS.md#jobclaim)). It holds one job at a time. A
-process that runs several jobs at once runs several workers.
+process that runs several jobs at once runs several workers, and they may
+share one sign-in and one stream: the Worker service is one agent, with a
+worker for each engine it runs
+([WORKER-SERVICE.md § The agent](./WORKER-SERVICE.md#the-agent)).
 
 A worker does three things, and this document is about those three: it
 **claims** a job, it reports the job's **lifecycle**, and it stays
@@ -246,6 +249,6 @@ A dispatcher that exports answers a claim in the trace of the claim
   `async with job`), the job's code also runs in it. In TypeScript what the
   job states is the trace OpenTelemetry has active as the reply arrives: a
   process that has set up no OpenTelemetry has no trace, and its held jobs
-  state none. In Rust, Python and Go it is what the reply's frame carried,
+  state none. In Rust, Python, Go and Kotlin it is what the reply's frame carried,
   whatever the process has set up.
   *Held by `worker/job-trace`.*

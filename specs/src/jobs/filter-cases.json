@@ -4,7 +4,8 @@
     "typescript": ["packages/typescript/core/src/__tests__/job-filter.test.ts"],
     "rust": ["packages/rust/sdk/tests/job_filter.rs"],
     "python": ["packages/python/sdk/tests/test_claims.py"],
-    "go": ["packages/go/sdk/claims_test.go"]
+    "go": ["packages/go/sdk/claims_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"]
   },
   "cases": [
     {
@@ -85,6 +86,20 @@
         "params": {
           "motivation": "commenting"
         }
+      },
+      "matches": false
+    },
+    {
+      "why": "a filter's parameter the job does not state is no match",
+      "filter": {
+        "jobType": "mark",
+        "params": {
+          "motivation": "tagging"
+        }
+      },
+      "job": {
+        "jobType": "mark",
+        "params": {}
       },
       "matches": false
     },

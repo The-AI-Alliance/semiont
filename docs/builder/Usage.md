@@ -387,7 +387,7 @@ Browse methods read from materialized views. Live queries return `CacheObservabl
 
 ### Streams vs live queries
 
-Streaming methods (`gather.annotation`, `match.search`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Delegated jobs (`mark.delegate`, `yield.delegate`) return `DelegationObservable<C>` — thenable too: `await` resolves the job's completion, which is its verb's (`MarkJobCompletion`, `YieldJobCompletion`). Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.agents`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
+Streaming methods (`gather.annotation`, `match.search`) return `StreamObservable<T>` — thenable, so `await` resolves the final value. Delegated jobs (`mark.delegate`, `yield.delegate`) return `DelegationObservable<C>` — thenable too: `await` resolves the job's completion, which is its verb's (`MarkJobCompletion`, `YieldJobCompletion`). Live-query methods (`browse.resource`, `browse.resources`, `browse.annotations`, `browse.annotation`, `browse.events`, `browse.entityTypes`, `browse.tagSchemas`, `browse.engines`, `match.resources`, `gather.referencedBy`) return `CacheObservable<T>` — NOT thenable; subscribe for the live view or call `.fresh()` for a fresh value. `.pipe(...)` composes with RxJS operators on either (and loses the stream thenable). See [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) for the design rationale and method-by-method assignment.
 
 ### Live Queries (subscribe)
 
@@ -636,7 +636,7 @@ was missed (or signals `bus:resume-gap`, and the scope's caches are asked for
 again), outstanding requests' replies are re-requested from the server's
 retention buffer (`pendingReplies`), and the caches fed by events with no
 watermark — lists of resources, resources, entity types, tag schemas, the
-collaborator directory — are asked for again. See
+engines — are asked for again. See
 [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) for the wire
 contract.
 

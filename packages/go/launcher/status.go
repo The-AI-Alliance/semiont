@@ -803,7 +803,7 @@ func printRoots(u *UI, st *StackState) int {
 }
 
 // printSessions reports login sessions under --verbose: each stored token
-// (tokens.json) with its stack key and email, LIVE-verified against the
+// (tokens.json) with its stack key and its email when it has one, LIVE-verified against the
 // stack's /api/users/me when reachable — valid/expired is a runtime fact,
 // so an unreachable stack reads "unverified", never a guess.
 func printSessions(u *UI, ss *StackSet) {
@@ -824,7 +824,11 @@ func printSessions(u *UI, ss *StackSet) {
 		if base, err := reachedAt(ss, k); err == nil {
 			state = storedTokenState(base, e.Token)
 		}
-		fmt.Printf("  %-24s %s %s\n", k, e.Email, u.Dim("("+state+")"))
+		row := fmt.Sprintf("  %-24s", k)
+		if e.Email != "" {
+			row += " " + e.Email
+		}
+		fmt.Println(row, u.Dim("("+state+")"))
 	}
 }
 

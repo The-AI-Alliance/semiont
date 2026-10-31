@@ -4,7 +4,8 @@
     "typescript": ["packages/typescript/core/src/__tests__/resource-reader-cases.test.ts"],
     "rust": ["packages/rust/sdk/src/resources.rs", "packages/rust/sdk/tests/resource_reader_cases.rs"],
     "python": ["packages/python/sdk/tests/test_resource_readers.py"],
-    "go": ["packages/go/sdk/resources_test.go"]
+    "go": ["packages/go/sdk/resources_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/resources/ResourceReadersTest.kt"]
   },
   "cases": [
     {

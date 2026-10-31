@@ -7,8 +7,12 @@ package readme_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -137,8 +141,7 @@ func newIssuer(t *testing.T) *httptest.Server {
 	return issuer
 }
 
-// gateway is a stand-in gateway: it exchanges an agent's token, says who a
-// token is and how it is, holds streams, answers a resource's request on the
+// gateway is a stand-in gateway: it says who a token is and how it is, holds streams, answers a resource's request on the
 // newest one, and gives a stream that holds res-1's scope an annotation
 // added to it.
 type gateway struct {
@@ -152,8 +155,6 @@ func newGateway(t *testing.T) *gateway {
 	g := &gateway{}
 	g.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/api/tokens/agent":
-			writeJSON(w, http.StatusOK, fmt.Sprintf(`{"token":%q,"did":"did:web:kb.example:agents:ollama:gemma2"}`, signedToken(2)))
 		case "/api/users/me":
 			writeJSON(w, http.StatusOK, alice)
 		case "/api/status":
@@ -295,6 +296,31 @@ func TestAnAgent(t *testing.T) {
 	issuer, kb := newIssuer(t), newGateway(t)
 	if err := readme.Work(within(t), kb.URL, issuer.URL+"/realms/semiont", "s3cret"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A worker's key, as the launcher hands it on: its PKCS#8 PEM in the
+// worker's environment.
+func TestAWorkerKey(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SEMIONT_OIDC_CLIENT_KEY", string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})))
+	credential, err := readme.WorkerCredential("https://kb.example/realms/semiont", "semiont-worker-local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !credential.PrivateKey.Equal(key) || credential.ClientID != "semiont-worker-local" || credential.Issuer != "https://kb.example/realms/semiont" {
+		t.Errorf("the credential is not the worker's: %v", credential)
+	}
+	t.Setenv("SEMIONT_OIDC_CLIENT_KEY", "")
+	if _, err := readme.WorkerCredential("https://kb.example/realms/semiont", "semiont-worker-local"); err == nil || !strings.Contains(err.Error(), "SEMIONT_OIDC_CLIENT_KEY") {
+		t.Errorf("a worker handed no key made a credential, or did not say which variable lacks it: %v", err)
 	}
 }
 

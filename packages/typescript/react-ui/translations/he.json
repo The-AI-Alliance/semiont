@@ -97,7 +97,7 @@
     "reconnecting": "מתחבר מחדש לשרת...",
     "sharing": "שיתוף",
     "collaborationComingSoon": "תכונות שיתוף פעולה בקרוב",
-    "collaborators": "משתפי פעולה",
+    "engines": "מנועים",
     "ceilings": "{{contextTokens}} קלט / {{maxOutputTokens}} פלט",
     "sharedWindow": "חלון {{contextTokens}}"
   },

@@ -49,7 +49,7 @@ const mockFormatEventType = formatEventType as ReturnType<typeof vi.fn>;
 
 const KB = 'did:web:the-ai-alliance.github.io:semiont-template-kb';
 const PERSON = `${KB}:users:59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd`;
-const WORKER = `${KB}:agents:anthropic:claude-haiku-4-5`;
+const WORKER = `${KB}:agents:semiont-worker`;
 
 /** An event as a history reply carries it: the stored event and its actor's agent. */
 function makeStoredEvent(overrides: Partial<AttributedEvent> = {}): AttributedEvent {
@@ -254,7 +254,7 @@ describe('HistoryEvent', () => {
   it("names a software peer's row by its provider and model", () => {
     const event = makeStoredEvent({
       userId: userId(WORKER),
-      agent: { '@type': 'Software', '@id': WORKER, name: 'anthropic claude-haiku-4-5', provider: 'anthropic', model: 'claude-haiku-4-5' },
+      agent: { '@type': 'Software', '@id': WORKER, name: 'semiont-worker', provider: 'anthropic', model: 'claude-haiku-4-5' },
     });
     renderWithProviders(
       <HistoryEvent

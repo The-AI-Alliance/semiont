@@ -5,7 +5,8 @@
 **The worker claims queued jobs and runs them against a model**: the detection passes, the
 generation and the other long-running work that a request cannot wait on. It is a Python
 service, answers for its health on port 24100, and is started with the rest of a knowledge
-base's stack by the [launcher](../../apps/launcher/README.md) (`semiont start`).
+base's stack by the [launcher](../../apps/launcher/README.md) (`semiont start`). One worker
+can serve several knowledge bases at once, each apart from the others.
 
 | | |
 | --- | --- |
@@ -31,40 +32,72 @@ commits what the answer gives, and reports where the job stands.
 
 ## What it talks to
 
-- **The bus**, through the gateway: SSE in, for `job:queued`, and `POST /bus/emit` out, for
-  claims and a job's lifecycle.
+At each knowledge base its document names:
+
+- **The issuer**, to sign in as its account there.
+- **The bus**, through that knowledge base's gateway: SSE in, for `job:queued`, and
+  `POST /bus/emit` out, for claims and a job's lifecycle.
 - **The [gateway](../gateway/README.md)**, for a resource's bytes (`GET /resources/{id}`) and
   a PDF's text (`GET /resources/{id}/anchored-text`). The gateway is the only address of the
   knowledge base it holds.
-- **An inference provider**, for its model.
+
+And **an inference provider** for each engine, for its model.
 
 **It pulls.** At every moment it becomes idle (start, settle, a matching `job:queued` while
 parked, reconnect) it asks the [dispatcher](../dispatcher/README.md) for the next job among
-those it serves, and parks when told nothing is pending. `job:queued` is a wake-up with no
+those it claims, and parks when told nothing is pending. `job:queued` is a wake-up with no
 memory, not a reservation. Claims are atomic, so several workers can run against one queue
 without coordination.
 
-**A claim refused with `unauthorized` ends the process**, for restart, rather than leaving it
-parked forever: the credential is not a worker's, and the launcher's preflight names the
-repair.
+## An agent at each knowledge base, an engine for each provider and model
 
-## One service, an agent for each provider and model
+The worker is **an agent at each knowledge base** of its document: there, the account its
+entry's `identity` names at that knowledge base's issuer, signed in once. The token the issuer
+grants is its bearer at that gateway, and the DID the gateway names it by
+(`GET /api/users/me`) is what that bus stamps on every event it emits. Each knowledge base has
+its own sign-in, stream, claims, profile and limits, and none waits on another.
 
-The worker works as **one agent for each entry of `agents`** in its
-[configuration document](#configuration): a provider and a model, and the jobs that pair
-serves. The agents of one service work at once, and each holds one job at a time.
+At each it runs **one engine for each entry of that knowledge base's `engines`**: a provider
+and a model, and the jobs it does with that engine there. The engines of one knowledge base
+work at once, over the agent's one stream there, and each holds one job at a time. Two
+knowledge bases that name one engine share its provider's client. An engine is no part of who
+the agent is: the `generator` on everything a job makes names the agent by its DID at the
+knowledge base the job came from and the engine that made it, so `_userId` on the bus and the
+`generator` on every annotation refer to the same agent.
 
-Each agent signs in for **its own identity** via `/api/tokens/agent`, and that token is
-what the bus stamps on every event it emits. So `_userId` on the bus and the `generator` on
-every annotation it creates refer to the same software peer: attribution follows from the
-identity, and no field has to be set for it.
+What the agent is called is its profile. At each knowledge base, once the stream is open, it
+first asks which knowledge base it is (`browse:kb-requested`) and goes on only at the domain
+its entry names. Then, before any engine claims, it says it is called by that knowledge base's
+`identity.clientId`, on `principal:profile`, and readers name it from that, as they name a
+person. The `generator` carries no name.
+
+## One knowledge base's trouble is its own
+
+Each knowledge base is `starting`, `working` or `refused`, and what happens at one happens
+there alone.
+
+- **Refused**: its issuer refuses the sign-in, or its gateway refuses to name the agent, with
+  an answer the SDK does not try again; it answers `browse:kb-requested` with another domain,
+  or with `browse:kb-failed`; or a claim there is refused as `unauthorized`, because the grant
+  is gone. It is said once in the log (`Knowledge base refused the worker`, at `error`), its
+  stream is closed, and it stays refused until the service is started again.
+- **Trouble**: a sign-in that gets no answer, or one the SDK would try again; no answer to
+  `browse:kb-requested` in time; its stream closed for good; a held job that stalls. Its work
+  ends, failing a job still held there, and it is started again, signed in afresh, after the
+  SDK's `reconnectMs`, twice that each further time up to `maxReconnectMs`
+  (`Knowledge base in trouble — starting it again`, at `warn`, with `waitMs`). A stream that
+  drops is not trouble: the SDK opens it again by itself.
+
+When every knowledge base has refused it, the service exits with status 1. If none was ever
+confirmed it says so on stderr as it says every refusal to start; if one was, its log has
+said each refusal already.
 
 ## Nothing wedges, nothing restarts from zero
 
 Each call to the model is given **ten minutes**, and while one is under way the job reports
-where it stands every fifteen seconds. A held job that stalls ends the service, loudly, for
-whatever supervises it to restart; and a running job nothing has touched for long enough is
-recovered by the dispatcher's sweep ([JOBS.md](../../docs/protocol/JOBS.md#periodic-work)).
+where it stands every fifteen seconds. A held job that stalls starts its knowledge base again,
+loudly; and a running job nothing has touched for long enough is recovered by the dispatcher's
+sweep ([JOBS.md](../../docs/protocol/JOBS.md#periodic-work)).
 
 A text is asked about in pieces sized from the model's limits. A piece whose answer cannot
 be used for its size is **asked again in halves** before it is allowed to fail the job.
@@ -95,26 +128,40 @@ defaults nothing in it.
 
 | Member | |
 | --- | --- |
-| `gatewayUrl` | the gateway's URL |
-| `identity.issuer` | the issuer its service account signs in at |
-| `agents` | each a provider and a model, the jobs it claims, the provider's address, and the variable holding its key |
+| `knowledgeBases` | the knowledge bases it serves, at least one, no two of one `domain`; each as below |
+| `knowledgeBases[k].domain` | the domain that knowledge base says it is |
+| `knowledgeBases[k].gatewayUrl` | its gateway's URL |
+| `knowledgeBases[k].identity.issuer`, `.clientId` | the issuer its account there signs in at, and the client that account is |
+| `knowledgeBases[k].engines` | its engines: each a provider and a model, the jobs it claims with it there, the provider's address, and the variable holding its key |
 | `modelCatalogue` | the path of the model catalogue |
 | `port` | the health port |
 | `logLevel`, `logFormat` | how it logs |
 
-It reads no configuration of the knowledge base: the launcher resolves the knowledge base's
+It reads no configuration of a knowledge base: the launcher resolves the knowledge base's
 WorkerPool and Inference documents
 ([Configuration](../../docs/operator/administration/CONFIGURATION.md)) into this document for
 the worker it starts, and a worker started some other way is given the same document.
 
-Its environment is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, its own service
-account at the knowledge base's issuer, and each variable its document names, such as
-`ANTHROPIC_API_KEY`. It mounts nothing but the document.
+Its environment is `SEMIONT_OIDC_CLIENT_KEY`, the RSA key it proves itself with at every
+knowledge base, and each variable its document names, such as `ANTHROPIC_API_KEY`. Each
+knowledge base's issuer holds the key's public half on the client that knowledge base's
+`identity.clientId` names. No secret is sent: each sign-in carries an assertion signed with the
+key. It mounts nothing but the document.
 
-Started without `--config`, with a document that does not validate, or with a named variable
-unset, it refuses to start: one line on stderr that begins `[fatal] ` and says which, and
-exit status 1. The [service catalog](../../docs/operator/services/OVERVIEW.md) states this
-beside the other services.
+Started without `--config`, with a document that does not validate or that names one domain
+twice, without the key, or with a named variable unset, it refuses to start before it dials
+anything: one line on stderr that begins `[fatal] ` and says which, and exit status 1. The
+[service catalog](../../docs/operator/services/OVERVIEW.md) states this beside the other
+services.
+
+`GET /health` answers once a knowledge base is confirmed, with a
+[`WorkerHealth`](../../specs/src/components/schemas/WorkerHealth.json):
+`{"status": "ok", "knowledgeBases": [...]}`, each knowledge base in the document's order with
+its `domain` and `state` (`starting`, `working` or `refused`), and, while it is `working`, the
+agent's `did` there and its `engines`. Each engine is its `engine` (`provider` and `model`),
+the `jobs` it claims, and what its claims say of themselves: `lastQueuedEventAt`,
+`lastClaimAt`, `lastFinishedAt` and `lastActivityAt`, each an instant or `null`, `activeJob`,
+`null` or the held job's `jobId`, `type` and `since`, and `jobsCompleted`.
 
 ## What the image carries
 
@@ -135,8 +182,8 @@ own library, which their package brings as an extra named for the provider
 image is built with every extra, so it is not rebuilt to be pointed at another provider.
 
 **The service can be configured for any of the seven providers the protocol names:**
-`anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An agent of its
-document ([`WorkerAgentConfig`](../../specs/src/components/schemas/WorkerAgentConfig.json))
+`anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An engine of its
+document ([`WorkerEngineConfig`](../../specs/src/components/schemas/WorkerEngineConfig.json))
 names one of them, and a document that names another is refused when the service starts. A
 model of `google`, `openai` or `together` is asked with what the model catalogue says of it,
 which the image carries at `/usr/share/semiont/model-catalogue.json` and the document names

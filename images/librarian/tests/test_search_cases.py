@@ -29,7 +29,7 @@ from typing import Final, final, override
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import ADA, ADA_ID, LOVELACE, FakeContent, FakeEmbedding, FakeGraph, FakePeople, FakeRecord, FakeVectors, described, view
+from rig import ADA, ADA_ID, LOVELACE, FakeContent, FakeEmbedding, FakeGraph, FakeProfiles, FakeRecord, FakeVectors, described, view
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.model import written
 from semiont.types import (
@@ -47,7 +47,7 @@ from semiont_vectors.store import CollectionAbsent, SearchFilter, SearchOptions,
 from spec import ROOT, JsonObject, number, objects, only, read, strings, text, thing, whole, why
 
 from semiont_librarian.limit import LimitRefused
-from semiont_librarian.reads import Described, GraphReads, PeopleUnread, Record
+from semiont_librarian.reads import Described, GraphReads, ProfilesUnread, Record
 from semiont_librarian.text_search import Page, answer, search_resources, with_previews
 
 TABLE = read(ROOT / "specs/src/librarian/search-cases.json")
@@ -367,14 +367,14 @@ class Stores:
     vectors: FakeVectors
     embedding: FakeEmbedding
     content: FakeContent
-    people: FakePeople
+    profiles: FakeProfiles
 
 
 def stores(*held: ResourceView, lists: ResourceListing) -> Stores:
     """Stores whose graph answers every listing with `lists`, whose record holds `held`, and in which Ada has a profile."""
     graph = FakeGraph()
     graph.listing = lambda _: lists
-    return Stores(graph, FakeRecord(*held), FakeVectors(), FakeEmbedding(), FakeContent(), FakePeople(LOVELACE))
+    return Stores(graph, FakeRecord(*held), FakeVectors(), FakeEmbedding(), FakeContent(), FakeProfiles(LOVELACE))
 
 
 def nothing_listed() -> ResourceListing:
@@ -400,7 +400,7 @@ def reply_to(request: MatchResourcesRequest, at: Stores) -> MatchResourcesResult
             embedding=at.embedding,
             semantic_floor=0.5,
             content=at.content,
-            people=at.people,
+            profiles=at.profiles,
         )
     )
 
@@ -410,7 +410,7 @@ def lines(caplog: pytest.LogCaptureFixture, level: int) -> list[dict[str, object
     return [dict(vars(record)) for record in caplog.records if record.name == "semiont_librarian" and record.levelno == level]
 
 
-def test_the_reply_to_a_lexical_search_has_previews_the_offset_and_the_limit_and_its_people_named() -> None:
+def test_the_reply_to_a_lexical_search_has_previews_the_offset_and_the_limit_and_its_persons_named() -> None:
     found = described(R1, representations=[TEXT_FILE], wasAttributedTo=[ADA])
     at = stores(lists=ResourceListing(resources=[found], total=7))
     at.content.held[R1] = Content(data=b"Black Hawk was a Sauk leader.", content_type="text/plain")
@@ -423,7 +423,7 @@ def test_the_reply_to_a_lexical_search_has_previews_the_offset_and_the_limit_and
     assert resource["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
     assert at.graph.asked_of("list_resources") == [ResourceQuery(search="hawk", offset=0, limit=50)]
     assert at.content.asked == [R1]
-    assert at.people.asked == [[ADA_ID]]
+    assert at.profiles.asked == [[ADA_ID]]
     assert at.embedding.asked == []
     assert at.vectors.asked == []
 
@@ -459,7 +459,7 @@ def test_an_index_with_no_such_collection_fails_a_search_that_no_name_matches() 
         reply_to(MatchResourcesRequest(search="ouranos"), at)
 
 
-def test_the_reply_to_a_semantic_search_keeps_each_passage_and_reads_no_bytes_and_its_people_are_named() -> None:
+def test_the_reply_to_a_semantic_search_keeps_each_passage_and_reads_no_bytes_and_its_persons_are_named() -> None:
     at = stores(lists=nothing_listed())
     at.graph.resources[R1] = described(R1, representations=[TEXT_FILE], wasAttributedTo=[ADA])
     at.content.held[R1] = Content(data=b"The whole text of the resource.", content_type="text/plain")
@@ -473,12 +473,12 @@ def test_the_reply_to_a_semantic_search_keeps_each_passage_and_reads_no_bytes_an
     assert resource["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
     assert at.content.asked == []
     assert at.embedding.asked == ["ouranos"]
-    assert at.people.asked == [[ADA_ID]]
+    assert at.profiles.asked == [[ADA_ID]]
 
 
-def test_a_reply_is_sent_with_no_one_named_where_its_people_cannot_be_read(caplog: pytest.LogCaptureFixture) -> None:
+def test_a_reply_is_sent_with_no_one_named_where_its_profiles_cannot_be_read(caplog: pytest.LogCaptureFixture) -> None:
     at = stores(lists=ResourceListing(resources=[described(R1, wasAttributedTo=[ADA])], total=1))
-    at.people.failing = PeopleUnread("the Archivist did not answer")
+    at.profiles.failing = ProfilesUnread("the Archivist did not answer")
     with caplog.at_level(logging.WARNING, logger="semiont_librarian"):
         response = reply_to(MatchResourcesRequest(search="hawk"), at).response
     (resource,) = in_wire_words(response.resources)
@@ -491,7 +491,7 @@ def test_a_graph_that_fails_to_list_fails_the_request_and_no_one_is_asked_after(
     at.graph.failing["list_resources"] = Fails("the graph is away")
     with pytest.raises(Fails, match=r"the graph is away"):
         reply_to(MatchResourcesRequest(search="hawk"), at)
-    assert at.people.asked == []
+    assert at.profiles.asked == []
     assert at.embedding.asked == []
 
 

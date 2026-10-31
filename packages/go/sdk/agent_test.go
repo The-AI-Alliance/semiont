@@ -1,11 +1,10 @@
 package semiont
 
-// An agent's token: a service account's token from its issuer, exchanged at
-// the gateway for the agent's, kept until it is due and renewed when refused.
+// An agent's token: its account's token from its issuer, its bearer at the
+// gateway, which names it; kept until it is due and renewed when refused.
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -18,17 +17,14 @@ import (
 type agentWorld struct {
 	issuer, gateway *httptest.Server
 
-	mu        sync.Mutex
-	grants    int
-	exchanges []string // the Authorization each exchange came with
-	asked     []agentAsked
-	refuse    bool
+	mu     sync.Mutex
+	grants int
+	asked  []string // each request the gateway was asked: its path and the Authorization it came with
+	refuse bool     // the issuer refuses every grant
 }
 
-type agentAsked struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-}
+// agentDID is the DID the gateway names the worker's account by.
+const agentDID = "did:web:kb.example:agents:service-account-semiont-worker"
 
 func newAgentWorld(t *testing.T) *agentWorld {
 	t.Helper()
@@ -38,7 +34,10 @@ func newAgentWorld(t *testing.T) *agentWorld {
 		case "/realms/semiont/.well-known/openid-configuration":
 			writeJSON(rw, http.StatusOK, map[string]any{"token_endpoint": w.issuer.URL + "/realms/semiont/token"})
 		case "/realms/semiont/token":
-			if r.FormValue("grant_type") != "client_credentials" || r.FormValue("client_id") != "semiont-worker" || r.FormValue("client_secret") != "s3cret" {
+			w.mu.Lock()
+			refuse := w.refuse
+			w.mu.Unlock()
+			if refuse || r.FormValue("grant_type") != "client_credentials" || r.FormValue("client_id") != "semiont-worker" || r.FormValue("client_secret") != "s3cret" {
 				writeJSON(rw, http.StatusUnauthorized, map[string]any{"error": "invalid_client", "error_description": "s3cret is wrong"})
 				return
 			}
@@ -53,22 +52,14 @@ func newAgentWorld(t *testing.T) *agentWorld {
 	}))
 	t.Cleanup(w.issuer.Close)
 	w.gateway = httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/tokens/agent" || r.Method != http.MethodPost {
+		w.mu.Lock()
+		w.asked = append(w.asked, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+		w.mu.Unlock()
+		if r.Method != http.MethodGet || r.URL.Path != "/api/users/me" {
 			http.NotFound(rw, r)
 			return
 		}
-		var asked agentAsked
-		_ = json.NewDecoder(r.Body).Decode(&asked)
-		w.mu.Lock()
-		w.exchanges = append(w.exchanges, r.Header.Get("Authorization"))
-		w.asked = append(w.asked, asked)
-		n, refuse := len(w.exchanges), w.refuse
-		w.mu.Unlock()
-		if refuse {
-			writeJSON(rw, http.StatusForbidden, map[string]any{"error": "not an agent"})
-			return
-		}
-		writeJSON(rw, http.StatusOK, map[string]any{"token": signedToken(200 + n), "did": "did:web:kb.example:agents:ollama:gemma2"})
+		writeJSON(rw, http.StatusOK, map[string]any{"did": agentDID, "email": nil, "name": nil, "image": nil, "domain": "kb.example"})
 	}))
 	t.Cleanup(w.gateway.Close)
 	return w
@@ -77,75 +68,84 @@ func newAgentWorld(t *testing.T) *agentWorld {
 func (w *agentWorld) signIn(t *testing.T, secret string) (*AgentToken, error) {
 	t.Helper()
 	issuer := Issuer{HTTP: &http.Client{}, Timing: quickTiming()}
-	service := NewServiceToken(Credential{Issuer: w.issuer.URL + "/realms/semiont", ClientID: "semiont-worker", ClientSecret: secret}, issuer)
-	return SignInAgent(context.Background(), AgentConfig{Gateway: w.gateway.URL, Provider: "ollama", Model: "gemma2", Service: service, HTTP: &http.Client{}, Timing: quickTiming()})
+	service := NewServiceToken(SecretCredential{Issuer: w.issuer.URL + "/realms/semiont", ClientID: "semiont-worker", ClientSecret: secret}, issuer)
+	return SignInAgent(context.Background(), AgentConfig{Gateway: w.gateway.URL, Service: service, HTTP: &http.Client{}, Timing: quickTiming()})
 }
 
-func TestAnAgentIsSignedInAsTheGatewayNamesIt(t *testing.T) {
+// An agent signs in as its account: the issuer's token is its bearer, and the
+// gateway names it by that account. Nothing is exchanged.
+func TestAnAgentIsSignedInAsItsAccount(t *testing.T) {
 	w := newAgentWorld(t)
 	agent, err := w.signIn(t, "s3cret")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer agent.Close()
-	if agent.Token().Value() != signedToken(201) || agent.DID().String() != "did:web:kb.example:agents:ollama:gemma2" {
-		t.Errorf("signed in as %q with a token that is not the gateway's", agent.DID())
+	if agent.Token().Value() != signedToken(101) || agent.DID().String() != agentDID {
+		t.Errorf("signed in as %q with a token that is not the issuer's", agent.DID())
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if len(w.exchanges) != 1 || w.exchanges[0] != "Bearer "+signedToken(101) || w.asked[0] != (agentAsked{Provider: "ollama", Model: "gemma2"}) {
-		t.Errorf("the exchange was %v of %v", w.exchanges, w.asked)
+	if want := "GET /api/users/me Bearer " + signedToken(101); len(w.asked) != 1 || w.asked[0] != want {
+		t.Errorf("the gateway was asked %v, want only %q", w.asked, want)
 	}
 }
 
-// A refusal is answered by another exchange, under the service token kept
-// until it is due: no second grant.
-func TestARefusedAgentTokenIsExchangedAgain(t *testing.T) {
+// A refusal is answered by a new grant from the issuer; one the issuer refuses
+// leaves the agent the token it had.
+func TestARefusedAgentTokenIsGrantedAgain(t *testing.T) {
 	w := newAgentWorld(t)
 	agent, err := w.signIn(t, "s3cret")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer agent.Close()
-	token, ok := agent.Refresh(context.Background(), signedToken(201))
-	if !ok || token != signedToken(202) || agent.Token().Value() != token {
-		t.Errorf("refreshed to the gateway's second token: %v, %v", token == signedToken(202), ok)
+	token, ok := agent.Refresh(context.Background(), signedToken(101))
+	if !ok || token != signedToken(102) || agent.Token().Value() != token {
+		t.Errorf("refreshed to the issuer's second token: %v, %v", token == signedToken(102), ok)
 	}
 	w.mu.Lock()
-	grants := w.grants
 	w.refuse = true
 	w.mu.Unlock()
-	if grants != 1 {
-		t.Errorf("%d grants for two exchanges: the service token was not kept", grants)
+	if _, ok := agent.Refresh(context.Background(), signedToken(102)); ok {
+		t.Error("a refused grant gave a token")
 	}
-	if _, ok := agent.Refresh(context.Background(), signedToken(202)); ok {
-		t.Error("a refused exchange gave a token")
-	}
-	if agent.Token().Value() != signedToken(202) {
-		t.Error("a refused exchange took away the token the agent had")
+	if agent.Token().Value() != signedToken(102) {
+		t.Error("a refused grant took away the token the agent had")
 	}
 }
 
-// A refusal of a token the agent has exchanged since is answered by the token
-// it holds: nothing is exchanged again.
-func TestARefusalOfATokenExchangedSinceIsAnsweredByTheNewOne(t *testing.T) {
+// A refusal of a token the agent has renewed since is answered by the token
+// it holds: nothing is asked again.
+func TestARefusalOfATokenRenewedSinceIsAnsweredByTheNewOne(t *testing.T) {
 	w := newAgentWorld(t)
 	agent, err := w.signIn(t, "s3cret")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer agent.Close()
-	if _, ok := agent.Refresh(context.Background(), signedToken(201)); !ok {
+	if _, ok := agent.Refresh(context.Background(), signedToken(101)); !ok {
 		t.Fatal("the first refusal was not answered")
 	}
-	token, ok := agent.Refresh(context.Background(), signedToken(201))
-	if !ok || token != signedToken(202) {
-		t.Errorf("a refusal of the token exchanged since was not answered with the token held (given one: %v)", ok)
+	token, ok := agent.Refresh(context.Background(), signedToken(101))
+	if !ok || token != signedToken(102) {
+		t.Errorf("a refusal of the token renewed since was not answered with the token held (given one: %v)", ok)
 	}
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if len(w.exchanges) != 2 {
-		t.Errorf("a sign-in and two refusals of one token made %d exchanges, want 2", len(w.exchanges))
+	if w.grants != 2 {
+		t.Errorf("a sign-in and two refusals of one token made %d grants, want 2", w.grants)
+	}
+}
+
+// A gateway that does not name the agent fails the sign-in.
+func TestAnAgentTheGatewayDoesNotNameIsNotSignedIn(t *testing.T) {
+	w := newAgentWorld(t)
+	w.gateway.Close()
+	_, err := w.signIn(t, "s3cret")
+	var failed *TransportError
+	if !errors.As(err, &failed) {
+		t.Errorf("signed in, or failed as %v, with no gateway to name it", err)
 	}
 }
 
@@ -164,7 +164,7 @@ func TestARefusedServiceAccountNamesNoSecret(t *testing.T) {
 	if strings.Contains(err.Error(), "s3cret") || strings.Contains(err.Error(), "wrong") {
 		t.Errorf("the failure says the secret: %v", err)
 	}
-	credential := Credential{Issuer: "https://issuer.example", ClientID: "semiont-worker", ClientSecret: "s3cret"}
+	credential := SecretCredential{Issuer: "https://issuer.example", ClientID: "semiont-worker", ClientSecret: "s3cret"}
 	for _, shown := range []string{fmt.Sprint(credential), fmt.Sprintf("%+v", credential), fmt.Sprintf("%#v", credential)} {
 		if strings.Contains(shown, "s3cret") {
 			t.Errorf("a credential printed its secret: %s", shown)

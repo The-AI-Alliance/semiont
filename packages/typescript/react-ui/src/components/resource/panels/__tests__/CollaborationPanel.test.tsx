@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { Collaborator } from '@semiont/core';
+import type { EngineWithLimits } from '@semiont/core';
 import { CollaborationPanel } from '../CollaborationPanel';
 
 // Mock TranslationContext
@@ -24,7 +24,7 @@ vi.mock('../../../../contexts/TranslationContext', () => ({
       reconnecting: 'Reconnecting...',
       sharing: 'Sharing',
       collaborationComingSoon: 'Multi-user collaboration coming soon',
-      collaborators: 'Collaborators',
+      engines: 'Engines',
       ceilings: '{{contextTokens}} in / {{maxOutputTokens}} out',
       sharedWindow: '{{contextTokens}} window',
     };
@@ -58,29 +58,22 @@ describe('CollaborationPanel Component', () => {
     vi.useRealTimers();
   });
 
-  // The panel optionally renders the collaborator roster with each software
-  // agent's discovered ceilings. Absence is meaningful and must degrade
-  // quietly — the field is absent whenever discovery could not answer
-  // *right now*.
-  describe('Collaborators roster', () => {
-    const softwareEntry = (over: Partial<Collaborator> = {}): Collaborator => ({
-      agent: {
-        '@type': 'Software' as const,
-        '@id': 'did:web:localhost:agents:anthropic:claude-sonnet-5',
-        name: 'Claude Sonnet 5',
-        provider: 'anthropic',
-        model: 'claude-sonnet-5',
-      },
-      serves: [{ jobType: 'yield' }],
+  // The panel optionally renders the engines with each one's discovered
+  // ceilings. Absence is meaningful and must degrade quietly — the field is
+  // absent whenever discovery could not answer *right now*.
+  describe('Engines', () => {
+    const engineEntry = (over: Partial<EngineWithLimits> = {}): EngineWithLimits => ({
+      engine: { provider: 'anthropic', model: 'claude-sonnet-5' },
+      jobs: [{ jobType: 'yield' }],
       limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
       ...over,
     });
 
-    it('renders one row per software agent with provider, model and ceilings', () => {
-      render(<CollaborationPanel {...defaultProps} collaborators={[softwareEntry()]} />);
+    it('renders one row per engine with provider, model and ceilings', () => {
+      render(<CollaborationPanel {...defaultProps} engines={[engineEntry()]} />);
 
-      expect(screen.getByText('Collaborators')).toBeInTheDocument();
-      const row = screen.getByTestId('semiont-collaborator-row');
+      expect(screen.getByText('Engines')).toBeInTheDocument();
+      const row = screen.getByTestId('semiont-engine-row');
       expect(row.textContent).toContain('anthropic');
       expect(row.textContent).toContain('claude-sonnet-5');
       expect(row.textContent).toContain('yield');
@@ -91,53 +84,46 @@ describe('CollaborationPanel Component', () => {
     it('renders a single window figure when the provider shares one (Ollama shape)', () => {
       // `maxOutputTokens === contextTokens` is the shared-window sentinel the
       // schema documents; rendering "128K in / 128K out" would be noise.
-      const shared = softwareEntry({
-        agent: {
-          '@type': 'Software' as const,
-          name: 'Gemma',
-          provider: 'ollama',
-          model: 'gemma2:27b',
-        },
+      const shared = engineEntry({
+        engine: { provider: 'ollama', model: 'gemma2:27b' },
         limits: { contextTokens: 128_000, maxOutputTokens: 128_000 },
       });
-      render(<CollaborationPanel {...defaultProps} collaborators={[shared]} />);
+      render(<CollaborationPanel {...defaultProps} engines={[shared]} />);
 
-      const row = screen.getByTestId('semiont-collaborator-row');
+      const row = screen.getByTestId('semiont-engine-row');
       expect(row.textContent).toContain('128K window');
       expect(row.textContent).not.toContain('in /');
     });
 
     it('renders the row without ceilings when limits are absent', () => {
-      const noLimits = softwareEntry();
+      const noLimits = engineEntry();
       delete noLimits.limits;
-      render(<CollaborationPanel {...defaultProps} collaborators={[noLimits]} />);
+      render(<CollaborationPanel {...defaultProps} engines={[noLimits]} />);
 
-      const row = screen.getByTestId('semiont-collaborator-row');
+      const row = screen.getByTestId('semiont-engine-row');
       expect(row.textContent).toContain('claude-sonnet-5');
       expect(row.textContent).not.toContain('in /');
       expect(row.textContent).not.toContain('window');
     });
 
-    it('renders no roster when the prop is absent (hosts that never wire it)', () => {
+    it('renders no engines when the prop is absent (hosts that never wire it)', () => {
       render(<CollaborationPanel {...defaultProps} />);
 
-      expect(screen.queryByText('Collaborators')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('semiont-collaborator-row')).not.toBeInTheDocument();
+      expect(screen.queryByText('Engines')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('semiont-engine-row')).not.toBeInTheDocument();
       // The other sections render regardless.
       expect(screen.getByText('Connection Status')).toBeInTheDocument();
     });
 
-    it('lists only software agents — Persons are not inference collaborators', () => {
-      const person: Collaborator = { agent: { '@type': 'Person', name: 'Ada' } };
-      render(
-        <CollaborationPanel
-          {...defaultProps}
-          collaborators={[softwareEntry(), person]}
-        />,
-      );
+    it('lists every engine, one row each', () => {
+      const llama = engineEntry({ engine: { provider: 'ollama', model: 'llama3' } });
+      delete llama.jobs;
+      delete llama.limits;
+      render(<CollaborationPanel {...defaultProps} engines={[engineEntry(), llama]} />);
 
-      expect(screen.getAllByTestId('semiont-collaborator-row')).toHaveLength(1);
-      expect(screen.queryByText('Ada')).not.toBeInTheDocument();
+      const rows = screen.getAllByTestId('semiont-engine-row');
+      expect(rows).toHaveLength(2);
+      expect(rows[1]!.textContent).toContain('llama3');
     });
   });
 

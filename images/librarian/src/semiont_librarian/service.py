@@ -15,11 +15,11 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It starts in the order `docs/protocol/LIBRARIAN.md` § Boot states: it signs
-in as the agent `(semiont, librarian)`, reaches the graph database and the
-vector index, begins to take requests from the bus, and opens its health
-port last, so a Librarian whose health answers is answering. It loads
-nothing and makes nothing: it reads what other services write. Told to stop,
-it stops taking requests, closes what it holds open, and exits with status 0.
+in as its account, reaches the graph database and the vector index, begins to
+take requests from the bus, and opens its health port last, so a Librarian
+whose health answers is answering. It loads nothing and makes nothing: it
+reads what other services write. Told to stop, it stops taking requests,
+closes what it holds open, and exits with status 0.
 """
 
 import asyncio
@@ -49,7 +49,7 @@ from semiont.operations import (
     MATCH_SEARCH_REQUESTED,
 )
 from semiont.transport import ContentTransport
-from semiont.types import AnchoredTextAnswer, LibrarianConfig, LibrarianModelConfig
+from semiont.types import AnchoredTextAnswer, LibrarianConfig, LibrarianEngineConfig
 from semiont_graph.factory import create_graph_reader
 from semiont_graph.interface import GraphReader
 from semiont_inference.factory import CatalogueRequired, KeyRequired, create_inference_client
@@ -69,7 +69,7 @@ from semiont_librarian.librarian import Librarian, words_of
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
 from semiont_librarian.reads import AnchoredText
-from semiont_librarian.record import READ, BusPeople, BusRecord
+from semiont_librarian.record import READ, BusProfiles, BusRecord
 from semiont_librarian.telemetry import GatherDegraded
 
 __all__ = ["CHANNELS", "boot", "health", "main"]
@@ -88,10 +88,6 @@ CHANNELS: Final[tuple[str, ...]] = (
     *reply_channels_for(*READ),
 )
 """What the Librarian's stream names: the eight requests it answers, the two signals it follows, and the replies of what it asks."""
-
-_PROVIDER: Final = "semiont"
-_MODEL: Final = "librarian"
-"""Who the Librarian works as: one agent, `(semiont, librarian)`, whatever models its two actors ask."""
 
 
 def health() -> JsonValue:
@@ -131,25 +127,25 @@ class _Started:
     gatherer: InferenceClient
 
 
-def _model_of(actor: Actor, config: LibrarianConfig, environment: Mapping[str, str]) -> InferenceClient:
-    """An actor's model, as its part of the document states it.
+def _client_of(actor: Actor, config: LibrarianConfig, environment: Mapping[str, str]) -> InferenceClient:
+    """A client of an actor's engine, as its part of the document states it.
 
     Refused, by the member, for a provider that takes a key where the
     document names no variable for one, and for a provider whose facts are
     read from the model catalogue where the file the document names cannot
     be read or lacks the model.
     """
-    model: LibrarianModelConfig = config.matcher if actor == "matcher" else config.gatherer
+    entry: LibrarianEngineConfig = config.matcher if actor == "matcher" else config.gatherer
     try:
         return create_inference_client(
-            provider=model.agent.provider,
-            model=model.agent.model,
-            base_url=model.base_url,
-            api_key=api_key_of(actor, model, environment),
+            provider=entry.engine.provider,
+            model=entry.engine.model,
+            base_url=entry.base_url,
+            api_key=api_key_of(actor, entry, environment),
             catalogue=Path(config.model_catalogue),
         )
     except KeyRequired as keyless:
-        raise Refused(f"{actor}.apiKeyEnv is not stated, and {actor}.agent.provider is {model.agent.provider}: {keyless}") from keyless
+        raise Refused(f"{actor}.apiKeyEnv is not stated, and {actor}.engine.provider is {entry.engine.provider}: {keyless}") from keyless
     except CatalogueRequired as lacking:
         raise Refused(f"modelCatalogue names {config.model_catalogue}, which does not serve the {actor}: {lacking}") from lacking
 
@@ -166,8 +162,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
     # A reader of the index: it is told no width, because it makes nothing there.
     vectors = create_vector_reader(config.vectors)
-    matcher = _model_of("matcher", config, environment)
-    gatherer = _model_of("gatherer", config, environment)
+    matcher = _client_of("matcher", config, environment)
+    gatherer = _client_of("gatherer", config, environment)
     return _Started(
         config=config, credential=credential, graph=graph, vectors=vectors, embedding=embedding, matcher=matcher, gatherer=gatherer
     )
@@ -191,7 +187,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
 
     account = ServiceToken(started.credential)
 
-    async with AgentToken(config.gateway_url, provider=_PROVIDER, model=_MODEL, service=account) as agent:
+    async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         try:
             await connected("graph database", started.graph.connect())
@@ -203,7 +199,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
                 Librarian(
                     record=BusRecord(Bus(transport)),
-                    people=BusPeople(Bus(transport)),
+                    profiles=BusProfiles(Bus(transport)),
                     graph=started.graph,
                     vectors=started.vectors,
                     embedding=started.embedding,

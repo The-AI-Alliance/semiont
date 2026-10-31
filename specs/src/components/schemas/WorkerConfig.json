@@ -1,39 +1,19 @@
 {
   "type": "object",
-  "description": "Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents, and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the worker's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.",
+  "description": "Everything a worker reads at boot: nothing in it is defaulted by the worker. The launcher writes it for the worker it starts, from the knowledge base's stack documents and the knowledge bases added to this machine's worker (`semiont worker kb add`), and the worker reads it from the path its `--config` flag names (its image passes `/etc/semiont/worker.json`). Whoever starts a worker another way writes the same document: this schema is the contract, and a worker needs no launcher. Started without `--config`, or with a path that names no file, the worker refuses to start and says which. No secret is a value here: a provider's key is named by the environment variable that holds it, and the key the worker signs in with at every knowledge base is `SEMIONT_OIDC_CLIENT_KEY` in its environment, an RSA private key; each knowledge base names the client that holds its public half there. A document that does not validate is refused at boot, naming each failing field.",
   "properties": {
-    "gatewayUrl": {
-      "type": "string",
-      "minLength": 1,
-      "description": "The URL the worker reaches the gateway at: its route to the bus and to a resource's bytes, and the only address of the knowledge base it holds."
-    },
-    "identity": {
-      "type": "object",
-      "description": "The issuer the worker's service account signs in at.",
-      "properties": {
-        "issuer": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The issuer URL, exactly as tokens carry it in `iss`."
-        }
-      },
-      "required": [
-        "issuer"
-      ],
-      "additionalProperties": false
-    },
-    "agents": {
+    "knowledgeBases": {
       "type": "array",
       "minItems": 1,
-      "description": "The agents this worker works as. Each is an inference provider and a model, and the jobs that pair serves. The worker signs in once as each, and claims that agent's jobs for it. They are the knowledge base's Inference document's roster as it stands, with no fallback, so a job no agent here accepts is not claimed by this worker.",
+      "description": "The knowledge bases this worker does jobs for. At each it signs in, confirms which knowledge base it reached and claims for its engines, apart from every other: one knowledge base's trouble stops that knowledge base's work alone (`docs/protocol/WORKER-SERVICE.md` \u00a7 Knowledge bases). No two name one `domain`, which the worker refuses at boot.",
       "items": {
-        "$ref": "./WorkerAgentConfig.json"
+        "$ref": "./WorkerKnowledgeBaseConfig.json"
       }
     },
     "modelCatalogue": {
       "type": "string",
       "minLength": 1,
-      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an agent of one of those providers refuses to start where the file cannot be read, and where it states nothing of the agent's model. A worker with no such agent does not read it."
+      "description": "The path of a model catalogue file: what each model of a provider can take, for the providers whose own APIs do not say (`google`, `openai`, `together`). A worker with an engine of one of those providers refuses to start where the file cannot be read, and where it states nothing of that engine's model. A worker with no such engine does not read it."
     },
     "port": {
       "type": "integer",
@@ -49,9 +29,7 @@
     }
   },
   "required": [
-    "gatewayUrl",
-    "identity",
-    "agents",
+    "knowledgeBases",
     "modelCatalogue",
     "port",
     "logLevel",

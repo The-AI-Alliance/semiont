@@ -39,8 +39,8 @@ cut around a selection;
 prompts;
 [`reply-cases.json`](../../specs/src/librarian/reply-cases.json), what is read
 from a model's reply; and
-[`naming-cases.json`](../../specs/src/librarian/naming-cases.json), how people
-are named. The runner of each is the file named for it in
+[`naming-cases.json`](../../specs/src/principals/naming-cases.json), how
+principals are named, which the Archivist runs too. The runner of each is the file named for it in
 `images/librarian/tests`, such as `test_score_cases.py`. The others are tests of
 Semiont's own Librarian and of the packages it is built on. A rule marked
 "Held by no case" is one nothing checks.
@@ -72,8 +72,8 @@ the embedding provider
 its kind, its model and where it is reached, with the name of the variable
 that holds its key, for a provider that takes one); a model for each of its
 two actors, the Matcher and the Gatherer
-([`LibrarianModelConfig`](../../specs/src/components/schemas/LibrarianModelConfig.json):
-a provider and a model, the address the provider is reached at, and the name
+([`LibrarianEngineConfig`](../../specs/src/components/schemas/LibrarianEngineConfig.json):
+its engine, a provider and a model; the address the provider is reached at, and the name
 of the variable that holds its key, for a provider that takes one); the
 settle bound, which is how long a gather of a resource waits for the Smelter,
 in milliseconds; the semantic floor, a number from 0 to 1, which is the least
@@ -127,14 +127,14 @@ The Librarian supplies no value.
 
 ## What it answers
 
-A Librarian signs in as its service account and works as the agent `(semiont,
-librarian)`: one agent, whatever models its two actors use. It reaches the bus
+A Librarian signs in as its service account, and is that one agent, whatever
+engines its two actors ask. It reaches the bus
 through the gateway. It reads the graph database and the vector index
 directly, each through a reader that can write nothing; what the Archivist's
 views say of a resource, and the people a reply names, from the Archivist on
 the bus, each read bounded by what it asks (`browse:resource-requested` for a
 resource's description and the sequence number of its last event,
-`browse:annotation-requested` for one annotation, `browse:people-requested`
+`browse:annotation-requested` for one annotation, `browse:profiles-requested`
 for the people a reply names); a resource's bytes from the Archivist's own
 `GET /resources/{id}/content`, as its service account; and a resource's
 anchored text from the gateway's `GET /resources/{id}/anchored-text`.
@@ -146,12 +146,12 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   |---|---|---|---|
   | `match:search-requested` | `match:search-results` | `match:search-failed` | [Reference search](#reference-search) |
   | `match:resources-requested` | `match:resources-result` | `match:resources-failed` | [Text search](#text-search) |
-  | `match:limits-requested` | `match:limits-result` | `match:limits-failed` | [Limits](#limits) of the Matcher's model |
+  | `match:limits-requested` | `match:limits-result` | `match:limits-failed` | [Limits](#limits) of the Matcher's engine |
   | `gather:requested` | `gather:complete` | `gather:failed` | [Gathering around an annotation](#gathering-around-an-annotation) |
   | `gather:resource-requested` | `gather:resource-complete` | `gather:resource-failed` | [Gathering around a resource](#gathering-around-a-resource) |
   | `gather:summary-requested` | `gather:summary-result` | `gather:summary-failed` | [An annotation's summary](#an-annotations-summary) |
   | `gather:referenced-by-requested` | `gather:referenced-by-result` | `gather:referenced-by-failed` | [What refers to a resource](#what-refers-to-a-resource) |
-  | `gather:limits-requested` | `gather:limits-result` | `gather:limits-failed` | [Limits](#limits) of the Gatherer's model |
+  | `gather:limits-requested` | `gather:limits-result` | `gather:limits-failed` | [Limits](#limits) of the Gatherer's engine |
 
   *Held by `images/librarian/tests/test_librarian.py`, and by `librarian/search` and `librarian/gather`, for a result of each of the eight.*
 - **A failure of `match:search-requested` carries the request's
@@ -172,7 +172,7 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
 - **Its stream names those ten channels and the replies of the three reads
   it asks the Archivist, and no other.** It asks the bus only
   `browse:resource-requested`, `browse:annotation-requested` and
-  `browse:people-requested`; what else it needs of another service it reads
+  `browse:profiles-requested`; what else it needs of another service it reads
   over HTTP, or from a store.
   *Held by `images/librarian/tests/test_service.py` and `images/librarian/tests/test_census.py`.*
 - **It records nothing, and puts no node and no edge in the graph, no point
@@ -403,8 +403,8 @@ search as what each store answers and the page that follows, and is the rule.
   resources keep theirs.
   *Held by `images/librarian/tests/test_search_cases.py` and `images/librarian/tests/test_resource_text.py`, and by `librarian/search`, for a text shorter than 200 code points and for a PDF.*
 - **The reply carries the page's resources, `total`, the `offset` and the
-  `limit` the search was made with, and `matchKind`,** and its people are
-  named ([Names](#names)).
+  `limit` the search was made with, and `matchKind`,** and its principals
+  are named ([Names](#names)).
   *Held by `images/librarian/tests/test_search_cases.py` and `librarian/search`.*
 
 ## The knowledge graph
@@ -759,15 +759,15 @@ among them.
   that resource as `source` and, as `selector.exact`, the words its quote
   selector states, or the empty string where it has none. An entry states no
   `resourceName` where nobody holds a description of its resource, and where
-  the name is empty: no name is made up for it. Its people are named
+  the name is empty: no name is made up for it. Its principals are named
   ([Names](#names)).
   *Held by `images/librarian/tests/test_referenced_by.py`, and by `librarian/search`, for an entry.*
 
 ## Limits
 
 - **`match:limits-requested` is answered with the limits of the Matcher's
-  model, and `gather:limits-requested` with those of the Gatherer's:** a list
-  of one item, the provider, the model, and the model's `contextTokens`,
+  engine, and `gather:limits-requested` with those of the Gatherer's:** a list
+  of one item, the `engine` and its `limits`: `contextTokens`,
   `maxOutputTokens` and, where the provider says, `acceptsTemperature`.
   *Held by `images/librarian/tests/test_librarian.py`, `packages/python/inference/tests/test_limits_report.py` and `librarian/search`.*
 - **A provider that has not said within 1.5 seconds, or that fails, leaves
@@ -777,29 +777,30 @@ among them.
 
 ## Names
 
-No stored thing carries a person's name. The Archivist keeps what the
-knowledge base calls each person in the people projection, and answers the
-profiles of the people a reader names (`browse:people-requested`).
+No stored thing carries a principal's name. The Archivist keeps what the
+knowledge base calls each principal, a person or an agent, in the profiles
+projection, and answers the profiles of the principals a reader names
+(`browse:profiles-requested`).
 
-- **The replies to a reference search and to a text search have their people
-  named:** every object whose `@type` is `Person`, wherever in the
-  reply it is, and whose `@id` the projection holds, has its `name` set to
-  the name stated there, in place of any it carried. A person whose `@id`
-  the projection does not hold is left as it is, whatever text the `@id` is.
-  Nothing else of the reply changes, as
-  [`naming-cases.json`](../../specs/src/librarian/naming-cases.json) states.
+- **The replies to a reference search and to a text search have their
+  principals named:** every object whose `@type` is `Person` or `Software`,
+  wherever in the reply it is, and whose `@id` the projection holds, has its
+  `name` set to the name stated there, in place of any it carried. A
+  principal whose `@id` the projection does not hold is left as it is,
+  whatever text the `@id` is. Nothing else of the reply changes, as
+  [`naming-cases.json`](../../specs/src/principals/naming-cases.json) states.
   *Held by `images/librarian/tests/test_naming_cases.py` and `images/librarian/tests/test_reference_search.py`, and by `librarian/search`, for a text search's lexical page, its semantic one, and a candidate of a reference.*
-- **The people are asked for once for each reply, by the DIDs it mentions,**
-  and a reply that mentions no one asks nothing. A person the projection holds
-  no profile of is not named.
+- **The principals are asked for once for each reply, by the DIDs it
+  mentions,** and a reply that mentions no one asks nothing. A principal the
+  projection holds no profile of is not named.
   *Held by `images/librarian/tests/test_naming_cases.py` and `images/librarian/tests/test_record.py`.*
 - **A projection that cannot be read is logged as a warning, and the reply
   is sent with no one named.**
   *Held by `images/librarian/tests/test_naming_cases.py`, `images/librarian/tests/test_search_cases.py` and `images/librarian/tests/test_referenced_by.py`.*
 - **The replies to the two gathers, to a summary, to what refers to a
   resource and to the two limits requests are not named here:** what refers
-  to a resource names no person, and a gather's resources and annotations are
-  as the Archivist answers them, which has named their people already.
+  to a resource names no principal, and a gather's resources and annotations
+  are as the Archivist answers them, which has named their principals already.
   *Held by `librarian/gather`, for a gather's resources and annotations.*
 
 ## What a failed read does

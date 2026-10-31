@@ -58,6 +58,7 @@
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
     "lint:rust-toolchain": "node scripts/lint/check-rust-toolchain.mjs",
     "lint:go-toolchain": "node scripts/lint/check-go-toolchain.mjs",
+    "lint:kotlin-toolchain": "node scripts/lint/check-kotlin-toolchain.mjs",
     "lint:python-version": "node scripts/lint/check-python-version.mjs",
     "lint:node-version": "node scripts/lint/check-node-version.mjs",
     "lint:nats-version": "node scripts/lint/check-nats-version.mjs",
@@ -133,7 +134,7 @@
   },
   "devDependencies": {
     "@exodus/bytes": "1.16.0",
-    "@opencode-ai/models": "0.0.115",
+    "@opencode-ai/models": "0.0.116",
     "@redocly/cli": "^2.34.0",
     "glob": "^13.0.6",
     "@types/node": "^26.0.0",

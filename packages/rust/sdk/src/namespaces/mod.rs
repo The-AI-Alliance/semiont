@@ -34,7 +34,7 @@ mod yield_;
 pub use auth::AuthNamespace;
 pub use beckon::BeckonNamespace;
 pub use bind::BindNamespace;
-pub use browse::{BrowseNamespace, Collaborator, ResourceFilters};
+pub use browse::{BrowseNamespace, EngineWithLimits, ResourceFilters};
 pub use follow::{Delegation, JobEvent};
 pub use frame::FrameNamespace;
 pub use gather::GatherNamespace;

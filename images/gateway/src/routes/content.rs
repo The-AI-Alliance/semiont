@@ -24,7 +24,7 @@ fn caller_trace(headers: &HeaderMap) -> opentelemetry::Context {
 
 /// `POST /resources`: the multipart body goes to the Archivist untouched,
 /// naming the uploader; 202 with the id it recorded. A recorded upload is a
-/// write, so a person making it is named on the record.
+/// write, so the principal making it is named on the record.
 pub async fn upload(
     State(app): State<Arc<App>>,
     Authenticated(principal): Authenticated,

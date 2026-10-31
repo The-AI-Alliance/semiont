@@ -94,7 +94,7 @@ from `semiont_inference.limits_report`, and what reads a model catalogue from
 For tests there is `semiont_inference.mock.MockInferenceClient`, which
 answers from a list it is given and keeps the calls made of it.
 `report_limits` gathers the limits of the clients a service holds, as the
-protocol's `InferencePairLimits`. `answer_limits_requests` answers a request
+protocol's `EngineLimits`. `answer_limits_requests` answers a request
 for them on the bus: it is given the SDK's bus, the limits operation the
 service answers (`semiont.operations.JOB_LIMITS_REQUESTED` for the Worker),
 and the clients, and answers each request with a report for as long as it is

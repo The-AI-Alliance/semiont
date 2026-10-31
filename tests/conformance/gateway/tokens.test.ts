@@ -1,12 +1,14 @@
 /**
  * The credentials the gateway accepts and mints — the `bearerAuth` and
- * `mediaToken` schemes in specs/src/openapi.json.
+ * `mediaToken` schemes in specs/src/openapi.json. One kind of bearer, the
+ * issuer's, for people and agents alike; the one token the gateway mints is a
+ * media token.
  */
 import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
-import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
-import { identifiers, kbIdentity, principals, spec } from '../harness/spec';
+import { AGENT_KIND, KIND_CLAIM, SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
+import { identifiers, kbIdentity, principalCases, spec, SUITE_KB } from '../harness/spec';
 import { eachPlane } from '../harness/world';
 
 function decode(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } {
@@ -53,7 +55,6 @@ eachPlane('credentials', (world) => {
       ['another issuer', await fixture.token({ issuer: 'http://elsewhere.example', claims: { sub: 'x', email: 'x@people.example' } })],
       ['expired', await fixture.token({ expiresIn: new Date(Date.now() - 60_000), claims: { sub: 'x', email: 'x@people.example' } })],
       ['a key the issuer does not publish', await fixture.token({ kid: 'k1', privateKey: await fixture.unpublishedKey(), claims: { sub: 'x', email: 'x@people.example' } })],
-      ['no email', await fixture.token({ claims: { sub: 'x' } })],
       ['an unverified email', await world().person('x', { email_verified: false })],
       ['an empty subject', await world().person('')],
     ];
@@ -65,7 +66,7 @@ eachPlane('credentials', (world) => {
     }
   });
 
-  const { people, agents } = principals(kbIdentity().domain);
+  const { people, agents } = principalCases(kbIdentity(SUITE_KB).domain);
 
   for (const person of people) {
     it(`a person is named exactly by their subject (principals/cases.json): ${person.why}`, async () => {
@@ -75,81 +76,53 @@ eachPlane('credentials', (world) => {
     });
   }
 
-  it('a service account exchanges its token for an agent token naming a (provider, model)', async () => {
-    const agent = agents[0]!;
-    const service = await world().issuer.service('a-sidecar', [SERVICE_ROLE]);
-    const reply = await call(world().origin, 'POST', '/api/tokens/agent', { token: service, json: { provider: agent.provider, model: agent.model } });
-    expect(reply.status, reply.text).toBe(200);
-    expect(nonConformance('post', '/api/tokens/agent', reply)).toEqual([]);
-    const { token, did } = reply.json as { token: string; did: string };
-    expect(did).toBe(agent.did);
-
-    const { header, payload } = decode(token);
-    expect(header['alg']).toBe('HS256');
-    expect(payload['iss']).toBe(world().kb.domain);
-    expect(payload['did']).toBe(did);
-    expect(payload['domain']).toBe(world().kb.domain);
-    expect(Number(payload['exp']) - Number(payload['iat'])).toBe(3600);
-    expect(payload['roles']).toBeUndefined();
-
-    const me = await call(world().origin, 'GET', '/api/users/me', { token });
-    expect(me.status).toBe(200);
-    expect(me.json).toMatchObject({ did, domain: world().kb.domain });
-  });
-
-  it('an agent token minted for a worker carries the worker role', async () => {
-    const { token } = await world().agent('ollama', 'gemma2:27b', [SERVICE_ROLE, WORKER_ROLE]);
-    expect(decode(token).payload['roles']).toEqual([WORKER_ROLE]);
-    expect(Object.keys(decode(token).payload).sort()).toEqual(['did', 'domain', 'email', 'exp', 'iat', 'iss', 'name', 'roles']);
-  });
-
   for (const agent of agents) {
-    it(`an agent token names its agent exactly (principals/cases.json): ${agent.why}`, async () => {
-      const { token, did } = await world().agent(agent.provider, agent.model);
-      expect(did).toBe(agent.did);
-      expect(Object.keys(decode(token).payload).sort()).toEqual(['did', 'domain', 'email', 'exp', 'iat', 'iss', 'name']);
-
+    it(`an agent is named exactly by its subject (principals/cases.json): ${agent.why}`, async () => {
+      const token = await world().issuer.fixture.token({ claims: { sub: agent.subject, [KIND_CLAIM]: AGENT_KIND, roles: [SERVICE_ROLE] } });
       const me = await call(world().origin, 'GET', '/api/users/me', { token });
       expect(me.status, me.text).toBe(200);
-      expect(me.json).toEqual({ did, email: agent.email, name: agent.name, image: null, domain: world().kb.domain });
+      expect((me.json as { did: string }).did).toBe(agent.did);
     });
   }
 
-  it('the agent exchange refuses a caller without the service role, and a body without provider and model', async () => {
-    const person = await world().person('not-a-service');
-    const roleless = await call(world().origin, 'POST', '/api/tokens/agent', { token: person, json: { provider: 'p', model: 'm' } });
-    expectRefused(roleless, 'post', '/api/tokens/agent');
-    expect((roleless.json as { error: string }).error).toContain(SERVICE_ROLE);
+  it('an issuer token whose kind is agent names an agent, with what its token carries and no address it lacks', async () => {
+    const { token, did } = await world().agent('named-agent', [SERVICE_ROLE, WORKER_ROLE]);
+    expect(decode(token).payload[KIND_CLAIM]).toBe(AGENT_KIND);
+    const me = await call(world().origin, 'GET', '/api/users/me', { token });
+    expect(me.status, me.text).toBe(200);
+    expect(nonConformance('get', '/api/users/me', me)).toEqual([]);
+    expect(me.json).toEqual({ did, email: null, name: null, image: null, domain: world().kb.domain });
+    expect(did).toContain(':agents:');
+  });
 
-    const service = await world().issuer.service('a-sidecar', [SERVICE_ROLE]);
-    for (const body of [{ provider: 'p' }, { model: 'm' }, { provider: 7, model: 'm' }]) {
-      const reply = await call(world().origin, 'POST', '/api/tokens/agent', { token: service, json: body });
-      expect(reply.status, JSON.stringify(body)).toBe(400);
-      expect(nonConformance('post', '/api/tokens/agent', reply)).toEqual([]);
+  it('a token that does not say it is an agent\'s names a person, whatever roles it carries', async () => {
+    const { fixture } = world().issuer;
+    for (const [why, claims] of [
+      ['no kind', { sub: 'service-account-unmarked', roles: [SERVICE_ROLE, WORKER_ROLE] }],
+      ['another kind', { sub: 'service-account-unmarked', roles: [SERVICE_ROLE], [KIND_CLAIM]: 'person' }],
+    ] as const) {
+      const me = await call(world().origin, 'GET', '/api/users/me', { token: await fixture.token({ claims }) });
+      expect(me.status, `${why}: ${me.text}`).toBe(200);
+      expect((me.json as { did: string }).did, why).toBe(world().personDid('service-account-unmarked'));
     }
   });
 
-  it('the agent exchange verifies the service token as every route does, and says only that it was refused', async () => {
-    const { fixture } = world().issuer;
-    const service = { sub: 'service-account-x', azp: 'x', email: 'x@people.example' };
-    const refused: Array<[string, string, string | undefined]> = [
-      ['the role nested rather than in a flat roles claim', await fixture.token({ claims: { ...service, realm_access: { roles: [SERVICE_ROLE] } } }), SERVICE_ROLE],
-      ['another audience', await fixture.token({ audience: 'https://elsewhere.example/kb', claims: { ...service, roles: [SERVICE_ROLE] } }), undefined],
-      ['a key the issuer does not publish', await fixture.token({ kid: 'k1', privateKey: await fixture.unpublishedKey(), claims: { ...service, roles: [SERVICE_ROLE] } }), undefined],
-      ['expired', await fixture.token({ expiresIn: new Date(Date.now() - 60_000), claims: { ...service, roles: [SERVICE_ROLE] } }), undefined],
-    ];
-    for (const [why, token, names] of refused) {
-      const reply = await call(world().origin, 'POST', '/api/tokens/agent', { token, json: { provider: 'p', model: 'm' } });
-      expect(reply.status, why).toBe(401);
-      expect(nonConformance('post', '/api/tokens/agent', reply), why).toEqual([]);
-      expect(reply.headers.get('www-authenticate'), why).toBe(`Bearer error="invalid_token", resource_metadata="${world().origin}/.well-known/oauth-protected-resource"`);
-      if (names) expect((reply.json as { error: string }).error, why).toContain(names);
-      else expect(reply.json, why).toEqual({ error: 'Invalid token' });
-    }
+  it('a token without an email is admitted: an account need not have an address', async () => {
+    const token = await world().issuer.fixture.token({ claims: { sub: 'no-address' } });
+    const me = await call(world().origin, 'GET', '/api/users/me', { token });
+    expect(me.status, me.text).toBe(200);
+    expect(nonConformance('get', '/api/users/me', me)).toEqual([]);
+    expect(me.json).toMatchObject({ did: world().personDid('no-address'), email: null });
+  });
+
+  it('the gateway mints no agent token: POST /api/tokens/agent is no route', async () => {
+    const service = await world().issuer.service('a-sidecar', [SERVICE_ROLE]);
+    const reply = await call(world().origin, 'POST', '/api/tokens/agent', { token: service, json: { provider: 'p', model: 'm' } });
+    expect(reply.status, reply.text).toBe(404);
   });
 
   it('a cookie is not a credential: alone it is none, and beside a bearer token it changes nothing', async () => {
-    const { token } = await world().agent('p', 'cookie');
+    const { token } = await world().agent('cookie');
     const person = await world().person('cookie-eater');
     for (const cookie of [`semiont-token=${token}`, `semiont-token=${person}`]) {
       expectNoCredential(await call(world().origin, 'GET', '/api/users/me', { headers: { cookie } }), 'get', '/api/users/me', cookie.slice(0, 30));
@@ -186,45 +159,15 @@ eachPlane('credentials', (world) => {
     }
   });
 
-  it('a token signed with the gateway\'s own key is refused when it has expired, is not yet valid, names no principal, names another knowledge base, or claims no signature', async () => {
-    const principal = { did: `${world().kb.did}:agents:p:forged`, email: 'p-forged@agents.example', name: 'p forged', domain: world().kb.domain, iss: world().kb.domain };
-    const control = await world().signed({ ...principal, iat: now(), exp: now() + 600 });
-    expect((await call(world().origin, 'GET', '/api/users/me', { token: control })).status).toBe(200);
-
-    const body = control.split('.')[1];
-    const unsigned = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${body}.`;
-    const refused: Array<[string, string]> = [
-      ['expired', await world().signed({ ...principal, iat: now() - 7200, exp: now() - 3600 })],
-      ['not yet valid', await world().signed({ ...principal, iat: now(), nbf: now() + 3600, exp: now() + 7200 })],
-      ['only a did', await world().signed({ did: principal.did, iat: now(), exp: now() + 600 })],
-      ['a did that is not one', await world().signed({ ...principal, did: 'agents:p:m', iat: now(), exp: now() + 600 })],
-      // Two knowledge bases can hold one key ring, so the signature alone
-      // does not say whose a token is: iss and domain do.
-      ['another knowledge base\'s', await world().signed({ ...principal, did: 'did:web:other.example:agents:p:forged', domain: 'other.example', iss: 'other.example', iat: now(), exp: now() + 600 })],
-      ['a domain that is not its issuer', await world().signed({ ...principal, domain: 'other.example', iat: now(), exp: now() + 600 })],
-      ['signed by no key', unsigned],
-    ];
-    for (const [why, token] of refused) {
+  it('a token the gateway signed itself is no bearer: only the issuer\'s are', async () => {
+    const forged = { did: `${world().kb.did}:agents:forged`, email: 'forged@agents.example', name: 'forged', domain: world().kb.domain, iss: world().kb.domain, sub: 'forged', [KIND_CLAIM]: AGENT_KIND };
+    for (const [why, token] of [
+      ['naming the knowledge base as its issuer', await world().signed({ ...forged, iat: now(), exp: now() + 600 })],
+      ['naming the trusted issuer', await world().signed({ ...forged, iss: world().issuer.fixture.issuer, iat: now(), exp: now() + 600 })],
+    ] as const) {
       const reply = await call(world().origin, 'GET', '/api/users/me', { token });
       expect(reply.status, why).toBe(401);
       expectRefused(reply, 'get', '/api/users/me');
-    }
-  });
-
-  it('an agent token names its principal by a UserId: a did the kind refuses is no principal, a 401, and one it accepts is answered as it is (identifiers/kinds.json)', async () => {
-    const claims = { email: 'p-forged@agents.example', name: 'p forged', domain: world().kb.domain, iss: world().kb.domain };
-    const { accepts, refuses } = identifiers('UserId');
-    for (const { id, why } of refuses) {
-      const token = await world().signed({ ...claims, did: id, iat: now(), exp: now() + 600 });
-      const reply = await call(world().origin, 'GET', '/api/users/me', { token });
-      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(401);
-      expectRefused(reply, 'get', '/api/users/me');
-    }
-    for (const { id, why } of accepts) {
-      const token = await world().signed({ ...claims, did: id, iat: now(), exp: now() + 600 });
-      const reply = await call(world().origin, 'GET', '/api/users/me', { token });
-      expect(reply.status, `${JSON.stringify(id)}: ${why}`).toBe(200);
-      expect((reply.json as { did: string }).did, why).toBe(id);
     }
   });
 
@@ -271,8 +214,8 @@ eachPlane('credentials', (world) => {
     expect(plain.json).toMatchObject({ did: world().personDid('dave'), name: null, image: null });
   });
 
-  it('an agent token signed with another key is refused', async () => {
-    const { token } = await world().agent('p', 'm');
+  it('an agent\'s token signed with another key is refused', async () => {
+    const { token } = await world().agent('m');
     const [header, payload] = token.split('.');
     const forged = `${header}.${payload}.${Buffer.from('not the signature').toString('base64url')}`;
     expectRefused(await call(world().origin, 'GET', '/api/users/me', { token: forged }), 'get', '/api/users/me');

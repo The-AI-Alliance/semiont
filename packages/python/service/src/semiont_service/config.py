@@ -5,9 +5,9 @@ The document is a shape of the protocol: `WorkerConfig`, `WeaverConfig`,
 Whoever starts the service writes it, resolved: the launcher for the service
 it starts, and anyone else to the same schema. So it is read and refused
 here, and nothing is decided: no TOML is parsed, no `${VAR}` resolved, and no
-value supplied that the document left out. A secret is never in the document.
-The document names the variable that holds it, and the service reads its
-environment for it.
+value supplied that the document left out. A secret or a key is never in the
+document. The document names the variable that holds it, or the variable is
+the service's own, and the service reads its environment for it.
 
 A refusal is worded as the gateway's, the Dispatcher's and the Archivist's
 are, so an operator reads one kind of message from every service: it names
@@ -21,10 +21,10 @@ from pathlib import Path
 from typing import Final, final
 
 from pydantic import ValidationError
-from semiont.http import Credential
+from semiont.http import KeyCredential, NotAnRsaKey, SecretCredential, UnreadableKey, private_key_from_pem
 from semiont.model import WireModel
 
-__all__ = ["Refused", "config_path_of", "read_config", "service_account_of", "set_in"]
+__all__ = ["Refused", "config_path_of", "key_account_of", "read_config", "service_account_of", "set_in"]
 
 
 @final
@@ -75,7 +75,7 @@ and some of them repeat what the document held.
 
 
 def _member(location: Sequence[int | str]) -> str:
-    """A member of the document, as the document's own names reach it: `agents[0].accepts`. The document itself is `root`."""
+    """A member of the document, as the document's own names reach it: `knowledgeBases[0].engines[0].jobs`. The document is `root`."""
     path = ""
     for step in location:
         path += f"[{step}]" if isinstance(step, int) else f".{step}" if path else step
@@ -124,13 +124,36 @@ def set_in(environment: Mapping[str, str], name: str) -> str | None:
     return environment.get(name) or None
 
 
-def service_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> Credential:
-    """The service's own account at `issuer`, which its document names."""
+def _held(service: str, environment: Mapping[str, str], name: str) -> str:
+    value = set_in(environment, name)
+    if value is None:
+        raise Refused(f"{name} is not set in the {service}'s environment: a {service} signs in as a service account")
+    return value
 
-    def held(name: str) -> str:
-        value = set_in(environment, name)
-        if value is None:
-            raise Refused(f"{name} is not set in the {service}'s environment: a {service} signs in as a service account")
-        return value
 
-    return Credential(issuer=issuer, client_id=held("SEMIONT_OIDC_CLIENT_ID"), client_secret=held("SEMIONT_OIDC_CLIENT_SECRET"))
+def service_account_of(service: str, issuer: str, environment: Mapping[str, str]) -> SecretCredential:
+    """The service's own account at `issuer`, which its document names, proven by its client secret."""
+    return SecretCredential(
+        issuer=issuer,
+        client_id=_held(service, environment, "SEMIONT_OIDC_CLIENT_ID"),
+        client_secret=_held(service, environment, "SEMIONT_OIDC_CLIENT_SECRET"),
+    )
+
+
+def key_account_of(service: str, issuer: str, client_id: str, environment: Mapping[str, str]) -> KeyCredential:
+    """The service's account at `issuer`, the client `client_id` that its document names there, proven by its key.
+
+    `SEMIONT_OIDC_CLIENT_KEY` holds the key: an RSA private key, PKCS#8 PEM
+    and unencrypted. Which client holds its public half at an issuer is the
+    document's to say. A refusal names the variable and never what it holds.
+    """
+    pem = _held(service, environment, "SEMIONT_OIDC_CLIENT_KEY")
+    try:
+        key = private_key_from_pem(pem)
+    except UnreadableKey:
+        raise Refused(f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an unencrypted PEM private key") from None
+    except NotAnRsaKey:
+        raise Refused(
+            f"SEMIONT_OIDC_CLIENT_KEY in the {service}'s environment is not an RSA key: a {service} signs its assertions with RS256"
+        ) from None
+    return KeyCredential(issuer=issuer, client_id=client_id, private_key=key)

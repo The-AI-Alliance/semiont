@@ -1,8 +1,8 @@
 //! What the knowledge base's own stream adds up to: its entity types, its
-//! tag schemas, and what its people are called.
+//! tag schemas, and what its principals are called.
 
 use crate::{Object, RecordError, dictionary_order, indented, read_object};
-use semiont::channels::{Channel, FrameEntityTypeAdded, FrameTagSchemaAdded, PersonProfiled};
+use semiont::channels::{Channel, FrameEntityTypeAdded, FrameTagSchemaAdded, PrincipalProfiled};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
@@ -12,7 +12,7 @@ pub struct Projections {
 
 const ENTITY_TYPES: (&str, &str) = ("entitytypes.json", "entityTypes");
 const TAG_SCHEMAS: (&str, &str) = ("tagschemas.json", "tagSchemas");
-const PEOPLE: (&str, &str) = ("people.json", "people");
+const PROFILES: (&str, &str) = ("profiles.json", "profiles");
 
 impl Projections {
     pub fn new(state_dir: &Path) -> Projections {
@@ -49,9 +49,9 @@ impl Projections {
             .unwrap_or_default())
     }
 
-    /// Each person's profile, by DID.
-    pub fn people(&self) -> Result<Object, RecordError> {
-        Ok(self.read(PEOPLE, json!({}))?[PEOPLE.1]
+    /// Each principal's profile, by DID.
+    pub fn profiles(&self) -> Result<Object, RecordError> {
+        Ok(self.read(PROFILES, json!({}))?[PROFILES.1]
             .as_object()
             .cloned()
             .unwrap_or_default())
@@ -59,7 +59,7 @@ impl Projections {
 
     /// Start every projection from nothing: for a rebuild from the log.
     pub fn clear(&self) -> Result<(), RecordError> {
-        for (file, _) in [ENTITY_TYPES, TAG_SCHEMAS, PEOPLE] {
+        for (file, _) in [ENTITY_TYPES, TAG_SCHEMAS, PROFILES] {
             match std::fs::remove_file(self.dir.join(file)) {
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
@@ -127,22 +127,22 @@ impl Projections {
                 projection.insert(TAG_SCHEMAS.1.into(), Value::Array(schemas));
                 self.write(TAG_SCHEMAS, &projection)
             }
-            Some(PersonProfiled::NAME) => {
+            Some(PrincipalProfiled::NAME) => {
                 let (Some(did), Some(name)) = (
                     event.get("userId").and_then(Value::as_str),
                     payload.get("name"),
                 ) else {
                     return Ok(());
                 };
-                let mut projection = self.read(PEOPLE, json!({}))?;
-                let people = projection[PEOPLE.1].as_object_mut();
-                if let Some(people) = people {
-                    people.insert(
+                let mut projection = self.read(PROFILES, json!({}))?;
+                let profiles = projection[PROFILES.1].as_object_mut();
+                if let Some(profiles) = profiles {
+                    profiles.insert(
                         did.to_owned(),
                         json!({ "name": name, "since": event.get("timestamp") }),
                     );
                 }
-                self.write(PEOPLE, &projection)
+                self.write(PROFILES, &projection)
             }
             _ => Ok(()),
         }

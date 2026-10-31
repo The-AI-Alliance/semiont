@@ -1,6 +1,8 @@
 package launcher
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,9 +31,25 @@ type stubAdmin struct {
 	created   []map[string]any
 	updated   map[string]map[string]any // clientId -> the patch PUT to it
 	mappers   map[string]map[string]any // clientId -> the mapper PUT to /clients/<uuid>/protocol-mappers/models/<id>
+	deleted   []string                  // clientIds DELETEd
+	added     map[string]map[string]any // clientId -> the mapper POSTed to /clients/<uuid>/protocol-mappers/models
 	realmCfg  map[string]any            // realm-level settings this realm reports
 	badLogin  bool
 	httpsOnly bool // the master realm's sslRequired refusing this caller's address
+	// refuseWrites: the admin API refusing every change to a client, as it
+	// refuses an admin without the rights to make one.
+	refuseWrites bool
+}
+
+// refusing: whether the stub refuses this request, and if so answers it so.
+func (s *stubAdmin) refusing(w http.ResponseWriter, r *http.Request) bool {
+	s.mu.Lock()
+	refuse := s.refuseWrites && r.Method != http.MethodGet
+	s.mu.Unlock()
+	if refuse {
+		w.WriteHeader(http.StatusForbidden)
+	}
+	return refuse
 }
 
 // clientReps: the minimal representation Keycloak returns for clients that
@@ -46,7 +64,7 @@ func clientReps(ids ...string) []map[string]any {
 
 func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAdmin {
 	t.Helper()
-	s := &stubAdmin{updated: map[string]map[string]any{}, mappers: map[string]map[string]any{}, realmCfg: map[string]any{}}
+	s := &stubAdmin{updated: map[string]map[string]any{}, mappers: map[string]map[string]any{}, added: map[string]map[string]any{}, realmCfg: map[string]any{}}
 	mux := http.NewServeMux()
 	s.srv = httptest.NewServer(mux)
 	t.Cleanup(s.srv.Close)
@@ -103,6 +121,9 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 				w.Header().Set("content-type", "application/json")
 				_ = json.NewEncoder(w).Encode(out)
 			case http.MethodPost:
+				if s.refusing(w, r) {
+					return
+				}
 				body, _ := io.ReadAll(r.Body)
 				var c map[string]any
 				_ = json.Unmarshal(body, &c)
@@ -116,6 +137,22 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 		s.mu.Lock()
 		s.paths = append(s.paths, r.Method+" "+r.URL.Path)
 		s.mu.Unlock()
+		if strings.Contains(r.URL.Path, "/clients/") && s.refusing(w, r) {
+			return
+		}
+		// A mapper added: /admin/realms/<realm>/clients/<uuid>/protocol-mappers/models.
+		if strings.HasSuffix(r.URL.Path, "/protocol-mappers/models") && r.Method == http.MethodPost {
+			body, _ := io.ReadAll(r.Body)
+			var mapper map[string]any
+			_ = json.Unmarshal(body, &mapper)
+			rest := r.URL.Path[strings.LastIndex(r.URL.Path, "/clients/")+len("/clients/"):]
+			id := strings.TrimPrefix(rest[:strings.Index(rest, "/")], "uuid-")
+			s.mu.Lock()
+			s.added[id] = mapper
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
 		// One mapper: /admin/realms/<realm>/clients/<uuid>/protocol-mappers/models/<id>.
 		// A sub-resource with its own endpoint — a client-level PUT does not
 		// reach it — so it is recorded apart from the client patches.
@@ -127,6 +164,15 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 			id := strings.TrimPrefix(rest[:strings.Index(rest, "/")], "uuid-")
 			s.mu.Lock()
 			s.mappers[id] = mapper
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		// One client deleted: /admin/realms/<realm>/clients/<uuid>
+		if strings.Contains(r.URL.Path, "/clients/") && r.Method == http.MethodDelete {
+			id := strings.TrimPrefix(r.URL.Path[strings.LastIndex(r.URL.Path, "/clients/")+len("/clients/"):], "uuid-")
+			s.mu.Lock()
+			s.deleted = append(s.deleted, id)
 			s.mu.Unlock()
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -184,16 +230,23 @@ func (s *stubAdmin) touched(substr string) bool {
 
 func secretForTest(svc string) string { return "secret-" + svc }
 
+// accountServices: every service with an account in the realm, in the order
+// sync visits them — the secret clients, then the worker.
+func accountServices() []string {
+	return append(append([]string(nil), secretClients...), "worker")
+}
+
 func TestIdentitySyncCreatesOnlyTheMissingClients(t *testing.T) {
 	// A realm holding every client but one.
+	all := accountServices()
 	present := []map[string]any{}
-	for _, svc := range serviceClients[:len(serviceClients)-1] {
-		present = append(present, map[string]any{"clientId": serviceClientID(svc)})
+	for _, svc := range all[:len(all)-1] {
+		present = append(present, serviceClientRep(svc, serviceRolesClaim(svc)))
 	}
-	missing := serviceClients[len(serviceClients)-1]
+	missing := all[len(all)-1]
 
 	s := newStubAdmin(t, "semiont", present)
-	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", secretForTest)
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -213,16 +266,21 @@ func TestIdentitySyncCreatesTheClientTheImportWOULDHave(t *testing.T) {
 	// `roles` claim and the audience mapper get missed, and the gateway
 	// rejects both silently-looking-correct forms.
 	s := newStubAdmin(t, "semiont", nil)
-	if _, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", secretForTest); err != nil {
+	if _, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
-	if len(s.created) != len(serviceClients) {
-		t.Fatalf("created %d clients, want %d", len(s.created), len(serviceClients))
+	if len(s.created) != len(stackServices) {
+		t.Fatalf("created %d clients, want %d", len(s.created), len(stackServices))
 	}
-	got, _ := json.Marshal(s.created[0])
-	want, _ := json.Marshal(serviceAccountClient(serviceClients[0], secretForTest(serviceClients[0]), "semiont-gateway"))
-	if string(got) != string(want) {
-		t.Fatalf("created client differs from what the realm import renders:\n got: %s\nwant: %s", got, want)
+	for i, want := range map[int]map[string]any{
+		0:                  serviceAccountClient(secretClients[0], secretForTest(secretClients[0]), "semiont-gateway"),
+		len(s.created) - 1: workerClient(localWorkerLabel, testWorkerKey().registeredKey, "semiont-gateway"),
+	} {
+		got, _ := json.Marshal(s.created[i])
+		want, _ := json.Marshal(want)
+		if string(got) != string(want) {
+			t.Fatalf("created client differs from what the realm import renders:\n got: %s\nwant: %s", got, want)
+		}
 	}
 }
 
@@ -231,7 +289,7 @@ func TestIdentitySyncTouchesNoAccounts(t *testing.T) {
 	// configuration only, never users. A sync that could touch accounts is one
 	// nobody can safely run against a deployment that has any.
 	s := newStubAdmin(t, "semiont", nil)
-	if _, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", secretForTest); err != nil {
+	if _, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	if s.touched("/users") {
@@ -245,7 +303,7 @@ func TestIdentitySyncTouchesNoAccounts(t *testing.T) {
 func TestIdentitySyncReportsAnAdminLoginFailure(t *testing.T) {
 	s := newStubAdmin(t, "semiont", nil)
 	s.badLogin = true
-	_, err := syncServiceClients(s.srv.URL, "semiont", "admin", "wrong", "semiont-gateway", secretForTest)
+	_, err := syncServiceClients(s.srv.URL, "semiont", "admin", "wrong", "semiont-gateway", testAccounts())
 	if err == nil {
 		t.Fatal("want an error when the bootstrap admin credential is refused")
 	}
@@ -293,11 +351,11 @@ func TestIdentitySyncIsIdempotent(t *testing.T) {
 	// The second run of a repair must be a no-op, or an operator cannot re-run
 	// it to confirm the first one worked.
 	all := []map[string]any{}
-	for _, svc := range serviceClients {
-		all = append(all, map[string]any{"clientId": serviceClientID(svc)})
+	for _, svc := range accountServices() {
+		all = append(all, serviceClientRep(svc, serviceRolesClaim(svc)))
 	}
 	s := newStubAdmin(t, "semiont", all)
-	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", secretForTest)
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -316,21 +374,25 @@ func TestIdentitySyncIsIdempotent(t *testing.T) {
 
 func allServiceClientReps() []map[string]any {
 	out := []map[string]any{}
-	for _, svc := range serviceClients {
-		out = append(out, map[string]any{"clientId": serviceClientID(svc)})
+	for _, svc := range accountServices() {
+		out = append(out, serviceClientRep(svc, serviceRolesClaim(svc)))
 	}
 	return out
 }
 
 // serviceClientRep: a service client as Keycloak LISTS it — protocol mappers
-// included, each with the id the admin API addresses it by. DERIVED from the
-// client the realm document renders, so a stub can never carry a mapper shape
-// the import would not; only `rolesValue`, what the roles mapper stamps, is
-// the stub's to choose — a realm imported before the worker role existed
-// stamps just the service role on the worker too.
+// included, each with the id the admin API addresses it by, and the worker's
+// key. DERIVED from the client the realm document renders, so a stub can never
+// carry a mapper shape the import would not; only `rolesValue`, what the roles
+// mapper stamps, is the stub's to choose — a realm imported before the worker
+// role existed stamps just the service role on the worker too.
 func serviceClientRep(svc, rolesValue string) map[string]any {
+	rendered := serviceAccountClient(svc, "unused", "unused")
+	if svc == "worker" {
+		rendered = workerClient(localWorkerLabel, testWorkerKey().registeredKey, "unused")
+	}
 	mappers := []map[string]any{}
-	for _, m := range serviceAccountClient(svc, "unused", "unused")["protocolMappers"].([]map[string]any) {
+	for _, m := range rendered["protocolMappers"].([]map[string]any) {
 		rep := map[string]any{"id": "mapper-" + svc + "-" + strings.ReplaceAll(m["name"].(string), " ", "-")}
 		for k, v := range m {
 			rep[k] = v
@@ -345,7 +407,13 @@ func serviceClientRep(svc, rolesValue string) map[string]any {
 		}
 		mappers = append(mappers, rep)
 	}
-	return map[string]any{"clientId": serviceClientID(svc), "protocolMappers": mappers}
+	listed := map[string]any{"clientId": serviceClientID(svc), "protocolMappers": mappers}
+	for _, field := range []string{"clientAuthenticatorType", "attributes"} {
+		if v, ok := rendered[field]; ok {
+			listed[field] = v
+		}
+	}
+	return listed
 }
 
 // The worker carries a second role in its hardcoded roles mapper: the worker
@@ -357,7 +425,7 @@ func serviceClientRep(svc, rolesValue string) map[string]any {
 func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 	stale, _ := json.Marshal([]string{serviceRole}) // what every client stamped before the worker role
 	reps := []map[string]any{}
-	for _, svc := range serviceClients {
+	for _, svc := range accountServices() {
 		value := serviceRolesClaim(svc)
 		if svc == "worker" {
 			value = string(stale)
@@ -366,7 +434,7 @@ func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 	}
 	s := newStubAdmin(t, "semiont", reps)
 
-	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", secretForTest)
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -397,6 +465,138 @@ func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 	}
 }
 
+// withoutMapper: a client as Keycloak lists it, less the mapper named name — a
+// client of a realm imported before that mapper existed.
+func withoutMapper(rep map[string]any, name string) map[string]any {
+	out := map[string]any{}
+	for k, v := range rep {
+		out[k] = v
+	}
+	var kept []map[string]any
+	for _, m := range rep["protocolMappers"].([]map[string]any) {
+		if m["name"] != name {
+			kept = append(kept, m)
+		}
+	}
+	out["protocolMappers"] = kept
+	return out
+}
+
+// A realm imported before the kind claim holds every account's client without
+// the mapper that stamps it. Sync adds it to each — the mapper the realm
+// document renders, POSTed as a sub-resource of the client — and nothing else.
+func TestIdentitySyncAddsTheKindMapperToAnOlderRealm(t *testing.T) {
+	reps := []map[string]any{}
+	for _, svc := range accountServices() {
+		reps = append(reps, withoutMapper(serviceClientRep(svc, serviceRolesClaim(svc)), agentKindMapperName))
+	}
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if len(s.added) != len(stackServices) {
+		t.Fatalf("kind mapper added to %d clients, want every account's (%d): %v", len(s.added), len(stackServices), s.added)
+	}
+	want, _ := renderedMapper(serviceAccountClient("gateway", "unused", "semiont-gateway"), agentKindMapperName)
+	got, _ := json.Marshal(s.added[serviceClientID("gateway")])
+	wantJSON, _ := json.Marshal(want)
+	if string(got) != string(wantJSON) {
+		t.Errorf("the added mapper is not the one the realm renders:\n got: %s\nwant: %s", got, wantJSON)
+	}
+	if len(s.created)+len(s.updated)+len(s.mappers)+len(s.deleted) != 0 {
+		t.Errorf("sync changed more than the kind mapper: POST %v, PUT %v, mapper PUT %v, DELETE %v", s.created, s.updated, s.mappers, s.deleted)
+	}
+	if len(rep.updated) != len(stackServices) || !strings.Contains(rep.updated[0], "kind mapper added") {
+		t.Errorf("updated = %v, want each client named with the mapper added", rep.updated)
+	}
+}
+
+// A kind mapper that stamps something else is brought back to the claim, in
+// place, by its id: one `kind` claim on the token, not two.
+func TestIdentitySyncReconcilesAKindMapperThatSaysOtherwise(t *testing.T) {
+	reps := []map[string]any{}
+	for _, svc := range accountServices() {
+		r := serviceClientRep(svc, serviceRolesClaim(svc))
+		if svc == "weaver" {
+			for _, m := range r["protocolMappers"].([]map[string]any) {
+				if m["name"] == agentKindMapperName {
+					m["config"] = map[string]string{"claim.name": kindClaim, "claim.value": "person"}
+				}
+			}
+		}
+		reps = append(reps, r)
+	}
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	mapper, ok := s.mappers[serviceClientID("weaver")]
+	if !ok || len(s.mappers) != 1 || len(s.added) != 0 {
+		t.Fatalf("mapper PUTs %v, POSTs %v; want the weaver's kind mapper updated alone", s.mappers, s.added)
+	}
+	cfg, _ := mapper["config"].(map[string]any)
+	if mapper["id"] != "mapper-weaver-semiont-agent-kind" || cfg["claim.value"] != agentKind {
+		t.Errorf("the mapper was not brought back in place: %v", mapper)
+	}
+	if len(rep.updated) != 1 || !strings.Contains(rep.updated[0], serviceClientID("weaver")) {
+		t.Errorf("updated = %v, want the weaver alone", rep.updated)
+	}
+}
+
+// The worker's client holds the key it checks the worker's assertions with,
+// and sync knows what that key should be: this machine's, whose public half is
+// no secret. A realm holding another — imported on another machine, or before
+// this machine's key was made again — refuses every sign-in of this machine's
+// worker, and sync puts this machine's key on the client, naming both, so a
+// second machine syncing the same realm visibly takes the client over.
+func TestIdentitySyncBringsTheWorkersClientToThisMachinesKey(t *testing.T) {
+	another, err := rsa.GenerateKey(rand.Reader, workerKeyBits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := workerKeyOf(another)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reps := []map[string]any{}
+	for _, svc := range accountServices() {
+		r := serviceClientRep(svc, serviceRolesClaim(svc))
+		if svc == "worker" {
+			r["attributes"] = workerKeyAttributes(theirs.registeredKey)
+		}
+		reps = append(reps, r)
+	}
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", testAccounts())
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	patch, ok := s.updated[serviceClientID("worker")]
+	if !ok {
+		t.Fatalf("the worker's client kept another machine's key; client PUTs: %v", s.updated)
+	}
+	if patch["clientAuthenticatorType"] != clientJWT {
+		t.Errorf("clientAuthenticatorType = %v, want %s", patch["clientAuthenticatorType"], clientJWT)
+	}
+	attributes, _ := patch["attributes"].(map[string]any)
+	for name, want := range workerKeyAttributes(testWorkerKey().registeredKey) {
+		if attributes[name] != want {
+			t.Errorf("attribute %s = %v, want %s", name, attributes[name], want)
+		}
+	}
+	if len(s.updated) != 1 || len(s.mappers) != 0 || len(s.created) != 0 {
+		t.Errorf("want the worker's key alone changed: client PUTs %v, mapper PUTs %v, created %v", s.updated, s.mappers, s.created)
+	}
+	if len(rep.updated) != 1 || !strings.Contains(rep.updated[0], testWorkerKey().thumbprint) || !strings.Contains(rep.updated[0], theirs.thumbprint) {
+		t.Errorf("updated = %v, want one entry naming both keys", rep.updated)
+	}
+}
+
 // A realm imported before the portless loopback rule pins :3000, and a
 // Browser document naming another port then produces a stack nobody can sign
 // in to.
@@ -406,7 +606,7 @@ func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -439,7 +639,7 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	patch, ok := s.updated[semiont.BrowserClientID]
@@ -460,7 +660,7 @@ func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(1800)}
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	patch, ok := s.updated["<realm>"]
@@ -479,7 +679,7 @@ func correctRealm() []map[string]any {
 	// realm document renders — so the roles-mapper reconcile is proven
 	// idempotent too, not only the client-level fields.
 	reps := []map[string]any{}
-	for _, svc := range serviceClients {
+	for _, svc := range accountServices() {
 		reps = append(reps, serviceClientRep(svc, serviceRolesClaim(svc)))
 	}
 	return append(reps,
@@ -498,7 +698,7 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 	s := newStubAdmin(t, "semiont", correctRealm())
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -565,7 +765,7 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, testAccounts())
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -598,7 +798,7 @@ func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, 3001, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, 3001, testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	origins, _ := json.Marshal(s.updated[semiont.BrowserClientID]["webOrigins"])
@@ -619,7 +819,7 @@ func TestIdentitySyncLeavesCorrectWebOriginsAlone(t *testing.T) {
 		map[string]any{"clientId": semiont.ScriptClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, testAccounts()); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	if patch, ok := s.updated[semiont.BrowserClientID]; ok {

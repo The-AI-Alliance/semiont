@@ -15,7 +15,7 @@ const CHUNK_SIZE = 2641;
 eachWorkerService('a highlighting job', (world) => {
   it('reads the resource, asks its model once, commits the spans it can anchor, and completes with its counts', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'highlighting', { motivation: 'highlighting' });
     const resourceId = String(job.params.resourceId);
     w.ollama.script({
@@ -46,8 +46,8 @@ eachWorkerService('a highlighting job', (world) => {
     expect(w.anchoredTextReads()).toEqual([]);
 
     // What it asked its model: its limits once, and one generation over the whole text.
-    expect(w.ollama.shows).toEqual([{ model: agent.model }]);
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'highlighting', REQUEST, FORMATS.highlighting)]);
+    expect(w.ollama.shows).toEqual([{ model: engine.model }]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'highlighting', REQUEST, FORMATS.highlighting)]);
 
     // What it committed: one batch, for the job, of the two spans that are in the text.
     expect(served.payloads('mark:commit').map((p) => ({ ...p, annotations: withoutCreated(p['annotations']) }))).toEqual([
@@ -72,7 +72,7 @@ eachWorkerService('a highlighting job', (world) => {
         ],
       },
     ]);
-    expect(w.commits.map((c) => c.by)).toEqual([agent.did]);
+    expect(w.commits.map((c) => c.by)).toEqual([w.did]);
     expect(TEXT.slice(354, 360)).toBe('London');
 
     // Where that leaves its one unit, said once the batch is on the record.
@@ -123,13 +123,13 @@ eachWorkerService('a highlighting job', (world) => {
 
   it('asks as its instructions, density and source language say', async () => {
     const w = world();
-    const agent = w.agents[0]!;
+    const engine = w.engines[0]!;
     const job = markJob(w, 'highlighting-instructed', { motivation: 'highlighting', instructions: 'Highlight every date.', density: 2, sourceLanguage: 'en' });
     w.ollama.script({ response: JSON.stringify([{ exact: '1843' }]) });
     const served = await w.start();
     const completion = await settled(served, job);
 
-    expectGenerations(w.ollama.generations, [generation(agent.model, 'highlighting-instructed', { num_predict: 5352, num_ctx: 5731, temperature: 0 }, FORMATS.highlighting)]);
+    expectGenerations(w.ollama.generations, [generation(engine.model, 'highlighting-instructed', { num_predict: 5352, num_ctx: 5731, temperature: 0 }, FORMATS.highlighting)]);
     // What the job was asked with is echoed on every report.
     const asked = { requestParams: [{ label: 'instructions', value: 'Highlight every date.' }, { label: 'density', value: '2' }] };
     expectProgress(served, job, [

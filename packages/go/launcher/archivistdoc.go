@@ -38,8 +38,8 @@ const stateHomeTarget = "/semiont-state"
 // neither, and a test harness writes its own.
 var archivistStaging = struct{ flushMs, maxWaitMs int }{flushMs: 250, maxWaitMs: 2_000}
 
-// rosterRoleType: one role, as the generated roster holds it.
-var rosterRoleType = reflect.TypeOf((*api.ArchivistRosterRole)(nil))
+// engineType: one engine, as the generated engines hold it.
+var engineType = reflect.TypeOf((*api.Engine)(nil))
 
 // jsonName: the name a generated field is written under.
 func jsonName(field reflect.StructField) string {
@@ -47,70 +47,70 @@ func jsonName(field reflect.StructField) string {
 	return name
 }
 
-// workerJob: a job the generated roster has a worker role for.
-type workerJob struct {
+// engineJob: a job the generated engines' `jobs` can give an engine.
+type engineJob struct {
 	// name: the job as a job description keys it, which is its place in the
-	// roster: "mark.tagging", "yield".
+	// engines' `jobs`: "mark.tagging", "yield".
 	name string
-	// at: the field holding its role, from the roster's `workers` down.
+	// at: the field holding its engine, from the engines' `jobs` down.
 	at []int
 }
 
-// workerJobs: every job the generated roster has a worker role for.
-func workerJobs() []workerJob {
-	var jobs []workerJob
-	var walk func(roles reflect.Type, above string, at []int)
-	walk = func(roles reflect.Type, above string, at []int) {
-		for i := 0; i < roles.NumField(); i++ {
-			field, here := roles.Field(i), append(at[:len(at):len(at)], i)
-			if field.Type == rosterRoleType {
-				jobs = append(jobs, workerJob{name: above + jsonName(field), at: here})
+// engineJobs: every job the generated engines' `jobs` can give an engine.
+func engineJobs() []engineJob {
+	var jobs []engineJob
+	var walk func(slots reflect.Type, above string, at []int)
+	walk = func(slots reflect.Type, above string, at []int) {
+		for i := 0; i < slots.NumField(); i++ {
+			field, here := slots.Field(i), append(at[:len(at):len(at)], i)
+			if field.Type == engineType {
+				jobs = append(jobs, engineJob{name: above + jsonName(field), at: here})
 				continue
 			}
 			walk(field.Type.Elem(), above+jsonName(field)+".", here)
 		}
 	}
-	walk(reflect.TypeOf(api.ArchivistRoster{}.Workers), "", nil)
+	walk(reflect.TypeOf(api.ArchivistEngines{}.Jobs), "", nil)
 	return jobs
 }
 
-// slot: where a roster's `workers` holds the role serving this job, for a
-// roster being written. The structs above the slot are made as it is reached.
-func (job workerJob) slot(workers reflect.Value) reflect.Value {
+// slot: where the engines' `jobs` holds this job's engine, for engines being
+// written. The structs above the slot are made as it is reached.
+func (job engineJob) slot(jobs reflect.Value) reflect.Value {
 	for _, i := range job.at[:len(job.at)-1] {
-		group := workers.Field(i)
+		group := jobs.Field(i)
 		if group.IsNil() {
 			group.Set(reflect.New(group.Type().Elem()))
 		}
-		workers = group.Elem()
+		jobs = group.Elem()
 	}
-	return workers.Field(job.at[len(job.at)-1])
+	return jobs.Field(job.at[len(job.at)-1])
 }
 
-// bound: the role a roster's `workers` binds to this job; nil when it binds
-// none, or none of the group above it.
-func (job workerJob) bound(workers reflect.Value) *api.ArchivistRosterRole {
+// engine: the engine the engines' `jobs` give this job; nil when they give
+// it none, or none to the group above it.
+func (job engineJob) engine(jobs reflect.Value) *api.Engine {
 	for _, i := range job.at[:len(job.at)-1] {
-		group := workers.Field(i)
+		group := jobs.Field(i)
 		if group.IsNil() {
 			return nil
 		}
-		workers = group.Elem()
+		jobs = group.Elem()
 	}
-	return workers.Field(job.at[len(job.at)-1]).Interface().(*api.ArchivistRosterRole)
+	return jobs.Field(job.at[len(job.at)-1]).Interface().(*api.Engine)
 }
 
-// servedJob: a job, and the role serving it.
-type servedJob struct {
-	job  workerJob
-	role *api.ArchivistRosterRole
+// jobEngine: a job, and its engine.
+type jobEngine struct {
+	job    engineJob
+	engine *api.Engine
 }
 
 // archivistDocument renders the document from the start's placement. Its
-// roster is the Inference document's: the worker's document claims the same
-// jobs (workerAgents), and the Librarian's names the same actors
-// (librarianModel), so `browse:agents` names exactly the agents the work goes
-// to.
+// engines are the Inference document's: the worker's document claims the same
+// jobs with the same engines (workerEngines), and the Librarian's gives its
+// actors the same engines (librarianEngine), so `browse:engines` names exactly
+// the engines the work is done with.
 func archivistDocument(p placement) ([]byte, error) {
 	var doc api.ArchivistConfig
 	doc.GatewayUrl = p.gatewayURL()
@@ -118,7 +118,7 @@ func archivistDocument(p placement) ([]byte, error) {
 	doc.Root = kbMountTarget
 	doc.StateHome = stateHomeTarget
 	doc.AnchoredTextDir = anchoredTextTarget
-	doc.Roster = p.st.Inference.Spec.Roster
+	doc.Engines = p.st.Inference.Spec.Engines
 	doc.Port = semiontDescriptor("archivist").ports[0].port
 	doc.SkipRebuild = false
 	doc.Staging.FlushMs = archivistStaging.flushMs

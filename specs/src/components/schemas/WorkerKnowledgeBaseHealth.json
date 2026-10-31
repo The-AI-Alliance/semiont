@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "description": "One knowledge base the worker serves, as its health says it. `did` and `engines` are there while it is `working`, and only then.",
+  "properties": {
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The entry's `domain`."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "starting",
+        "working",
+        "refused"
+      ],
+      "description": "`starting`: signing in, opening its stream, confirming it, or waiting to start again. `working`: confirmed, its engines claiming. `refused`: refused, until the service is started again."
+    },
+    "did": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The agent's DID at this knowledge base, as its gateway named it."
+    },
+    "engines": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One entry for each of the entry's engines, in its order.",
+      "items": {
+        "$ref": "./WorkerEngineHealth.json"
+      }
+    }
+  },
+  "required": [
+    "domain",
+    "state"
+  ],
+  "additionalProperties": false
+}

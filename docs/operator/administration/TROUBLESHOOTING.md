@@ -72,7 +72,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 The realm is imported on Keycloak's first boot and never again, so a realm created by an older launcher can lack clients or roles a newer one needs. The preflight refuses rather than start services that cannot authenticate, and names the fix:
 
 ```bash
-semiont identity sync   # adds missing clients, reconciles roles, redirects, web origins, lifetime; touches no secret or account
+semiont identity sync   # adds missing clients, reconciles roles, the kind claim, the worker's key, redirects, web origins, lifetime; touches no secret or account
 semiont start
 ```
 
@@ -89,7 +89,7 @@ Both sign in to Keycloak's own admin, in its `master` realm, from this machine. 
 
 ### A service never picks up work
 
-Every service authenticates at the knowledge base's issuer as its own service account (client credentials), then exchanges that token at `POST /api/tokens/agent` for one carrying its agent DID. Either leg can fail and leave them idle: the issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, or a realm that never imported the client), or the gateway may refuse the exchange because the token carries no `semiont-service` role in its flat `roles` claim.
+Every service authenticates at the knowledge base's issuer as its own account (client credentials), and presents that token to the gateway. The issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, a worker key the realm does not hold, or a realm that never imported the client), or the gateway may refuse the token (another audience, or a realm whose clients do not carry the `kind` claim, which `semiont start` refuses up front).
 
 ```bash
 semiont logs --service worker | grep -iE "token|auth|oidc|client"
@@ -99,17 +99,7 @@ A worker is a special case: its token must also carry the `semiont-worker` role,
 
 `semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client — and [the repair](#semiont-start-refuses-at-the-identity-preflight) — up front.
 
-A service restarted with `semiont start --service worker` reads the same per-root credential the full start wrote, so it rejoins with nothing to recover. One started by hand must be given its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
-
-### Jobs stop starting after the signing key changed
-
-Replacing `JWT_SECRET` outright invalidates every agent token at once. A service recovers when its next request is refused, but one that is only listening hears nothing until its token is next renewed, which can take up to the agent token's lifetime.
-
-```bash
-semiont logs --service gateway | grep -i "invalid token"
-```
-
-`Invalid token signature` confirms it. Stop and start the stack so every service authenticates again, and next time [rotate the key through its ring](AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars). People are unaffected: their tokens are the issuer's.
+A worker restarted with `semiont start --service worker` is handed the machine's key again and the same document, so it rejoins with nothing to recover. One started by hand must be given that key as `SEMIONT_OIDC_CLIENT_KEY`; its document names the client it signs in as at each knowledge base.
 
 ### Commands fail, or real-time updates stop
 

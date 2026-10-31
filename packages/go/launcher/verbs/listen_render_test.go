@@ -40,7 +40,7 @@ func TestListenRendersPresenceAsState(t *testing.T) {
 	did := "did:web:example.github.io:users:alice%40example.com"
 
 	first := r.line(u, semiont.Frame{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"c1"}`)})
-	mustAll(t, "first join", first, "alice@example.com", "1 connection watching")
+	mustAll(t, "first join", first, did, "1 connection watching")
 
 	second := r.line(u, semiont.Frame{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"c2"}`)})
 	mustAll(t, "second connection of the same person", second, "2 connections watching")
@@ -53,17 +53,17 @@ func TestListenRendersPresenceAsState(t *testing.T) {
 	}
 }
 
-// The DID is the identity; it is not something a human reads at a glance.
-func TestShortParticipant(t *testing.T) {
-	for in, want := range map[string]string{
-		"did:web:example.github.io:users:alice%40example.com": "alice@example.com",
-		"did:web:example.github.io:agents:ollama:gemma4":      "ollama:gemma4",
-		"":          "(unknown)",
-		"not-a-did": "not-a-did",
+// A participant is shown by its DID, a person's and an agent's alike: nothing
+// read out of it is a name.
+func TestListenShowsAParticipantByItsDID(t *testing.T) {
+	u := launcher.NewUI(true)
+	r := newListenRenderer(nil)
+	for _, did := range []string{
+		"did:web:example.github.io:users:alice%40example.com",
+		"did:web:example.github.io:agents:semiont-worker",
 	} {
-		if got := shortParticipant(in); got != want {
-			t.Errorf("shortParticipant(%q) = %q, want %q", in, got, want)
-		}
+		joined := r.line(u, semiont.Frame{Channel: "session:joined", Payload: []byte(`{"participant":"` + did + `","connectionId":"` + did + `"}`)})
+		mustAll(t, did, joined, " "+did+" joined")
 	}
 }
 

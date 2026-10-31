@@ -28,7 +28,7 @@ not an oversight.
 | `GET /resources/:id/jsonld` | a resource's linked-data description, for an HTTP client following a content response's `Link: rel="describedby"` | A client dereferencing a link speaks HTTP. `browse:resource-requested` remains the bus-side read for everyone else. |
 | `GET /resources/:id/anchored-text` | a resource's anchored text: the text read out of its content, with where each run of it is on a page | It is as large as the document it was read from, and an emit's body is limited in size. It is content, and content rides HTTP. |
 | `GET /events/:resourceId?fromSequence=N` | the `Last-Event-ID` replay behind `/bus/subscribe` | A bulk backlog read at connection setup, not an event. Bounded to one resource from one sequence, one customer. `browse:events-requested` remains the bus-side read for ordinary queries — the duplication is accepted and narrow. |
-| `POST /api/tokens/agent` | a sidecar or worker buying an agent token | Bootstrapping a credential must not depend on the thing the credential is for. |
+| `GET /api/users/me` | a principal asking who the gateway names it | Bootstrapping an identity must not depend on the thing the identity is for. |
 
 **Outside this rule by nature**, not exceptions to it: the trusted issuer (token endpoint, admin
 API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.
@@ -53,7 +53,7 @@ Every channel is `verb:action` or `verb:action-state`. The prefix is one of the 
 | `gather:` | `gather:requested`, `gather:complete`, `gather:referenced-by-requested` | Reading: assembled context, and what refers to a resource |
 | `beckon:` | `beckon:focus`, `beckon:sparkle` | Directing attention |
 | `job:` | `job:create`, `job:report-progress`, `job:complete` | Delegated work ([JOBS.md](JOBS.md)) |
-| `person:`, `session:` | `person:profiled`, `session:joined` | Who a DID belongs to; who is connected |
+| `principal:`, `session:` | `principal:profiled`, `session:joined` | What a principal is called; who is connected |
 | `smelt:`, `weave:` | `smelt:settled`, `weave:applied` | The vector and graph projections reporting what they have applied |
 | `bus:` | `bus:resume-gap` | The stream itself |
 | `panel:`, `tabs:`, `nav:`, `shell:`, `settings:` | `panel:toggle`, `nav:push` | The Browser's interface; never on the wire |
@@ -133,7 +133,7 @@ if let Some(roles) = principal.roles.as_ref().filter(|r| !r.is_empty()) {
 }
 ```
 
-`_userId` is the **verified emitter** — the one identity fact on an event, and the only identity a handler may honour. Beside that stamp the gateway emits `person:profile` when the emitter is a person, carrying the display name it just verified: gateway-produced like the stamp itself, never client-set, and recorded only when the name has changed. It is the one thing the gateway sends that is a fact *about* an identity rather than an act, and it is why an artifact can carry a bare DID and still be read as a person's name. Every other provenance fact is derived from it: who *requested* a piece of work is read from the job the write cites (`jobId`), joined to the dispatcher's own `job:assigned` record, never from anything the emitter wrote in the payload. A person's DID is `did:web:<site domain>:users:<subject>`, the subject being the issuer claim the knowledge base's `subjectClaim` selects; a software agent's is `did:web:<site domain>:agents:<provider>:<model>` — the same authority and the same shape, so a person's act and an agent's act are recorded the same way.
+`_userId` is the **verified emitter** — the one identity fact on an event, and the only identity a handler may honour. Beside that stamp the gateway emits `principal:profile` when the emitter's token carries a name, a person's or an agent's, carrying the display name it just verified, and it is recorded only when the name has changed. A principal may also emit `principal:profile` itself, saying what it is called: an agent, whose token carries no name, does. That emit is stamped as every emit is, so a principal names only itself, and for a person, whose token carries a name, the gateway says that name again at each write, so what a person says of themselves stands only until their next write. A profile is the one fact *about* an identity rather than an act, and it is why an artifact can carry a bare DID and still be read as a name. Every other provenance fact is derived from it: who *requested* a piece of work is read from the job the write cites (`jobId`), joined to the dispatcher's own `job:assigned` record, never from anything the emitter wrote in the payload. A person's DID is `did:web:<site domain>:users:<subject>`, the subject being the issuer claim the knowledge base's `subjectClaim` selects; an agent's, when its token's `kind` claim is `agent`, is `did:web:<site domain>:agents:<subject>` — the same authority and the same shape, so a person's act and an agent's act are recorded the same way.
 
 `_roles` is the token's capabilities (a worker's `semiont-worker`): a **transient** authorization fact the dispatcher reads to authorize a `job:claim`. It is never persisted as provenance.
 
@@ -264,7 +264,7 @@ A line is the operation, the channel (`content` for an upload or a read of conte
 
 **No line holds a credential.** Every bus log writes the value of a member whose whole name is one a credential goes by as `[withheld]`, wherever in a payload the member is and whatever its value is. The names are a short list, the `names` of [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json). One is `token`, which is what the bus's own payloads name the one credential they declare: the token a resource is cloned by (`yield:clone-resource-requested`, `yield:clone-create`, and the `response` of `yield:clone-token-generated`). The rest are the names a credential has elsewhere (`password`, `apiKey`, `refreshToken` and `authorization` among them): some payloads take any member, and a credential put in one is withheld under such a name too. A name is matched whole and in the same case, so a member whose name only contains one (`maxTokens`, `apiKeyEnv`) is written as it is, and so is everything else. That table is the rule, and each implementation's tests run it.
 
-Four implementations write the log. Each is switched on for a whole process, and each writes to its own place:
+Five implementations write the log. Each is switched on for a whole process, and each writes to its own place:
 
 | Implementation | Switched on by | Written to |
 |---|---|---|
@@ -273,8 +273,9 @@ Four implementations write the log. Each is switched on for a whole process, and
 | Rust: the gateway, and a client of the Rust SDK ([`bus_log.rs`](../../packages/rust/sdk/src/bus_log.rs)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
 | Python: a client of the Python SDK, the Worker among them ([`_bus_log.py`](../../packages/python/sdk/src/semiont/_bus_log.py)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
 | Go: a client of the Go SDK, the launcher's verbs among them ([`buslog.go`](../../packages/go/sdk/buslog.go)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stderr |
+| Kotlin: a client of the Kotlin SDK, in Kotlin or Java ([`BusLog.kt`](../../packages/kotlin/sdk/src/main/kotlin/semiont/bus/BusLog.kt)) | `SEMIONT_BUS_LOG` set to any value that is not empty | stdout |
 
-Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust, Python and Go transports log at the same points as the TypeScript one this table names:
+Five operations, all logged at transport-contract choke points (not in the SDK's namespace methods or the `ActorStateUnit` SSE machinery — those ride on the transport). The Rust, Python, Go and Kotlin transports log at the same points as the TypeScript one this table names:
 
 | Op | Site |
 |---|---|
@@ -301,7 +302,7 @@ The SDK doesn't *replace* the bus — it wraps the channel-call patterns so cons
 Two legitimate paths to the bus, each suited to a distinct case:
 
 - **Typed namespace method** (preferred) — `client.mark.annotation(...)`, `client.beckon.hover(...)`. Types catch mistakes; channel names and correlation IDs are internal. The right path whenever a namespace covers the operation.
-- **A channel by name: `client.bus.on(channel)`, `client.wire.frames(channel)`, `client.wire.emit(channel, ...)`** — channel-by-name observation and the lowest-level path: when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for collaborator activity), when no namespace exposes a typed listener for the channel you care about, for workers and actors that *are* the handlers (a worker written on the SDK uses this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace. `client.bus` is the client's own bus, which also carries its in-process signals; `client.wire` is the typed bus over its transport, as Rust's `client.wire()` and Python's `client.wire` are. A channel delivered on a resource's scope is read on the wire for its resource, `client.wire.frames(channel, resourceId)`, and the read holds the scope while it is read.
+- **A channel by name: `client.bus.on(channel)`, `client.wire.frames(channel)`, `client.wire.emit(channel, ...)`** — channel-by-name observation and the lowest-level path: when the channel name is dynamic (`useEventSubscription` in React, an agent watching `mark:added` for another principal's activity), when no namespace exposes a typed listener for the channel you care about, for workers and actors that *are* the handlers (a worker written on the SDK uses this), for RxJS operator composition on a channel stream, or for prototyping new operations not yet wrapped by a namespace. `client.bus` is the client's own bus, which also carries its in-process signals; `client.wire` is the typed bus over its transport, as Rust's `client.wire()` and Python's `client.wire` are. A channel delivered on a resource's scope is read on the wire for its resource, `client.wire.frames(channel, resourceId)`, and the read holds the scope while it is read.
 
 The paths are documented end-to-end (with code shapes and call-site examples) in [`docs/builder/REACTIVE-MODEL.md`](../builder/REACTIVE-MODEL.md#two-paths-to-the-bus). The bus surface is *not* `@internal` — it's a real surface for advanced and worker use — but the typed namespaces are the canonical entry point for everything else. If you find yourself writing `client.wire.emit(channel, ...)` from application code, the right move is usually to reach for the namespace, or — if no namespace covers your case — to add one.
 

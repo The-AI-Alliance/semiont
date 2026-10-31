@@ -17,7 +17,7 @@ from typing import Final, final
 import pytest
 from aio import run
 from pydantic import JsonValue
-from rig import ADA, ADA_ID, LOVELACE, FakeEmbedding, FakeGraph, FakeInference, FakePeople, FakeRecord, FakeVectors, described, tag, view
+from rig import ADA, ADA_ID, LOVELACE, FakeEmbedding, FakeGraph, FakeInference, FakeProfiles, FakeRecord, FakeVectors, described, tag, view
 from semiont.identifiers import ResourceId
 from semiont.model import written
 from semiont.types import MatchSearchRequest, MatchSearchResult, ResourceDescriptor
@@ -100,7 +100,7 @@ class World:
     vectors: FakeVectors = field(default_factory=FakeVectors)
     embedding: FakeEmbedding = field(default_factory=FakeEmbedding)
     inference: FakeInference = field(default_factory=FakeInference)
-    people: FakePeople = field(default_factory=FakePeople)
+    profiles: FakeProfiles = field(default_factory=FakeProfiles)
 
     def __post_init__(self) -> None:
         self.graph.listing = lambda query: ResourceListing(resources=[], total=0)
@@ -114,7 +114,7 @@ class World:
             vectors=self.vectors,
             embedding=self.embedding,
             inference=self.inference,
-            people=self.people,
+            profiles=self.profiles,
             now=lambda: NOW,
         )
 
@@ -203,15 +203,15 @@ def says(value: str, purpose: str) -> JsonObject:
     return {"type": "TextualBody", "value": value, "purpose": purpose}
 
 
-def test_the_people_of_a_reply_are_named_as_the_knowledge_base_calls_them_and_asked_after_once() -> None:
-    world = World(people=FakePeople(LOVELACE))
+def test_the_persons_of_a_reply_are_named_as_their_profiles_say_and_asked_after_once() -> None:
+    world = World(profiles=FakeProfiles(LOVELACE))
     world.graph.resources[ROCK] = described(ROCK, dateCreated=MADE, wasAttributedTo=[ADA])
 
     reply = run(world.search(request(neighbours=(ROCK,))))
 
     (candidate,) = objects(written(reply)["response"], "response")
     assert candidate["wasAttributedTo"] == [{**ADA, "name": "Ada Lovelace"}]
-    assert world.people.asked == [[ADA_ID]]
+    assert world.profiles.asked == [[ADA_ID]]
 
 
 def test_the_scores_are_asked_for_as_elements_and_a_reply_that_is_no_array_leaves_every_score_as_it_was() -> None:

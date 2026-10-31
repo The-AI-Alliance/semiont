@@ -27,7 +27,7 @@ const stream = () => ({ clientId: randomUUID(), global: ['beckon:focus'] });
 /** A principal holding no role, of each kind. */
 const unroled = async (world: World): Promise<Array<[string, string]>> => [
   ['a person', await world.person(`limits-person-${Math.random()}`)],
-  ['an agent', (await world.agent('limits', `model-${Math.random()}`, [SERVICE_ROLE])).token],
+  ['an agent', (await world.agent(`limits-model-${Math.random()}`, [])).token],
 ];
 
 /** `count` emits at once. */
@@ -88,7 +88,7 @@ eachPlane('what one principal may take', (world) => {
     expect(roles[WORKER_ROLE]).toBe('unlimited');
     const holders: Array<[string, string]> = [
       ['a person holding the service role', await world().person(`streams-service-${Math.random()}`, { roles: [SERVICE_ROLE] })],
-      ['an agent holding the worker role', (await world().agent('streams', `worker-${Math.random()}`, [SERVICE_ROLE, WORKER_ROLE])).token],
+      ['an agent holding the worker role', (await world().agent(`streams-worker-${Math.random()}`, [SERVICE_ROLE, WORKER_ROLE])).token],
     ];
     for (const [kind, token] of holders) {
       const held: BusStream[] = [];
@@ -104,7 +104,7 @@ eachPlane('what one principal may take', (world) => {
     expect(roles[WORKER_ROLE]).toBe('unlimited');
     const holders: Array<[string, string]> = [
       ['a person holding the service role', await world().person(`limits-service-${Math.random()}`, { roles: [SERVICE_ROLE] })],
-      ['an agent holding the worker role', (await world().agent('limits', `worker-${Math.random()}`, [SERVICE_ROLE, WORKER_ROLE])).token],
+      ['an agent holding the worker role', (await world().agent(`limits-worker-${Math.random()}`, [SERVICE_ROLE, WORKER_ROLE])).token],
     ];
     for (const [kind, token] of holders) {
       const replies = [...(await burst(world(), token, baseline.burst)), ...(await burst(world(), token, baseline.burst))];

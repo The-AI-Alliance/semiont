@@ -14,14 +14,16 @@ import (
 // in serviceSecrets.
 var documentWriters = map[string]func(placement) ([]byte, error){
 	"gateway": func(p placement) ([]byte, error) {
-		return gatewayDocument(p, "Example KB", "example.github.io:example-kb")
+		return gatewayDocument(p, "Example KB", exampleKBDomain)
 	},
 	"dispatcher": dispatcherDocument,
 	"archivist":  archivistDocument,
-	"worker":     workerDocument,
-	"smelter":    smelterDocument,
-	"weaver":     weaverDocument,
-	"librarian":  librarianDocument,
+	"worker": func(p placement) ([]byte, error) {
+		return workerDocument(p, exampleKBDomain, nil)
+	},
+	"smelter":   smelterDocument,
+	"weaver":    weaverDocument,
+	"librarian": librarianDocument,
 }
 
 // namedVariables: every variable a document names — the string under each key

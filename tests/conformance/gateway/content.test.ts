@@ -32,13 +32,13 @@ eachPlane('content', (world) => {
   let requests: BusStream;
 
   beforeAll(async () => {
-    const listener = await world().agent('conformance', 'listener');
+    const listener = await world().agent('listener');
     requests = await world().subscribe(listener.token, { clientId: randomUUID(), global: REQUESTS }, world().origin, true);
   });
 
   it('an upload goes to the Archivist whole, named for the uploader, and answers the id it recorded', async () => {
     const token = await world().person('uploader', { name: 'Una Uploader' });
-    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['person:profile'] });
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
     const storageUri = `file://uploads/${randomUUID()}.png`;
     const fields = {
       name: 'Every byte',
@@ -66,16 +66,16 @@ eachPlane('content', (world) => {
     const post = world().archivist.calls.findLast((c) => c.method === 'POST' && c.path === '/resources');
     expect(post?.claims?.['azp']).toBe(GATEWAY_CLIENT);
 
-    const profile = await watcher.frame('person:profile', (f) => f.payload['_userId'] === world().personDid('uploader'));
+    const profile = await watcher.frame('principal:profile', (f) => f.payload['_userId'] === world().personDid('uploader'));
     expect(profile.payload['name']).toBe('Una Uploader');
 
     const back = await call(world().origin, 'GET', `/resources/${recorded.resourceId}`, { token });
     expect(back.bytes.equals(EVERY_BYTE)).toBe(true);
   });
 
-  it('a worker\'s upload carries its roles to the record, and names no person', async () => {
-    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['person:profile'] });
-    const worker = await world().agent('ollama', 'uploading-model', [SERVICE_ROLE, WORKER_ROLE]);
+  it('a worker\'s upload carries its roles to the record, and its token, carrying no name, publishes no profile', async () => {
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
+    const worker = await world().agent('uploading-model', [SERVICE_ROLE, WORKER_ROLE]);
     const reply = await call(world().origin, 'POST', '/resources', {
       token: worker.token,
       body: upload({ name: 'Generated', format: 'text/markdown', storageUri: `file://uploads/${randomUUID()}.md`, jobId: 'job-2' }, { bytes: Buffer.from('# generated'), type: 'text/markdown' }),
@@ -83,8 +83,9 @@ eachPlane('content', (world) => {
     expect(reply.status, reply.text).toBe(202);
     const recorded = world().archivist.uploads.at(-1)!;
     expect(recorded.principal).toBe(worker.did);
-    expect(recorded.roles).toBe(WORKER_ROLE);
-    await watcher.quiet('person:profile', 500);
+    // The roles its account holds, as its token carries them.
+    expect(recorded.roles).toBe([SERVICE_ROLE, WORKER_ROLE].join(','));
+    await watcher.quiet('principal:profile', 500);
   });
 
   it('an upload the Archivist finds malformed is a 400 carrying its reason', async () => {
@@ -104,7 +105,7 @@ eachPlane('content', (world) => {
   });
 
   it('an upload the record refuses is a 500 carrying its reason, and one the Archivist cannot take is a 503 — and neither names its uploader', async () => {
-    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['person:profile'] });
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: ['principal:profile'] });
     const token = await world().person('refused-uploader', { name: 'Rhea Refused' });
     const body = () => upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' });
     world().archivist.mode.refuseUploads = 'a worker-role emitter must cite the job it fulfils';
@@ -125,7 +126,7 @@ eachPlane('content', (world) => {
     } finally {
       world().archivist.mode.refusesGateway = false;
     }
-    await watcher.quiet('person:profile', 500, (f) => f.payload['_userId'] === world().personDid('refused-uploader'));
+    await watcher.quiet('principal:profile', 500, (f) => f.payload['_userId'] === world().personDid('refused-uploader'));
   });
 
   it('the pipe serves the stored bytes verbatim, with the stored media type and the declared headers', async () => {
@@ -149,7 +150,7 @@ eachPlane('content', (world) => {
     const id = `res-${randomUUID()}`;
     world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/markdown' });
     world().archivist.content.set(`file://${id}`, EVERY_BYTE);
-    const worker = await world().agent('ollama', 'reading-model', [SERVICE_ROLE, WORKER_ROLE]);
+    const worker = await world().agent('reading-model', [SERVICE_ROLE, WORKER_ROLE]);
 
     const reply = await call(world().origin, 'GET', `/resources/${id}`, { token: worker.token });
     expect(reply.status, reply.text).toBe(200);

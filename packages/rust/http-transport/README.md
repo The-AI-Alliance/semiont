@@ -148,20 +148,24 @@ let opened = sign_in_device(
 
 ### A daemon
 
-A daemon signs in as a service, and its work runs as an agent. `credential`
-is its service account at the issuer: the issuer, a client id and a client
-secret. It is not a session: an agent whose renewal fails keeps the token it
-has and tries again, where a person would be signed out.
+A daemon signs in as itself. An agent is an account, as a person is:
+`credential` is its account at the issuer, and the token the issuer grants
+it is its bearer at the gateway. A `Credential` is the issuer and a client
+id, with the client secret the account proves itself with
+(`Credential::Secret`) or its RSA key (`Credential::Key`). With a key, each
+grant carries an assertion signed for it alone (RFC 7523,
+`private_key_jwt`), which the issuer checks with the public half registered
+on the client, and no secret is sent. The gateway names it by that account:
+`agent.did()` is the DID the gateway answers at `GET /api/users/me`. The
+token is renewed when it is due, and at once, by a new grant, when the
+gateway refuses it. It is not a session: an agent whose renewal fails keeps
+the token it has and tries again, where a person would be signed out.
 
 ```rust
-// A service signs in with its account, as the agent its work runs as,
+// A service signs in as itself, an agent with an account at the issuer,
 // and stays signed in for as long as it holds the token.
 let agent = AgentToken::sign_in(
     gateway,
-    Agent {
-        provider: "example".to_owned(),
-        model: "indexer".to_owned(),
-    },
     ServiceToken::new(credential, http.clone()),
     http.clone(),
 )
@@ -205,26 +209,34 @@ queue. Its stream names `JOB_CLAIM_CHANNELS`, and the client's `job.claim`
 hands it each job it comes to hold.
 
 ```rust
-// A worker signs in as a daemon does: with its service account, as the
-// agent its work is attributed to.
-let (provider, model) = ("ollama", "gemma3:4b");
+// Its account at the issuer proves itself with the worker's key, the
+// PKCS#8 PEM in `SEMIONT_OIDC_CLIENT_KEY`: each grant carries an
+// assertion signed with it, and no secret.
+let credential = KeyCredential {
+    issuer,
+    client_id,
+    private_key: private_key_from_pem(key)?,
+};
+// What the agent says it is called: here, its client id.
+let called = credential.client_id.clone();
+// A worker signs in as a daemon does: as itself, the agent its work is
+// attributed to.
 let agent = AgentToken::sign_in(
     gateway,
-    Agent {
-        provider: provider.to_owned(),
-        model: model.to_owned(),
-    },
-    ServiceToken::new(credential, http.clone()),
+    ServiceToken::new(Credential::Key(Box::new(credential)), http.clone()),
     http.clone(),
 )
 .await?;
 println!("working as {}", agent.did());
-// What made the annotations it commits: the agent the gateway gave it.
+// What made the annotations it commits: the agent, as the gateway names
+// it, and the engine it ran. It carries no name: readers name the agent
+// by what it says it is called.
+let (provider, model) = ("ollama", "gemma3:4b");
 let generator = AgentSoftware {
     id: Some(agent.did().to_string()),
     provider: Some(provider.to_owned()),
     model: Some(model.to_owned()),
-    ..AgentSoftware::new(agent_name(provider, model))
+    ..AgentSoftware::new()
 }
 .into();
 // Its stream names what claiming and committing read. This worker awaits
@@ -243,6 +255,18 @@ let client = client(
     },
     ClientOptions::default(),
 );
+// It says what it is called, as itself, once. Readers name it by the
+// last name it said, as they name a person.
+client
+    .wire()
+    .emit::<PrincipalProfile>(
+        &PrincipalProfileCommand {
+            _user_id: None,
+            name: called,
+        },
+        Envelope::default(),
+    )
+    .await?;
 
 // What it accepts: the `mark` jobs of one motivation.
 let highlighting = MarkJobFilter::new(MarkJobFilterParams {
@@ -312,11 +336,17 @@ while let Some(handed) = claims.next().await {
 claims.stop().await;
 ```
 
-`passages` stands for the worker's model: given the text, the passages it
-would highlight, each as the words it quoted (a `Vec<QuotedText>`).
+A worker proves itself with its key. `issuer` is the issuer the knowledge
+base trusts, `client_id` is the worker's client there
+(`SEMIONT_OIDC_CLIENT_ID`), and `key` is the PKCS#8 PEM the launcher hands the
+worker as `SEMIONT_OIDC_CLIENT_KEY`. `private_key_from_pem` reads it, and
+refuses one that is not an unencrypted RSA PKCS#8 key. `passages` stands for
+the worker's model: given the text, the passages it would highlight, each as
+the words it quoted (a `Vec<QuotedText>`).
 
-The service account needs two roles at the issuer: `semiont-service`, to be
-given an agent, and `semiont-worker`, without which every claim is refused.
+Its account at the issuer is an agent's: the realm stamps `"kind": "agent"`
+on its tokens, and the gateway names a token without it a person. It carries
+the role `semiont-worker`, without which every claim is refused.
 What claiming does, what a held job is, and what `reconcile` and
 `annotation_of_span` do with a model's words are in the SDK's
 [A worker](../sdk/README.md#a-worker).
@@ -426,7 +456,8 @@ credential goes by (`token`, `password`, `apiKey` and the rest of the list in
 | `client` | `client(config, options)`: a `SemiontClient` over this transport |
 | `transport` | `HttpTransport`, `HttpTransportConfig`, `Timing`, `Bookmarks` |
 | `content` | `HttpContentTransport` |
-| `service_account`, `agent` | A service's sign-in: `Credential`, `ServiceToken`, `AgentToken` |
+| `service_account`, `agent` | A service's sign-in: `Credential` (`SecretCredential` or `KeyCredential`), `private_key_from_pem`, `ServiceToken`, `AgentToken` |
+| `client_assertion` | The assertion a key's grant carries: the key's thumbprint, the header and claims, signed RS256 |
 | `session` (`sign-in`) | Sessions over a gateway: `session_from_stored`, `sign_in_device`, `begin_sign_in`, `complete_sign_in`, `HttpSessionFactory` |
 | `oauth` (`sign-in`) | The issuer's grants: authorization code with PKCE, device, refresh, and revocation |
 | `loopback` (`sign-in`) | `LoopbackRedirect`: the address on this machine a person is sent back to |

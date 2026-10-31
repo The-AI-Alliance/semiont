@@ -381,10 +381,14 @@ func Logout(args []string) int {
 		u.Fail("Could not remove the stored session: %v", err)
 		return 1
 	}
+	signedOut := key
+	if e.Email != "" {
+		signedOut += " (" + e.Email + ")"
+	}
 	if revoked {
-		u.Ok("Logged out of %s (%s) — session revoked at the issuer, local token forgotten.", key, e.Email)
+		u.Ok("Logged out of %s — session revoked at the issuer, local token forgotten.", signedOut)
 	} else {
-		u.Ok("Logged out of %s (%s) — local token forgotten.", key, e.Email)
+		u.Ok("Logged out of %s — local token forgotten.", signedOut)
 		u.Warn("Revocation at the issuer did not complete; the refresh token remains valid there until it expires.")
 	}
 	return 0

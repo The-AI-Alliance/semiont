@@ -10,37 +10,37 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
-// servingAssessing: the anthropic fixture with the `mark` jobs of assessing
-// served by provider's model, reached as entry states.
-func servingAssessing(t *testing.T, provider api.ArchivistRosterRoleProvider, model string, entry stack.Provider) *stack.Stack {
+// assessingWith: the anthropic fixture with the `mark` jobs of assessing given
+// provider's model as their engine, reached as entry states.
+func assessingWith(t *testing.T, provider api.EngineProvider, model string, entry stack.Provider) *stack.Stack {
 	t.Helper()
 	st := fixtureStack(t, "anthropic")
 	st.Inference.Spec.Providers[provider] = entry
-	st.Inference.Spec.Roster.Workers.Mark.Assessing = &api.ArchivistRosterRole{Provider: provider, Model: model}
+	st.Inference.Spec.Engines.Jobs.Mark.Assessing = &api.Engine{Provider: provider, Model: model}
 	return st
 }
 
-// A server a deployment runs or reaches is an agent at the address its entry
-// in the Inference document states, with a key only where the entry names
-// one.
-func TestWorkerDocumentServesAProviderAtTheAddressItsEntryStates(t *testing.T) {
+// A server a deployment runs or reaches is an engine's at the address its
+// entry in the Inference document states, with a key only where the entry
+// names one.
+func TestWorkerDocumentReachesAProviderAtTheAddressItsEntryStates(t *testing.T) {
 	baseURL := "http://vllm.internal:8000/v1"
-	b, err := workerDocument(placed(t, servingAssessing(t, api.ArchivistRosterRoleProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})))
+	b, err := workerDocument(placed(t, assessingWith(t, api.EngineProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})), exampleKBDomain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc := workerDocumentFrom(t, b)
-	var served *api.WorkerAgentConfig
-	for i := range doc.Agents {
-		if doc.Agents[i].Agent.Provider == api.ArchivistRosterRoleProviderVllm {
-			served = &doc.Agents[i]
+	engines := theKB(t, workerDocumentFrom(t, b)).Engines
+	var vllm *api.WorkerEngineConfig
+	for i := range engines {
+		if engines[i].Engine.Provider == api.EngineProviderVllm {
+			vllm = &engines[i]
 		}
 	}
-	if served == nil {
-		t.Fatalf("no agent of the document is vllm's:\n%s", b)
+	if vllm == nil {
+		t.Fatalf("no engine of the document is vllm's:\n%s", b)
 	}
-	if served.Agent.Model != "served-model" || served.BaseUrl != baseURL || served.ApiKeyEnv != nil {
-		t.Errorf("the vllm agent is %+v, want served-model at the entry's address with no key", *served)
+	if vllm.Engine.Model != "served-model" || vllm.BaseUrl != baseURL || vllm.ApiKeyEnv != nil {
+		t.Errorf("the vllm engine is %+v, want served-model at the entry's address with no key", *vllm)
 	}
 }
 
@@ -49,9 +49,9 @@ func TestWorkerDocumentServesAProviderAtTheAddressItsEntryStates(t *testing.T) {
 // whatever its providers, and so does the Librarian's.
 func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	baseURL := "https://api.openai.com/v1"
-	p := placed(t, servingAssessing(t, api.ArchivistRosterRoleProviderOpenai, "gpt-listed",
+	p := placed(t, assessingWith(t, api.EngineProviderOpenai, "gpt-listed",
 		stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OPENAI_API_KEY"}}))
-	b, err := workerDocument(p)
+	b, err := workerDocument(p, exampleKBDomain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	if doc.ModelCatalogue != modelCatalogueTarget {
 		t.Errorf("the document's model catalogue is %q, want %s", doc.ModelCatalogue, modelCatalogueTarget)
 	}
-	plain, err := workerDocument(placed(t, fixtureStack(t, "ollama-gemma")))
+	plain, err := workerDocument(placed(t, fixtureStack(t, "ollama-gemma")), exampleKBDomain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,30 +74,30 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 		t.Errorf("the Librarian is told its model catalogue is %q, want %s", got, modelCatalogueTarget)
 	}
 	var keyed bool
-	for _, agent := range doc.Agents {
-		if agent.Agent.Provider == api.ArchivistRosterRoleProviderOpenai {
-			keyed = agent.ApiKeyEnv != nil && *agent.ApiKeyEnv == "OPENAI_API_KEY" && agent.BaseUrl == baseURL
+	for _, engine := range theKB(t, doc).Engines {
+		if engine.Engine.Provider == api.EngineProviderOpenai {
+			keyed = engine.ApiKeyEnv != nil && *engine.ApiKeyEnv == "OPENAI_API_KEY" && engine.BaseUrl == baseURL
 		}
 	}
 	if !keyed {
-		t.Errorf("no agent is OpenAI's at its entry's address under OPENAI_API_KEY:\n%s", b)
+		t.Errorf("no engine is OpenAI's at its entry's address under OPENAI_API_KEY:\n%s", b)
 	}
 	if handed := serviceSecrets(p)["worker"]; !contains(handed, "OPENAI_API_KEY") {
 		t.Errorf("the worker is not handed OPENAI_API_KEY, which its document names: %v", handed)
 	}
 }
 
-// A provider a role names is one the Inference document says how to reach:
-// one with no entry is refused by the plan, naming the role; one whose entry
-// states no address, and that the launcher keeps none for, is refused where
-// the worker's document is written, naming the entry.
+// A provider an engine names is one the Inference document says how to
+// reach: one with no entry is refused by the plan, naming the engine; one
+// whose entry states no address, and that the launcher keeps none for, is
+// refused where the worker's document is written, naming the entry.
 func TestAProviderWithNoAddressIsRefused(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	st.Inference.Spec.Roster.Workers.Mark.Assessing = &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderTogether, Model: "m"}
-	mustRefuse(t, st, st.Files.Inference+": spec.roster.workers.mark.assessing.provider", `"together"`, "spec.providers.together")
+	st.Inference.Spec.Engines.Jobs.Mark.Assessing = &api.Engine{Provider: api.EngineProviderTogether, Model: "m"}
+	mustRefuse(t, st, st.Files.Inference+": spec.engines.jobs.mark.assessing.provider", `"together"`, "spec.providers.together")
 
-	st = servingAssessing(t, api.ArchivistRosterRoleProviderTogether, "m", stack.Provider{})
-	_, err := workerDocument(placed(t, st))
+	st = assessingWith(t, api.EngineProviderTogether, "m", stack.Provider{})
+	_, err := workerDocument(placed(t, st), exampleKBDomain, nil)
 	if want := st.Files.Inference + ": spec.providers.together.baseURL"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("want a refusal naming %s, got %v", want, err)
 	}

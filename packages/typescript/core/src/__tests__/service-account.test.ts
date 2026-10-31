@@ -8,6 +8,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { HTTP_REQUEST_TIMEOUT_MS } from '../generated/client-timing';
 import { serviceAccountToken } from '../service-account';
+import { SignInError } from '../sign-in-error';
 
 let issuers = 0;
 const credential = () => ({ issuer: `https://issuer-${++issuers}.test/realms/kb`, clientId: 'semiont-worker', clientSecret: 'client-secret' });
@@ -32,7 +33,7 @@ describe('serviceAccountToken', () => {
     const asked = stubFetch(() => Response.json({ access_token: 'service-account-token' }));
     const account = credential();
 
-    await expect(serviceAccountToken(account)).resolves.toBe('service-account-token');
+    await expect(serviceAccountToken(account, { renewed: false })).resolves.toBe('service-account-token');
 
     expect(asked.map(({ url }) => url)).toEqual([`${account.issuer}/.well-known/openid-configuration`, 'https://issuer-1.test/token']);
     expect(String(asked[1]!.init?.body)).toBe('grant_type=client_credentials&client_id=semiont-worker&client_secret=client-secret');
@@ -45,7 +46,7 @@ describe('serviceAccountToken', () => {
     const deadline = vi.spyOn(AbortSignal, 'timeout');
     const asked = stubFetch(() => Response.json({ access_token: 'service-account-token' }));
 
-    await serviceAccountToken(credential());
+    await serviceAccountToken(credential(), { renewed: false });
 
     expect(asked).toHaveLength(2);
     for (const { url, init } of asked) expect(init?.signal, url).toBeInstanceOf(AbortSignal);
@@ -56,9 +57,25 @@ describe('serviceAccountToken', () => {
     stubFetch(() => Response.json({ error: 'invalid_client', echoed: 'client-secret' }, { status: 401 }));
     const account = credential();
 
-    const refused = await serviceAccountToken(account).catch((e: unknown) => e);
+    const refused = await serviceAccountToken(account, { renewed: false }).catch((e: unknown) => e);
 
     expect(String(refused)).toContain(`Client-credentials grant for semiont-worker at ${account.issuer} failed (HTTP 401)`);
     expect(String(refused)).not.toContain('client-secret');
+    // The status rides as a field: a refused account and a lost packet are told apart by it, not by the message.
+    expect(refused).toBeInstanceOf(SignInError);
+    expect(refused).toMatchObject({ code: 'exchange', status: 401 });
+  });
+
+  it('holds the token until it is due, and asks for another at once when renewed', async () => {
+    let grants = 0;
+    const asked = stubFetch(() => Response.json({ access_token: `service-account-token-${++grants}`, expires_in: 300 }));
+    const account = credential();
+
+    await expect(serviceAccountToken(account, { renewed: false })).resolves.toBe('service-account-token-1');
+    await expect(serviceAccountToken(account, { renewed: false }), 'the token held').resolves.toBe('service-account-token-1');
+    await expect(serviceAccountToken(account, { renewed: true }), 'a new grant').resolves.toBe('service-account-token-2');
+    await expect(serviceAccountToken(account, { renewed: false }), 'the new token, held in place of the old').resolves.toBe('service-account-token-2');
+
+    expect(asked.filter(({ url }) => url.endsWith('/token'))).toHaveLength(2);
   });
 });

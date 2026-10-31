@@ -37,7 +37,7 @@ from semiont.cache import CacheState, Failed, Pending, Ready
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
 from semiont.errors import BusRequestError
 from semiont.identifiers import ResourceId
-from semiont.namespaces.browse import Collaborator
+from semiont.namespaces.browse import EngineWithLimits
 from semiont.refresh import CACHE_QUERIES, CacheQuery
 from semiont.storage import MemoryStorage
 from semiont.testing import FaultyTransport, StubGateway, create_test_client, refuse_unscripted_operation
@@ -95,7 +95,7 @@ def test_watching_a_query_of_a_resource_holds_its_scope_from_before_it_asks_unti
                 client.match.resources("text"),
                 client.browse.entity_types(),
                 client.browse.tag_schemas(),
-                client.browse.agents(),
+                client.browse.engines(),
             ):
                 assert transport.scopes == []
             reading = asyncio.ensure_future(client.browse.resource(RESOURCE).fresh())
@@ -199,45 +199,40 @@ def test_a_resources_annotations_are_the_list_and_a_list_or_a_search_is_one_quer
     run(scenario())
 
 
-def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_limits_as_it_reports_them() -> None:
+def test_the_engines_are_shown_as_they_are_answered_and_each_holders_limits_as_it_reports_them() -> None:
     async def scenario() -> None:
-        gemma: JsonObject = {"@type": "Software", "name": "gemma", "provider": "ollama", "model": "gemma2:27b"}
-        claude: JsonObject = {"@type": "Software", "name": "claude", "provider": "anthropic", "model": "claude-opus-5-5"}
+        gemma: JsonObject = {"provider": "ollama", "model": "gemma2:27b"}
+        claude: JsonObject = {"provider": "anthropic", "model": "claude-opus-5-5"}
         client, transport = world(answered=False)
 
-        def limits_of(collaborators: list[Collaborator]) -> list[float | None]:
-            return [None if each.limits is None else each.limits.context_tokens for each in collaborators]
+        def limits_of(engines: list[EngineWithLimits]) -> list[float | None]:
+            return [None if each.limits is None else each.limits.context_tokens for each in engines]
 
-        async with client, client.browse.agents() as live:
+        async with client, client.browse.engines() as live:
             assert await soon(anext(live)) == Pending()
             await turns()
-            # The directory is asked for first, and each key holder after it.
-            assert [frame.channel for frame in transport.emitted] == ["browse:agents-requested", *LIMITS]
-            directory, gather, job, match = transport.emitted
+            # The engines are asked for first, and each key holder after them.
+            assert [frame.channel for frame in transport.emitted] == ["browse:engines-requested", *LIMITS]
+            engines, gather, job, match = transport.emitted
 
-            # A holder that answers before the directory has nothing to be shown on yet.
-            answer(
-                transport,
-                job,
-                {"limits": [{"provider": "ollama", "model": "gemma2:27b", "limits": {"contextTokens": 8192, "maxOutputTokens": 1}}]},
-            )
+            # A holder that answers before the engines are has nothing to be shown on yet.
+            answer(transport, job, {"limits": [{"engine": gemma, "limits": {"contextTokens": 8192, "maxOutputTokens": 1}}]})
             reading = asyncio.ensure_future(anext(live))
             await turns(20)
             assert not reading.done()
 
-            # The directory is shown when it answers, with what has been reported so far: it waits for no holder.
-            answer(transport, directory, {"agents": [{"agent": gemma}, {"agent": claude}]})
+            # The engines are shown when they are answered, with what has been reported so far: they wait for no holder.
+            answer(transport, engines, {"engines": [{"engine": gemma}, {"engine": claude}]})
             shown = await soon(reading)
             assert isinstance(shown, Ready)
-            assert [each.entry.agent.name for each in shown.value] == ["gemma", "claude"]
+            assert [(each.entry.engine.provider, each.entry.engine.model) for each in shown.value] == [
+                ("ollama", "gemma2:27b"),
+                ("anthropic", "claude-opus-5-5"),
+            ]
             assert limits_of(shown.value) == [8192, None]
 
-            # A holder that reports later delays only its own models' limits.
-            answer(
-                transport,
-                gather,
-                {"limits": [{"provider": "anthropic", "model": "claude-opus-5-5", "limits": {"contextTokens": 9, "maxOutputTokens": 1}}]},
-            )
+            # A holder that reports later delays only its own engines' limits.
+            answer(transport, gather, {"limits": [{"engine": claude, "limits": {"contextTokens": 9, "maxOutputTokens": 1}}]})
             shown = await soon(anext(live))
             assert isinstance(shown, Ready)
             assert limits_of(shown.value) == [8192, 9]
@@ -249,36 +244,36 @@ def test_the_collaborators_are_shown_as_the_directory_answers_and_each_holders_l
             assert not reading.done()
             assert len(transport.emitted) == 4
 
-            # Asking again asks the directory and every holder again, and shows what there is meanwhile.
-            client.browse.agents().invalidate()
+            # Asking again asks for the engines and every holder again, and shows what there is meanwhile.
+            client.browse.engines().invalidate()
             await turns()
-            assert [frame.channel for frame in transport.emitted[4:]] == ["browse:agents-requested", *LIMITS]
+            assert [frame.channel for frame in transport.emitted[4:]] == ["browse:engines-requested", *LIMITS]
             assert not reading.done()
-            answer(transport, transport.emitted[4], {"agents": [{"agent": claude}]})
+            answer(transport, transport.emitted[4], {"engines": [{"engine": claude}]})
             shown = await soon(reading)
             assert isinstance(shown, Ready)
-            assert [each.entry.agent.name for each in shown.value] == ["claude"]
+            assert [(each.entry.engine.provider, each.entry.engine.model) for each in shown.value] == [("anthropic", "claude-opus-5-5")]
             assert limits_of(shown.value) == [9]
 
     run(scenario())
 
 
-def test_a_directory_that_fails_is_a_failed_state_whatever_its_holders_report_and_a_read_of_it_raises() -> None:
+def test_engines_that_fail_are_a_failed_state_whatever_their_holders_report_and_a_read_of_them_raises() -> None:
     async def scenario() -> None:
         client, transport = world()
-        transport.refuse_when(refusing("browse:agents-requested"))
+        transport.refuse_when(refusing("browse:engines-requested"))
         async with client:
             with pytest.raises(BusRequestError) as refused:
-                await soon(client.browse.agents().fresh())
+                await soon(client.browse.engines().fresh())
             assert refused.value.code == "bus.rejected"
-            async with client.browse.agents() as live:
+            async with client.browse.engines() as live:
                 assert await soon(anext(live)) == Pending()
                 state = await soon(anext(live))
                 while not isinstance(state, Failed):
                     state = await soon(anext(live))
                 assert state.error.code == "bus.rejected"
-        # A closed client's collaborators are nobody's to watch.
-        async with client.browse.agents() as live:
+        # A closed client's engines are nobody's to watch.
+        async with client.browse.engines() as live:
             assert await soon(anext(live, None)) is None
 
     run(scenario())
@@ -309,7 +304,7 @@ def test_a_client_keeps_its_small_queries_and_the_next_client_shows_them_at_once
                 client.gather.referenced_by(RESOURCE).fresh(),
                 client.browse.resources().fresh(),
                 client.match.resources("text").fresh(),
-                client.browse.agents().fresh(),
+                client.browse.engines().fresh(),
             ):
                 await soon(read)
             # What it knows is owed to storage until it has stopped changing.
@@ -327,7 +322,7 @@ def test_a_client_keeps_its_small_queries_and_the_next_client_shows_them_at_once
         names = ("resource", "annotations", "annotation-detail", "entity-types", "tag-schemas")
         documents = {name: kept(name) for name in names}
         assert all(document is not None and document["version"] == 1 for document in documents.values())
-        for unkept in ("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "agents", "limits"):
+        for unkept in ("lists", "resources", "events", "referenced-by", "matched-resources", "searches", "engines", "limits"):
             assert kept(unkept) is None
         resource = documents["resource"]
         assert resource is not None
@@ -399,7 +394,7 @@ def test_a_client_is_settled_unless_a_query_it_keeps_is_being_fetched_or_is_owed
             "matchedResources": client.match.resources("text"),
             "entityTypes": client.browse.entity_types(),
             "tagSchemas": client.browse.tag_schemas(),
-            "agents": client.browse.agents(),
+            "engines": client.browse.engines(),
         }
         assert set(named) == set(CACHE_QUERIES)
         async with client:

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { validateData, JWTTokenSchema } from '@semiont/core';
 import {
   ImageURLSchema,
-  OAuthUserSchema,
   sanitizeImageURL,
 } from '@semiont/react-ui';
 
@@ -181,95 +180,6 @@ describe('Validation Library (Native JS)', () => {
     });
   });
 
-  describe('OAuthUserSchema', () => {
-    const validUser = {
-      did: 'did:web:example.com:users:user%40example.com',
-      email: 'user@example.com',
-      name: 'John Doe',
-      image: 'https://example.com/avatar.jpg',
-      domain: 'example.com',
-    };
-
-    it('should validate complete user objects', () => {
-      expect(() => OAuthUserSchema.parse(validUser)).not.toThrow();
-    });
-
-    it('should handle null name', () => {
-      const userWithNullName = { ...validUser, name: null };
-      const result = OAuthUserSchema.parse(userWithNullName);
-      expect(result.name).toBeNull();
-    });
-
-    it('should handle null image', () => {
-      const userWithNullImage = { ...validUser, image: null };
-      const result = OAuthUserSchema.parse(userWithNullImage);
-      expect(result.image).toBeNull();
-    });
-
-    it('should handle undefined name (converts to null)', () => {
-      const userWithUndefinedName: Partial<typeof validUser> = { ...validUser };
-      delete userWithUndefinedName.name;
-      const result = OAuthUserSchema.parse(userWithUndefinedName);
-      expect(result.name).toBeUndefined();
-    });
-
-    it('should require mandatory fields', () => {
-      const requiredFields = [
-        { field: 'did', error: 'A did is required' },
-        { field: 'email', error: 'email address is required' },
-        { field: 'domain', error: 'Domain is required' },
-      ];
-
-      requiredFields.forEach(({ field, error }) => {
-        const invalidUser = { ...validUser };
-        delete invalidUser[field as keyof typeof invalidUser];
-        expect(() => OAuthUserSchema.parse(invalidUser)).toThrow(error);
-      });
-    });
-
-    it('should validate email field', () => {
-      const userWithInvalidEmail = { ...validUser, email: 'invalid-email' };
-      expect(() => OAuthUserSchema.parse(userWithInvalidEmail)).toThrow('email address is required');
-    });
-
-    it('should require non-empty required string fields', () => {
-      const emptyStringFields = [
-        { ...validUser, did: '' },
-        { ...validUser, domain: '' },
-      ];
-
-      emptyStringFields.forEach(user => {
-        expect(() => OAuthUserSchema.parse(user)).toThrow();
-      });
-    });
-
-    // Role flags are not part of this shape. A knowledge base still sending
-    // them is not rejected over a field nobody consumes — they are dropped.
-    it('should drop role flags rather than reject or carry them', () => {
-      const result = OAuthUserSchema.parse({ ...validUser, isAdmin: true, isModerator: true });
-
-      expect(result).toEqual(validUser);
-      expect('isAdmin' in result).toBe(false);
-      expect('isModerator' in result).toBe(false);
-    });
-
-    it('should use safeParse correctly', () => {
-      const result = OAuthUserSchema.safeParse(validUser);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.did).toBe(validUser.did);
-        expect(result.data.email).toBe(validUser.email);
-      }
-
-      const invalidUser = { ...validUser, email: 'invalid' };
-      const errorResult = OAuthUserSchema.safeParse(invalidUser);
-      expect(errorResult.success).toBe(false);
-      if (!errorResult.success) {
-        expect(errorResult.error).toContain('email');
-      }
-    });
-  });
-
   describe('sanitizeImageURL', () => {
     beforeEach(() => {
       consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -351,37 +261,6 @@ describe('Validation Library (Native JS)', () => {
         expect(result.error).toContain('Invalid JWT token format');
       }
     });
-
-    it('should handle complex object validation', () => {
-      const validUser = {
-        did: 'did:web:example.com:users:user%40example.com',
-        email: 'user@example.com',
-        name: 'John Doe',
-        image: 'https://example.com/avatar.jpg',
-        domain: 'example.com',
-      };
-
-      const result = validateData(OAuthUserSchema, validUser);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.did).toBe('did:web:example.com:users:user%40example.com');
-        expect(result.data.email).toBe('user@example.com');
-      }
-    });
-
-    it('should handle validation errors', () => {
-      const invalidUser = {
-        did: '',
-        email: 'invalid-email',
-        domain: 'example.com',
-      };
-
-      const result = validateData(OAuthUserSchema, invalidUser);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBeTruthy();
-      }
-    });
   });
 
   describe('Edge Cases and Security', () => {
@@ -404,29 +283,6 @@ describe('Validation Library (Native JS)', () => {
         const sanitized = sanitizeImageURL(attempt);
         expect(sanitized).toBeNull();
       });
-    });
-
-    it('should prevent prototype pollution in user objects', () => {
-      const maliciousData = {
-        __proto__: { polluted: true },
-        constructor: { prototype: { polluted: true } },
-        did: 'did:web:example.com:users:user%40example.com',
-        email: 'user@example.com',
-        domain: 'example.com',
-        isAdmin: false,
-        isModerator: false,
-      };
-
-      const result = validateData(OAuthUserSchema, maliciousData);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        // Should only contain the expected fields
-        const keys = Object.keys(result.data);
-        expect(keys).toContain('did');
-        expect(keys).toContain('email');
-        expect(keys).not.toContain('__proto__');
-        expect(keys).not.toContain('constructor');
-      }
     });
   });
 });

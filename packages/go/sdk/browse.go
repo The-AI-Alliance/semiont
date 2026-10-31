@@ -11,35 +11,30 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-// Collaborator is one collaborator of the knowledge base: its entry in the
-// directory, and its model's limits when the service holding that model's
-// credentials reported them (nil when none did).
-type Collaborator struct {
-	Entry  api.CollaboratorEntry
+// EngineWithLimits is one of the knowledge base's engines: its entry, and
+// its model's limits when the service holding that model's credentials
+// reported them (nil when none did).
+type EngineWithLimits struct {
+	Entry  api.EngineEntry
 	Limits *api.InferenceLimits
 }
 
-// joined is the directory, each software agent with the limits its model was
-// reported to have. The first report of a model is the one that stands.
-func joined(directory []api.CollaboratorEntry, reported []api.InferencePairLimits) []Collaborator {
-	type model struct{ provider, model string }
-	byModel := map[model]api.InferenceLimits{}
+// joined is the engines, each with the limits it was reported to have. The
+// first report of an engine is the one that stands.
+func joined(entries []api.EngineEntry, reported []api.EngineLimits) []EngineWithLimits {
+	byEngine := map[api.Engine]api.InferenceLimits{}
 	for i := len(reported) - 1; i >= 0; i-- {
-		byModel[model{reported[i].Provider, reported[i].Model}] = reported[i].Limits
+		byEngine[reported[i].Engine] = reported[i].Limits
 	}
-	collaborators := make([]Collaborator, 0, len(directory))
-	for _, entry := range directory {
-		collaborator := Collaborator{Entry: entry}
-		if kind, err := entry.Agent.Discriminator(); err == nil && kind == string(api.AgentSoftwareTypeSoftware) {
-			if software, err := entry.Agent.AsAgentSoftware(); err == nil && software.Provider != nil && software.Model != nil {
-				if limits, ok := byModel[model{*software.Provider, *software.Model}]; ok {
-					collaborator.Limits = &limits
-				}
-			}
+	engines := make([]EngineWithLimits, 0, len(entries))
+	for _, entry := range entries {
+		engine := EngineWithLimits{Entry: entry}
+		if limits, ok := byEngine[entry.Engine]; ok {
+			engine.Limits = &limits
 		}
-		collaborators = append(collaborators, collaborator)
+		engines = append(engines, engine)
 	}
-	return collaborators
+	return engines
 }
 
 // BrowseNamespace is reads, and this viewer's own signals.
@@ -86,12 +81,12 @@ func (n *BrowseNamespace) TagSchemas() *Cached[[]api.TagSchema] {
 	return keyed(n.links, n.live.tagSchemas, whole{}, itself[[]api.TagSchema], api.ResourceId{})
 }
 
-// Agents is the directory, asked for first, with each model's limits as the
-// services holding its credentials report them. A service that is down,
-// silent or mistaken reports none: its models show no limits. A directory
-// that cannot be had fails the read at once.
-func (n *BrowseNamespace) Agents() *Cached[[]Collaborator] {
-	return n.live.collaborators()
+// Engines is the knowledge base's engines, asked for first, with each
+// model's limits as the services holding its credentials report them. A
+// service that is down, silent or mistaken reports none: its models show no
+// limits. Engines that cannot be had fail the read at once.
+func (n *BrowseNamespace) Engines() *Cached[[]EngineWithLimits] {
+	return n.live.enginesWithLimits()
 }
 
 // Events is a resource's events, each with who it is attributed to.

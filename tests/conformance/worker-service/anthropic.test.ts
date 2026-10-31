@@ -1,5 +1,5 @@
 /**
- * A worker whose agent is an Anthropic one (WORKER-SERVICE.md § Limits,
+ * A worker whose engine is an Anthropic one (WORKER-SERVICE.md § Limits,
  * § The request, § The five kinds of mark job, § Failures, § Cancellation,
  * § Generation, § Telemetry, § Stopping): what it asks its provider before
  * its first generation, the request each kind of generation is, how many
@@ -13,7 +13,7 @@ import { everyJob } from '../harness/dispatcher-world';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { errorsOf, metricName, spanName, spec } from '../harness/spec';
-import { ANTHROPIC_MODEL, eachWorkerService, type RunningJob, type Served, type WorkerAgent, type WorkerServiceWorld } from '../harness/worker-service-world';
+import { ANTHROPIC_MODEL, eachWorkerService, type Engine, type RunningJob, type Served, type WorkerServiceWorld } from '../harness/worker-service-world';
 import {
   annotationIdOf,
   ANTHROPIC_OUTPUT,
@@ -46,11 +46,11 @@ const otlp = (): OtlpReceiver => {
   return receiver;
 };
 
-/** The agent the worker of these cases works as: the first Anthropic pair. */
-const claude = (w: WorkerServiceWorld): WorkerAgent => w.anthropicAgents[0]!;
+/** The engine the worker of these cases runs: the first Anthropic one. */
+const claude = (w: WorkerServiceWorld): Engine => w.anthropicEngines[0]!;
 
-/** Start a worker with one agent, the Anthropic one, serving every job. */
-const started = (w: WorkerServiceWorld): Promise<Served> => w.start({ agents: [w.entry(claude(w), everyJob())] });
+/** Start a worker with one engine, the Anthropic one, serving every job. */
+const started = (w: WorkerServiceWorld): Promise<Served> => w.start({ engines: [w.entry(claude(w), everyJob())] });
 
 /** An answer of the model: its text, and the tokens the provider says it read and wrote. */
 const answer = (text: string, stopReason?: string): ScriptedMessage => ({ text, usage: { input: 412, output: 57 }, ...(stopReason === undefined ? {} : { stopReason }) });
@@ -63,7 +63,7 @@ const refused = (status: number, type: string, said: string, headers?: Record<st
 });
 
 /** The request a highlighting job over the short text makes of a model the stand-in describes as it does unless told otherwise. */
-const highlighting = (agent: WorkerAgent): Record<string, unknown> => message(agent.model, 'highlighting', { max_tokens: ANTHROPIC_OUTPUT }, FORMATS.highlighting);
+const highlighting = (engine: Engine): Record<string, unknown> => message(engine.model, 'highlighting', { max_tokens: ANTHROPIC_OUTPUT }, FORMATS.highlighting);
 
 /** What a `mark` job that made nothing asked of the gateway, in order. */
 const madeNothing = (job: RunningJob): string[] => ['emit job:claim', 'emit job:start', 'emit browse:resource-requested', `GET /resources/${String(job.params.resourceId)}`, 'emit job:fail', 'emit job:claim'];
@@ -116,9 +116,9 @@ const firstProgram = (generator: Record<string, unknown>, resourceId: string): R
 const entity = (type: string) => [{ type: 'TextualBody', value: type, purpose: 'tagging', format: 'text/plain', language: 'en' }];
 
 eachWorkerService('a worker on Anthropic', (world) => {
-  it("asks of its model once, for its ceilings, and then for each generation, every request carrying its agent's key as a bearer token", async () => {
+  it("asks of its model once, for its ceilings, and then for each generation, every request carrying its engine's key as a bearer token", async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const first = markJob(w, 'anthropic-highlighting', { motivation: 'highlighting' });
     const second = markJob(w, 'anthropic-highlighting-again', { motivation: 'highlighting' });
     const resourceId = String(first.params.resourceId);
@@ -139,10 +139,10 @@ eachWorkerService('a worker on Anthropic', (world) => {
     await settled(served, second);
 
     // The model's ceilings, then a generation for each job: the first is asked once, and kept.
-    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`)).toEqual([`GET /v1/models/${agent.model}`, 'POST /v1/messages', 'POST /v1/messages']);
+    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`)).toEqual([`GET /v1/models/${engine.model}`, 'POST /v1/messages', 'POST /v1/messages']);
     expect(w.anthropic.described.map((r) => r.body)).toEqual([undefined]);
     // A generation: the model, the budget, the prompt as the one message, and the schema of the answer. No temperature, though a detection's is 0.
-    expectMessages(w.anthropic.generations, [highlighting(agent), highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), highlighting(engine)]);
     // Every request carries the key the variable holds, as a bearer token and in no other header, and the version of the API it speaks.
     expect(w.anthropic.requests.map((r) => r.headers['authorization'])).toEqual(Array.from({ length: 3 }, () => `Bearer ${w.anthropic.apiKey}`));
     expect(w.anthropic.requests.filter((r) => 'x-api-key' in r.headers)).toEqual([]);
@@ -150,14 +150,14 @@ eachWorkerService('a worker on Anthropic', (world) => {
     // And nothing the worker wrote carries the key.
     expect(served.process.output.join('\n')).not.toContain(w.anthropic.apiKey);
 
-    // What it made of the answer: the two spans that are in the text, as the agent that asked.
+    // What it made of the answer: the two spans that are in the text, by the engine that asked.
     expect(served.payloads('mark:commit').map((p) => ({ ...p, annotations: withoutCreated(p['annotations']) }))).toEqual([
       {
         resourceId,
         jobId: first.metadata.id,
         annotations: [
-          firstProgram(w.generator(agent), resourceId),
-          textAnnotation(w.generator(agent), resourceId, 'highlighting', annotationIdOf(resourceId, 'highlighting', '354:360:London'), {
+          firstProgram(w.generator(engine), resourceId),
+          textAnnotation(w.generator(engine), resourceId, 'highlighting', annotationIdOf(resourceId, 'highlighting', '354:360:London'), {
             start: 354,
             end: 360,
             exact: 'London',
@@ -167,7 +167,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
         ],
       },
     ]);
-    expect(w.commits.map((c) => c.by)).toEqual([agent.did]);
+    expect(w.commits.map((c) => c.by)).toEqual([w.did]);
     expect(served.payloads('job:checkpoint')[0]).toEqual({
       jobId: first.metadata.id,
       completedUnits: [],
@@ -185,20 +185,20 @@ eachWorkerService('a worker on Anthropic', (world) => {
     ['a model that writes more than a generation has time for', { maxInputTokens: 30_000, maxOutputTokens: 20_000 }, { max_tokens: ANTHROPIC_OUTPUT, size: 5190 }],
   ])('asks %s for the budget its two ceilings make', async (_what, ceilings, asked) => {
     const w = world();
-    const agent = claude(w);
-    w.anthropic.models.set(agent.model, { ...ANTHROPIC_MODEL, ...ceilings });
+    const engine = claude(w);
+    w.anthropic.models.set(engine.model, { ...ANTHROPIC_MODEL, ...ceilings });
     const job = markJob(w, 'anthropic-budget', { motivation: 'highlighting' });
     w.anthropic.script(answer('[]'));
     const served = await started(w);
     await settled(served, job);
 
-    expectMessages(w.anthropic.generations, [message(agent.model, 'highlighting', { max_tokens: asked.max_tokens }, FORMATS.highlighting)]);
+    expectMessages(w.anthropic.generations, [message(engine.model, 'highlighting', { max_tokens: asked.max_tokens }, FORMATS.highlighting)]);
     expect(served.payloads('job:checkpoint')).toEqual([{ jobId: job.metadata.id, completedUnits: [], unitCursors: { highlighting: { next: TEXT.length, size: asked.size, found: 0, emitted: 0, errors: 0 } } }]);
   });
 
   it('sends no temperature to any model: not the detection\'s 0, and not the 0.2 a yield job asks for', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const mark = markJob(w, 'anthropic-no-temperature', { motivation: 'highlighting' });
     const made = yieldJob(w, 'anthropic-no-temperature-yield', { maxTokens: 300, temperature: 0.2 });
     w.anthropic.script(answer(JSON.stringify([{ exact: 'the first program' }])), answer('It was never built.'));
@@ -207,14 +207,14 @@ eachWorkerService('a worker on Anthropic', (world) => {
     await settled(served, mark);
     await settled(served, made);
 
-    expectMessages(w.anthropic.generations, [highlighting(agent), message(agent.model, 'yield-markdown', { max_tokens: 300 })]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), message(engine.model, 'yield-markdown', { max_tokens: 300 })]);
     expect(served.emits('job:fail')).toEqual([]);
   });
 
   it('fails a mark job as deterministic, having asked for no generation, on a model that does not answer in a schema, and does a yield job on it all the same', async () => {
     const w = world();
-    const agent = claude(w);
-    w.anthropic.models.set(agent.model, { ...ANTHROPIC_MODEL, structuredOutputs: false });
+    const engine = claude(w);
+    w.anthropic.models.set(engine.model, { ...ANTHROPIC_MODEL, structuredOutputs: false });
     const mark = markJob(w, 'anthropic-no-schema', { motivation: 'highlighting' });
     const made = yieldJob(w, 'anthropic-no-schema-yield', { maxTokens: 300, temperature: 0.2 });
     w.anthropic.script(answer('It was never built.'));
@@ -224,31 +224,31 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
     // No attempt changes what the model can do: the job says it will not be retried, whatever budget it has left.
     expect(failure).toEqual({ ...identity(mark), failureClass: 'deterministic', willRetry: false });
-    expect(String(error)).toContain(agent.model);
+    expect(String(error)).toContain(engine.model);
     expectProgress(served, mark, [report(mark, 10, { code: 'loading' }), report(mark, 30, { code: 'analyzing' })]);
     // It learned of the model once, and asked it for the one generation that wants no schema.
     expect(w.anthropic.described).toHaveLength(1);
-    expectMessages(w.anthropic.generations, [message(agent.model, 'yield-markdown', { max_tokens: 300 })]);
+    expectMessages(w.anthropic.generations, [message(engine.model, 'yield-markdown', { max_tokens: 300 })]);
     expect(served.sequence()).toEqual([...madeNothing(mark).slice(0, -1), ...YIELDED]);
     expect(w.commits.map((c) => c.resourceId)).toEqual([SOURCE]);
   });
 
   it("takes four of the entity types of a linking job at once, in the job's order, each an extraction and then a count", async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const types = ['Person', 'Place', 'Date', 'Machine', 'Number'];
     const job = markJob(w, 'anthropic-linking', { motivation: 'linking', entityTypes: types });
     const resourceId = String(job.params.resourceId);
     // What is asked of a type is what is kept as asked of Person, with the type's own name.
     const extraction = (type: string) => ({
-      ...message(agent.model, 'linking-person', { max_tokens: ANTHROPIC_OUTPUT }, FORMATS.linking),
+      ...message(engine.model, 'linking-person', { max_tokens: ANTHROPIC_OUTPUT }, FORMATS.linking),
       messages: [{ role: 'user', content: prompt('linking-person').replace('mentions of: Person.', `mentions of: ${type}.`) }],
     });
     const count = (type: string) => ({
-      ...message(agent.model, 'linking-person-count', { max_tokens: 32 }, COUNT_FORMAT),
+      ...message(engine.model, 'linking-person-count', { max_tokens: 32 }, COUNT_FORMAT),
       messages: [{ role: 'user', content: prompt('linking-person-count').replace('mention of: Person in', `mention of: ${type} in`) }],
     });
-    expect([extraction('Place'), count('Place')]).toEqual([message(agent.model, 'linking-place', { max_tokens: ANTHROPIC_OUTPUT }, FORMATS.linking), message(agent.model, 'linking-place-count', { max_tokens: 32 }, COUNT_FORMAT)]);
+    expect([extraction('Place'), count('Place')]).toEqual([message(engine.model, 'linking-place', { max_tokens: ANTHROPIC_OUTPUT }, FORMATS.linking), message(engine.model, 'linking-place-count', { max_tokens: 32 }, COUNT_FORMAT)]);
     const said = (body: Record<string, unknown>) => JSON.stringify(body['messages']);
     const sorted = (bodies: Array<Record<string, unknown>>) => [...bodies].sort((a, b) => (said(a) < said(b) ? -1 : 1));
     const asked = () => w.anthropic.generations.map((g) => g.body);
@@ -281,7 +281,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     // Ten requests, in no fixed order across the types: an extraction and a count for each.
     expect(sorted(asked())).toEqual(sorted([...types.map(extraction), ...types.map(count)]));
     const reference = (type: string, at: { start: number; end: number; exact: string; prefix: string; suffix: string }) =>
-      textAnnotation(w.generator(agent), resourceId, 'linking', annotationIdOf(resourceId, 'linking', `${at.start}:${at.end}:${at.exact}`, entity(type)), at, entity(type));
+      textAnnotation(w.generator(engine), resourceId, 'linking', annotationIdOf(resourceId, 'linking', `${at.start}:${at.end}:${at.exact}`, entity(type)), at, entity(type));
     const batches = served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']));
     const byText = (a: unknown, b: unknown) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1);
     expect(batches.sort(byText)).toEqual(
@@ -315,14 +315,14 @@ eachWorkerService('a worker on Anthropic', (world) => {
     ['529', refused(529, 'overloaded_error', 'the provider is overloaded'), 'the provider is overloaded'],
   ])('asks three times in all for a generation refused with %s, and then fails the job as transient', async (status, refusal, said) => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, `anthropic-refused-${status}`, { motivation: 'highlighting' });
     w.anthropic.script(refusal, refusal, refusal);
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
     // The same request, three times: the first asking, and two more.
-    expectMessages(w.anthropic.generations, [highlighting(agent), highlighting(agent), highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), highlighting(engine), highlighting(engine)]);
     // It waited before each: three eighths of a second at the least, and then twice that, less the grain of a timer.
     const [first, second, third] = w.anthropic.generations.map((g) => g.at);
     expect(second! - first!).toBeGreaterThanOrEqual(370);
@@ -337,13 +337,13 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('asks once for a generation refused as the request\'s own fault, and fails the job as deterministic', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-refused-400', { motivation: 'highlighting' });
     w.anthropic.script(refused(400, 'invalid_request_error', 'max_tokens: the model writes fewer'));
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
-    expectMessages(w.anthropic.generations, [highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine)]);
     expect(failure).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
     expect(String(error)).toContain('400');
     expect(String(error)).toContain('max_tokens: the model writes fewer');
@@ -352,13 +352,13 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('completes a job whose generation is refused and then, asked again, answered: having waited as long as the provider said to', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-refused-once', { motivation: 'highlighting' });
     w.anthropic.script(refused(429, 'rate_limit_error', 'the account is over its rate', { 'retry-after': '2' }), answer(JSON.stringify([{ exact: 'the first program' }])));
     const served = await started(w);
     const completion = await settled(served, job);
 
-    expectMessages(w.anthropic.generations, [highlighting(agent), highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), highlighting(engine)]);
     // Two seconds, less the grain of a timer: far over the second it waits when it is told nothing.
     expect(w.anthropic.generations[1]!.at - w.anthropic.generations[0]!.at).toBeGreaterThanOrEqual(1990);
     expect(completion).toEqual({ ...identity(job), result: { found: 1, persisted: 1 }, durability: 'acknowledged' });
@@ -367,14 +367,14 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('asks once for a generation refused with a wait of over two minutes, and fails the job as transient, saying the wait', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-told-to-wait', { motivation: 'highlighting' });
     // Two minutes and a second. A second asking is scripted no answer: one made would fail the case as a request nothing scripted.
     w.anthropic.script(refused(429, 'rate_limit_error', 'the account is over its rate', { 'retry-after': '121' }));
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
-    expectMessages(w.anthropic.generations, [highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine)]);
     // The refusal's own class: the provider said not now, and nothing about the request was judged.
     expect(failure).toEqual({ ...identity(job), failureClass: 'transient', willRetry: true });
     // What the provider said, and the wait it stated, which the worker did not wait.
@@ -386,30 +386,30 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('asks once for its model\'s ceilings when the refusal states a wait of over two minutes, and fails the job as transient, saying the wait', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     w.anthropic.modelsRefusal = { status: 429, headers: { 'retry-after-ms': '121000' } };
     const job = markJob(w, 'anthropic-unlearned-told-to-wait', { motivation: 'highlighting' });
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
     expect(failure).toEqual({ ...identity(job), failureClass: 'transient', willRetry: true });
-    expect(String(error)).toContain(agent.model);
+    expect(String(error)).toContain(engine.model);
     expect(String(error)).toContain('429');
     expect(String(error)).toContain('retry-after-ms: 121000');
     // Asked once, and nothing else was: no generation.
-    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`)).toEqual([`GET /v1/models/${agent.model}`]);
+    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`)).toEqual([`GET /v1/models/${engine.model}`]);
     expect(served.sequence()).toEqual(madeNothing(job));
   });
 
   it('asks three times in all for a generation whose connection ends unanswered, and then fails the job with no class', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-dropped', { motivation: 'highlighting' });
     w.anthropic.script({ drop: true }, { drop: true }, { drop: true });
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
-    expectMessages(w.anthropic.generations, [highlighting(agent), highlighting(agent), highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), highlighting(engine), highlighting(engine)]);
     expect(failure).toEqual({ ...identity(job), willRetry: true });
     expect(typeof error).toBe('string');
     expect(served.sequence()).toEqual(madeNothing(job));
@@ -421,7 +421,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     [503, 'transient', 3],
   ] as const)('fails a job, when its provider will not say its model\'s ceilings and refuses with %i, as %s, having asked for no generation; and asks again for the next job', async (status, failureClass, askings) => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     w.anthropic.modelsRefusal = { status };
     const job = markJob(w, `anthropic-unlearned-${status}`, { motivation: 'highlighting' });
     const served = await started(w);
@@ -429,7 +429,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
     // The class is the status's, as a refused generation's is, and the error says the status.
     expect(failure).toEqual({ ...identity(job), failureClass, willRetry: failureClass === 'transient' });
-    expect(String(error)).toContain(agent.model);
+    expect(String(error)).toContain(engine.model);
     expect(String(error)).toContain(String(status));
     expect(w.anthropic.described).toHaveLength(askings);
     expect(w.anthropic.generations).toEqual([]);
@@ -442,19 +442,19 @@ eachWorkerService('a worker on Anthropic', (world) => {
     await w.announce(next);
     await settled(served, next);
     expect(w.anthropic.described).toHaveLength(askings + 1);
-    expectMessages(w.anthropic.generations, [highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine)]);
   });
 
   it('asks a second time, and no more, for an answer the model was cut off in, and fails the job as deterministic', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-cut-off', { motivation: 'highlighting' });
     const cutOff = answer(JSON.stringify([{ exact: 'the first program' }]), 'max_tokens');
     w.anthropic.script(cutOff, cutOff);
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
-    expectMessages(w.anthropic.generations, [highlighting(agent), highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), highlighting(engine)]);
     expect(failure).toEqual({ ...identity(job), failureClass: 'deterministic', willRetry: false });
     expect(typeof error).toBe('string');
     // What a cut-off answer did carry is not committed.
@@ -463,9 +463,9 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('asks for a generation with the job\'s own length, no temperature and no schema, uploads the answer, and says when the model was cut off', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     // The model reads 400 tokens: the prompt, 394 of them, and the 300 asked for are together over that, and the generation is asked for all the same.
-    w.anthropic.models.set(agent.model, { ...ANTHROPIC_MODEL, maxInputTokens: 400, maxOutputTokens: 300 });
+    w.anthropic.models.set(engine.model, { ...ANTHROPIC_MODEL, maxInputTokens: 400, maxOutputTokens: 300 });
     const whole = yieldJob(w, 'anthropic-yield', { maxTokens: 300, temperature: 0.2 });
     const cutOff = yieldJob(w, 'anthropic-yield-cut-off', { maxTokens: 300, temperature: 0.2 });
     w.anthropic.script(answer('Charles Babbage designed the engine in London. It was never built.'), answer('Charles Babbage designed the engine in', 'max_tokens'));
@@ -473,12 +473,12 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const completion = await settled(served, whole);
     const truncated = await settled(served, cutOff);
 
-    const request = message(agent.model, 'yield-markdown', { max_tokens: 300 });
+    const request = message(engine.model, 'yield-markdown', { max_tokens: 300 });
     expectMessages(w.anthropic.generations, [request, request]);
     const [first, second] = w.world.archivist.uploads;
     expect(first!.file.toString('utf8')).toBe('Charles Babbage designed the engine in London. It was never built.');
     expect(second!.file.toString('utf8')).toBe('Charles Babbage designed the engine in');
-    expect(JSON.parse(first!.fields['generator']!)).toEqual(w.generator(agent));
+    expect(JSON.parse(first!.fields['generator']!)).toEqual(w.generator(engine));
     expect(completion).toEqual({ ...identity(whole), result: { resourceId: first!.resourceId, resourceName: 'The Analytical Engine', truncated: false }, durability: 'acknowledged' });
     expect(truncated).toEqual({ ...identity(cutOff), result: { resourceId: second!.resourceId, resourceName: 'The Analytical Engine', truncated: true }, durability: 'acknowledged' });
     expect(served.sequence()).toEqual([...YIELDED.slice(0, -1), ...YIELDED]);
@@ -486,13 +486,13 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('fails a yield job whose model answers nothing, with no class, and uploads nothing', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = yieldJob(w, 'anthropic-yield-empty', { maxTokens: 300, temperature: 0.2 });
     w.anthropic.script(answer(''));
     const served = await started(w);
     const { error, ...failure } = await settled(served, job, 'job:fail');
 
-    expectMessages(w.anthropic.generations, [message(agent.model, 'yield-markdown', { max_tokens: 300 })]);
+    expectMessages(w.anthropic.generations, [message(engine.model, 'yield-markdown', { max_tokens: 300 })]);
     expect(failure).toEqual({ ...identity(job), willRetry: true });
     expect(String(error)).toContain('response is empty');
     expect(w.world.archivist.uploads).toEqual([]);
@@ -501,7 +501,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('fails a job as withheld, having asked once, when the provider withholds its answer, and uses nothing the answer carried', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const mark = markJob(w, 'anthropic-withheld', { motivation: 'highlighting' });
     const generation = yieldJob(w, 'anthropic-yield-withheld', { maxTokens: 300, temperature: 0.2 });
     // Each refusal carries what would have been an answer: a passage to highlight, and the start of a document.
@@ -510,7 +510,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const { error: markError, ...markFailure } = await settled(served, mark, 'job:fail');
     const { error: yieldError, ...yieldFailure } = await settled(served, generation, 'job:fail');
 
-    expectMessages(w.anthropic.generations, [highlighting(agent), message(agent.model, 'yield-markdown', { max_tokens: 300 })]);
+    expectMessages(w.anthropic.generations, [highlighting(engine), message(engine.model, 'yield-markdown', { max_tokens: 300 })]);
     expect(markFailure).toEqual({ ...identity(mark), failureClass: 'withheld', willRetry: false });
     expect(yieldFailure).toEqual({ ...identity(generation), failureClass: 'withheld', willRetry: false });
     for (const error of [markError, yieldError]) expect(String(error)).toContain('withheld its answer: refusal');
@@ -521,7 +521,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('asks for a generation of more than 21333 tokens as a stream, and for one of 21333 as one answer; and makes the same of either, cut off as each says it was', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const text = 'Ada Lovelace published the first program in 1843 — a method for computing Bernoulli numbers. Charles Babbage designed the engine in London. It was naïve by later standards, and it was never built.';
     const whole = yieldJob(w, 'anthropic-yield-whole', { maxTokens: 21_333 });
     const streamed = yieldJob(w, 'anthropic-yield-streamed', { maxTokens: 21_334 });
@@ -532,7 +532,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const second = await settled(served, streamed);
 
     // Neither carries the 0.7 a job that states no temperature takes, and the second asks for its answer as a stream of events.
-    expectMessages(w.anthropic.generations, [message(agent.model, 'yield-21333', { max_tokens: 21_333 }), message(agent.model, 'yield-21334', { max_tokens: 21_334, stream: true })]);
+    expectMessages(w.anthropic.generations, [message(engine.model, 'yield-21333', { max_tokens: 21_333 }), message(engine.model, 'yield-21334', { max_tokens: 21_334, stream: true })]);
     const uploads = w.world.archivist.uploads;
     expect(uploads.map((u) => u.file.toString('utf8'))).toEqual([text, text]);
     expect(first).toEqual({ ...identity(whole), result: { resourceId: uploads[0]!.resourceId, resourceName: 'The Analytical Engine', truncated: true }, durability: 'acknowledged' });
@@ -542,16 +542,16 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('counts a generation once, however many times it was asked for, and the tokens its provider reported for it, under its provider and its model', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-telemetry', { motivation: 'highlighting' });
     // The generation is refused once and then answered: it is one generation all the same.
     w.anthropic.script(refused(429, 'rate_limit_error', 'the account is over its rate'), { text: JSON.stringify([{ exact: 'the first program' }]), usage: { input: 4127, output: 571 } });
-    const served = await w.start({ agents: [w.entry(agent, everyJob())], env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
+    const served = await w.start({ engines: [w.entry(engine, everyJob())], env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
     await settled(served, job);
 
     // The generation's span names who was asked, and for how much.
     const span = await eventually('the span of the generation', 15_000, () => otlp().spans.find((s) => s.name === spanName('inference:structured')));
-    expect(span.attributes).toEqual({ 'inference.provider': 'anthropic', 'inference.model': agent.model, 'inference.max_tokens': ANTHROPIC_OUTPUT });
+    expect(span.attributes).toEqual({ 'inference.provider': 'anthropic', 'inference.model': engine.model, 'inference.max_tokens': ANTHROPIC_OUTPUT });
 
     // The two counts the provider stated, and no other.
     const tokens = await eventually('the tokens of the generation, read and written', 15_000, () => {
@@ -559,13 +559,13 @@ eachWorkerService('a worker on Anthropic', (world) => {
       return seen?.attributes.get('inference.direction')?.size === 2 ? seen : undefined;
     });
     expect([...tokens.attributes.get('inference.provider')!]).toEqual(['anthropic']);
-    expect([...tokens.attributes.get('inference.model')!]).toEqual([agent.model]);
+    expect([...tokens.attributes.get('inference.model')!]).toEqual([engine.model]);
     expect([...tokens.attributes.get('inference.direction')!].sort()).toEqual(['input', 'output']);
     expect([...new Set(tokens.values)].sort((a, b) => a - b)).toEqual([571, 4127]);
 
     // What learned the model's limits is no generation: of the three requests, the two askings of the one generation are counted, as one.
-    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`)).toEqual([`GET /v1/models/${agent.model}`, 'POST /v1/messages', 'POST /v1/messages']);
-    const ended = { 'inference.provider': ['anthropic'], 'inference.model': [agent.model], 'inference.outcome': ['success'] };
+    expect(w.anthropic.requests.map((r) => `${r.method} ${r.path}`)).toEqual([`GET /v1/models/${engine.model}`, 'POST /v1/messages', 'POST /v1/messages']);
+    const ended = { 'inference.provider': ['anthropic'], 'inference.model': [engine.model], 'inference.outcome': ['success'] };
     const carried = (metric: { attributes: Map<string, Set<string>> }) => Object.fromEntries([...metric.attributes].map(([key, values]) => [key, [...values]]));
     const calls = await eventually('the count of generations', 15_000, () => otlp().metrics.get(metricName('semiont.inference.calls')));
     expect(carried(calls)).toEqual(ended);
@@ -576,7 +576,7 @@ eachWorkerService('a worker on Anthropic', (world) => {
 
   it('does not end a generation that is under way when its job is cancelled: the request stays open until the model answers', async () => {
     const w = world();
-    const agent = claude(w);
+    const engine = claude(w);
     const job = markJob(w, 'anthropic-cancelled', { motivation: 'highlighting' });
     const resourceId = String(job.params.resourceId);
     w.anthropic.script({ hold: true });
@@ -589,10 +589,10 @@ eachWorkerService('a worker on Anthropic', (world) => {
     w.anthropic.release(answer(JSON.stringify([{ exact: 'the first program' }])));
     const cancel = await settled(served, job, 'job:cancel');
 
-    expectMessages(w.anthropic.generations, [highlighting(agent)]);
+    expectMessages(w.anthropic.generations, [highlighting(engine)]);
     expect(w.anthropic.generations[0]!.abandoned).toBe(false);
     // The piece it was on is committed, and the job is settled as cancelled.
-    expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([[firstProgram(w.generator(agent), resourceId)]]);
+    expect(served.payloads('mark:commit').map((p) => withoutCreated(p['annotations']))).toEqual([[firstProgram(w.generator(engine), resourceId)]]);
     expect(cancel).toEqual({ resourceId, jobId: job.metadata.id, jobType: 'mark', completedUnits: ['highlighting'] });
     expect(served.emits('job:complete')).toEqual([]);
   });

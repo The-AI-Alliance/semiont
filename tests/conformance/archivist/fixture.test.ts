@@ -1,9 +1,10 @@
 /**
  * A tree written before (ARCHIVIST.md § The record on disk): the knowledge
  * base in fixtures/typescript-tree was written by the Archivist's first
- * implementation, in TypeScript, and is kept as it was left. An Archivist
- * serves it, rebuilds from its log the very views it was left with, and goes
- * on from it.
+ * implementation, in TypeScript, and is kept as it was left, save that its
+ * profiles are under their present names (`principal:profiled`,
+ * `profiles.json`). An Archivist serves it, rebuilds from its log the very
+ * views it was left with, and goes on from it.
  */
 import { cpSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';

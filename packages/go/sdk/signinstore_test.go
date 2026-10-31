@@ -217,26 +217,53 @@ func TestASignInIsKeptAsItsTokenNamesIt(t *testing.T) {
 	}
 }
 
-// A token that names nobody, or no issuer, is no sign-in: a gateway would
-// admit neither.
-func TestATokenThatNamesNobodyIsNotKept(t *testing.T) {
-	for name, claims := range map[string]map[string]any{
-		"no email":  {"iss": "http://issuer.example"},
-		"no issuer": {"email": "a@example.com"},
-	} {
-		t.Run(name, func(t *testing.T) {
-			store := storeIn(t)
-			payload, _ := json.Marshal(claims)
-			held := heldFor(1)
-			held.Access = "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(payload) + ".c2ln"
-			var refused *SignInError
-			if err := store.Entry("local").Keep(context.Background(), held); !errors.As(err, &refused) || refused.Code != SignInErrorCodeExchange {
-				t.Errorf("kept, or refused otherwise: %v", err)
-			}
-			if _, kept, _ := store.SignIn("local"); kept {
-				t.Error("it was kept")
-			}
-		})
+// A token that names no issuer is no sign-in: a gateway would admit none.
+func TestATokenThatNamesNoIssuerIsNotKept(t *testing.T) {
+	store := storeIn(t)
+	payload, _ := json.Marshal(map[string]any{"email": "a@example.com"})
+	held := heldFor(1)
+	held.Access = "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(payload) + ".c2ln"
+	var refused *SignInError
+	if err := store.Entry("local").Keep(context.Background(), held); !errors.As(err, &refused) || refused.Code != SignInErrorCodeExchange {
+		t.Errorf("kept, or refused otherwise: %v", err)
+	}
+	if _, kept, _ := store.SignIn("local"); kept {
+		t.Error("it was kept")
+	}
+}
+
+// An account need not have an address: a token that names none is kept
+// without one, and a renewal keeps it without one.
+func TestATokenThatNamesNoAddressIsKeptWithoutOne(t *testing.T) {
+	store := storeIn(t)
+	entry := store.Entry("local")
+	payload, _ := json.Marshal(map[string]any{"iss": "http://issuer.example/realms/semiont", "sub": "an-account"})
+	held := heldFor(1)
+	held.Access = "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(payload) + ".c2ln"
+	if err := entry.Keep(context.Background(), held); err != nil {
+		t.Fatal(err)
+	}
+	document, err := store.read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var kept map[string]any
+	if err := json.Unmarshal(document["local"], &kept); err != nil {
+		t.Fatal(err)
+	}
+	if _, named := kept["email"]; named || kept["issuer"] != "http://issuer.example/realms/semiont" {
+		t.Errorf("kept as %s, want its issuer and no address", document["local"])
+	}
+	if back, ok, err := entry.Held(context.Background()); err != nil || !ok || back.Access != held.Access {
+		t.Errorf("held back as %+v (%v, %v)", back, ok, err)
+	}
+
+	renewed := signedToken(2)
+	if _, kept, err := entry.Renewed(context.Background(), held, renewed, "refresh-2"); err != nil || !kept {
+		t.Fatalf("renewed: %v, %v", kept, err)
+	}
+	if signIn, _, _ := store.SignIn("local"); signIn.Token != renewed || signIn.Email != "" {
+		t.Errorf("the renewal kept %+v, want its tokens and no address", signIn)
 	}
 }
 

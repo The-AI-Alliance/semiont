@@ -4,9 +4,10 @@ Task-oriented recipes for building a real system on `@semiont/sdk`, in roughly t
 you'll need them. Each recipe is a short description of the capability followed by the
 lines of TypeScript that exercise it.
 
-Building in Rust, Python or Go? The recipes are the same: the namespaces and methods match, and
-the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md)
-and [Go](../../packages/go/sdk/README.md) READMEs show each call in their own language.
+Building in Rust, Python, Go, Kotlin or Java? The recipes are the same: the namespaces and methods
+match, and the [Rust](../../packages/rust/sdk/README.md), [Python](../../packages/python/sdk/README.md),
+[Go](../../packages/go/sdk/README.md) and [Kotlin](../../packages/kotlin/sdk/README.md) READMEs show
+each call in their own language, the Kotlin one in Java too.
 
 This is the **how-to** doc. For the exhaustive per-namespace surface see
 [Usage.md](./Usage.md) (reference); for *why* the surface is shaped the way it is —
@@ -160,10 +161,10 @@ for (const ann of annotations) {
 | What kind it is | `isHighlight`, `isReference`, `isAssessment`, `isComment`, `isTag` |
 | What it says | `getEntityTypes`, `getCommentText`, `getTagCategory`, `getTagSchemaId` |
 
-The Rust, Python and Go SDKs have the same readers (`semiont::annotations`,
-`semiont.annotations`, the Go package `annotations`), and one table,
-[`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all four to the
-same answer for the same annotation.
+The Rust, Python, Go and Kotlin SDKs have the same readers (`semiont::annotations`,
+`semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and one
+table, [`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all five to
+the same answer for the same annotation.
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
 subscribing to `browse.*(rId)` acquires that resource's event scope while observed and
@@ -243,31 +244,32 @@ await session.client.mark.updateEntityTypes(rId, current, [...current, 'Person']
 (Don't confuse this with `frame.addEntityTypes` (§4), which grows the KB-wide *vocabulary*
 — a different axis from one resource's tags.)
 
-**Who does the work — the collaborator directory.** Before delegating a pass, you
-can name the agent that will serve it: `browse.agents()` returns the KB's declared roster as
-`CollaboratorEntry[]` — each entry a W3C `Agent` plus, for software agents, the jobs it's
-configured to serve, as `serves`: a list of `JobFilter`, the partial job descriptions a claim
-names (both types importable from `@semiont/core`). It's
-a KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed
-after a connection gap (a roster change means restarting the stack, which always presents as
-one). Match a job to its serving agent and you have the assignee *before* the work runs
-— and the same DID arrives back as `generator` on every annotation that work creates, so
-your dispatch-time attribution and the stored provenance agree by construction:
+**What runs the work — the engines.** Before delegating a pass, you can name the engine the
+job will be done with: `browse.engines()` returns the KB's engines as `EngineWithLimits[]` —
+each entry an `engine`, a provider and a model, the jobs the KB's Inference document has it
+used for, as `jobs` (a list of `JobFilter`, the partial job descriptions a claim names), and
+its `limits` once the service holding its key reports them (all importable from
+`@semiont/core`). An engine is not a principal: a job is done by whichever worker claims it,
+under its own account, and every annotation software creates carries a `generator` naming
+that worker's DID and the engine it used. A person who claims a job uses no engine. It's a
+KB-wide live query like `entityTypes()`: cached for the client's lifetime and refreshed after
+a connection gap (changing the engines means restarting the stack, which always presents as
+one). Match a job to its engine and you know the model *before* the work runs:
 
 ```typescript
-import type { CollaboratorEntry, JobFilter } from '@semiont/core';
+import type { EngineWithLimits, JobFilter } from '@semiont/core';
 
-const roster = await session.client.browse.agents().fresh();
-const linker = roster.find((e) =>
-  e.serves?.some((f) => f.jobType === 'mark' && f.params.motivation === 'linking'));
-// linker?.agent — the Software Agent (name, provider, model, DID '@id') that will
-// serve mark.delegate(rId, { motivation: 'linking', … }); entries without serves are
-// actor-role agents (retrieval/search), not job workers.
+const engines: EngineWithLimits[] = await session.client.browse.engines().fresh();
+const linking = (f: JobFilter) => f.jobType === 'mark' && f.params.motivation === 'linking';
+const linker = engines.find((e) => e.jobs?.some(linking));
+// linker?.engine — the provider and model a linking job is done with
+// mark.delegate(rId, { motivation: 'linking', … }); entries without jobs are
+// engines only the librarian's actors ask (retrieval/search).
 ```
 
 (In React, feed any live query to `useObservable` from `@semiont/react-ui` — e.g.
-`useObservable(useMemo(() => session.client.browse.agents(), [session]))` — and the roster
-updates in place.)
+`useObservable(useMemo(() => session.client.browse.engines(), [session]))` — and the engines
+update in place.)
 
 ## 7. Gather context (retrieval)
 
@@ -399,10 +401,10 @@ A span that is not the text's is refused: `annotationOfSpan` throws a `SpanRefus
 whose `code` names the refusal. `reconcile` is one way to find a model's words, with its own
 tolerance for a misquote; a span found another way is built the same.
 
-The Rust, Python and Go SDKs have the same three (`semiont::annotations`,
-`semiont.annotations`, the Go package `annotations`), and two tables,
-[`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
-[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all four to
+The Rust, Python, Go and Kotlin SDKs have the same three (`semiont::annotations`,
+`semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and two
+tables, [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
+[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all five to
 the same answer.
 
 ## 10. Find link candidates (semantic search)
@@ -602,7 +604,7 @@ supplying its own `SessionStorage` — no other wiring.
 What persists, per KB:
 - Five browse caches — resource descriptors, annotation lists, annotation details,
   entity types, tag schemas — under `semiont.cache.<kbId>.<name>`. Lists, event
-  histories, and the collaborator directory deliberately stay in-memory.
+  histories, and the engines deliberately stay in-memory.
 - The last **persisted** SSE event id PER SCOPE (a record under
   `semiont.lastEventId.<kbId>`), written only alongside cache-document flushes
   so the bookmark can never claim more than the caches contain. Ephemeral

@@ -56,6 +56,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -2018,6 +2019,31 @@ func countBearerUse(tag string) int {
 // Nothing that reads these tokens verifies them — the launcher's preflight
 // decodes without trusting, because verification is the gateway's job against
 // the issuer's published keys — so a fake issuer needs no key.
+// grantingClient: the client a client-credentials grant is for — the one its
+// secret came with, or the one a signed assertion names as its issuer (RFC
+// 7523), which the fake reads without checking the signature, as it checks no
+// secret.
+func grantingClient(form url.Values) string {
+	if form.Get("client_assertion_type") != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" {
+		return form.Get("client_id")
+	}
+	parts := strings.Split(form.Get("client_assertion"), ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	b, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		Iss string `json:"iss"`
+	}
+	if json.Unmarshal(b, &claims) != nil {
+		return ""
+	}
+	return claims.Iss
+}
+
 func unsignedJWT(claims map[string]any) string {
 	b, _ := json.Marshal(claims)
 	enc := base64.RawURLEncoding.EncodeToString
@@ -2366,9 +2392,10 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						// FAKERT_DIR, written by the test beside the KB
 						// fixture it derives from, so the expected value is
 						// stated once on that side rather than restated here.
+						client := grantingClient(r.PostForm)
 						if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 							_ = os.WriteFile(filepath.Join(dir, "client-credentials.txt"),
-								[]byte(r.PostForm.Get("client_id")+"\n"), 0o644)
+								[]byte(client+"\n"), 0o644)
 						}
 						aud := origin
 						if dir := os.Getenv("FAKERT_DIR"); dir != "" {
@@ -2380,18 +2407,21 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						}
 						// Every service client carries the service role; the worker
 						// client ALSO carries the worker role, mirroring the realm's
-						// grant so a worker's agent-token mint gets the capability
-						// to claim jobs. Held to the same literal by
-						// lint:service-role.
+						// grant, by which the dispatcher admits its claims. Held to
+						// the same literal by lint:service-role.
 						roles := []string{"semiont-service"}
-						if r.PostForm.Get("client_id") == "semiont-worker" {
+						if client == "semiont-worker-local" {
 							roles = append(roles, "semiont-worker")
 						}
+						// Every service's account is an agent's, as the realm
+						// marks it. Held to the launcher's by lint:service-role.
+						kindClaim, agentKind := "kind", "agent"
 						jsonOut(200, map[string]any{
 							"access_token": unsignedJWT(map[string]any{
-								"roles": roles,
-								"aud":   []string{aud, "account"},
-								"azp":   r.PostForm.Get("client_id"),
+								"roles":   roles,
+								"aud":     []string{aud, "account"},
+								"azp":     client,
+								kindClaim: agentKind,
 							}),
 							"token_type": "Bearer", "expires_in": 300,
 						})

@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "description": "The knowledge base's engines: those its Inference document names, and the jobs it has each used for",
+  "properties": {
+    "response": {
+      "type": "object",
+      "properties": {
+        "engines": {
+          "type": "array",
+          "items": {
+            "$ref": "./EngineEntry.json"
+          }
+        }
+      },
+      "required": [
+        "engines"
+      ]
+    }
+  },
+  "required": [
+    "response"
+  ]
+}

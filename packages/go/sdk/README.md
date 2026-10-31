@@ -14,7 +14,7 @@ A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
 It has the same namespaces, methods, live queries and state units as the
-[TypeScript][sdk-typescript], [Rust][sdk-rust] and [Python][sdk-python] SDKs,
+[TypeScript][sdk-typescript], [Rust][sdk-rust], [Python][sdk-python] and [Kotlin][sdk-kotlin] SDKs,
 and is held to the same [conformance suite][conformance]: its wire, its live
 queries and its worker, case by case. The [`semiont` launcher][launcher] is
 built on it. New to Semiont? The [Introduction][introduction] explains the
@@ -63,11 +63,12 @@ A transport sends the token it is given. Where the token comes from is one of
 three things, and each keeps it renewed: half its lifetime before it expires,
 at most five minutes before, and at once when the gateway refuses it.
 
-**An agent** is a service account's token exchanged at the gateway for the
-token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on. The
-gateway answers the exchange with the agent's DID, which is who its work is
-attributed to: `agent.DID()`, once it is signed in, as the gateway minted it.
+**An agent** is an account, as a person is: it signs in at its issuer, and the
+token its issuer grants is its bearer at the gateway. It is what a service
+holds: a transport, its agent's token, and the channels it awaits replies on.
+The gateway names it by its account; that DID, which the gateway answers at
+`GET /api/users/me`, is who its work is attributed to: `agent.DID()`, once it
+is signed in. The engine it runs is no part of it: each write names that.
 
 ```go
 import (
@@ -82,11 +83,11 @@ import (
 func Work(ctx context.Context, gateway, issuer, secret string) error {
 	timing := semiont.DefaultTiming()
 	service := semiont.NewServiceToken(
-		semiont.Credential{Issuer: issuer, ClientID: "semiont-smelter", ClientSecret: secret},
+		semiont.SecretCredential{Issuer: issuer, ClientID: "semiont-smelter", ClientSecret: secret},
 		semiont.Issuer{HTTP: http.DefaultClient, Timing: timing},
 	)
 	agent, err := semiont.SignInAgent(ctx, semiont.AgentConfig{
-		Gateway: gateway, Provider: "ollama", Model: "gemma2:27b", Service: service, HTTP: http.DefaultClient, Timing: timing,
+		Gateway: gateway, Service: service, HTTP: http.DefaultClient, Timing: timing,
 	})
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func Work(ctx context.Context, gateway, issuer, secret string) error {
 		HTTP: http.DefaultClient, Timing: timing,
 	})
 	defer transport.Close()
-	fmt.Println("working as", agent.DID()) // who its work is attributed to, as the gateway named it
+	fmt.Println("working as", agent.DID()) // who its work is attributed to: its account, as the gateway names it
 	for state := range transport.State().Changes(ctx) {
 		if state == semiont.ConnectionStateOpen {
 			fmt.Println("its stream is open, as the agent")
@@ -105,6 +106,33 @@ func Work(ctx context.Context, gateway, issuer, secret string) error {
 		}
 	}
 	return ctx.Err()
+}
+```
+
+That account proves itself with a secret, as each of Semiont's own services
+does. A worker's proves itself with a key: the launcher hands the worker its
+RSA key, a PKCS#8 PEM, as `SEMIONT_OIDC_CLIENT_KEY`, and a
+`semiont.KeyCredential` holding it goes to `NewServiceToken` in place of the
+`SecretCredential`. Each grant then carries an assertion signed with the key
+for that grant alone (RFC 7523), and no secret; the issuer checks it with the
+public half registered on the worker's client.
+
+```go
+import (
+	"fmt"
+	"os"
+
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
+)
+
+// WorkerCredential is a worker's account at issuer, which proves itself with
+// the key the launcher handed it.
+func WorkerCredential(issuer, clientID string) (semiont.KeyCredential, error) {
+	key, err := semiont.ParsePrivateKeyPEM(os.Getenv("SEMIONT_OIDC_CLIENT_KEY"))
+	if err != nil {
+		return semiont.KeyCredential{}, fmt.Errorf("SEMIONT_OIDC_CLIENT_KEY: %w", err)
+	}
+	return semiont.KeyCredential{Issuer: issuer, ClientID: clientID, PrivateKey: key}, nil
 }
 ```
 
@@ -171,7 +199,7 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
 		return err
 	}
 	if me := session.User().Value(); me != nil {
-		fmt.Println(me.Email, status.Version)
+		fmt.Println(me.Did, status.Version)
 	}
 	return nil
 }
@@ -214,7 +242,7 @@ attention. Each is a namespace of the client, a field of `*semiont.Client`.
 | | `Mark` | Annotate a resource | `Mark.Annotation`, `Mark.Delegate`, `Mark.UpdateEntityTypes`, `Mark.Archive` |
 | | `Bind` | Resolve an ambiguous reference to a specific resource | `Bind.Body`, `Bind.Initiate` |
 | | `Frame` | Define and grow the schema vocabulary | `Frame.AddEntityTypes`, `Frame.AddTagSchema` |
-| Reading | `Browse` | Navigate, read and observe, including who is here | `Browse.Resource`, `Browse.Annotations`, `Browse.Agents`, `Browse.Click` |
+| Reading | `Browse` | Navigate, read and observe, including the knowledge base's engines | `Browse.Resource`, `Browse.Annotations`, `Browse.Engines`, `Browse.Click` |
 | | `Match` | Search the corpus: resources by text, and candidates for a reference | `Match.Resources`, `Match.Search` |
 | | `Gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `Gather.Resource`, `Gather.Annotation`, `Gather.ReferencedBy` |
 | Attention | `Beckon` | Direct attention across participants | `Beckon.Hover`, `Beckon.Sparkle`, `Beckon.OpenResource` |
@@ -1024,7 +1052,7 @@ log keeps) is written as `[withheld]`.
 
 | Package | Holds | Generated from |
 |---|---|---|
-| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../../specs/src/session/oauth.json) |
+| `semiont` | The client (`Client`, `NewClient`) and its eleven namespaces; `Cached`, `Running`, `Delegation` and `Upload`; the cache, its refresher and what it keeps (`Cache`, `CachePersistence`, `SessionStorage`, `MemoryStorage`, `CoupledBookmarks`); `Claims` and the held jobs; `HTTPTransport`, `HTTPContentTransport`, `Wire` and the client's own `EventBus`; signing in (`SessionFromKept`, `ResumeSession`, `SignInWithDevice`, `SignOut`, `SignInAgent`, `NewServiceToken`, with a `SecretCredential` or a `KeyCredential`) and `Session`; a person's sign-in by a page redirect (`BeginAuthorization`, `CompleteAuthorization`, `DescribeConnection`); the sign-in store (`SignInStore`, `StateDir`); `SessionSignals`, `StateUnit`, `Variable` and `Watched`; the readers of a resource (`PrimaryRepresentation`, `PrimaryMediaType`, `ResourceEntityTypes`, `DecodeRepresentation`); how a knowledge base and its principals are named (`KbDid`, `PersonDid`, `AgentDid` and the rest); `GatewayURL`; the retry rules; and the generated tables: the failure codes (`errorcodes_gen.go`), the timing (`timing_gen.go`), the refresh table (`refresh_gen.go`), the telemetry names (`telemetry_gen.go`), the sign-in store's entry (`signin_gen.go`), the OAuth clients (`oauthclients_gen.go`) and the Encoding Standard's labels (`encodings_gen.go`) | hand-written; [`specs/src/errors/codes.json`][codes]; [`specs/src/client/timing.json`](../../../specs/src/client/timing.json); [`specs/src/client/refresh.json`][refresh]; [`specs/src/sdk-telemetry/telemetry.json`][telemetry]; [`specs/src/sign-in-store/SignIn.json`](../../../specs/src/sign-in-store/SignIn.json); [`specs/src/session/oauth.json`](../../../specs/src/session/oauth.json) |
 | `api` | `client_gen.go`: a Go type for every schema of the spec, and a typed HTTP call for every operation. `ids_gen.go`: the kinds of id, each a type made only through its kind's rule (`ParseResourceId` and the others) | [`specs/src/openapi.json`](../../../specs/src/openapi.json), bundled; [`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json) |
 | `bus` | The bus's channels, each typed by its payload, its request and reply operations, and the channels a transport delivers | [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json) |
 | `state` | The state units a client's bus moves | hand-written |
@@ -1113,6 +1141,7 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [sdk-typescript]: ../../typescript/sdk/README.md
 [sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
+[sdk-kotlin]: ../../kotlin/sdk/README.md
 [launcher]: ../../../apps/launcher/README.md
 [surface]: ../../../specs/src/client/surface.json
 [refresh]: ../../../specs/src/client/refresh.json

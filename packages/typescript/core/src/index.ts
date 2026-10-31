@@ -103,8 +103,8 @@ export type {
   UnitCursor,
   GenerationJobParams,
   JobType,
-  CollaboratorEntry,
-  Collaborator,
+  EngineEntry,
+  EngineWithLimits,
   KbDescription,
   DiscoveryDocument,
   DiscoveredKB,
@@ -223,7 +223,7 @@ export {
 
 // Request/reply over the bus — the transport-neutral primitive.
 export { replyChannelsFor, BusRequestError } from './bus-request';
-export { Bus, type BusPrimitive, type Delivered } from './bus';
+export { Bus, asDeclared, type BusPrimitive, type Delivered } from './bus';
 // The client's deadlines, retry budgets and stream cadence, generated from
 // specs/src/client/timing.json — the table every SDK generates from.
 export * from './generated/client-timing';
@@ -343,6 +343,8 @@ export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
 export * from './service-account';
+export { privateKeyFromPem } from './client-assertion';
+export { SignInError } from './sign-in-error';
 export { UnansweredError, jsonOf, whyUnanswered } from './unanswered';
 
 // Knowledge-graph view derivation — pure fn over the KnowledgeGraph type,

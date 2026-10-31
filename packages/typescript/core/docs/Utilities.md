@@ -55,7 +55,7 @@ const span = reconcile(rightText, { exact: 'café' });
 - What the encoding does not have is U+FFFD.
 - A charset that is no label of the standard, or that the platform's `TextDecoder` does not decode, throws a `SemiontError` whose `code` is `error` and whose message names the charset. Nothing is read as UTF-8 in its place.
 
-The cases are [`specs/src/text/decode-cases.json`](../../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../../specs/src/text/encoding-cases.json), which the Rust, Python and Go SDKs' readers run too.
+The cases are [`specs/src/text/decode-cases.json`](../../../../specs/src/text/decode-cases.json) and [`specs/src/text/encoding-cases.json`](../../../../specs/src/text/encoding-cases.json), which the Rust, Python, Go and Kotlin SDKs' readers run too.
 
 ## Text Context Extraction
 
@@ -142,10 +142,17 @@ Returns `null` when `exact` is empty or only white space, or is text that doesn'
 `annotationOfSpan` builds the annotation of a span: its selectors, its `id`, and the body and `generator` as given. `annotationOfResource` builds an annotation of a resource as a whole, with no selector. Each annotation's `id` is derived from what it is (the resource, the motivation, the body and where the span is), so building it again builds the same id.
 
 ```typescript
-import { annotationOfResource, annotationOfSpan, didToAgent, reconcile, resourceId, SpanRefusedError } from '@semiont/core';
+import { annotationOfResource, annotationOfSpan, reconcile, resourceId, SpanRefusedError, type components } from '@semiont/core';
 
 const content = "The quick brown fox jumps over the lazy dog.";
-const generator = didToAgent('did:web:kb.example:agents:ollama:gemma3');
+// The agent the worker signed in as, by the DID the gateway named it with, and the engine it ran.
+const generator: components['schemas']['Agent'] = {
+  '@type': 'Software',
+  '@id': 'did:web:kb.example:agents:semiont-worker',
+  name: 'ollama gemma3',
+  provider: 'ollama',
+  model: 'gemma3',
+};
 
 const span = reconcile(content, { exact: "brown fox" });
 if (span) {
@@ -355,7 +362,7 @@ const draft = isDraft(resource);
 
 Read a representation's bytes as the text they are, for a media type whose bytes are its text. The reading is `decodeWithCharset`'s, above: the one every reader of a resource's text keeps.
 
-A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust, Python and Go SDKs run them through theirs.
+A media type whose text is derived from its bytes (a PDF), or that has no text (an image), is refused, and the refusal names the media type. A `text/` type the registry does not list is read. [`specs/src/text/decode-cases.json`](../../../../specs/src/text/decode-cases.json) holds that too: its cases are run through this function, as the Rust, Python, Go and Kotlin SDKs run them through theirs.
 
 ```typescript
 import { decodeRepresentation, getPrimaryRepresentation, getPrimaryMediaType, type ResourceDescriptor } from '@semiont/core';

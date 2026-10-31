@@ -278,7 +278,7 @@ func TestAResumedSessionRenewsARefusedTokenAndKeepsTheRotation(t *testing.T) {
 	if token.Value() != signedToken(2) {
 		t.Error("the session does not hold the renewed token")
 	}
-	if user := session.User().Value(); user == nil || user.Email != "a@example.com" {
+	if user := session.User().Value(); user == nil || user.Email == nil || *user.Email != "a@example.com" {
 		t.Errorf("the session says it is %+v", user)
 	}
 	if signIn, _, _ := store.SignIn("local"); signIn.RefreshToken != "refresh-2" {

@@ -57,10 +57,10 @@ func TestGeneratedStackSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 	}
 }
 
-// `--model-light` is an example in a comment, never a binding: the document
-// still reads, every role is bound to --model, and the jobs the example names
-// are jobs the roster has — an example naming none would break the roster of
-// whoever follows it.
+// `--model-light` is an example in a comment, never an engine: the document
+// still reads, every job's and actor's engine is --model, and the jobs the
+// example names are jobs the engines have — an example naming none would
+// break the engines of whoever follows it.
 func TestGeneratedRefinementExampleNamesAJob(t *testing.T) {
 	p := genFor("anthropic")
 	p.ModelLight = "a-light-model"
@@ -73,13 +73,13 @@ func TestGeneratedRefinementExampleNamesAJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the example breaks the document: %v", err)
 	}
-	for _, b := range rosterRoles(inference.Spec.Roster) {
-		if b.role.Model != p.Model {
-			t.Errorf("%s is bound to %s: --model-light is an example, never a binding", b.at, b.role.Model)
+	for _, b := range boundEngines(inference.Spec.Engines) {
+		if b.engine.Model != p.Model {
+			t.Errorf("%s's engine is %s: --model-light is an example, never an engine", b.at, b.engine.Model)
 		}
 	}
 	jobs := map[string]bool{}
-	for _, job := range workerJobs() {
+	for _, job := range engineJobs() {
 		jobs[job.name] = true
 	}
 	var comment []string
@@ -97,7 +97,7 @@ func TestGeneratedRefinementExampleNamesAJob(t *testing.T) {
 		if api.Motivation(word).Valid() {
 			named++
 			if !jobs["mark."+word] {
-				t.Errorf("the example names %s, and the roster has no mark.%s job", word, word)
+				t.Errorf("the example names %s, and the engines have no mark.%s job", word, word)
 			}
 		}
 	}
@@ -167,7 +167,7 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 		t.Fatalf("a start cannot plan the documents init wrote: %v", err)
 	}
 	providers := st.Inference.Spec.Providers
-	if _, ollama := providers[api.ArchivistRosterRoleProviderOllama]; !ollama || len(providers) != 1 {
+	if _, ollama := providers[api.EngineProviderOllama]; !ollama || len(providers) != 1 {
 		t.Errorf("the bare KB's providers are %v, want Ollama alone — no credential needed", providers)
 	}
 }
@@ -194,11 +194,11 @@ func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 		t.Fatalf("no documents a start reads were written: %v", err)
 	}
 	// Needed at start, not at birth.
-	if key := st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic].ApiKey; key == nil || key.FromEnv != "ANTHROPIC_API_KEY" {
+	if key := st.Inference.Spec.Providers[api.EngineProviderAnthropic].ApiKey; key == nil || key.FromEnv != "ANTHROPIC_API_KEY" {
 		t.Errorf("the Inference document names the key as %+v, want the variable ANTHROPIC_API_KEY", key)
 	}
-	for _, b := range rosterRoles(st.Inference.Spec.Roster) {
-		if b.role.Model == "" {
+	for _, b := range boundEngines(st.Inference.Spec.Engines) {
+		if b.engine.Model == "" {
 			t.Errorf("%s was written with an empty model", b.at)
 		}
 	}

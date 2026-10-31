@@ -1,8 +1,8 @@
 """The bound on one call to a model: no call waits forever.
 
 A call to a model is the one thing a job awaits that has no bound of its own.
-Unbounded, a request that never settles would hold its agent for good, since
-an agent that holds a job claims no other. The bound turns that into an
+Unbounded, a request that never settles would hold its engine for good, since
+an engine that holds a job claims no other. The bound turns that into an
 ordinary failure of the job, and ends the request: the call is cancelled, so
 its driver tears the request down, and no answer nobody will use is paid for.
 """

@@ -12,9 +12,9 @@ extra. It reads only: of the vector index it names what searches, and never
 what writes. One module names the logger, one names OpenTelemetry, and one
 reads the process's environment and its arguments, through the package every
 Python service is built on. It opens no file of the record: what it reads of
-the record and of its people it asks the Archivist on the bus. Every channel
-its stream names is answered, followed or a reply to what it asks, and it
-answers and follows no other. The variables its code reads
+the record and of the principals' profiles it asks the Archivist on the bus.
+Every channel its stream names is answered, followed or a reply to what it
+asks, and it answers and follows no other. The variables its code reads
 by name are the ones the protocol's page lists.
 
 How its document is read, how its log is written and what exports its
@@ -54,8 +54,8 @@ HANDED = [
     "Degraded",
     "Described",
     "GraphReads",
-    "People",
-    "PeopleUnread",
+    "Profiles",
+    "ProfilesUnread",
     "Projection",
     "Record",
     "Settled",
@@ -324,7 +324,7 @@ def test_it_reads_only() -> None:
 
 
 def test_it_opens_no_file_of_the_record() -> None:
-    # What it reads of the record and of its people it asks the Archivist on the bus (`record.py`). The one module that
+    # What it reads of the record and of the principals' profiles it asks the Archivist on the bus (`record.py`). The one module that
     # names a path is the one that reads its document, which names the path of the model catalogue.
     assert importing("pathlib") == ["service.py"]
     for opening in ("open(", ".read_bytes(", ".read_text(", "to_thread("):
@@ -410,6 +410,9 @@ def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> Non
     # A module's `__all__` names what it exports, in quotes too: a constant's name there is no variable read.
     texts = [re.sub(r"^__all__ = \[.*?\]$", "", path.read_text(encoding="utf-8"), flags=re.DOTALL | re.MULTILINE) for path in sources]
     read_here = {name for text in texts for name in re.findall(r'"([A-Z][A-Z0-9]*_[A-Z0-9_]+)"', text)}
+    # The shared package reads the worker's key too: this service proves itself with its secret, and reads no key.
+    assert "SEMIONT_OIDC_CLIENT_KEY" in read_here
+    read_here -= {"SEMIONT_OIDC_CLIENT_KEY"}
     assert read_here == listed_there
     # Its service account, and what says where its telemetry goes and under what name. Each secret is in a
     # variable its document names, and so is named by no code.

@@ -97,7 +97,7 @@
     "reconnecting": "서버에 다시 연결 중...",
     "sharing": "공유",
     "collaborationComingSoon": "협업 기능이 곧 출시됩니다",
-    "collaborators": "협업자",
+    "engines": "엔진",
     "ceilings": "입력 {{contextTokens}} / 출력 {{maxOutputTokens}}",
     "sharedWindow": "{{contextTokens}} 윈도우"
   },

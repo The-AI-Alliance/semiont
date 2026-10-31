@@ -19,8 +19,9 @@ tell them apart.
 It has the same namespaces, methods and behaviour as the
 [Rust SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/rust/sdk) ([`semiont`](https://crates.io/crates/semiont) on crates.io)
 the [Python SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk) ([`semiont`](https://pypi.org/project/semiont/) on PyPI)
-and the [Go SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk) ([`github.com/The-AI-Alliance/semiont/packages/go/sdk`](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) on pkg.go.dev),
-and the four are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
+the [Go SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/go/sdk) ([`github.com/The-AI-Alliance/semiont/packages/go/sdk`](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) on pkg.go.dev)
+and the [Kotlin SDK](https://github.com/The-AI-Alliance/semiont/tree/main/packages/kotlin/sdk), for Kotlin and Java programs,
+and the five are held to the same [conformance suite](https://github.com/The-AI-Alliance/semiont/tree/main/tests/conformance/sdk).
 New to Semiont? The [Introduction](https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/INTRODUCTION.md)
 explains the domain and the ideas the API falls out of.
 
@@ -77,7 +78,7 @@ attention. Each is a namespace of the client.
 | | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.updateEntityTypes`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.addEntityTypes`, `frame.addTagSchema` |
-| Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| Reading | `browse` | Navigate, read and observe, including the knowledge base's engines | `browse.resource`, `browse.annotations`, `browse.engines`, `browse.click` |
 | | `match` | Search the corpus: resources by text, and candidates for a reference | `match.resources`, `match.search` |
 | | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referencedBy` |
 | Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.openResource` |
@@ -178,12 +179,16 @@ own lifecycle.
 
 ```ts
 import { annotationOfSpan, reconcile, type Annotation, type QuotedText } from '@semiont/sdk';
-import { didToAgent } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 /** Your model: the passages of a text worth a highlight, each as the words it quotes. */
 declare function passagesOf(text: string): Promise<QuotedText[]>;
 
-const generator = didToAgent(agent.did);                      // what its annotations say made them
+await client.wire.emit('principal:profile', { name: 'my-highlighter' });   // what it is called, said as itself
+const engine = { provider: 'ollama', model: 'gemma3' };      // the model this worker runs
+const generator: components['schemas']['Agent'] = {          // what its annotations say made them
+  '@type': 'Software', '@id': agent.did, ...engine,
+};
 const claims = client.job.claim({
   accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }],
 });
@@ -205,8 +210,17 @@ claims.subscribe(async (job) => {
 });
 ```
 
-- **A worker is an agent.** Its process signs in with a service account and is given the
-  agent its work is attributed to: `startAgentSession` does both, and keeps the token fresh.
+- **A worker is an agent, and an agent is an account.** It signs in with its service account,
+  whose token is its bearer, and the gateway names it by that account: `startAgentSession`
+  signs it in, learns its DID, and keeps the token fresh. The engine it runs is no part of
+  who it is: what it commits names that in its `generator`.
+- **A worker signs in with a key.** Its credential is a `KeyCredential`: its issuer, its
+  client id, and the RSA key the launcher hands it as `SEMIONT_OIDC_CLIENT_KEY`, a PKCS#8
+  PEM that `privateKeyFromPem` reads. Each grant carries an assertion signed for it alone,
+  which the issuer checks with the public half registered on the client, and no secret is
+  sent. A service account that holds a secret signs in with a `SecretCredential` instead.
+- **It says what it is called**, as itself, on `principal:profile`. Readers name an agent by
+  the last name it said, as they name a person, so a `generator` carries no name of its own.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
   awaits. A client whose stream does not is refused at once, as `bus.unsubscribed`.
 - **The SDK builds what a worker commits.** `reconcile(text, quoted)` finds the words a model
@@ -266,8 +280,8 @@ is what a worker promises the dispatcher.
   three, and `specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
   to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
-  `startAgentSession` for a worker's sign-in, and `JOB_CLAIM_CHANNELS` and
-  `JOB_COMMIT_CHANNELS` for its stream.
+  `startAgentSession` and `privateKeyFromPem` for a worker's sign-in, and
+  `JOB_CLAIM_CHANNELS` and `JOB_COMMIT_CHANNELS` for its stream.
 - **Session layer** — `SemiontSession` (per-KB auth, proactive token refresh, lifecycle),
   `SemiontBrowser` (multi-KB orchestration), `SessionStorage` adapters, and the `httpKb`
   helper for endpoint shapes.

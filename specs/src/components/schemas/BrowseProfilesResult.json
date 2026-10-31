@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "description": "The profiles of the principals asked after: each that has one, keyed by DID. A DID with no profile is absent, and is named by no one.",
+  "properties": {
+    "response": {
+      "type": "object",
+      "properties": {
+        "profiles": {
+          "type": "object",
+          "description": "Each profile, keyed by DID.",
+          "additionalProperties": {
+            "$ref": "./Profile.json"
+          }
+        }
+      },
+      "required": [
+        "profiles"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "response"
+  ]
+}

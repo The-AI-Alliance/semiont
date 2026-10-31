@@ -6,15 +6,15 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 
 ## Which way
 
-| Who is signing in | The way | TypeScript | Python | Rust | Go |
-|---|---|---|---|---|---|
-| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` |
-| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` |
-| A service or a worker | [A service account](#a-service-or-a-worker), exchanged for the token of the agent its work runs as | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` |
-| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` |
-| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README |
+| Who is signing in | The way | TypeScript | Python | Rust | Go | Kotlin |
+|---|---|---|---|---|---|---|
+| A person, at a script | [The device grant](#the-device-grant): the script shows an address, the person approves in any browser | `SemiontSession.signInDevice` | `sign_in_device` | `sign_in_device` | `SignInWithDevice` | `signInDevice` |
+| A person who has run `semiont login` | [The sign-in the launcher keeps](#the-sign-in-semiont-login-keeps): nothing to approve | none | `session_from_kept` | `SignInStore` | `SessionFromKept` | `sessionFromKept` |
+| A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` |
+| A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` |
+| A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README | its README |
 
-Each SDK's README has its own forms in full: [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/rust/http-transport/README.md).
+Each SDK's README has its own forms in full: [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/rust/http-transport/README.md).
 
 ## What every way has in common
 
@@ -56,7 +56,7 @@ const opened = await SemiontSession.signInDevice({
 
 [`semiont login`](../../apps/launcher/README.md#login-and-upload) signs a person in to a running stack's knowledge base and keeps the sign-in, one for each stack, in the launcher's state directory. The [sign-in store](../../specs/src/sign-in-store/README.md) is the contract for that file: where it is on each system, what an entry holds, the lock every writer takes, and what a renewal keeps.
 
-A Go, Python or Rust program builds its session over that entry, so a person who has run `semiont login` approves nothing more, and one sign-in serves the launcher and the program. Each reads the entry, renews it, and writes it back under the lock. A renewal another program made meanwhile stands, and a stack signed out meanwhile stays signed out.
+A Go, Python, Rust or Kotlin program builds its session over that entry, so a person who has run `semiont login` approves nothing more, and one sign-in serves the launcher and the program. Each reads the entry, renews it, and writes it back under the lock. A renewal another program made meanwhile stands, and a stack signed out meanwhile stays signed out.
 
 The TypeScript SDK does not read the store: a TypeScript script signs in by the device grant.
 
@@ -64,9 +64,9 @@ A program in a container sees the machine's state directory only if it is mounte
 
 ## A service or a worker
 
-A process with no person behind it signs in with a service account: a client id and a secret the identity provider holds. The gateway exchanges the service's token for the token of an agent, named by its provider and its model, and what the process writes is attributed to that agent.
+A process with no person behind it signs in with a service account: a client id and a secret the identity provider holds. The account is an agent's, as a person's is a person's: the program sends the identity provider's token to the gateway as its bearer, and its DID is `did:web:<domain>:agents:<subject>`, which it learns from `GET /api/users/me`. What the process writes is attributed to it. A write a model produced also names, in its `generator`, the engine it used: the provider and the model.
 
-An agent whose renewal fails keeps the token it has and tries again. [`semiont-worker`](./skills/semiont-worker/SKILL.md) is a worker built this way.
+An agent renews its token by a new grant when the token is due, and at once when the gateway refuses it. A gateway or an identity provider it cannot reach is tried again; a refusal by the identity provider is final. [`semiont-worker`](./skills/semiont-worker/SKILL.md) is a worker built this way.
 
 ## An application
 

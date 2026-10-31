@@ -70,8 +70,8 @@ it: the launcher for the Weaver it starts, and anyone else to the same schema.
 
 ## What it follows
 
-A Weaver signs in as its service account and works as the agent `(semiont,
-weaver)`. It reaches the bus through the gateway, and the record through the
+A Weaver signs in as its service account, and is that one agent. It reaches
+the bus through the gateway, and the record through the
 Archivist's own surface.
 
 - **It follows the record as a follower of it:** a cursor for each log it

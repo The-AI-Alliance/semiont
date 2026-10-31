@@ -213,17 +213,17 @@ export type EventMap = {
   'frame:tag-schema-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
-  // PERSON FLOW — who a subject is. One line per NAME a person has had,
+  // PRINCIPAL FLOW — who a principal is. One line per NAME it has had,
   // system-level like the frame vocabulary. Never read by provenance: every
   // artifact joins on the DID, and names are resolved from the projection
   // when a record is READ.
   // ========================================================================
 
   // Domain event (branded — system of record). System-level: no resourceId.
-  'person:profiled': StoredEvent<EventOfType<'person:profiled'>>;
+  'principal:profiled': StoredEvent<EventOfType<'principal:profiled'>>;
 
-  // Command — gateway-emitted, never client-set.
-  'person:profile': components['schemas']['PersonProfileCommand'];
+  // Command — what a principal is called: emitted by the gateway from a token's name, or by a principal of itself. The gateway stamps the sender's DID.
+  'principal:profile': components['schemas']['PrincipalProfileCommand'];
 
   // ========================================================================
   // BIND FLOW — reference linking
@@ -331,13 +331,13 @@ export type EventMap = {
   'browse:tag-schemas-result': components['schemas']['BrowseTagSchemasResult'];
   'browse:tag-schemas-failed': components['schemas']['CommandError'];
 
-  'browse:agents-requested': components['schemas']['BrowseAgentsRequest'];
-  'browse:agents-result': components['schemas']['BrowseAgentsResult'];
-  'browse:agents-failed': components['schemas']['CommandError'];
+  'browse:engines-requested': components['schemas']['BrowseEnginesRequest'];
+  'browse:engines-result': components['schemas']['BrowseEnginesResult'];
+  'browse:engines-failed': components['schemas']['CommandError'];
 
-  'browse:people-requested': components['schemas']['BrowsePeopleRequest'];
-  'browse:people-result': components['schemas']['BrowsePeopleResult'];
-  'browse:people-failed': components['schemas']['CommandError'];
+  'browse:profiles-requested': components['schemas']['BrowseProfilesRequest'];
+  'browse:profiles-result': components['schemas']['BrowseProfilesResult'];
+  'browse:profiles-failed': components['schemas']['CommandError'];
 
   'browse:kb-requested': components['schemas']['BrowseKbRequest'];
   'browse:kb-result': components['schemas']['BrowseKbResult'];
@@ -606,8 +606,8 @@ export const CHANNEL_SCHEMAS = {
   'frame:entity-type-add-failed':     'CommandError',
   'frame:tag-schema-add-ok':          null,
   'frame:tag-schema-add-failed':      'CommandError',
-  'person:profiled':                  null,
-  'person:profile':                   'PersonProfileCommand',
+  'principal:profiled':               null,
+  'principal:profile':                'PrincipalProfileCommand',
   'mark:requested':                   'MarkRequestedEvent',
   'mark:submit':                      'MarkSubmitEvent',
   'mark:delegate-timeout':            null, // { resourceId; motivation } — client-local UI signal
@@ -671,12 +671,12 @@ export const CHANNEL_SCHEMAS = {
   'browse:tag-schemas-requested':     'BrowseTagSchemasRequest',
   'browse:tag-schemas-result':        'BrowseTagSchemasResult',
   'browse:tag-schemas-failed':        null,
-  'browse:agents-requested':          'BrowseAgentsRequest',
-  'browse:agents-result':             'BrowseAgentsResult',
-  'browse:agents-failed':             null,
-  'browse:people-requested':          'BrowsePeopleRequest',
-  'browse:people-result':             'BrowsePeopleResult',
-  'browse:people-failed':             null,
+  'browse:engines-requested':         'BrowseEnginesRequest',
+  'browse:engines-result':            'BrowseEnginesResult',
+  'browse:engines-failed':            null,
+  'browse:profiles-requested':        'BrowseProfilesRequest',
+  'browse:profiles-result':           'BrowseProfilesResult',
+  'browse:profiles-failed':           null,
   'browse:kb-requested':              'BrowseKbRequest',
   'browse:kb-result':                 'BrowseKbResult',
   'browse:kb-failed':                 null,
@@ -762,3 +762,198 @@ export type EmittableChannel = {
 
 /** The field of a relayed frame's payload that carries the trace the frame was published under: an object of W3C's `traceparent` and, when it has one, `tracestate`. A frame the gateway relays over the stream has no headers of its own, so the gateway writes the field on its payload, and a receiver takes it off before the payload is delivered and continues the trace from it. No payload schema declares it, and no subscriber sees it. An emit carries its trace in its request's `traceparent` header, and its payload carries no such field. */
 export const TRACE_FIELD = '_trace';
+
+/**
+ * The stamps a gateway puts on a payload (`_userId`, `_roles`) that each
+ * channel's payload type declares, and so reads. Any other is the bus's, not
+ * the payload's, and is left out of what the SDK delivers.
+ */
+export const CHANNEL_STAMPS = {
+  'yield:created':                    [],
+  'yield:cloned':                     [],
+  'yield:updated':                    [],
+  'yield:moved':                      [],
+  'yield:representation-added':       [],
+  'yield:representation-removed':     [],
+  'yield:create':                     ['_roles', '_userId'],
+  'yield:clone-persist':              ['_userId'],
+  'yield:update':                     ['_userId'],
+  'yield:clone':                      [],
+  'yield:clone-token-requested':      [],
+  'yield:clone-resource-requested':   [],
+  'yield:clone-create':               ['_userId'],
+  'yield:create-ok':                  [],
+  'yield:create-failed':              [],
+  'yield:clone-persist-ok':           [],
+  'yield:clone-persist-failed':       [],
+  'yield:update-ok':                  [],
+  'yield:update-failed':              [],
+  'yield:clone-token-generated':      [],
+  'yield:clone-token-failed':         [],
+  'yield:clone-resource-result':      [],
+  'yield:clone-resource-failed':      [],
+  'yield:clone-created':              [],
+  'yield:clone-create-failed':        [],
+  'mark:added':                       [],
+  'mark:removed':                     [],
+  'mark:body-updated':                [],
+  'mark:entity-tag-added':            [],
+  'mark:entity-tag-removed':          [],
+  'mark:archived':                    [],
+  'mark:unarchived':                  [],
+  'mark:create-request':              [],
+  'mark:delete':                      ['_userId'],
+  'mark:update-body':                 ['_userId'],
+  'mark:archive':                     ['_userId'],
+  'mark:unarchive':                   ['_userId'],
+  'mark:update-entity-types':         ['_userId'],
+  'mark:create-ok':                   [],
+  'mark:create-failed':               [],
+  'mark:commit':                      ['_roles', '_userId'],
+  'mark:commit-ok':                   [],
+  'mark:commit-failed':               [],
+  'mark:delete-ok':                   [],
+  'mark:delete-failed':               [],
+  'mark:archive-ok':                  [],
+  'mark:archive-failed':              [],
+  'mark:unarchive-ok':                [],
+  'mark:unarchive-failed':            [],
+  'mark:update-entity-types-ok':      [],
+  'mark:update-entity-types-failed':  [],
+  'mark:body-update-failed':          [],
+  'mark:requested':                   [],
+  'mark:submit':                      [],
+  'mark:delegate-timeout':            [],
+  'mark:create-error':                [],
+  'mark:delete-error':                [],
+  'bind:body-error':                  [],
+  'frame:entity-type-added':          [],
+  'frame:tag-schema-added':           [],
+  'frame:add-entity-type':            ['_userId'],
+  'frame:add-tag-schema':             ['_userId'],
+  'frame:entity-type-add-ok':         [],
+  'frame:entity-type-add-failed':     [],
+  'frame:tag-schema-add-ok':          [],
+  'frame:tag-schema-add-failed':      [],
+  'principal:profiled':               [],
+  'principal:profile':                ['_userId'],
+  'bind:initiate':                    [],
+  'bind:update-body':                 ['_userId'],
+  'bind:body-updated':                [],
+  'bind:body-update-failed':          [],
+  'match:search-requested':           [],
+  'match:search-results':             [],
+  'match:search-failed':              [],
+  'match:resources-requested':        [],
+  'match:resources-result':           [],
+  'match:resources-failed':           [],
+  'match:limits-requested':           [],
+  'match:limits-result':              [],
+  'match:limits-failed':              [],
+  'gather:requested':                 [],
+  'gather:complete':                  [],
+  'gather:failed':                    [],
+  'gather:resource-requested':        [],
+  'gather:resource-complete':         [],
+  'gather:resource-failed':           [],
+  'gather:summary-requested':         [],
+  'gather:summary-result':            [],
+  'gather:summary-failed':            [],
+  'gather:referenced-by-requested':   [],
+  'gather:referenced-by-result':      [],
+  'gather:referenced-by-failed':      [],
+  'gather:limits-requested':          [],
+  'gather:limits-result':             [],
+  'gather:limits-failed':             [],
+  'browse:resource-requested':        [],
+  'browse:resource-result':           [],
+  'browse:resource-failed':           [],
+  'browse:resources-requested':       [],
+  'browse:resources-result':          [],
+  'browse:resources-failed':          [],
+  'browse:annotation-requested':      [],
+  'browse:annotation-result':         [],
+  'browse:annotation-failed':         [],
+  'browse:events-requested':          [],
+  'browse:events-result':             [],
+  'browse:events-failed':             [],
+  'browse:annotation-history-requested': [],
+  'browse:annotation-history-result': [],
+  'browse:annotation-history-failed': [],
+  'browse:entity-types-requested':    [],
+  'browse:entity-types-result':       [],
+  'browse:entity-types-failed':       [],
+  'browse:tag-schemas-requested':     [],
+  'browse:tag-schemas-result':        [],
+  'browse:tag-schemas-failed':        [],
+  'browse:engines-requested':         [],
+  'browse:engines-result':            [],
+  'browse:engines-failed':            [],
+  'browse:profiles-requested':        [],
+  'browse:profiles-result':           [],
+  'browse:profiles-failed':           [],
+  'browse:kb-requested':              [],
+  'browse:kb-result':                 [],
+  'browse:kb-failed':                 [],
+  'browse:directory-requested':       [],
+  'browse:directory-result':          [],
+  'browse:directory-failed':          [],
+  'browse:click':                     [],
+  'browse:resource-open':             [],
+  'browse:resource-viewed':           [],
+  'browse:entity-type-clicked':       [],
+  'panel:toggle':                     [],
+  'panel:open':                       [],
+  'panel:close':                      [],
+  'shell:sidebar-toggle':             [],
+  'tabs:close':                       [],
+  'tabs:reorder':                     [],
+  'nav:link-clicked':                 [],
+  'nav:push':                         [],
+  'nav:external':                     [],
+  'beckon:hover':                     [],
+  'beckon:focus':                     [],
+  'beckon:sparkle':                   [],
+  'job:started':                      [],
+  'job:assigned':                     [],
+  'job:completed':                    [],
+  'job:failed':                       [],
+  'job:start':                        ['_userId'],
+  'job:assign':                       ['_userId'],
+  'job:report-progress':              ['_userId'],
+  'job:complete':                     ['_userId'],
+  'job:fail':                         ['_userId'],
+  'job:checkpoint':                   ['_userId'],
+  'job:queued':                       [],
+  'job:cancel-requested':             [],
+  'job:cancel':                       ['_userId'],
+  'job:limits-requested':             [],
+  'job:limits-result':                [],
+  'job:limits-failed':                [],
+  'job:status-requested':             [],
+  'job:create':                       ['_roles', '_userId'],
+  'job:claim':                        ['_roles', '_userId'],
+  'job:status-result':                [],
+  'job:status-failed':                [],
+  'job:created':                      [],
+  'job:create-failed':                [],
+  'job:claimed':                      [],
+  'job:claim-failed':                 [],
+  'job:cancel-ok':                    [],
+  'job:cancel-failed':                [],
+  'weave:applied':                    [],
+  'smelt:settled':                    [],
+  'weave:rebuild':                    ['_userId'],
+  'weave:rebuild-ok':                 [],
+  'weave:rebuild-failed':             [],
+  'smelt:rebuild-anchors':            ['_userId'],
+  'smelt:rebuild-anchors-ok':         [],
+  'smelt:rebuild-anchors-failed':     [],
+  'settings:theme-changed':           [],
+  'settings:line-numbers-toggled':    [],
+  'settings:locale-changed':          [],
+  'settings:hover-delay-changed':     [],
+  'bus:resume-gap':                   [],
+  'session:joined':                   [],
+  'session:left':                     [],
+} as const satisfies Record<EventName, readonly string[]>;

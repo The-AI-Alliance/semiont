@@ -124,6 +124,10 @@ component_management:
       name: "packages/go/launcher"
       paths:
         - packages/go/launcher/**
+    - component_id: kotlin-sdk
+      name: "packages/kotlin/sdk"
+      paths:
+        - packages/kotlin/sdk/**
     - component_id: typescript
       name: "packages/typescript"
       paths:
@@ -140,6 +144,10 @@ component_management:
       name: "packages/go"
       paths:
         - packages/go/**
+    - component_id: kotlin
+      name: "packages/kotlin"
+      paths:
+        - packages/kotlin/**
     - component_id: image-archivist
       name: "images/archivist"
       paths:
@@ -315,6 +323,11 @@ flags:
   go-launcher:
     paths:
       - packages/go/launcher/**
+    carryforward: true
+
+  kotlin-sdk:
+    paths:
+      - packages/kotlin/sdk/**
     carryforward: true
 
   image-archivist:

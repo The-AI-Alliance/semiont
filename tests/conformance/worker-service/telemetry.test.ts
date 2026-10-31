@@ -147,7 +147,7 @@ eachWorkerService('what a worker exports', (world) => {
     const rows = telemetry('worker');
     const schemas = spec().doc['components'] as { schemas: Record<string, { enum?: string[]; discriminator?: { mapping: Record<string, string> }; properties?: Record<string, { enum?: string[] }> }> };
     const motivations = Object.keys(schemas.schemas['MarkJobParams']!.discriminator!.mapping);
-    const providers = schemas.schemas['ArchivistRosterRole']!.properties!['provider']!.enum;
+    const providers = schemas.schemas['Engine']!.properties!['provider']!.enum;
     for (const row of [rows.spans.find((r) => r.name === 'job:{jobType}'), rows.metrics.find((r) => r.name === 'semiont.job.outcome'), rows.metrics.find((r) => r.name === 'semiont.job.duration')]) {
       expect(valuesOf(row, 'job.type')).toEqual(schemas.schemas['JobType']!.enum);
       expect(valuesOf(row, 'job.motivation')).toEqual(motivations);

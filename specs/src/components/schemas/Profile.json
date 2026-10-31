@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "description": "What a principal last said it is called, and when: the profile a `principal:profiled` event gives.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The name the principal last gave."
+    },
+    "since": {
+      "type": "string",
+      "description": "The timestamp of the event that gave it."
+    }
+  },
+  "required": [
+    "name",
+    "since"
+  ],
+  "additionalProperties": false
+}

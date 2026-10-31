@@ -32,8 +32,8 @@ It is not:
   dispatcher emits none of the four past-tense events.
 - **reachable directly.** Its only bus connection is a client of the gateway: an SSE subscription to
   its nine channels (plus the replies to the two reads `job:create` makes) and `POST /bus/emit` for
-  what it sends. It authenticates as the software agent `(semiont, dispatcher)`, so everything it
-  emits carries that DID as `_userId`. Apart from `/health` it has no HTTP surface. It connects to the
+  what it sends. It signs in as its service account, an agent, so everything it emits carries
+  that account's DID as `_userId`. Apart from `/health` it has no HTTP surface. It connects to the
   messaging broker for its queue storage only; workers never touch that storage.
 
 **There is exactly one dispatcher per knowledge base.** It receives every frame on its channels as a
@@ -300,7 +300,7 @@ schema. A completion that is well formed for one verb and names a running job of
 effect: the dispatcher logs `job:complete of another verb than the job's`, and the job stays
 `running`. The Archivist records no `job:completed` for it, and logs the same words, when the
 resource's stream holds the job's `job:assigned` or `job:started`
-([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)). A `yield` completion may name
+([ARCHIVIST.md](ARCHIVIST.md#vocabulary-profiles-and-jobs)). A `yield` completion may name
 `annotationId`, the annotation its context was focused on; a `mark` completion names none.
 
 **What is stored is any verb's.** The job moves to `complete`, and its record holds the result as a
@@ -554,7 +554,7 @@ An absent `failureClass` is a failure nobody classified, and counts as retryable
 failure is told from a `deterministic` one so that whoever reads the failure can tell "the provider
 would not answer" from "the job broke" without reading the error's text. The class is stated on the
 `job:fail` frame, on the `job:failed` event the Archivist records of it
-([ARCHIVIST.md](ARCHIVIST.md#vocabulary-people-and-jobs)), on the dispatcher's record of a job that
+([ARCHIVIST.md](ARCHIVIST.md#vocabulary-profiles-and-jobs)), on the dispatcher's record of a job that
 failed for good, and in that job's status. The dead-worker sweep, which no worker's `job:fail` tells,
 states `transient`.
 
@@ -642,8 +642,6 @@ protocol.
   announced.
 - **Broker objects are created if missing but never updated.** A changed stream, consumer or bucket
   setting — the 30-second acknowledgement window among them — takes effect only on a fresh broker.
-- **The durable consumer is named `gateway-claims`,** after a component that does not hold it.
-  The name is part of the storage layout, and changing it needs a migration.
 - **`/health` is static.** It never reports a lost broker connection, while the launcher reads
   `queue` as live. The launcher waits 30 seconds for it; the
   dispatcher allows itself 60 seconds to connect the queue.

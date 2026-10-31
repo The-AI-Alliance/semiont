@@ -21,7 +21,7 @@
       "readBy": "service",
       "providedBy": "launcher",
       "required": true,
-      "effect": "The client id of the service's own account at the issuer: the gateway exchanges its token for the one it reaches the Archivist with, the dispatcher and the Archivist for the agent token each reaches the bus with. Unset, the service refuses to start."
+      "effect": "The client id of the service's own account at the issuer, whose token the service signs in with: the gateway's reaches the Archivist, and the dispatcher's and the Archivist's are each one's bearer at the bus. Unset, the service refuses to start."
     },
     {
       "name": "SEMIONT_OIDC_CLIENT_SECRET",

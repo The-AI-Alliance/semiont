@@ -13,8 +13,8 @@ A person's application and an AI agent use the same client. The SDK does not
 tell them apart.
 
 It has the same namespaces, methods and live queries as the
-[TypeScript SDK][sdk-typescript], the [Rust SDK][sdk-rust] and the
-[Go SDK][sdk-go], and is held to the same [conformance suite][conformance]. New to Semiont? The
+[TypeScript SDK][sdk-typescript], the [Rust SDK][sdk-rust], the
+[Go SDK][sdk-go] and the [Kotlin SDK][sdk-kotlin], and is held to the same [conformance suite][conformance]. New to Semiont? The
 [Introduction][introduction] explains the domain and the ideas the API falls
 out of. Its code is TypeScript, and the ideas are this package's too.
 
@@ -42,28 +42,37 @@ A transport sends the token it is given. Where the token comes from is one of
 three things, and each keeps it renewed: half its lifetime before it expires,
 at most five minutes before, and at once when the gateway refuses it.
 
-**An agent** is a service account's token exchanged at the gateway for the
-token of the agent `(provider, model)`. It is what a service holds: a
-transport, its agent's token, and the channels it awaits replies on. The
-gateway answers the exchange with the agent's DID, which is who its work is
-attributed to: `agent.did`, once it is signed in, as the gateway minted it.
+**An agent** is an account, as a person is: it signs in at its issuer, and the
+token its issuer grants is its bearer at the gateway. It is what a service
+holds: a transport, its agent's token, and the channels it awaits replies on.
+The gateway names it by its account; that DID, which the gateway answers at
+`GET /api/users/me`, is who its work is attributed to: `agent.did`, once it is
+signed in. The engine it runs is no part of it: each write names that.
 
 ```python
 from semiont.bus import reply_channels_for
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, SecretCredential, ServiceToken
 from semiont.operations import JOB_CLAIM
 from semiont.watched import reached
 
 
 async def work(gateway: str, issuer: str, secret: str) -> None:
-    service = ServiceToken(Credential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
+    service = ServiceToken(SecretCredential(issuer=issuer, client_id="semiont-smelter", client_secret=secret))
     async with (
-        AgentToken(gateway, provider="ollama", model="gemma2:27b", service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         HttpTransport(gateway, token=agent.token, refresher=agent.refresh, channels=reply_channels_for(JOB_CLAIM)) as transport,
     ):
-        print(f"working as {agent.did}")  # who its work is attributed to, as the gateway named it
+        print(f"working as {agent.did}")  # who its work is attributed to: its account, as the gateway names it
         print(await reached(transport.state, lambda state: state == "open"))  # its stream is open, as the agent
 ```
+
+A service account proves itself to its issuer with its client secret
+(`SecretCredential`), or with a key (`KeyCredential`, whose `private_key` is an
+RSA key from `cryptography`; `private_key_from_pem` reads one from its PKCS#8
+PEM, as a worker is handed it in `SEMIONT_OIDC_CLIENT_KEY`): each grant then
+carries an assertion signed for it alone (RFC 7523, `private_key_jwt`), which
+the issuer checks with the public half registered on the client, and no secret
+is sent. A worker signs in by its key; Semiont's own services by their secrets.
 
 **A person** is signed in at the issuer the knowledge base trusts, and the
 sign-in is kept. [`semiont login`][launcher] keeps one for each stack, and a
@@ -136,7 +145,7 @@ attention. Each is a namespace of the client.
 | | `mark` | Annotate a resource | `mark.annotation`, `mark.delegate`, `mark.update_entity_types`, `mark.archive` |
 | | `bind` | Resolve an ambiguous reference to a specific resource | `bind.body`, `bind.initiate` |
 | | `frame` | Define and grow the schema vocabulary | `frame.add_entity_types`, `frame.add_tag_schema` |
-| Reading | `browse` | Navigate, read and observe, including who is here | `browse.resource`, `browse.annotations`, `browse.agents`, `browse.click` |
+| Reading | `browse` | Navigate, read and observe, including the knowledge base's engines | `browse.resource`, `browse.annotations`, `browse.engines`, `browse.click` |
 | | `match` | Search the corpus: resources by text, and candidates for a reference | `match.resources`, `match.search` |
 | | `gather` | Assemble grounding context around a resource or an annotation, and list what refers to a resource | `gather.resource`, `gather.annotation`, `gather.referenced_by` |
 | Attention | `beckon` | Direct attention across participants | `beckon.hover`, `beckon.sparkle`, `beckon.open_resource` |
@@ -417,12 +426,21 @@ comes to hold, one at a time, and a held job says its own lifecycle.
 
 ```python
 from semiont.annotations import QuotedText, annotation_of_span, reconcile
+from semiont.channels import PRINCIPAL_PROFILE
 from semiont.claims import JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, ClaimRefusal, HeldMarkJob, HeldYieldJob
 from semiont.client import SemiontClient
-from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
+from semiont.http import AgentToken, HttpTransport, KeyCredential, ServiceToken, private_key_from_pem
 from semiont.identifiers import AnnotationId
-from semiont.identity import agent_name
-from semiont.types import Agent, AgentSoftware, Annotation, JobProgress, MarkJobDone, MarkJobFilter, MarkJobFilterParams
+from semiont.types import (
+    Agent,
+    AgentSoftware,
+    Annotation,
+    JobProgress,
+    MarkJobDone,
+    MarkJobFilter,
+    MarkJobFilterParams,
+    PrincipalProfileCommand,
+)
 
 PROVIDER, MODEL = "ollama", "gemma3:4b"
 
@@ -449,58 +467,61 @@ async def highlight(client: SemiontClient[HttpTransport], job: HeldMarkJob, gene
     return MarkJobDone(found=len(quoted), persisted=len(highlights))
 
 
-async def work(gateway: str, issuer: str, client_id: str, secret: str) -> None:
-    # The process proves who it is at the issuer, and is given the agent its work is attributed to.
-    service = ServiceToken(Credential(issuer=issuer, client_id=client_id, client_secret=secret))
+async def work(gateway: str, issuer: str, client_id: str, key: str) -> None:
+    # The process signs in at its issuer as its account, by its key: the agent its work is attributed to.
+    service = ServiceToken(KeyCredential(issuer=issuer, client_id=client_id, private_key=private_key_from_pem(key)))
     accepts = [MarkJobFilter(job_type="mark", params=MarkJobFilterParams(motivation="highlighting"))]
     async with (
-        AgentToken(gateway, provider=PROVIDER, model=MODEL, service=service) as agent,
+        AgentToken(gateway, service=service) as agent,
         # Its stream names what claiming and committing read. This worker awaits nothing else, so it names nothing else.
         HttpTransport(
             gateway, token=agent.token, refresher=agent.refresh, channels=(*JOB_CLAIM_CHANNELS, *JOB_COMMIT_CHANNELS)
         ) as transport,
         SemiontClient(transport, transport.content, transport) as client,
-        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
-        client.job.claim(accepts) as claims,
     ):
         print(f"working as {agent.did}")
-        # What made the annotations it commits: the agent the gateway gave it.
-        generator = AgentSoftware(type="Software", id=agent.did, name=agent_name(PROVIDER, MODEL), provider=PROVIDER, model=MODEL)
-        # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
-        async for handed in claims:
-            match handed:
-                case ClaimRefusal(code="bus.unauthorized"):
-                    # This credential can never claim. Stop, so that whoever runs the worker sees it.
-                    raise PermissionError(handed.message)
-                case ClaimRefusal():
-                    print(f"claim refused: {handed.message}")
-                case HeldYieldJob():
-                    await handed.fail("this worker runs no yield job", failure_class="deterministic")
-                case HeldMarkJob():
-                    # A job left unsettled at the end of this block is failed.
-                    async with handed as job:
-                        await job.start()
-                        try:
-                            result = await highlight(client, job, generator)
-                        except Exception as error:
-                            await job.fail(str(error))
-                        else:
-                            await job.complete(result)
+        # It says what it is called, as itself: here, its client id. Readers name it by the last name it said, as they name a person.
+        await client.wire.emit(PRINCIPAL_PROFILE, PrincipalProfileCommand(name=client_id))
+        # What made the annotations it commits: the agent, as the gateway names it, and the engine it ran. It carries no name.
+        generator = AgentSoftware(type="Software", id=agent.did, provider=PROVIDER, model=MODEL)
+        # Leaving this block stops the worker: a job it still holds is failed first, and the queue retries it.
+        async with client.job.claim(accepts) as claims:
+            # Each job the worker comes to hold, one at a time. The next is claimed when this one settles.
+            async for handed in claims:
+                match handed:
+                    case ClaimRefusal(code="bus.unauthorized"):
+                        # This credential can never claim. Stop, so that whoever runs the worker sees it.
+                        raise PermissionError(handed.message)
+                    case ClaimRefusal():
+                        print(f"claim refused: {handed.message}")
+                    case HeldYieldJob():
+                        await handed.fail("this worker runs no yield job", failure_class="deterministic")
+                    case HeldMarkJob():
+                        # A job left unsettled at the end of this block is failed.
+                        async with handed as job:
+                            await job.start()
+                            try:
+                                result = await highlight(client, job, generator)
+                            except Exception as error:
+                                await job.fail(str(error))
+                            else:
+                                await job.complete(result)
 ```
 
-- **A worker is an agent.** Its process signs in with a service account, and
-  the gateway gives it the agent its work is attributed to. The account needs
-  two roles at the issuer: `semiont-service`, to be given an agent, and
-  `semiont-worker`, without which every claim is refused as
-  `bus.unauthorized`.
+- **A worker is an agent.** Its process signs in at its issuer as its account,
+  and the gateway names it by that account: the agent its work is attributed
+  to. The account needs two roles at the issuer: `semiont-service`, which marks
+  a service's account, and `semiont-worker`, without which every claim is
+  refused as `bus.unauthorized`.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
   whatever else it awaits. The announcements that wake an idle worker reach
   only a stream that names them, so a client whose stream does not is refused
   at its first claim, as `bus.unsubscribed`.
 - **It builds what it commits** with `reconcile` and `annotation_of_span`:
   [Building annotations](#building-annotations) says what each does. The
-  `generator` an annotation states is the agent the worker works as, whose
-  DID is what the gateway says its token is.
+  `generator` an annotation states is the agent the worker works as, by the
+  DID the gateway names its account by, and the engine it ran (`provider`,
+  `model`).
 - **A held job commits for itself**: `await job.commit(resource_id, annotations)`
   sends the batch as `mark:commit`, citing the job, and returns once the
   record has it. When no acknowledgement arrives it asks whether the batch's
@@ -866,7 +887,7 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
 
 The protocol it keeps to is [the transport contract][transport-contract] and
 [the HTTP transport][transport-http], and the [conformance suite][conformance]
-holds it there, case by case, beside the TypeScript, Rust and Go SDKs.
+holds it there, case by case, beside the TypeScript, Rust, Go and Kotlin SDKs.
 
 ## Content, and the gateway's own operations
 
@@ -1035,6 +1056,7 @@ Apache-2.0. See [LICENSE][license].
 [sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/typescript/sdk/README.md
 [sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/rust/sdk/README.md
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md
+[sdk-kotlin]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/kotlin/sdk/README.md
 [launcher]: https://github.com/The-AI-Alliance/semiont/blob/main/apps/launcher/README.md
 [specs]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/README.md
 [surface]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/surface.json

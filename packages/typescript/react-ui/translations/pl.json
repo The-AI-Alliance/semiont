@@ -97,7 +97,7 @@
     "reconnecting": "Ponowne łączenie z serwerem...",
     "sharing": "Udostępnianie",
     "collaborationComingSoon": "Funkcje współpracy już wkrótce",
-    "collaborators": "Współpracownicy",
+    "engines": "Silniki",
     "ceilings": "{{contextTokens}} wejście / {{maxOutputTokens}} wyjście",
     "sharedWindow": "Okno {{contextTokens}}"
   },

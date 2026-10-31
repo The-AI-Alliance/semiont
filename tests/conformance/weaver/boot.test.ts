@@ -52,7 +52,7 @@ eachWeaver('a Weaver, as a process', (world) => {
   it('refuses a graph that lives in one process\'s memory: it could not be shared with a reader', async () => {
     await world().stop();
     try {
-      const { code, output } = await world().refused({ settings: { ...world().settings, graph: { ...world().settings.graph, type: 'memory' } } });
+      const { code, output } = await world().refused({ settings: { ...world().settings, graph: { type: 'memory' } } });
       expect(code).not.toBe(0);
       expect(output).toMatch(/memory/);
     } finally {

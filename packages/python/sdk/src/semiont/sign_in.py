@@ -31,8 +31,9 @@ class SignIn(WireModel, frozen=True):
     refresh_token: Annotated[str | None, Field(alias="refreshToken")] = None
 
     # Who signed in: the address the access token named when the sign-in was made, which is the
-    # one the gateway answers for it. For display. A writer that renews an entry keeps it.
-    email: str
+    # one the gateway answers for it. For display. Absent when the token named none. A writer
+    # that renews an entry keeps it as it was.
+    email: str | None = None
 
     # When the access token was issued to this machine, RFC 3339 in UTC.
     obtained_at: Annotated[str, Field(alias="obtainedAt")]

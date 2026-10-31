@@ -1,17 +1,23 @@
 {
   "type": "object",
-  "description": "The inference limits one service discovered for its own (provider, model) pairs. A pair whose discovery is currently unavailable is absent.",
+  "description": "The inference limits one service discovered for the engines it holds a client for. An engine whose discovery is currently unavailable is absent.",
   "properties": {
     "response": {
       "type": "object",
       "properties": {
         "limits": {
           "type": "array",
-          "items": { "$ref": "./InferencePairLimits.json" }
+          "items": {
+            "$ref": "./EngineLimits.json"
+          }
         }
       },
-      "required": ["limits"]
+      "required": [
+        "limits"
+      ]
     }
   },
-  "required": ["response"]
+  "required": [
+    "response"
+  ]
 }

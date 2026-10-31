@@ -4,13 +4,17 @@
  * The TypeScript block of docs/builder/skills/semiont-worker/SKILL.md that
  * has `main` is a whole program. Node is given it here word for word, as
  * whoever copies it would run it, with a gateway and the issuer it trusts
- * standing in on this machine. What the program sends is read off them.
+ * standing in on this machine. What the program sends is read off them. The
+ * issuer admits the worker by its key, as a knowledge base's does: it grants
+ * a token only for an assertion the worker's key signed
+ * (specs/src/session/client-assertion-cases.json).
  *
  * The program imports `@semiont/sdk` and `@semiont/core` by name, so what
  * runs is the built packages: `npm run build:packages -- @semiont/sdk` comes
  * first, and a package that is not built fails this test by name.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { generateKeyPairSync, verify, type KeyObject } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
@@ -22,6 +26,10 @@ import { JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS } from '../claims';
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '../../../../..');
 const PACKAGE = join(REPO, 'packages/typescript/sdk');
 const SKILL = readFileSync(join(REPO, 'docs/builder/skills/semiont-worker/SKILL.md'), 'utf-8');
+/** What a grant that proves an account by its key posts. */
+const ASSERTION: { form: string[]; grantType: string; assertionType: string } = JSON.parse(
+  readFileSync(join(REPO, 'specs/src/session/client-assertion-cases.json'), 'utf-8'),
+);
 
 /** The skill's TypeScript blocks that are a whole program: the ones that have a `main`. */
 const PROGRAMS = [...SKILL.matchAll(/^```typescript\n([\s\S]*?)^```$/gm)]
@@ -50,6 +58,33 @@ function jwt(claims: object): string {
   return `${segment({ alg: 'HS256', typ: 'JWT' })}.${segment(claims)}.${segment('signature')}`;
 }
 
+/** A service account the issuer admits by its key: its client id, and the public half registered on its client. */
+interface KeyAccount {
+  clientId: string;
+  publicKey: KeyObject;
+}
+
+/**
+ * Whether a client-credentials grant's form proves `account`, as an issuer
+ * checks it: the table's fields and no others, and an assertion `account`'s
+ * key signed, made by and of the account, for this token endpoint, not expired.
+ */
+function proves(body: string, account: KeyAccount, tokenEndpoint: string): boolean {
+  const form = new URLSearchParams(body);
+  const fields = [...form.keys()];
+  if (fields.length !== ASSERTION.form.length || !ASSERTION.form.every((name) => fields.includes(name))) return false;
+  if (form.get('grant_type') !== ASSERTION.grantType || form.get('client_assertion_type') !== ASSERTION.assertionType) return false;
+  const [head, claimed, signature, ...rest] = text(form.get('client_assertion')).split('.');
+  if (head === undefined || claimed === undefined || signature === undefined || rest.length > 0) return false;
+  if (!verify('sha256', Buffer.from(`${head}.${claimed}`), account.publicKey, Buffer.from(signature, 'base64url'))) return false;
+  const claims: unknown = JSON.parse(Buffer.from(claimed, 'base64url').toString('utf-8'));
+  return member(JSON.parse(Buffer.from(head, 'base64url').toString('utf-8')), 'alg') === 'RS256'
+    && member(claims, 'iss') === account.clientId
+    && member(claims, 'sub') === account.clientId
+    && member(claims, 'aud') === tokenEndpoint
+    && Number(member(claims, 'exp')) > Date.now() / 1000;
+}
+
 /** One request, as it arrived. */
 interface Asked {
   method: string;
@@ -74,19 +109,19 @@ interface StandIn {
   close(): Promise<void>;
 }
 
-/** What the stand-in is told: who it says an agent is, the tokens it gives, the jobs its queue holds, and each resource's text. */
+/** What the stand-in is told: the account its issuer admits, who it says the account is, the token its issuer grants, the jobs its queue holds, and each resource's text. */
 interface Knows {
+  account: KeyAccount;
   did: string;
   serviceToken: string;
-  agentToken: string;
   queue: readonly unknown[];
   resources: Readonly<Record<string, string>>;
 }
 
 /**
  * A gateway and the issuer it trusts, on this machine. It names its issuer,
- * grants a service account its token, exchanges that for an agent's, holds a
- * stream open, serves a resource's bytes, and takes emits. Of what is emitted
+ * grants the account it admits its token, names the account that token is, holds
+ * a stream open, serves a resource's bytes, and takes emits. Of what is emitted
  * it answers a claim, as the dispatcher does: the next job of its queue, or
  * that none is pending. And it answers a commit, as the record does: every
  * annotation of the batch is held, by its id.
@@ -127,9 +162,11 @@ async function standIn(knows: Knows): Promise<StandIn> {
         case 'GET /realms/semiont/.well-known/openid-configuration':
           return json(response, 200, { issuer, authorization_endpoint: `${issuer}/auth`, token_endpoint: `${issuer}/token` });
         case 'POST /realms/semiont/token':
-          return json(response, 200, { access_token: knows.serviceToken, expires_in: 300 });
-        case 'POST /api/tokens/agent':
-          return json(response, 200, { token: knows.agentToken, did: knows.did });
+          return proves(body, knows.account, `${issuer}/token`)
+            ? json(response, 200, { access_token: knows.serviceToken, expires_in: 300 })
+            : json(response, 401, { error: 'invalid_client' });
+        case 'GET /api/users/me':
+          return json(response, 200, { did: knows.did, email: null, name: null, image: null, domain: 'example.org' });
         case 'POST /bus/subscribe':
           // The stream is the response: it lasts until one side ends it.
           response.writeHead(200, { 'content-type': 'text/event-stream' });
@@ -170,8 +207,7 @@ async function standIn(knows: Knows): Promise<StandIn> {
   };
 }
 
-const SECRET = 's3cr3t &=+/';
-const DID = 'did:web:example.org:agents:ollama:gemma3%3A4b';
+const DID = 'did:web:example.org:agents:service-account-my-worker';
 const JOB = {
   status: 'running',
   metadata: {
@@ -192,7 +228,7 @@ describe('the complete worker of the semiont-worker skill', () => {
     await gateway?.close();
   });
 
-  it('claims as its agent, commits a highlight it built, says the job\'s lifecycle, claims again, and stops when it is told to', async () => {
+  it('says what it is called, claims as its agent, commits a highlight it built, says the job\'s lifecycle, claims again, and stops when it is told to', async () => {
     expect(PROGRAMS, 'the skill shows one TypeScript program').toHaveLength(1);
     const [program] = PROGRAMS;
     for (const imported of program.matchAll(/from '@semiont\/([a-z-]+)'/g)) {
@@ -210,13 +246,16 @@ describe('the complete worker of the semiont-worker skill', () => {
 
     const issued = Math.floor(Date.now() / 1000);
     const serviceToken = jwt({ iat: issued, exp: issued + 300, n: 0 });
-    const agentToken = jwt({ iat: issued, exp: issued + 3600, n: 1 });
-    const standing = await standIn({ did: DID, serviceToken, agentToken, queue: [JOB], resources: { 'res-1': page } });
+    // The worker's key, as the launcher hands it over: PKCS#8 PEM.
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const admitted: KeyAccount = { clientId: 'my-worker', publicKey };
+    const standing = await standIn({ account: admitted, did: DID, serviceToken, queue: [JOB], resources: { 'res-1': page } });
     gateway = standing;
 
     const running = spawn(process.execPath, ['--input-type=module-typescript', '-'], {
       cwd: PACKAGE,
-      env: { SEMIONT_API_URL: standing.origin, SEMIONT_OIDC_CLIENT_ID: 'my-worker', SEMIONT_OIDC_CLIENT_SECRET: SECRET },
+      env: { SEMIONT_API_URL: standing.origin, SEMIONT_OIDC_CLIENT_ID: admitted.clientId, SEMIONT_OIDC_CLIENT_KEY: pem },
     });
     worker = running;
     const said = { out: '', err: '' };
@@ -245,8 +284,10 @@ describe('the complete worker of the semiont-worker skill', () => {
 
     // Settling the job is an idle moment, and so the next claim.
     await until('the worker\'s second claim', () => channels().filter((channel) => channel === 'job:claim').length === 2);
-    expect(channels()).toEqual(['job:claim', 'job:start', 'mark:commit', 'job:complete', 'job:claim']);
-    const [claim, start, commit, complete] = standing.emitted.map((emit) => emit.payload);
+    expect(channels()).toEqual(['principal:profile', 'job:claim', 'job:start', 'mark:commit', 'job:complete', 'job:claim']);
+    const [profiled, claim, start, commit, complete] = standing.emitted.map((emit) => emit.payload);
+    // Before it claims, it says it is called by its client id.
+    expect(profiled).toEqual({ name: 'my-worker' });
     expect(claim).toEqual({ accepts: [{ jobType: 'mark', params: { motivation: 'highlighting' } }] });
     // Every message of the lifecycle names the job and the attempt it is.
     const identity = { resourceId: 'res-1', jobId: 'job-1', jobType: 'mark', attempt: 1 };
@@ -260,17 +301,18 @@ describe('the complete worker of the semiont-worker skill', () => {
     expect(member(highlight, 'id')).toBe(member(member(stated, 'annotation'), 'id'));
     expect(member(highlight, 'motivation')).toBe('highlighting');
     expect(member(highlight, 'target')).toEqual(member(member(stated, 'annotation'), 'target'));
-    expect(member(highlight, 'generator')).toEqual({ '@type': 'Software', '@id': DID, name: 'ollama gemma3:4b', provider: 'ollama', model: 'gemma3:4b' });
+    expect(member(highlight, 'generator')).toEqual({ '@type': 'Software', '@id': DID, provider: 'ollama', model: 'gemma3:4b' });
     // And it reports what it proposed and what the record holds, established by the record's acknowledgement.
     expect(complete).toEqual({ ...identity, result: { found: 1, persisted: 1 }, durability: 'acknowledged' });
 
-    // It signed in as its service account, and works as the agent that account was exchanged for.
-    const [grant] = standing.asked.filter((request) => `${request.method} ${request.path}` === 'POST /realms/semiont/token');
-    expect(Object.fromEntries(new URLSearchParams(grant.body))).toEqual({ grant_type: 'client_credentials', client_id: 'my-worker', client_secret: SECRET });
-    const [exchange] = standing.asked.filter((request) => request.path === '/api/tokens/agent');
-    const exchanged: unknown = JSON.parse(exchange.body);
-    expect([exchange.authorization, exchanged]).toEqual([`Bearer ${serviceToken}`, { provider: 'ollama', model: 'gemma3:4b' }]);
-    expect(new Set(standing.emitted.map((emit) => emit.authorization))).toEqual(new Set([`Bearer ${agentToken}`]));
+    // It signed in as its account, by its key: the issuer's token is its bearer, and the gateway named it. Nothing is exchanged.
+    const grants = standing.asked.filter((request) => `${request.method} ${request.path}` === 'POST /realms/semiont/token');
+    expect(grants).toHaveLength(1);
+    expect(proves(grants[0].body, admitted, `${standing.origin}/realms/semiont/token`)).toBe(true);
+    const whoAmI = standing.asked.filter((request) => request.path === '/api/users/me');
+    expect(whoAmI.map((request) => `${request.method} ${request.authorization}`)).toEqual([`GET Bearer ${serviceToken}`]);
+    expect(standing.asked.filter((request) => request.path.startsWith('/api/tokens/'))).toEqual([]);
+    expect(new Set(standing.emitted.map((emit) => emit.authorization))).toEqual(new Set([`Bearer ${serviceToken}`]));
     expect(said.out.split('\n')).toContain(`working as ${DID}`);
     // Its stream names what claiming and committing read, and nothing else.
     const [subscription] = standing.asked.filter((request) => request.path === '/bus/subscribe');
@@ -289,6 +331,8 @@ describe('the complete worker of the semiont-worker skill', () => {
     if (!stopped) throw new Error(`the worker did not end when it was told to.\n${account()}`);
     expect(ended).toEqual({ code: 0, signal: null });
     expect(channels()).not.toContain('job:fail');
-    expect(`${said.out}${said.err}`).not.toContain(SECRET);
+    for (const line of pem.split('\n').filter((line) => line !== '' && !line.startsWith('-----'))) {
+      expect(`${said.out}${said.err}`).not.toContain(line);
+    }
   }, 60_000);
 });

@@ -44,14 +44,14 @@ const (
 	// The knowledge base's tag schemas.
 	CacheQueryTagSchemas CacheQuery = "tagSchemas"
 
-	// The collaborator directory, joined with the limits each inference key
+	// The knowledge base's engines, joined with the limits each inference key
 	// holder reports: asking again asks every `<flow>:limits-requested`
 	// operation of the registry again too.
-	CacheQueryAgents CacheQuery = "agents"
+	CacheQueryEngines CacheQuery = "engines"
 )
 
 // CacheQueries is every live query, in the table's order.
-var CacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents, CacheQueryReferencedBy, CacheQueryResources, CacheQueryMatchedResources, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryAgents}
+var CacheQueries = []CacheQuery{CacheQueryResource, CacheQueryAnnotations, CacheQueryAnnotation, CacheQueryEvents, CacheQueryReferencedBy, CacheQueryResources, CacheQueryMatchedResources, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}
 
 // CacheRefreshTrigger is what refreshes a client's cache: a channel of the
 // bus, or the stream open again after a drop.
@@ -117,7 +117,7 @@ var CacheRefreshTable = map[CacheRefreshTrigger][]CacheRefresh{
 	// own scope feeds needs nothing here: its events are replayed from where the
 	// client left off, or `bus:resume-gap` says they could not be.
 	CacheRefreshReopened: {
-		{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{CacheQueryResources, CacheQueryMatchedResources, CacheQueryResource, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryAgents}},
+		{Reach: CacheRefreshReachHeld, Refetches: []CacheQuery{CacheQueryResources, CacheQueryMatchedResources, CacheQueryResource, CacheQueryEntityTypes, CacheQueryTagSchemas, CacheQueryEngines}},
 	},
 
 	// The gateway could not replay what a scope missed: everything held of that
@@ -275,7 +275,7 @@ type cacheActs interface {
 	refetchMatchedResources(reach CacheRefreshReach, subject cacheSubject)
 	refetchEntityTypes(reach CacheRefreshReach, subject cacheSubject)
 	refetchTagSchemas(reach CacheRefreshReach, subject cacheSubject)
-	refetchAgents(reach CacheRefreshReach, subject cacheSubject)
+	refetchEngines(reach CacheRefreshReach, subject cacheSubject)
 	writeAnnotations(subject cacheSubject)
 	writeAnnotation(subject cacheSubject)
 	removeAnnotation(subject cacheSubject)
@@ -318,8 +318,8 @@ func applyRefresh(acts cacheActs, row CacheRefresh, subject cacheSubject) {
 			acts.refetchEntityTypes(row.Reach, subject)
 		case CacheQueryTagSchemas:
 			acts.refetchTagSchemas(row.Reach, subject)
-		case CacheQueryAgents:
-			acts.refetchAgents(row.Reach, subject)
+		case CacheQueryEngines:
+			acts.refetchEngines(row.Reach, subject)
 		}
 	}
 }

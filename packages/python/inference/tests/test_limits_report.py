@@ -2,8 +2,8 @@
 
 A report never fails and never waits on a provider: a discovery that fails,
 and one that has not answered within a second and a half, each leave that
-pair out, and the pairs that answered are still reported. A pair left out is
-asked about again at the next report.
+engine out, and the engines that answered are still reported. An engine left
+out is asked about again at the next report.
 
 A request for the limits is answered with a report: once, on its operation's
 result channel, with the request's correlation id, in the trace the request
@@ -47,7 +47,10 @@ def shared(context_tokens: int) -> JsonObject:
 
 
 MOCK = mock(InferenceLimits(context_tokens=200_000, max_output_tokens=64_000, output_tokens_per_hour=None, accepts_temperature=None))
-MOCK_PAIR: JsonObject = {"provider": "mock", "model": "mock-model", "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000}}
+MOCK_ENGINE: JsonObject = {
+    "engine": {"provider": "ollama", "model": "mock-model"},
+    "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000},
+}
 
 
 def test_a_report_carries_every_property_the_wire_schema_declares_and_nothing_else() -> None:
@@ -60,11 +63,10 @@ def test_a_report_carries_every_property_the_wire_schema_declares_and_nothing_el
     )
 
     async def scenario() -> None:
-        (pair,) = await report_limits([mock(everything)])
-        assert set(thing(written(pair)["limits"], "the limits")) == declared
-        assert written(pair) == {
-            "provider": "mock",
-            "model": "mock-model",
+        (engine,) = await report_limits([mock(everything)])
+        assert set(thing(written(engine)["limits"], "the limits")) == declared
+        assert written(engine) == {
+            "engine": {"provider": "ollama", "model": "mock-model"},
             "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000, "acceptsTemperature": False},
         }
 
@@ -74,12 +76,12 @@ def test_a_report_carries_every_property_the_wire_schema_declares_and_nothing_el
 def test_what_a_driver_does_not_claim_is_left_off_the_wire() -> None:
     # Whether a model takes a temperature may be left out: absent is no claim, and a null would be one.
     async def scenario() -> None:
-        assert [written(pair) for pair in await report_limits([MOCK])] == [MOCK_PAIR]
+        assert [written(engine) for engine in await report_limits([MOCK])] == [MOCK_ENGINE]
 
     run(scenario())
 
 
-def test_each_pair_is_reported_in_the_order_given_as_its_provider_states_it() -> None:
+def test_each_engine_is_reported_in_the_order_given_as_its_provider_states_it() -> None:
     async def scenario() -> None:
         async with Anthropic() as played, Ollama(4096) as ollama:
             report = await report_limits(
@@ -89,59 +91,61 @@ def test_each_pair_is_reported_in_the_order_given_as_its_provider_states_it() ->
                     MOCK,
                 ]
             )
-            assert [written(pair) for pair in report] == [
+            assert [written(engine) for engine in report] == [
                 {
-                    "provider": "anthropic",
-                    "model": "claude-x",
+                    "engine": {"provider": "anthropic", "model": "claude-x"},
                     "limits": {"contextTokens": 200_000, "maxOutputTokens": 64_000, "acceptsTemperature": False},
                 },
-                {"provider": "ollama", "model": "llama3", "limits": shared(4096)},
-                MOCK_PAIR,
+                {"engine": {"provider": "ollama", "model": "llama3"}, "limits": shared(4096)},
+                MOCK_ENGINE,
             ]
 
     run(scenario())
 
 
-def test_a_pair_is_reported_once_however_many_clients_hold_it() -> None:
+def test_an_engine_is_reported_once_however_many_clients_hold_it() -> None:
     async def scenario() -> None:
         async with Ollama() as ollama:
             clients: list[InferenceClient] = [
                 OllamaInferenceClient(model=model, base_url=ollama.origin) for model in ("llama3", "llama3", "gemma2", "llama3")
             ]
-            assert [(pair.provider, pair.model) for pair in await report_limits(clients)] == [("ollama", "llama3"), ("ollama", "gemma2")]
-            # The first client of a pair is the one asked.
+            assert [(each.engine.provider, each.engine.model) for each in await report_limits(clients)] == [
+                ("ollama", "llama3"),
+                ("ollama", "gemma2"),
+            ]
+            # The first client of an engine is the one asked.
             assert sorted(str(show["model"]) for show in ollama.shows) == ["gemma2", "llama3"]
 
     run(scenario())
 
 
-def test_no_clients_are_no_pairs() -> None:
+def test_no_clients_are_no_engines() -> None:
     async def scenario() -> None:
         assert await report_limits([]) == []
 
     run(scenario())
 
 
-def test_a_pair_that_cannot_be_learned_is_left_out_and_asked_about_again_at_the_next_report(caplog: pytest.LogCaptureFixture) -> None:
+def test_an_engine_that_cannot_be_learned_is_left_out_and_asked_about_again_at_the_next_report(caplog: pytest.LogCaptureFixture) -> None:
     async def scenario() -> None:
         async with Ollama() as ollama:
             ollama.show = saying({"error": "down"}, status=500)
             clients: list[InferenceClient] = [MOCK, OllamaInferenceClient(model="llama3", base_url=ollama.origin)]
-            # The healthy pair is still reported.
-            assert [written(pair) for pair in await report_limits(clients)] == [MOCK_PAIR]
+            # The healthy engine is still reported.
+            assert [written(engine) for engine in await report_limits(clients)] == [MOCK_ENGINE]
 
             ollama.show = window(8192)
-            assert [written(pair) for pair in await report_limits(clients)] == [
-                MOCK_PAIR,
-                {"provider": "ollama", "model": "llama3", "limits": shared(8192)},
+            assert [written(engine) for engine in await report_limits(clients)] == [
+                MOCK_ENGINE,
+                {"engine": {"provider": "ollama", "model": "llama3"}, "limits": shared(8192)},
             ]
             assert len(ollama.shows) == 2
 
     caplog.set_level(logging.DEBUG, logger="semiont_inference")
     run(scenario())
     (left_out,) = [record for record in caplog.records if record.getMessage().startswith("Limits report")]
-    assert (left_out.levelname, left_out.getMessage()) == ("DEBUG", "Limits report: consult failed — pair left out")
-    assert vars(left_out)["pair"] == "ollama llama3"
+    assert (left_out.levelname, left_out.getMessage()) == ("DEBUG", "Limits report: consult failed — engine left out")
+    assert vars(left_out)["engine"] == "ollama llama3"
     assert "Ollama's /api/show: refused with status 500" in vars(left_out)["reason"]
 
 
@@ -157,26 +161,26 @@ def test_a_provider_that_has_not_answered_in_a_second_and_a_half_is_left_out_and
             await pass_time(1.4, step=0.1)
             assert not reporting.done()
             await pass_time(0.2, step=0.1)
-            assert [written(pair) for pair in await soon(reporting)] == [MOCK_PAIR]
+            assert [written(engine) for engine in await soon(reporting)] == [MOCK_ENGINE]
 
             # Nothing was thrown away by not waiting: the provider's answer, when it comes, is the next report's.
             assert ollama.holding == 1
             ollama.release(window(8192))
             report: list[JsonObject] = []
             for _ in range(200):
-                report = [written(pair) for pair in await report_limits(clients)]
+                report = [written(engine) for engine in await report_limits(clients)]
                 if len(report) == 2:
                     break
                 await asyncio.sleep(0.005)
-            assert report == [{"provider": "ollama", "model": "llama3", "limits": shared(8192)}, MOCK_PAIR]
+            assert report == [{"engine": {"provider": "ollama", "model": "llama3"}, "limits": shared(8192)}, MOCK_ENGINE]
             assert len(ollama.shows) == 1
 
     caplog.set_level(logging.DEBUG, logger="semiont_inference")
     run(scenario())
     left_out = [record for record in caplog.records if record.getMessage().startswith("Limits report")]
-    assert left_out, "nothing was said of the pair left out"
-    assert (left_out[0].levelname, left_out[0].getMessage()) == ("DEBUG", "Limits report: consult exceeded budget — pair left out")
-    assert (vars(left_out[0])["pair"], vars(left_out[0])["budgetMs"]) == ("ollama llama3", 1500)
+    assert left_out, "nothing was said of the engine left out"
+    assert (left_out[0].levelname, left_out[0].getMessage()) == ("DEBUG", "Limits report: consult exceeded budget — engine left out")
+    assert (vars(left_out[0])["engine"], vars(left_out[0])["budgetMs"]) == ("ollama llama3", 1500)
 
 
 def test_a_report_that_is_cancelled_ends_cancelled() -> None:
@@ -229,7 +233,7 @@ def test_a_request_is_answered_once_on_its_operations_result_channel_with_its_co
 
         transport.deliver(asked(operation, "request-1"))
         await turns()
-        assert said(transport) == [(operation.result.name, "request-1", {"response": {"limits": [MOCK_PAIR]}})]
+        assert said(transport) == [(operation.result.name, "request-1", {"response": {"limits": [MOCK_ENGINE]}})]
 
         # Each request is answered, with its own correlation id.
         transport.deliver(asked(operation, "request-2"))
@@ -262,7 +266,7 @@ def test_only_the_operation_named_is_answered() -> None:
     run(scenario())
 
 
-def test_a_pair_that_cannot_be_learned_is_left_out_of_the_answer_and_the_request_is_still_answered() -> None:
+def test_an_engine_that_cannot_be_learned_is_left_out_of_the_answer_and_the_request_is_still_answered() -> None:
     _, job, _ = LIMITS_OPERATIONS
 
     async def scenario() -> None:
@@ -277,7 +281,7 @@ def test_a_pair_that_cannot_be_learned_is_left_out_of_the_answer_and_the_request
                 if transport.emitted:
                     break
                 await asyncio.sleep(0.005)
-            assert said(transport) == [(job.result.name, "request-1", {"response": {"limits": [MOCK_PAIR]}})]
+            assert said(transport) == [(job.result.name, "request-1", {"response": {"limits": [MOCK_ENGINE]}})]
             answering.cancel()
             await asyncio.gather(answering, return_exceptions=True)
 
@@ -303,7 +307,7 @@ def test_no_request_waits_for_the_report_of_another() -> None:
             await pass_time(0.2, step=0.1)
             answered = {(channel, correlation_id) for channel, correlation_id, _ in said(transport)}
             assert answered == {(job.result.name, "request-1"), (job.result.name, "request-2")}
-            assert all(payload == {"response": {"limits": [MOCK_PAIR]}} for _, _, payload in said(transport))
+            assert all(payload == {"response": {"limits": [MOCK_ENGINE]}} for _, _, payload in said(transport))
             answering.cancel()
             await asyncio.gather(answering, return_exceptions=True)
             ollama.release(window(8192))
@@ -367,7 +371,7 @@ def test_an_answer_that_cannot_be_sent_is_said_on_the_failure_channel_and_in_the
         monkeypatch.setattr(transport, "emit", emit)
         transport.deliver(asked(job, "request-2"))
         await turns()
-        assert said(transport)[-1] == (job.result.name, "request-2", {"response": {"limits": [MOCK_PAIR]}})
+        assert said(transport)[-1] == (job.result.name, "request-2", {"response": {"limits": [MOCK_ENGINE]}})
         answering.cancel()
         await asyncio.gather(answering, return_exceptions=True)
 
@@ -400,7 +404,7 @@ def test_a_failure_that_cannot_be_sent_either_ends_nothing(monkeypatch: pytest.M
         monkeypatch.setattr(transport, "emit", emit)
         transport.deliver(asked(job, "request-2"))
         await turns()
-        assert said(transport) == [(job.result.name, "request-2", {"response": {"limits": [MOCK_PAIR]}})]
+        assert said(transport) == [(job.result.name, "request-2", {"response": {"limits": [MOCK_ENGINE]}})]
         answering.cancel()
         await asyncio.gather(answering, return_exceptions=True)
 

@@ -13,11 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { trace } from '@opentelemetry/api';
 
-interface NodeModule {
-  initObservabilityNode: (config: { serviceName: string; serviceVersion?: string }) => boolean;
-  shutdownObservabilityNode: () => Promise<void>;
-  metricsExporterKind: (endpoint: string | undefined, requested: string | undefined) => 'otlp' | 'console';
-}
+type NodeModule = typeof import('../node');
 
 async function loadFresh(): Promise<NodeModule> {
   vi.resetModules();
@@ -81,7 +77,7 @@ afterEach(async () => {
 describe('initObservabilityNode', () => {
   it('returns false when no exporter is configured', async () => {
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(false);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(false);
     // No signal handlers were registered.
     expect(process.listenerCount('SIGTERM')).toBe(preExistingCounts.SIGTERM);
     expect(process.listenerCount('SIGINT')).toBe(preExistingCounts.SIGINT);
@@ -91,13 +87,13 @@ describe('initObservabilityNode', () => {
     process.env['OTEL_SDK_DISABLED'] = 'true';
     process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'http://collector.test';
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(false);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(false);
   });
 
   it('returns true when OTEL_CONSOLE_EXPORTER=true and registers signal handlers', async () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
     expect(process.listenerCount('SIGTERM')).toBe(preExistingCounts.SIGTERM + 1);
     expect(process.listenerCount('SIGINT')).toBe(preExistingCounts.SIGINT + 1);
   });
@@ -105,14 +101,14 @@ describe('initObservabilityNode', () => {
   it('returns true when OTEL_EXPORTER_OTLP_ENDPOINT is set', async () => {
     process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] = 'http://collector.test';
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
   });
 
   it('is idempotent — second call returns false', async () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(false);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(false);
   });
 
   it('uses OTEL_SERVICE_NAME when set, falling back to config.serviceName', async () => {
@@ -122,25 +118,19 @@ describe('initObservabilityNode', () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     process.env['OTEL_SERVICE_NAME'] = 'env-named-service';
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'config-named' })).toBe(true);
+    expect(initObservabilityNode({ serviceName: 'config-named', serviceVersion: '1.2.3' })).toBe(true);
   });
 
   it('accepts OTEL_METRIC_EXPORT_INTERVAL and falls back when malformed', async () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     process.env['OTEL_METRIC_EXPORT_INTERVAL'] = '5000';
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
   });
 
   it('falls back to the default interval when OTEL_METRIC_EXPORT_INTERVAL is non-numeric', async () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     process.env['OTEL_METRIC_EXPORT_INTERVAL'] = 'not-a-number';
-    const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
-  });
-
-  it('honors a serviceVersion override on the config', async () => {
-    process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     const { initObservabilityNode } = await loadFresh();
     expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
   });
@@ -155,7 +145,7 @@ describe('initObservabilityNode — OTEL_TRACES_SAMPLER', () => {
     // The global tracer provider is set once per process; each case installs its own.
     trace.disable();
     const { initObservabilityNode } = await loadFresh();
-    expect(initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
     const span = trace.getTracer('probe').startSpan('probe');
     const recording = span.isRecording();
     span.end();
@@ -188,10 +178,10 @@ describe('shutdownObservabilityNode', () => {
   it('resets internal state so a subsequent init succeeds again', async () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     const mod = await loadFresh();
-    expect(mod.initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(mod.initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
     await mod.shutdownObservabilityNode();
     // After shutdown, init should once again return true.
-    expect(mod.initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(mod.initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
   });
 });
 
@@ -227,7 +217,7 @@ describe('initObservabilityNode — shutdown on signal', () => {
   it('the registered SIGTERM handler tears both providers down', async () => {
     process.env['OTEL_CONSOLE_EXPORTER'] = 'true';
     const mod = await loadFresh();
-    expect(mod.initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(mod.initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
 
     // Invoke the handler this init added rather than raising a real signal,
     // which would take the test runner down with it.
@@ -240,6 +230,6 @@ describe('initObservabilityNode — shutdown on signal', () => {
 
     // State was cleared, so a fresh init is accepted again — the observable
     // consequence of the teardown having run.
-    expect(mod.initObservabilityNode({ serviceName: 'svc' })).toBe(true);
+    expect(mod.initObservabilityNode({ serviceName: 'svc', serviceVersion: '1.2.3' })).toBe(true);
   });
 });

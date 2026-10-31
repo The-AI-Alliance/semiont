@@ -1,11 +1,8 @@
 /**
- * Frontend-specific validation utilities
- *
- * Browser and Next.js specific validation with security checks.
- * For generic validation utilities, see @semiont/http-transport/utils/validation
+ * Image-URL validation for the browser, with security checks.
  */
 
-import { isValidEmail, type ValidationResult } from '@semiont/core';
+import type { ValidationResult } from '@semiont/core';
 /**
  * Image URL validation with security checks (browser-specific)
  *
@@ -66,86 +63,6 @@ export const ImageURLSchema = {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Invalid image URL',
-      };
-    }
-  },
-};
-
-/**
- * Validates the authenticated user a knowledge base reports.
- *
- * The identity is the `did`, not a row id: events, attributions and claims
- * all carry the did, and a row id names the caller in a way nothing else in
- * the system uses, so it cannot be compared against anything.
- *
- * There are no role flags here. No gateway route gates on `isAdmin` or
- * `isModerator` and no component branches on them, so the moderation surface
- * is shown to every authenticated user. A knowledge base that sends them is
- * not rejected: this parser copies the fields it knows and ignores the rest.
- */
-export interface OAuthUser {
-  did: string;
-  email: string;
-  name?: string | null;
-  image?: string | null;
-  domain: string;
-}
-
-export const OAuthUserSchema = {
-  parse(data: unknown): OAuthUser {
-    if (!data || typeof data !== 'object') {
-      throw new Error('User data must be an object');
-    }
-
-    const user = data as Record<string, unknown>;
-
-    // Validate required string fields
-    if (typeof user.did !== 'string' || !user.did.startsWith('did:')) {
-      throw new Error('A did is required');
-    }
-
-    if (typeof user.email !== 'string' || !isValidEmail(user.email)) {
-      throw new Error('Valid email address is required');
-    }
-
-    if (typeof user.domain !== 'string' || user.domain.length === 0) {
-      throw new Error('Domain is required');
-    }
-
-    // Validate optional fields
-    if (user.name !== null && user.name !== undefined && typeof user.name !== 'string') {
-      throw new Error('Name must be a string or null');
-    }
-
-    if (user.image !== null && user.image !== undefined && typeof user.image !== 'string') {
-      throw new Error('Image must be a string or null');
-    }
-
-    const result: OAuthUser = {
-      did: user.did,
-      email: user.email,
-      domain: user.domain,
-    };
-
-    // Only add optional fields if they exist
-    if (user.name !== undefined) {
-      result.name = user.name as string | null;
-    }
-    if (user.image !== undefined) {
-      result.image = user.image as string | null;
-    }
-
-    return result;
-  },
-
-  safeParse(data: unknown): ValidationResult<OAuthUser> {
-    try {
-      const validated = this.parse(data);
-      return { success: true, data: validated };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Invalid user data',
       };
     }
   },

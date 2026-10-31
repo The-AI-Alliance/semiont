@@ -229,7 +229,7 @@ fn main() {
     // One operation per service that holds inference credentials, each named
     // `<flow>:limits-requested`: a new key holder's joins by being registered.
     operations.push_str(
-        "/// The operations that report the limits of the models a service holds credentials for.\npub const LIMITS_OPERATIONS: &[&str] = &[\n",
+        "/// The operations that report the limits of the engines a service holds a client for.\npub const LIMITS_OPERATIONS: &[&str] = &[\n",
     );
     for op in list(&registry["operations"], "operations") {
         let request = text(op, "request", "a registry operation");

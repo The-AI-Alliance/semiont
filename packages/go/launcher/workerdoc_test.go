@@ -15,25 +15,25 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
-// anthropicHaiku: Anthropic's haiku, as a roster binds it.
-func anthropicHaiku() *api.ArchivistRosterRole {
-	return &api.ArchivistRosterRole{Provider: api.ArchivistRosterRoleProviderAnthropic, Model: "claude-haiku-4-5-20251001"}
+// anthropicHaiku: Anthropic's haiku, as an engine.
+func anthropicHaiku() *api.Engine {
+	return &api.Engine{Provider: api.EngineProviderAnthropic, Model: "claude-haiku-4-5-20251001"}
 }
 
 // withAnthropic: st with the anthropic provider stated, at Anthropic's own
 // address, under the key named ANTHROPIC_API_KEY.
 func withAnthropic(st *stack.Stack) {
-	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic] = stack.Provider{ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
+	st.Inference.Spec.Providers[api.EngineProviderAnthropic] = stack.Provider{ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
 }
 
-// threeEngines: the ollama-gemma fixture with its highlighting jobs bound to
+// threeEngines: the ollama-gemma fixture with its highlighting jobs given
 // Anthropic's haiku — three engines, one of them first needed after another's
 // first job.
 func threeEngines(t *testing.T) *stack.Stack {
 	t.Helper()
 	st := fixtureStack(t, "ollama-gemma")
 	withAnthropic(st)
-	st.Inference.Spec.Roster.Workers.Mark.Highlighting = anthropicHaiku()
+	st.Inference.Spec.Engines.Jobs.Mark.Highlighting = anthropicHaiku()
 	return st
 }
 
@@ -48,17 +48,32 @@ func workerDocumentFrom(t *testing.T, b []byte) api.WorkerConfig {
 	return doc
 }
 
+// exampleKBDomain: the committed domain of the knowledge base the documents'
+// tests start.
+const exampleKBDomain = "example.github.io:example-kb"
+
+// workerDocumentOf: the worker's document for a start of the example
+// knowledge base, with none added to this machine's worker.
 func workerDocumentOf(t *testing.T, p placement) api.WorkerConfig {
 	t.Helper()
-	b, err := workerDocument(p)
+	b, err := workerDocument(p, exampleKBDomain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return workerDocumentFrom(t, b)
 }
 
-// jobOf: the job a filter names, as the roster keys it: "mark.tagging",
-// "yield".
+// theKB: the one knowledge base of a document written with none added.
+func theKB(t *testing.T, doc api.WorkerConfig) api.WorkerKnowledgeBaseConfig {
+	t.Helper()
+	if len(doc.KnowledgeBases) != 1 {
+		t.Fatalf("the document names %d knowledge bases, want the one the start runs alone", len(doc.KnowledgeBases))
+	}
+	return doc.KnowledgeBases[0]
+}
+
+// jobOf: the job a filter names, as the engines' `jobs` key it:
+// "mark.tagging", "yield".
 func jobOf(t *testing.T, filter api.JobFilter) string {
 	t.Helper()
 	b, err := json.Marshal(filter)
@@ -82,72 +97,79 @@ func jobOf(t *testing.T, filter api.JobFilter) string {
 	return named.JobType
 }
 
-// acceptedBy: the jobs each agent of a document accepts, in the document's
-// order, each agent written "provider/model: job job".
-func acceptedBy(t *testing.T, doc api.WorkerConfig) []string {
+// jobsOfEngines: the jobs each engine of a knowledge base's entry is given,
+// in the document's order, each engine written "provider/model: job job".
+func jobsOfEngines(t *testing.T, offered []api.WorkerEngineConfig) []string {
 	t.Helper()
-	var agents []string
-	for _, agent := range doc.Agents {
+	var engines []string
+	for _, engine := range offered {
 		var jobs []string
-		for _, filter := range agent.Accepts {
+		for _, filter := range engine.Jobs {
 			jobs = append(jobs, jobOf(t, filter))
 		}
-		agents = append(agents, fmt.Sprintf("%s/%s: %s", agent.Agent.Provider, agent.Agent.Model, strings.Join(jobs, " ")))
+		engines = append(engines, fmt.Sprintf("%s/%s: %s", engine.Engine.Provider, engine.Engine.Model, strings.Join(jobs, " ")))
 	}
-	return agents
+	return engines
 }
 
-// documentServes: the agent a document gives each job. A job two agents accept
-// is a job two workers would claim.
-func documentServes(t *testing.T, doc api.WorkerConfig) map[string]api.ArchivistRosterRole {
+// documentEngines: the engine a knowledge base's entry gives each job. A job
+// two engines are given is a job the worker would claim twice there.
+func documentEngines(t *testing.T, offered []api.WorkerEngineConfig) map[string]api.Engine {
 	t.Helper()
-	serves := map[string]api.ArchivistRosterRole{}
-	for _, agent := range doc.Agents {
-		for _, filter := range agent.Accepts {
+	given := map[string]api.Engine{}
+	for _, engine := range offered {
+		for _, filter := range engine.Jobs {
 			job := jobOf(t, filter)
-			if _, twice := serves[job]; twice {
-				t.Errorf("two agents accept %s", job)
+			if _, twice := given[job]; twice {
+				t.Errorf("two engines are given %s", job)
 			}
-			serves[job] = agent.Agent
+			given[job] = engine.Engine
 		}
 	}
-	return serves
+	return given
 }
 
-// rosterServes: the agent a roster gives each job.
-func rosterServes(roster api.ArchivistRoster) map[string]api.ArchivistRosterRole {
-	serves := map[string]api.ArchivistRosterRole{}
-	for _, job := range workerJobs() {
-		if role := job.slot(reflect.ValueOf(&roster.Workers).Elem()).Interface().(*api.ArchivistRosterRole); role != nil {
-			serves[job.name] = *role
+// enginesOfJobs: the engine the engines give each job.
+func enginesOfJobs(engines api.ArchivistEngines) map[string]api.Engine {
+	given := map[string]api.Engine{}
+	for _, job := range engineJobs() {
+		if engine := job.slot(reflect.ValueOf(&engines.Jobs).Elem()).Interface().(*api.Engine); engine != nil {
+			given[job.name] = *engine
 		}
 	}
-	return serves
+	return given
 }
 
 // Every address is the placement's, each provider's key is named, and the log
-// level is the WorkerPool's. Jobs one engine serves are one agent.
+// level is the WorkerPool's. The jobs given one engine are one entry.
 func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
 	st.Workers.Spec.LogLevel = api.LogLevelDebug
 	doc := workerDocumentOf(t, placed(t, st))
+	kb := theKB(t, doc)
 	want := []string{
 		"anthropic/claude-sonnet-4-5-20250929: mark.assessing mark.linking yield",
 		"anthropic/claude-haiku-4-5-20251001: mark.commenting mark.highlighting mark.tagging",
 	}
-	if got := acceptedBy(t, doc); !reflect.DeepEqual(got, want) {
-		t.Errorf("agents =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	if got := jobsOfEngines(t, kb.Engines); !reflect.DeepEqual(got, want) {
+		t.Errorf("engines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
-	for _, agent := range doc.Agents {
-		if agent.BaseUrl != "https://api.anthropic.com" || agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "ANTHROPIC_API_KEY" {
-			t.Errorf("%s/%s is reached at %q under %v, want the provider's baseURL and its key named", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, agent.ApiKeyEnv)
+	for _, engine := range kb.Engines {
+		if engine.BaseUrl != "https://api.anthropic.com" || engine.ApiKeyEnv == nil || *engine.ApiKeyEnv != "ANTHROPIC_API_KEY" {
+			t.Errorf("%s/%s is reached at %q under %v, want the provider's baseURL and its key named", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, engine.ApiKeyEnv)
 		}
 	}
-	if doc.GatewayUrl != "http://192.168.64.1:14000" {
-		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
+	if kb.Domain != exampleKBDomain {
+		t.Errorf("domain = %q, want the knowledge base's committed domain", kb.Domain)
 	}
-	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
-		t.Errorf("issuer = %q", doc.Identity.Issuer)
+	if kb.GatewayUrl != "http://192.168.64.1:14000" {
+		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", kb.GatewayUrl)
+	}
+	if kb.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+		t.Errorf("issuer = %q", kb.Identity.Issuer)
+	}
+	if kb.Identity.ClientId != serviceClientID("worker") {
+		t.Errorf("clientId = %q, want this machine's worker's, %s", kb.Identity.ClientId, serviceClientID("worker"))
 	}
 	if doc.ModelCatalogue != "/usr/share/semiont/model-catalogue.json" {
 		t.Errorf("modelCatalogue = %q, want where the image carries it", doc.ModelCatalogue)
@@ -160,11 +182,11 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	}
 }
 
-// An agent is an engine: a provider and a model. Agents are in the order of
-// the first job that needs each, an agent's filters in the jobs' order, and
-// the same documents are the same document every time.
+// An engine is a provider and a model. The engines are in the order of the
+// first job that needs each, each one's jobs in the jobs' order, and the same
+// documents are the same document every time.
 func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
-	b, err := workerDocument(placed(t, threeEngines(t)))
+	b, err := workerDocument(placed(t, threeEngines(t)), exampleKBDomain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,11 +195,11 @@ func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
 		"ollama/gemma4:e2b: mark.commenting mark.tagging",
 		"anthropic/claude-haiku-4-5-20251001: mark.highlighting",
 	}
-	if got := acceptedBy(t, workerDocumentFrom(t, b)); !reflect.DeepEqual(got, want) {
-		t.Errorf("agents =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
+	if got := jobsOfEngines(t, theKB(t, workerDocumentFrom(t, b)).Engines); !reflect.DeepEqual(got, want) {
+		t.Errorf("engines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
 	for i := 0; i < 50; i++ {
-		again, err := workerDocument(placed(t, threeEngines(t)))
+		again, err := workerDocument(placed(t, threeEngines(t)), exampleKBDomain, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -187,13 +209,13 @@ func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
 	}
 }
 
-// One roster, two projections: the agent the worker's document gives each job
-// is the one the Archivist's roster names for it, so `browse:agents` names
-// exactly the agents that claim the work.
-func TestWorkerDocumentServesWhatTheRosterSays(t *testing.T) {
+// One Inference document's engines, two projections: the engine the worker's
+// document gives each job is the one the Archivist's engines name for it, so
+// `browse:engines` names exactly the engines the work is done with.
+func TestWorkerDocumentGivesEachJobTheEngineTheEnginesSay(t *testing.T) {
 	yieldAlone := func(t *testing.T) *stack.Stack {
 		st := fixtureStack(t, "ollama-gemma")
-		st.Inference.Spec.Roster.Workers.Mark = nil
+		st.Inference.Spec.Engines.Jobs.Mark = nil
 		return st
 	}
 	for why, st := range map[string]func(*testing.T) *stack.Stack{
@@ -203,61 +225,61 @@ func TestWorkerDocumentServesWhatTheRosterSays(t *testing.T) {
 		"yield alone":              yieldAlone,
 	} {
 		p := placed(t, st(t))
-		roster := archivistDocumentOf(t, p).Roster
-		want := rosterServes(roster)
+		want := enginesOfJobs(archivistDocumentOf(t, p).Engines)
 		if len(want) == 0 {
-			t.Fatalf("%s: the roster serves no job — this case compares nothing", why)
+			t.Fatalf("%s: the engines give no job an engine — this case compares nothing", why)
 		}
-		if got := documentServes(t, workerDocumentOf(t, p)); !reflect.DeepEqual(got, want) {
-			t.Errorf("%s: the document serves %v\nthe roster says      %v", why, got, want)
+		if got := documentEngines(t, theKB(t, workerDocumentOf(t, p)).Engines); !reflect.DeepEqual(got, want) {
+			t.Errorf("%s: the document gives %v\nthe engines say      %v", why, got, want)
 		}
 	}
 }
 
-// One roster decides whether there is a worker at all: the plan runs one
-// exactly when the roster binds a job, which is exactly when the worker's
-// document can be written. A roster that binds none has no document — `agents`
-// is never empty — and the refusal names where a job is bound.
-func TestPlanRunsAWorkerExactlyWhenTheRosterBindsAJob(t *testing.T) {
+// One Inference document's engines decide whether there is a worker at all:
+// the plan runs one exactly when they give a job an engine, which is exactly
+// when the worker's document can be written. Engines that give none have no
+// document — `engines` is never empty — and the refusal names where a job is
+// given one.
+func TestPlanRunsAWorkerExactlyWhenAJobHasAnEngine(t *testing.T) {
 	for _, c := range []struct {
-		why   string
-		roles func(st *stack.Stack)
-		want  presence
+		why     string
+		engines func(st *stack.Stack)
+		want    presence
 	}{
-		{"every job bound", func(*stack.Stack) {}, presenceLauncher},
-		{"yield alone", func(st *stack.Stack) { st.Inference.Spec.Roster.Workers.Mark = nil }, presenceLauncher},
+		{"every job has an engine", func(*stack.Stack) {}, presenceLauncher},
+		{"yield alone", func(st *stack.Stack) { st.Inference.Spec.Engines.Jobs.Mark = nil }, presenceLauncher},
 		{"one motivation alone", func(st *stack.Stack) {
-			st.Inference.Spec.Roster.Workers.Yield = nil
-			mark := st.Inference.Spec.Roster.Workers.Mark
+			st.Inference.Spec.Engines.Jobs.Yield = nil
+			mark := st.Inference.Spec.Engines.Jobs.Mark
 			mark.Assessing, mark.Commenting, mark.Highlighting, mark.Linking = nil, nil, nil, nil
 		}, presenceLauncher},
 		{"no job", func(st *stack.Stack) {
-			st.Inference.Spec.Roster.Workers.Mark, st.Inference.Spec.Roster.Workers.Yield = nil, nil
+			st.Inference.Spec.Engines.Jobs.Mark, st.Inference.Spec.Engines.Jobs.Yield = nil, nil
 		}, presenceAbsent},
 	} {
 		st := fixtureStack(t, "ollama-gemma")
-		c.roles(st)
+		c.engines(st)
 		p := placed(t, st)
 		if got := p.plan.Roles["worker"].Presence; got != c.want {
 			t.Errorf("%s: the plan's worker is %s, want %s", c.why, got, c.want)
 		}
-		_, err := workerDocument(p)
+		_, err := workerDocument(p, exampleKBDomain, nil)
 		switch {
 		case c.want == presenceLauncher && err != nil:
 			t.Errorf("%s: the plan runs a worker, and its document is refused: %v", c.why, err)
-		case c.want == presenceAbsent && (err == nil || !strings.Contains(err.Error(), workerBinding(st.Files.Inference))):
-			t.Errorf("%s: want a refusal naming %s, got %v", c.why, workerBinding(st.Files.Inference), err)
+		case c.want == presenceAbsent && (err == nil || !strings.Contains(err.Error(), jobEnginesAt(st.Files.Inference))):
+			t.Errorf("%s: want a refusal naming %s, got %v", c.why, jobEnginesAt(st.Files.Inference), err)
 		}
 	}
 }
 
-// Every job the roster has a worker role for has a filter that names it: a job
-// the roster gained and no filter describes would be served by an agent that
-// claims nothing.
-func TestEveryRosterJobHasAFilter(t *testing.T) {
-	jobs := workerJobs()
+// Every job the engines can give an engine has a filter that names it: a job
+// the engines gained and no filter describes would be given an engine the
+// worker claims nothing with.
+func TestEveryEngineJobHasAFilter(t *testing.T) {
+	jobs := engineJobs()
 	if len(jobs) == 0 {
-		t.Fatal("the roster has no worker job: a gate that checks nothing passes on silence")
+		t.Fatal("the engines have no job: a gate that checks nothing passes on silence")
 	}
 	for _, job := range jobs {
 		filter, err := jobFilter(job.name)
@@ -273,7 +295,7 @@ func TestEveryRosterJobHasAFilter(t *testing.T) {
 		t.Error("a motivation no mark job has was given a filter")
 	}
 	if _, err := jobFilter("beckon"); err == nil {
-		t.Error("a job type no worker serves was given a filter")
+		t.Error("a job type no engine can be given was given a filter")
 	}
 }
 
@@ -282,15 +304,15 @@ func TestEveryRosterJobHasAFilter(t *testing.T) {
 // its document carries. An Ollama that names no key is asked without one.
 func TestWorkerDocumentNamesAKey(t *testing.T) {
 	p := placed(t, threeEngines(t))
-	for _, agent := range workerDocumentOf(t, p).Agents {
-		switch agent.Agent.Provider {
-		case api.ArchivistRosterRoleProviderAnthropic:
-			if agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "ANTHROPIC_API_KEY" {
-				t.Errorf("the anthropic agent's apiKeyEnv = %v, want the key named", agent.ApiKeyEnv)
+	for _, engine := range theKB(t, workerDocumentOf(t, p)).Engines {
+		switch engine.Engine.Provider {
+		case api.EngineProviderAnthropic:
+			if engine.ApiKeyEnv == nil || *engine.ApiKeyEnv != "ANTHROPIC_API_KEY" {
+				t.Errorf("the anthropic engine's apiKeyEnv = %v, want the key named", engine.ApiKeyEnv)
 			}
 		default:
-			if agent.ApiKeyEnv != nil {
-				t.Errorf("the %s agent's apiKeyEnv = %q, and its provider names no key", agent.Agent.Provider, *agent.ApiKeyEnv)
+			if engine.ApiKeyEnv != nil {
+				t.Errorf("the %s engine's apiKeyEnv = %q, and its provider names no key", engine.Engine.Provider, *engine.ApiKeyEnv)
 			}
 		}
 	}
@@ -299,18 +321,18 @@ func TestWorkerDocumentNamesAKey(t *testing.T) {
 	}
 }
 
-// The key of a provider no job is bound to is not the worker's: its document
-// does not name it, and it is not handed it.
-func TestWorkerIsHandedOnlyTheKeysItsAgentsUse(t *testing.T) {
+// The key of a provider no job's engine names is not the worker's: its
+// document does not name it, and it is not handed it.
+func TestWorkerIsHandedOnlyTheKeysItsEnginesUse(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	withAnthropic(st)
 	p := placed(t, st)
-	b, err := workerDocument(p)
+	b, err := workerDocument(p, exampleKBDomain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(string(b), "ANTHROPIC_API_KEY") || strings.Contains(string(b), "anthropic") {
-		t.Errorf("the document names a provider no job is bound to:\n%s", b)
+		t.Errorf("the document names a provider no job's engine names:\n%s", b)
 	}
 	if got := workerSecrets(p); len(got) != 0 {
 		t.Errorf("the worker is handed %v, and its document names no key", got)
@@ -322,14 +344,14 @@ func TestWorkerIsHandedOnlyTheKeysItsAgentsUse(t *testing.T) {
 func TestWorkerDocumentNamesTheKeyOfEveryProviderThatStatesOne(t *testing.T) {
 	st := threeEngines(t)
 	baseURL := "https://ollama.internal"
-	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OLLAMA_API_KEY"}}
+	st.Inference.Spec.Providers[api.EngineProviderOllama] = stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OLLAMA_API_KEY"}}
 	p := placed(t, st)
-	for _, agent := range workerDocumentOf(t, p).Agents {
-		if agent.Agent.Provider != api.ArchivistRosterRoleProviderOllama {
+	for _, engine := range theKB(t, workerDocumentOf(t, p)).Engines {
+		if engine.Engine.Provider != api.EngineProviderOllama {
 			continue
 		}
-		if agent.ApiKeyEnv == nil || *agent.ApiKeyEnv != "OLLAMA_API_KEY" {
-			t.Errorf("the ollama agent %s's apiKeyEnv = %v, want the key its entry names", agent.Agent.Model, agent.ApiKeyEnv)
+		if engine.ApiKeyEnv == nil || *engine.ApiKeyEnv != "OLLAMA_API_KEY" {
+			t.Errorf("the ollama engine %s's apiKeyEnv = %v, want the key its entry names", engine.Engine.Model, engine.ApiKeyEnv)
 		}
 	}
 	if got := strings.Join(workerSecrets(p), ","); got != "OLLAMA_API_KEY,ANTHROPIC_API_KEY" {
@@ -342,15 +364,15 @@ func TestWorkerDocumentNamesTheKeyOfEveryProviderThatStatesOne(t *testing.T) {
 func TestWorkerDocumentStatesAProvidersAddressAsItsEntryDoes(t *testing.T) {
 	st := threeEngines(t)
 	ollama, proxy := "http://ollama.internal:11434", "https://proxy.internal/v1"
-	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderOllama] = stack.Provider{BaseURL: &ollama}
-	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic] = stack.Provider{BaseURL: &proxy, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
-	for _, agent := range workerDocumentOf(t, placed(t, st)).Agents {
-		want := map[api.ArchivistRosterRoleProvider]string{
-			api.ArchivistRosterRoleProviderOllama:    ollama,
-			api.ArchivistRosterRoleProviderAnthropic: proxy,
-		}[agent.Agent.Provider]
-		if agent.BaseUrl != want {
-			t.Errorf("%s/%s is reached at %q, want %q, as its entry states", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, want)
+	st.Inference.Spec.Providers[api.EngineProviderOllama] = stack.Provider{BaseURL: &ollama}
+	st.Inference.Spec.Providers[api.EngineProviderAnthropic] = stack.Provider{BaseURL: &proxy, ApiKey: &stack.SecretRef{FromEnv: "ANTHROPIC_API_KEY"}}
+	for _, engine := range theKB(t, workerDocumentOf(t, placed(t, st))).Engines {
+		want := map[api.EngineProvider]string{
+			api.EngineProviderOllama:    ollama,
+			api.EngineProviderAnthropic: proxy,
+		}[engine.Engine.Provider]
+		if engine.BaseUrl != want {
+			t.Errorf("%s/%s is reached at %q, want %q, as its entry states", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, want)
 		}
 	}
 }
@@ -359,21 +381,21 @@ func TestWorkerDocumentStatesAProvidersAddressAsItsEntryDoes(t *testing.T) {
 // itself reaches Anthropic for the remote-model check: one decider.
 func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	anthropic := st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic]
+	anthropic := st.Inference.Spec.Providers[api.EngineProviderAnthropic]
 	anthropic.BaseURL = nil
-	st.Inference.Spec.Providers[api.ArchivistRosterRoleProviderAnthropic] = anthropic
+	st.Inference.Spec.Providers[api.EngineProviderAnthropic] = anthropic
 	p := placed(t, st)
 	rp := p.plan.Roles["inference"]
 	if rp.Driver != "anthropic" {
 		t.Fatalf("the fixture's inference role is %q: this test compares against the remote-model check's address", rp.Driver)
 	}
-	doc := workerDocumentOf(t, p)
-	if len(doc.Agents) == 0 {
-		t.Fatal("the fixture binds no job")
+	kb := theKB(t, workerDocumentOf(t, p))
+	if len(kb.Engines) == 0 {
+		t.Fatal("the fixture gives no job an engine")
 	}
-	for _, agent := range doc.Agents {
-		if want := saasBase(rp.Address, rp.Port); agent.BaseUrl != want {
-			t.Errorf("%s/%s is reached at %q, and the launcher checks its models at %q", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, want)
+	for _, engine := range kb.Engines {
+		if want := saasBase(rp.Address, rp.Port); engine.BaseUrl != want {
+			t.Errorf("%s/%s is reached at %q, and the launcher checks its models at %q", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, want)
 		}
 	}
 }
@@ -382,14 +404,14 @@ func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 // start places it.
 func TestWorkerDocumentReachesTheOllamaTheLauncherPlaces(t *testing.T) {
 	p := placed(t, fixtureStack(t, "ollama-gemma"))
-	doc := workerDocumentOf(t, p)
-	if len(doc.Agents) == 0 {
-		t.Fatal("the fixture binds no job")
+	kb := theKB(t, workerDocumentOf(t, p))
+	if len(kb.Engines) == 0 {
+		t.Fatal("the fixture gives no job an engine")
 	}
 	want := fmt.Sprintf("http://192.168.64.1:%d", p.plan.Roles["inference"].Port)
-	for _, agent := range doc.Agents {
-		if agent.BaseUrl != want {
-			t.Errorf("%s/%s is reached at %q, and the launcher runs Ollama at %q", agent.Agent.Provider, agent.Agent.Model, agent.BaseUrl, want)
+	for _, engine := range kb.Engines {
+		if engine.BaseUrl != want {
+			t.Errorf("%s/%s is reached at %q, and the launcher runs Ollama at %q", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, want)
 		}
 	}
 }
@@ -406,7 +428,7 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-secret", "v", semiontDescriptor("worker").mem, nil, nil), " ")
+	args := strings.Join(workerArgs("/stage", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil), " ")
 	if want := "/stage/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}
@@ -415,10 +437,14 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 			t.Errorf("the worker is handed %s, which it does not read:\n%s", unread, args)
 		}
 	}
-	for _, handed := range []string{"SEMIONT_OIDC_CLIENT_ID=" + serviceClientID("worker"), "SEMIONT_OIDC_CLIENT_SECRET=client-secret"} {
-		if !strings.Contains(args, handed) {
-			t.Errorf("the worker is not handed its service account (%s):\n%s", handed, args)
-		}
+	if !strings.Contains(args, "SEMIONT_OIDC_CLIENT_KEY=client-key") {
+		t.Errorf("the worker is not handed the machine's key it signs in with:\n%s", args)
+	}
+	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_SECRET") {
+		t.Errorf("the worker is handed a secret; it proves itself with the machine's key:\n%s", args)
+	}
+	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_ID") {
+		t.Errorf("the worker is handed a client id; each knowledge base's entry in its document names the client it signs in as there:\n%s", args)
 	}
 
 	port := fmt.Sprint(workerDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma"))).Port)

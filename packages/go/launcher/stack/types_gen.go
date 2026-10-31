@@ -517,10 +517,10 @@ type WorkerPoolWorker struct {
 	Resources Resources `json:"resources"`
 }
 
-// Inference: The models a machine uses for a knowledge base: the providers it
-// reaches, and which provider and model serve each role. A knowledge base's
-// repository may carry several, one for each provider, and a machine chooses
-// one.
+// Inference: The engines a machine uses for a knowledge base: the providers
+// it reaches, and the provider and model each job and each Librarian actor is
+// done with. A knowledge base's repository may carry several, one for each
+// provider, and a machine chooses one.
 type Inference struct {
 	// The group and version of Semiont's kinds. The group names who defines a
 	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
@@ -533,18 +533,19 @@ type Inference struct {
 	// one another by `name`.
 	Metadata Metadata `json:"metadata"`
 
-	// The providers, and who serves each role.
+	// The providers, and the engine for each job and each Librarian actor.
 	Spec InferenceSpec `json:"spec"`
 }
 
-// InferenceSpec: The providers, and who serves each role.
+// InferenceSpec: The providers, and the engine for each job and each
+// Librarian actor.
 type InferenceSpec struct {
-	// Each provider a role names, and how it is reached.
-	Providers map[api.ArchivistRosterRoleProvider]Provider `json:"providers"`
+	// Each provider an engine names, and how it is reached.
+	Providers map[api.EngineProvider]Provider `json:"providers"`
 
-	// The provider and model serving each role: every job a worker does, and
-	// each Librarian actor that asks a model.
-	Roster api.ArchivistRoster `json:"roster"`
+	// The engine each job is done with when software does it, and the engine
+	// each Librarian actor asks.
+	Engines api.ArchivistEngines `json:"engines"`
 }
 
 // Provider: How an inference provider is reached.

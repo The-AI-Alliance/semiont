@@ -103,7 +103,7 @@ class JobId(_Identifier):
 @final
 class UserId(_Identifier):
     """The identity of whoever did something, a person or a software agent alike: a DID
-    (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<provider>:<model>`), with no
+    (`did:web:<domain>:users:<subject>`, `did:web:<domain>:agents:<subject>`), with no
     whitespace in it. Never a name, an address, or a row in a table. What follows `did:` is not
     constrained further: a subject is the issuer's, percent-encoded, and that encoding leaves
     some punctuation as it is.

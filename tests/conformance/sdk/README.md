@@ -159,7 +159,7 @@ A `query` names what is observed: `{"query": "resource", "resource": id}`,
 and likewise `annotations`, `events`, `referencedBy`; `annotation` with
 `resource` and `annotation`; `resources` with optional `filters`;
 `matchedResources` with `search` and optional `filters`; `entityTypes`;
-`tagSchemas`; `agents`. Each is a query of specs/src/client/refresh.json, by
+`tagSchemas`; `engines`. Each is a query of specs/src/client/refresh.json, by
 its name there.
 
 A job's follower is reported as an observer is: each event it is given is a
@@ -287,6 +287,7 @@ The suite binds these before a case begins:
 | `token`, `token2` | two credentials of the case's own principal, a person no other case uses |
 | `client` | that principal's DID |
 | `participant` | the DID of the participant the suite plays |
+| `participantRoles` | the roles its token carries, which the gateway stamps on what it emits (`_roles`) |
 | `r1`, `r2`, `r3` | three resource ids no other case uses, in name order |
 | `a1`, `a2` | two annotation ids no other case uses |
 | `resourceScopedChannels` | the channels a resource's scope carries, from the registry |
@@ -347,8 +348,9 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-The TypeScript, Rust, Python and Go drivers each run every wire case. An SDK
-that arrives in steps names what it has not reached, with what it lacks.
+The TypeScript, Rust, Python, Go and Kotlin drivers each run every wire case.
+An SDK that arrives in steps names what it has not reached, with what it
+lacks.
 
 ## Cases that restate a table
 
@@ -382,17 +384,24 @@ the module [packages/go/sdk/conformance](../../../packages/go/sdk/conformance):
 [semiont-go-wire-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-wire-driver/main.go)
 and
 [semiont-go-live-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-live-driver/main.go),
-built into its `bin/`.
+built into its `bin/`. Kotlin's are
+[`WireDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/WireDriver.kt)
+and
+[`LiveDriver.kt`](../../../packages/kotlin/sdk/src/conformance/kotlin/semiont/conformance/LiveDriver.kt),
+laid out with their start scripts in `packages/kotlin/sdk/build/conformance` by
+`./gradlew installConformance`.
 
 ## Running it
 
-It needs a built gateway and the Rust drivers, the Go drivers, `nats-server`
-(2.10 or later) on `PATH`, the TypeScript SDK built, and, for the Python
-drivers, `uv` and Python 3.12 or later on `PATH`:
+It needs a built gateway and the Rust drivers, the Go drivers, the Kotlin
+drivers with a JDK of the version `packages/kotlin/sdk/.java-version` names,
+`nats-server` (2.10 or later) on `PATH`, the TypeScript SDK built, and, for
+the Python drivers, `uv` and Python 3.12 or later on `PATH`:
 
 ```bash
 cargo build --release -p semiont-gateway -p semiont-conformance-drivers
 (cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
+(cd packages/kotlin/sdk && ./gradlew installConformance)
 npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci

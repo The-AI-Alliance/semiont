@@ -17,8 +17,8 @@ from semiont.errors import BusRequestError, SemiontError
 from semiont.identifiers import AnnotationId, ResourceId
 from semiont.namespaces.links import Links
 from semiont.operations import (
-    BROWSE_AGENTS_REQUESTED,
     BROWSE_ANNOTATION_REQUESTED,
+    BROWSE_ENGINES_REQUESTED,
     BROWSE_ENTITY_TYPES_REQUESTED,
     BROWSE_EVENTS_REQUESTED,
     BROWSE_RESOURCE_REQUESTED,
@@ -35,19 +35,19 @@ from semiont.transport import ContentTransport
 from semiont.types import (
     Annotation,
     AttributedEvent,
-    BrowseAgentsRequest,
     BrowseAnnotationRequest,
+    BrowseEnginesRequest,
     BrowseEntityTypesRequest,
     BrowseEventsRequest,
     BrowseResourceRequest,
     BrowseResourcesRequest,
     BrowseTagSchemasRequest,
-    CollaboratorEntry,
+    EngineEntry,
+    EngineLimits,
     GatherReferencedByRequest,
     GetAnnotationsResponse,
     GetReferencedByResponseReferencedByItem,
     InferenceLimitsRequest,
-    InferencePairLimits,
     ListResourcesResponse,
     MatchResourcesRequest,
     MatchResourcesResponse,
@@ -66,7 +66,7 @@ _KEPT_VERSION: Final = 1
 
 _HOLDERS: Final = {operation.request.name: operation for operation in LIMITS_OPERATIONS}
 LIMITS_HOLDERS: Final = tuple(_HOLDERS)
-"""The key of each key holder's report of its models' limits: the name of the operation that asks it."""
+"""The key of each key holder's report of its engines' limits: the name of the operation that asks it."""
 
 _RESOURCE_ID: Final = TypeAdapter(ResourceId)
 _ANNOTATION_ID: Final = TypeAdapter(AnnotationId)
@@ -148,9 +148,9 @@ class Live:
         self.tag_schemas: Final = Cache(
             self._tag_schemas, tasks=links, persister=self._kept("tag-schemas", _NAME, TypeAdapter[list[TagSchema]](list[TagSchema]))
         )
-        self.agents: Final = Cache(self._agents, tasks=links)
+        self.engines: Final = Cache(self._engines, tasks=links)
         self.limits: Final = Cache(self._limits, tasks=links)
-        """Each key holder's report of its models' limits, by the operation that asks it."""
+        """Each key holder's report of its engines' limits, by the operation that asks it."""
         self.events: Final = Cache(self.events_of, tasks=links)
         self.referenced_by: Final = Cache(self._referenced_by, tasks=links)
         self.searches: Final = Cache(self._search, tasks=links)
@@ -207,14 +207,14 @@ class Live:
     async def _tag_schemas(self, _: str) -> list[TagSchema]:
         return (await self._links.request(BROWSE_TAG_SCHEMAS_REQUESTED, BrowseTagSchemasRequest())).response.tag_schemas
 
-    async def _agents(self, _: str) -> list[CollaboratorEntry]:
-        return (await self._links.request(BROWSE_AGENTS_REQUESTED, BrowseAgentsRequest())).response.agents
+    async def _engines(self, _: str) -> list[EngineEntry]:
+        return (await self._links.request(BROWSE_ENGINES_REQUESTED, BrowseEnginesRequest())).response.engines
 
-    async def _limits(self, holder: str) -> list[InferencePairLimits]:
-        """The models one key holder reports the limits of.
+    async def _limits(self, holder: str) -> list[EngineLimits]:
+        """The engines one key holder reports the limits of.
 
-        A holder that is down, silent or mistaken reports none: its models
-        show no limits, and the directory is not held up by it for longer
+        A holder that is down, silent or mistaken reports none: its engines
+        show no limits, and the engines are not held up by it for longer
         than a request waits.
         """
         try:
@@ -271,9 +271,9 @@ class Live:
         if query == "annotation" and annotation is not None and self.annotation.known(annotation):
             self.annotation.remove(annotation, BusRequestError("bus.not-found", f"Annotation {annotation} was removed"))
 
-    def invalidate_agents(self) -> None:
-        """The directory is out of date, and so is what each key holder reported."""
-        self.agents.invalidate(WHOLE)
+    def invalidate_engines(self) -> None:
+        """The engines are out of date, and so is what each key holder reported."""
+        self.engines.invalidate(WHOLE)
         for holder in LIMITS_HOLDERS:
             self.limits.invalidate(holder)
 
@@ -297,7 +297,7 @@ class Live:
         self.annotation.dispose()
         self.entity_types.dispose()
         self.tag_schemas.dispose()
-        self.agents.dispose()
+        self.engines.dispose()
         self.limits.dispose()
         self.events.dispose()
         self.referenced_by.dispose()
