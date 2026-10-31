@@ -23,6 +23,13 @@ const (
 	InferenceDir       = "inference"
 )
 
+// The documents that belong to no knowledge base are kept in the launcher's
+// state home, in StateHomeDir: the Browser's, as BrowserFile.
+const (
+	StateHomeDir = "stack"
+	BrowserFile  = "browser.yaml"
+)
+
 // Stack: a knowledge base's documents, each held to its schema, and the names
 // by which they refer to one another held to one another.
 type Stack struct {

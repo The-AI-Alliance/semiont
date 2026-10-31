@@ -273,7 +273,7 @@ func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
 	plan := mustPlan(t, fixtureStack(t, "ollama-gemma"))
 	want := map[int]int{}
 	for role, port := range map[string]int{
-		"browser":  defaultBrowserPort,
+		"browser":  semiontDescriptor("browser").defaultPort,
 		"gateway":  plan.GatewayPort,
 		"identity": plan.Roles["identity"].Port,
 		"worker":   semiontDescriptor("worker").ports[0].port,

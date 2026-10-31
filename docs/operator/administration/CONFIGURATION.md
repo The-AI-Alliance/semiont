@@ -96,11 +96,11 @@ An image of Semiont's runs only when a release built it: `semiont start` verifie
 
 An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
 
-The Browser is the machine's, not a knowledge base's, so no document names its image. It runs `ghcr.io/the-ai-alliance/semiont-browser:latest` unless `semiont settings browser-image <image>` names another, and `semiont settings browser-image --unset` returns it to that. The images of Ollama and the telemetry containers are the launcher's own.
+The Browser's image is named by its own document ([The Browser](#the-browser)). The images of Ollama and the telemetry containers are the launcher's own.
 
 ### Memory
 
-Each container a document describes is given the memory ceiling its `resources.limits.memory` states, a whole number of gigabytes or megabytes (`2G`, `512M`). `semiont init` writes 2G for each of Semiont's services. The ceilings of Ollama, the telemetry containers and the Browser are the launcher's own, and `--dry-run` shows the ceiling each container is given.
+Each container a document describes is given the memory ceiling its `resources.limits.memory` states, a whole number of gigabytes or megabytes (`2G`, `512M`). `semiont init` writes 2G for each of Semiont's services. The Browser's is its document's; the ceilings of Ollama and the telemetry containers are the launcher's own, and `--dry-run` shows the ceiling each container is given.
 
 Two services size themselves by theirs. The gateway takes half of its memory for what it holds queued to its streams, and the rest for connections. The smelter works on as many PDFs at once as the KnowledgeIndex's `spec.smelter.pdfsAtOnce` says. Deriving a scanned document's text holds a page in pixels and an OCR process, and 2G holds one, so `semiont init` writes one for each 2G of the smelter's ceiling. A knowledge base of large scans is derived sooner with a larger ceiling and a larger number; more PDFs at once than the ceiling holds at 2G each is a smelter that can run out of memory.
 
@@ -158,6 +158,31 @@ Either way, **`subjectClaim`** names the issuer claim a person's DID is built fr
 **There is no audience setting.** The audience a token must carry is the knowledge base's own resource identifier, derived from its `site.domain`.
 
 What an issuer of your own must provide is in [Authentication](AUTHENTICATION.md#at-the-issuer).
+
+## The Browser
+
+The Browser serves every knowledge base on the machine and belongs to none, so its document is kept in the launcher's state home, not in a knowledge base's repository: `stack/browser.yaml`, held to [`Browser`](../../../specs/src/stack/Browser.json) and read as strictly as the documents above.
+
+```yaml
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: Browser
+metadata:
+  name: browser
+spec:
+  image: ghcr.io/the-ai-alliance/semiont-browser:latest
+  resources:
+    limits:
+      memory: 1G
+  port: 3000
+```
+
+The first command that needs it (a start, `semiont identity sync`, `semiont settings browser`) writes it as above, from the launcher's catalog, and says where. `semiont settings browser` shows it, and `semiont settings browser --path` prints its path alone. Edit it, and the next start runs what it says:
+
+- **`spec.image`**: the image the Browser runs, verified as any of Semiont's are ([Images](#images)); a `:local` one runs a build of this checkout.
+- **`spec.resources.limits.memory`**: its memory ceiling ([Memory](#memory)).
+- **`spec.port`**: where it is published, on this machine's loopback. The issuer's realm allows sign-in from that port alone: after moving it, run `semiont identity sync`, which adds the new origin, and the start's preflight names it when it is missing.
+
+A start keeps a running Browser that runs what its document says, and restarts one that does not.
 
 ## A deployment of its own
 
@@ -220,6 +245,7 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | The documents name a variable (`fromEnv`) that is not set | Export it, or register its source with `semiont settings secret set NAME` |
 | The documents name a variable the launcher keeps for a daemon it runs | Name a variable of your own |
 | `spec.vectors.type` is `memory` | Use `qdrant` ([Graph and vectors](#graph-and-vectors)) |
+| `<state home>/stack/browser.yaml is not a Browser`, naming each place by its line | Fix each place, or delete the file: the next start writes the launcher's ([The Browser](#the-browser)) |
 
 ## Related
 

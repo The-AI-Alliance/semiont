@@ -57,7 +57,7 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := captureStderr(t, func() {
 				x := &liveExec{u: NewUI(true)}
-				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, tc.managed) {
+				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, catalogBrowser().Spec.Port, tc.managed) {
 					t.Fatal("a realm missing a service client passed the preflight")
 				}
 			})
@@ -112,7 +112,7 @@ func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := captureStderr(t, func() {
 				x := &liveExec{u: NewUI(true)}
-				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, tc.managed) {
+				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, catalogBrowser().Spec.Port, tc.managed) {
 					t.Fatal("a realm whose worker cannot claim passed the preflight")
 				}
 			})
@@ -165,7 +165,7 @@ func TestPreflightIdentityNamesTheRepairForARefusedWorkerKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got := captureStderr(t, func() {
 				x := &liveExec{u: NewUI(true)}
-				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, tc.managed) {
+				if x.preflightIdentity(srv.URL, testAudience, testAccounts(), 0, catalogBrowser().Spec.Port, tc.managed) {
 					t.Fatal("a realm refusing the worker's key passed the preflight")
 				}
 			})

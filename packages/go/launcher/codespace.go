@@ -65,7 +65,7 @@ var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
 // startCodespace is the whole by-hand `gh` recipe for a codespace-hosted KB
 // as one blocking command, with local-start parity as the contract:
 // preflight, create-or-resume, forward, health-gate, summary-and-exit.
-func startCodespace(u *UI, opts startOptions) int {
+func startCodespace(u *UI, opts startOptions, browser browserDocument) int {
 	// gh is the earliest failure of all — check it before any git or
 	// registry work, so a missing CLI never surfaces as a confusing
 	// downstream error. The one exception is --dry-run: a plan reaches for
@@ -323,11 +323,11 @@ func startCodespace(u *UI, opts startOptions) int {
 			addr, ok = bx.resolveAddr()
 		}
 		if ok {
-			_ = flowBrowser(bx, addr, 3000, false)
+			_ = flowBrowser(bx, addr, browser, false)
 		}
 	}
-	if httpOK("http://localhost:3000") {
-		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold("http://localhost:3000"), u.Dim("(discovery-synced — this KB appears in its panel)"))
+	if httpOK(browser.endpoint()) {
+		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold(browser.endpoint()), u.Dim("(discovery-synced — this KB appears in its panel)"))
 	} else {
 		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold("semiont start --service browser"),
 			u.Dim("(no local container runtime found — install one, or browse from another machine)"))

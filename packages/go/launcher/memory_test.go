@@ -37,13 +37,13 @@ func TestMemCeilingGB(t *testing.T) {
 }
 
 // The sum mirrors what a start actually runs: each service and daemon at the
-// ceiling its document states, the Browser and the collector at the
-// launcher's own, traces and metrics with --observe, and never the machine's
-// Ollama.
+// ceiling its document states, the Browser at its document's, the collector at
+// the launcher's own, traces and metrics with --observe, and never the
+// machine's Ollama.
 func TestStartCeilingsGB(t *testing.T) {
-	// A start with no stack (`--service browser`): the Browser's 1G and the
-	// collector's 1G.
-	if got := startCeilingsGB(nil, startOptions{}); got != 2 {
+	// A start with no stack (`--service browser`): the Browser's 1G, as the
+	// launcher writes its document, and the collector's 1G.
+	if got := startCeilingsGB(nil, catalogBrowserDocument, startOptions{}); got != 2 {
 		t.Fatalf("a start with no stack asks %vG, want 2G", got)
 	}
 	// The fixture's documents: seven services at 2G; the graph and the vector
@@ -52,12 +52,24 @@ func TestStartCeilingsGB(t *testing.T) {
 	// machine's Ollama, which runs on the host.
 	for _, inference := range []string{"ollama-gemma", "anthropic"} {
 		plan := mustPlan(t, fixtureStack(t, inference))
-		if got := startCeilingsGB(plan, startOptions{}); got != 22.5 {
+		if got := startCeilingsGB(plan, catalogBrowserDocument, startOptions{}); got != 22.5 {
 			t.Errorf("%s: the fixture's stack asks %vG, want 22.5G", inference, got)
 		}
-		if got := startCeilingsGB(plan, startOptions{observe: true}); got != 24.5 {
+		if got := startCeilingsGB(plan, catalogBrowserDocument, startOptions{observe: true}); got != 24.5 {
 			t.Errorf("%s: with --observe it asks %vG, want 24.5G: Jaeger's 1G and Prometheus's 1G more", inference, got)
 		}
+	}
+}
+
+// catalogBrowserDocument: the Browser's document as the launcher writes it.
+var catalogBrowserDocument = browserDocument{spec: catalogBrowser().Spec}
+
+// The Browser's document's ceiling is the one the sum counts.
+func TestStartCeilingsCountTheBrowsersDocument(t *testing.T) {
+	doc := catalogBrowserDocument
+	doc.spec.Resources.Limits.Memory = "4G"
+	if got := startCeilingsGB(nil, doc, startOptions{}); got != 5 {
+		t.Fatalf("a Browser whose document gives it 4G, and the collector's 1G: asked %vG, want 5G", got)
 	}
 }
 
@@ -65,7 +77,7 @@ func TestStartCeilingsGB(t *testing.T) {
 func TestStartCeilingsCountTheCeilingsTheDocumentsState(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.Smelter.Resources.Limits.Memory = "8G"
-	if got := startCeilingsGB(mustPlan(t, st), startOptions{}); got != 28.5 {
+	if got := startCeilingsGB(mustPlan(t, st), catalogBrowserDocument, startOptions{}); got != 28.5 {
 		t.Fatalf("ceilings with an 8G smelter = %vG, want 28.5G: the fixture's 22.5G with the smelter's 2G made 8G", got)
 	}
 }
@@ -73,9 +85,9 @@ func TestStartCeilingsCountTheCeilingsTheDocumentsState(t *testing.T) {
 // A stack without a worker requests no memory for one.
 func TestStartCeilingsLeaveOutAnAbsentWorker(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	with := startCeilingsGB(mustPlan(t, st), startOptions{})
+	with := startCeilingsGB(mustPlan(t, st), catalogBrowserDocument, startOptions{})
 	st.Inference.Spec.Engines.Jobs = api.ArchivistEngines{}.Jobs
-	without := startCeilingsGB(mustPlan(t, st), startOptions{})
+	without := startCeilingsGB(mustPlan(t, st), catalogBrowserDocument, startOptions{})
 	if with-without != 2 {
 		t.Fatalf("ceilings with a worker %vG, without %vG: want them the WorkerPool's 2G apart", with, without)
 	}

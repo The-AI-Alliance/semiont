@@ -19,17 +19,26 @@ func renderCmd(rt string, args ...string) string {
 	return strings.Join(parts, " ")
 }
 
+// browserDocumentWrite: the dry run's account of the Browser's document a
+// start writes first, from the launcher's catalog, where there is none.
+func (x *planExec) browserDocumentWrite(browser browserDocument) {
+	if browser.fromCatalog {
+		x.c("write %s: the Browser's document, from the launcher's catalog", browser.path)
+	}
+}
+
 // renderStartPlan is the --dry-run output: the same full-start flow walked
 // in plan mode. This is the legible account of what a start runs — and the
 // extraction seam for the stack-parity gate. It takes the REAL kb
 // root: paths derivable at plan time (the per-root state dir) print as
 // truth; the kb mount still renders "<kb-root>" via val(), the seam for
 // values the flow treats as runtime-scoped.
-func renderStartPlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) {
+func renderStartPlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan, browser browserDocument) {
 	x := &planExec{rt: rt, lan: lan}
 	x.c("semiont start --dry-run — the exact runtime commands a real run would")
 	x.c("execute, in order. Values known only at runtime appear as <placeholders>.")
-	flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv})
+	x.browserDocumentWrite(browser)
+	flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, browser: browser})
 	if lan != "" {
 		x.c("network lan: the gateway answers the network at %s:%d, over plain HTTP", lan, plan.GatewayPort)
 		if rp := plan.Roles["identity"]; rp.Presence == presenceLauncher {

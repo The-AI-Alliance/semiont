@@ -72,8 +72,7 @@ func TestParseStartRefusals(t *testing.T) {
 	}{
 		{"missing value", []string{"--config"}, "Missing value for --config"},
 		{"unknown flag", []string{"--nope"}, "Unknown argument: --nope"},
-		{"port not a number", []string{"--port", "x"}, "Invalid --port"},
-		{"port out of range", []string{"--port", "70000"}, "Invalid --port"},
+		{"port, which the Browser's document says", []string{"--service", "browser", "--port", "3001"}, "Unknown argument: --port"},
 		{"bad ollama cache", []string{"--ollama-cache", "nfs"}, "Unknown --ollama-cache"},
 		{"unknown service", []string{"--service", "nosuch"}, "Unknown --service"},
 
@@ -91,9 +90,6 @@ func TestParseStartRefusals(t *testing.T) {
 		{"repo without codespace", []string{"--repo", "o/n"}, "only apply to --runtime codespace"},
 		{"machine without codespace", []string{"--machine", "big"}, "only apply to --runtime codespace"},
 
-		// --port belongs to the Browser alone; every other port is config.
-		{"port without browser", []string{"--port", "3001"}, "--port only applies to --service browser"},
-
 		// --service compatibility.
 		{"service + list-configs", []string{"--service", "gateway", "--list-configs"}, "cannot be combined"},
 		{"service + clean-ollama", []string{"--service", "gateway", "--clean-ollama"}, "cannot be combined"},
@@ -109,13 +105,5 @@ func TestParseStartRefusals(t *testing.T) {
 				t.Errorf("refusal was %q, want it to name %q", msg, tc.want)
 			}
 		})
-	}
-}
-
-// The combination that must NOT be refused: --port with --service browser is
-// the whole reason --port exists.
-func TestParseStartAcceptsThePortMove(t *testing.T) {
-	if _, _, msg := parseStart([]string{"--service", "browser", "--port", "3001"}); msg != "" {
-		t.Errorf("the port move was refused: %s", msg)
 	}
 }

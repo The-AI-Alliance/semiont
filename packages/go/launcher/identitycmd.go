@@ -126,10 +126,9 @@ type adminRealm struct {
 // what to do instead when the identity role is not launcher-run: its realm is
 // somebody else's, and not this command's to change.
 func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminRealm, bool) {
-	// Each reads the running stack for the config it started with (and sync
-	// for the Browser's actual port); an unreadable record would quietly
-	// substitute this root's sticky preference and the default port, and
-	// write realm origins for a port nothing listens on.
+	// Each reads the running stack for the config it started with; an
+	// unreadable record would quietly substitute this root's sticky
+	// preference, and change the realm of a config nothing runs.
 	if LoadStackSet().refuseUnreadable(u) {
 		return adminRealm{}, false
 	}
@@ -228,6 +227,12 @@ func identitySync(u *UI, args []string) int {
 	if !ok {
 		return 1
 	}
+	// The origins sync writes are the Browser's, at the port its document
+	// names: where it runs, or where the next start runs it.
+	browser, ok := readBrowserDocument(u, false)
+	if !ok {
+		return 1
+	}
 	accounts, ok := realmAccountsOf(&liveExec{u: u}, r.kb)
 	if !ok {
 		return 1
@@ -235,7 +240,7 @@ func identitySync(u *UI, args []string) int {
 	u.Log("Reconciling realm %s at %s", u.Bold(r.realm), r.base)
 
 	rep, err := syncRealm(r.base, r.realm, keycloakAdminUser, r.adminPass,
-		r.kb.ident.resource(), r.rp.AccessTokenLifespan, runningBrowserPort(), accounts)
+		r.kb.ident.resource(), r.rp.AccessTokenLifespan, browser.spec.Port, accounts)
 	if err != nil {
 		u.Fail("%v", err)
 		return 1

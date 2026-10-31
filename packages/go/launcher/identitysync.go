@@ -74,9 +74,9 @@ func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan
 // reconcilePublicClients: the two registrations people sign in through.
 //
 // Three fields, each of which the preflight refuses or warns on: the loopback
-// redirect URIs that make `--port` work at all (RFC 8252 §7.3), the Browser's
-// web origins, and the implicit flow, which hands the access token back in a
-// redirect fragment.
+// redirect URIs that let the Browser's document name any port (RFC 8252
+// §7.3), the Browser's web origins, and the implicit flow, which hands the
+// access token back in a redirect fragment.
 func reconcilePublicClients(base, realm, token string, browserPort int, rep *syncReport) error {
 	clients, err := existingClients(base, realm, token)
 	if err != nil {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// generate-stack-go.mjs — the launcher's types for a knowledge base's
-// documents, and the schemas it reads them against, from specs/src/stack/ and
-// specs/src/kb-identity/ProjectConfig.json.
+// generate-stack-go.mjs — the launcher's types for its documents (a knowledge
+// base's, and the Browser's), and the schemas it reads them against, from
+// specs/src/stack/ and specs/src/kb-identity/ProjectConfig.json.
 //
 //   packages/go/launcher/stack/types_gen.go    a Go type for each kind of
 //                                                document, and for each object
@@ -36,6 +36,7 @@ const KINDS = [
   'specs/src/stack/Issuer.json',
   'specs/src/stack/WorkerPool.json',
   'specs/src/stack/Inference.json',
+  'specs/src/stack/Browser.json',
   'specs/src/kb-identity/ProjectConfig.json',
 ];
 const COMPONENTS = 'specs/src/components/schemas/';

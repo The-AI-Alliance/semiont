@@ -324,26 +324,6 @@ func browserClient(audience string, browserPort int) map[string]any {
 	return c
 }
 
-// runningBrowserPort: the port the Browser is actually on, for `identity sync`
-// to write an origin the realm will match.
-//
-// Read from the recorded Browser state rather than asked for as a flag: the
-// Browser is machine-level and its port is already written down when it starts,
-// so a flag would be a second statement of the same fact and an operator who
-// forgot it would get an origin for a port nothing is listening on. No record
-// means no Browser has been started here, and the default is what the next one
-// will use.
-func runningBrowserPort() int {
-	ss := LoadStackSet()
-	if ss == nil || ss.Browser == nil || ss.Browser.Endpoint == "" {
-		return defaultBrowserPort
-	}
-	if _, port := parseHostPort(ss.Browser.Endpoint); port != 0 {
-		return port
-	}
-	return defaultBrowserPort
-}
-
 // loopbackWebOrigins: the Browser's CORS origins. They carry the PORT, which is
 // the opposite of what its redirect URIs do — and deliberately so.
 //
@@ -360,9 +340,9 @@ func runningBrowserPort() int {
 // all. The SPA does its PKCE token exchange client-side, cross-origin to the
 // issuer, so that POST is rejected and sign-in dies as `error=Verification`.
 //
-// The port is the Browser's configured one, so `--port` moves the origin with
-// it. A realm imports once and pins the port it was created with; `semiont
-// identity sync` adds these when absent, which is what makes the move
+// The port is the one the Browser's document names, so editing it moves the
+// origin. A realm imports once and pins the port it was created with; `semiont
+// identity sync` adds the document's when absent, which is what makes a move
 // repairable. It removes nothing: an origin somebody added is theirs.
 func loopbackWebOrigins(browserPort int) []string {
 	return []string{
@@ -378,8 +358,8 @@ func loopbackWebOrigins(browserPort int) []string {
 // loopback redirect, because only software already on the user's machine can
 // bind one — the port carries no security meaning there. Keycloak honours
 // that rule, but only when the registered URI omits the port: pinning
-// `localhost:3000` opts back out of it, and `semiont start --service browser
-// --port 3001` then produces a healthy stack nobody can sign in to.
+// `localhost:3000` opts back out of it, and a Browser document naming another
+// port then produces a healthy stack nobody can sign in to.
 //
 // This rule governs the REDIRECT leg only; loopbackWebOrigins states the
 // opposite for CORS origins and says why. `semiont identity sync` adds these
@@ -603,7 +583,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAcco
 	if !ok {
 		return nil, realmAccounts{}, "", false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), browserPort(fc.opts), rp.AccessTokenLifespan, accounts))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), fc.browser.spec.Port, rp.AccessTokenLifespan, accounts))
 	if !ok {
 		return nil, realmAccounts{}, "", false
 	}

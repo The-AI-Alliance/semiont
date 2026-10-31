@@ -124,8 +124,8 @@ container run -d --name semiont-smelter --memory 2G --publish <host-addr>:24101:
 container run -d --name semiont-weaver --memory 2G --publish <host-addr>:24102:24102 --volume <config-stage>/weaver.json:/etc/semiont/weaver.json:ro --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:local
 # wait: http://<host-addr>:24102/health (30s)
 # unverified: ghcr.io/the-ai-alliance/semiont-browser:local — built on this machine (:local) and never pulled; for development only
-# browser: keep if running with image identity matching ghcr.io/the-ai-alliance/semiont-browser:local; else stop/rm + pull + run
-# (the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)
+# browser: keep if running with image identity matching ghcr.io/the-ai-alliance/semiont-browser:local, recorded at http://localhost:3000 with 1G; else stop/rm + pull + run
+# (the Browser is not a stack member: semiont stop --service browser stops it alone)
 # else:
 container stop semiont-browser
 container rm semiont-browser

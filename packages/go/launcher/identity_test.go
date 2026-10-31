@@ -106,9 +106,10 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		`"clientId": "semiont-browser"`,
 		`"publicClient": true`,
 		`"pkce.code.challenge.method": "S256"`,
-		// Loopback carries NO port, which is what makes `--port` work: RFC 8252
-		// §7.3 has the issuer accept any port on a loopback redirect, and
-		// Keycloak honours that only when the registered URI omits it.
+		// Loopback carries NO port, which lets the Browser's document name
+		// any port: RFC 8252 §7.3 has the issuer accept any port on a
+		// loopback redirect, and Keycloak honours that only when the
+		// registered URI omits it.
 		`"http://localhost/*"`,
 		`"http://127.0.0.1/*"`,
 		`"included.custom.audience": "https://example.github.io/my-kb"`,
@@ -205,8 +206,9 @@ func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
 // client's CORS origins from `webOrigins`, and matches them EXACTLY — unlike
 // redirect URIs, where RFC 8252 §7.3 makes a portless loopback entry match any
 // port. `"+"` means "derive them from the redirect URIs", so the portless
-// entries that make `--port` work would yield `http://localhost` (port 80) and
-// leave the Browser's real origin, `http://localhost:3000`, in no set at all.
+// entries that let the Browser's document name any port would yield
+// `http://localhost` (port 80) and leave the Browser's real origin,
+// `http://localhost:3000`, in no set at all.
 // The token POST is cross-origin, so Keycloak would answer 403 `Invalid origin`
 // with no CORS header and sign-in would die as an opaque `error=Verification`.
 func TestBrowserWebOriginsCarryThePort(t *testing.T) {
@@ -226,7 +228,7 @@ func TestBrowserWebOriginsCarryThePort(t *testing.T) {
 	}
 }
 
-// `--port` moves the Browser, so the origin moves with it.
+// The Browser's document moves the Browser, so the origin moves with it.
 func TestBrowserWebOriginsFollowTheBrowserPort(t *testing.T) {
 	origins := loopbackWebOrigins(3001)
 	if !slices.Contains(origins, "http://localhost:3001") {

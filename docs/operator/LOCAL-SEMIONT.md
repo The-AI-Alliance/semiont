@@ -58,7 +58,9 @@ semiont start --dry-run             # print what a start would run, and run noth
 
 ## The Browser
 
-Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base on the machine, local or forwarded from a codespace, and lists them under **Found on this machine**. `semiont stop` closes it with the stack, and `semiont stop --service browser` closes it alone. `semiont start --service browser --port <n>` moves it to another port.
+Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base on the machine, local or forwarded from a codespace, and lists them under **Found on this machine**. `semiont stop` closes it with the stack, and `semiont stop --service browser` closes it alone.
+
+The Browser has a document of its own, as a knowledge base's services do: `stack/browser.yaml` in the launcher's state home, naming its image, its memory and the port it is published on. The first start writes it, and says where; `semiont settings browser` shows it. Edit it, and the next start runs what it says: a port it moves needs `semiont identity sync` too, so the realm allows sign-in from there ([Configuration](administration/CONFIGURATION.md#the-browser)).
 
 To use the Browser without running a stack, see [Get the Browser](../analyst/README.md#get-the-browser).
 
@@ -68,7 +70,7 @@ A local stack publishes these for you to open:
 
 | Port | What |
 |---|---|
-| 3000 | The Browser |
+| 3000 | The Browser, as its document names it ([The Browser](#the-browser)) |
 | 4000 | The gateway: the knowledge base's address |
 | 8080 | Keycloak, where people sign in |
 | 7474, 7687 | Neo4j's console and its bolt port |
@@ -110,7 +112,7 @@ A stack's containers reach each other through your machine's own address, so the
 
 ## Images built from source
 
-The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh), name the `:local` images in the documents, and name the Browser's with `semiont settings browser-image`. See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
+The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh), name the `:local` images in the documents, and the Browser's in its own document (`semiont settings browser --path` says where it is). See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
 
 ## Related
 

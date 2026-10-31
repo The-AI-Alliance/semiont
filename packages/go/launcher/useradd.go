@@ -235,13 +235,13 @@ func Useradd(args []string) int {
 	if target != nil {
 		code := useraddCodespace(u, target, rest, password)
 		if code == 0 && !update && !o.inactive && !o.upsert && stdoutIsTerminal() {
-			printLines(useraddNextSteps(target, nil))
+			printLines(useraddNextSteps(target, nil, stacks.Browser))
 		}
 		return code
 	}
 	code, created := useraddLocal(u, o, password, localRoot, localDid)
 	if code == 0 && created && !o.inactive && stdoutIsTerminal() {
-		printLines(useraddNextSteps(nil, stacks.Stacks["local"]))
+		printLines(useraddNextSteps(nil, stacks.Stacks["local"], stacks.Browser))
 	}
 	return code
 }

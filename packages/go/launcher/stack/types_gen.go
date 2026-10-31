@@ -559,6 +559,41 @@ type Provider struct {
 	ApiKey *SecretRef `json:"apiKey,omitempty"`
 }
 
+// Browser: The Browser a machine runs: one viewer for every knowledge base
+// the machine reaches. It belongs to no knowledge base, so its document is
+// kept in the launcher's state home, in `stack/browser.yaml`, not in a
+// knowledge base's repository.
+type Browser struct {
+	// The group and version of Semiont's kinds. The group names who defines a
+	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
+	// a document is about is said inside it.
+	ApiVersion string `json:"apiVersion"`
+
+	Kind string `json:"kind"`
+
+	// What names a document, as Kubernetes names an object. Documents refer to
+	// one another by `name`.
+	Metadata Metadata `json:"metadata"`
+
+	// How the Browser runs.
+	Spec BrowserSpec `json:"spec"`
+}
+
+// BrowserSpec: How the Browser runs.
+type BrowserSpec struct {
+	// The container image a service runs, as a registry names it:
+	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.
+	Image string `json:"image"`
+
+	// What a container is given, in Kubernetes' spelling.
+	Resources Resources `json:"resources"`
+
+	// The port the Browser is published on, on this machine's loopback: where a
+	// person opens it, and the origin the issuer's realm allows its sign-in
+	// from.
+	Port int `json:"port"`
+}
+
 // ProjectConfig: A knowledge base's committed `.semiont/config.yaml`: its
 // name, whether its changes are staged in git, and its permanent identity. A
 // deployment's documents never restate any of it.

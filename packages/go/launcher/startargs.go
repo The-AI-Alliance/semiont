@@ -15,7 +15,6 @@ package launcher
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -67,17 +66,6 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 				return opts, false, missing
 			}
 			opts.root = v
-			i++
-		case "--port":
-			v, ok := needVal(i)
-			if !ok {
-				return opts, false, missing
-			}
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 || n > 65535 {
-				return opts, false, fmt.Sprintf("Invalid --port '%s' (expected 1-65535).", v)
-			}
-			opts.port = n
 			i++
 		case "--repo":
 			v, ok := needVal(i)
@@ -181,9 +169,6 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 		}
 	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" || opts.idleTimeout != "" || opts.retention != "" {
 		return opts, false, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace."
-	}
-	if opts.port != 0 && (opts.service != "browser" || opts.platform == platformCodespace) {
-		return opts, false, "--port only applies to --service browser — every other port belongs to the KB's documents (and a codespace forwards only its KB, on an allocated port)."
 	}
 
 	// --service compatibility: flags that don't apply to the named service are

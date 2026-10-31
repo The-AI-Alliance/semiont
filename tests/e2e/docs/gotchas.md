@@ -74,8 +74,8 @@ does not change. See [containers.md § IP refresh](containers.md#ip-refresh).
 `local-build.sh` builds every Semiont image as a local-only `:local`
 tag — but the KB stack runs them only when its documents name them:
 `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` in
-`.semiont/stack/*.yaml`, and the Browser's with `semiont settings
-browser-image ghcr.io/the-ai-alliance/semiont-browser:local`. An image
+`.semiont/stack/*.yaml`, and the Browser's as `spec.image` in its own
+document, the file `semiont settings browser --path` prints. An image
 still named `:latest` is pulled as **published**, and your local code
 changes are invisible.
 Forgetting this leads to "why isn't my gateway code change visible?"

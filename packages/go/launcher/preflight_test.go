@@ -476,7 +476,7 @@ func stubPublicIssuer(t *testing.T, s publicStub) *httptest.Server {
 		// Keycloak matches Origin against the client's webOrigins EXACTLY, and
 		// answers 403 `Invalid origin` with no CORS header when it misses.
 		if origin := r.Header.Get("Origin"); origin != "" {
-			if s.derivedOrigins || origin != fmt.Sprintf("http://localhost:%d", defaultBrowserPort) {
+			if s.derivedOrigins || origin != fmt.Sprintf("http://localhost:%d", catalogBrowser().Spec.Port) {
 				w.Header().Set("content-type", "application/json")
 				w.WriteHeader(403)
 				fmt.Fprint(w, `{"error":"Invalid origin"}`)
@@ -515,7 +515,7 @@ func findingFor(findings []publicClientFinding, clientID string) (publicClientFi
 // A realm carrying both clients, with loopback registered portlessly, is clean.
 func TestPublicClientsPassOnAHealthyRealm(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
-	if findings := verifyPublicClients(srv.URL); len(findings) != 0 {
+	if findings := verifyPublicClients(srv.URL, catalogBrowser().Spec.Port); len(findings) != 0 {
 		t.Fatalf("a healthy realm produced findings: %v", findings)
 	}
 }
@@ -524,7 +524,7 @@ func TestPublicClientsPassOnAHealthyRealm(t *testing.T) {
 // perfectly and no person can get in.
 func TestPublicClientsRefuseWhenTheBrowserClientIsMissing(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{missingClient: semiont.BrowserClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), semiont.BrowserClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port), semiont.BrowserClientID)
 	if !ok {
 		t.Fatal("a realm with no semiont-browser client passed")
 	}
@@ -543,7 +543,7 @@ func TestPublicClientsRefuseWhenTheBrowserClientIsMissing(t *testing.T) {
 
 func TestPublicClientsRefuseWhenTheCliClientIsMissing(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{missingClient: semiont.ScriptClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), semiont.ScriptClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port), semiont.ScriptClientID)
 	if !ok {
 		t.Fatal("a realm with no semiont-cli client passed")
 	}
@@ -556,7 +556,7 @@ func TestPublicClientsRefuseWhenTheCliClientIsMissing(t *testing.T) {
 // client, so a different message.
 func TestPublicClientsRefuseWhenTheDeviceGrantIsDisabled(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{noDeviceGrant: semiont.ScriptClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), semiont.ScriptClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port), semiont.ScriptClientID)
 	if !ok {
 		t.Fatal("a client that cannot use the device grant passed")
 	}
@@ -569,11 +569,11 @@ func TestPublicClientsRefuseWhenTheDeviceGrantIsDisabled(t *testing.T) {
 }
 
 // A realm that pins loopback to :3000 works — it just predates RFC 8252 §7.3
-// being honoured, so `--port` will not. That warns; it must not strand an
-// otherwise healthy deployment.
+// being honoured, so another port in the Browser's document will not. That
+// warns; it must not strand an otherwise healthy deployment.
 func TestPublicClientsWarnButDoNotRefuseOnAPinnedPort(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{pinnedPort: true})
-	findings := verifyPublicClients(srv.URL)
+	findings := verifyPublicClients(srv.URL, catalogBrowser().Spec.Port)
 	f, ok := findingFor(findings, semiont.BrowserClientID)
 	if !ok {
 		t.Fatal("a realm pinning the browser to :3000 produced no finding")
@@ -581,14 +581,14 @@ func TestPublicClientsWarnButDoNotRefuseOnAPinnedPort(t *testing.T) {
 	if !f.warnOnly {
 		t.Fatal("a pinned port refused the start; a realm older than the change still works")
 	}
-	if !strings.Contains(f.fix, "--port") {
+	if !strings.Contains(f.fix, "the Browser's document") {
 		t.Errorf("fix does not say what stops working: %q", f.fix)
 	}
 }
 
 func TestPublicClientsRefuseWhenTheIssuerServesNoDeviceEndpoint(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{omitDevice: true})
-	f, ok := findingFor(verifyPublicClients(srv.URL), semiont.ScriptClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port), semiont.ScriptClientID)
 	if !ok {
 		t.Fatal("an issuer with no device endpoint passed")
 	}
@@ -610,7 +610,7 @@ func TestAuthorizationProbeDoesNotFollowRedirects(t *testing.T) {
 
 	var authHits int32
 	srv := stubPublicIssuer(t, publicStub{authRedirect: sink.URL + "/en/auth/callback", authHits: &authHits})
-	verifyPublicClients(srv.URL)
+	verifyPublicClients(srv.URL, catalogBrowser().Spec.Port)
 
 	// Asserted first: without it this test passes when nothing probes at all.
 	if atomic.LoadInt32(&authHits) == 0 {
@@ -623,7 +623,7 @@ func TestAuthorizationProbeDoesNotFollowRedirects(t *testing.T) {
 
 // An unreachable issuer is one finding, not a cascade.
 func TestPublicClientsReportAnUnreachableIssuerOnce(t *testing.T) {
-	findings := verifyPublicClients("http://127.0.0.1:1")
+	findings := verifyPublicClients("http://127.0.0.1:1", catalogBrowser().Spec.Port)
 	if len(findings) != 1 {
 		t.Fatalf("want one finding for a dead issuer, got %d: %v", len(findings), findings)
 	}
@@ -641,7 +641,7 @@ func TestPublicClientsReportAnUnreachableIssuerOnce(t *testing.T) {
 // interceptable for a client that holds no secret.
 func TestPublicClientsWarnWhenPKCEIsNotRequired(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{pkceOptional: true})
-	f, ok := findingFor(verifyPublicClients(srv.URL), semiont.BrowserClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port), semiont.BrowserClientID)
 	if !ok {
 		t.Fatal("a realm that does not require PKCE produced no finding")
 	}
@@ -657,7 +657,7 @@ func TestPublicClientsWarnWhenPKCEIsNotRequired(t *testing.T) {
 // this, the check above would pass just as well if it fired on every realm.
 func TestPublicClientsDoNotReportPKCEWhenItIsRequired(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
-	for _, f := range verifyPublicClients(srv.URL) {
+	for _, f := range verifyPublicClients(srv.URL, catalogBrowser().Spec.Port) {
 		if strings.Contains(f.reason, "PKCE") {
 			t.Fatalf("a realm requiring PKCE was reported anyway: %q", f)
 		}
@@ -670,7 +670,7 @@ func TestPublicClientsDoNotReportPKCEWhenItIsRequired(t *testing.T) {
 func TestPublicClientsWarnOnTheResourceOwnerPasswordGrant(t *testing.T) {
 	for _, id := range []string{semiont.BrowserClientID, semiont.ScriptClientID} {
 		srv := stubPublicIssuer(t, publicStub{passwordGrant: id})
-		f, ok := findingFor(verifyPublicClients(srv.URL), id)
+		f, ok := findingFor(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port), id)
 		if !ok {
 			t.Fatalf("%s: a realm allowing the password grant produced no finding", id)
 		}
@@ -686,7 +686,7 @@ func TestPublicClientsWarnOnTheResourceOwnerPasswordGrant(t *testing.T) {
 // The control: a realm refusing the grant for both clients says nothing.
 func TestPublicClientsDoNotReportARefusedPasswordGrant(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
-	for _, f := range verifyPublicClients(srv.URL) {
+	for _, f := range verifyPublicClients(srv.URL, catalogBrowser().Spec.Port) {
 		if strings.Contains(f.reason, "password grant") {
 			t.Fatalf("a realm refusing the password grant was reported anyway: %q", f)
 		}
@@ -721,7 +721,7 @@ func TestFlagProbesSendNoCredential(t *testing.T) {
 	mux.HandleFunc("/device", watch)
 	mux.HandleFunc("/auth", watch)
 
-	verifyPublicClients(srv.URL)
+	verifyPublicClients(srv.URL, catalogBrowser().Spec.Port)
 
 	if sawCredential.Load() {
 		t.Fatal("a preflight probe sent a credential to the issuer")
@@ -803,7 +803,7 @@ func TestPreflightLifespanMatchesWhenTheRealmAgrees(t *testing.T) {
 // stack that starts is a stack that leaks it.
 func TestPublicClientsRefuseWhenImplicitFlowIsEnabled(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{implicitOn: true})
-	f, ok := implicitFinding(verifyPublicClients(srv.URL))
+	f, ok := implicitFinding(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port))
 	if !ok {
 		t.Fatal("a realm accepting response_type=token produced no finding")
 	}
@@ -818,7 +818,7 @@ func TestPublicClientsRefuseWhenImplicitFlowIsEnabled(t *testing.T) {
 // The control. Without it this passes against a probe that reports every realm.
 func TestPublicClientsDoNotReportImplicitWhenDisabled(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
-	if f, ok := implicitFinding(verifyPublicClients(srv.URL)); ok {
+	if f, ok := implicitFinding(verifyPublicClients(srv.URL, catalogBrowser().Spec.Port)); ok {
 		t.Fatalf("a realm refusing response_type=token was reported: %q", f.reason)
 	}
 }
@@ -832,35 +832,18 @@ func implicitFinding(findings []publicClientFinding) (publicClientFinding, bool)
 	return publicClientFinding{}, false
 }
 
-// `semiont start --service browser --port N` moves the Browser to a port the
-// realm may not redirect to. The portless loopback entry (RFC 8252 §7.3) is
-// what makes any port work, and it is exactly what a realm imported before
-// that line, or edited by hand, does not have. Without this check the port
-// move succeeds, the Browser is healthy, and nobody can sign in.
-func TestBrowserRedirectRefusedOnAPinnedRealm(t *testing.T) {
+// The redirect probe asks for the port the Browser's document names. A realm
+// pinned to :3000, before the portless loopback entry (RFC 8252 §7.3), will not
+// send a person back to a Browser the document puts on :3001: a healthy
+// Browser nobody can sign in to, so the start is refused.
+func TestPublicClientsRefuseARealmThatWillNotRedirectToTheDocumentsPort(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{pinnedPort: true})
-	if _, bad := verifyBrowserRedirect(srv.URL, 61234); !bad {
-		t.Fatal("a realm pinned to :3000 accepted a move to :61234")
+	f, ok := findingFor(verifyPublicClients(srv.URL, 3001), semiont.BrowserClientID)
+	if !ok || f.warnOnly {
+		t.Fatalf("a realm pinned to :3000 was not refused for a Browser on :3001: %+v (found %v)", f, ok)
 	}
-	if _, bad := verifyBrowserRedirect(srv.URL, 3000); bad {
-		t.Error("the port the realm DOES accept was reported")
-	}
-}
-
-// An issuer nobody can reach is not evidence the realm pins the port. The
-// Browser belongs to no stack, so moving it with nothing running is ordinary
-// and must not be refused on a probe that never got an answer.
-func TestBrowserRedirectDoesNotBlockOnAnUnreachableIssuer(t *testing.T) {
-	if f, bad := verifyBrowserRedirect("http://127.0.0.1:1/unreachable", 61234); bad {
-		t.Fatalf("an unreachable issuer blocked the port move: %q", f.reason)
-	}
-}
-
-// A realm registered portlessly takes any port — the whole point of §7.3.
-func TestBrowserRedirectAcceptedOnAPortlessRealm(t *testing.T) {
-	srv := stubPublicIssuer(t, publicStub{})
-	if f, bad := verifyBrowserRedirect(srv.URL, 61234); bad {
-		t.Fatalf("a portless realm refused :61234: %q", f.reason)
+	if !strings.Contains(f.reason, "http://localhost:3001/en/auth/callback") {
+		t.Errorf("the finding does not name the document's port: %q", f.reason)
 	}
 }
 
@@ -897,7 +880,7 @@ func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
 
 	// The repair renders its own operator-facing lines from the same secrets.
 	admin := newStubAdmin(t, "semiont", nil)
-	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, accounts)
+	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, catalogBrowser().Spec.Port, accounts)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -932,13 +915,14 @@ func TestBrowserOriginRefusedWhenTheRealmDerivesItsOrigins(t *testing.T) {
 // the bogus code's own 400 is not the subject — only the CORS header is.
 func TestBrowserOriginAcceptedWhenTheOriginIsRegistered(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
-	if f, bad := verifyBrowserOrigin(srv.URL, defaultBrowserPort); bad {
+	if f, bad := verifyBrowserOrigin(srv.URL, catalogBrowser().Spec.Port); bad {
 		t.Fatalf("a realm allowing http://localhost:3000 was reported: %q", f.reason)
 	}
 }
 
-// The origin follows `--port`, so a realm pinned to :3000 refuses the move —
-// and that IS the finding, because sync is what repairs it.
+// The origin follows the Browser's document, so a realm allowing only :3000
+// refuses a Browser the document puts elsewhere — and that IS the finding,
+// because sync is what repairs it.
 func TestBrowserOriginFollowsThePort(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
 	if _, bad := verifyBrowserOrigin(srv.URL, 3001); !bad {
@@ -946,10 +930,9 @@ func TestBrowserOriginFollowsThePort(t *testing.T) {
 	}
 }
 
-// A probe that never got an answer is not evidence of a refusal — the same rule
-// verifyBrowserRedirect follows.
+// A probe that never got an answer is not evidence of a refusal.
 func TestBrowserOriginDoesNotBlockOnAnUnreachableIssuer(t *testing.T) {
-	if f, bad := verifyBrowserOrigin("http://127.0.0.1:1/unreachable", defaultBrowserPort); bad {
+	if f, bad := verifyBrowserOrigin("http://127.0.0.1:1/unreachable", catalogBrowser().Spec.Port); bad {
 		t.Fatalf("an unreachable issuer produced a finding: %q", f.reason)
 	}
 }

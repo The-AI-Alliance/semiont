@@ -19,6 +19,16 @@ func configFreeService(svc string) bool {
 	return svc == "browser" || svc == "traces" || svc == "metrics" || svc == "collector"
 }
 
+// startReadsBrowserDocument: whether a start needs the Browser's document. A
+// full start and the Browser's own run the Browser; the issuer's imports a
+// realm that allows sign-in from the Browser's origin.
+func startReadsBrowserDocument(opts startOptions) bool {
+	if opts.listConfigs || opts.cleanOllama {
+		return false
+	}
+	return opts.service == "" || opts.service == "browser" || opts.service == "identity"
+}
+
 // preflightNames: the containers start's stop-then-rm sweep removes. A
 // sweep is a teardown, so it runs in teardown order — dependents first.
 //
@@ -47,7 +57,6 @@ type startOptions struct {
 	ollamaCache  string // "", "host", or "volume"
 	service      string // start just this one service
 	root         string // --root: KB root by path or registered basename
-	port         int    // --port: browser port (--service browser only; every other port is config-owned)
 	repo         string // --repo: owner/name (codespace placement only)
 	csName       string // --codespace: instance disambiguator (codespace placement only)
 	machine      string // --machine: VM class (codespace placement only)
@@ -58,8 +67,8 @@ type startOptions struct {
 var startUsage = fmt.Sprintf(`Usage: semiont start [options]
 
 Start a local Semiont stack — the services and daemons the knowledge base's
-.semiont/stack/ documents describe, and the Browser (http://localhost:3000) —
-all in containers.
+.semiont/stack/ documents describe, and the Browser its own document describes
+(semiont settings browser) — all in containers.
 
 Options:
   --config <name>       The Inference document to use, .semiont/stack/inference/
@@ -76,9 +85,6 @@ Options:
                         %s.
                         Reads its own credential from this root's state;
                         OTel export is enabled iff the collector is up.
-  --port <n>            Browser port (--service browser only; default 3000).
-                        The one port a flag may move — every other port
-                        belongs to the KB's documents
   --clean-ollama        Remove the Ollama model cache volume and exit
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
@@ -172,6 +178,15 @@ func Start(args []string) int {
 		return 1
 	}
 	u = NewUI(opts.quiet || opts.dryRun)
+	// The Browser's document is read before anything is stopped or started,
+	// so a start it refuses leaves the machine as it was.
+	var browser browserDocument
+	if startReadsBrowserDocument(opts) {
+		var ok bool
+		if browser, ok = readBrowserDocument(u, opts.dryRun); !ok {
+			return 1
+		}
+	}
 	if !opts.dryRun {
 		u.Stamp("semiont start")
 		// Materialize the Browser discovery view before anything mounts it:
@@ -185,7 +200,7 @@ func Start(args []string) int {
 	// preflight. Explicit --runtime codespace; or, implicitly, a bare start
 	// on a machine whose ONLY recorded stack(s) are codespaces.
 	if opts.platform == platformCodespace {
-		return startCodespace(u, opts)
+		return startCodespace(u, opts, browser)
 	}
 	if opts.runtime == "" {
 		ss := LoadStackSet()
@@ -222,7 +237,7 @@ func Start(args []string) int {
 			// resolution itself lives in startCodespace's ladder.
 			u.Log("Using recorded stack's platform: %s %s", u.Bold("codespace"),
 				u.Dim("(per "+statePath()+" — "+cs[0].Codespace.Repo+")"))
-			return startCodespace(u, opts)
+			return startCodespace(u, opts, browser)
 		}
 	}
 
@@ -515,9 +530,9 @@ func Start(args []string) int {
 
 	if opts.dryRun {
 		if opts.service != "" {
-			renderServicePlan(rt, lan, kb, opts, userEnv, st, plan)
+			renderServicePlan(rt, lan, kb, opts, userEnv, st, plan, browser)
 		} else {
-			renderStartPlan(rt, lan, kb, opts, userEnv, st, plan)
+			renderStartPlan(rt, lan, kb, opts, userEnv, st, plan, browser)
 		}
 		return 0
 	}
@@ -534,7 +549,7 @@ func Start(args []string) int {
 	if !opts.dryRun {
 		var needs []portNeed
 		if opts.service != "" {
-			needs = servicePortNeeds(opts.service, plan, opts, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
+			needs = servicePortNeeds(opts.service, plan, browser, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
 		} else {
 			needs = planPortChecks(plan, opts.observe, exposure{rt: rt, lan: lan}) // full start always has a plan
 		}
@@ -547,9 +562,9 @@ func Start(args []string) int {
 	// picks (auto-detect, the preferences themselves) record nothing.
 	code := 0
 	if opts.service != "" {
-		code = runStartService(u, rt, lan, kb, opts, userEnv, st, plan)
+		code = runStartService(u, rt, lan, kb, opts, userEnv, st, plan, browser)
 	} else {
-		code = runStart(u, rt, lan, kb, opts, userEnv, st, plan)
+		code = runStart(u, rt, lan, kb, opts, userEnv, st, plan, browser)
 	}
 	if code == 0 {
 		if opts.configSet {
@@ -636,16 +651,6 @@ func semiontImage(svc, tag string) string {
 // `local` — which no registry holds, and so is never pulled.
 func locallyBuilt(img string) bool {
 	return strings.HasSuffix(img, ":local")
-}
-
-// browserImage: the image the Browser runs. The Browser is the machine's, not
-// a knowledge base's (D4): the machine's browser-image setting, else the
-// launcher's catalog entry for it.
-func browserImage() string {
-	if img := loadRoots().BrowserImage; img != "" {
-		return img
-	}
-	return semiontImage("browser", "latest")
 }
 
 // roleDocument: the document that says how a role of the stack runs, for a
@@ -969,13 +974,13 @@ func weaverArgs(stage string, e exposure, clientSecret, img, mem string, userEnv
 	return append(a, img)
 }
 
-// browserArgs: the Browser publishes on the chosen host port (default
-// 3000; the SPA server always listens on 3000 inside). The ONLY port a flag
-// may move — it's absent from the config and nothing in the stack dials it.
-func browserArgs(e exposure, img string, port int) []string {
+// browserArgs: the Browser runs the image, with the memory, its document
+// names, and is published on its document's port. Its server listens on the
+// catalog's port inside its container, whichever host port publishes it.
+func browserArgs(e exposure, doc browserDocument, img string) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
-		"--memory", semiontDescriptor("browser").mem}
-	a = append(a, e.publish("--publish", "browser", port, 3000)...)
+		"--memory", doc.spec.Resources.Limits.Memory}
+	a = append(a, e.publish("--publish", "browser", doc.spec.Port, semiontDescriptor("browser").defaultPort)...)
 	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
 	// container cannot single-file mount), which the Browser image's server
 	// serves under /discovery.
@@ -984,20 +989,6 @@ func browserArgs(e exposure, img string, port int) []string {
 	}
 	a = append(a, superviseEnv()...)
 	return append(a, img)
-}
-
-// defaultBrowserPort: where the launcher starts the Browser unless `--port`
-// says otherwise. Named because the realm registers an origin for it and the
-// preflight probes that origin — three places agreeing on one number, rather
-// than three places each spelling it out.
-const defaultBrowserPort = 3000
-
-// browserPort: the Browser's host port — --port, else defaultBrowserPort.
-func browserPort(opts startOptions) int {
-	if opts.port != 0 {
-		return opts.port
-	}
-	return defaultBrowserPort
 }
 
 func otelArgs(addr string) []string {
@@ -1029,19 +1020,19 @@ var sidecarSpecs = []sidecarSpec{
 
 // runStart: the live full start — flowFullStart with liveExec, plus the
 // live-only bookends (timing stamp, summary table).
-func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan) int {
+func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan, browser browserDocument) int {
 	t0 := time.Now()
 	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
 	// dry-run output must stay machine-independent (host RAM in a golden
 	// would churn per machine), and the per-container ceilings are already
 	// visible in every dry-run argv line.
 	if rt == "container" {
-		if w := memoryBudgetWarning(startCeilingsGB(plan, opts), hostMemGB()); w != "" {
+		if w := memoryBudgetWarning(startCeilingsGB(plan, browser, opts), hostMemGB()); w != "" {
 			u.Warn("%s", w)
 		}
 	}
 	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan, lan: lan}
-	if code := flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv}); code != 0 {
+	if code := flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, browser: browser}); code != 0 {
 		return code
 	}
 
@@ -1055,7 +1046,7 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 Semiont stack is up"), u.Dim("("+took(time.Since(t0))+")"))
 	fmt.Println()
-	fmt.Printf("  Semiont Browser    %s\n", u.Bold("http://localhost:3000"))
+	fmt.Printf("  Semiont Browser    %s\n", u.Bold(browser.endpoint()))
 	fmt.Println("  Semiont KB         http://localhost:4000")
 	neo4jLogin := ""
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {

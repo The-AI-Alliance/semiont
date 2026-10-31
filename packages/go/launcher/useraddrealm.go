@@ -236,17 +236,22 @@ func accountIdentity(a realmAdmin, email, subject string) string {
 }
 
 // useraddNextSteps: what the person does with an account just created — sign
-// in, at the Browser this machine serves, or from a terminal against the stack
-// the command selected, named the way it was selected.
-func useraddNextSteps(codespace, local *StackState) []string {
+// in, at the Browser this machine serves, where its record says it is, or from
+// a terminal against the stack the command selected, named the way it was
+// selected.
+func useraddNextSteps(codespace, local *StackState, browser *ServiceState) []string {
 	login := "semiont login"
 	if codespace != nil {
 		login += " --repo " + codespace.Codespace.Repo
 	} else {
 		login += " --runtime " + local.Runtime
 	}
+	signIn := "Next: start the Browser (semiont start --service browser), and sign in there with this email and password."
+	if browser != nil {
+		signIn = fmt.Sprintf("Next: sign in at %s with this email and password.", browser.Endpoint)
+	}
 	return []string{
-		fmt.Sprintf("Next: sign in at http://localhost:%d with this email and password.", defaultBrowserPort),
+		signIn,
 		"  Keycloak asks for a first and last name on the first sign-in.",
 		"  From a terminal: " + login,
 	}

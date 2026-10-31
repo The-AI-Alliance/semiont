@@ -34,6 +34,8 @@ type setting struct {
 	// setting to its default.
 	set   func(u *UI, kb kbRoot, value string) bool
 	unset func(u *UI, kb kbRoot) bool
+	// changedBy: how a setting with no set is changed instead.
+	changedBy func() string
 	// detail: printed beneath the setting when it is shown alone.
 	detail func(u *UI, kb kbRoot)
 }
@@ -61,11 +63,11 @@ const (
 var settingsTable = []setting{
 	{name: "runtime", scope: scopeMachine, show: showRuntime, saves: []string{"rootsRegistry.Runtime"},
 		set: setRuntime, unset: unsetRuntime},
-	{name: "browser-image", scope: scopeMachine, show: showBrowserImage, saves: []string{"rootsRegistry.BrowserImage"},
-		set: setBrowserImage, unset: unsetBrowserImage},
+	{name: "browser", scope: scopeMachine, show: showBrowserDocument, changedBy: editBrowserDocument},
 	{name: "network", scope: scopeMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
 		set: setNetwork, unset: unsetNetwork},
-	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"}},
+	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"},
+		changedBy: func() string { return "its own commands: semiont settings secret --help" }},
 	{name: "secret-store", flag: "--default", scope: scopeMachine, show: showDefaultSecretStore,
 		saves: []string{"storeSettingsFile.Default"}, set: setDefaultSecretStore, unset: unsetDefaultSecretStore},
 	{name: "config", scope: scopeKB, show: showConfig, saves: []string{"rootEntry.Config"},
@@ -85,6 +87,7 @@ var registryBookkeeping = map[string]bool{
 }
 
 const settingsUsage = `Usage: semiont settings [<name> [<value> | --unset]] [--root <path|name>]
+       semiont settings browser --path
 
 Every setting the launcher keeps: its value, and where the value came from.
 Machine settings apply to every knowledge base on this machine; knowledge-base
@@ -94,13 +97,18 @@ settings to the one you are in, or the one --root names.
   semiont settings <name>            show one
   semiont settings <name> <value>    set it (checked as a start would check it)
   semiont settings <name> --unset    return it to its default
+  semiont settings browser --path    print where the Browser's document is,
+                                     and nothing else
 
 Settings:
   runtime         machine          The container runtime a start uses:
                                    container, docker or podman
   secret          machine          Where your own secrets come from (pointers,
                                    never values): semiont settings secret --help
-  browser-image   machine          The image the machine's Browser runs
+  browser         machine          The Browser's document: the image, memory
+                                   and port of the Browser this machine runs.
+                                   Edit it; the next start runs what it says.
+                                   The first command that needs it writes it.
   network         machine          Who reaches a local stack: local, the
                                    default, this machine alone; or lan, where
                                    the network reaches its gateway and its
@@ -133,7 +141,7 @@ func Settings(args []string) int {
 	if len(args) > 1 && args[0] == "secret" {
 		return secretSourcesCmd(u, args[1:])
 	}
-	name, flag, value, rootArg, unset := "", "", "", "", false
+	name, flag, value, rootArg, unset, pathOnly := "", "", "", "", false, false
 	for i := 0; i < len(args); i++ {
 		switch {
 		case args[i] == "--help" || args[i] == "-h":
@@ -150,6 +158,8 @@ func Settings(args []string) int {
 			unset = true
 		case args[i] == "--default":
 			flag = "--default"
+		case args[i] == "--path":
+			pathOnly = true
 		case name == "" && len(args[i]) > 0 && args[i][0] != '-':
 			name = args[i]
 		case name != "" && value == "" && len(args[i]) > 0 && args[i][0] != '-':
@@ -159,6 +169,13 @@ func Settings(args []string) int {
 			fmt.Print(settingsUsage)
 			return 1
 		}
+	}
+	if pathOnly {
+		if name != "browser" || flag != "" || value != "" || unset {
+			u.Fail("--path is for the Browser's document alone: semiont settings browser --path")
+			return 1
+		}
+		return browserDocumentPathCmd()
 	}
 	rows := settingsTable
 	if name != "" {
@@ -308,7 +325,7 @@ func changeSetting(u *UI, s setting, kb kbRoot, rootErr error, value string, uns
 		u.Fail("Give %s a value or --unset, not both.", s.name)
 		return 1
 	case s.set == nil:
-		u.Fail("%s is changed by its own commands: semiont settings %s --help", s.name, s.name)
+		u.Fail("%s is changed by %s", s.name, s.changedBy())
 		return 1
 	case s.scope == scopeKB && rootErr != nil:
 		u.Fail("%s is a knowledge-base setting: run inside one, or pass --root. (%v)", s.name, rootErr)
@@ -381,22 +398,38 @@ func setConfig(u *UI, kb kbRoot, value string) bool {
 	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.Config = value }))
 }
 
-func showBrowserImage(u *UI, kb kbRoot) []settingLine {
-	if img := loadRoots().BrowserImage; img != "" {
-		return []settingLine{{img, "recorded by semiont settings"}}
+// showBrowserDocument: where the Browser's document is, and what it says. It
+// is shown as a start reads it, so showing one where there is none writes it,
+// from the launcher's catalog, at the path the row names.
+func showBrowserDocument(u *UI, kb kbRoot) []settingLine {
+	doc, err := loadBrowserDocument(false)
+	if err != nil {
+		return []settingLine{{browserDocumentPath(), fmt.Sprintf("refused, and so is every start: %v", err)}}
 	}
-	return []settingLine{{browserImage(), "the launcher's own; set one to run another, a :local build for one"}}
+	return []settingLine{
+		{doc.path, "the Browser's document: edit it, and the next start runs what it says"},
+		{doc.spec.Image, "spec.image"},
+		{doc.spec.Resources.Limits.Memory, "spec.resources.limits.memory"},
+		{doc.endpoint(), "spec.port"},
+	}
 }
 
-func setBrowserImage(u *UI, kb kbRoot, value string) bool {
-	if !strings.Contains(value, ":") {
-		u.Fail("%q names no tag: write the image as <name>:<tag>, such as %s.", value, semiontImage("browser", "local"))
-		return false
-	}
-	return recorded(u, setBrowserImagePref(value))
+// editBrowserDocument: how the Browser's document is changed.
+func editBrowserDocument() string {
+	return "editing its document: " + browserDocumentPath()
 }
 
-func unsetBrowserImage(u *UI, kb kbRoot) bool { return recorded(u, setBrowserImagePref("")) }
+// browserDocumentPathCmd: `semiont settings browser --path` — the document's
+// path and nothing else, for a script that edits it; written first where there
+// is none.
+func browserDocumentPathCmd() int {
+	doc, ok := readBrowserDocument(NewUI(true), false)
+	if !ok {
+		return 1
+	}
+	fmt.Println(doc.path)
+	return 0
+}
 
 const (
 	networkLocal = "local"
@@ -438,15 +471,6 @@ func setNetworkPref(network string) error {
 		return err
 	}
 	reg.Network = network
-	return writeRoots(reg)
-}
-
-func setBrowserImagePref(img string) error {
-	reg, err := readRoots()
-	if err != nil {
-		return err
-	}
-	reg.BrowserImage = img
 	return writeRoots(reg)
 }
 

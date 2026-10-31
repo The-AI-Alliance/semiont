@@ -37,8 +37,9 @@ func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 	}
 }
 
-// Precedence is flag → record → default, and the flag has to win or
-// --browser-url could not name a Browser the record has never heard of.
+// Precedence is flag → record, and the flag has to win or --browser-url could
+// not name a Browser the record has never heard of. With neither there is
+// nothing to probe.
 func TestBrowserTargetPrefersTheOverrideOverTheRecord(t *testing.T) {
 	harness.NoRuntimes(t)
 	live := harness.LiveOrigin(t)
@@ -47,8 +48,8 @@ func TestBrowserTargetPrefersTheOverrideOverTheRecord(t *testing.T) {
 	if p := BrowserTarget(ss, live); !p.Running || p.Endpoint != live {
 		t.Errorf("override ignored: endpoint %q running %v, want %q true", p.Endpoint, p.Running, live)
 	}
-	if p := BrowserTarget(&StackSet{}, ""); p.Endpoint != "http://localhost:3000" {
-		t.Errorf("no record, no flag: endpoint %q, want the default", p.Endpoint)
+	if p := BrowserTarget(&StackSet{}, ""); p.Endpoint != "" || p.Running {
+		t.Errorf("no record, no flag: endpoint %q running %v, want none, not running", p.Endpoint, p.Running)
 	}
 }
 

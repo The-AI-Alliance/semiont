@@ -48,7 +48,10 @@ type ServiceState struct {
 	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
 	Endpoint     string                     `json:"endpoint,omitempty"` // health probe: http(s) URL or tcp:<host>:<port>
 	Runtime      string                     `json:"runtime,omitempty"`  // browser record only: the runtime that runs it (stack services get theirs from the stack)
-	StartedAt    time.Time                  `json:"startedAt"`
+	// Memory: the Browser's record only — the ceiling its document gave it,
+	// which with its image and endpoint decides whether a start keeps it.
+	Memory    string    `json:"memory,omitempty"`
+	StartedAt time.Time `json:"startedAt"`
 }
 
 type StackState struct {

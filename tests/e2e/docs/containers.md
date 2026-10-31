@@ -20,8 +20,8 @@ through that lifecycle.
 Semiont image from them as a local-only `:local` tag (plus the
 launcher binary). KB repos build nothing — the stack runs the `:local`
 images only when the KB's `.semiont/stack/*.yaml` documents name them
-(`ghcr.io/the-ai-alliance/semiont-<service>:local`) and the machine's
-`semiont settings browser-image` names the Browser's; an image still named
+(`ghcr.io/the-ai-alliance/semiont-<service>:local`) and the Browser's own
+document names its (`semiont settings browser --path`); an image still named
 `:latest` is pulled as published, and your local changes are invisible.
 
 So the "full rebuild" flow depends on what changed:
@@ -102,8 +102,8 @@ template KB:
 ```sh
 cd /path/to/semiont-template-kb
 # The documents in .semiont/stack/ name the :local images, and the
-# machine's browser-image setting names the Browser's (once):
-semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
+# Browser's own document names the Browser's (once):
+perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(semiont settings browser --path)"
 # semiont start reads ANTHROPIC_API_KEY from env when --config anthropic.
 # Source your secrets first if it's not already exported.
 semiont start --config anthropic

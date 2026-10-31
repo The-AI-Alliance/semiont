@@ -1,5 +1,5 @@
 {
-  "$comment": "What a knowledge base's documents are held to: the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity). Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
+  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the Browser's (Browser), which belongs to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
   "runBy": {
     "launcher": ["packages/go/launcher/stack/read_test.go"]
   },
@@ -292,6 +292,36 @@
       "verdict": "refused",
       "at": "/git/sync",
       "reason": "wrong-type"
+    },
+    {
+      "why": "the Browser's document, as the launcher writes it",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  image: ghcr.io/the-ai-alliance/semiont-browser:latest\n  resources:\n    limits:\n      memory: 1G\n  port: 3000\n",
+      "verdict": "accepted"
+    },
+    {
+      "why": "a Browser with no image: the document names the image it runs",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  resources:\n    limits:\n      memory: 1G\n  port: 3000\n",
+      "verdict": "refused",
+      "at": "/spec/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a Browser placed on an address: it is published on this machine's loopback alone",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  image: ghcr.io/the-ai-alliance/semiont-browser:latest\n  resources:\n    limits:\n      memory: 1G\n  host: 0.0.0.0\n  port: 3000\n",
+      "verdict": "refused",
+      "at": "/spec/host",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a Browser on a port no machine has",
+      "schema": "Browser",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: Browser\nmetadata:\n  name: browser\nspec:\n  image: ghcr.io/the-ai-alliance/semiont-browser:latest\n  resources:\n    limits:\n      memory: 1G\n  port: 70000\n",
+      "verdict": "refused",
+      "at": "/spec/port",
+      "reason": "not-allowed"
     }
   ]
 }

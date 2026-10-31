@@ -435,9 +435,12 @@ func nobodySaw(u *launcher.UI, d drive, override string, launch bool) int {
 		fmt.Fprintf(os.Stderr, "  Open %s, log in, then run this again.\n", p.Endpoint)
 		return 1
 	}
-	if p.State == "" {
+	switch {
+	case p.State == "":
 		fmt.Fprintln(os.Stderr, "  No Browser is running on this machine.")
-	} else {
+	case p.Endpoint == "":
+		fmt.Fprintf(os.Stderr, "  The Browser container is %s, and no record here says where it is published.\n", p.State)
+	default:
 		fmt.Fprintf(os.Stderr, "  The Browser container is %s and is not answering on %s.\n", p.State, p.Endpoint)
 	}
 	fmt.Fprintf(os.Stderr, "  Start it:  %s --launch\n", d.retry)
