@@ -63,9 +63,10 @@ class SessionCasesTest {
         else -> error("the gateway $said")
     }
 
-    private fun issuerSays(row: JsonObject, n: Int, renewed: String): String? = when (val said = answer(row, "issuer", n)) {
+    private fun issuerSays(row: JsonObject, n: Int, renewed: String): Any = when (val said = answer(row, "issuer", n)) {
         "renews" -> renewed
-        "refuses" -> null
+        "refuses" -> refusedByTheIssuer()
+        "unreachable" -> unansweredByTheIssuer()
         else -> error("the issuer $said")
     }
 

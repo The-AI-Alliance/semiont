@@ -36,7 +36,7 @@ vi.mock('../../client', async () => {
 
 import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig, type UserInfo } from '../semiont-session';
-import { accessToken, userId, type AccessToken } from '@semiont/core';
+import { accessToken, userId, SignInError, type AccessToken } from '@semiont/core';
 import { SESSION_PREFIX_RE, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession } from '../storage';
 
@@ -139,19 +139,67 @@ describe('SemiontSession — construction & initial token', () => {
   });
 
   it('survives a THROWN refresh during startup — `ready` resolves, it does not reject', async () => {
-    // The startup path refreshes an expired stored token before validating,
-    // and a refresh that throws there ends the session like one that returns
-    // null. A throw that escaped `validate()` would reject `ready`, so an
-    // unreachable gateway would not merely fail to sign in — it would break
-    // session CONSTRUCTION for every caller awaiting it.
+    // The startup path refreshes an expired stored token before validating.
+    // A throw that escaped `validate()` would reject `ready`, so an
+    // unreachable issuer would not merely fail to sign in — it would break
+    // session CONSTRUCTION for every caller awaiting it. A throw that is not
+    // the issuer's refusal keeps the stored session, and says why.
     const expired = freshJwt(-3600);
     seedStoredSession(storage, KB.id, expired, 'refresh-tok');
     refresh.mockRejectedValue(new Error('ECONNREFUSED'));
+    const onError = vi.fn();
 
-    const session = newSession();
+    const session = newSession({ onError });
     await expect(session.ready).resolves.toBeUndefined();
+    expect(session.token$.getValue()).toBeNull();
     expect(session.user$.getValue()).toBeNull();
+    expect(getStoredSession(storage, KB.id)).not.toBeNull();
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'session.auth-failed', message: 'Token refresh failed: ECONNREFUSED' }),
+    );
+
+    session.dispose();
+  });
+
+  it('forgets an expired stored session the issuer refuses to renew, and says nothing: there was no session to end', async () => {
+    seedStoredSession(storage, KB.id, freshJwt(-3600), 'refresh-tok');
+    refresh.mockRejectedValue(new SignInError('exchange', 'The issuer refused the token request (invalid_grant: Token is not active)', 400));
+    const onAuthFailed = vi.fn();
+    const onError = vi.fn();
+
+    const session = newSession({ onAuthFailed, onError });
+    await session.ready;
+    expect(session.token$.getValue()).toBeNull();
     expect(getStoredSession(storage, KB.id)).toBeNull();
+    expect(onAuthFailed).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+
+    session.dispose();
+  });
+
+  it.each([
+    { why: 'no answer', failure: new SignInError('exchange', 'The issuer did not answer: TypeError') },
+    { why: 'only answers worth another attempt', failure: new SignInError('exchange', 'The session could not be renewed after 4 attempts: HTTP 503', 503) },
+  ])('keeps an expired stored session whose renewal got $why, and renews it when a request is refused', async ({ failure }) => {
+    seedStoredSession(storage, KB.id, freshJwt(-3600), 'refresh-tok');
+    const renewed = freshJwt();
+    refresh.mockRejectedValueOnce(failure).mockResolvedValueOnce(renewed);
+    const onAuthFailed = vi.fn();
+    const onError = vi.fn();
+
+    const session = newSession({ onAuthFailed, onError });
+    await session.ready;
+    expect(session.token$.getValue()).toBeNull();
+    expect(getStoredSession(storage, KB.id)).not.toBeNull();
+    expect(onAuthFailed).not.toHaveBeenCalled();
+    expect(onError.mock.calls).toEqual([
+      [expect.objectContaining({ code: 'session.auth-failed', message: `Token refresh failed: ${failure.message}` })],
+    ]);
+
+    // The issuer answers again: a request refused for want of a token renews it.
+    expect(await session.refresh()).toBe(renewed);
+    expect(session.token$.getValue()).toBe(renewed);
+    expect(refresh).toHaveBeenCalledTimes(2);
 
     session.dispose();
   });

@@ -329,29 +329,27 @@ export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, r
  * Renew a stored session at its issuer and persist the rotation.
  *
  * **Null means only that nothing is stored** — an absence, not a failure. A
- * renewal that FAILS throws, carrying the issuer's own words and, when the
- * retry budget ran out, how many attempts it took to give up.
+ * renewal that FAILS throws, carrying the issuer's own words, its last
+ * status when it answered one, and, when the retry budget ran out, how many
+ * attempts it took to give up.
  *
- * `null` is deliberately that narrow, and it costs the caller nothing: a
- * throw and a null are identical at the session — `tryRefresh` converts one
- * to the other — and a failure throws specifically to keep the cause, which
- * a bare `null` cannot carry. Without the attempt count, an operator reading
- * `Token refresh failed: HTTP 503` cannot tell whether that was tried once
- * or four times, and the difference decides whether they look at the
- * network or at the issuer.
+ * `null` is deliberately that narrow: a failure throws specifically to keep
+ * the cause, which a bare `null` cannot carry, and the session reads it — at
+ * its start, only the issuer's refusal forgets the stored session. Without
+ * the attempt count, an operator reading `Token refresh failed: HTTP 503`
+ * cannot tell whether that was tried once or four times, and the difference
+ * decides whether they look at the network or at the issuer.
  *
  * **A refusal and an outage are not the same event.** A bare
  * `catch { return null }` would let one lost packet end a session exactly
  * like a revocation. `RETRY_RULES.refresh` draws the line — the issuer's answer
  * is the verdict, its absence never is — and the retry lives here rather than
- * in the session because a session terminates on `null`, and on a throw
- * exactly as on `null`: retry belongs in the callback, which owns the HTTP
+ * in the session because retry belongs in the callback, which owns the HTTP
  * call.
  *
- * The budget is bounded and exhaustion is terminal, which is the answer
- * to the objection to retrying before terminating — an invisible zombie
- * session would be worse than a visible re-login, so this only ever delays
- * the re-login, never replaces it.
+ * The budget is bounded, which is the answer to the objection to retrying
+ * before terminating — an invisible zombie session would be worse than a
+ * visible re-login, so this only ever delays the re-login, never replaces it.
  */
 export async function refreshStoredSession(storage: SessionStorage, kbId: string): Promise<string | null> {
   const stored = getStoredSession(storage, kbId);
@@ -401,6 +399,7 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
     throw new SignInError(
       'exchange',
       `The session could not be renewed after ${attempts} attempts: ${cause}`,
+      error instanceof SignInError ? error.status : undefined,
     );
   }
 }

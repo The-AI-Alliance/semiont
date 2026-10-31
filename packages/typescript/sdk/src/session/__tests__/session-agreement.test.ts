@@ -10,6 +10,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { BehaviorSubject } from 'rxjs';
 import type { AccessToken } from '@semiont/core';
+import { SignInError } from '@semiont/core';
 import { APIError } from '../../client';
 import { createTestClient } from '../../testing';
 import { httpKb } from '../knowledge-base';
@@ -42,7 +43,7 @@ interface StartupCase {
   /** What the gateway answers each time it is asked; the last answer repeats. */
   gateway: Array<'accepts' | 'refuses' | 'unreachable'>;
   /** What the issuer answers each renewal; the last answer repeats. */
-  issuer: Array<'renews' | 'refuses'>;
+  issuer: Array<'renews' | 'refuses' | 'unreachable'>;
   asks: number;
   renewals: number;
   ends: 'signed-in' | 'signed-out' | 'unconfirmed';
@@ -109,6 +110,12 @@ describe('session — the SDK agrees with the shared table', () => {
   /** The `n`th answer of a script whose last answer repeats. */
   const answer = <T>(script: T[], n: number): T => script[Math.min(n, script.length - 1)]!;
 
+  /** What a renewal the issuer does not make throws: its refusal, with its status, or no answer, with none. */
+  const notRenewed = (said: 'refuses' | 'unreachable'): SignInError =>
+    said === 'refuses'
+      ? new SignInError('exchange', 'The issuer refused the token request (invalid_grant: Token is not active)', 400)
+      : new SignInError('exchange', 'The issuer did not answer: TypeError');
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -154,7 +161,9 @@ describe('session — the SDK agrees with the shared table', () => {
       refresh: async () => {
         renewals += 1;
         if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
-        return answer(c.issuer, renewals - 1) === 'renews' ? issued(renewals) : null;
+        const said = answer(c.issuer, renewals - 1);
+        if (said !== 'renews') throw notRenewed(said);
+        return issued(renewals);
       },
       onAuthFailed: (reason) => told.push(reason),
       onError: (error) => errors.push(error),
@@ -217,7 +226,8 @@ describe('session — the SDK agrees with the shared table', () => {
       refresh: async () => {
         renewals += 1;
         if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
-        if (answer(c.issuer, renewals - 1) !== 'renews') return null;
+        const said = answer(c.issuer, renewals - 1);
+        if (said !== 'renews') throw notRenewed(said);
         const renewed = issued(renewals);
         setStoredSession(storage, KB.id, { ...getStoredSession(storage, KB.id)!, access: renewed });
         return renewed;

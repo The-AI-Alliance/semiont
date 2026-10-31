@@ -40,6 +40,8 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
+  RETRY_RULES,
+  SignInError,
   type AccessToken,
   type BaseUrl,
 } from '@semiont/core';
@@ -71,6 +73,17 @@ export type UserInfo = components['schemas']['UserResponse'];
 /** Why a renewal gave no token, for whoever reads the error. */
 const notRenewed = (failure: string | undefined): string =>
   failure ? `Token refresh failed: ${failure}` : 'Token refresh failed';
+
+/**
+ * Whether a renewal failed because the issuer refused it: an answer
+ * `RETRY_RULES.refresh` does not try again. No answer, and one it tries again
+ * until the budget is spent, is no refusal.
+ */
+const refusedByTheIssuer = (failure: unknown): boolean =>
+  failure instanceof SignInError
+  && failure.code === 'exchange'
+  && failure.status !== undefined
+  && !RETRY_RULES.refresh.retryable({ status: failure.status });
 
 export interface SemiontSessionConfig {
   kb: KbTarget;
@@ -224,7 +237,10 @@ export class SemiontSession implements StateUnit {
    * Run the initial mount-time validation. If a stored access token is
    * present and unexpired, call the configured `validate` with it to
    * confirm it still works and populate `user$`. If expired, try
-   * refresh first. When validate's token is refused (a 401, or a 429
+   * refresh first: the issuer's refusal forgets the stored session, and a
+   * renewal that got no answer keeps it, says why as `session.auth-failed`,
+   * and leaves it to be renewed when a request is refused. When validate's
+   * token is refused (a 401, or a 429
    * `refusal-rate`), try refresh once, and ask once more; a second refusal
    * ends the session. Surfaces auth-failed when the gateway could not be
    * asked.
@@ -237,12 +253,20 @@ export class SemiontSession implements StateUnit {
     if (!stored) return;
 
     const expired = isJwtExpired(stored.access);
-    const startToken = expired ? (await this.tryRefresh()).token : stored.access;
-    if (!startToken) {
-      if (expired) {
-        clearStoredSession(this.storage, this.kb.id);
+    let startToken = stored.access;
+    if (expired) {
+      const { token, failure, refused } = await this.tryRefresh();
+      if (!token) {
+        if (failure === undefined || refused) {
+          // There was no session to end: the stored session is forgotten, and nothing is said.
+          clearStoredSession(this.storage, this.kb.id);
+        } else {
+          // The issuer did not refuse it: the stored session is kept, and renewed when a request is refused.
+          this.onError(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
+        }
+        return;
       }
-      return;
+      startToken = token;
     }
 
     if (startToken !== stored.access) {
@@ -325,27 +349,28 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * Call the configured refresh callback, converting a THROW into the same
-   * "no token" answer a null return gives.
+   * Call the configured refresh callback, converting a THROW into a "no
+   * token" answer that says why.
    *
    * The callback makes an HTTP call, so it can reject as easily as it can
-   * resolve null — a network blip, DNS failure, or gateway 5xx — and both
-   * mean the same thing here: this token cannot be renewed. A throw that
+   * resolve null — a network blip, DNS failure, or gateway 5xx. A throw that
    * escaped the renewal would skip every terminal behaviour; through the
    * proactive timer's un-awaited call it would become an unhandled
    * rejection with NO further refresh scheduled, leaving a session holding
    * an expired token forever.
    *
-   * The reason is returned rather than swallowed: a network failure and a
-   * revoked session both end the session, but they are not the same event and
-   * an operator reading the error needs to know which one happened.
+   * The reason is returned rather than swallowed, and whether it is the
+   * issuer's refusal: a network failure and a revoked session are not the
+   * same event. A running session ends on either, and an operator reading
+   * the error needs to know which one happened; at its start, only the
+   * refusal forgets the stored session.
    */
-  private async tryRefresh(): Promise<{ token: string | null; failure?: string }> {
-    if (!this.doRefresh) return { token: null };
+  private async tryRefresh(): Promise<{ token: string | null; failure?: string; refused: boolean }> {
+    if (!this.doRefresh) return { token: null, refused: false };
     try {
-      return { token: await this.doRefresh() };
+      return { token: await this.doRefresh(), refused: false };
     } catch (err) {
-      return { token: null, failure: err instanceof Error ? err.message : String(err) };
+      return { token: null, failure: err instanceof Error ? err.message : String(err), refused: refusedByTheIssuer(err) };
     }
   }
 

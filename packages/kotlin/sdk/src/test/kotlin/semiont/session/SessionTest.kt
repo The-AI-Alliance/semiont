@@ -133,8 +133,9 @@ class SessionTest {
     }
 
     @Test
-    fun anExpiredTokenThatCannotBeRenewedIsForgottenAndTheSessionIsReadyAnyway() = runTest {
-        for (renewal in listOf(null, SignInError(SignInErrorCode.Exchange, "the network is down"))) {
+    fun anExpiredTokenTheIssuerWillNotRenewIsForgottenAndTheSessionIsReadyAnyway() = runTest {
+        val refusedWithNoToken = SignInError(SignInErrorCode.Exchange, "The issuer refused the token request (HTTP 200)", 200)
+        for (renewal in listOf(null, refusedByTheIssuer(), refusedWithNoToken)) {
             val world = SessionWorld(kept = expired(), renewals = listOf(renewal))
             world.session().use { session ->
                 session.start()
@@ -144,6 +145,27 @@ class SessionTest {
                 assertFalse(world.isKept())
                 // There was no session to end: nothing is said.
                 assertEquals(emptyList<SessionEndReason>() to emptyList<Any>(), world.told to world.errors)
+            }
+        }
+    }
+
+    @Test
+    fun anExpiredTokenWhoseRenewalGotNoAnswerIsKeptAndRenewedWhenARequestIsRefused() = runTest {
+        val renewed = token(3600, 2)
+        val spentOnNotNow = SignInError(SignInErrorCode.Exchange, "The session could not be renewed after 4 attempts: HTTP 503", 503)
+        for (failure in listOf(unansweredByTheIssuer(), spentOnNotNow)) {
+            val world = SessionWorld(kept = expired(), renewals = listOf(failure, renewed))
+            world.session().use { session ->
+                session.start()
+                session.ready()
+                assertNull(session.token.value)
+                assertTrue(world.isKept())
+                assertEquals(emptyList<SessionEndReason>(), world.told)
+                assertEquals(listOf("session.auth-failed" to "Token refresh failed: ${failure.message}"), world.said())
+                // The issuer answers again: a request refused for want of a token renews it.
+                assertEquals(renewed, session.refresh())
+                assertEquals(renewed, session.token.value)
+                assertEquals(2, world.renewed)
             }
         }
     }

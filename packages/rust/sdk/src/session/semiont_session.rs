@@ -18,7 +18,10 @@
 //!
 //! A session that cannot be renewed clears its token and what it stored, so a
 //! dead credential is never used again. One that never had a credential is
-//! only signed out: there is nothing to end, and nothing is said.
+//! only signed out: there is nothing to end, and nothing is said. A stored
+//! token that has expired is forgotten at the start only when the issuer
+//! refuses to renew it; one whose renewal got no answer is kept, and renewed
+//! when a request is refused.
 //!
 //! The token is renewed before it expires, by the schedule every Semiont
 //! client keeps (`super::refresh_delay`). What another context writes under
@@ -36,8 +39,11 @@ use super::stored::{
 };
 use super::{renew_when_due, token_expiry};
 use crate::client::SemiontClient;
-use crate::errors::{SemiontError, SessionError, SessionErrorCode, TransportErrorCode};
+use crate::errors::{
+    SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportErrorCode,
+};
 use crate::locked;
+use crate::retry::{REFRESH, RetryFacts};
 use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::storage::{SessionStorage, StorageSubscription};
@@ -50,9 +56,16 @@ use tokio::sync::watch;
 
 /// Renew the token the session holds, which it is given (none when it holds
 /// none): the new one, `None` when there is nothing to renew with, or why
-/// the renewal failed.
-pub type Refresh =
-    Arc<dyn Fn(Option<String>) -> BoxFuture<'static, Result<Option<String>, String>> + Send + Sync>;
+/// the renewal failed: a `SignInError` of the issuer's answer, or of its
+/// absence, or the failure of whatever else the renewal needed.
+pub type Refresh = Arc<
+    dyn Fn(
+            Option<String>,
+        )
+            -> BoxFuture<'static, Result<Option<String>, Arc<dyn std::error::Error + Send + Sync>>>
+        + Send
+        + Sync,
+>;
 
 /// Ask the gateway who `token` is.
 pub type Validate =
@@ -65,11 +78,27 @@ pub type OnAuthFailed = Arc<dyn Fn(SessionEndReason) + Send + Sync>;
 pub type OnSessionError = Arc<dyn Fn(SessionError) + Send + Sync>;
 
 /// Why a renewal gave no token, for whoever reads the error.
-fn not_renewed(failure: Option<String>) -> String {
+fn not_renewed(failure: Option<&(dyn std::error::Error + Send + Sync)>) -> String {
     match failure {
         Some(failure) => format!("Token refresh failed: {failure}"),
         None => "Token refresh failed".to_owned(),
     }
+}
+
+/// Whether a renewal failed because the issuer refused it: an answer the
+/// `refresh` rule does not try again. No answer, and one it tries again
+/// until the budget is spent, is no refusal.
+fn refused(failure: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+    failure
+        .downcast_ref::<SignInError>()
+        .is_some_and(|failure| {
+            failure.code == SignInErrorCode::Exchange
+                && failure.status.is_some()
+                && !REFRESH.retryable(&RetryFacts {
+                    status: failure.status,
+                    method: Some("POST"),
+                })
+        })
 }
 
 /// Why a session failed, and why its credential could not be forgotten.
@@ -318,7 +347,12 @@ impl Shared {
     /// Ask `refresh`, with a failure to ask read as there being no token:
     /// a renewal that could not be made and one that was refused both leave
     /// the session without one. The reason is kept for whoever reads why.
-    async fn try_refresh(&self) -> (Option<String>, Option<String>) {
+    async fn try_refresh(
+        &self,
+    ) -> (
+        Option<String>,
+        Option<Arc<dyn std::error::Error + Send + Sync>>,
+    ) {
         match &self.refresh {
             None => (None, None),
             Some(refresh) => match refresh(self.token.now()).await {
@@ -350,7 +384,7 @@ impl Shared {
         self.signed_out(
             SessionEndReason::Expired,
             SessionErrorCode::RefreshExhausted,
-            not_renewed(failure),
+            not_renewed(failure.as_deref()),
         );
         None
     }
@@ -441,6 +475,15 @@ impl Shared {
         let mut token = if expired {
             match self.try_refresh().await {
                 (Some(renewed), _) => renewed,
+                (None, Some(failure)) if !refused(failure.as_ref()) => {
+                    // The issuer did not refuse it: the credential is kept,
+                    // and renewed when a request is refused.
+                    self.failed(
+                        SessionErrorCode::AuthFailed,
+                        not_renewed(Some(failure.as_ref())),
+                    );
+                    return;
+                }
                 (None, failure) => {
                     // There was no session to end: the credential is
                     // forgotten, and nothing is said unless it could not be.
@@ -448,7 +491,7 @@ impl Shared {
                     {
                         self.failed(
                             SessionErrorCode::RefreshExhausted,
-                            not_forgotten(not_renewed(failure), forgotten.as_ref()),
+                            not_forgotten(not_renewed(failure.as_deref()), forgotten.as_ref()),
                         );
                     }
                     return;
@@ -513,7 +556,7 @@ impl Shared {
                             self.signed_out(
                                 SessionEndReason::Expired,
                                 SessionErrorCode::RefreshExhausted,
-                                not_renewed(failure),
+                                not_renewed(failure.as_deref()),
                             );
                             return;
                         }

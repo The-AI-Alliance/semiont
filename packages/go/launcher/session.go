@@ -4,7 +4,7 @@ package launcher
 // SDK's session (semiont.ResumeSession) over the sign-in `semiont login`
 // stored, which asks the gateway who its token is at its start, renews it at
 // the issuer when it has expired or the gateway refuses it, and forgets a
-// sign-in that cannot be renewed, as every SDK's session does
+// sign-in the issuer will not renew, as every SDK's session does
 // (specs/src/session/cases.json). What is the launcher's here is the
 // command's: a session that is over ends whatever the command is waiting on,
 // and is said in the launcher's words with the one fix that applies. Also
@@ -46,6 +46,10 @@ type Session struct {
 	ended context.Context
 	mu    sync.Mutex
 	stop  context.CancelCauseFunc
+	// unconfirmed is why the SDK's session could not confirm its token at its
+	// start, when it said so: the gateway could not be asked, or the issuer
+	// did not refuse a renewal it could not make.
+	unconfirmed string
 }
 
 // errNoRefreshToken: the stored session cannot be renewed — it carries no
@@ -130,10 +134,17 @@ func resume(u *UI, key, base string, channels []bus.Channel) (*Session, error) {
 		s.Close()
 		return nil, fmt.Errorf("the session for %s was not ready: %w", key, err)
 	}
-	// A session whose token expired and could not be renewed ended at its
-	// start with nothing said: there was no session to end. Its sign-in is
-	// forgotten; the command says why it cannot go on.
+	// A session whose token expired and that the issuer would not renew
+	// ended at its start with nothing said: there was no session to end. Its
+	// sign-in is forgotten; the command says why it cannot go on. One whose
+	// renewal the issuer did not refuse kept its sign-in and said why: the
+	// command cannot go on now, and logging in again is not what puts it
+	// right.
 	if s.ended.Err() == nil && s.token.Value() == "" {
+		if why := s.whyUnconfirmed(); why != "" {
+			s.Close()
+			return nil, fmt.Errorf("the session for %s could not be renewed, and is kept: %s", key, why)
+		}
 		s.end(&SessionRejected{refresh: errExpired})
 	}
 	if rejected, over := context.Cause(s.ended).(*SessionRejected); over {
@@ -157,13 +168,27 @@ func (s *Session) noteRenewal(before string) {
 // command: a renewal the issuer would not make, or a token the issuer had just
 // issued that the gateway refused. A gateway that could not be asked at the
 // start refuses nothing: the command goes on, and its requests are the judge.
+// An issuer that did not refuse to renew an expired token leaves no token to
+// go on with: the command says why.
 func (s *Session) failed(err *semiont.SessionError) {
 	switch err.Code {
 	case semiont.SessionErrorCodeRefreshExhausted:
 		s.end(&SessionRejected{refresh: errors.New(err.Message)})
 	case semiont.SessionErrorCodeCredentialRefused:
 		s.end(&SessionRejected{})
+	case semiont.SessionErrorCodeAuthFailed:
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.unconfirmed = err.Message
 	}
+}
+
+// whyUnconfirmed is why the SDK's session could not confirm its token at its
+// start; "" when it did not say.
+func (s *Session) whyUnconfirmed() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unconfirmed
 }
 
 // end ends the session for the reason rejected gives, unless it has already

@@ -7,7 +7,10 @@ package semiont
 // the gateway at most twice and renews at most once at its start, and one
 // refusal costs at most one renewal and one ask. A token the issuer has just
 // issued and the gateway refuses ends it, as session.credential-refused;
-// renewing again cannot change the answer.
+// renewing again cannot change the answer. A kept token that has expired is
+// renewed before anyone is asked, and forgotten only when the issuer refuses:
+// one whose renewal got no answer is kept, and renewed when a request is
+// refused.
 
 import (
 	"context"
@@ -163,11 +166,11 @@ var (
 
 const justIssuedAndRefused = "The gateway refused a token its issuer had just issued"
 
-func notRenewed(failure string) string {
-	if failure == "" {
+func notRenewed(failure error) string {
+	if failure == nil {
 		return "Token refresh failed"
 	}
-	return "Token refresh failed: " + failure
+	return "Token refresh failed: " + failure.Error()
 }
 
 // StartSession starts a session over the sign-in config.Kept holds. A kept
@@ -305,15 +308,15 @@ func (s *Session) Refresh(_ context.Context, refused string) (string, bool) {
 // tryRefresh asks Refresh to renew renewing: the token, or "" and why there is
 // none. A renewal that could not be made and one that was refused both leave
 // the session without a token.
-func (s *Session) tryRefresh(renewing string) (token, failure string) {
+func (s *Session) tryRefresh(renewing string) (string, error) {
 	if s.config.Refresh == nil {
-		return "", ""
+		return "", nil
 	}
 	renewed, err := s.config.Refresh(s.alive, renewing)
 	if err != nil {
-		return "", err.Error()
+		return "", err
 	}
-	return renewed, ""
+	return renewed, nil
 }
 
 // renew renews renewing, the session's token, at the issuer, with nobody asked
@@ -383,12 +386,18 @@ func (s *Session) start(kept HeldSignIn, has, withheld bool) {
 	if justIssued {
 		renewed, failure := s.tryRefresh(token)
 		if renewed == "" {
-			// There was no session to end: the sign-in is forgotten, and
-			// nothing is said unless it could not be.
-			if !s.closing() {
+			switch {
+			case s.closing():
+			case failure == nil || refusedRenewal(failure):
+				// There was no session to end: the sign-in is forgotten, and
+				// nothing is said unless it could not be.
 				if forgotten := s.config.Kept.Forget(s.alive); forgotten != nil {
 					s.failed(notForgotten(&SessionError{Code: SessionErrorCodeRefreshExhausted, Message: notRenewed(failure), KbID: s.config.Kb.Id}, forgotten))
 				}
+			default:
+				// The issuer did not refuse it: the sign-in is kept, and
+				// renewed when a request is refused.
+				s.failed(&SessionError{Code: SessionErrorCodeAuthFailed, Message: notRenewed(failure), KbID: s.config.Kb.Id})
 			}
 			return
 		}

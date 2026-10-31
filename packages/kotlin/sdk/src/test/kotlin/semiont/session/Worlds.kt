@@ -9,6 +9,7 @@ import semiont.SemiontClient
 import semiont.errors.SemiontError
 import semiont.errors.SessionError
 import semiont.errors.SignInError
+import semiont.errors.SignInErrorCode
 import semiont.errors.TransportError
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
@@ -43,6 +44,10 @@ internal val alice: UserResponse = wireJson.decodeFromString(
 )
 
 internal fun unauthorized() = TransportError.ofStatus("HTTP 401", 401, null)
+
+internal fun refusedByTheIssuer() = SignInError(SignInErrorCode.Exchange, "The issuer refused the token request (invalid_grant: Token is not active)", 400)
+
+internal fun unansweredByTheIssuer() = SignInError(SignInErrorCode.Exchange, "The issuer did not answer: the network is down")
 
 internal val TARGET = KbTarget(id = "kb-alpha", label = "Alpha", endpoint = HttpEndpoint(host = "localhost", port = 4000, protocol = HttpEndpointProtocol.Http))
 

@@ -130,12 +130,22 @@ def gateway_says(row: JsonObject, n: int) -> Validation:
             raise AssertionError(f"the gateway {other}")
 
 
+def refused_by_the_issuer() -> SignInError:
+    return SignInError("exchange", "The issuer refused the token request (invalid_grant: Token is not active)", status=400)
+
+
+def unanswered_by_the_issuer() -> SignInError:
+    return SignInError("exchange", "The issuer did not answer: the network is down")
+
+
 def issuer_says(row: JsonObject, n: int, renewed: str) -> Renewal:
     match answer(row, "issuer", n):
         case "renews":
             return renewed
         case "refuses":
-            return None
+            return refused_by_the_issuer()
+        case "unreachable":
+            return unanswered_by_the_issuer()
         case other:
             raise AssertionError(f"the issuer {other}")
 
@@ -299,7 +309,7 @@ def test_a_session_of_a_service_asks_nobody_who_it_is() -> None:
     run(scenario())
 
 
-def test_an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is_ready_anyway() -> None:
+def test_an_expired_token_the_issuer_will_not_renew_is_forgotten_and_the_session_is_ready_anyway() -> None:
     async def scenario(renewal: Renewal) -> None:
         world = World(kept=expired(), renewals=[renewal])
         async with world.its_session() as session:
@@ -311,7 +321,27 @@ def test_an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is
             assert (world.told, world.errors) == ([], [])
 
     run(scenario(None))
-    run(scenario(SignInError("exchange", "the network is down")))
+    run(scenario(refused_by_the_issuer()))
+    run(scenario(SignInError("exchange", "The issuer refused the token request (HTTP 200)", status=200)))
+
+
+def test_an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a_request_is_refused() -> None:
+    renewed = token(3600, 2)
+
+    async def scenario(failure: SignInError) -> None:
+        world = World(kept=expired(), renewals=[failure, renewed])
+        async with world.its_session() as session:
+            await soon(session.ready())
+            # Kept, with no token, and nothing ended.
+            assert (session.token.value, await world.is_kept(), world.told) == (None, True, [])
+            assert world.said() == [("session.auth-failed", f"Token refresh failed: {failure.message}")]
+            # The issuer answers again: a request refused for want of a token renews it.
+            assert await soon(session.refresh()) == renewed
+            assert session.token.value == renewed
+            assert world.renewed == 2
+
+    run(scenario(unanswered_by_the_issuer()))
+    run(scenario(SignInError("exchange", "The session could not be renewed after 4 attempts: HTTP 503", status=503)))
 
 
 @final

@@ -11,7 +11,8 @@
 
 use super::{FaultyTransport, TestClientOptions, create_test_client};
 use crate::errors::{
-    SemiontError, SessionError, SessionErrorCode, TransportError, TransportErrorCode,
+    SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
+    TransportErrorCode,
 };
 use crate::locked;
 use crate::session::{
@@ -41,7 +42,7 @@ struct Scripted {
     refuses_to_build: Option<String>,
     user: Option<UserResponse>,
     answers_after: Duration,
-    renewals: VecDeque<Result<Option<String>, String>>,
+    renewals: VecDeque<Result<Option<String>, SignInError>>,
     renewed: usize,
     built: Vec<(String, FaultyTransport)>,
     revoked: Vec<StoredSession>,
@@ -117,10 +118,11 @@ impl ScriptedSessions {
     }
 
     /// What the next renewals give, one each, in order: a token, `None`
-    /// for a session that has nothing to renew with, or why it failed.
+    /// for a session that has nothing to renew with, or the failure it
+    /// gives.
     pub fn queue_renewals(
         &self,
-        renewals: impl IntoIterator<Item = Result<Option<String>, String>>,
+        renewals: impl IntoIterator<Item = Result<Option<String>, SignInError>>,
     ) {
         locked(&self.inner.scripted).renewals.extend(renewals);
     }
@@ -190,12 +192,19 @@ impl SessionFactory for ScriptedSessions {
                     let mut scripted = locked(&renewing.scripted);
                     scripted.renewed += 1;
                     scripted.renewals.pop_front().unwrap_or_else(|| {
-                        Err(format!(
-                            "ScriptedSessions: not scripted: a renewal of \"{renews_for}\". Script one with queue_renewals."
+                        Err(SignInError::new(
+                            SignInErrorCode::Exchange,
+                            format!(
+                                "ScriptedSessions: not scripted: a renewal of \"{renews_for}\". Script one with queue_renewals."
+                            ),
                         ))
                     })
                 };
-                Box::pin(async move { answer })
+                Box::pin(async move {
+                    answer.map_err(|failure| -> Arc<dyn std::error::Error + Send + Sync> {
+                        Arc::new(failure)
+                    })
+                })
             })),
             validate: Some(Arc::new(move |_| {
                 let answer = user.clone().ok_or_else(|| {

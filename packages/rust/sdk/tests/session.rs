@@ -7,7 +7,9 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::client::SemiontClient;
-use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
+use semiont::errors::{
+    SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
+};
 use semiont::session::{
     SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals, StoredSession,
     session_key, store_session, stored_session,
@@ -78,7 +80,22 @@ fn unauthorized() -> SemiontError {
     TransportError::of_status("HTTP 401", 401, None).into()
 }
 
-type Renewal = Result<Option<String>, String>;
+fn refused_by_the_issuer() -> SignInError {
+    SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The issuer refused the token request (invalid_grant: Token is not active)",
+        400,
+    )
+}
+
+fn unanswered_by_the_issuer() -> SignInError {
+    SignInError::new(
+        SignInErrorCode::Exchange,
+        "The issuer did not answer: the network is down",
+    )
+}
+
+type Renewal = Result<Option<String>, SignInError>;
 type Validation = Result<UserResponse, SemiontError>;
 
 /// A session's environment, and a record of what the session did to it.
@@ -154,7 +171,11 @@ impl World {
                     .expect("renewals")
                     .pop_front()
                     .unwrap_or(Ok(None));
-                Box::pin(async move { answer })
+                Box::pin(async move {
+                    answer.map_err(|failure| -> Arc<dyn std::error::Error + Send + Sync> {
+                        Arc::new(failure)
+                    })
+                })
             })),
             validate: Some(Arc::new(move |token| {
                 validated.lock().expect("validated").push(token);
@@ -292,8 +313,17 @@ async fn a_stored_token_that_has_expired_is_renewed_before_anyone_is_asked() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is_ready_anyway() {
-    for renewal in [Ok(None), Err("the network is down".to_owned())] {
+async fn an_expired_token_the_issuer_will_not_renew_is_forgotten_and_the_session_is_ready_anyway() {
+    let answered_with_no_token = SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The issuer refused the token request (HTTP 200)",
+        200,
+    );
+    for renewal in [
+        Ok(None),
+        Err(refused_by_the_issuer()),
+        Err(answered_with_no_token),
+    ] {
         let world = World::new().storing(&expired()).renewing([renewal]);
         let session = world.session();
         ready(&session).await;
@@ -302,6 +332,43 @@ async fn an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is
         assert_eq!(*session.user().borrow(), None);
         assert!(!world.has_stored());
         assert!(world.validated().is_empty());
+        // There was no session to end: nothing is said.
+        assert!(world.auth_failed().is_empty());
+        assert!(world.errors().is_empty());
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a_request_is_refused()
+ {
+    let spent_on_not_now = SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The session could not be renewed after 4 attempts: HTTP 503",
+        503,
+    );
+    for failure in [unanswered_by_the_issuer(), spent_on_not_now] {
+        let renewed = token(3600, 2);
+        let world = World::new()
+            .storing(&expired())
+            .renewing([Err(failure.clone()), Ok(Some(renewed.clone()))]);
+        let session = world.session();
+        ready(&session).await;
+
+        assert_eq!(*session.token().borrow(), None);
+        assert!(world.has_stored());
+        assert!(world.auth_failed().is_empty());
+        assert_eq!(
+            world.errors(),
+            [(
+                SessionErrorCode::AuthFailed,
+                format!("Token refresh failed: {}", failure.message)
+            )]
+        );
+        // The issuer answers again: a request refused for want of a token
+        // renews it.
+        assert_eq!(session.refresh().await, Some(renewed.clone()));
+        assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+        assert_eq!(world.renewed(), 2);
     }
 }
 
@@ -339,7 +406,7 @@ impl SessionStorage for Unforgetting {
 async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
     let world = World::new()
         .storing(&expired())
-        .renewing([Err("the network is down".to_owned())]);
+        .renewing([Err(refused_by_the_issuer())]);
     let session = SemiontSession::new(SemiontSessionConfig {
         storage: Arc::new(Unforgetting(world.storage.context())),
         ..world.config()
@@ -352,7 +419,7 @@ async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
         world.errors(),
         [(
             SessionErrorCode::RefreshExhausted,
-            "Token refresh failed: the network is down; and the sign-in could not be forgotten: the storage is full".to_owned()
+            "Token refresh failed: The issuer refused the token request (invalid_grant: Token is not active); and the sign-in could not be forgotten: the storage is full".to_owned()
         )]
     );
     assert!(world.auth_failed().is_empty());
@@ -451,7 +518,8 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             (0..renewals).map(|n| token(3600, n as u64 + 1)).collect();
         let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_tokens[n].clone())),
-            "refuses" => Ok(None),
+            "refuses" => Err(refused_by_the_issuer()),
+            "unreachable" => Err(unanswered_by_the_issuer()),
             other => panic!("{why}: the issuer {other}"),
         });
         let world = World::new().validating(validations).renewing(renewing);
@@ -552,7 +620,8 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         let renewed_token = token(3600, 1);
         let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_token.clone())),
-            "refuses" => Ok(None),
+            "refuses" => Err(refused_by_the_issuer()),
+            "unreachable" => Err(unanswered_by_the_issuer()),
             other => panic!("{why}: the issuer {other}"),
         });
         let world = World::new()
@@ -968,7 +1037,10 @@ async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_en
 async fn a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_cause() {
     let world = World::new()
         .storing(&token(3600, 1))
-        .renewing([Err("the network is down".to_owned())]);
+        .renewing([Err(SignInError::new(
+            SignInErrorCode::Exchange,
+            "the network is down",
+        ))]);
     let session = world.session();
     ready(&session).await;
 
