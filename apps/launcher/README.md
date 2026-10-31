@@ -148,11 +148,18 @@ semiont stop
   ones alone. `semiont start --service collector|traces|metrics` always
   restarts that one; `semiont stop` stops them with the stack, and `semiont
   stop --service collector|traces|metrics` stops that one alone.
+- **The worker's settings are the machine's too**: `stack/workers.yaml` in
+  the state home, kind `WorkerPool` (`specs/src/stack/WorkerPool.json`),
+  naming its image, its memory and its log level, written and read as the
+  Browser's is (`semiont-worker:latest`, 2G, info) by the first start that
+  runs a worker. A KB's repository holds none: its Inference document's
+  `spec.engines.jobs` says which jobs a worker does, and with which engines.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
   own secrets come from (`secret`), the Browser's document (`browser`: its
   path, image, memory and port, changed by editing it; `semiont settings
-  browser --path` prints the path alone, for a script), who reaches a local stack (`network`: `local`, or `lan`, where the network
+  browser --path` prints the path alone, for a script), the worker's
+  (`worker`: its path, image, memory and log level, and `--path` likewise), who reaches a local stack (`network`: `local`, or `lan`, where the network
   reaches the gateway and the issuer's realm through the launcher's own
   filtering proxy, `semiont issuer-proxy`, a recorded detached process), and
   the default store for new KBs (`secret-store --default`) on this machine;
@@ -936,7 +943,7 @@ XDG directories on Linux, and each other system's own equivalent:
 
 | What | macOS | Linux | Windows |
 |---|---|---|---|
-| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the machine's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's document (`stack/browser.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
+| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the machine's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's and the worker's documents (`stack/browser.yaml`, `stack/workers.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
 | **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
 | **Log**: `launcher.log` | `~/Library/Logs/semiont` | the state home | `logs\` in the state home |
 | **Staging**: the configs a running stack mounts | `/tmp/semiont-config.*` | `/tmp/semiont-config.*` | `%TEMP%\semiont-config.*` |

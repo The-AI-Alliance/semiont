@@ -8,7 +8,6 @@ A knowledge base carries what it needs to run in its own repository, as YAML com
 | `.semiont/stack/knowledge-base.yaml` | The gateway, the dispatcher, the archivist, the broker between them, and the issuer the knowledge base trusts | [`KnowledgeBase`](../../../specs/src/stack/KnowledgeBase.json) |
 | `.semiont/stack/index.yaml` | The graph, the vector store, the embedding model, and the librarian, the smelter and the weaver | [`KnowledgeIndex`](../../../specs/src/stack/KnowledgeIndex.json) |
 | `.semiont/stack/issuer.yaml` | The Keycloak the launcher runs, and the PostgreSQL it keeps its realm in | [`Issuer`](../../../specs/src/stack/Issuer.json) |
-| `.semiont/stack/workers.yaml` | The worker | [`WorkerPool`](../../../specs/src/stack/WorkerPool.json) |
 | `.semiont/stack/inference/<name>.yaml` | The inference providers, and which provider and model serve each role | [`Inference`](../../../specs/src/stack/Inference.json) |
 
 The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a stack document; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
@@ -75,7 +74,7 @@ spec:
     subjectClaim: sub
 ```
 
-The documents name one another by `metadata.name`: the KnowledgeIndex and the WorkerPool name the KnowledgeBase in `spec.knowledgeBase`, and the KnowledgeBase names its Issuer in `spec.issuer.ref`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`specs/src/stack/`](../../../specs/src/stack/README.md).
+The documents name one another by `metadata.name`: the KnowledgeIndex names the KnowledgeBase in `spec.knowledgeBase`, and the KnowledgeBase names its Issuer in `spec.issuer.ref`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`specs/src/stack/`](../../../specs/src/stack/README.md).
 
 ### Who runs each daemon
 
@@ -118,7 +117,7 @@ A start with no `--config` runs the choice recorded for the knowledge base: the 
 
 Each job and each actor has its engine stated by itself, keyed as a job is described ([`ArchivistEngines`](../../../specs/src/components/schemas/ArchivistEngines.json)): a `mark` job by its motivation, under `spec.engines.jobs.mark`, a `yield` job at `spec.engines.jobs.yield`, and the librarian's two actors that call a model, the `gatherer` and the `matcher`, under `spec.engines.actors`. Nothing stands in for an engine the document leaves out: a job with none is done by no software worker, and the librarian does not start without both actors' engines. An engine is how software does a job; a person who holds the worker role claims jobs from the same queue and uses none. `semiont init` gives every job and actor the one model chosen; anything finer is your edit, and providers can be mixed: a stronger model for the jobs that reason, a lighter or local one for the high-volume ones.
 
-The worker runs only when a job has an engine, and then the knowledge base needs `workers.yaml`. With no job's engine stated, a start skips the worker and says so.
+The worker runs only when a job has an engine, as the machine's worker document says ([The worker](#the-worker)). With no job's engine stated, a start skips the worker and says so.
 
 An engine's `provider` is one of seven, and each one an engine names needs its entry in `spec.providers`, which says how it is reached ([`Provider`](../../../specs/src/stack/Provider.json)):
 
@@ -184,6 +183,32 @@ The first command that needs it (a start, `semiont identity sync`, `semiont sett
 
 A start keeps a running Browser that runs what its document says, and restarts one that does not.
 
+## The worker
+
+The worker does the jobs of the knowledge bases on the machine, and its image, memory and log level are the machine's, not any knowledge base's. So its document is kept in the launcher's state home beside the Browser's, not in a knowledge base's repository: `stack/workers.yaml`, held to [`WorkerPool`](../../../specs/src/stack/WorkerPool.json) and read as strictly as the documents above.
+
+```yaml
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: WorkerPool
+metadata:
+  name: workers
+spec:
+  logLevel: info
+  worker:
+    image: ghcr.io/the-ai-alliance/semiont-worker:latest
+    resources:
+      limits:
+        memory: 2G
+```
+
+The first command that needs it (a start that runs a worker, `semiont settings worker`) writes it as above, from the launcher's catalog, and says where. `semiont settings worker` shows it, and `semiont settings worker --path` prints its path alone. Edit it, and the next start that runs a worker runs what it says:
+
+- **`spec.worker.image`**: the image the worker runs, verified as any of Semiont's are ([Images](#images)); a `:local` one runs a build of this checkout.
+- **`spec.worker.resources.limits.memory`**: its memory ceiling ([Memory](#memory)).
+- **`spec.logLevel`**: how much it logs.
+
+Which jobs it does, and with which engines, is each knowledge base's: its Inference document's `spec.engines.jobs`.
+
 ## A deployment of its own
 
 A knowledge base's documents describe the stack the launcher runs on one machine. An organization deploying the knowledge base on infrastructure of its own starts from a copy of them, and changes what it runs itself:
@@ -240,12 +265,12 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 | An engine's provider is one `spec.providers` says nothing of | Add `spec.providers.<provider>` |
 | `spec.providers.<provider>.baseURL` is not stated | State the address of the provider's API |
 | `spec.engines.actors.<actor>` is not stated | State a provider and a model. The librarian cannot start without both actors' engines |
-| `spec.engines.jobs` gives jobs an engine, and the knowledge base has no `workers.yaml` | Write `workers.yaml`, or state no job's engine |
 | The start says no job has an engine, and skips the worker | The stack runs with no worker, and no software does a job. To run one, state a job's engine under `spec.engines.jobs`. `semiont start --service worker` on such a document is refused, since the worker would have nothing to do |
 | The documents name a variable (`fromEnv`) that is not set | Export it, or register its source with `semiont settings secret set NAME` |
 | The documents name a variable the launcher keeps for a daemon it runs | Name a variable of your own |
 | `spec.vectors.type` is `memory` | Use `qdrant` ([Graph and vectors](#graph-and-vectors)) |
 | `<state home>/stack/browser.yaml is not a Browser`, naming each place by its line | Fix each place, or delete the file: the next start writes the launcher's ([The Browser](#the-browser)) |
+| `<state home>/stack/workers.yaml is not a WorkerPool`, naming each place by its line | Fix each place, or delete the file: the next start that runs a worker writes the launcher's ([The worker](#the-worker)) |
 
 ## Related
 

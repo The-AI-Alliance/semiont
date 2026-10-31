@@ -138,7 +138,6 @@ kind: WorkerPool
 metadata:
   name: workers
 spec:
-  knowledgeBase: knowledge-base
   logLevel: info
   worker:
     imgae: ghcr.io/the-ai-alliance/semiont-worker:latest
@@ -152,11 +151,11 @@ spec:
 	for _, refusal := range refusals {
 		lines[refusal.Reason+" "+refusal.At] = refusal.Line
 	}
-	if got := lines["unknown-field /spec/worker/imgae"]; got != 9 {
-		t.Errorf("the misspelled field is on line 9, and the refusal says %d: %+v", got, refusals)
+	if got := lines["unknown-field /spec/worker/imgae"]; got != 8 {
+		t.Errorf("the misspelled field is on line 8, and the refusal says %d: %+v", got, refusals)
 	}
-	if got := lines["missing-required /spec/worker/image"]; got != 8 {
-		t.Errorf("the missing image belongs in the worker, on line 8, and the refusal says %d: %+v", got, refusals)
+	if got := lines["missing-required /spec/worker/image"]; got != 7 {
+		t.Errorf("the missing image belongs in the worker, on line 7, and the refusal says %d: %+v", got, refusals)
 	}
 }
 
@@ -186,9 +185,6 @@ func TestTheFixtureDocumentsReadIntoTheirTypes(t *testing.T) {
 	}
 	if issuer.Metadata.Name != *kb.Spec.Issuer.Ref || issuer.Spec.Database.Image == nil {
 		t.Errorf("the Issuer did not read into its type: %+v", issuer.Spec)
-	}
-	if _, err := Read[WorkerPool](filepath.Join(stack, "workers.yaml"), "WorkerPool"); err != nil {
-		t.Fatal(err)
 	}
 	inference, err := Read[Inference](filepath.Join(stack, "inference", "anthropic.yaml"), "Inference")
 	if err != nil {

@@ -64,6 +64,7 @@ var settingsTable = []setting{
 	{name: "runtime", scope: scopeMachine, show: showRuntime, saves: []string{"rootsRegistry.Runtime"},
 		set: setRuntime, unset: unsetRuntime},
 	{name: "browser", scope: scopeMachine, show: showBrowserDocument, changedBy: editBrowserDocument},
+	{name: "worker", scope: scopeMachine, show: showWorkerPoolDocument, changedBy: editWorkerPoolDocument},
 	{name: "network", scope: scopeMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
 		set: setNetwork, unset: unsetNetwork},
 	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"},
@@ -87,7 +88,7 @@ var registryBookkeeping = map[string]bool{
 }
 
 const settingsUsage = `Usage: semiont settings [<name> [<value> | --unset]] [--root <path|name>]
-       semiont settings browser --path
+       semiont settings browser|worker --path
 
 Every setting the launcher keeps: its value, and where the value came from.
 Machine settings apply to every knowledge base on this machine; knowledge-base
@@ -99,6 +100,8 @@ settings to the one you are in, or the one --root names.
   semiont settings <name> --unset    return it to its default
   semiont settings browser --path    print where the Browser's document is,
                                      and nothing else
+  semiont settings worker --path     print where the worker's document is,
+                                     and nothing else
 
 Settings:
   runtime         machine          The container runtime a start uses:
@@ -109,6 +112,12 @@ Settings:
                                    and port of the Browser this machine runs.
                                    Edit it; the next start runs what it says.
                                    The first command that needs it writes it.
+  worker          machine          The worker's document: the image, memory
+                                   and log level of the worker this machine
+                                   does knowledge bases' jobs with. Edit it;
+                                   the next start that runs a worker runs what
+                                   it says. The first command that needs it
+                                   writes it.
   network         machine          Who reaches a local stack: local, the
                                    default, this machine alone; or lan, where
                                    the network reaches its gateway and its
@@ -171,11 +180,18 @@ func Settings(args []string) int {
 		}
 	}
 	if pathOnly {
-		if name != "browser" || flag != "" || value != "" || unset {
-			u.Fail("--path is for the Browser's document alone: semiont settings browser --path")
+		if flag != "" || value != "" || unset {
+			u.Fail("--path takes nothing else: semiont settings browser|worker --path")
 			return 1
 		}
-		return browserDocumentPathCmd()
+		switch name {
+		case "browser":
+			return browserDocumentPathCmd()
+		case "worker":
+			return workerPoolDocumentPathCmd()
+		}
+		u.Fail("--path is for the Browser's and the worker's documents: semiont settings browser|worker --path")
+		return 1
 	}
 	rows := settingsTable
 	if name != "" {
@@ -424,6 +440,39 @@ func editBrowserDocument() string {
 // is none.
 func browserDocumentPathCmd() int {
 	doc, ok := readBrowserDocument(NewUI(true), false)
+	if !ok {
+		return 1
+	}
+	fmt.Println(doc.path)
+	return 0
+}
+
+// showWorkerPoolDocument: where the worker's document is, and what it says.
+// It is shown as a start reads it, so showing one where there is none writes
+// it, from the launcher's catalog, at the path the row names.
+func showWorkerPoolDocument(u *UI, kb kbRoot) []settingLine {
+	doc, err := loadWorkerPoolDocument(false)
+	if err != nil {
+		return []settingLine{{workerPoolDocumentPath(), fmt.Sprintf("refused, and so is every start that runs a worker: %v", err)}}
+	}
+	return []settingLine{
+		{doc.path, "the worker's document: edit it, and the next start that runs a worker runs what it says"},
+		{doc.spec.Worker.Image, "spec.worker.image"},
+		{doc.spec.Worker.Resources.Limits.Memory, "spec.worker.resources.limits.memory"},
+		{string(doc.spec.LogLevel), "spec.logLevel"},
+	}
+}
+
+// editWorkerPoolDocument: how the worker's document is changed.
+func editWorkerPoolDocument() string {
+	return "editing its document: " + workerPoolDocumentPath()
+}
+
+// workerPoolDocumentPathCmd: `semiont settings worker --path` — the
+// document's path and nothing else, for a script that edits it; written first
+// where there is none.
+func workerPoolDocumentPathCmd() int {
+	doc, ok := readWorkerPoolDocument(NewUI(true), false)
 	if !ok {
 		return 1
 	}

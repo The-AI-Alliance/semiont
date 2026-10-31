@@ -74,6 +74,6 @@ func renderServicePlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []s
 	x := &planExec{rt: rt, lan: lan}
 	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	x.browserDocumentWrite(browser)
+	x.stateHomeDocumentWrites(browser, plan)
 	flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true, browser: browser})
 }

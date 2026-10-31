@@ -57,8 +57,8 @@ func (r *Refused) Error() string {
 }
 
 // Read reads the document at path as a document of the kind named, into its
-// type: KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference,
-// ProjectConfig, or Browser. A document that does not hold to its schema is
+// type: KnowledgeBase, KnowledgeIndex, Issuer, Inference, ProjectConfig,
+// Browser, or WorkerPool. A document that does not hold to its schema is
 // refused with every place it does not.
 func Read[T any](path, kindName string) (T, error) {
 	text, err := os.ReadFile(path)

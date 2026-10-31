@@ -139,10 +139,11 @@ defaults nothing in it.
 | `port` | the health port |
 | `logLevel`, `logFormat` | how it logs |
 
-It reads no configuration of a knowledge base: the launcher resolves the knowledge base's
-WorkerPool and Inference documents
-([Configuration](../../docs/operator/administration/CONFIGURATION.md)) into this document for
-the worker it starts, and a worker started some other way is given the same document.
+It reads no configuration of a knowledge base: the launcher resolves the machine's WorkerPool
+document and the knowledge base's Inference document
+([Configuration](../../docs/operator/administration/CONFIGURATION.md#the-worker)) into this
+document for the worker it starts, and a worker started some other way is given the same
+document.
 
 Its environment is `SEMIONT_OIDC_CLIENT_KEY`, the RSA key it proves itself with at every
 knowledge base, and each variable its document names, such as `ANTHROPIC_API_KEY`. Each

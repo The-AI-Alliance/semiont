@@ -109,9 +109,13 @@ type launchPlan struct {
 	// those its configuration document names.
 	ServiceVars map[string][]string
 	// Images and Memory: each of Semiont's services this stack runs, with the
-	// image its document names and the ceiling it states.
+	// image its document names and the ceiling it states. The worker's are
+	// the machine's worker document's (runWorkerAs).
 	Images map[string]string
 	Memory map[string]string
+	// Worker: the machine's worker document, for a start that runs the
+	// worker (runWorkerAs); its log level is the worker's.
+	Worker workerPoolDocument
 }
 
 // The two roles a model can be asked to serve. Providers vary (ollama,
@@ -744,16 +748,9 @@ func derivePlan(st *stack.Stack, keycloakPort int) (*launchPlan, error) {
 	}
 
 	// worker — the one of Semiont's own services the documents decide: run
-	// when the engines give a job an engine, from the WorkerPool document.
-	worker := workerPlan(st)
-	if worker.Presence == presenceLauncher {
-		if st.Workers == nil {
-			return nil, planErr(files.Inference, "spec.engines.jobs", "gives jobs an engine, and the knowledge base has no %s to say how a worker runs", files.Workers)
-		}
-		plan.Images["worker"] = st.Workers.Spec.Worker.Image
-		plan.Memory["worker"] = st.Workers.Spec.Worker.Resources.Limits.Memory
-	}
-	plan.Roles["worker"] = worker
+	// when the engines give a job an engine, as the machine's worker document
+	// says (runWorkerAs).
+	plan.Roles["worker"] = workerPlan(st)
 
 	return plan, nil
 }

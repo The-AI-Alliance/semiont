@@ -1,5 +1,5 @@
 {
-  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, WorkerPool, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the Browser's (Browser), which belongs to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
+  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the machine's, the Browser's (Browser) and the worker's (WorkerPool), which belong to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
   "runBy": {
     "launcher": ["packages/go/launcher/stack/read_test.go"]
   },
@@ -40,8 +40,7 @@
     {
       "why": "a field the document's top does not have",
       "schema": "WorkerPool",
-      "base": "packages/go/launcher/testdata/kb/.semiont/stack/workers.yaml",
-      "patch": { "status": { "ready": true } },
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\nstatus:\n  ready: true\n",
       "verdict": "refused",
       "at": "/status",
       "reason": "unknown-field"
@@ -67,8 +66,7 @@
     {
       "why": "a service with no memory ceiling: the document states every one",
       "schema": "WorkerPool",
-      "base": "packages/go/launcher/testdata/kb/.semiont/stack/workers.yaml",
-      "patch": { "spec": { "worker": { "resources": { "limits": { "memory": null } } } } },
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits: {}\n",
       "verdict": "refused",
       "at": "/spec/worker/resources/limits/memory",
       "reason": "missing-required"
@@ -103,8 +101,7 @@
     {
       "why": "a name Kubernetes refuses",
       "schema": "WorkerPool",
-      "base": "packages/go/launcher/testdata/kb/.semiont/stack/workers.yaml",
-      "patch": { "metadata": { "name": "Workers" } },
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: Workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\n",
       "verdict": "refused",
       "at": "/metadata/name",
       "reason": "not-allowed"
@@ -322,6 +319,20 @@
       "verdict": "refused",
       "at": "/spec/port",
       "reason": "not-allowed"
+    },
+    {
+      "why": "the worker's document, as the launcher writes it",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\n",
+      "verdict": "accepted"
+    },
+    {
+      "why": "a worker that names a knowledge base: the worker is the machine's, not one knowledge base's",
+      "schema": "WorkerPool",
+      "document": "apiVersion: semiont.the-ai-alliance.github.io/v1alpha1\nkind: WorkerPool\nmetadata:\n  name: workers\nspec:\n  knowledgeBase: knowledge-base\n  logLevel: info\n  worker:\n    image: ghcr.io/the-ai-alliance/semiont-worker:latest\n    resources:\n      limits:\n        memory: 2G\n",
+      "verdict": "refused",
+      "at": "/spec/knowledgeBase",
+      "reason": "unknown-field"
     }
   ]
 }

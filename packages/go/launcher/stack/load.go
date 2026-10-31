@@ -1,9 +1,7 @@
 package stack
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -19,15 +17,16 @@ const (
 	KnowledgeBaseFile  = "knowledge-base.yaml"
 	KnowledgeIndexFile = "index.yaml"
 	IssuerFile         = "issuer.yaml"
-	WorkerPoolFile     = "workers.yaml"
 	InferenceDir       = "inference"
 )
 
 // The documents that belong to no knowledge base are kept in the launcher's
-// state home, in StateHomeDir: the Browser's, as BrowserFile.
+// state home, in StateHomeDir: the Browser's, as BrowserFile, and the
+// worker's, as WorkerPoolFile.
 const (
-	StateHomeDir = "stack"
-	BrowserFile  = "browser.yaml"
+	StateHomeDir   = "stack"
+	BrowserFile    = "browser.yaml"
+	WorkerPoolFile = "workers.yaml"
 )
 
 // Stack: a knowledge base's documents, each held to its schema, and the names
@@ -37,9 +36,7 @@ type Stack struct {
 	KnowledgeIndex KnowledgeIndex
 	// Issuer: the document the KnowledgeBase's issuer.ref names; nil when the
 	// knowledge base trusts an issuer somebody else runs.
-	Issuer *Issuer
-	// Workers: nil when the knowledge base has no workers.yaml.
-	Workers   *WorkerPool
+	Issuer    *Issuer
 	Inference Inference
 	// Files: where each document was read, relative to the root, for the
 	// refusals that name one.
@@ -48,7 +45,7 @@ type Stack struct {
 
 // Files: each document's path below the root.
 type Files struct {
-	KnowledgeBase, KnowledgeIndex, Issuer, Workers, Inference string
+	KnowledgeBase, KnowledgeIndex, Issuer, Inference string
 }
 
 // InferencePath: the Inference document named name, below the root.
@@ -68,7 +65,7 @@ func InferenceNames(root string) []string {
 	return names
 }
 
-// Load reads the knowledge base at root: its four documents and the Inference
+// Load reads the knowledge base at root: its three documents and the Inference
 // document named inference. A document that does not hold to its schema is
 // refused with every place it does not; a document missing, or naming another
 // that is not there, is refused by name.
@@ -77,7 +74,6 @@ func Load(root, inference string) (*Stack, error) {
 		KnowledgeBase:  filepath.Join(Dir, KnowledgeBaseFile),
 		KnowledgeIndex: filepath.Join(Dir, KnowledgeIndexFile),
 		Issuer:         filepath.Join(Dir, IssuerFile),
-		Workers:        filepath.Join(Dir, WorkerPoolFile),
 		Inference:      InferencePath(inference),
 	}
 	at := func(path string) string { return filepath.Join(root, path) }
@@ -101,13 +97,6 @@ func Load(root, inference string) (*Stack, error) {
 	} else if _, err := os.Stat(at(files.Issuer)); err == nil {
 		return nil, fmt.Errorf("%s: the knowledge base trusts the issuer at spec.issuer.external, and %s describes one the launcher would run — delete one of the two", files.KnowledgeBase, files.Issuer)
 	}
-	workers, err := Read[WorkerPool](at(files.Workers), "WorkerPool")
-	switch {
-	case err == nil:
-		st.Workers = &workers
-	case !errors.Is(err, fs.ErrNotExist):
-		return nil, err
-	}
 	if err := st.namesHold(); err != nil {
 		return nil, err
 	}
@@ -119,11 +108,6 @@ func (st *Stack) namesHold() error {
 	kb := st.KnowledgeBase.Metadata.Name
 	if got := st.KnowledgeIndex.Spec.KnowledgeBase; got != kb {
 		return fmt.Errorf("%s: spec.knowledgeBase names %q, and %s is %q", st.Files.KnowledgeIndex, got, st.Files.KnowledgeBase, kb)
-	}
-	if st.Workers != nil {
-		if got := st.Workers.Spec.KnowledgeBase; got != kb {
-			return fmt.Errorf("%s: spec.knowledgeBase names %q, and %s is %q", st.Files.Workers, got, st.Files.KnowledgeBase, kb)
-		}
 	}
 	if ref := st.KnowledgeBase.Spec.Issuer.Ref; ref != nil && *ref != st.Issuer.Metadata.Name {
 		return fmt.Errorf("%s: spec.issuer.ref names %q, and %s is %q", st.Files.KnowledgeBase, *ref, st.Files.Issuer, st.Issuer.Metadata.Name)

@@ -51,9 +51,10 @@ who built — `CONTAINER_RUNTIME` picks the *build* engine only, and
 
 # 2. Run the full stack from your KB against the :local images: name them in
 #    .semiont/stack/*.yaml (e.g. ghcr.io/the-ai-alliance/semiont-gateway:local),
-#    and the Browser's in its own document
+#    and the Browser's and the worker's in their own documents
 cd /path/to/your-kb
 perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(/path/to/semiont/apps/launcher/dist/semiont settings browser --path)"
+perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(/path/to/semiont/apps/launcher/dist/semiont settings worker --path)"
 /path/to/semiont/apps/launcher/dist/semiont start
 /path/to/semiont/apps/launcher/dist/semiont useradd --email admin@example.com
 

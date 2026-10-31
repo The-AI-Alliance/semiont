@@ -144,7 +144,7 @@
   description: "Issuer: an issuer the launcher runs, and the database it keeps its realm in"
 - name: "stack:worker-pool"
   color: "c2ece8"
-  description: "WorkerPool: the workers that do a knowledge base's jobs"
+  description: "WorkerPool: the machine's worker document (image, memory, log level)"
 - name: "stack:inference"
   color: "c2ece8"
   description: "Inference: the model providers, and which provider and model serve each role"

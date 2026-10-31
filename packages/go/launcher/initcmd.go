@@ -367,8 +367,8 @@ site:
 			if em == "" {
 				em = defaultEmbeddingModel
 			}
-			fmt.Printf("# %s/ — generated: %s, %s, %s, %s and %s (%s inference, %s embedding), vetted by the plan deriver before writing\n",
-				stack.Dir, stack.KnowledgeBaseFile, stack.KnowledgeIndexFile, stack.IssuerFile, stack.WorkerPoolFile,
+			fmt.Printf("# %s/ — generated: %s, %s, %s and %s (%s inference, %s embedding), vetted by the plan deriver before writing\n",
+				stack.Dir, stack.KnowledgeBaseFile, stack.KnowledgeIndexFile, stack.IssuerFile,
 				filepath.Join(stack.InferenceDir, cn+".yaml"), inference, em)
 		}
 		if fromTemplate != "" {

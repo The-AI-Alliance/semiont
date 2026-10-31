@@ -46,7 +46,7 @@ func materializeTemplate(u *UI, src, ref string) (dir string, cleanup func(), ok
 	return tmp, func() { _ = os.RemoveAll(tmp) }, true
 }
 
-// copyTemplateStack vets and copies the template's .semiont/stack: the four
+// copyTemplateStack vets and copies the template's .semiont/stack: the three
 // documents a knowledge base shares and each Inference document beside them,
 // vetted together before any is written (writeVettedStack).
 func copyTemplateStack(u *UI, root, tplDir string) bool {

@@ -19,11 +19,15 @@ func renderCmd(rt string, args ...string) string {
 	return strings.Join(parts, " ")
 }
 
-// browserDocumentWrite: the dry run's account of the Browser's document a
-// start writes first, from the launcher's catalog, where there is none.
-func (x *planExec) browserDocumentWrite(browser browserDocument) {
+// stateHomeDocumentWrites: the dry run's account of the state home's
+// documents a start writes first, from the launcher's catalog, where there
+// are none: the Browser's, and the worker's when the plan runs one.
+func (x *planExec) stateHomeDocumentWrites(browser browserDocument, plan *launchPlan) {
 	if browser.fromCatalog {
 		x.c("write %s: the Browser's document, from the launcher's catalog", browser.path)
+	}
+	if plan != nil && plan.Worker.fromCatalog {
+		x.c("write %s: the worker's document, from the launcher's catalog", plan.Worker.path)
 	}
 }
 
@@ -37,7 +41,7 @@ func renderStartPlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	x := &planExec{rt: rt, lan: lan}
 	x.c("semiont start --dry-run — the exact runtime commands a real run would")
 	x.c("execute, in order. Values known only at runtime appear as <placeholders>.")
-	x.browserDocumentWrite(browser)
+	x.stateHomeDocumentWrites(browser, plan)
 	flowFullStart(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, browser: browser})
 	if lan != "" {
 		x.c("network lan: the gateway answers the network at %s:%d, over plain HTTP", lan, plan.GatewayPort)
