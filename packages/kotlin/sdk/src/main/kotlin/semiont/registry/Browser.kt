@@ -2,6 +2,7 @@
 
 package semiont.registry
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -191,7 +192,8 @@ private class Live(val opened: OpenedSession, val signals: SessionSignals, val r
  *
  * A request the gateway refuses for want of a valid token renews the session;
  * one refused for lack of permission is said at once. Closing the registry
- * closes its session and ends everything it holds.
+ * closes its session, ends everything it holds, and throws the first failure
+ * of what it ran in the background.
  */
 public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** Where the registry keeps what it keeps: what a sign-in that is under way is remembered in, too. */
@@ -220,6 +222,9 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     private var viewedByKb: Map<String, ResourceId> = storedAs(VIEWED_BY_KB, storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY))
     private var activations = 0
     private var live: Live? = null
+
+    /** The first failure of what the registry ran in the background: closing throws it. */
+    private var taskFailure: Throwable? = null
 
     /** The registered knowledge bases. */
     public val kbs: Watched<List<KnowledgeBase>> = kbsHeld.reading()
@@ -258,7 +263,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         putKbs(read)
         putActiveId(active)
         listening = storage.subscribe(::writtenElsewhere)
-        if (active != null) scope.launch { setActive(active) }
+        if (active != null) spawn { setActive(active) }
     }
 
     /** The failures that made a session unusable, from now on, until the registry is closed. */
@@ -428,7 +433,13 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
     /** `readActiveKb`, for Java. */
     public fun readActiveKbFuture(): CompletableFuture<KbReadVerdict> = scope.futureOf { readActiveKb() }
 
-    /** End the registry: its session is closed, and everything it holds ends. Closing twice is closing once. */
+    /**
+     * End the registry: its session is closed, and everything it holds ends.
+     * Then it throws the first failure of what it ran in the background:
+     * bringing up the session it began with, the checks a session's arrival
+     * starts, and the renewals a refused token asks for. What closing ended
+     * is no failure. Closing twice is closing once.
+     */
     override fun close() {
         synchronized(lock) {
             if (closing) return
@@ -441,9 +452,24 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
         failures.close()
         for (held in listOf(kbsHeld, activeKbIdHeld, activeSessionHeld, activeSignalsHeld, activatingHeld, openResourcesHeld, lastViewedHeld, identityTokenHeld)) held.end()
         bus.destroy()
+        val failed = synchronized(lock) { taskFailure }
+        if (failed != null) throw failed
     }
 
     // Within.
+
+    /** Run `work` for as long as the registry lives: closing ends it, and throws what it failed with. */
+    private fun spawn(work: suspend () -> Unit) {
+        scope.launch {
+            try {
+                work()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                synchronized(lock) { if (taskFailure == null) taskFailure = failure }
+            }
+        }
+    }
 
     private fun putKbs(kbs: List<KnowledgeBase>) {
         if (closing) return
@@ -477,7 +503,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
             activeSessionHeld.set(live.opened.session)
             project()
         }
-        scope.launch { checkOpenResources(live.opened.session) }
+        spawn { checkOpenResources(live.opened.session) }
     }
 
     private suspend fun setActive(kbId: String?) {
@@ -550,7 +576,7 @@ public class SemiontBrowser(config: SemiontBrowserConfig) : AutoCloseable {
             if (failure is TransportError) {
                 when (failure.reason) {
                     // Refusals that arrive together are answered by one renewal: the session holds them while it renews.
-                    TransportErrorCode.Unauthorized -> scope.launch { session.refresh() }
+                    TransportErrorCode.Unauthorized -> spawn { session.refresh() }
                     TransportErrorCode.Forbidden -> signals.notifyPermissionDenied(failure.message)
                     else -> Unit
                 }
