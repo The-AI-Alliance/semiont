@@ -286,6 +286,21 @@ class SignInTest {
         assertNull(kept.held())
     }
 
+    /** RFC 8628 §3.2 requires `expires_in`: a code whose lifetime nobody knows is shown to nobody. */
+    @Test
+    fun aDeviceAuthorizationAnswerWithNoLifetimeIsRefused() = runBlocking {
+        val realm = realm()
+        realm.script("/device", Said(200, JsonObject(devicesCode.body - "expires_in")))
+        val kept = MemorySignIn()
+        val shown = mutableListOf<String>()
+        val refused = assertThrows(SignInError::class.java) { runBlocking { signInDevice(kb(realm), kept) { shown += it.userCode } } }
+        assertEquals(SignInErrorCode.Exchange, refused.reason)
+        assertEquals("The issuer refused the device authorization request (HTTP 200)", refused.message)
+        assertEquals(emptyList<String>(), shown)
+        assertEquals(emptyList<String>(), realm.of("/token").map { it.path })
+        assertNull(kept.held())
+    }
+
     @Test
     fun aKnowledgeBaseThatTrustsNoIssuerHasNowhereToSignIn() = runBlocking {
         val refused = assertThrows(SignInError::class.java) { runBlocking { signInDevice(kb(realm(trustsAnIssuer = false)), MemorySignIn()) {} } }

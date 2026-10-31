@@ -14,6 +14,7 @@ import kotlinx.serialization.json.long
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.DynamicTest
@@ -207,7 +208,7 @@ class LiveQueriesTest {
         val live = world.watch(world.client.browse.engines())
         var state = live.next()
         while (state !is CacheState.Failed) state = live.next()
-        assertEquals("bus.rejected", state.error.code)
+        assertEquals("bus.rejected", assertInstanceOf(BusRequestError::class.java, state.error).code)
         world.client.close()
         // A closed client's engines are nobody's to collect.
         val closed = world.watch(world.client.browse.engines())

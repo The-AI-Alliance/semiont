@@ -6,7 +6,7 @@ Beckon directs attention: it points another participant at a passage, or opens a
 
 | SDK method | Returns | On the wire | Does on every other participant's viewer |
 |---|---|---|---|
-| `beckon.attention` | how many clients it reached | `beckon:focus` | Scrolls to an annotation |
+| `beckon.attention` | how many clients it reached | `beckon:focus` | Scrolls to an annotation, or, given none, attends to the resource as a whole |
 | `beckon.click` | how many clients it reached | `browse:click` | Opens an annotation |
 | `beckon.openResource` | how many clients it reached | `browse:resource-open` | Opens a resource |
 | `beckon.sparkleAll` | how many clients it reached | `beckon:sparkle` | Draws the eye to an annotation |
@@ -32,6 +32,7 @@ Each is a frame sent with no reply awaited. The gateway relays it to every conne
 ```typescript
 const watching = await semiont.beckon.attention(resourceId, annotationId);
 if (watching === 0) console.warn('nobody is watching');
+await semiont.beckon.attention(resourceId); // the resource as a whole
 
 await semiont.beckon.openResource(resourceId);
 await semiont.beckon.sparkleAll(annotationId);

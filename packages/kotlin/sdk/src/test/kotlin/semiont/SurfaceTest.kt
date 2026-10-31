@@ -217,7 +217,7 @@ private val calls: Map<String, Call> = mapOf(
     "yield.cloneToken" to { c, a -> c.yield.cloneToken(a.resource()) },
     "yield.fromToken" to { c, a -> c.yield.fromToken(a.text("token")) },
     "yield.clone" to { c, _ -> c.yield.clone() },
-    "beckon.attention" to { c, a -> c.beckon.attention(a.resource(), a.annotation()) },
+    "beckon.attention" to { c, a -> c.beckon.attention(a.resource(), a["annotationId"]?.let { AnnotationId(it.jsonPrimitive.content) }) },
     "beckon.click" to { c, a -> c.beckon.click(a.annotation()) },
     "beckon.openResource" to { c, a -> c.beckon.openResource(a.resource()) },
     "beckon.sparkleAll" to { c, a -> c.beckon.sparkleAll(a.annotation()) },

@@ -387,7 +387,7 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 			x.stopRm("semiont-browser")
 			e := x.exposure(addr)
 			browser := portNeed{doc.spec.Port, "Browser"}
-			needs := append([]portNeed{browser}, e.containersSideNeed("browser", browser)...)
+			needs := append([]portNeed{browser}, e.containersSideNeed("browser", browser, semiontDescriptor("browser").defaultPort)...)
 			x.settle(portNumbers(needs)...)
 			for _, need := range needs {
 				if !x.portCheck(need) {
@@ -677,7 +677,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		rp.Env = append(append([]string{}, rp.Env...), creds...)
-		args := providedRunArgs(x.exposure(addr), role, rp, extra...)
+		args := providedRunArgs(x.exposure(addr), fc.plan, rp, extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
 			x.say(sayFail, "%s (%s) failed to start.", role, disp)
@@ -733,7 +733,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "database":
-			d, ok := x.waitTCP("PostgreSQL", x.exposure(addr).probeHost(role, rp.Port), addr, rp.Port, 20)
+			d, ok := x.waitTCP("PostgreSQL", x.exposure(addr).probeHost(role, descriptorFor(role, rp.Driver).defaultPort), addr, rp.Port, 20)
 			if !ok {
 				x.dumpLogs(roleContainer("database"), "database")
 				return 1
@@ -748,7 +748,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "messaging":
 			// Same two-phase wait as Postgres: TCP up, then reachable on
 			// the container path the gateway will dial.
-			d, ok := x.waitTCP("NATS", x.exposure(addr).probeHost(role, rp.Port), addr, rp.Port, 15)
+			d, ok := x.waitTCP("NATS", x.exposure(addr).probeHost(role, descriptorFor(role, rp.Driver).defaultPort), addr, rp.Port, 15)
 			if !ok {
 				x.dumpLogs(roleContainer("messaging"), "messaging")
 				return 1
@@ -1027,7 +1027,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 		return 1
 	}
 	x.say(sayOK, "Gateway healthy %s", x.dim("("+took(d)+")"))
-	if !x.gatewayReachable(addr, x.exposure(addr).containersPort("gateway", port)) {
+	if !x.gatewayReachable(addr, x.exposure(addr).containersPort("gateway", port, port)) {
 		return 1
 	}
 	x.record("gateway", id, fc.plan.Images["gateway"], providedLauncher, healthEndpoint("gateway", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
@@ -1048,13 +1048,13 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		if !ok {
 			return 1
 		}
-		args = smelterArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = smelterArgs(stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	case "weaver":
 		clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
 		if !ok {
 			return 1
 		}
-		args = weaverArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		args = weaverArgs(stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
 	}
 	id, ok := x.runDetached(args)
 	if !ok {
@@ -1066,7 +1066,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		x.dumpLogs(spec.container, sc.svc)
 		return 1
 	}
-	x.say(sayOK, "%s healthy (http://%s:%d) %s", sc.label, x.exposure(addr).probeHost(sc.svc, spec.ports[0].port), spec.ports[0].port, x.dim("("+took(d)+")"))
+	x.say(sayOK, "%s healthy (http://%s:%d) %s", sc.label, x.exposure(addr).probeHost(sc.svc, spec.ports[0].port), fc.plan.servicePort(sc.svc), x.dim("("+took(d)+")"))
 	x.record(sc.svc, id, fc.plan.Images[sc.svc], providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
@@ -1093,7 +1093,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.exposure(addr), clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
+	args := archivistArgs(x.val(fc.kb.dir, "<kb-root>"), stage, x.exposure(addr), fc.plan.servicePort("archivist"), clientSecret, fc.plan.Images["archivist"], fc.plan.Memory["archivist"], fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -1104,7 +1104,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 		x.dumpLogs("semiont-archivist", "archivist")
 		return 1
 	}
-	x.say(sayOK, "Archivist healthy (http://%s:24103) %s", x.exposure(addr).probeHost("archivist", 24103), x.dim("("+took(d)+")"))
+	x.say(sayOK, "Archivist healthy (http://%s:%d) %s", x.exposure(addr).probeHost("archivist", semiontDescriptor("archivist").ports[0].port), fc.plan.servicePort("archivist"), x.dim("("+took(d)+")"))
 	x.record("archivist", id, fc.plan.Images["archivist"], providedLauncher, healthEndpoint("archivist", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
@@ -1126,7 +1126,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
+	args := librarianArgs(stage, x.exposure(addr), fc.plan.servicePort("librarian"), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -1137,7 +1137,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 		x.dumpLogs("semiont-librarian", "librarian")
 		return 1
 	}
-	x.say(sayOK, "Librarian healthy (http://%s:24104) %s", x.exposure(addr).probeHost("librarian", 24104), x.dim("("+took(d)+")"))
+	x.say(sayOK, "Librarian healthy (http://%s:%d) %s", x.exposure(addr).probeHost("librarian", semiontDescriptor("librarian").ports[0].port), fc.plan.servicePort("librarian"), x.dim("("+took(d)+")"))
 	x.record("librarian", id, fc.plan.Images["librarian"], providedLauncher, healthEndpoint("librarian", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
@@ -1156,7 +1156,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.exposure(addr), clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(stage, x.exposure(addr), fc.plan.servicePort("dispatcher"), clientSecret, fc.plan.Images["dispatcher"], fc.plan.Memory["dispatcher"], fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
@@ -1167,7 +1167,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 		x.dumpLogs("semiont-dispatcher", "dispatcher")
 		return 1
 	}
-	x.say(sayOK, "Dispatcher healthy (http://%s:24105) %s", x.exposure(addr).probeHost("dispatcher", 24105), x.dim("("+took(d)+")"))
+	x.say(sayOK, "Dispatcher healthy (http://%s:%d) %s", x.exposure(addr).probeHost("dispatcher", semiontDescriptor("dispatcher").ports[0].port), fc.plan.servicePort("dispatcher"), x.dim("("+took(d)+")"))
 	x.record("dispatcher", id, fc.plan.Images["dispatcher"], providedLauncher, healthEndpoint("dispatcher", driverSemiont, fc.plan, x.exposure(addr)), driverSemiont)
 	return 0
 }
@@ -1340,22 +1340,22 @@ func nothingToLaunch(plan *launchPlan, svc string) (rolePlan, bool) {
 // servicePortNeeds: one service's must-be-free ports. Claims follow the
 // plan for config-owned ports (dependency roles, gateway), and the Browser's
 // document for its port; the static role table covers only the launcher-fiat
-// ports (sidecars, traces), which the plan carries no port for. A port a
-// person and the containers both dial claims its containers' side too (e).
+// ports (sidecars, traces), where the plan publishes them. A port a person and
+// the containers both dial claims its containers' side too (e).
 func servicePortNeeds(svc string, plan *launchPlan, browser browserDocument, e exposure) []portNeed {
-	ports := stackPortNeeds(svc)
+	ports := plan.portNeeds(svc)
 	switch {
 	case svc == "browser":
 		need := portNeed{browser.spec.Port, "Browser"}
-		ports = append([]portNeed{need}, e.containersSideNeed("browser", need)...)
+		ports = append([]portNeed{need}, e.containersSideNeed("browser", need, semiontDescriptor("browser").defaultPort)...)
 	case svc == "gateway" && plan != nil:
 		gateway := portNeed{plan.GatewayPort, "Gateway"}
-		ports = append([]portNeed{gateway}, e.containersSideNeed("gateway", gateway)...)
+		ports = append([]portNeed{gateway}, e.containersSideNeed("gateway", gateway, plan.GatewayPort)...)
 	case plan != nil:
 		if rp, ok := plan.Roles[svc]; ok && rp.Presence == presenceLauncher && rp.Port != 0 {
 			spec := descriptorFor(svc, rp.Driver)
 			need := portNeed{rp.Port, spec.portLabel}
-			ports = append(append(append([]portNeed{}, spec.auxPorts...), need), e.containersSideNeed(svc, need)...)
+			ports = append(append(plan.AuxPorts(svc), need), e.containersSideNeed(svc, need, spec.defaultPort)...)
 		}
 	}
 	return ports

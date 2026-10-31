@@ -18,6 +18,7 @@ Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport
 - **`loadLastEventIds`** and **`saveLastEventId`** let a client resume its stream where its last life stopped.
 - **`logger`** receives what the transport logs: see [Logging](./LOGGING.md).
 - **`fetch`** is what every request is sent with: the stream's connects, the emits, the plain operations and the content transport's requests, but a browser page's upload with progress or a `signal`, which goes through `XMLHttpRequest`. Absent, the runtime's own. The certificates trusted and the proxy are the fetch's: see [The fetch it sends with](../README.md#the-fetch-it-sends-with).
+- **`streamOpenTimeoutMs`** bounds the wait for the gateway to answer the request that opens the stream: its status and headers. An open unanswered by then has failed, and the stream is opened again on the backoff, as after any open that failed. An open stream that carries nothing for a while has not failed. Absent, `STREAM_OPEN_TIMEOUT_MS`.
 - **`timeout`** bounds a plain request. One is made a second time at most once, after `REQUEST_RETRY_PAUSE_MS`, when `RETRY_RULES.transport` approves its status and method, with or without a `tokenRefresher`. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
 
 ### `TokenRefresher`

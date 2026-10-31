@@ -262,6 +262,8 @@ final class NamespacesTest {
 
     @Test
     void beckonDrivesTheOthersAndSparklesHere() throws Exception {
+        client.getBeckon().attentionFuture(RESOURCE).get(10, SECONDS);
+        assertTrue(sent("beckon:focus"));
         client.getBeckon().clickFuture(ANNOTATION).get(10, SECONDS);
         assertTrue(sent("browse:click"));
         client.getBeckon().openResourceFuture(RESOURCE).get(10, SECONDS);

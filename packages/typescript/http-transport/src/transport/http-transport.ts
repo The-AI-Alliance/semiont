@@ -76,12 +76,13 @@ export interface HttpTransportConfig {
    */
   channels?: readonly (keyof EventMap)[];
   /**
-   * `reconnectMs`, `lazyRemoveMs`, `lingerMs`, `emitRetry` and
-   * `seenEventIdsCount` of specs/src/client/timing.json, for a caller that
-   * must not wait them out: a test, or the conformance driver. Absent, the
-   * table's values stand.
+   * `reconnectMs`, `streamOpenTimeoutMs`, `lazyRemoveMs`, `lingerMs`,
+   * `emitRetry` and `seenEventIdsCount` of specs/src/client/timing.json, for
+   * a caller that must not wait them out: a test, or the conformance driver.
+   * Absent, the table's values stand.
    */
   reconnectMs?: number;
+  streamOpenTimeoutMs?: number;
   lazyRemoveMs?: number;
   lingerMs?: number;
   emitRetry?: RetryPolicy;
@@ -375,6 +376,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
         ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
+        ...(this.config.streamOpenTimeoutMs !== undefined ? { streamOpenTimeoutMs: this.config.streamOpenTimeoutMs } : {}),
         ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),

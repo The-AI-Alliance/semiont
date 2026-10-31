@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 // KB-root discovery: SEMIONT_ROOT is an explicit override analogous to
@@ -84,9 +86,13 @@ type rootEntry struct {
 	// from the environment. A codespace's post-start runs a bare start on
 	// every resume, so a port the laptop moved it to must outlive the ssh
 	// that set it.
-	KeycloakPort int       `json:"keycloakPort,omitempty"`
-	LastUsed     time.Time `json:"lastUsed"`
-	LastStarted  time.Time `json:"lastStarted,omitzero"` // last full-stack start
+	KeycloakPort int `json:"keycloakPort,omitempty"`
+	// PortBlock: the block of ports this KB's stack is published on
+	// (portBlockOf), kept from its first successful start until `semiont
+	// forget` drops the row. Absent until then, and block 0 is a block.
+	PortBlock   *int      `json:"portBlock,omitempty"`
+	LastUsed    time.Time `json:"lastUsed"`
+	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
 }
 
 type rootsRegistry struct {
@@ -253,11 +259,94 @@ func recordRuntimePref(rt string) {
 	saveRoots(reg)
 }
 
+// portStride: how far apart two knowledge bases' port blocks place one
+// port. 10 keeps every block's Semiont services (24101–24105 on block 0)
+// clear of the machine's worker and collector (24100, 24110), and no two of
+// the ports a block places meet one another, or one of the machine's, below
+// block 101.
+const portStride = 10
+
+// blockPort: where block places the port block 0 places at port.
+func blockPort(port, block int) int {
+	return port + portStride*block
+}
+
+// portBlockOf: the block of ports the stack of the knowledge base at root is
+// published on — the one its row keeps, else the lowest no other row keeps,
+// which its first successful start keeps (recordPortBlock). kept says
+// which.
+func portBlockOf(root string) (block int, kept bool) {
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	held := map[int]bool{}
+	for _, e := range loadRoots().Roots {
+		if e.PortBlock == nil {
+			continue
+		}
+		if e.Path == root {
+			return *e.PortBlock, true
+		}
+		held[*e.PortBlock] = true
+	}
+	for held[block] {
+		block++
+	}
+	return block, false
+}
+
+// recordPortBlock keeps root's port block on its row — callers pass it only
+// after a start SUCCEEDED on it.
+func recordPortBlock(root string, block int) {
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	reg := loadRoots()
+	for i := range reg.Roots {
+		if reg.Roots[i].Path == root {
+			reg.Roots[i].PortBlock = &block
+			saveRoots(reg)
+			return
+		}
+	}
+}
+
+// freeGatewayPort: the gateway port `semiont init` writes for the knowledge
+// base at root — the lowest a port block would place the gateway's catalog
+// port at that no other root this machine knows commits, so a new knowledge
+// base never shares a known one's. A root whose KnowledgeBase document is
+// gone, or does not hold, commits no port a start could run on.
+func freeGatewayPort(root string) int {
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	committed := map[int]bool{}
+	for _, e := range loadRoots().Roots {
+		if e.Path == root {
+			continue
+		}
+		kb, err := stack.Read[stack.KnowledgeBase](filepath.Join(e.Path, stack.Dir, stack.KnowledgeBaseFile), "KnowledgeBase")
+		if err != nil {
+			continue
+		}
+		committed[kb.Spec.Gateway.Port] = true
+	}
+	base := semiontDescriptor("gateway").ports[0].port
+	block := 0
+	for committed[blockPort(base, block)] {
+		block++
+	}
+	return blockPort(base, block)
+}
+
+// keycloakPortRecorded: keycloakPort's source for the port a root keeps.
+const keycloakPortRecorded = "recorded for this KB; override with KEYCLOAK_PORT"
+
 // keycloakPort: KEYCLOAK_PORT, the issuer's port — one per KB, the same
 // number inside the stack and on the laptop that forwards it, because a
 // token's `iss` carries it. The environment wins, then the port this root
-// last started on explicitly, then Keycloak's own. fromEnv says whether a
-// successful start should record it.
+// last started on explicitly, then Keycloak's own on this root's port block.
+// fromEnv says whether a successful start should record it.
 func keycloakPort(u *UI, root string) (port int, source string, fromEnv, ok bool) {
 	if v := os.Getenv("KEYCLOAK_PORT"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -272,10 +361,11 @@ func keycloakPort(u *UI, root string) (port int, source string, fromEnv, ok bool
 	}
 	for _, e := range loadRoots().Roots {
 		if e.Path == root && e.KeycloakPort != 0 {
-			return e.KeycloakPort, "recorded for this KB; override with KEYCLOAK_PORT", false, true
+			return e.KeycloakPort, keycloakPortRecorded, false, true
 		}
 	}
-	return descriptorFor("identity", "keycloak").defaultPort, "default", false, true
+	block, _ := portBlockOf(root)
+	return blockPort(descriptorFor("identity", "keycloak").defaultPort, block), fmt.Sprintf("port block %d", block), false, true
 }
 
 // recordKeycloakPort stores a root's sticky KEYCLOAK_PORT — callers pass it

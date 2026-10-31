@@ -16,7 +16,7 @@ import (
 
 // genFor: what `init --inference <inference>` builds the documents from.
 func genFor(inference string) genParams {
-	return genParams{Inference: inference, Model: "a-model", EmbeddingModel: "an-embedding", AnthropicEndpoint: "https://api.anthropic.com"}
+	return genParams{Inference: inference, Model: "a-model", EmbeddingModel: "an-embedding", AnthropicEndpoint: "https://api.anthropic.com", GatewayPort: 4000}
 }
 
 // bornStack: the documents generateStack writes for p, read as a start reads
@@ -163,7 +163,7 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a start does not read the documents init wrote: %v", err)
 	}
-	if _, err := derivePlan(st, 8080); err != nil {
+	if _, err := derivePlan(st, 8080, 0); err != nil {
 		t.Fatalf("a start cannot plan the documents init wrote: %v", err)
 	}
 	providers := st.Inference.Spec.Providers

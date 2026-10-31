@@ -501,9 +501,9 @@ func mayConfigure(rp rolePlan) bool {
 // healthEndpoint: the URL a start gates on and status reports, for one
 // (role, driver). THE home for that fact.
 //
-// The port follows the plan when the config owns it, and the descriptor
-// otherwise — which is what makes status honest about a config that moved a
-// port.
+// The port follows the plan: the config's where it owns the port, and the
+// descriptor's on the knowledge base's port block otherwise — which is what
+// makes status honest about a config, or a block, that moved a port.
 func healthEndpoint(role, driver string, plan *launchPlan, e exposure) string {
 	d := descriptorFor(role, driver)
 	// identity is the one driver-specific shape: a configured issuer names
@@ -514,37 +514,38 @@ func healthEndpoint(role, driver string, plan *launchPlan, e exposure) string {
 			return identityEndpoint(rp, e)
 		}
 	}
-	port := d.health.port
-	if port == 0 {
-		port = healthPort(role, d, plan)
-	}
+	ctrPort, port := healthPort(role, d, plan)
 	if port == 0 {
 		return ""
 	}
-	host := e.probeHost(role, port)
+	host := e.probeHost(role, ctrPort)
 	if d.health.tcp {
 		return fmt.Sprintf("tcp:%s:%d", host, port)
 	}
 	return fmt.Sprintf("http://%s:%d%s", host, port, d.health.path)
 }
 
-// healthPort: the port this role is actually running on — the gateway's from
-// the plan (the one port a config moves that no role row carries), a
-// dependency role's from the plan, and a launcher-fiat one from the
-// descriptor.
-func healthPort(role string, d serviceDescriptor, plan *launchPlan) int {
+// healthPort: the port role's health is asked on, as its container listens
+// on it and as this start publishes it — a pinned health port where this
+// start publishes it, the gateway's from the plan (the one port a config
+// moves that no role row carries), a dependency role's from the plan, and a
+// launcher-fiat one where the plan publishes the descriptor's.
+func healthPort(role string, d serviceDescriptor, plan *launchPlan) (ctrPort, hostPort int) {
+	if plan != nil && role == "gateway" {
+		return plan.GatewayPort, plan.GatewayPort
+	}
+	if d.health.port != 0 {
+		return d.health.port, plan.hostPort(role, d.health.port)
+	}
 	if plan != nil {
-		if role == "gateway" {
-			return plan.GatewayPort
-		}
 		if rp, ok := plan.Roles[role]; ok && rp.Port != 0 {
-			return rp.Port
+			return d.defaultPort, rp.Port
 		}
 	}
 	if len(d.ports) > 0 {
-		return d.ports[0].port
+		return d.ports[0].port, plan.hostPort(role, d.ports[0].port)
 	}
-	return d.defaultPort
+	return d.defaultPort, d.defaultPort
 }
 
 // probeDriver: the driver status assumes when no record names one. A role

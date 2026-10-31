@@ -421,7 +421,12 @@ var calls = map[string]call{
 	},
 	"yield.clone": func(_ context.Context, c *semiont.Client, a args) { c.Yield.Clone() },
 	"beckon.attention": func(ctx context.Context, c *semiont.Client, a args) {
-		_, _, _ = c.Beckon.Attention(ctx, a.rid("resourceId"), a.aid("annotationId"))
+		if !a.has("annotationId") {
+			_, _, _ = c.Beckon.Attention(ctx, a.rid("resourceId"), nil)
+			return
+		}
+		focused := a.aid("annotationId")
+		_, _, _ = c.Beckon.Attention(ctx, a.rid("resourceId"), &focused)
 	},
 	"beckon.click": func(ctx context.Context, c *semiont.Client, a args) {
 		_, _, _ = c.Beckon.Click(ctx, a.aid("annotationId"))

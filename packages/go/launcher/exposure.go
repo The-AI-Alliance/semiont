@@ -31,11 +31,12 @@ const (
 // Browser's 3000 likewise 13000.
 const containersSide = 10000
 
-// reachOf: who dials role's port, by the host port it is published on. The
-// LOCAL-ONLY-STACK table, read from what each service's document places and
-// what a person opens; every port not named here only containers dial, or
-// only the launcher's probes, which follow the containers.
-func reachOf(role string, hostPort int) reach {
+// reachOf: who dials role's port, by the port its container listens on —
+// which a knowledge base's port block never moves. The LOCAL-ONLY-STACK
+// table, read from what each service's document places and what a person
+// opens; every port not named here only containers dial, or only the
+// launcher's probes, which follow the containers.
+func reachOf(role string, ctrPort int) reach {
 	switch role {
 	case "metrics":
 		return reachPerson
@@ -46,12 +47,12 @@ func reachOf(role string, hostPort int) reach {
 		// in a container and opens the Browser as a person does.
 		return reachPerson | reachContainers
 	case "graph":
-		if hostPort == descriptorFor("graph", "neo4j").auxPorts[0].port {
+		if ctrPort == descriptorFor("graph", "neo4j").auxPorts[0].port {
 			return reachPerson // the Neo4j Browser
 		}
 		return reachPerson | reachContainers // bolt
 	case "traces":
-		if hostPort == descriptorFor("traces", "jaeger").defaultPort {
+		if ctrPort == descriptorFor("traces", "jaeger").defaultPort {
 			return reachPerson // Jaeger's UI
 		}
 		return reachContainers // its OTLP ingest, which the collector dials
@@ -94,7 +95,7 @@ func (e exposure) publishSpecs(role string, hostPort, ctrPort int) []string {
 	if e.behindProxy(role) {
 		return []string{fmt.Sprintf("%s:%d:%d", e.addr, hostPort+containersSide, ctrPort)}
 	}
-	r := reachOf(role, hostPort)
+	r := reachOf(role, ctrPort)
 	var specs []string
 	switch {
 	case r&reachPerson != 0 && e.lan != "" && role == "gateway":
@@ -103,7 +104,7 @@ func (e exposure) publishSpecs(role string, hostPort, ctrPort int) []string {
 		specs = append(specs, fmt.Sprintf("127.0.0.1:%d:%d", hostPort, ctrPort))
 	}
 	if r&reachContainers != 0 {
-		specs = append(specs, fmt.Sprintf("%s:%d:%d", e.addr, e.containersPort(role, hostPort), ctrPort))
+		specs = append(specs, fmt.Sprintf("%s:%d:%d", e.addr, e.containersPort(role, hostPort, ctrPort), ctrPort))
 	}
 	return specs
 }
@@ -118,23 +119,25 @@ func (e exposure) publish(flag, role string, hostPort, ctrPort int) []string {
 	return args
 }
 
-// containersPort: the host port a container dials role's port at — its own,
-// or the containers' side of a port a person dials too.
-func (e exposure) containersPort(role string, hostPort int) int {
-	if e.confined() && reachOf(role, hostPort) == reachPerson|reachContainers {
+// containersPort: the host port a container dials role's port at, published
+// at hostPort to ctrPort — its own, or the containers' side of a port a
+// person dials too.
+func (e exposure) containersPort(role string, hostPort, ctrPort int) int {
+	if e.confined() && reachOf(role, ctrPort) == reachPerson|reachContainers {
 		return hostPort + containersSide
 	}
 	return hostPort
 }
 
 // containersSideNeed: the extra must-be-free port the containers' side of
-// role's port claims, when there is one: the containers' side of a port a
-// person dials too, or the issuer's own port behind the proxy.
-func (e exposure) containersSideNeed(role string, need portNeed) []portNeed {
+// role's port claims, published at need to ctrPort, when there is one: the
+// containers' side of a port a person dials too, or the issuer's own port
+// behind the proxy.
+func (e exposure) containersSideNeed(role string, need portNeed, ctrPort int) []portNeed {
 	if e.behindProxy(role) {
 		return []portNeed{{need.port + containersSide, need.label + " (behind the issuer proxy)"}}
 	}
-	if p := e.containersPort(role, need.port); p != need.port {
+	if p := e.containersPort(role, need.port, ctrPort); p != need.port {
 		return []portNeed{{p, need.label + " (containers)"}}
 	}
 	return nil
@@ -151,15 +154,16 @@ func recordedExposure(key string) exposure {
 	return exposure{}
 }
 
-// probeHost: where the launcher asks role's port — loopback for a port a
-// person dials, else where the containers dial it (D5), so a probe passes
-// only on an address something uses. The issuer behind the proxy is asked
-// where everyone dials it, at the network address.
-func (e exposure) probeHost(role string, hostPort int) string {
+// probeHost: where the launcher asks role's port its container listens on at
+// ctrPort — loopback for a port a person dials, else where the containers
+// dial it (D5), so a probe passes only on an address something uses. The
+// issuer behind the proxy is asked where everyone dials it, at the network
+// address.
+func (e exposure) probeHost(role string, ctrPort int) string {
 	if e.behindProxy(role) {
 		return e.lan
 	}
-	if !e.confined() || reachOf(role, hostPort)&reachPerson != 0 {
+	if !e.confined() || reachOf(role, ctrPort)&reachPerson != 0 {
 		return "localhost"
 	}
 	return e.addr
@@ -172,5 +176,5 @@ func (e exposure) keycloakAt(port int) (string, int) {
 	if e.behindProxy("identity") {
 		return e.addr, port + containersSide
 	}
-	return e.probeHost("identity", port), port
+	return e.probeHost("identity", descriptorFor("identity", "keycloak").defaultPort), port
 }

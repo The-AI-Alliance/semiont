@@ -509,6 +509,7 @@ are this viewer's own fan-out. Wire drives (`Promise<number | undefined>`) becko
 // Wire drives — every other participant's viewer
 const watching = await semiont.beckon.attention(resourceId, annotationId);
 if (watching === 0) console.warn('nobody is watching');
+await semiont.beckon.attention(resourceId);    // the resource as a whole
 await semiont.beckon.openResource(resourceId); // open it on their screens
 await semiont.beckon.sparkleAll(annotationId); // sparkle it on their screens
 

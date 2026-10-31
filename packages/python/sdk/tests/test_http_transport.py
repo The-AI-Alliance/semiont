@@ -238,6 +238,29 @@ def test_a_stream_that_cannot_open_is_tried_again_and_a_token_that_changes_reach
     assert run(scenario()) == (["unavailable", "503"], ["Bearer first", "Bearer second"])
 
 
+def test_a_stream_whose_open_the_gateway_never_answers_has_failed_at_its_deadline_and_is_opened_again() -> None:
+    async def scenario() -> tuple[float, int, list[SemiontError]]:
+        hasty = Timing(reconnect_ms=10, stream_open_ms=200)
+        async with GatewayServer() as gateway:
+            # The first open is taken and never answered; the next is answered with a stream.
+            gateway.scripted[("POST", "/bus/subscribe")] = [Answer(hold=True)]
+            loop = asyncio.get_running_loop()
+            began = loop.time()
+            async with HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=hasty) as transport:
+                failures = transport.failures()
+                await opened(transport)
+                took = loop.time() - began
+                # The open it gave up on is ended, not left holding a connection.
+                await soon(gateway.closed_by_client.wait())
+            return took, len(gateway.subscriptions), [error async for error in failures]
+
+    took, opens, failures = run(scenario())
+    assert opens == 2
+    assert took >= 0.2
+    # A gateway that said nothing refused nothing: the failed open is a state, and no failure is reported.
+    assert failures == []
+
+
 @final
 class OverTheWire(DeliverySubject):
     """The real transport as a delivery subject.

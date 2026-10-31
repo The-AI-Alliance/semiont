@@ -40,9 +40,11 @@ public object Say {
     public fun of(vararg pairs: Pair<String, JsonElement>): JsonObject = JsonObject(mapOf(*pairs))
 }
 
-/** A failure as the suite reads one: its code, the status a server stated, what kind of failure a job's worker said it was, and the SDK's words. */
-public fun failure(error: SemiontError): JsonObject {
-    val fields = mutableMapOf<String, JsonElement>("code" to JsonPrimitive(error.code), "detail" to JsonPrimitive(error.message ?: ""))
+/** A failure as the suite reads one: the SDK's code, the status a server stated and what kind of failure a job's worker said it was, each where there is one, and its words. */
+public fun failure(error: Exception): JsonObject {
+    val fields = mutableMapOf<String, JsonElement>()
+    if (error is SemiontError) fields["code"] = JsonPrimitive(error.code)
+    fields["detail"] = JsonPrimitive(error.message ?: "")
     if (error is TransportError) error.status?.let { fields["status"] = JsonPrimitive(it) }
     if (error is JobError) error.failureClass?.let { fields["failureClass"] = JsonPrimitive(it.value) }
     return JsonObject(fields)

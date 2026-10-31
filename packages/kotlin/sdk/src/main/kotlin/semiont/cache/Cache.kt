@@ -21,7 +21,6 @@ import semiont.StateUnit
 import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
-import semiont.errors.SemiontError
 import semiont.telemetry.futureOf
 import semiont.transport.Events
 import java.util.concurrent.CompletableFuture
@@ -49,7 +48,7 @@ private class Key<V : Any>(state: CacheState<V>) {
     val state = MutableStateFlow<CacheState<V>?>(state)
 
     /** The fetch in flight, by its number. An `invalidate` lets go of it without waiting: its answer may never come. */
-    var inFlight: Pair<Int, Deferred<V>>? = null
+    var inFlight: Pair<Int, Deferred<Result<V>>>? = null
 
     /** Whether anything asked for the key and has not let go of it. */
     fun known(): Boolean = inFlight != null || state.value !is CacheState.Pending
@@ -67,8 +66,8 @@ private class Key<V : Any>(state: CacheState<V>) {
  * that is known; `remove` ends a key whose entity is gone; `close` ends every
  * observer, and nothing is fetched, retried or written after it.
  *
- * `ask` asks for a key's value, failing with a [SemiontError], and its fetches
- * run in `scope`: the client's, for a cache the client makes, and one of the
+ * `ask` asks for a key's value, and whatever it fails with is the key's failure;
+ * its fetches run in `scope`: the client's, for a cache the client makes, and one of the
  * cache's own on the default dispatcher, for one a host makes. With a
  * `persister`, the cache begins with what was kept, shows a kept value at once
  * and asks for it again the first time it is observed, and saves its values
@@ -132,23 +131,28 @@ public class Cache<K : Any, V : Any> internal constructor(
      * lock. The fetch asks at once, in this thread, so the requests of fetches
      * started one after another are sent in that order; it is in flight before
      * it begins, so one that ends at once has let go of the key when it ends.
+     * Its failure is handed on as a value, so each waiter is given the very
+     * failure the fetch met, not the copy an awaited failure is rethrown as
+     * when the coroutine library recovers its stack trace.
      */
-    private fun fetching(key: K): Deferred<V> {
+    private fun fetching(key: K): Deferred<Result<V>> {
         // Asked for by this cache now, whichever path asked.
         kept -= key
         val held = held(key)
         held.inFlight?.let { return it.second }
         fetches += 1
         val number = fetches
-        val answer = CompletableDeferred<V>()
+        val answer = CompletableDeferred<Result<V>>()
         held.inFlight = number to answer
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                answer.complete(fetched(key, number))
-            } catch (failure: Throwable) {
+                answer.complete(Result.success(fetched(key, number)))
+            } catch (cancelled: CancellationException) {
                 // A fetch the client's closing ended is cancelled for whoever waits on it, who is then told the client closed.
-                if (failure is CancellationException) answer.cancel(failure) else answer.completeExceptionally(failure)
-                if (failure is CancellationException) throw failure
+                answer.cancel(cancelled)
+                throw cancelled
+            } catch (failure: Throwable) {
+                answer.complete(Result.failure(failure))
             }
         }
         return answer
@@ -176,28 +180,38 @@ public class Cache<K : Any, V : Any> internal constructor(
     }
 
     /** What a fetch gives, to one of those waiting on it: whoever stops waiting does not stop the fetch. */
-    private suspend fun joined(fetch: Deferred<V>): V = try {
-        fetch.await()
-    } catch (cancelled: CancellationException) {
-        // The fetch was ended by its client's closing, and its caller was not: that is a failure to hear, not a cancellation.
-        if (currentCoroutineContext().isActive && fetch.isCancelled) throw closed()
-        throw cancelled
+    private suspend fun joined(fetch: Deferred<Result<V>>): V {
+        val given = try {
+            fetch.await()
+        } catch (cancelled: CancellationException) {
+            // The fetch was ended by its client's closing, and its caller was not: that is a failure to hear, not a cancellation.
+            if (currentCoroutineContext().isActive && fetch.isCancelled) throw closed()
+            throw cancelled
+        }
+        return given.getOrThrow()
     }
 
-    /** Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed. Called under the lock. */
+    /**
+     * Fetch for the live view: a failure is tried once more, and a key with no value whose retry also fails becomes failed.
+     * Whatever a fetch failed with is a failure; a cancellation is not one. Called under the lock.
+     */
     private fun revalidate(key: K) {
         val first = fetching(key)
         scope.launch {
             try {
                 joined(first)
                 return@launch
-            } catch (_: SemiontError) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
                 // Tried once more, below.
             }
             val again = synchronized(lock) { if (disposed) null else fetching(key) } ?: return@launch
             try {
                 joined(again)
-            } catch (failure: SemiontError) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
                 synchronized(lock) {
                     val held = keys[key]
                     if (held != null && held.state.value !is CacheState.Ready) held.state.value = CacheState.Failed(failure)
@@ -281,7 +295,7 @@ public class Cache<K : Any, V : Any> internal constructor(
     public fun invalidateAll(): Unit = keys().forEach(::invalidate)
 
     /** The key's entity is gone: its value is dropped and the key fails with `gone`, at once, for every observer. Nothing is asked for. */
-    public fun remove(key: K, gone: SemiontError): Unit = synchronized(lock) {
+    public fun remove(key: K, gone: Exception): Unit = synchronized(lock) {
         if (disposed) return
         val held = held(key)
         held.inFlight = null

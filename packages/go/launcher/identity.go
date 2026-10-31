@@ -99,7 +99,7 @@ func keycloakRealm(path string) string {
 // root, which Keycloak serves only once the realm exists — where e publishes
 // it.
 func identityEndpoint(rp rolePlan, e exposure) string {
-	return fmt.Sprintf("http://%s:%d%s", e.probeHost("identity", rp.Port), rp.Port, issuerPath(rp.Issuer))
+	return fmt.Sprintf("http://%s:%d%s", e.probeHost("identity", descriptorFor("identity", rp.Driver).defaultPort), rp.Port, issuerPath(rp.Issuer))
 }
 
 // keycloakEndpoint: the realm at the Keycloak the launcher runs, where the

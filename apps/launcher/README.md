@@ -75,6 +75,9 @@ What init does:
 - **Every document write — generated or copied — passes the plan deriver
   first**: a bug or a version-skewed template is a pre-write refusal
   carrying the parser's own error, never a KB that cannot start.
+- **A generated KB's gateway port is one no known KB commits**: the lowest
+  of 4000, 4010, 4020, … that no other root in the registry's
+  `knowledge-base.yaml` names. A copied template keeps the template's.
 
 ```sh
 semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
@@ -92,6 +95,18 @@ semiont stop
 
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
+- **Each KB's stack is published on a port block of its own**, kept on its
+  row of `roots.json` (`portBlock`): its first successful start takes the
+  lowest block no other row keeps, and `semiont forget` frees it. Block k
+  publishes every port the launcher chooses for the stack at its block-0
+  port + 10k (PostgreSQL 5432, NATS 4222, Qdrant 6333, Neo4j 7474/7687,
+  Keycloak 8080, the Smelter, Weaver, Archivist, Librarian and Dispatcher
+  24101–24105); each container listens where it always does, and every
+  document the start stages names the published ports. The gateway's port
+  is its document's, Keycloak's is `KEYCLOAK_PORT` or the recorded one when
+  either is set, and the machine's containers keep theirs. A dry run plans
+  on the block a start would take and keeps none. A stop with no record
+  verifies every kept block's service and broker ports released.
 - **The Browser is not a stack member**: it is the machine-level viewer of
   every KB, local and codespace, discovery-synced. **Its document says how it
   runs**: `stack/browser.yaml` in the state home, kind `Browser`
@@ -257,8 +272,8 @@ semiont stop
   instead.
 - **Many codespace stacks run concurrently — each forwards its KB on its
   own local port.** The record store (`stack.json`, schema 3) is a keyed
-  collection: the machine's one local stack (fixed ports and container
-  names keep it singleton) plus one entry per codespace repo. Each
+  collection: the machine's one local stack (fixed container names keep it
+  singleton) plus one entry per codespace repo. Each
   codespace stack forwards TWO ports. Its KB (remote 4000) goes on local
   4000 when free, else the lowest free port above it (4001, …). Its issuer —
   `http://keycloak.localhost:<N>`, loopback here — goes `<N>:<N>`, the same

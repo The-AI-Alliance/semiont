@@ -142,12 +142,6 @@ public fun renewKeptFuture(kept: SignInKept, holding: String?, http: HttpClient 
 /** RFC 8628 §3.5's grant type, which the token endpoint is asked under while a person approves the code. */
 private const val DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 
-/** How long a device code is good for when the issuer does not say: RFC 8628 leaves it to the issuer, and ten minutes is the common choice. */
-private const val DEVICE_CODE_LIFETIME_S = 600.0
-
-/** How long to wait between asks when the issuer does not say, and how much `slow_down` adds: RFC 8628 §3.5's five seconds. */
-private const val DEVICE_POLL_S = 5.0
-
 /**
  * An issuer, and the endpoints of it a client uses: where a person is sent to
  * sign in, where tokens are asked for, and, when the issuer has them, where a
@@ -234,12 +228,12 @@ internal suspend fun signInWithDeviceGrant(baseUrl: String, http: HttpClient, on
     val deviceCode = minted.text("device_code")
     val userCode = minted.text("user_code")
     val verificationUri = minted.text("verification_uri")
-    if (minted.status != 200 || deviceCode == null || userCode == null || verificationUri == null) {
+    val expiresIn = minted.seconds("expires_in")
+    if (minted.status != 200 || deviceCode == null || userCode == null || verificationUri == null || expiresIn == null) {
         throw SignInError(SignInErrorCode.Exchange, "The issuer refused the device authorization request (${minted.refusal()})", minted.status)
     }
-    val expiresIn = minted.seconds("expires_in") ?: DEVICE_CODE_LIFETIME_S
     onCode(DeviceCode(userCode, verificationUri, minted.text("verification_uri_complete"), expiresIn))
-    var interval = maxOf(minted.seconds("interval") ?: DEVICE_POLL_S, 1.0)
+    var interval = maxOf(minted.seconds("interval") ?: Timings.DEVICE_POLL_MS / 1000.0, Timings.DEVICE_POLL_FLOOR_MS / 1000.0)
     val deadline = System.nanoTime() + (expiresIn * 1e9).toLong()
     while (true) {
         delay((interval * 1000).toLong())
@@ -253,7 +247,7 @@ internal suspend fun signInWithDeviceGrant(baseUrl: String, http: HttpClient, on
         }
         when (answer.text("error")) {
             "authorization_pending" -> Unit
-            "slow_down" -> interval += DEVICE_POLL_S
+            "slow_down" -> interval += Timings.DEVICE_SLOW_DOWN_MS / 1000.0
             "access_denied" -> throw SignInError(SignInErrorCode.Denied, "The sign-in was denied at the issuer", answer.status)
             "expired_token" -> throw expired()
             else -> throw SignInError(SignInErrorCode.Exchange, "The issuer refused the token request (${answer.refusal()})", answer.status)

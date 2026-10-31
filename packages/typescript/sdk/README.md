@@ -175,7 +175,8 @@ per-method table and the `.run()` rule for progress-plus-result live in
 Directing attention is protocol-level coordination, not browser-app fluff. An agent calls
 `beckon.attention(resourceId, annotationId)` and every connected person's viewer scrolls to
 the passage; `beckon.sparkleAll` lights it up; `beckon.openResource` opens a resource on
-their screens. Each of these wire drives resolves with how many clients it reached.
+their screens. With no annotation, `beckon.attention(resourceId)` attends to the resource as a
+whole. Each of these wire drives resolves with how many clients it reached.
 
 The `void` signals (`beckon.hover`, `bind.initiate`, `mark.request`) are different: they stay
 on one client's own bus, where its interface coordinates itself.

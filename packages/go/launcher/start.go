@@ -138,7 +138,8 @@ Environment:
                         the admin on its first boot only, so the value must
                         outlive the stack). Console user: admin
   KEYCLOAK_PORT         The port of the Keycloak the launcher runs. Default
-                        8080; a start that sets it records it for this KB, so
+                        8080 on the KB's port block (8090 on block 1, and so
+                        on); a start that sets it records it for this KB, so
                         later starts keep it. A codespace KB's laptop sets it
                         over ssh when 8080 is taken there
 
@@ -317,6 +318,9 @@ func Start(args []string) int {
 	var plan *launchPlan
 	var kcPort int
 	var kcFromEnv bool
+	// The knowledge base's port block, which its first successful start
+	// keeps.
+	block, blockKept := portBlockOf(root)
 	if configNeeded {
 		if _, err := os.Stat(filepath.Join(root, stack.InferencePath(opts.configName))); err != nil {
 			u.Fail("Config not found: %s", stack.InferencePath(opts.configName))
@@ -337,7 +341,7 @@ func Start(args []string) int {
 		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
 			return 1
 		}
-		if plan, err = derivePlan(st, kcPort); err != nil {
+		if plan, err = derivePlan(st, kcPort, block); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
@@ -460,7 +464,7 @@ func Start(args []string) int {
 	var ownVars []string
 	if plan != nil && (opts.service == "" || (opts.service == "worker" && plan.runs("worker"))) {
 		ownVars = secretsRead(placement{st: st, plan: plan}, opts.service)
-		gatewayPort := exposure{rt: rt, lan: lan}.containersPort("gateway", plan.GatewayPort)
+		gatewayPort := exposure{rt: rt, lan: lan}.containersPort("gateway", plan.GatewayPort, plan.GatewayPort)
 		serving, err := planWorkerServing(ident.domain(), gatewayPort)
 		if err != nil {
 			u.Fail("%v", err)
@@ -593,6 +597,9 @@ func Start(args []string) int {
 		}
 		if kcFromEnv {
 			recordKeycloakPort(root, kcPort)
+		}
+		if plan != nil && !blockKept {
+			recordPortBlock(root, block)
 		}
 	}
 	return code
@@ -837,10 +844,10 @@ func superviseEnv() []string {
 // Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
 // service account at the issuer, and admits callers by verifying theirs (the
 // same fact the gateway's event read from it relies on).
-func archivistArgs(kbRoot, stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, e.publish("--publish", "archivist", 24103, 24103)...)
+	a = append(a, e.publish("--publish", "archivist", port, semiontDescriptor("archivist").ports[0].port)...)
 	a = append(a, "--volume", kbRoot+":"+kbMountTarget,
 		"--volume", stage+"/"+archivistDocumentFile+":"+archivistDocumentTarget+":ro")
 	a = append(a, state...)
@@ -867,11 +874,10 @@ func archivistArgs(kbRoot, stage string, e exposure, clientSecret, img, mem stri
 // own for a Neo4j it runs), which arrive among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name. No
 // JWT_SECRET: it signs nothing. Nothing dials it.
-func librarianArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
-	port := semiontDescriptor("librarian").ports[0].port
+func librarianArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, e.publish("--publish", "librarian", port, port)...)
+	a = append(a, e.publish("--publish", "librarian", port, semiontDescriptor("librarian").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+librarianDocumentFile+":"+librarianDocumentTarget+":ro")
 	a = append(a, state...)
 	a = append(a, userEnv...)
@@ -893,10 +899,10 @@ func librarianArgs(stage string, e exposure, clientSecret, img, mem string, user
 // passes to `--config`, so it is handed no *_HOST variables: the document
 // carries every address already. It keeps the issuer's host entry, because it
 // signs in at the issuer by name.
-func dispatcherArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
+func dispatcherArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, e.publish("--publish", "dispatcher", 24105, 24105)...)
+	a = append(a, e.publish("--publish", "dispatcher", port, semiontDescriptor("dispatcher").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+dispatcherDocumentFile+":"+dispatcherDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -946,11 +952,10 @@ func workerArgs(document string, e exposure, clientKey, img, mem string, userEnv
 // names the variable holding Voyage's key
 // (embeddingSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func smelterArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
-	port := semiontDescriptor("smelter").ports[0].port
+func smelterArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, e.publish("--publish", "smelter", port, port)...)
+	a = append(a, e.publish("--publish", "smelter", port, semiontDescriptor("smelter").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+smelterDocumentFile+":"+smelterDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -973,11 +978,10 @@ func smelterArgs(stage string, e exposure, clientSecret, img, mem string, userEn
 // holding the graph database's password (graphSecrets, and the launcher's
 // own for a Neo4j it runs), which arrives among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
-func weaverArgs(stage string, e exposure, clientSecret, img, mem string, userEnv, otel []string) []string {
-	port := semiontDescriptor("weaver").ports[0].port
+func weaverArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
 		"--memory", mem}
-	a = append(a, e.publish("--publish", "weaver", port, port)...)
+	a = append(a, e.publish("--publish", "weaver", port, semiontDescriptor("weaver").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+weaverDocumentFile+":"+weaverDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -1063,7 +1067,7 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 Semiont stack is up"), u.Dim("("+took(time.Since(t0))+")"))
 	fmt.Println()
 	fmt.Printf("  Semiont Browser    %s\n", u.Bold(browser.endpoint()))
-	fmt.Println("  Semiont KB         http://localhost:4000")
+	fmt.Printf("  Semiont KB         http://localhost:%d\n", plan.GatewayPort)
 	neo4jLogin := ""
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
 		// The password is the launcher's: say where it is kept, never print
@@ -1071,7 +1075,7 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 		store, _ := custodyFor(u, kb.key())
 		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
-	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)
+	fmt.Printf("  Neo4j Browser      http://localhost:%d   %s\n", plan.AuxPorts("graph")[0].port, neo4jLogin)
 	if store, ok := custodyFor(u, kb.key()); ok {
 		fmt.Printf("  Secrets            %s   %s\n", store.describe(), u.Dim("(semiont settings secret-store)"))
 	}

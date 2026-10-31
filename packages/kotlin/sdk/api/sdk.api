@@ -348,7 +348,7 @@ public final class semiont/cache/Cache : semiont/StateUnit {
 	public final fun keys ()Ljava/util/List;
 	public final fun known (Ljava/lang/Object;)Z
 	public final fun observe (Ljava/lang/Object;)Lsemiont/transport/Events;
-	public final fun remove (Ljava/lang/Object;Lsemiont/errors/SemiontError;)V
+	public final fun remove (Ljava/lang/Object;Ljava/lang/Exception;)V
 	public final fun set (Ljava/lang/Object;Ljava/lang/Object;)V
 }
 
@@ -362,12 +362,12 @@ public abstract interface class semiont/cache/CacheState {
 }
 
 public final class semiont/cache/CacheState$Failed : semiont/cache/CacheState {
-	public fun <init> (Lsemiont/errors/SemiontError;)V
-	public final fun component1 ()Lsemiont/errors/SemiontError;
-	public final fun copy (Lsemiont/errors/SemiontError;)Lsemiont/cache/CacheState$Failed;
-	public static synthetic fun copy$default (Lsemiont/cache/CacheState$Failed;Lsemiont/errors/SemiontError;ILjava/lang/Object;)Lsemiont/cache/CacheState$Failed;
+	public fun <init> (Ljava/lang/Exception;)V
+	public final fun component1 ()Ljava/lang/Exception;
+	public final fun copy (Ljava/lang/Exception;)Lsemiont/cache/CacheState$Failed;
+	public static synthetic fun copy$default (Lsemiont/cache/CacheState$Failed;Ljava/lang/Exception;ILjava/lang/Object;)Lsemiont/cache/CacheState$Failed;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getError ()Lsemiont/errors/SemiontError;
+	public final fun getError ()Ljava/lang/Exception;
 	public fun getStatus ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -934,15 +934,17 @@ public final class semiont/http/Timing {
 	public fun <init> (JJJLsemiont/retry/RetryPolicy;)V
 	public fun <init> (JJJLsemiont/retry/RetryPolicy;I)V
 	public fun <init> (JJJLsemiont/retry/RetryPolicy;IJ)V
-	public synthetic fun <init> (JJJLsemiont/retry/RetryPolicy;IJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (JJJLsemiont/retry/RetryPolicy;IJJ)V
+	public synthetic fun <init> (JJJLsemiont/retry/RetryPolicy;IJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()J
 	public final fun component2 ()J
 	public final fun component3 ()J
 	public final fun component4 ()Lsemiont/retry/RetryPolicy;
 	public final fun component5 ()I
 	public final fun component6 ()J
-	public final fun copy (JJJLsemiont/retry/RetryPolicy;IJ)Lsemiont/http/Timing;
-	public static synthetic fun copy$default (Lsemiont/http/Timing;JJJLsemiont/retry/RetryPolicy;IJILjava/lang/Object;)Lsemiont/http/Timing;
+	public final fun component7 ()J
+	public final fun copy (JJJLsemiont/retry/RetryPolicy;IJJ)Lsemiont/http/Timing;
+	public static synthetic fun copy$default (Lsemiont/http/Timing;JJJLsemiont/retry/RetryPolicy;IJJILjava/lang/Object;)Lsemiont/http/Timing;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getEmitRetry ()Lsemiont/retry/RetryPolicy;
 	public final fun getHttpRequestMs ()J
@@ -950,6 +952,7 @@ public final class semiont/http/Timing {
 	public final fun getLingerMs ()J
 	public final fun getReconnectMs ()J
 	public final fun getSeenEventIdsCount ()I
+	public final fun getStreamOpenMs ()J
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
@@ -1079,9 +1082,13 @@ public final class semiont/namespaces/AuthNamespace {
 }
 
 public final class semiont/namespaces/BeckonNamespace {
-	public final fun attention-rbRhPYE (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun attention-TX4fQuk (Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun attention-TX4fQuk$default (Lsemiont/namespaces/BeckonNamespace;Ljava/lang/String;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun attentionFuture (Lsemiont/identifiers/ResourceId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun attentionFuture (Lsemiont/identifiers/ResourceId;Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
-	public final fun attentionFuture-8pmxbt4 (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun attentionFuture--Xm7VB4 (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public final fun attentionFuture-zT0v48I (Ljava/lang/String;Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;
+	public static synthetic fun attentionFuture-zT0v48I$default (Lsemiont/namespaces/BeckonNamespace;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/concurrent/CompletableFuture;
 	public final fun click-iUDtbMI (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun clickFuture (Lsemiont/identifiers/AnnotationId;)Ljava/util/concurrent/CompletableFuture;
 	public final fun clickFuture-2VybQ2U (Ljava/lang/String;)Ljava/util/concurrent/CompletableFuture;

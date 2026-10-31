@@ -391,7 +391,7 @@ func Annotate(ctx context.Context, client *semiont.Client, resource api.Resource
 		}
 	}
 
-	reached, counted, err := client.Beckon.Attention(ctx, resource, annotation) // a drive: how many the gateway reached
+	reached, counted, err := client.Beckon.Attention(ctx, resource, &annotation) // a drive: how many the gateway reached
 	if err != nil {
 		return err
 	}

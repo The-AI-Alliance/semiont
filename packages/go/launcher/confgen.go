@@ -32,6 +32,7 @@ type genParams struct {
 	ModelLight        string // optional: emitted as a commented example only
 	EmbeddingModel    string // ollama-served embedding model
 	AnthropicEndpoint string // the baseURL the Inference document states
+	GatewayPort       int    // the gateway's port (freeGatewayPort)
 }
 
 // initChunking: the two numbers a text is cut by before it is embedded, in
@@ -85,7 +86,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	kb.ApiVersion, kb.Kind, kb.Metadata = meta("KnowledgeBase", initKnowledgeBase)
 	kb.Spec.LogLevel = api.LogLevelInfo
 	kb.Spec.Gateway.Image, kb.Spec.Gateway.Resources = service("gateway")
-	kb.Spec.Gateway.Port = semiontDescriptor("gateway").ports[0].port
+	kb.Spec.Gateway.Port = p.GatewayPort
 	kb.Spec.Gateway.PublicURL = fmt.Sprintf("http://localhost:%d", kb.Spec.Gateway.Port)
 	kb.Spec.Dispatcher.Image, kb.Spec.Dispatcher.Resources = service("dispatcher")
 	kb.Spec.Archivist.Image, kb.Spec.Archivist.Resources = service("archivist")
@@ -195,8 +196,8 @@ func writeVettedStack(u *UI, root string, files map[string][]byte) bool {
 	for _, name := range names {
 		st, err := stack.Load(vet, name)
 		if err == nil {
-			// Vetting only: any port proves the issuer is planned.
-			_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort)
+			// Vetting only: any port and block prove the issuer is planned.
+			_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort, 0)
 		}
 		if err != nil {
 			u.Fail("The documents did not pass the launcher's own reading — refusing to write them: %v", err)

@@ -281,7 +281,7 @@ func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
 		if reachOf(role, port)&reachContainers == 0 {
 			t.Errorf("the suite reaches %s at %d, which no container can dial under Apple container", role, port)
 		}
-		want[port] = appleContainer.containersPort(role, port)
+		want[port] = appleContainer.containersPort(role, port, port)
 	}
 	if !maps.Equal(got, want) {
 		t.Errorf("the e2e bridge forwards %v, want %v: each port to where a container dials it", got, want)

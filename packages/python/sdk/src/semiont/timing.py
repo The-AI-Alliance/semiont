@@ -18,6 +18,9 @@ __all__ = [
     "BUS_REQUEST_TIMEOUT_MS",
     "DEGRADED_THRESHOLD_MS",
     "DELEGATE_SILENCE_MS",
+    "DEVICE_POLL_FLOOR_MS",
+    "DEVICE_POLL_MS",
+    "DEVICE_SLOW_DOWN_MS",
     "DISCOVERY_INTERVAL_MS",
     "EMIT_RETRY",
     "EMIT_TIMEOUT_MS",
@@ -47,6 +50,7 @@ __all__ = [
     "SAVE_DEBOUNCE_MS",
     "SEARCH_DEBOUNCE_MS",
     "SEEN_EVENT_IDS_COUNT",
+    "STREAM_OPEN_TIMEOUT_MS",
     "TIMING_NAMES",
 ]
 
@@ -86,6 +90,16 @@ HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 # without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made
 # again.
 REQUEST_RETRY_PAUSE_MS: Final = 300
+
+# How long a client waits for the gateway to answer the request that opens its stream (POST
+# /bus/subscribe): for the answer's status and headers. Unanswered here, the open has failed,
+# and the stream is opened again on the backoff (`reconnectMs`), as after any open that failed.
+# Without it, a gateway that accepts the connection and says nothing is waited on for as long as
+# the process lives, and the stream is never opened again. The gateway answers an open as
+# promptly as one of its own operations, so this is as long as `httpRequestTimeoutMs`. Only the
+# answer is bounded: an open stream that carries nothing for a while has not failed, since a
+# knowledge base where nothing happens has nothing to send.
+STREAM_OPEN_TIMEOUT_MS: Final = 30000
 
 # The first wait before a failed stream is opened again. Each further failure doubles it, up to
 # `maxReconnectMs`, and a successful open resets it. Also the cadence at which a transport with
@@ -135,6 +149,24 @@ REFRESH_BEFORE_EXP_MS: Final = 300000
 # arrival is a closed loop; a floor makes that impossible, so even an issuer minting expired
 # tokens gets one attempt per interval. Waiting is cheap here: a 401 still drives a renewal.
 MIN_REFRESH_DELAY_MS: Final = 10000
+
+# How long a sign-in by the device grant (RFC 8628) waits before each time it asks the token
+# endpoint whether the person has approved the code, when the issuer's answer states no
+# `interval`. RFC 8628 §3.2 names five seconds: an issuer that wants a client to ask less often
+# says so.
+DEVICE_POLL_MS: Final = 5000
+
+# How much longer a sign-in by the device grant waits between its asks, for that ask and every
+# one after it, each time the issuer answers `slow_down`. RFC 8628 §3.5 names five seconds, so
+# an issuer that says it again is given more time again.
+DEVICE_SLOW_DOWN_MS: Final = 5000
+
+# The shortest a sign-in by the device grant ever waits between its asks of the token endpoint,
+# whatever `interval` the issuer states. An issuer that states zero, or a fraction of a second,
+# would otherwise be asked again at once for as long as the code lives; a floor makes that
+# impossible, as `minRefreshDelayMs` does for renewals. RFC 8628 sets no lower bound, and a
+# second is not long enough for a person who has approved the code to notice.
+DEVICE_POLL_FLOOR_MS: Final = 1000
 
 # How long bus-driven invalidations of one cache key fold together (CACHE-SEMANTICS B19). The
 # first runs at once; any more inside the window become one refetch at its end. Each refetch is
@@ -240,6 +272,7 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "emitRetry",
     "httpRequestTimeoutMs",
     "requestRetryPauseMs",
+    "streamOpenTimeoutMs",
     "reconnectMs",
     "maxReconnectMs",
     "degradedThresholdMs",
@@ -250,6 +283,9 @@ TIMING_NAMES: Final[tuple[str, ...]] = (
     "refreshRetry",
     "refreshBeforeExpMs",
     "minRefreshDelayMs",
+    "devicePollMs",
+    "deviceSlowDownMs",
+    "devicePollFloorMs",
     "invalidationWindowMs",
     "saveDebounceMs",
     "maxStoredBytesCount",

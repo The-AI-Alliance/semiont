@@ -24,7 +24,7 @@ use semiont::transport::{
 };
 use semiont::types::ResourceId;
 use semiont::types::{
-    BusEmitAccepted, BusEmitRequest, HealthResponse, LimitRefusal, LimitRefusalCode,
+    BusEmitAccepted, BusEmitRequest, ErrorResponse, HealthResponse, LimitRefusal, LimitRefusalCode,
     MediaTokenRequest, MediaTokenResponse, ProtectedResourceMetadata, StatusResponse, UserResponse,
 };
 use serde::Deserialize;
@@ -77,6 +77,9 @@ pub struct Timing {
     pub seen_event_ids: usize,
     /// The deadline on one request that is neither the stream nor an emit.
     pub http_request: Duration,
+    /// The deadline on the gateway's answer to the request that opens the
+    /// stream: its status and headers.
+    pub stream_open: Duration,
 }
 
 impl Default for Timing {
@@ -88,6 +91,7 @@ impl Default for Timing {
             emit_retry: timing::EMIT_RETRY,
             seen_event_ids: timing::SEEN_EVENT_IDS_COUNT,
             http_request: timing::HTTP_REQUEST_TIMEOUT,
+            stream_open: timing::STREAM_OPEN_TIMEOUT,
         }
     }
 }
@@ -326,11 +330,8 @@ impl Shared {
             let body = response.json::<Value>().await.ok();
             let message = body
                 .as_ref()
-                .and_then(|body| {
-                    ["message", "error"]
-                        .iter()
-                        .find_map(|key| body.get(*key).and_then(Value::as_str).map(str::to_owned))
-                })
+                .and_then(|body| ErrorResponse::deserialize(body).ok())
+                .map(|said| said.error)
                 .unwrap_or_else(|| {
                     // Worded as the TypeScript transport words it.
                     let reason = reqwest::StatusCode::from_u16(status)

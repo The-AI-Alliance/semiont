@@ -58,7 +58,7 @@ from semiont.operations import BROWSE_RESOURCE_REQUESTED, MARK_DELETE
 from semiont.session import HeldSignIn, MemorySignIn, SessionEndReason, SignInKept
 from semiont.sign_in_store import FILE_NAME, SignInStore
 from semiont.storage import MemoryStorage
-from semiont.timing import MIN_REFRESH_DELAY_MS
+from semiont.timing import DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, MIN_REFRESH_DELAY_MS
 from semiont.types import HttpEndpoint, KbTarget, LocalEndpoint
 from semiont.watched import Watched, reached
 
@@ -343,8 +343,8 @@ def test_the_device_grant_shows_the_code_and_asks_at_the_issuers_interval_until_
             await pass_time(2.1)
             await soon(gateway.arrived("POST", TOKEN, 2))
             await settle()
-            # Told to slow down, it leaves five seconds more between asks.
-            await pass_time(6.8)
+            # Told to slow down, it leaves `deviceSlowDownMs` more between asks.
+            await pass_time(2 + DEVICE_SLOW_DOWN_MS / 1000 - 0.2)
             await settle()
             assert polls() == 2
             await pass_time(0.3)
@@ -357,7 +357,9 @@ def test_the_device_grant_shows_the_code_and_asks_at_the_issuers_interval_until_
     run(scenario())
 
 
-def test_an_issuer_that_states_no_interval_is_asked_every_five_seconds_until_the_code_has_expired() -> None:
+def test_an_issuer_that_states_no_interval_is_asked_every_device_poll_until_the_code_has_expired() -> None:
+    poll = DEVICE_POLL_MS / 1000
+
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)
@@ -369,14 +371,37 @@ def test_an_issuer_that_states_no_interval_is_asked_every_five_seconds_until_the
             with pytest.raises(SignInError, match="expired before it was approved") as over:
                 await hurried(sign_in_with_device_grant(gateway.origin, lambda _: None))
             assert (over.value.code, over.value.status) == ("expired", None)
-            # One ask each five seconds of the half minute, and none once it is over.
-            assert 5 <= len(gateway.of("POST", TOKEN)) <= 6
-            assert 30 <= loop.time() - began < 36
+            # One ask each `devicePollMs` of the half minute, and none once it is over.
+            assert 30 / poll - 1 <= len(gateway.of("POST", TOKEN)) <= 30 / poll
+            assert 30 <= loop.time() - began < 30 + poll + 1
 
     run(scenario())
 
 
-def test_an_issuer_that_states_no_lifetime_mints_a_code_good_for_ten_minutes() -> None:
+def test_an_issuer_that_states_no_lifetime_has_answered_without_what_was_asked_for() -> None:
+    async def scenario() -> None:
+        async with GatewayServer() as gateway:
+            trusting(gateway)
+            # RFC 8628 §3.2 requires `expires_in`: a code whose lifetime nobody knows is shown to nobody.
+            gateway.scripted[("POST", DEVICE)] = [
+                says({"device_code": "the-device-code", "user_code": "WDJB-MJHT", "verification_uri": "https://issuer.example.org/device"})
+            ]
+            shown: list[DeviceCode] = []
+
+            with pytest.raises(SignInError) as refused:
+                await soon(sign_in_with_device_grant(gateway.origin, shown.append))
+            assert (refused.value.code, refused.value.status, refused.value.message) == (
+                "exchange",
+                200,
+                "The issuer refused the device authorization request (HTTP 200)",
+            )
+            assert shown == []
+            assert gateway.of("POST", TOKEN) == []
+
+    run(scenario())
+
+
+def test_an_issuer_that_states_no_link_with_the_code_shows_none() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             trusting(gateway)

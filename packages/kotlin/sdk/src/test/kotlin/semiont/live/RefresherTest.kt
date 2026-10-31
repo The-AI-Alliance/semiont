@@ -96,7 +96,7 @@ class RefresherTest {
                     if (CacheQuery.Annotation in row.writes) assertEquals(CacheState.Ready(written), one.next())
                     if (CacheQuery.Annotations in row.writes) assertEquals(CacheState.Ready(listOf(written)), listed.next())
                     if (CacheQuery.Annotation in row.removes) {
-                        assertEquals("bus.not-found", assertInstanceOf(CacheState.Failed::class.java, one.next()).error.code)
+                        assertEquals("bus.not-found", assertInstanceOf(BusRequestError::class.java, assertInstanceOf(CacheState.Failed::class.java, one.next()).error).code)
                     }
                     assertTrue(row.writes.all { it in setOf(CacheQuery.Annotation, CacheQuery.Annotations) })
                     assertTrue(row.removes.all { it == CacheQuery.Annotation })
@@ -322,8 +322,8 @@ class RefresherTest {
             // One nobody holds is nobody's to end.
             kb.deliver(event(CacheRefreshTrigger.MarkDeleteOk, of = ELSEWHERE))
             kb.deliver(event(CacheRefreshTrigger.MarkDeleteOk))
-            val failed = assertInstanceOf(CacheState.Failed::class.java, one.next())
-            assertEquals("bus.not-found" to "Annotation ${ANNOTATION.value} was removed", failed.error.code to failed.error.message)
+            val failed = assertInstanceOf(BusRequestError::class.java, assertInstanceOf(CacheState.Failed::class.java, one.next()).error)
+            assertEquals("bus.not-found" to "Annotation ${ANNOTATION.value} was removed", failed.code to failed.message)
             delay(SETTLE)
             assertEquals(asked, kb.askedFor("browse:annotation-requested").size)
 

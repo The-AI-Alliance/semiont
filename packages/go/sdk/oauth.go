@@ -30,15 +30,6 @@ import (
 
 const deviceGrant = "urn:ietf:params:oauth:grant-type:device_code"
 
-// The device grant's defaults, for an issuer that does not say: how long a
-// code is good for, and how often the token endpoint is asked, which is also
-// how much longer it is left between asks each time the issuer says to slow
-// down. RFC 8628 names five seconds.
-const (
-	deviceCodeLifetime = 600 * time.Second
-	devicePoll         = 5 * time.Second
-)
-
 // Issuer is how a client reaches the issuer a knowledge base trusts. The
 // SDK reads no environment: the HTTP client is the caller's.
 type Issuer struct {
@@ -302,21 +293,18 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 	deviceCode, hasDeviceCode := body.text("device_code")
 	userCode, hasUserCode := body.text("user_code")
 	verificationURI, hasVerificationURI := body.text("verification_uri")
-	if status != http.StatusOK || !hasDeviceCode || !hasUserCode || !hasVerificationURI {
+	expiresIn, hasExpiresIn := body.seconds("expires_in")
+	if status != http.StatusOK || !hasDeviceCode || !hasUserCode || !hasVerificationURI || !hasExpiresIn {
 		return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the device authorization request (%s)", body.refusal(status)), status)
-	}
-	expiresIn, ok := body.seconds("expires_in")
-	if !ok {
-		expiresIn = deviceCodeLifetime
 	}
 	complete, _ := body.text("verification_uri_complete")
 	onCode(DeviceCode{UserCode: userCode, VerificationURI: verificationURI, VerificationURIComplete: complete, ExpiresIn: expiresIn})
 
 	interval, ok := body.seconds("interval")
 	if !ok {
-		interval = devicePoll
+		interval = i.Timing.DevicePoll
 	}
-	interval = max(interval, time.Second)
+	interval = max(interval, i.Timing.DevicePollFloor)
 	deadline := time.Now().Add(expiresIn)
 	for {
 		if !pause(ctx, interval) {
@@ -344,7 +332,7 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 		switch failure, _ := answered.text("error"); failure {
 		case "authorization_pending":
 		case "slow_down":
-			interval += devicePoll
+			interval += i.Timing.DeviceSlowDown
 		case "access_denied":
 			return IssuedTokens{}, signInRefused(SignInErrorCodeDenied, "The sign-in was denied at the issuer", status)
 		case "expired_token":
