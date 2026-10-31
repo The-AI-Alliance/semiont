@@ -10,10 +10,23 @@ import { describe, test, expect } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
 import { EventBus } from '../event-bus';
 import { Bus, type BusPrimitive } from '../bus';
-import type { EventMap } from '../bus-protocol';
+import { resourceId, type ResourceId } from '../identifiers';
+import type { GatheredContext } from '../payload-types';
 
 const OP = 'gather:resource-requested' as const;
 const RESULT = 'gather:resource-complete' as const;
+
+/** The context a responder gathers for `rid`. */
+function contextFor(rid: ResourceId): GatheredContext {
+  return {
+    focus: {
+      kind: 'resource',
+      resource: { '@context': 'https://schema.org/', '@id': rid, name: 'A resource', representations: [] },
+    },
+    graph: { nodes: [], edges: [] },
+    metadata: {},
+  };
+}
 
 /** A responder that echoes the envelope, as a real handler must. */
 function respondingBus(): { bus: BusPrimitive; seen: Array<{ correlationId?: string; payload: unknown }> } {
@@ -25,7 +38,7 @@ function respondingBus(): { bus: BusPrimitive; seen: Array<{ correlationId?: str
     // The echo: the key comes off the envelope and goes back on one.
     eventBus.emit(
       RESULT,
-      { response: { answered: true } } as unknown as EventMap[typeof RESULT],
+      { resourceId: frame.payload.resourceId, response: contextFor(frame.payload.resourceId) },
       { correlationId: frame.correlationId },
     );
   });
@@ -59,15 +72,16 @@ describe('correlation rides the envelope', () => {
   test('a requester matches its reply without reading the payload', async () => {
     const { bus } = respondingBus();
 
-    // Two requests in flight at once: pairing can only come from the envelope,
-    // because neither payload carries anything to pair on.
+    // Two requests in flight at once, each answered with its own context:
+    // pairing can only come from the envelope, because the requester reads no
+    // payload to pair on.
     const [a, b] = await Promise.all([
       new Bus(bus).request(OP, { resourceId: 'res-a' }),
       new Bus(bus).request(OP, { resourceId: 'res-b' }),
     ]);
 
-    expect(a).toEqual({ answered: true });
-    expect(b).toEqual({ answered: true });
+    expect(a).toEqual(contextFor(resourceId('res-a')));
+    expect(b).toEqual(contextFor(resourceId('res-b')));
   });
 
   test('a reply whose envelope carries the WRONG key is not delivered to this requester', async () => {

@@ -11,12 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // Wire is the bus over a transport.
@@ -158,12 +160,16 @@ type Delivered[P any] struct {
 }
 
 // delivered is frame with its payload decoded as P. A payload that is not
-// P's is a *TransportError saying so; what a gateway stamps on a payload is
-// the bus's, and P does not read it unless P declares it.
+// P's, or lacks a member P's schema requires, is a *TransportError saying
+// so; what a gateway stamps on a payload is the bus's, and P does not read
+// it unless P declares it.
 func delivered[P any](frame Frame) (Delivered[P], error) {
 	var payload P
 	if err := json.Unmarshal(frame.Payload, &payload); err != nil {
 		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %v", frame.Channel, err), TransportErrorCodeError)
+	}
+	if lacks, ok := required.Lacking(frame.Payload, reflect.TypeFor[P]()); ok {
+		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: it has no `%s`", frame.Channel, lacks), TransportErrorCodeError)
 	}
 	var stamped struct {
 		UserID *string `json:"_userId"`

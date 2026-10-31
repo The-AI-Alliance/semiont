@@ -41,7 +41,7 @@ func TestBrowseJSONPrintsTheResponseInProcess(t *testing.T) {
 func TestBrowseSendsItsFilters(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.QueueReply("browse:resources-requested", json.RawMessage(`{"resources":[],"total":0}`))
+	fake.QueueReply("browse:resources-requested", json.RawMessage(`{"resources":[],"total":0,"offset":0,"limit":5}`))
 
 	harness.CaptureStdout(t, func() { Browse([]string{"--limit", "5", "--entity-type", "Contract"}) })
 	if len(fake.RequestLog()) != 1 {
@@ -73,7 +73,7 @@ func TestMatchSearchAsksTheResourceSearch(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
 	fake.QueueReply("match:resources-requested", json.RawMessage(`{"resources":[`+
-		`{"@id":"res-7","name":"Acme MSA","entityTypes":["Contract"]}],`+
+		`{"@context":"https://schema.org","@id":"res-7","name":"Acme MSA","entityTypes":["Contract"],"representations":[]}],`+
 		`"total":3,"offset":0,"limit":5,"matchKind":"lexical"}`))
 
 	out := harness.CaptureStdout(t, func() {
@@ -441,7 +441,10 @@ func TestMarkRefusalsInProcess(t *testing.T) {
 func TestGatherAnnotationUsesTheStreamingOperationInProcess(t *testing.T) {
 	fake, restore := withFake(t)
 	defer restore()
-	fake.QueueReply("gather:requested", json.RawMessage(`{"content":"ctx","resources":[]}`))
+	fake.QueueReply("gather:requested", json.RawMessage(`{"focus":{"kind":"annotation",`+
+		`"annotation":{"@context":"http://www.w3.org/ns/anno.jsonld","type":"Annotation","id":"ann-7","motivation":"highlighting","target":"res-1","created":"2026-10-06T00:00:00.000Z"},`+
+		`"sourceResource":{"@context":"https://schema.org","@id":"res-1","name":"A resource","representations":[]},"selected":{"text":"ctx"}},`+
+		`"graph":{"nodes":[],"edges":[]},"metadata":{}}`))
 
 	harness.CaptureStdout(t, func() {
 		if code := Gather([]string{"res-1", "ann-7"}); code != 0 {

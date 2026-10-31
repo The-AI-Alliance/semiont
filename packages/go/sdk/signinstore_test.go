@@ -15,9 +15,11 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -164,20 +166,87 @@ func TestKeepingASignInRefusesAFileItCannotRead(t *testing.T) {
 	}
 }
 
+// accessListOf is the user this process runs as, as an access list written
+// out names it (by its SID, or by an abbreviation: the built-in administrator
+// is LA), and the access list of path as Windows writes it out (SDDL), each as
+// PowerShell reads it. Windows PowerShell is given no PSModulePath: the one
+// PowerShell 7 sets, which a CI step's shell hands down, leads it to modules
+// it cannot load.
+func accessListOf(t *testing.T, path string) (user, list string) {
+	t.Helper()
+	script := "[Security.AccessControl.RawSecurityDescriptor]::new('O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value).GetSddlForm('Owner').Substring(2); " +
+		"(Get-Acl -LiteralPath '" + strings.ReplaceAll(path, "'", "''") + "').GetSecurityDescriptorSddlForm('Access')"
+	command := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	command.Env = slices.DeleteFunc(os.Environ(), func(variable string) bool {
+		name, _, _ := strings.Cut(variable, "=")
+		return strings.EqualFold(name, "PSModulePath")
+	})
+	out, err := command.Output()
+	if exited := (*exec.ExitError)(nil); errors.As(err, &exited) {
+		t.Fatalf("reading the access list of %s: %v: %s", path, err, exited.Stderr)
+	}
+	if err != nil {
+		t.Fatalf("reading the access list of %s: %v", path, err)
+	}
+	said := strings.Fields(string(out))
+	if len(said) != 2 {
+		t.Fatalf("PowerShell said %q", out)
+	}
+	return said[0], said[1]
+}
+
+// entriesOf is an access list's flags (D:PAI) and its entries, sorted.
+// PowerShell reads a list through .NET, which writes the entries a list sets
+// itself in an order of its own (by SID), and the order of entries that each
+// allow does not change what they allow.
+func entriesOf(list string) (flags string, entries []string) {
+	flags, _, _ = strings.Cut(list, "(")
+	for _, entry := range strings.SplitAfter(list[len(flags):], ")") {
+		if entry != "" {
+			entries = append(entries, entry)
+		}
+	}
+	slices.Sort(entries)
+	return flags, entries
+}
+
 // The file holds bearer credentials: its owner's alone, and no stray
-// temporary file beside it.
+// temporary file beside it. The directory is kept to its owner as the
+// launcher keeps its state home, and what is made in it inherits that: on
+// Windows the launcher's access list, the user, the system and the
+// administrators with full access and nobody else, handed down to the file
+// and its lock and inheriting nothing from above.
 func TestTheSignInStoreIsWrittenPrivately(t *testing.T) {
 	store := storeIn(t)
 	if err := store.Entry("local").Keep(context.Background(), heldFor(1)); err != nil {
 		t.Fatal(err)
 	}
-	if runtime.GOOS != "windows" {
-		info, err := os.Stat(store.Path())
-		if err != nil {
-			t.Fatal(err)
+	dir := filepath.Dir(store.Path())
+	if runtime.GOOS == "windows" {
+		user, list := accessListOf(t, dir)
+		ownerOnly := func(inherit string) []string {
+			entries := []string{"(A;" + inherit + ";FA;;;" + user + ")", "(A;" + inherit + ";FA;;;SY)", "(A;" + inherit + ";FA;;;BA)"}
+			slices.Sort(entries)
+			return entries
 		}
-		if mode := info.Mode().Perm(); mode&0o077 != 0 {
-			t.Errorf("tokens.json is open to others: %v", mode)
+		if flags, entries := entriesOf(list); (flags != "D:PAI" && flags != "D:P") || !slices.Equal(entries, ownerOnly("OICI")) {
+			t.Errorf("the state home's access list is %s, not its owner's (%s) alone", list, user)
+		}
+		for _, name := range []string{SignInFile, signInLock} {
+			_, list := accessListOf(t, filepath.Join(dir, name))
+			if flags, entries := entriesOf(list); (flags != "D:AI" && flags != "D:") || !slices.Equal(entries, ownerOnly("ID")) {
+				t.Errorf("%s's access list is %s, not the one its directory hands down to its owner (%s)", name, list, user)
+			}
+		}
+	} else {
+		for path, want := range map[string]os.FileMode{dir: 0o700, store.Path(): 0o600} {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode := info.Mode().Perm(); mode != want {
+				t.Errorf("%s is mode %v, want %v", path, mode, want)
+			}
 		}
 	}
 	entries, err := os.ReadDir(filepath.Dir(store.Path()))

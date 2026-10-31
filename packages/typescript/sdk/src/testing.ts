@@ -103,7 +103,10 @@ export function inMemoryContent(): IContentTransport {
       };
     },
     async getResourceGraph(rId: ResourceId): Promise<GetResourceResponse> {
-      return { resource: { '@id': String(rId) } } as unknown as GetResourceResponse;
+      return {
+        resource: { '@context': 'https://semiont.dev/context/v1', '@id': rId, name: String(rId), representations: [] },
+        annotations: [],
+      };
     },
     async getAnnotations(rId: ResourceId): Promise<GetAnnotationsResponse> {
       throw new Error(`inMemoryContent: no annotations for ${String(rId)}`);

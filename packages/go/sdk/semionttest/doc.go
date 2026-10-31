@@ -10,7 +10,7 @@
 // (StubGateway). A test scripts the doubles and observes through the client:
 //
 //	made := semionttest.NewTestClient(semionttest.TestClientConfig{Timing: semiont.DefaultTiming()})
-//	made.Transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(`{"resource":{…}}`))
+//	made.Transport.QueueReply(bus.BrowseResourceRequested.Request().Channel(), json.RawMessage(`{"resource":{…},"lastSequence":1}`))
 //	described, err := made.Client.Browse.Resource(resourceID).Fresh(ctx)
 //	// made.Transport.RequestLog()[0].Payload is what was sent
 //

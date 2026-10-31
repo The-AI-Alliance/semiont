@@ -10,6 +10,7 @@ import type { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { Bus } from '../bus';
 import { FaultyTransport } from '../faulty-transport';
+import { EventBus } from '../event-bus';
 import type { EventMap } from '../bus-protocol';
 import type { BusFrame, TraceCarrier } from '../event-bus';
 import { annotationId, jobId, resourceId, userId } from '../identifiers';
@@ -91,6 +92,57 @@ describe('Bus.frames: a channel of no scope', () => {
     // @ts-expect-error — mark:archived is delivered on its resource's scope, so a read of it names the resource
     expect(() => new Bus(transport).frames('mark:archived')).toThrow(TypeError);
     expect(held).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A payload that lacks a member its channel's schema requires is not that
+ * channel's: a typed read does not give it, and says so in a warning, as
+ * Python's and Kotlin's drop it (Rust's and Go's give it as their stream's
+ * error), in the words every SDK says it in. Nor does a transport's bridge
+ * publish it on the bus it feeds.
+ */
+describe('Bus.frames: a payload that is not its channel\'s', () => {
+  const failed: EventMap['job:fail'] = { resourceId: RID, jobId: jobId('job-1'), jobType: 'mark', error: 'the model did not answer' };
+
+  /** `failed` as a peer might send it, with no job id: what its type says it cannot be. */
+  function withNoJobId(): EventMap['job:fail'] {
+    const lacking = { ...failed };
+    Reflect.deleteProperty(lacking, 'jobId');
+    return lacking;
+  }
+
+  it('is not given, and is said so in a warning; the frames after it are', () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const transport = new FaultyTransport();
+      const { seen } = collect(new Bus(transport).frames('job:fail'));
+      void transport.emit('job:fail', withNoJobId());
+      void transport.emit('job:fail', failed);
+
+      expect(seen.map((frame) => frame.payload)).toEqual([failed]);
+      expect(warned.mock.calls).toEqual([["a payload on job:fail is not that channel's: it has no `jobId`"]]);
+    } finally {
+      warned.mockRestore();
+    }
+  });
+
+  it('is not published on the bus a transport bridges into', () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const transport = new FaultyTransport();
+      const bridged = new EventBus();
+      transport.bridgeInto(bridged);
+      const { seen } = collect(bridged.on('job:fail'));
+      void transport.emit('job:fail', withNoJobId());
+      void transport.emit('job:fail', failed);
+
+      expect(seen).toEqual([failed]);
+      expect(warned).toHaveBeenCalledWith("a payload on job:fail is not that channel's: it has no `jobId`");
+      bridged.destroy();
+    } finally {
+      warned.mockRestore();
+    }
   });
 });
 

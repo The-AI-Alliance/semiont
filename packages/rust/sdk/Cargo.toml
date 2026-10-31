@@ -34,6 +34,10 @@ tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 uuid = { workspace = true, features = ["v4"] }
 
+# The access list that keeps the sign-in store's file to its owner on Windows.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization"] }
+
 [dev-dependencies]
 base64.workspace = true
 # The claims tests read the trace a claim is made in, as a transport would.

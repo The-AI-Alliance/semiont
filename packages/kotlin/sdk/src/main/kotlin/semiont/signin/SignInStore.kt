@@ -53,7 +53,9 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
  * launcher's (specs/src/sign-in-store/README.md). Every change is a read, a
  * change and a write under the lock every writer takes, and the write is made
  * beside the file and renamed over it, so no reader sees half a document and
- * no credential is left in a stray file.
+ * no credential is left in a stray file. Under the lock, the file's directory
+ * is kept to its owner, as the launcher keeps its state home: mode `0700`, and
+ * on Windows the launcher's access list, which what is made in it inherits.
  */
 public class SignInStore(path: Path) {
     private val path: Path = path.toAbsolutePath().normalize()
@@ -78,9 +80,21 @@ public class SignInStore(path: Path) {
         turns.computeIfAbsent(lock) { ReentrantLock() }.withLock {
             if (Files.notExists(lock)) made(lock)
             StoreLock.hold(lock).use {
+                // Under the lock: setting the list hands it down to the file, and another writer renaming over the file at
+                // that moment would be refused.
+                ownerOnly(path.parent)
                 val document = read().toMutableMap()
                 if (change(document)) write(JsonObject(document))
             }
+        }
+    }
+
+    /** A directory kept to its owner, with everything made in it from then on, as the launcher keeps its state home. */
+    private fun ownerOnly(directory: Path) {
+        if (posix) {
+            Files.setPosixFilePermissions(directory, PosixFilePermissions.fromString("rwx------"))
+        } else if (thisPlatform() == Platform.WINDOWS) {
+            OwnerOnly.keep(directory)
         }
     }
 

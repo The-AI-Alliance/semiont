@@ -53,6 +53,42 @@ def document(path: Path) -> JsonObject:
     return read(path)
 
 
+def access_list_of(path: Path) -> tuple[str, str]:
+    """The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it.
+
+    The user is named as an access list written out names it: by its SID, or by
+    an abbreviation (the built-in administrator is `LA`). Windows PowerShell is
+    given no `PSModulePath`: the one PowerShell 7 sets, which a CI step's shell
+    hands down, leads it to modules it cannot load.
+    """
+    quoted = str(path).replace("'", "''")
+    script = (
+        "[Security.AccessControl.RawSecurityDescriptor]::new("
+        "'O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value"
+        ").GetSddlForm('Owner').Substring(2); "
+        f"(Get-Acl -LiteralPath '{quoted}').GetSecurityDescriptorSddlForm('Access')"
+    )
+    environment = {name: value for name, value in os.environ.items() if name.upper() != "PSMODULEPATH"}
+    said = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, env=environment
+    )
+    assert said.returncode == 0, f"PowerShell exited {said.returncode}: {said.stderr}"
+    words = said.stdout.split()
+    assert len(words) == 2, said
+    return words[0], words[1]
+
+
+def entries_of(listed: str) -> tuple[str, list[str]]:
+    """An access list's flags (`D:PAI`) and its entries, sorted.
+
+    PowerShell reads a list through .NET, which writes the entries a list sets
+    itself in an order of its own (by SID), and the order of entries that each
+    allow does not change what they allow.
+    """
+    flags = listed.split("(", 1)[0]
+    return flags, sorted(f"{entry})" for entry in listed[len(flags) :].split(")") if entry)
+
+
 def entry(path: Path, key: str) -> JsonObject:
     found = document(path)[key]
     assert isinstance(found, dict)
@@ -98,10 +134,29 @@ def test_a_sign_in_is_kept_as_the_launcher_keeps_one(tmp_path: Path) -> None:
         assert stated.endswith("Z"), stated
     assert set(kept) <= {field.alias or name for name, field in SignIn.model_fields.items()}
     assert run(store.entry("local").held()) == held(access)
-    # The file holds bearer credentials: it is its owner's alone, and so is its lock. Nothing else is left beside it.
+    # The file holds bearer credentials: it is its owner's alone, and so is its lock, in a directory kept to its owner
+    # as the launcher keeps its state home. Nothing else is left beside it.
     if os.name == "posix":
+        assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
         assert stat.S_IMODE((path.parent / "tokens.lock").stat().st_mode) == 0o600
+    else:
+        # The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
+        user, listed = access_list_of(path.parent)
+
+        def owner_only(inherit: str) -> list[str]:
+            return sorted(f"(A;{inherit};FA;;;{who})" for who in (user, "SY", "BA"))
+
+        flags, entries = entries_of(listed)
+        said = f"the state home's access list is {listed}, not its owner's ({user}) alone"
+        assert flags in {"D:PAI", "D:P"}, said
+        assert entries == owner_only("OICI"), said
+        for made in (path, path.parent / "tokens.lock"):
+            _, listed = access_list_of(made)
+            flags, entries = entries_of(listed)
+            said = f"{made}'s access list is {listed}, not the one its directory hands down to its owner ({user})"
+            assert flags in {"D:AI", "D:"}, said
+            assert entries == owner_only("ID"), said
     assert sorted(found.name for found in path.parent.iterdir()) == ["tokens.json", "tokens.lock"]
     assert path.read_bytes().endswith(b"}\n")
 
