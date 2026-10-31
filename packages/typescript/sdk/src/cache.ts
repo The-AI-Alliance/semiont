@@ -65,16 +65,13 @@ import {
  * B17 — optional persistence seam for a cache instance. `load` runs once at
  * construction (settled values only — B15 failure markers live outside the
  * store and are never serialized); `save` receives every store mutation,
- * debounced by the cache; `subscribe` is the cross-context sync hook (the
- * persister calls back when another tab/process wrote the same key).
+ * debounced by the cache.
  */
 export interface CachePersister<K, V> {
   /** Called once at cache construction. Returns initial entries, or null for none. */
   load(): Map<K, V> | null;
   /** Called on store mutations, debounced by the cache; flushed on dispose. */
   save(entries: Map<K, V>): void;
-  /** Optional cross-context sync; returns an unsubscribe function. */
-  subscribe?(onExternalChange: (entries: Map<K, V>) => void): () => void;
 }
 
 /**
@@ -224,7 +221,6 @@ export function createCache<K, V>(
    */
   const saveDebounceMs = options?.saveDebounceMs ?? SAVE_DEBOUNCE_MS;
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
-  let unsubscribeExternal: (() => void) | null = null;
   /**
    * Persistence is best-effort: a throwing save (localStorage quota, a
    * broken adapter) must never break the cache — and above all must never
@@ -239,32 +235,15 @@ export function createCache<K, V>(
         e instanceof Error ? e.message : e);
     }
   };
-  /**
-   * External changes are applied WITHOUT echoing a save back: the adapter
-   * re-stamps `writtenAt` on every save, so an echo is never byte-identical
-   * and would re-fire the other tab's storage event — an unbounded two-tab
-   * ping-pong at the debounce cadence. BehaviorSubject emission is
-   * synchronous, so the flag is set for exactly the external `next`.
-   */
-  let applyingExternal = false;
   if (persister) {
     store$.pipe(skip(1)).subscribe((entries) => {
-      if (disposed || applyingExternal) return;
+      if (disposed) return;
       if (saveTimer !== null) clearTimeout(saveTimer);
       saveTimer = setTimeout(() => {
         saveTimer = null;
         trySave(entries);
       }, saveDebounceMs);
     });
-    unsubscribeExternal = persister.subscribe?.((entries) => {
-      if (disposed) return;
-      applyingExternal = true;
-      try {
-        store$.next(new Map(entries));
-      } finally {
-        applyingExternal = false;
-      }
-    }) ?? null;
   }
 
   /**
@@ -502,7 +481,6 @@ export function createCache<K, V>(
         saveTimer = null;
         trySave(store$.value);
       }
-      unsubscribeExternal?.();
       rehydrated.clear(); // B18
       store$.complete();
       // Must complete alongside store$: the per-key observable combines the

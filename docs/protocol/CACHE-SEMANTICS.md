@@ -400,9 +400,6 @@ cache durable, per-KB rehydration:
    longest without a new value until it fits.
 5. **Version-gated.** A stored document whose version doesn't match (or
    that fails to parse) reads as empty — never an error into the cache.
-6. **Cross-context sync** rides the persister's `subscribe` (the
-   `SessionStorage.subscribe` seam): an external write replaces the store;
-   last writer wins.
 
 ### B18 — A restored-from-disk value is revalidated on first observation
 
