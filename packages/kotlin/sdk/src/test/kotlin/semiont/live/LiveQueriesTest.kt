@@ -242,10 +242,13 @@ class LiveQueriesTest {
         // What it knows is owed to storage until it has stopped changing.
         assertFalse(client.persistenceSettled)
         assertNull(kept("resource"))
+        // A save that has begun is owed no more: the client is settled while its last write has yet to land.
         eventually { client.persistenceSettled }
+        assertNull(kept("annotation-detail"))
+        late.letGo()
+        eventually { kept("annotation-detail") != null }
         // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed, and nothing is written.
         val written = storage.get("semiont.cache.kb.annotation-detail")
-        late.letGo()
         world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
         delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
         assertTrue(client.persistenceSettled)
