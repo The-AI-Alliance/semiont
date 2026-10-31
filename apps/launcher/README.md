@@ -93,25 +93,34 @@ semiont stop
 - `semiont start --help` lists all flags (`--config`, `--runtime`,
   `--no-observe`, `--ollama-cache`, …).
 - **The Browser is not a stack member**: it is the machine-level viewer of
-  every KB, local and codespace, discovery-synced.
+  every KB, local and codespace, discovery-synced. **Its document says how it
+  runs**: `stack/browser.yaml` in the state home, kind `Browser`
+  (`specs/src/stack/Browser.json`), naming its image, its memory and the port
+  it is published on, read with the reader a KB's documents are. The first
+  command that needs it and finds none writes it from the launcher's catalog
+  (`semiont-browser:latest`, 1G, port 3000) and says where; from then on the
+  file is what runs, and one that does not hold refuses the start, with its
+  line, before anything is stopped or started.
   ANY start ensures it — including a codespace start, when a local container
-  runtime exists — and none churns it: a running Browser is KEPT when its
-  image matches what the start would run (image identity, not tag order),
-  restarted when stale. `semiont stop` stops it with the stack, from its own
+  runtime exists — and none churns it: a running Browser is KEPT when it runs
+  the image the start would (image identity, not tag order) and its record
+  says it was started with its document's port and memory; it is restarted
+  otherwise, and when no record names it. `semiont stop` stops it with the stack, from its own
   record and under its own runtime; `semiont stop --service browser` stops it
   alone, and `semiont stop --repo` leaves it. Its record
   lives beside the stacks (machine-level, with its runtime and image), its
   port is never among a stack's claims, and `status` opens with a BROWSER
   section — first because it sits architecturally above everything it views
   — showing its image tag so browser-vs-stack version skew is visible.
-- `semiont start --service browser --port <n>` moves the Browser — the ONE
-  port a flag may move — and is also the explicit refresh (it always
-  restarts, bypassing keep-if-current). A non-3000 port warns that anything
-  holding `http://localhost:3000` literally will not follow it.
+- `semiont start --service browser` is the explicit refresh: it always
+  restarts the Browser, bypassing keep-if-current. Its port moves with an
+  edit of its document; the realm's origin for the new port is added by
+  `semiont identity sync`, which the preflight names when it is missing.
 - **`semiont settings` lists every setting the launcher keeps**, with its
   value and where the value came from: the container `runtime`, where your
-  own secrets come from (`secret`), the Browser's image (`browser-image`),
-  who reaches a local stack (`network`: `local`, or `lan`, where the network
+  own secrets come from (`secret`), the Browser's document (`browser`: its
+  path, image, memory and port, changed by editing it; `semiont settings
+  browser --path` prints the path alone, for a script), who reaches a local stack (`network`: `local`, or `lan`, where the network
   reaches the gateway and the issuer's realm through the launcher's own
   filtering proxy, `semiont issuer-proxy`, a recorded detached process), and
   the default store for new KBs (`secret-store --default`) on this machine;
@@ -510,8 +519,8 @@ semiont stop
   document names, and `semiont init` names `:latest`. An image tagged
   `:local`, built on this machine by `scripts/ci/local-build.sh`, is never
   pulled; a KB runs one by naming it. The Browser, being the machine's, runs
-  `ghcr.io/the-ai-alliance/semiont-browser:latest` unless `semiont settings
-  browser-image <image>` names another.
+  the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest`
+  as the launcher writes it.
 
 ### Login and upload
 
@@ -725,10 +734,11 @@ reports that nobody is watching. Starting one is never implicit — a read verb'
 flag does not get to bring a container up as a side effect.
 
 The launcher names an **origin** and never a path. `http://localhost:3000` is
-its own fact — it publishes that port and records the endpoint — while
-`/know/resource/<id>` belongs to the Browser, and mirroring a route here would
-break silently the day the route moves. `--browser-url` overrides the recorded
-origin (precedence: flag → record → `http://localhost:3000`).
+its own fact — it publishes the port the Browser's document names and records
+the endpoint — while `/know/resource/<id>` belongs to the Browser, and
+mirroring a route here would break silently the day the route moves.
+`--browser-url` overrides the recorded origin (precedence: flag → record; with
+neither, nothing is probed).
 
 ### Watching a KB
 
@@ -889,7 +899,7 @@ XDG directories on Linux, and each other system's own equivalent:
 
 | What | macOS | Linux | Windows |
 |---|---|---|---|
-| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the machine's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/` | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
+| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the machine's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's document (`stack/browser.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
 | **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
 | **Log**: `launcher.log` | `~/Library/Logs/semiont` | the state home | `logs\` in the state home |
 | **Staging**: the configs a running stack mounts | `/tmp/semiont-config.*` | `/tmp/semiont-config.*` | `%TEMP%\semiont-config.*` |

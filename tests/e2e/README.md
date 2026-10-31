@@ -221,11 +221,11 @@ that exactly matches the current branch's source:
 # 2. From the KB project (typically ../semiont-template-kb), bring up
 #    the full stack from the :local images just built: name them in
 #    .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
-#    and so on), and the Browser's in the machine's settings. The
+#    and so on), and the Browser's in its own document. The
 #    --config anthropic flag avoids host-Ollama networking issues (see
 #    "Gotchas" below).
 cd ../semiont-template-kb
-semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
+perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(semiont settings browser --path)"
 ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
   semiont start --config anthropic
 echo password | semiont useradd --email admin@example.com

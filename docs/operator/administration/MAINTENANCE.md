@@ -38,7 +38,7 @@ semiont stop
 semiont start      # pulls the images the documents name
 ```
 
-The documents in `.semiont/stack/` name each service's image. With the `:latest` tags `semiont init` writes, every start pulls the current release. To run a version you name, write that tag into each Semiont `image` in the documents, and into the Browser's with `semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:<version>` ([Configuration](CONFIGURATION.md#images)).
+The documents in `.semiont/stack/` name each service's image. With the `:latest` tags `semiont init` writes, every start pulls the current release. To run a version you name, write that tag into each Semiont `image` in the documents, and into the Browser's own document, `spec.image` in the file `semiont settings browser --path` names ([Configuration](CONFIGURATION.md#the-browser)).
 
 Upgrade the launcher as well (`brew upgrade semiont`): the launcher and the images share one version.
 

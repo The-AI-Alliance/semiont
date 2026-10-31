@@ -17,7 +17,7 @@ All eight are published to `ghcr.io/the-ai-alliance/`, for `linux/amd64` and `li
 | [worker](../../../images/worker/README.md) | `semiont-worker` | 24100 | Python, `images/worker` | The worker pool: claims annotation and generation jobs and runs them against a model |
 | [smelter](../../../images/smelter/README.md) | `semiont-smelter` | 24101 | Python, `images/smelter` | Keeps the vector index in step with the record, and derives a PDF's anchored text |
 | [weaver](../../../images/weaver/README.md) | `semiont-weaver` | 24102 | Python, `images/weaver` | Keeps the graph in step with the record |
-| [browser](../../../images/browser/README.md) | `semiont-browser` | 3000 | `images/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
+| [browser](../../../images/browser/README.md) | `semiont-browser` | 3000, or the port its document names ([The Browser](../administration/CONFIGURATION.md#the-browser)) | `images/browser` | Serves the Semiont Browser's static files. The app itself runs in the user's web browser and connects to gateways from there |
 
 ## What each service needs
 

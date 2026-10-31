@@ -20,14 +20,17 @@ The Browser is the viewer of every KB rather than a member of any one stack: the
 host-installed launcher ensures it on every start, and `semiont stop` stops it with the stack:
 
 ```bash
-semiont start                       # from a KB directory; ensures the Browser on :3000
+semiont start                       # from a KB directory; ensures the Browser its document describes
 semiont stop                        # the stack and the Browser
 semiont stop --service browser      # the Browser alone
 ```
 
-The Browser runs `ghcr.io/the-ai-alliance/semiont-browser:latest`. Pin a version with
-`semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:<version>`, and return to
-`latest` with `semiont settings browser-image --unset`. See [apps/launcher](../../../apps/launcher/README.md) and
+The Browser runs what its document says: `stack/browser.yaml` in the launcher's state home,
+which the first start writes with `ghcr.io/the-ai-alliance/semiont-browser:latest`, 1G and port
+3000. Pin a version by writing it into the document's `spec.image`; `semiont settings browser`
+shows the document, and `semiont settings browser --path` prints where it is. See
+[Configuration](../../../docs/operator/administration/CONFIGURATION.md#the-browser),
+[apps/launcher](../../../apps/launcher/README.md) and
 [administration/DEPLOYMENT.md](../../../docs/operator/administration/DEPLOYMENT.md).
 
 ## Local development

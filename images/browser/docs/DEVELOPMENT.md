@@ -32,8 +32,8 @@ Open <http://localhost:3000>, add the knowledge base in the Knowledge Bases pane
 **The dev server must take the Browser's own port.** Sign-in is a cross-origin exchange with the
 knowledge base's identity provider, which accepts it only from the origin it was told the
 Browser is at, port included. That is why the stack's Browser is stopped first rather than left
-running beside the dev server. A stack whose Browser was moved with
-`semiont start --service browser --port <n>` expects that port instead.
+running beside the dev server. A Browser whose document names another port
+(`spec.port`) is expected there instead.
 
 **The dev server lists no running stacks.** The "found on this machine" list comes from
 `/discovery/*`, which only `server.js` serves, from a directory the launcher mounts into the
@@ -43,9 +43,9 @@ container. Under Vite, add the knowledge base by hand.
 
 When a change needs to be exercised as the image, or it touches a package a service runs,
 rebuild with [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and name the
-`:local` image: `semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local`
-for the Browser, and `:local` in the knowledge base's `.semiont/stack/` documents for the
-services. An image still named `:latest` is the published one, and your change is not in it.
+`:local` image: `ghcr.io/the-ai-alliance/semiont-browser:local` as `spec.image` in the
+Browser's document (`semiont settings browser --path` prints where it is), and `:local` in the
+knowledge base's `.semiont/stack/` documents for the services. An image still named `:latest` is the published one, and your change is not in it.
 [Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md) has the loop.
 
 ## Scripts

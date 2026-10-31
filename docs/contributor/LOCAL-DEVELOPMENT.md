@@ -15,9 +15,9 @@ Local development is built around **[`scripts/ci/local-build.sh`](../../scripts/
 
 # 2. In the knowledge base: run the stack on what you built. Name the :local
 #    images in .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
-#    and so on for each service), and the Browser's in the machine's settings
+#    and so on for each service), and the Browser's in its own document
 cd /path/to/your-kb
-/path/to/semiont/apps/launcher/dist/semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local
+perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(/path/to/semiont/apps/launcher/dist/semiont settings browser --path)"
 /path/to/semiont/apps/launcher/dist/semiont start
 /path/to/semiont/apps/launcher/dist/semiont useradd --email you@example.com
 
@@ -41,7 +41,7 @@ The Python packages' distributions are published nowhere: Verdaccio holds npm pa
 
 Two things make the stack use your build:
 
-- **The `:local` images, named.** A knowledge base's documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. Write `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` of a Semiont service there, and set the Browser's, which is the machine's, with `semiont settings browser-image ghcr.io/the-ai-alliance/semiont-browser:local`; `semiont settings browser-image --unset` returns it to the published one. A document still naming `:latest` runs the published image, and your change is not in it.
+- **The `:local` images, named.** A knowledge base's documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. Write `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` of a Semiont service there, and the Browser's, which is the machine's, as `spec.image` in its own document, the file `semiont settings browser --path` prints; `:latest` there returns it to the published one. A document still naming `:latest` runs the published image, and your change is not in it.
 - **The launcher you just built**, not one installed with Homebrew. The launcher and the images are released together, so a launcher from an earlier release may not match images built from your tree.
 
 ### Rebuilding one thing

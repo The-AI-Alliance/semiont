@@ -76,7 +76,7 @@ semiont identity sync   # adds missing clients, reconciles roles, redirects, web
 semiont start
 ```
 
-A realm that does not list the Browser's origin refuses the token exchange from it: sign-in fails as `error=Verification` *after* a redirect that worked, because the Browser completes its exchange from its own origin and the realm returns no `Access-Control-Allow-Origin`. The preflight names this, and the same `sync` repairs it. Moving the Browser with `--port` needs a `sync` too, because web origins carry the port.
+A realm that does not list the Browser's origin refuses the token exchange from it: sign-in fails as `error=Verification` *after* a redirect that worked, because the Browser completes its exchange from its own origin and the realm returns no `Access-Control-Allow-Origin`. The preflight names this, and the same `sync` repairs it. Moving the Browser to another port in its document needs a `sync` too, because web origins carry the port ([The Browser](CONFIGURATION.md#the-browser)).
 
 Needs the bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one persisted for this root). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
 
@@ -157,7 +157,7 @@ semiont stop                    # Sweeps every installed runtime
 semiont stop --runtime docker   # Only if you mean exactly that one
 ```
 
-`--port` moves the Browser's port only (with `--service browser`), and `semiont settings keycloak-port` moves Keycloak's.
+The Browser's port is its document's (`spec.port`, [The Browser](CONFIGURATION.md#the-browser)), and `semiont settings keycloak-port` moves Keycloak's.
 
 ### Graph or vectors unavailable
 

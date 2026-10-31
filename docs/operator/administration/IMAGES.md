@@ -8,7 +8,7 @@ Eight images are published to GitHub Container Registry, as `ghcr.io/the-ai-alli
 
 `semiont-gateway`, `semiont-dispatcher`, `semiont-archivist`, `semiont-librarian`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` and `semiont-browser`.
 
-**Configuration is given at run time, never built in.** No image contains anything about a knowledge base, so one verified image serves every knowledge base, and a knowledge base's repository builds no image of its own. The launcher runs the image a knowledge base's documents name for each service, `ghcr.io/the-ai-alliance/semiont-<service>:latest` as `semiont init` writes them, and mounts each service's configuration into it. The Browser is the machine's: it runs `ghcr.io/the-ai-alliance/semiont-browser:latest` unless `semiont settings browser-image` names another ([Configuration](CONFIGURATION.md#images)).
+**Configuration is given at run time, never built in.** No image contains anything about a knowledge base, so one verified image serves every knowledge base, and a knowledge base's repository builds no image of its own. The launcher runs the image a knowledge base's documents name for each service, `ghcr.io/the-ai-alliance/semiont-<service>:latest` as `semiont init` writes them, and mounts each service's configuration into it. The Browser is the machine's: it runs the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest` as the launcher writes it ([Configuration](CONFIGURATION.md#the-browser)).
 
 ---
 
@@ -69,7 +69,7 @@ Every image carries the same version, the one in [`version.json`](../../../versi
 
 - **The version**, such as `<version>` for a release or `<version>-build.<n>` for a development build.
 - **The commit**: `sha-<commit>`, the short SHA the image was built from.
-- **`latest`**, moved to a release when it is promoted. It is what `semiont init` names in a new knowledge base's documents, and what the Browser runs unless `semiont settings browser-image` names another.
+- **`latest`**, moved to a release when it is promoted. It is what `semiont init` names in a new knowledge base's documents, and what the launcher names in the Browser's.
 
 A tag can be moved; a digest cannot. To pin exactly what you verified, reference the image by digest.
 
