@@ -1,8 +1,7 @@
 package semiont
 
 // A stream's place in each scope, kept with what the caches keep: never ahead
-// of them. Python's test of a write that fails is not here: a Go
-// SessionStorage's Set cannot fail.
+// of them.
 
 import (
 	"context"
@@ -53,7 +52,9 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	if _, ok := caches.Get(keptCacheKey); ok {
 		t.Fatal("a cache reads what nobody wrote")
 	}
-	caches.Delete(keptCacheKey)
+	if err := caches.Delete(keptCacheKey); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := storage.Get(keptPlacesKey); ok {
 		t.Fatal("forgetting what a cache kept wrote a place")
 	}
@@ -81,7 +82,9 @@ func TestAPlaceIsWrittenWithTheNextWriteOfACacheAndNotBefore(t *testing.T) {
 	if got, want := kept.Load(), placesOf(t, map[string]string{"res-9": "p-1"}); !maps.Equal(got, want) {
 		t.Fatalf("places kept %v, want %v", got, want)
 	}
-	caches.Delete(keptCacheKey)
+	if err := caches.Delete(keptCacheKey); err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := storage.Get(keptCacheKey); ok {
 		t.Fatal("forgetting what a cache kept left it in the storage beneath")
 	}

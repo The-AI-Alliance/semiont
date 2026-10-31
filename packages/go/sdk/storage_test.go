@@ -97,8 +97,11 @@ func TestStorageInMemoryHoldsTextByKey(t *testing.T) {
 	if b, _ := storage.Get("b"); b != "two" {
 		t.Fatalf("b is %q, want two", b)
 	}
-	storage.Delete("a")
-	storage.Delete("never there")
+	for _, key := range []string{"a", "never there"} {
+		if err := storage.Delete(key); err != nil {
+			t.Fatalf("deleting %s: %v", key, err)
+		}
+	}
 	if _, ok := storage.Get("a"); ok {
 		t.Fatal("a deleted key is still held")
 	}

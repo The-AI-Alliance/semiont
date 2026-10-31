@@ -124,7 +124,7 @@ func (c carrying) Set(key, value string) error {
 	return c.places.flush()
 }
 
-func (c carrying) Delete(key string) { c.places.storage.Delete(key) }
+func (c carrying) Delete(key string) error { return c.places.storage.Delete(key) }
 
 func (c carrying) Update(key string, change func(stored string, has bool) (string, bool)) error {
 	if err := c.places.storage.Update(key, change); err != nil {

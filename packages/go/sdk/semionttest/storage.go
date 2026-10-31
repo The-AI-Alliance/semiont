@@ -78,11 +78,12 @@ func (s *SharedStorage) Set(key, value string) error {
 	return nil
 }
 
-func (s *SharedStorage) Delete(key string) {
+func (s *SharedStorage) Delete(key string) error {
 	s.shared.mu.Lock()
 	delete(s.shared.stored, key)
 	s.shared.mu.Unlock()
 	s.tell(key, "", false)
+	return nil
 }
 
 func (s *SharedStorage) Update(key string, change func(stored string, has bool) (string, bool)) error {
