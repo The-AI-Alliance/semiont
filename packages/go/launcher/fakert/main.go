@@ -52,6 +52,7 @@ import (
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -712,6 +713,74 @@ func writeRemoteKB(w io.Writer, withGit bool) error {
 // A bare `--env NAME` is copied from this process's own environment, as both
 // real runtimes do, and absent when that is unset: the argv log alone cannot
 // show a value that crossed through the runtime's environment.
+// recordRealm keeps the realm document a Keycloak container imports at boot
+// (`-v <file>:/opt/keycloak/data/import/<realm>.json`), by the container's
+// name, as the realm it then serves. A Keycloak imports it once and answers
+// from its database thereafter, so the copy outlives the staged file.
+func recordRealm(name string, args []string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" || name == "" {
+		return
+	}
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] != "-v" && args[i] != "--volume" {
+			continue
+		}
+		src, _, imports := strings.Cut(args[i+1], ":/opt/keycloak/data/import/")
+		if !imports {
+			continue
+		}
+		b, err := os.ReadFile(src)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "fakert run: the realm %s imports cannot be read: %v\n", name, err)
+			os.Exit(125)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "realm-"+name+".json"), b, 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "fakert run: keeping the realm %s imports: %v\n", name, err)
+			os.Exit(125)
+		}
+	}
+}
+
+// realmAudiences: the audiences the realm container imported gives client's
+// tokens, one per audience mapper on it, and whether the realm holds the
+// client at all.
+func realmAudiences(container, client string) ([]string, bool, error) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return nil, false, errors.New("no FAKERT_DIR holds the realm this issuer serves")
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "realm-"+container+".json"))
+	if err != nil {
+		return nil, false, fmt.Errorf("%s imported no realm: %v", container, err)
+	}
+	var realm struct {
+		Clients []struct {
+			ClientID string `json:"clientId"`
+			Mappers  []struct {
+				Mapper string            `json:"protocolMapper"`
+				Config map[string]string `json:"config"`
+			} `json:"protocolMappers"`
+		} `json:"clients"`
+	}
+	if err := json.Unmarshal(b, &realm); err != nil {
+		return nil, false, fmt.Errorf("the realm %s imported: %v", container, err)
+	}
+	for _, c := range realm.Clients {
+		if c.ClientID != client {
+			continue
+		}
+		var auds []string
+		for _, m := range c.Mappers {
+			if m.Mapper == "oidc-audience-mapper" {
+				auds = append(auds, m.Config["included.custom.audience"])
+			}
+		}
+		return auds, true, nil
+	}
+	return nil, false, nil
+}
+
 func recordContainerEnv(name string, args []string) {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" || name == "" {
@@ -1344,6 +1413,7 @@ func run(args []string) {
 		os.Exit(64)
 	}
 	recordContainerEnv(name, args)
+	recordRealm(name, args)
 	// A start held mid-flight: this container's run parks until the test
 	// releases it, so a second start can be begun while the first is busy.
 	holdIfNamed(name)
@@ -2388,22 +2458,22 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						// in the array form a real Keycloak emits, "account"
 						// included.
 						//
-						// The audience comes from kb-resource.txt in
-						// FAKERT_DIR, written by the test beside the KB
-						// fixture it derives from, so the expected value is
-						// stated once on that side rather than restated here.
+						// The audience is the one the realm this issuer
+						// imported gives the client, as a Keycloak's is: two
+						// issuers of two knowledge bases each stamp their own.
 						client := grantingClient(r.PostForm)
 						if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 							_ = os.WriteFile(filepath.Join(dir, "client-credentials.txt"),
 								[]byte(client+"\n"), 0o644)
 						}
-						aud := origin
-						if dir := os.Getenv("FAKERT_DIR"); dir != "" {
-							if b, err := os.ReadFile(filepath.Join(dir, "kb-resource.txt")); err == nil {
-								if s := strings.TrimSpace(string(b)); s != "" {
-									aud = s
-								}
-							}
+						auds, known, err := realmAudiences(container, client)
+						if err != nil {
+							http.Error(w, "fakert: "+err.Error(), http.StatusInternalServerError)
+							return
+						}
+						if !known {
+							jsonOut(401, map[string]any{"error": "invalid_client"})
+							return
 						}
 						// Every service client carries the service role; the worker
 						// client ALSO carries the worker role, mirroring the realm's
@@ -2419,7 +2489,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						jsonOut(200, map[string]any{
 							"access_token": unsignedJWT(map[string]any{
 								"roles":   roles,
-								"aud":     []string{aud, "account"},
+								"aud":     append(auds, "account"),
 								"azp":     client,
 								kindClaim: agentKind,
 							}),

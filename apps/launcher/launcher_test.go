@@ -41,8 +41,6 @@ import (
 	"testing"
 	"time"
 
-	"go.yaml.in/yaml/v3"
-
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -206,14 +204,6 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 		t.Fatal(err)
 	}
 	s.log = filepath.Join(s.fakertDir, "argv.log")
-	// The audience fakert's issuer stamps into service-account tokens, so the
-	// start's identity preflight sees what a real realm would emit. Derived
-	// from the SAME committed fixture the launcher reads, so the two cannot
-	// drift into disagreeing about this knowledge base's identity.
-	if err := os.WriteFile(filepath.Join(s.fakertDir, "kb-resource.txt"),
-		[]byte(kbFixtureResource(t)), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() { s.killServes(t) })
 	return s
 }
@@ -251,26 +241,22 @@ func (s *scenario) stageRe() *regexp.Regexp {
 	return regexp.MustCompile(regexp.QuoteMeta(filepath.Join(s.stagingParent(), "semiont-config.")) + `[A-Za-z0-9]+`)
 }
 
-// kbFixtureResource: the resource identifier the KB fixture's committed
-// site.domain yields (semiont.KbResource).
-func kbFixtureResource(t *testing.T) string {
+// withDomain makes root another knowledge base: its project file names domain
+// as its site, so its DID, its stores and its realm's audience are its own.
+func withDomain(t *testing.T, root, domain string) {
 	t.Helper()
-	b, err := os.ReadFile(libraryTestdata("kb", ".semiont", "config.yaml"))
+	path := filepath.Join(root, ".semiont", "config.yaml")
+	b, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var project struct {
-		Site struct {
-			Domain string `yaml:"domain"`
-		} `yaml:"site"`
+	site := regexp.MustCompile(`(?m)^  domain: .*$`)
+	if !site.Match(b) {
+		t.Fatalf("%s names no site.domain to replace:\n%s", path, b)
 	}
-	if err := yaml.Unmarshal(b, &project); err != nil {
+	if err := os.WriteFile(path, site.ReplaceAll(b, []byte("  domain: "+domain)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if project.Site.Domain == "" {
-		t.Fatalf("no site.domain in the KB fixture — the preflight's audience cannot be derived")
-	}
-	return semiont.KbResource(project.Site.Domain)
 }
 
 // remoteProjectFile: a codespace's .semiont/config.yaml declaring domain, as
@@ -2015,6 +2001,47 @@ func stateRootFor(home, key string) string {
 
 // testKBKey: the slug of the test KB's did:web (packages/go/launcher/testdata/kb/.semiont/config.yaml).
 const testKBKey = "example.github.io-test-kb"
+
+// Two knowledge bases of distinct DIDs, started one after the other on one
+// machine: each start signs its services in at its own realm, which gives
+// their tokens its own knowledge base as audience, and each keeps its stores
+// under its own DID. Running them at once is the step that names and ports
+// each knowledge base's own services.
+func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
+	s := newScenario(t, "container")
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the first knowledge base's start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// The identity preflight asks each service's token for this knowledge
+	// base's audience, so this start passes only if its realm gave its own.
+	s.kb = other
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the second knowledge base's start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	realm, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-semiont-keycloak.json"))
+	if err != nil {
+		t.Fatalf("the realm the second start's issuer imported: %v", err)
+	}
+	mustContain(t, "the second start's realm", string(realm), semiont.KbResource("example.github.io:other-kb"))
+	if strings.Contains(string(realm), semiont.KbResource("example.github.io:test-kb")) {
+		t.Errorf("the second knowledge base's realm names the first's audience:\n%s", realm)
+	}
+
+	for _, key := range []string{testKBKey, "example.github.io-other-kb"} {
+		if _, err := os.Stat(stateRootFor(s.home, key)); err != nil {
+			t.Errorf("no stores of their own for %s: %v", key, err)
+		}
+	}
+	roots, _, _ := s.run(t, "roots")
+	mustContain(t, "roots", roots, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
+}
 
 func TestStatePersistsAcrossStarts(t *testing.T) {
 	s := newScenario(t, "container")
