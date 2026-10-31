@@ -78,7 +78,8 @@ whole.
 
 Every writer takes the lock: the Go SDK (`packages/go/sdk`, `SignInStore`),
 through which the launcher keeps its sign-ins, the Rust SDK
-(`semiont::sign_in_store`) and the Python SDK (`semiont.sign_in_store`). On
+(`semiont::sign_in_store`), the Python SDK (`semiont.sign_in_store`) and the
+Kotlin SDK (`semiont.signin.SignInStore`). On
 Windows the lock is on one byte of the lock file, far past anything the file
 holds (`OffsetHigh: 0x40000000`), and a writer that locks the whole file
 holds that byte too. Each generates its entry from `SignIn.json`.

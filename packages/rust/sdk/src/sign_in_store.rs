@@ -389,10 +389,13 @@ impl SignInStore {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let _turn = locked(&self.turn);
         let changed = (|| -> io::Result<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
-            if let Some(directory) = self.path.parent() {
-                fs::create_dir_all(directory)?;
-                owner_only(directory)?;
-            }
+            // A path with no directory part is in the current one, as Go and Python read it.
+            let directory = match self.path.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent,
+                _ => Path::new("."),
+            };
+            fs::create_dir_all(directory)?;
+            owner_only(directory)?;
             let lock = File::create(self.path.with_extension("lock"))?;
             lock.lock()?;
             let mut document = self.read()?;
