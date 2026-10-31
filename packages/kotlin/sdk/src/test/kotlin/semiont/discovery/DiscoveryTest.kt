@@ -25,6 +25,7 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.http.CallersHttp
 import semiont.http.httpDiscovery
 import semiont.types.DiscoveredKB
 import semiont.types.wireJson
@@ -354,6 +355,15 @@ class DiscoveryTest {
             assertEquals(List(5) { null }, launcher.tags.toList())
         }
         assertEquals(DiscoveryAbsentReason.Unreadable, (httpDiscovery("http://127.0.0.1:9$PATH").read() as Absent).reason)
+    }
+
+    @Test
+    fun aReaderGivenItsCallersClientReadsTheDocumentWithIt() = runBlocking {
+        Launcher(served(document(entry("localhost", 4000, A)))).use { launcher ->
+            val http = CallersHttp()
+            assertEquals(Managed(listOf(kb(entry("localhost", 4000, A)))), httpDiscovery(launcher.url, http).read())
+            assertEquals(listOf(PATH), http.made.toList())
+        }
     }
 
     @Test

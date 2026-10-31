@@ -157,11 +157,12 @@ class ServiceToken:
     It is kept until it is due for renewal by the schedule every Semiont
     client keeps: half its lifetime before it expires, at most
     `REFRESH_BEFORE_EXP_MS`. A service reaches another as itself with this
-    token.
+    token. Its issuer is asked with `http`, when one is given (`issuer_client`).
     """
 
-    def __init__(self, credential: Credential) -> None:
+    def __init__(self, credential: Credential, *, http: httpx.AsyncClient | None = None) -> None:
         self._credential: Final = credential
+        self._http: Final = http
         self._token_endpoint: str | None = None
         self._held: tuple[str, float] | None = None
         """The token, and until when it is used, by the loop's clock."""
@@ -202,7 +203,7 @@ class ServiceToken:
             if not renewed and self._held is not None and loop.time() < self._held[1]:
                 return self._held[0]
             issuer, client_id = self._credential.issuer, self._credential.client_id
-            async with issuer_client() as http:
+            async with issuer_client(self._http) as http:
                 endpoint = await self._endpoint(http)
                 try:
                     status, answer = await post_form(http, endpoint, _proof(self._credential, endpoint))
@@ -248,12 +249,14 @@ class AgentToken:
     signed in until the way out.
 
     A transport is given `token` as its token and `refresh` as its refresher.
-    Signed in, it says who the agent is (`did`).
+    Signed in, it says who the agent is (`did`). The gateway is asked who it
+    is with `http`, when one is given (`issuer_client`).
     """
 
-    def __init__(self, gateway: str, *, service: ServiceToken) -> None:
+    def __init__(self, gateway: str, *, service: ServiceToken, http: httpx.AsyncClient | None = None) -> None:
         self._gateway: Final = gateway.rstrip("/")
         self._service: Final = service
+        self._http: Final = http
         self._token: Final[Variable[str | None]] = Variable(None)
         self._did: UserId | None = None
         self._closing: Final = asyncio.Event()
@@ -330,7 +333,7 @@ class AgentToken:
         """The DID the gateway names the bearer of `token` by: `GET /api/users/me`."""
         url = f"{self._gateway}/api/users/me"
         try:
-            async with issuer_client() as http, _within():
+            async with issuer_client(self._http) as http, _within():
                 response = await http.get(url, headers={"Authorization": f"Bearer {token}"})
         except (TimeoutError, httpx.HTTPError) as error:
             raise TransportError.without_response(f"{url} got no answer: {why_unanswered(error)}") from None

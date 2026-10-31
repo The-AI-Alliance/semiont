@@ -74,8 +74,10 @@ public data class Timing @JvmOverloads constructor(
  * the gateway refuses it. The stream opens once there is a token and
  * something to carry: a channel it names on no scope, or a resource's scope. With
  * `bookmarks`, each scope's stream begins where they say the client's last
- * life left it; with none, at the present. Its HTTP client keeps the JDK's
- * default proxy selector and trust store.
+ * life left it; with none, at the present. Every request, its stream's among
+ * them, is made with `http`, and trusts what that client trusts; given none,
+ * it makes its own, which keeps the JDK's default proxy selector and trust
+ * store.
  */
 public class HttpTransport @JvmOverloads constructor(
     baseUrl: String,

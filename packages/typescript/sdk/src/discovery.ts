@@ -155,9 +155,9 @@ export function textDiscovery(read: () => Promise<string | null>): DiscoveryTran
  * comes back as `unchanged`, short-circuiting the diff pass), and
  * content-type-checks so the SPA fallback's index.html-at-200 — what a
  * frontend image without the discovery mount serves — reads as absent, not
- * as junk.
+ * as junk. Each read is sent with `fetch`, or the runtime's own.
  */
-export function httpDiscovery(url: string = DISCOVERY_URL_PATH): DiscoveryTransport {
+export function httpDiscovery(url: string = DISCOVERY_URL_PATH, fetch?: typeof globalThis.fetch): DiscoveryTransport {
   let etag: string | null = null;
   return {
     async read(): Promise<DiscoveryReadResult> {
@@ -165,7 +165,7 @@ export function httpDiscovery(url: string = DISCOVERY_URL_PATH): DiscoveryTransp
       try {
         // With a deadline: a read that is never answered would hold the
         // poll that awaits it, and every poll after it, for good.
-        response = await fetch(url, {
+        response = await (fetch ?? globalThis.fetch)(url, {
           ...(etag !== null ? { headers: { 'If-None-Match': etag } } : {}),
           signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
         });

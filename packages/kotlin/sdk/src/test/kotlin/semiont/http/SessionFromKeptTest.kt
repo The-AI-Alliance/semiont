@@ -1,5 +1,6 @@
 package semiont.http
 
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
@@ -47,6 +49,25 @@ class SessionFromKeptTest {
                 assertEquals(listOf("refresh-1"), realm.of("/token").map { it.form["refresh_token"] })
                 assertEquals(renewed, kept.held()?.access)
             }
+        }
+    }
+
+    @Test
+    fun aSessionGivenItsCallersClientAsksTheGatewayAndTheIssuerWithIt() = runBlocking {
+        Realm().use { realm ->
+            val renewed = tokenFor("access-2")
+            realm.script("/api/users/me", Said(401, refused), Said(200, alice))
+            realm.script("/token", issued(renewed, "refresh-2"))
+            val kept = MemorySignIn(HeldSignIn(tokenFor("access-1"), "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", null))
+            val http = CallersHttp()
+            sessionFromKept(kb(realm), kept, http = http).use { opened ->
+                assertEquals(renewed, opened.session.token.value)
+                withTimeout(5_000) {
+                    while (realm.of("/bus/subscribe").isEmpty()) delay(5)
+                }
+            }
+            assertTrue(http.made.containsAll(listOf("/api/users/me", "/token", "/bus/subscribe")), "${http.made}")
+            realm.askedOnlyThrough(http)
         }
     }
 

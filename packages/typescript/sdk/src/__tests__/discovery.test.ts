@@ -118,6 +118,19 @@ describe('httpDiscovery', () => {
     expect(secondHeaders.get('If-None-Match')).toBe('"v1"');
   });
 
+  it('reads through the fetch it is given, and not the runtime\'s', async () => {
+    const runtimes = vi.fn(async () => new Response('nope', { status: 404 }));
+    vi.stubGlobal('fetch', runtimes);
+    const given = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(doc([KB_A]), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+
+    expect(await httpDiscovery(DISCOVERY_URL_PATH, given).read()).toEqual({ kind: 'managed', kbs: [KB_A] });
+
+    expect(given.mock.calls.map(([input]) => input)).toEqual([DISCOVERY_URL_PATH]);
+    expect(runtimes).not.toHaveBeenCalled();
+  });
+
   it('index.html at 200 → absent(not-found) — the SPA fallback of an image without the discovery mount', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('<!doctype html><html></html>', {
       status: 200, headers: { 'Content-Type': 'text/html' },

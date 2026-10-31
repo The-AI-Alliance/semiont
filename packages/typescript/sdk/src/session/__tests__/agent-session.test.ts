@@ -169,6 +169,27 @@ describe('startAgentSession', () => {
     expect(gateway, 'the account is who it was: its DID is not asked again').toHaveBeenCalledTimes(1);
   });
 
+  it('signs in and renews through the fetch it is given, and nothing through the runtime\'s', async () => {
+    // The runtime's fetch is refused as an issuer would refuse a request it cannot read: not retried.
+    const runtimes = vi.fn(async () => new Response(null, { status: 400 }));
+    vi.stubGlobal('fetch', runtimes);
+    const given = vi.fn(routed);
+    const first = tokenExpiringIn(60 * 60 * 1000, 'first');
+    const second = tokenExpiringIn(2 * 60 * 60 * 1000, 'second');
+    grant.mockReturnValueOnce(granted(first, 60 * 60 * 1000)).mockReturnValueOnce(granted(second, 2 * 60 * 60 * 1000));
+
+    session = await startAgentSession({ baseUrl: 'http://gateway.test', credential, logger: makeLogger(), fetch: given });
+    await expect(session.refresh()).resolves.toBe(second);
+
+    expect(given.mock.calls.map(([input]) => new URL(String(input instanceof Request ? input.url : input)).pathname)).toEqual([
+      '/realms/kb/.well-known/openid-configuration',
+      '/token',
+      '/api/users/me',
+      '/token',
+    ]);
+    expect(runtimes).not.toHaveBeenCalled();
+  });
+
   // The schedule is `refreshDelayMs`, shared with `SemiontSession`. The margin
   // is a fraction of the token's OWN lifetime — a fixed margin as long as a
   // token's whole lifetime fires the refresh at zero delay, in a loop — so

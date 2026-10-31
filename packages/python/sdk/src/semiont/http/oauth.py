@@ -33,6 +33,7 @@ import hashlib
 import secrets
 import time
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass
 from typing import Annotated, Final, final
 from urllib.parse import parse_qs, urlsplit
@@ -124,9 +125,14 @@ class DeviceCode:
     """How long the code is good for, in seconds."""
 
 
-def issuer_client() -> httpx.AsyncClient:
-    """An HTTP client for requests of an issuer. It reads no environment variable, as a transport's reads none."""
-    return httpx.AsyncClient(timeout=None, trust_env=False)
+def issuer_client(http: httpx.AsyncClient | None = None) -> AbstractAsyncContextManager[httpx.AsyncClient]:
+    """The HTTP client requests of an issuer are made with, held with `async with`.
+
+    It is `http`, which its caller built and closes, and which is left open.
+    With none, it is one of the package's own, closed on the way out, which
+    reads no environment variable, as a transport's own reads none.
+    """
+    return httpx.AsyncClient(timeout=None, trust_env=False) if http is None else nullcontext(http)
 
 
 def _within() -> asyncio.Timeout:
@@ -159,10 +165,13 @@ def _no_issuer() -> SignInError:
     return SignInError("no-issuer", "The knowledge base trusts no external issuer")
 
 
-async def discover_issuer(base_url: str) -> IssuerEndpoints:
-    """Ask the knowledge base at `base_url` which issuer it trusts, and the issuer where its endpoints are."""
+async def discover_issuer(base_url: str, *, http: httpx.AsyncClient | None = None) -> IssuerEndpoints:
+    """Ask the knowledge base at `base_url` which issuer it trusts, and the issuer where its endpoints are.
+
+    Both are asked with `http`, when one is given (`issuer_client`).
+    """
     # Its resource metadata is public: asked with no token, by a transport that opens no stream.
-    asking = HttpTransport(base_url, token=Variable[str | None](None), channels=())
+    asking = HttpTransport(base_url, token=Variable[str | None](None), channels=(), http=http)
     try:
         metadata = await asking.get_protected_resource_metadata()
     except TransportError as error:
@@ -179,8 +188,8 @@ async def discover_issuer(base_url: str) -> IssuerEndpoints:
 
     url = f"{issuer.rstrip('/')}/.well-known/openid-configuration"
     try:
-        async with issuer_client() as http, _within():
-            response = await http.get(url, headers={"Accept": "application/json"})
+        async with issuer_client(http) as client, _within():
+            response = await client.get(url, headers={"Accept": "application/json"})
     except (TimeoutError, httpx.HTTPError) as error:
         raise SignInError("discovery", f"Issuer {issuer}: discovery was not answered: {why_unanswered(error)}") from None
     status = response.status_code
@@ -252,8 +261,8 @@ async def refresh_at_issuer(http: httpx.AsyncClient, token_endpoint: str, client
     return IssuedTokens(access=access, refresh=text_in(answer, "refresh_token") or refresh_token)
 
 
-async def renew_kept(kept: SignInKept, holding: str | None) -> str | None:
-    """Renew a kept sign-in at its issuer, and keep what it rotated.
+async def renew_kept(kept: SignInKept, holding: str | None, *, http: httpx.AsyncClient | None = None) -> str | None:
+    """Renew a kept sign-in at its issuer, with `http` when one is given (`issuer_client`), and keep what it rotated.
 
     The new access token; nothing when no sign-in is kept, which is an absence
     and not a failure. `holding` is the token its holder has: the one the
@@ -276,12 +285,12 @@ async def renew_kept(kept: SignInKept, holding: str | None) -> str | None:
     if held.access != holding and not is_token_expired(held.access, now=time.time()):
         return held.access
     attempts = 0
-    async with issuer_client() as http:
+    async with issuer_client(http) as client:
 
         async def attempt() -> IssuedTokens:
             nonlocal attempts
             attempts += 1
-            return await refresh_at_issuer(http, held.token_endpoint, held.client_id, held.refresh)
+            return await refresh_at_issuer(client, held.token_endpoint, held.client_id, held.refresh)
 
         try:
             tokens = await retry_with_backoff(
@@ -358,11 +367,12 @@ def _random_url_safe(size: int) -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(size)).rstrip(b"=").decode()
 
 
-async def begin_authorization(options: BeginAuthorizationOptions, pending: SessionStorage) -> str:
+async def begin_authorization(options: BeginAuthorizationOptions, pending: SessionStorage, *, http: httpx.AsyncClient | None = None) -> str:
     """Begin the authorization-code grant.
 
-    It finds the issuer the target trusts, remembers the pending sign-in in
-    `pending`, and gives the URL to send the person to.
+    It finds the issuer the target trusts, with `http` when one is given
+    (`issuer_client`), remembers the pending sign-in in `pending`, and gives
+    the URL to send the person to.
 
     Raises `SignInError` (`discovery`) for a target whose host is no host's
     name, and as `discover_issuer` does.
@@ -371,7 +381,7 @@ async def begin_authorization(options: BeginAuthorizationOptions, pending: Sessi
         base_url = gateway_url(options.target)
     except ValueError as invalid:
         raise SignInError("discovery", str(invalid)) from None
-    issuer = await discover_issuer(base_url)
+    issuer = await discover_issuer(base_url, http=http)
     record = PendingAuthorization(
         state=_random_url_safe(24),
         verifier=_random_url_safe(48),
@@ -415,9 +425,12 @@ def _taken(pending: SessionStorage) -> PendingAuthorization | None:
         return None
 
 
-async def complete_authorization(callback_url: str, pending: SessionStorage) -> tuple[PendingAuthorization, IssuedTokens]:
+async def complete_authorization(
+    callback_url: str, pending: SessionStorage, *, http: httpx.AsyncClient | None = None
+) -> tuple[PendingAuthorization, IssuedTokens]:
     """Finish the authorization-code grant from the URL the issuer sent the person back to.
 
+    The code is exchanged with `http`, when one is given (`issuer_client`).
     The pending sign-in is taken before anything else happens: a code is good
     once, and a callback that is replayed finds nothing to complete. Raises
     `SignInError`: `no-pending` when no sign-in is pending here, `denied` when
@@ -445,9 +458,9 @@ async def complete_authorization(callback_url: str, pending: SessionStorage) -> 
     if "code" not in said:
         raise SignInError("exchange", "The sign-in response carries no authorization code")
 
-    async with issuer_client() as http:
+    async with issuer_client(http) as client:
         status, answer = await post_form(
-            http,
+            client,
             record.issuer.token,
             [
                 ("grant_type", "authorization_code"),
@@ -473,23 +486,25 @@ def _expired() -> SignInError:
     return SignInError("expired", "The code expired before it was approved")
 
 
-async def sign_in_with_device_grant(base_url: str, on_code: Callable[[DeviceCode], None]) -> tuple[IssuerEndpoints, IssuedTokens]:
+async def sign_in_with_device_grant(
+    base_url: str, on_code: Callable[[DeviceCode], None], *, http: httpx.AsyncClient | None = None
+) -> tuple[IssuerEndpoints, IssuedTokens]:
     """Sign in as a person from a process with no browser.
 
     The issuer the knowledge base at `base_url` trusts mints a code, `on_code`
     shows the person where to approve it, and the token endpoint is asked at
-    the issuer's interval until the tokens arrive. Cancelling it abandons the
-    sign-in.
+    the issuer's interval until the tokens arrive. Each is asked with `http`,
+    when one is given (`issuer_client`). Cancelling it abandons the sign-in.
     """
-    issuer = await discover_issuer(base_url)
+    issuer = await discover_issuer(base_url, http=http)
     if issuer.device is None:
         raise SignInError(
             "discovery",
             f"Issuer {issuer.issuer} offers no device authorization endpoint: "
             f"the device grant needs one enabled for client {SCRIPT_CLIENT_ID}",
         )
-    async with issuer_client() as http:
-        status, body = await post_form(http, issuer.device, [("client_id", SCRIPT_CLIENT_ID), ("scope", SIGN_IN_SCOPE)])
+    async with issuer_client(http) as client:
+        status, body = await post_form(client, issuer.device, [("client_id", SCRIPT_CLIENT_ID), ("scope", SIGN_IN_SCOPE)])
         device_code, user_code, verification_uri = (
             text_in(body, "device_code"),
             text_in(body, "user_code"),
@@ -518,7 +533,7 @@ async def sign_in_with_device_grant(base_url: str, on_code: Callable[[DeviceCode
             if loop.time() > deadline:
                 raise _expired()
             status, answer = await post_form(
-                http, issuer.token, [("grant_type", _DEVICE_GRANT), ("device_code", device_code), ("client_id", SCRIPT_CLIENT_ID)]
+                client, issuer.token, [("grant_type", _DEVICE_GRANT), ("device_code", device_code), ("client_id", SCRIPT_CLIENT_ID)]
             )
             access = text_in(answer, "access_token")
             if status == 200 and access is not None:

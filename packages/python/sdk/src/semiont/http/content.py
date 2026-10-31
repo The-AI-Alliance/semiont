@@ -170,9 +170,14 @@ def _content_type(response: httpx.Response) -> str:
     return stated or "application/octet-stream"
 
 
+def _ended_early(resource_id: ResourceId) -> str:
+    """What a read whose bytes stopped coming got no answer to."""
+    return f"GET {_path_of(resource_id)} ended before its bytes did"
+
+
 def _interrupted(resource_id: ResourceId, error: httpx.HTTPError) -> TransportError:
     """A read whose bytes stopped coming."""
-    return TransportError.without_response(f"GET {_path_of(resource_id)} ended before its bytes did: {why_unanswered(error)}")
+    return TransportError.without_response(f"{_ended_early(resource_id)}: {why_unanswered(error)}")
 
 
 @final
@@ -215,7 +220,8 @@ class HttpContentTransport(ContentTransport):
             # The deadline is on the bytes beginning to arrive: how long they take after that is how many there are.
             response = await self._exchange.begin("GET", _path_of(resource_id))
             try:
-                data = await response.aread()
+                async with self._exchange.on_wire(_ended_early(resource_id)):
+                    data = await response.aread()
             except httpx.HTTPError as error:
                 raise self._exchange.failed(_interrupted(resource_id, error)) from None
             finally:
@@ -232,7 +238,11 @@ class HttpContentTransport(ContentTransport):
     async def _arriving(self, resource_id: ResourceId, response: httpx.Response) -> AsyncGenerator[bytes]:
         pieces: AsyncIterator[bytes] = response.aiter_bytes()
         try:
-            async for piece in pieces:
+            while True:
+                async with self._exchange.on_wire(_ended_early(resource_id)):
+                    piece = await anext(pieces, None)
+                if piece is None:
+                    return
                 yield piece
         except httpx.HTTPError as error:
             raise self._exchange.failed(_interrupted(resource_id, error)) from None

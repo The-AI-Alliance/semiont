@@ -66,6 +66,17 @@ gives an `OpenedSession` too.
 `SemiontClient.fromHttp({ baseUrl, token })` takes a bare token and never renews it, which suits
 a one-shot script that finishes inside one token's life.
 
+Every request these make, of the gateway and of the issuer, is sent with the `fetch` they are
+given, or with the runtime's own when they are given none. `signInDevice`, `fromIssuedSession`,
+`fromHttp`, `startAgentSession` and `SemiontBrowser` take it in their options as `fetch`;
+`createHttpSessionFactory` and `httpDiscovery` take it as their last argument. The certificates a
+request trusts, and the proxy it goes through, are that fetch's: the SDK reads no setting of its
+own for either. In Node, a gateway whose certificate another authority signed is reached with
+undici's `fetch` sent through an `Agent` that trusts that authority; in a browser page, the
+browser decides.
+[`@semiont/http-transport`](https://github.com/The-AI-Alliance/semiont/tree/main/packages/typescript/http-transport#the-fetch-it-sends-with)
+says which requests that covers.
+
 ## Eight verbs
 
 Every operation belongs to one of eight flows: verbs for what a participant

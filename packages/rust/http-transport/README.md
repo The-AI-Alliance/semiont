@@ -35,8 +35,12 @@ function is documented on
 ### TLS
 
 The crate sends with a `reqwest::Client` the application gives it, the `http`
-of every example below. It turns on none of `reqwest`'s TLS features itself:
-which TLS library carries the connection is the application's choice. An
+of every example below: the transport's stream, its emits, the gateway's own
+operations and content, the issuer's requests, a person's sign-in, an
+agent's, and the discovery reader all take it. The certificates trusted and
+the proxy are that client's, as its builder set them (`add_root_certificate`,
+`proxy`). It turns on none of `reqwest`'s TLS features itself: which TLS
+library carries the connection is the application's choice. An
 application that reaches a gateway over `https` adds `reqwest` at the version
 this crate is built with, 0.13, with a TLS feature. Semiont's own services
 use rustls with the `ring` provider:

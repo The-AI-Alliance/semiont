@@ -102,6 +102,29 @@ describe('a session over HTTP, starting on a stored credential', () => {
     session.client.dispose();
   });
 
+  it('makes every request of a session with the fetch the factory is given, and none with the runtime\'s', async () => {
+    const given = globalThis.fetch;
+    const runtimes = vi.fn(async () => new Response(null, { status: 404 }));
+    vi.stubGlobal('fetch', runtimes);
+    const storage = new TestStorage();
+    const stored = jwt(1);
+    seedStoredSession(storage, KB.id, stored, 'r');
+
+    const session = createHttpSessionFactory(given)({ kb: KB, storage, signals: createSessionSignals(), onError: () => {} });
+    await session.ready;
+    await settled(50);
+
+    // Who the token is, and the session's stream.
+    expect(asked.who).toEqual([stored]);
+    expect(asked.streams).toEqual([stored]);
+    // And its renewal at the issuer.
+    await session.refresh();
+    expect(asked.renewals).toBe(1);
+    expect(runtimes).not.toHaveBeenCalled();
+    session.dispose();
+    session.client.dispose();
+  });
+
   it('asks a gateway that refuses what its issuer issues twice, and then leaves it alone', async () => {
     // Time is stepped, so that "left alone" covers many of the waits a
     // stream with no usable credential makes between its checks for one.

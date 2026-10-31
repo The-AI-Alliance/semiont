@@ -18,6 +18,7 @@ import semiont.identity.kbDid
 import semiont.telemetry.futureOf
 import semiont.types.HttpEndpoint
 import semiont.types.KbDescription
+import java.net.http.HttpClient
 import java.util.concurrent.CompletableFuture
 
 /** Who the knowledge base at an address says it is: its did, and how it describes itself. */
@@ -27,18 +28,18 @@ public data class ConnectionIdentity @JvmExposeBoxed constructor(@get:JvmExposeB
  * Ask the knowledge base at `target` what it is, with a token just issued. It
  * describes itself only to a caller that is signed in, so this is asked after
  * the sign-in, and never assumed from the address a person typed or the row
- * they clicked. Throws `IdentityUnverifiableError`: `unreachable` when the
- * knowledge base was not reached, `not-reported` when it answered that it
- * cannot say what it is.
+ * they clicked. The knowledge base is asked with `http`. Throws
+ * `IdentityUnverifiableError`: `unreachable` when the knowledge base was not
+ * reached, `not-reported` when it answered that it cannot say what it is.
  */
-public suspend fun describeConnection(target: HttpEndpoint, access: String): ConnectionIdentity {
+public suspend fun describeConnection(target: HttpEndpoint, access: String, http: HttpClient = ownHttp): ConnectionIdentity {
     val baseUrl = try {
         gatewayUrl(target)
     } catch (invalid: IllegalArgumentException) {
         throw IdentityUnverifiableError(IdentityUnverifiableReason.Unreachable, invalid.message ?: "Invalid KB hostname")
     }
     // A client of this one operation: it hears its replies and nothing else.
-    val transport = HttpTransport(baseUrl, MutableStateFlow(access), replyChannelsFor(Operations.BROWSE_KB_REQUESTED))
+    val transport = HttpTransport(baseUrl, MutableStateFlow(access), replyChannelsFor(Operations.BROWSE_KB_REQUESTED), http = http)
     val description = try {
         SemiontClient(transport, HttpContentTransport(transport), transport).use { asking -> asking.browse.kb() }
     } catch (refusal: BusRequestError) {
@@ -61,5 +62,6 @@ public suspend fun describeConnection(target: HttpEndpoint, access: String): Con
 }
 
 /** `describeConnection`, for Java. */
-public fun describeConnectionFuture(target: HttpEndpoint, access: String): CompletableFuture<ConnectionIdentity> =
-    CoroutineScope(Dispatchers.Default).futureOf { describeConnection(target, access) }
+@JvmOverloads
+public fun describeConnectionFuture(target: HttpEndpoint, access: String, http: HttpClient = ownHttp): CompletableFuture<ConnectionIdentity> =
+    CoroutineScope(Dispatchers.Default).futureOf { describeConnection(target, access, http) }

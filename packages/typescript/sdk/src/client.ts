@@ -247,18 +247,20 @@ export class SemiontClient {
    * via `baseUrl()` / `accessToken()` from `@semiont/core` automatically.
    * Pass the already-branded values if you have them.
    *
-   * Omit `token` for unauthenticated usage (public endpoints only).
+   * Omit `token` for unauthenticated usage (public endpoints only). Every
+   * request is sent with `fetch`, or the runtime's own.
    */
   static fromHttp(opts: {
     baseUrl: BaseUrl | string;
     token?: AccessToken | string | null;
+    fetch?: typeof fetch;
   }): SemiontClient {
     const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
     const tok = opts.token == null
       ? null
       : (typeof opts.token === 'string' ? accessToken(opts.token) : opts.token);
     const token$ = new BehaviorSubject<AccessToken | null>(tok);
-    const transport = new HttpTransport({ baseUrl: url, token$ });
+    const transport = new HttpTransport({ baseUrl: url, token$, ...(opts.fetch ? { fetch: opts.fetch } : {}) });
     const content = new HttpContentTransport(transport);
     // HttpTransport implements both ITransport and IGatewayOperations;
     // pass it twice so `client.auth` / `client.system` are wired.

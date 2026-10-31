@@ -141,6 +141,25 @@ describe('discoverIssuer', () => {
     expect(fetchMock).toHaveBeenCalledWith(`${ISSUER}/.well-known/openid-configuration`, expect.anything());
   });
 
+  it('asks the knowledge base and its issuer through the fetch it is given, and nothing through the runtime\'s', async () => {
+    metadata.mockRestore();
+    const given = vi.fn(async (input: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith('/.well-known/oauth-protected-resource')) {
+        return Response.json({ resource: 'http://localhost:4000', authorization_servers: [ISSUER], bearer_methods_supported: ['header'] });
+      }
+      return url.endsWith('/.well-known/openid-configuration') ? Response.json(DISCOVERY) : new Response(null, { status: 404 });
+    });
+
+    await expect(discoverIssuer(TARGET, given)).resolves.toMatchObject({ issuer: ISSUER, token: `${ISSUER}/token` });
+
+    expect(given.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)))).toEqual([
+      'http://localhost:4000/.well-known/oauth-protected-resource',
+      `${ISSUER}/.well-known/openid-configuration`,
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('names a KB that trusts no issuer', async () => {
     metadata.mockRejectedValue(APIError.fromStatus('Not Found', 404, 'Not Found', undefined, undefined));
 
@@ -266,6 +285,15 @@ describe('refresh and revocation', () => {
 
     expect(tokens).toEqual({ access: 'acc-2', refresh: 'ref-1' });
     expect(formOf(fetchMock.mock.calls[0]!)).toEqual({ grant_type: 'refresh_token', refresh_token: 'ref-1', client_id: BROWSER_CLIENT_ID });
+  });
+
+  it('asks the issuer through the fetch it is given, and nothing through the runtime\'s', async () => {
+    const given = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => reply({ access_token: 'acc-2' }));
+
+    expect(await refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref-1', given)).toEqual({ access: 'acc-2', refresh: 'ref-1' });
+
+    expect(given.mock.calls.map(([input]) => input)).toEqual([`${ISSUER}/token`]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('takes a rotated refresh token', async () => {

@@ -357,6 +357,77 @@ func (r *renewedRefresher) told() []string {
 	return slices.Clone(r.refused)
 }
 
+// recordingRoundTrip sends each request with the round trip it wraps, and
+// keeps the path of each.
+type recordingRoundTrip struct {
+	sends http.RoundTripper
+	mu    sync.Mutex
+	paths []string
+}
+
+func (r *recordingRoundTrip) RoundTrip(request *http.Request) (*http.Response, error) {
+	r.mu.Lock()
+	r.paths = append(r.paths, request.URL.Path)
+	r.mu.Unlock()
+	return r.sends.RoundTrip(request)
+}
+
+func (r *recordingRoundTrip) made() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.paths)
+}
+
+func TestATransportMakesItsStreamItsEmitsItsRequestsAndItsContentWithItsCallersClient(t *testing.T) {
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		switch r.URL.Path {
+		case "/bus/subscribe":
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			<-r.Context().Done()
+		case "/bus/emit":
+			writeJSON(w, http.StatusAccepted, map[string]any{})
+		case "/api/users/me":
+			writeJSON(w, http.StatusOK, map[string]any{"did": "did:web:example.org:users:alice", "email": "a@example.com", "domain": "example.org", "name": nil, "image": nil})
+		case "/resources/res-1":
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte("hello"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer gateway.Close()
+	callers := &recordingRoundTrip{sends: &http.Transport{}}
+	transport := NewHTTPTransport(HTTPTransportConfig{
+		BaseURL:  gateway.URL,
+		Token:    NewVariable(signedToken(1)),
+		Channels: []bus.Channel{bus.BeckonFocus.Channel()},
+		HTTP:     &http.Client{Transport: callers},
+		Timing:   quickTiming(),
+	})
+	defer transport.Close()
+
+	until(t, "the stream to open", func() bool { return transport.State().Value() == ConnectionStateOpen })
+	if _, _, err := transport.Emit(context.Background(), bus.BeckonFocus.Channel(), map[string]any{}, Envelope{}); err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	if _, err := transport.GetCurrentUser(context.Background()); err != nil {
+		t.Fatalf("asked who the token is: %v", err)
+	}
+	if _, err := NewHTTPContentTransport(transport).GetBinary(context.Background(), mustResource(t, "res-1")); err != nil {
+		t.Fatalf("read the content: %v", err)
+	}
+
+	made := callers.made()
+	for _, path := range []string{"/bus/subscribe", "/bus/emit", "/api/users/me", "/resources/res-1"} {
+		if !slices.Contains(made, path) {
+			t.Errorf("%s was not made with the caller's client, which made %q", path, made)
+		}
+	}
+}
+
 func TestARefusedEmitTellsItsRefresherTheTokenItSent(t *testing.T) {
 	gateway := newRenewedMeanwhile(t, "/bus/emit")
 	refresher := &renewedRefresher{token: gateway.token}

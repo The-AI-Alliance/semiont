@@ -16,7 +16,8 @@ once, and one in flight, which the closing ends, is not made again.
 """
 
 import asyncio
-from collections.abc import AsyncIterable, Awaitable, Callable, Coroutine
+from collections.abc import AsyncGenerator, AsyncIterable, Awaitable, Callable, Coroutine
+from contextlib import asynccontextmanager
 from typing import final
 
 import httpx
@@ -90,6 +91,10 @@ class Exchange:
         self._deadline_ms = deadline_ms
         self._closing = closing
         self._tasks: set[asyncio.Task[object]] = set()
+        self._on_wire: set[asyncio.Task[object]] = set()
+        """The tasks waiting on the wire now."""
+        self._cut: set[asyncio.Task[object]] = set()
+        """The tasks whose wait `cut` ended."""
 
     def failed(self, error: TransportError) -> TransportError:
         """Report a failure on the error stream, and hand it back for its caller."""
@@ -129,8 +134,39 @@ class Exchange:
         return task
 
     async def ended(self) -> None:
-        """Wait for every task `run` began. Called once the HTTP client is closed, which ends each of them."""
+        """Wait for every task `run` began. Called once the waits on the wire are cut, which ends each of them."""
         await asyncio.gather(*self._tasks, return_exceptions=True)
+
+    @asynccontextmanager
+    async def on_wire(self, unanswered: str) -> AsyncGenerator[None]:
+        """A wait on the wire: a request's answer, or its body. Ended by `cut`, it fails as a request that got none.
+
+        `unanswered` says what got no answer. Once the transport is closing no
+        wait begins. It is ended as a deadline ends one, in its own task, so the
+        HTTP client, which may be its caller's, is never closed for it.
+        """
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("a request of a gateway is made in a task")
+        if self._closing.is_set():
+            raise self.failed(TransportError.without_response(f"{unanswered}: the transport is closed"))
+        cancelling = task.cancelling()
+        self._on_wire.add(task)
+        try:
+            yield
+        except asyncio.CancelledError:
+            # Ended by `cut` alone, not by whoever runs the task as well: then it is a request that got no answer.
+            if task in self._cut and task.uncancel() <= cancelling:
+                raise self.failed(TransportError.without_response(f"{unanswered}: the transport is closed")) from None
+            raise
+        finally:
+            self._on_wire.discard(task)
+
+    def cut(self) -> None:
+        """End every wait on the wire, each as a request that got no answer: the transport is over."""
+        for task in self._on_wire:
+            self._cut.add(task)
+            task.cancel()
 
     async def begin(
         self,
@@ -164,7 +200,10 @@ class Exchange:
                 content=content() if callable(content) else content,
             )
             try:
-                async with asyncio.timeout(None if at_length else self._deadline_ms / 1000):
+                async with (
+                    asyncio.timeout(None if at_length else self._deadline_ms / 1000),
+                    self.on_wire(f"{method} {path} got no answer"),
+                ):
                     response = await self._http.send(request, stream=True)
             except TimeoutError:
                 raise self.failed(self._unanswered(method, path)) from None
@@ -253,7 +292,10 @@ class Exchange:
         """Make a request, and read its answer with `read`. An answer `read` refuses fails, saying what it lacks to be one of `shapes`."""
         response = await self.begin(method, path, authenticated=authenticated, headers=headers, content=content, at_length=at_length)
         try:
-            async with asyncio.timeout(None if at_length else self._deadline_ms / 1000):
+            async with (
+                asyncio.timeout(None if at_length else self._deadline_ms / 1000),
+                self.on_wire(f"{method} {path} ended before its answer did"),
+            ):
                 body = await response.aread()
         except TimeoutError:
             raise self.failed(self._unanswered(method, path)) from None
