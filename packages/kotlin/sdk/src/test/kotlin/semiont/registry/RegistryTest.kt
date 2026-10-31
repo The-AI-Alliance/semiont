@@ -282,6 +282,8 @@ class RegistryTest {
     fun whatAHostShowsAboutASessionIsThereExactlyWhenTheSessionIs() = runBlocking {
         val world = World().with(kbOfA())
         world.browser().use { browser ->
+            // The test looks late: the session the registry began with is up first.
+            eventually("a session came up") { sessionOf(browser) != null }
             assertNull(browser.activeSignals.value)
             live(browser)
             val first = checkNotNull(browser.activeSignals.value)
