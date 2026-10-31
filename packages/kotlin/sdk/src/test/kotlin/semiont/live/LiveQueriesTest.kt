@@ -26,7 +26,9 @@ import semiont.namespaces.EngineWithLimits
 import semiont.sameJson
 import semiont.storage.CachePersistence
 import semiont.storage.MemoryStorage
+import semiont.storage.SessionStorage
 import semiont.transport.Frame
+import java.util.concurrent.CountDownLatch
 
 /** A client's live queries: what collecting one holds, and what a read gives its collectors. */
 class LiveQueriesTest {
@@ -217,7 +219,9 @@ class LiveQueriesTest {
     @Test
     fun aClientKeepsItsSmallQueriesAndTheNextClientShowsThemAtOnceAndAsksForThemAnew() = runBlocking {
         val storage = MemoryStorage()
-        val persistence = CachePersistence(storage, "kb")
+        // The client's write of the annotation's detail lands late, once the test lets it.
+        val late = LateWrite(storage, "semiont.cache.kb.annotation-detail")
+        val persistence = CachePersistence(late, "kb")
         fun kept(name: String): JsonObject? = storage.get("semiont.cache.kb.$name")?.let { Json.parseToJsonElement(it).jsonObject }
 
         val world = KbWorld(persistence = persistence)
@@ -229,16 +233,19 @@ class LiveQueriesTest {
             client.browse.annotation(RESOURCE, ANNOTATION).fresh()
             client.browse.entityTypes().fresh()
             client.browse.tagSchemas().fresh()
+            // The reads take longer than a save waits: each kept query's save begins before the last read is made.
+            delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
             client.browse.events(RESOURCE).fresh()
             client.gather.referencedBy(RESOURCE).fresh()
             client.browse.resources().fresh()
             client.match.resources("text").fresh()
             client.browse.engines().fresh()
         }
-        // What it knows is owed to storage until it has stopped changing.
-        assertFalse(client.persistenceSettled)
-        assertNull(kept("resource"))
+        // A save that has begun is owed no more: the client is settled while its last write has yet to land.
         eventually { client.persistenceSettled }
+        assertNull(kept("annotation-detail"))
+        late.letGo()
+        eventually { kept("annotation-detail") != null }
         // An event about an annotation nobody holds changes nothing the client keeps: nothing is owed, and nothing is written.
         val written = storage.get("semiont.cache.kb.annotation-detail")
         world.kb.deliver(event(semiont.cache.CacheRefreshTrigger.MarkDeleteOk, of = semiont.identifiers.AnnotationId("ann-nobody-holds")))
@@ -321,3 +328,15 @@ class LiveQueriesTest {
 
 /** The queries a client with a storage keeps. */
 private val KEPT = setOf(CacheQuery.Resource, CacheQuery.Annotations, CacheQuery.Annotation, CacheQuery.EntityTypes, CacheQuery.TagSchemas)
+
+/** A storage whose write of `key` waits until `letGo`. Every other read and write is the storage's own. */
+private class LateWrite(private val beneath: SessionStorage, private val key: String) : SessionStorage by beneath {
+    private val open = CountDownLatch(1)
+
+    fun letGo() = open.countDown()
+
+    override fun set(key: String, value: String) {
+        if (key == this.key) open.await()
+        beneath.set(key, value)
+    }
+}
