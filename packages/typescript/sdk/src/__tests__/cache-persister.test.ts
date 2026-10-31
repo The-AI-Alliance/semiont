@@ -140,6 +140,8 @@ describe('coupledLastEventId (B17 — the bookmark rides the cache flush)', () =
       get: (k) => inner.get(k),
       set: (k, v) => { writes.push([k, v]); inner.set(k, v); },
       delete: (k) => inner.delete(k),
+      update: (k, change) => inner.update(k, change),
+      subscribe: (handler) => inner.subscribe(handler),
     };
     return { storage, writes, inner };
   }

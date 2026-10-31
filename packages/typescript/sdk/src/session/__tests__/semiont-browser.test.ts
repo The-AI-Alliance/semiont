@@ -696,10 +696,10 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
     expect(browser.openResources$.getValue()).toEqual([]);
     expect(browser.lastViewedResource$.getValue()).toBeNull();
-    // The tab list empties through the write funnel, which maps a list to
-    // a list — so the key remains with an empty list. The last-viewed entry has
-    // no funnel and is dropped outright. Both are "no claim about contents";
-    // the shapes differ because the write paths do.
+    // The tab list empties through its funnel, which maps a KB's list to a
+    // list — so the key remains with an empty list. The last-viewed funnel
+    // maps the whole map, and the entry is dropped outright. Both are "no
+    // claim about contents"; the shapes differ because the funnels do.
     expect(readMap(OPEN_RESOURCES_BY_KB_KEY)[KB_A.id]).toEqual([]);
     expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_A.id]).toBeUndefined();
 

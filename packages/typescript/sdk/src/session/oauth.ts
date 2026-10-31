@@ -27,7 +27,7 @@ import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from '@semiont/core';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
-import { getStoredSession, kbGatewayUrl, setStoredSession } from './storage';
+import { getStoredSession, kbGatewayUrl, sessionKey, storedSessionIn, type StoredSession } from './storage';
 
 // All of `crypto` this module may use: what a browser gives every page.
 // `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
@@ -188,16 +188,20 @@ export interface IssuedTokens {
 
 /**
  * Finish the authorization-code grant from the URL the issuer sent the user
- * back to. One-shot: the pending record is consumed before anything else
- * happens, because an authorization code is single-use and a replayed
- * callback must find nothing to complete.
+ * back to. One-shot: the pending record is taken, in one step, before
+ * anything else happens, because an authorization code is single-use and a
+ * replayed callback must find nothing to complete.
  */
 export async function completeAuthorization(
   callbackUrl: string,
   pending: SessionStorage,
 ): Promise<{ pending: PendingAuthorization; tokens: IssuedTokens }> {
-  const raw = pending.get(PENDING_AUTHORIZATION_KEY);
-  pending.delete(PENDING_AUTHORIZATION_KEY);
+  const taken: Array<string | null> = [];
+  pending.update(PENDING_AUTHORIZATION_KEY, (stored) => {
+    taken.push(stored);
+    return null;
+  });
+  const [raw] = taken;
   const record = raw === null ? null : parsePending(raw);
   if (!record) throw new SignInError('no-pending', 'No sign-in is pending here');
 
@@ -365,15 +369,19 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
       ),
       REFRESH_RETRY,
     );
-    // Written against what is stored NOW, not what was read before the
-    // grant: a session signed out, or ended, while it was being renewed is
-    // gone. Writing it back would undo that with a refresh token nobody
-    // revoked, and handing its token to the caller would give a session
-    // that is over a credential again.
-    const current = getStoredSession(storage, kbId);
-    if (!current) return null;
-    setStoredSession(storage, kbId, { ...current, access, refresh });
-    return access;
+    // Written against what is stored NOW, as one step, not what was read
+    // before the grant: a session signed out, or ended, while it was being
+    // renewed is gone. Writing it back would undo that with a refresh token
+    // nobody revoked, and handing its token to the caller would give a
+    // session that is over a credential again.
+    const kept: StoredSession[] = [];
+    storage.update(sessionKey(kbId), (held) => {
+      const current = storedSessionIn(held);
+      if (!current) return held;
+      kept.push(current);
+      return JSON.stringify({ ...current, access, refresh });
+    });
+    return kept.length > 0 ? access : null;
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
     // One attempt means the issuer answered and the answer was final; more

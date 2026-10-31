@@ -60,7 +60,7 @@ A script that gets its token some other way, such as a service account's client-
 
 ## Keeping tokens across restarts
 
-With `InMemorySessionStorage` the script signs in again every time it starts. To keep the tokens, implement `SessionStorage` over a file. It is three methods:
+With `InMemorySessionStorage` the script signs in again every time it starts. To keep the tokens, implement `SessionStorage` over a file. It is five methods:
 
 ```typescript
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -83,6 +83,16 @@ class FileSessionStorage implements SessionStorage {
   set(key: string, value: string): void { this.map.set(key, value); this.flush(); }
   delete(key: string): void { this.map.delete(key); this.flush(); }
 
+  update(key: string, change: (stored: string | null) => string | null): void {
+    const next = change(this.get(key));
+    if (next === null) this.map.delete(key);
+    else this.map.set(key, next);
+    this.flush();
+  }
+
+  // One process writes this file, so there is no other writer to hear.
+  subscribe(): null { return null; }
+
   private flush(): void {
     mkdirSync(dirname(this.path), { recursive: true });
     writeFileSync(this.path, JSON.stringify(Object.fromEntries(this.map)), { mode: 0o600 });
@@ -93,7 +103,7 @@ const stateHome = process.env.XDG_STATE_HOME ?? `${process.env.HOME}/.local/stat
 const storage = new FileSessionStorage(`${stateHome}/semiont/watcher.json`);
 ```
 
-The file holds a refresh token, so keep it readable by its owner only. The interface's optional `subscribe` method tells a session that another process changed the file; leave it out unless several processes share one.
+The file holds a refresh token, so keep it readable by its owner only. `update` changes a value as one step: `change` is given what is stored and says what is stored next, so no other writer's change falls between the read and the write. `subscribe` tells a session that another process changed the file, and answers null where nothing else writes it, as here. Several processes sharing one file would read it afresh in `update`, under a lock, and watch it in `subscribe`.
 
 ## Which channels reach a script
 

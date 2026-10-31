@@ -15,6 +15,11 @@
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the browser never touches `localStorage` or `window`
  * directly.
+ *
+ * Every change to what is open is made against what the storage holds, as
+ * one step, so two contexts that each open a resource both keep theirs, and
+ * what another context writes is shown here. A write the storage refuses
+ * throws, and changes nothing, there or here.
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
@@ -63,29 +68,48 @@ import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
 
 /**
- * Tabs are per-KB state: Record<kbId, OpenResource[]>. A flat
- * `openDocuments` key in storage is deliberately ignored: it does not
+ * Tabs are per-KB state: Record<kbId, OpenResource[]>, read from what is
+ * stored under `OPEN_RESOURCES_BY_KB_KEY`; none for what does not parse. A
+ * flat `openDocuments` key in storage is deliberately ignored: it does not
  * record which KB its entries belong to.
  */
-function loadOpenResourcesByKb(storage: SessionStorage): Record<string, OpenResource[]> {
+function openResourcesByKbOf(stored: string | null): Record<string, OpenResource[]> {
+  if (stored === null) return {};
   try {
-    const stored = storage.get(OPEN_RESOURCES_BY_KB_KEY);
-    if (stored) return JSON.parse(stored) as Record<string, OpenResource[]>;
+    return JSON.parse(stored) as Record<string, OpenResource[]>;
   } catch {
-    // Ignore parse errors
+    return {};
   }
-  return {};
 }
 
-/** Per-KB last-viewed resource: Record<kbId, resourceId>. */
-function loadLastViewedByKb(storage: SessionStorage): Record<string, string> {
+/** Per-KB last-viewed resource: Record<kbId, resourceId>; none for what does not parse. */
+function lastViewedByKbOf(stored: string | null): Record<string, string> {
+  if (stored === null) return {};
   try {
-    const stored = storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY);
-    if (stored) return JSON.parse(stored) as Record<string, string>;
+    return JSON.parse(stored) as Record<string, string>;
   } catch {
-    // Ignore parse errors
+    return {};
   }
-  return {};
+}
+
+/**
+ * Change what `storage` keeps under `key`, against what it holds, as one
+ * step: `read` reads what is stored, and `change` says what is kept next.
+ * Gives what was written. A write the storage refuses throws.
+ */
+function changeKept<T>(
+  storage: SessionStorage,
+  key: string,
+  read: (stored: string | null) => T,
+  change: (kept: T) => T,
+): T {
+  const written: T[] = [];
+  storage.update(key, (stored) => {
+    const next = change(read(stored));
+    written.push(next);
+    return JSON.stringify(next);
+  });
+  return written[0];
 }
 
 /**
@@ -171,6 +195,8 @@ export class SemiontBrowser {
   private readonly eventBus: EventBus = new EventBus();
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
+  /** What the work it runs in the background failed with, raised from `dispose`. */
+  private readonly failures: unknown[] = [];
   private activating: Promise<void> | null = null;
   /** Per-KB tab lists; `openResources$` projects the active, connected KB's. */
   private openByKb: Record<string, OpenResource[]> = {};
@@ -179,6 +205,11 @@ export class SemiontBrowser {
   /** Per-KB last-viewed resource; `lastViewedResource$` projects the active, connected KB's. */
   private lastViewedByKb: Record<string, string> = {};
 
+  /**
+   * A registry over what `config.storage` holds. What was read is what is
+   * kept: an entry that did not read as a knowledge base is gone from the
+   * storage too, and a write the storage refuses throws from here.
+   */
   constructor(config: SemiontBrowserConfig) {
     this.storage = config.storage;
     this.sessionFactory = config.sessionFactory;
@@ -190,24 +221,20 @@ export class SemiontBrowser {
         ? storedActive
         : kbs[0]?.id ?? null;
 
-    this.kbs$ = new BehaviorSubject<KnowledgeBase[]>(kbs);
-    this.activeKbId$ = new BehaviorSubject<string | null>(initialActive);
+    this.kbs$ = new BehaviorSubject<KnowledgeBase[]>([]);
+    this.activeKbId$ = new BehaviorSubject<string | null>(null);
     this.activeSession$ = new BehaviorSubject<SemiontSession | null>(null);
     this.activeSignals$ = new BehaviorSubject<SessionSignals | null>(null);
     this.sessionActivating$ = new BehaviorSubject<boolean>(false);
-    this.openByKb = loadOpenResourcesByKb(this.storage);
+    this.openByKb = openResourcesByKbOf(this.storage.get(OPEN_RESOURCES_BY_KB_KEY));
     this.openResources$ = new BehaviorSubject<OpenResource[]>([]);
-    this.lastViewedByKb = loadLastViewedByKb(this.storage);
+    this.lastViewedByKb = lastViewedByKbOf(this.storage.get(LAST_VIEWED_RESOURCE_BY_KB_KEY));
     this.lastViewedResource$ = new BehaviorSubject<string | null>(null);
     this.error$ = new Subject<SemiontSessionError>();
     this.identityToken$ = new BehaviorSubject<string | null>(null);
 
-    // Persist kbs$ and activeKbId$ via the storage adapter.
-    this.kbs$.subscribe((next) => saveKnowledgeBases(this.storage, next));
-    this.activeKbId$.subscribe((id) => {
-      if (id) this.storage.set(ACTIVE_KEY, id);
-      else this.storage.delete(ACTIVE_KEY);
-    });
+    this.putKbs(kbs);
+    this.putActiveId(initialActive);
 
     // The visible tab list and the last-viewed resource are projections of
     // the active, CONNECTED KB (gate: a live session). Connect/disconnect/
@@ -218,13 +245,14 @@ export class SemiontBrowser {
       this.refreshLastViewedResource();
       // Rehydrate, THEN revalidate. The list above projects immediately
       // — fast and offline-tolerant — and the claims in it are checked once
-      // there is a session to ask. Fire-and-forget: nothing waits on it, and
-      // a tab that fails to check simply stays.
-      void this.validateOpenResources(session);
+      // there is a session to ask. Nothing waits on it, a tab that fails to
+      // check simply stays, and a write it makes that the storage refuses
+      // is raised from `dispose`.
+      this.spawn(this.validateOpenResources(session));
     });
 
     // Sync the per-KB maps from other contexts (cross-tab/cross-process).
-    this.unsubscribeStorage = this.storage.subscribe?.((key, newValue) => {
+    this.unsubscribeStorage = this.storage.subscribe((key, newValue) => {
       if (!newValue) return;
       try {
         if (key === OPEN_RESOURCES_BY_KB_KEY) {
@@ -237,11 +265,11 @@ export class SemiontBrowser {
       } catch {
         // Ignore parse errors
       }
-    }) ?? null;
+    });
 
-    // Construct the initial active session, if any. Fire-and-forget.
+    // Construct the initial active session, if any, in the background.
     if (initialActive) {
-      void this.setActiveKb(initialActive);
+      this.spawn(this.setActiveKb(initialActive));
     }
   }
 
@@ -285,8 +313,8 @@ export class SemiontBrowser {
   addKb(input: NewKnowledgeBase, session: StoredSession): KnowledgeBase {
     const kb: KnowledgeBase = { id: generateKbId(), ...input };
     setStoredSession(this.storage, kb.id, session);
-    this.kbs$.next([...this.kbs$.getValue(), kb]);
-    void this.setActiveKb(kb.id);
+    this.putKbs([...this.kbs$.getValue(), kb]);
+    this.spawn(this.setActiveKb(kb.id));
     return kb;
   }
 
@@ -360,24 +388,13 @@ export class SemiontBrowser {
 
   removeKb(id: string): void {
     clearStoredSession(this.storage, id);
-    // Reap the KB's tab record — removal of the connection is the one
-    // deliberate act that forgets the working set.
-    if (this.openByKb[id]) {
-      const rest = { ...this.openByKb };
-      delete rest[id];
-      this.openByKb = rest;
-      this.persistOpenResources();
-    }
-    if (this.lastViewedByKb[id]) {
-      const rest = { ...this.lastViewedByKb };
-      delete rest[id];
-      this.lastViewedByKb = rest;
-      this.storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify(this.lastViewedByKb));
-    }
+    // Removal of the connection is the one deliberate act that forgets the
+    // working set.
+    this.forgetKeptOf(id);
     const next = this.kbs$.getValue().filter((kb) => kb.id !== id);
-    this.kbs$.next(next);
+    this.putKbs(next);
     if (this.activeKbId$.getValue() === id) {
-      void this.setActiveKb(next[0]?.id ?? null);
+      this.spawn(this.setActiveKb(next[0]?.id ?? null));
     }
   }
 
@@ -387,7 +404,7 @@ export class SemiontBrowser {
    * connection target, and `did` is never patched.
    */
   updateKb(id: string, updates: { label?: string; lastRead?: KbRead }): void {
-    this.kbs$.next(
+    this.putKbs(
       this.kbs$.getValue().map((kb) => (kb.id === id ? { ...kb, ...updates } : kb)),
     );
   }
@@ -432,7 +449,7 @@ export class SemiontBrowser {
     // detect staleness. Session and signals null out together so React
     // consumers never see a stale signals instance paired with a null
     // session during the activation gap.
-    if (prevId !== id) this.activeKbId$.next(id);
+    if (prevId !== id) this.putActiveId(id);
     if (prevSession) {
       const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
@@ -619,10 +636,6 @@ export class SemiontBrowser {
     this.openResources$.next(list);
   }
 
-  private persistOpenResources(): void {
-    this.storage.set(OPEN_RESOURCES_BY_KB_KEY, JSON.stringify(this.openByKb));
-  }
-
   /**
    * Check every restored tab against the KB it claims to be from, and drop
    * the ones the KB says are not there.
@@ -655,9 +668,9 @@ export class SemiontBrowser {
     }
 
     // Committed state here too, for the same reason `mutateOpenResources`
-    // reads it: a sibling context may have added a tab before this session
-    // activated, and that tab deserves checking like any other.
-    const ids = (loadOpenResourcesByKb(this.storage)[kbId] ?? []).map((tab) => tab.id);
+    // writes against it: a sibling context may have added a tab before this
+    // session activated, and that tab deserves checking like any other.
+    const ids = (openResourcesByKbOf(this.storage.get(OPEN_RESOURCES_BY_KB_KEY))[kbId] ?? []).map((tab) => tab.id);
     if (ids.length === 0) return;
 
     const checks = new Map<string, TabCheck>();
@@ -760,12 +773,7 @@ export class SemiontBrowser {
     // both say "these resources are in that KB"; voiding one would leave the
     // landing redirect pointing into a KB whose tabs were just cleared.
     this.mutateOpenResources(() => []);
-    if (this.lastViewedByKb[kbId] !== undefined) {
-      const { [kbId]: _dropped, ...rest } = this.lastViewedByKb;
-      this.lastViewedByKb = rest;
-      this.storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify(this.lastViewedByKb));
-      this.refreshLastViewedResource();
-    }
+    this.mutateLastViewed(({ [kbId]: _dropped, ...rest }) => rest);
 
     this.activeSignals$.getValue()?.notifyKbIdentityConflict({ expectedDid, observedDid });
   }
@@ -797,28 +805,38 @@ export class SemiontBrowser {
 
   /**
    * All tab CRUD funnels through here: inert without an active, connected
-   * KB (the projection gate), otherwise mutate that KB's list, persist the
-   * whole map, and re-project.
+   * KB (the projection gate), otherwise change that KB's list against what
+   * the storage holds, as one step (`SessionStorage.update`), and re-project.
    *
-   * **Reads the COMMITTED map, not `this.openByKb`.** The in-memory
+   * **Changes the COMMITTED map, not `this.openByKb`.** The in-memory
    * copy is a projection cache — any sibling context's write may already have
-   * outdated it — so mutating it and persisting would be a plain lost update: two
-   * windows each adding a tab silently lose one. `SessionStorage.get` is
-   * synchronous, so read-modify-write costs a parse and closes it. It is also
-   * what makes revalidation safe across contexts: a removal is written
-   * against committed state, so a sibling's later add cannot resurrect it.
-   *
-   * The residual race is two processes interleaving inside one synchronous
-   * tick; `localStorage` has no compare-and-swap, so nothing built on it can
-   * close that.
+   * outdated it — so changing it and persisting would be a plain lost update:
+   * two windows each adding a tab silently lose one. It is also what makes
+   * revalidation safe across contexts: a removal is written against
+   * committed state, so a sibling's later add cannot resurrect it. A write
+   * the storage refuses throws, and changes nothing here.
    */
   private mutateOpenResources(mutate: (list: OpenResource[]) => OpenResource[]): void {
     const kbId = this.activeKbId$.getValue();
     if (!kbId || !this.activeSession$.getValue()) return;
-    const committed = loadOpenResourcesByKb(this.storage);
-    this.openByKb = { ...committed, [kbId]: mutate(committed[kbId] ?? []) };
-    this.persistOpenResources();
+    this.openByKb = changeKept(this.storage, OPEN_RESOURCES_BY_KB_KEY, openResourcesByKbOf, (committed) => ({
+      ...committed,
+      [kbId]: mutate(committed[kbId] ?? []),
+    }));
     this.refreshOpenResources();
+  }
+
+  /** Change where the person was in each KB, against what the storage holds, as one step, and re-project. */
+  private mutateLastViewed(mutate: (byKb: Record<string, string>) => Record<string, string>): void {
+    this.lastViewedByKb = changeKept(this.storage, LAST_VIEWED_RESOURCE_BY_KB_KEY, lastViewedByKbOf, mutate);
+    this.refreshLastViewedResource();
+  }
+
+  /** Forget what was open in a KB, and where the person was in it. */
+  private forgetKeptOf(kbId: string): void {
+    this.openByKb = changeKept(this.storage, OPEN_RESOURCES_BY_KB_KEY, openResourcesByKbOf, ({ [kbId]: _forgotten, ...rest }) => rest);
+    this.refreshOpenResources();
+    this.mutateLastViewed(({ [kbId]: _forgotten, ...rest }) => rest);
   }
 
   addOpenResource(
@@ -897,13 +915,32 @@ export class SemiontBrowser {
   setLastViewedResource(resourceId: string): void {
     const kbId = this.activeKbId$.getValue();
     if (!kbId || !this.activeSession$.getValue()) return;
-    if (this.lastViewedByKb[kbId] === resourceId) return;
-    this.lastViewedByKb = { ...this.lastViewedByKb, [kbId]: resourceId };
-    this.storage.set(LAST_VIEWED_RESOURCE_BY_KB_KEY, JSON.stringify(this.lastViewedByKb));
-    this.refreshLastViewedResource();
+    this.mutateLastViewed((byKb) => ({ ...byKb, [kbId]: resourceId }));
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
+
+  /** Keep the KB list, then show it. A write the storage refuses throws, and shows nothing. */
+  private putKbs(kbs: KnowledgeBase[]): void {
+    if (this.disposed) return;
+    saveKnowledgeBases(this.storage, kbs);
+    this.kbs$.next(kbs);
+  }
+
+  /** Keep which KB is active, then show it. A write the storage refuses throws, and shows nothing. */
+  private putActiveId(id: string | null): void {
+    if (this.disposed) return;
+    if (id) this.storage.set(ACTIVE_KEY, id);
+    else this.storage.delete(ACTIVE_KEY);
+    this.activeKbId$.next(id);
+  }
+
+  /** Run `work` in the background: what it fails with is raised from `dispose`. */
+  private spawn(work: Promise<void>): void {
+    work.catch((failure: unknown) => {
+      this.failures.push(failure);
+    });
+  }
 
   /**
    * End a session the registry's factory made, the client it was made with
@@ -915,6 +952,11 @@ export class SemiontBrowser {
     signals?.dispose();
   }
 
+  /**
+   * End the registry: its session is ended, and everything it holds
+   * completes. Raises what any work it ran in the background failed with, a
+   * write the storage refused among it. Disposing twice is disposing once.
+   */
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
@@ -939,5 +981,6 @@ export class SemiontBrowser {
     this.error$.complete();
     this.identityToken$.complete();
     this.eventBus.destroy();
+    if (this.failures.length > 0) throw this.failures[0];
   }
 }

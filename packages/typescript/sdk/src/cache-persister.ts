@@ -78,18 +78,25 @@ export function coupledLastEventId(
       return stored;
     }
   };
+  const flush = (): void => {
+    if (pending.size > 0 && (flushGate === null || flushGate())) {
+      const merged = new Map([...readStored(), ...pending]);
+      storage.set(lastEventIdKey, JSON.stringify(Object.fromEntries(merged)));
+      pending.clear();
+    }
+  };
   const coupled: SessionStorage = {
     get: (k) => storage.get(k),
     set: (k, v) => {
       storage.set(k, v);
-      if (pending.size > 0 && (flushGate === null || flushGate())) {
-        const merged = new Map([...readStored(), ...pending]);
-        storage.set(lastEventIdKey, JSON.stringify(Object.fromEntries(merged)));
-        pending.clear();
-      }
+      flush();
     },
     delete: (k) => storage.delete(k),
-    ...(storage.subscribe ? { subscribe: storage.subscribe.bind(storage) } : {}),
+    update: (k, change) => {
+      storage.update(k, change);
+      flush();
+    },
+    subscribe: (handler) => storage.subscribe(handler),
   };
   return {
     storage: coupled,
@@ -204,7 +211,7 @@ export function sessionStoragePersister<K, V>(opts: {
     },
 
     subscribe(onExternalChange: (entries: Map<K, V>) => void): () => void {
-      const unsubscribe = storage.subscribe?.((key, newValue) => {
+      const unsubscribe = storage.subscribe((key, newValue) => {
         if (key !== storageKey) return;
         const doc = parseDocument(newValue, version);
         if (!doc) return;

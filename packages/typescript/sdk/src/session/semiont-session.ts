@@ -211,9 +211,9 @@ export class SemiontSession implements StateUnit {
       this.scheduleProactiveRefresh(initialToken);
     }
 
-    this.unsubscribeStorage = this.storage.subscribe?.((key, newValue) => {
+    this.unsubscribeStorage = this.storage.subscribe((key, newValue) => {
       this.handleStorageChange(key, newValue);
-    }) ?? null;
+    });
 
     this.ready = this.validate(stored).finally(() => {
       this.starting = false;

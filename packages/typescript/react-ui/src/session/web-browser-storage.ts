@@ -34,6 +34,13 @@ export class WebBrowserStorage implements SessionStorage {
     localStorage.removeItem(key);
   }
 
+  /** Read and written in one synchronous step, so nothing this page runs falls between them. */
+  update(key: string, change: (stored: string | null) => string | null): void {
+    const next = change(localStorage.getItem(key));
+    if (next === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, next);
+  }
+
   subscribe(handler: (key: string, newValue: string | null) => void): () => void {
     const listener = (e: StorageEvent): void => {
       if (e.key === null) return;

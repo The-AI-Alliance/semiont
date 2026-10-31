@@ -5,35 +5,42 @@
  * browser, a CLI process, or tests without environment guards.
  *
  * Implementations shipped here:
- *  - `InMemorySessionStorage` — map-backed, for tests.
+ *  - `InMemorySessionStorage` — map-backed, for scripts and tests.
  *
  * Browser-backed (`WebBrowserStorage`) lives in `@semiont/react-ui`
  * because it touches browser-only globals.
  */
 
-/** String key/value store with optional cross-context change subscription. */
+/**
+ * A store of text by key. More than one context can write one store (two
+ * windows, two processes): what is written from what was read goes through
+ * `update`, which a store makes one step, so one writer's change is never
+ * lost under another's; and `subscribe` hears what another context writes.
+ */
 export interface SessionStorage {
-  /** Read a string value; null if absent. */
+  /** What is stored under `key`; null when nothing is. */
   get(key: string): string | null;
-  /** Write a string value. */
+  /** Store `value` under `key`, in place of what was there. */
   set(key: string, value: string): void;
-  /** Remove a key. No-op if absent. */
+  /** Remove a key. One that is not there is left not there. */
   delete(key: string): void;
   /**
-   * Optional: subscribe to external changes (cross-tab, cross-process).
-   * Browser implements via the `storage` event; filesystem would use
-   * fs.watch; in-memory omits this method. Returns an unsubscribe
-   * callback. If omitted, cross-context sync simply isn't available
-   * in that environment — the session still works correctly within a
-   * single process.
+   * Change a key's value as one step: `change` is given what is stored,
+   * null when nothing is, and says what is stored next, null for nothing.
+   * No other writer's change falls between the read and the write.
    */
-  subscribe?(handler: (key: string, newValue: string | null) => void): () => void;
+  update(key: string, change: (stored: string | null) => string | null): void;
+  /**
+   * Hear what another context writes: another process, another window.
+   * `handler` is given the key, and the value written, or null when the key
+   * was removed. Returns what ends the subscription, or null where the
+   * environment has no other context: a client then works correctly within
+   * its own.
+   */
+  subscribe(handler: (key: string, newValue: string | null) => void): (() => void) | null;
 }
 
-/**
- * Map-backed `SessionStorage`. Cross-context sync is not implemented;
- * tests that need it can drive it manually.
- */
+/** Map-backed `SessionStorage`. No other context writes it. */
 export class InMemorySessionStorage implements SessionStorage {
   private readonly map = new Map<string, string>();
 
@@ -47,5 +54,15 @@ export class InMemorySessionStorage implements SessionStorage {
 
   delete(key: string): void {
     this.map.delete(key);
+  }
+
+  update(key: string, change: (stored: string | null) => string | null): void {
+    const next = change(this.get(key));
+    if (next === null) this.map.delete(key);
+    else this.map.set(key, next);
+  }
+
+  subscribe(_handler: (key: string, newValue: string | null) => void): (() => void) | null {
+    return null;
   }
 }
