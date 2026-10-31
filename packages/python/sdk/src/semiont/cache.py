@@ -138,9 +138,10 @@ class _Nothing[T]:
 class Cache[K: Hashable, V](StateUnit):
     """See the module's documentation.
 
-    `fetch` asks the service for a key's value. `tasks` runs the fetches.
-    With a `persister`, the cache begins with what it kept, and saves its
-    values there once they have stopped changing for `SAVE_DEBOUNCE_MS`.
+    `fetch` asks for a key's value, failing with a `SemiontError`. `tasks`
+    runs the fetches. With a `persister`, the cache begins with what it kept,
+    and saves its values there once they have stopped changing for
+    `save_debounce_ms`.
     """
 
     def __init__(
@@ -149,10 +150,12 @@ class Cache[K: Hashable, V](StateUnit):
         *,
         tasks: Runs,
         persister: CachePersister[K, V] | None = None,
+        save_debounce_ms: int = SAVE_DEBOUNCE_MS,
     ) -> None:
         self._fetch: Final = fetch
         self._tasks: Final = tasks
         self._persister: Final = persister
+        self._save_debounce_ms: Final = save_debounce_ms
         self._disposed = False
         self._fetches = 0
         self._saving: asyncio.TimerHandle | None = None
@@ -177,7 +180,7 @@ class Cache[K: Hashable, V](StateUnit):
             return
         if self._saving is not None:
             self._saving.cancel()
-        self._saving = asyncio.get_running_loop().call_later(SAVE_DEBOUNCE_MS / 1000, self._save)
+        self._saving = asyncio.get_running_loop().call_later(self._save_debounce_ms / 1000, self._save)
 
     def _save(self) -> None:
         self._saving = None
