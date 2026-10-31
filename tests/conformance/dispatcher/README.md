@@ -65,7 +65,9 @@ otherwise hand one case's job to the next.
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
   that list the dispatcher and the rows of
   [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
-  for the SDK transport it reaches the bus through.
+  for the SDK transport it reaches the bus through, and to the table's
+  `resource`: exported under exactly the keys it lists for the dispatcher,
+  with `semiont.kb` the DID of the knowledge base its document names.
 
 Behaviour JOBS.md lists as a known defect is not pinned by any case.
 

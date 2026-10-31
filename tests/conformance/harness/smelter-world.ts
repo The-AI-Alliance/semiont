@@ -100,6 +100,7 @@ export class SmelterWorld {
       provider,
       command,
       {
+        kb: kb.world.served,
         gatewayUrl: kb.world.origin,
         issuer: kb.world.issuer.origin,
         archivist: { host: '127.0.0.1', port: kb.settings.port },

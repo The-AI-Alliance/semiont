@@ -62,7 +62,7 @@ eachPlane(
       expect(span.kind).toBe(SERVER);
       expect(span.parentSpanId).toBe(t.spanId);
       expect(span.attributes['bus.channel']).toBe('beckon:focus');
-      expect(span.service).toBe('semiont-gateway');
+      expect(span.resource['service.name']).toBe('semiont-gateway');
 
       const frame = await watcher.frame('beckon:focus', (f) => f.payload['annotationId'] === marker);
       const carried = (frame.payload[registry().trace.field] as { traceparent?: string } | undefined)?.traceparent ?? '';
@@ -193,7 +193,7 @@ eachPlane(
     // Last in its plane, and judged on everything this plane's cases made the
     // gateway export: run it with them, never alone.
     it('exports exactly the telemetry the spec lists: every row it can, and nothing else', async () => {
-      expect(await outsideTheTable(otlp(), 'gateway', plane)).toEqual([]);
+      expect(await outsideTheTable(otlp(), 'gateway', world().kb.domain, plane)).toEqual([]);
     });
   },
   {

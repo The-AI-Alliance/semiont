@@ -44,7 +44,7 @@ subscriber, not as one member of a competing group, so a second dispatcher would
 ## Configuration
 
 **The dispatcher reads one document, named by its `--config` flag,** and defaults nothing. The
-document is a [`DispatcherConfig`](../../specs/src/components/schemas/DispatcherConfig.json): the
+document is a [`DispatcherConfig`](../../specs/src/components/schemas/DispatcherConfig.json): the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by), the
 gateway's URL, the issuer its service account signs in at, the broker holding the queue, the port it
 answers `/health` on, the queue's clocks, and its log level and format. Its image passes
 `--config /etc/semiont/dispatcher.json`, and the launcher writes the document there, from the

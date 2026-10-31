@@ -33,11 +33,11 @@ func gatewayDocumentFrom(t *testing.T, b []byte) api.GatewayConfig {
 	return doc
 }
 
-// gatewayDocumentOf: the gateway's document for p, under the example
-// knowledge base's name and domain.
+// gatewayDocumentOf: the gateway's document for p, serving the example
+// knowledge base.
 func gatewayDocumentOf(t *testing.T, p placement) api.GatewayConfig {
 	t.Helper()
-	b, err := gatewayDocument(p, "Example KB", "example.github.io:example-kb")
+	b, err := gatewayDocument(p, exampleKB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +52,8 @@ func TestGatewayDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	st.KnowledgeBase.Spec.Messaging.Signal.Type = "nats"
 	st.KnowledgeBase.Spec.LogLevel = api.LogLevelDebug
 	doc := gatewayDocumentOf(t, placed(t, st))
-	if doc.Kb.Name != "Example KB" || doc.Kb.Domain != "example.github.io:example-kb" {
-		t.Errorf("kb = %+v, want the committed name and domain", doc.Kb)
+	if doc.Kb != exampleKB {
+		t.Errorf("kb = %+v, want the committed name and domain %+v", doc.Kb, exampleKB)
 	}
 	if doc.Port != 4000 || doc.PublicUrl != "https://kb.example.com" {
 		t.Errorf("port %d, publicUrl %q: want the KnowledgeBase's port and its publicURL as written", doc.Port, doc.PublicUrl)
@@ -187,14 +187,6 @@ func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
 	st.KnowledgeBase.Spec.Gateway.Resources.Limits.Memory = "4G"
 	if doc = gatewayDocumentOf(t, placed(t, st)); doc.Capacity.QueuedBytes != 2<<30 || doc.Capacity.Connections != 104857 {
 		t.Errorf("capacity at 4G = %+v, want 2 GiB queued and 104857 connections", doc.Capacity)
-	}
-}
-
-// A KB that declares no identity gets no fabricated one: the launcher refuses
-// to write a document the gateway would refuse.
-func TestGatewayDocumentRefusesAnUndeclaredDomain(t *testing.T) {
-	if _, err := gatewayDocument(placed(t, fixtureStack(t, "ollama-gemma")), "Example KB", ""); err == nil || !strings.Contains(err.Error(), "domain") {
-		t.Fatalf("want a refusal naming the domain, got %v", err)
 	}
 }
 

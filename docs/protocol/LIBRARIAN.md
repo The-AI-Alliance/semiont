@@ -61,7 +61,7 @@ A Librarian reads its settings from a configuration document, the protocol's
 at the path its `--config` flag names. The document is resolved: every address
 in it is literal, every credential is named by the variable that holds it, and
 the Librarian defaults nothing it leaves out. It states
-the gateway's URL; the issuer the Librarian's service account signs in at;
+the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's URL; the issuer the Librarian's service account signs in at;
 the Archivist's host and port, for a resource's bytes; the graph database
 ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the
@@ -1011,7 +1011,10 @@ requests; opens its health port.
   ([The two waits](#the-two-waits)). Every span and metric it exports is one
   of those rows, of the row's kind, carrying only the row's attributes; and
   every one of those rows that its work can make arrives, with every
-  attribute the row does not mark as conditional.
+  attribute the row does not mark as conditional. All of it is exported under
+  the resource the table's `resource` rows list for the librarian: its name,
+  its version, and `semiont.kb`, the DID of the knowledge base its document's
+  `kb` names.
   *Held by `librarian/telemetry`.*
 - **What is counted of a request of a model is the driver's to count,** the
   same whichever service asks.

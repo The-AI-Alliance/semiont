@@ -32,6 +32,8 @@ type WeaverDocument = components['schemas']['WeaverConfig'];
 
 /** What a test chooses of a Weaver's document; the harness fills in the rest. */
 export interface WeaverSettings {
+  /** The knowledge base it serves, which its telemetry names. */
+  kb: WeaverDocument['kb'];
   gatewayUrl: WeaverDocument['gatewayUrl'];
   issuer: WeaverDocument['identity']['issuer'];
   /** Where the Archivist listens: the Weaver reads the record by position there. */
@@ -94,6 +96,7 @@ export interface WeaverProcess {
  */
 function document(settings: WeaverSettings, service: WeaverService, temporary: string): string {
   const written: WeaverDocument = {
+    kb: settings.kb,
     gatewayUrl: settings.gatewayUrl,
     identity: { issuer: settings.issuer },
     archivist: settings.archivist,

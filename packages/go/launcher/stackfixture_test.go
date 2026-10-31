@@ -5,10 +5,15 @@ import (
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
 // fixtureRoot: the fixture knowledge base the launcher's tests read.
 var fixtureRoot = filepath.Join("testdata", "kb")
+
+// exampleKB: the knowledge base a document writer under test is handed, as a
+// start hands it (kbRoot.served).
+var exampleKB = api.KbIdentity{Name: "Example KB", Domain: "example.github.io:example-kb"}
 
 // fixtureStack: the fixture knowledge base's documents, with the Inference
 // document named inference ("anthropic" or "ollama-gemma"), read as a start

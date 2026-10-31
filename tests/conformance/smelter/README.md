@@ -140,8 +140,9 @@ A case about what happens while the reconcile runs starts the Smelter to
   exports under its own name every row
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
   lists for it that its traffic can make, and nothing the table does not
-  list; and its gauge of the index comes to say the number of points the
-  index holds.
+  list, all of it under the resource the table lists for it, with
+  `semiont.kb` the DID of the knowledge base its document names; and its
+  gauge of the index comes to say the number of points the index holds.
 
 ## Running it
 

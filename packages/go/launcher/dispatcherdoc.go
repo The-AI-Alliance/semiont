@@ -50,10 +50,12 @@ func dispatcherSecrets(p placement) []string {
 	return []string{external.User.FromEnv, external.Password.FromEnv}
 }
 
-// dispatcherDocument renders the document from the start's placement.
-func dispatcherDocument(p placement) ([]byte, error) {
+// dispatcherDocument renders the document from the start's placement and the
+// knowledge base it serves.
+func dispatcherDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	kb := p.st.KnowledgeBase.Spec
 	var doc api.DispatcherConfig
+	doc.Kb = served
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Queue.Servers = p.brokerServers()

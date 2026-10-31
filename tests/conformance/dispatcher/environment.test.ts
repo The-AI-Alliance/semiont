@@ -59,7 +59,7 @@ describe("the dispatcher's environment", () => {
         async (world, otlp) => {
           await ask(world);
           const span = await eventually(`the ${REQUEST} it received`, 10_000, () => otlp.spans.find(about(REQUEST, CONSUMER)));
-          expect(span.service).toBe(expected);
+          expect(span.resource['service.name']).toBe(expected);
         },
       );
     }

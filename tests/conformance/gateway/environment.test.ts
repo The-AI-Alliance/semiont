@@ -50,7 +50,7 @@ describe("the gateway's environment", () => {
         async (world, otlp) => {
           await emit(world);
           const span = await eventually(DISPATCH, 10_000, () => otlp.spans.find((s) => s.name === DISPATCH));
-          expect(span.service).toBe(expected);
+          expect(span.resource['service.name']).toBe(expected);
         },
       );
     }

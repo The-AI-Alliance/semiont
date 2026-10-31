@@ -15,6 +15,12 @@ package launcher
 //
 // Both are host-side, unauthenticated, and already inside the report's
 // existing time budget. Nothing here adds an endpoint or a round trip.
+//
+// A reading is of one knowledge base: the readout labels each series with the
+// resource that exported it (collectorConfig), and a service serving one KB
+// names it there as `semiont.kb`, its DID — `semiont_kb` in the readout. Every
+// reading requires that label, so another KB's numbers are never read as this
+// one's.
 
 import (
 	"encoding/json"
@@ -23,14 +29,26 @@ import (
 	"strings"
 )
 
+// kbLabel: the label the readout carries a series' `semiont.kb` as.
+const kbLabel = "semiont_kb"
+
+// labelValue escapes a label's value as the readout writes it: a DID may hold
+// `"` or `\`.
+var labelValue = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
+
 // forEachSample walks one metric's samples in a Prometheus text readout —
-// those named `name` whose labels carry every pair in `want` — and hands each
-// value to visit. Stops early when visit returns false.
+// those named `name` whose labels carry the knowledge base `kb` (its DID) and
+// every pair in `want` — and hands each value to visit. Stops early when visit
+// returns false.
 //
 // Requiring labels also settles the prefix collision a readout is full of:
 // for `semiont_job_queue_size_estimate` the remainder after the name opens
 // with "_", not "{", so it is skipped rather than read as the metric asked for.
-func forEachSample(readout, name string, want map[string]string, visit func(v float64) bool) {
+func forEachSample(readout, name, kb string, want map[string]string, visit func(v float64) bool) {
+	required := []string{kbLabel + `="` + labelValue.Replace(kb) + `"`}
+	for k, v := range want {
+		required = append(required, k+`="`+labelValue.Replace(v)+`"`)
+	}
 	for _, line := range strings.Split(readout, "\n") {
 		if !strings.HasPrefix(line, name) {
 			continue
@@ -45,8 +63,8 @@ func forEachSample(readout, name string, want map[string]string, visit func(v fl
 		}
 		labels := rest[1:end]
 		matched := true
-		for k, v := range want {
-			if !strings.Contains(labels, k+`="`+v+`"`) {
+		for _, pair := range required {
+			if !strings.Contains(labels, pair) {
 				matched = false
 				break
 			}
@@ -69,9 +87,9 @@ func forEachSample(readout, name string, want map[string]string, visit func(v fl
 // render it as one. A service that has not exported yet (the interval is 30s)
 // and a service reporting zero look identical only if someone substitutes a
 // value here, so nothing is substituted.
-func promGaugeInt(readout, name string, want map[string]string) (int, bool) {
+func promGaugeInt(readout, name, kb string, want map[string]string) (int, bool) {
 	value, found := 0.0, false
-	forEachSample(readout, name, want, func(v float64) bool {
+	forEachSample(readout, name, kb, want, func(v float64) bool {
 		value, found = v, true
 		return false
 	})
@@ -84,9 +102,9 @@ func promGaugeInt(readout, name string, want map[string]string) (int, bool) {
 // per process reporting them — so a total is a sum over all of them, and a
 // reader that took the first would silently report one motivation's work as
 // the whole.
-func promSumInt(readout, name string, want map[string]string) (int, bool) {
+func promSumInt(readout, name, kb string, want map[string]string) (int, bool) {
 	total, found := 0.0, false
-	forEachSample(readout, name, want, func(v float64) bool {
+	forEachSample(readout, name, kb, want, func(v float64) bool {
 		total += v
 		found = true
 		return true
@@ -108,10 +126,14 @@ func promSumInt(readout, name string, want map[string]string) (int, bool) {
 // so this is work attempted, not every job that left the queue. And a counter lives with
 // its process: it starts at zero when the worker does, which is why the line
 // says since when rather than implying all time.
-func jobsConcluded(readout string) (completed, failed int, ok bool) {
+//
+// Like every reading it requires `semiont_kb`, which the worker — whose
+// resource names no knowledge base, since a worker may serve several — must
+// carry on each point.
+func jobsConcluded(readout, kb string) (completed, failed int, ok bool) {
 	const c = "semiont_job_outcome_total"
-	comp, cok := promSumInt(readout, c, map[string]string{"job_outcome": "completed"})
-	fail, fok := promSumInt(readout, c, map[string]string{"job_outcome": "failed"})
+	comp, cok := promSumInt(readout, c, kb, map[string]string{"job_outcome": "completed"})
+	fail, fok := promSumInt(readout, c, kb, map[string]string{"job_outcome": "failed"})
 	// Either may legitimately be absent — nothing has failed yet on most
 	// stacks — so the pair reports present when either does, with the missing
 	// one a true zero rather than an unknown.
@@ -129,7 +151,7 @@ func jobsConcluded(readout string) (completed, failed int, ok bool) {
 // Printed beside a live depth they would read as one snapshot and silently be
 // a mixture of two questions; if throughput is worth showing it earns its own
 // line, with the window named.
-func queueDepth(readout string) (pending, running int, ok bool) {
+func queueDepth(readout, kb string) (pending, running int, ok bool) {
 	const g = "semiont_job_queue_size"
 	svc := map[string]string{"job": "semiont-dispatcher"}
 	with := func(status string) map[string]string {
@@ -139,8 +161,8 @@ func queueDepth(readout string) (pending, running int, ok bool) {
 		}
 		return m
 	}
-	p, pok := promGaugeInt(readout, g, with("pending"))
-	r, rok := promGaugeInt(readout, g, with("running"))
+	p, pok := promGaugeInt(readout, g, kb, with("pending"))
+	r, rok := promGaugeInt(readout, g, kb, with("running"))
 	return p, r, pok && rok
 }
 
@@ -156,41 +178,42 @@ func queueDepth(readout string) (pending, running int, ok bool) {
 //
 // Per gateway process: every replica projects the same shared claims table, so
 // the gauge is that table as the exporting process holds it — the same on every
-// replica, give or take the watch's lag. On a local stack there is one gateway.
-func ledgerOccupancy(readout string) (claims, claimsMax int, ok bool) {
+// replica, give or take the watch's lag. A local stack runs one gateway for its
+// knowledge base.
+func ledgerOccupancy(readout, kb string) (claims, claimsMax int, ok bool) {
 	const g = "semiont_bus_correlation_size"
 	// The collector renders OTel's dotted attribute keys with underscores, so
 	// `correlation.kind` arrives as `correlation_kind` (as `job.status` does).
 	get := func(k string) (int, bool) {
-		return promGaugeInt(readout, g, map[string]string{"job": "semiont-gateway", "correlation_kind": k})
+		return promGaugeInt(readout, g, kb, map[string]string{"job": "semiont-gateway", "correlation_kind": k})
 	}
 	c, cok := get("claims")
 	cm, cmok := get("claims_max")
 	return c, cm, cok && cmok
 }
 
-// printInFlight renders one role's in-flight line beneath its status row, or
-// nothing at all.
+// printInFlight renders one role's in-flight line beneath its status row, read
+// for the knowledge base kb (its DID), or nothing at all.
 //
 // An absent series prints NOTHING rather than zeros. The gap between a
 // service's boot and its first metric export is 30 seconds wide, and "queue 0
 // pending" during it would be a confident lie about a dispatcher that has not
 // spoken yet. Silence is the honest rendering of a number nobody has reported.
-func printInFlight(u *UI, role, readout string) {
+func printInFlight(u *UI, role, readout, kb string) {
 	switch role {
 	case "dispatcher":
-		if pending, running, ok := queueDepth(readout); ok {
+		if pending, running, ok := queueDepth(readout, kb); ok {
 			line := fmt.Sprintf("%d pending · %d running", pending, running)
 			// The counter is the worker's, so it is absent on a stack whose
 			// worker has never run one — and absent stays unsaid.
-			if completed, failed, done := jobsConcluded(readout); done {
+			if completed, failed, done := jobsConcluded(readout, kb); done {
 				line += fmt.Sprintf(" · %d completed · %d failed since worker start",
 					completed, failed)
 			}
 			fmt.Printf("      %-10s %s\n", "queue", u.Dim(line))
 		}
 	case "gateway":
-		if claims, claimsMax, ok := ledgerOccupancy(readout); ok {
+		if claims, claimsMax, ok := ledgerOccupancy(readout, kb); ok {
 			fmt.Printf("      %-10s %s\n", "ledger", u.Dim(fmt.Sprintf("%d/%d claims", claims, claimsMax)))
 		}
 	}

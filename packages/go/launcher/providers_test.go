@@ -25,7 +25,7 @@ func assessingWith(t *testing.T, provider api.EngineProvider, model string, entr
 // names one.
 func TestWorkerDocumentReachesAProviderAtTheAddressItsEntryStates(t *testing.T) {
 	baseURL := "http://vllm.internal:8000/v1"
-	b, err := workerDocument(placed(t, assessingWith(t, api.EngineProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})), exampleKBDomain, nil)
+	b, err := workerDocument(placed(t, assessingWith(t, api.EngineProviderVllm, "served-model", stack.Provider{BaseURL: &baseURL})), exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	baseURL := "https://api.openai.com/v1"
 	p := placed(t, assessingWith(t, api.EngineProviderOpenai, "gpt-listed",
 		stack.Provider{BaseURL: &baseURL, ApiKey: &stack.SecretRef{FromEnv: "OPENAI_API_KEY"}}))
-	b, err := workerDocument(p, exampleKBDomain, nil)
+	b, err := workerDocument(p, exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,14 +59,14 @@ func TestWorkerDocumentNamesAProvidersKeyAndTheModelCatalogue(t *testing.T) {
 	if doc.ModelCatalogue != modelCatalogueTarget {
 		t.Errorf("the document's model catalogue is %q, want %s", doc.ModelCatalogue, modelCatalogueTarget)
 	}
-	plain, err := workerDocument(placed(t, fixtureStack(t, "ollama-gemma")), exampleKBDomain, nil)
+	plain, err := workerDocument(placed(t, fixtureStack(t, "ollama-gemma")), exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := workerDocumentFrom(t, plain).ModelCatalogue; got != modelCatalogueTarget {
 		t.Errorf("a worker of Ollama is told its model catalogue is %q, want %s", got, modelCatalogueTarget)
 	}
-	lb, err := librarianDocument(placed(t, fixtureStack(t, "anthropic")))
+	lb, err := librarianDocument(placed(t, fixtureStack(t, "anthropic")), exampleKB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestAProviderWithNoAddressIsRefused(t *testing.T) {
 	mustRefuse(t, st, st.Files.Inference+": spec.engines.jobs.mark.assessing.provider", `"together"`, "spec.providers.together")
 
 	st = assessingWith(t, api.EngineProviderTogether, "m", stack.Provider{})
-	_, err := workerDocument(placed(t, st), exampleKBDomain, nil)
+	_, err := workerDocument(placed(t, st), exampleKB.Domain, nil)
 	if want := st.Files.Inference + ": spec.providers.together.baseURL"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("want a refusal naming %s, got %v", want, err)
 	}

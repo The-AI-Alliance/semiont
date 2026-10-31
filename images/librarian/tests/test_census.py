@@ -343,7 +343,7 @@ def test_one_module_names_the_logger_and_one_reads_the_process_s_environment_and
     # It hands both over whole, to what reads a document's path, a service's account and where telemetry goes
     # (`semiont_service`), and to what reads a variable the document names. It looks nothing up in either itself.
     service = (SRC / "service.py").read_text(encoding="utf-8")
-    assert re.findall(r"os\.environ\b(.?)", service) == [")", ")"]
+    assert re.findall(r"os\.environ\b(.?)", service) == [")", ","]
     assert re.findall(r"sys\.argv(.{4})", service) == ["[1:]"]
     # A variable is read by the name the document gives it, in the one module that knows the document's members.
     assert naming("set_in(") == ["config.py"]

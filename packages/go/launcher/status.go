@@ -566,13 +566,15 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		// What this role has in flight, indented beneath it — read from the
 		// collector's readout, which every start runs and which the collector
 		// row above already fetched. Only for a row that is actually up: a
-		// dead service's last exported numbers are worse than no numbers.
-		if isHealthy && (svc.name == "dispatcher" || svc.name == "gateway") {
+		// dead service's last exported numbers are worse than no numbers. And
+		// only for the knowledge base the record names: without one there is
+		// no telling whose numbers they are.
+		if isHealthy && (svc.name == "dispatcher" || svc.name == "gateway") && st != nil && st.KBDid != "" {
 			if !readoutFetched {
 				readout, _ = httpBody("http://localhost:24110/metrics")
 				readoutFetched = true
 			}
-			printInFlight(u, svc.name, readout)
+			printInFlight(u, svc.name, readout, st.KBDid)
 		}
 
 		// The models this role was started with, indented beneath it.

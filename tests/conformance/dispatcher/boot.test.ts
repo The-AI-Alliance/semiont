@@ -50,6 +50,7 @@ withDispatcher('the dispatcher\'s boot', (world) => {
     ['missing the broker', (d: Record<string, Record<string, unknown>>) => delete d['queue']!['servers'], /servers/],
     ['missing the issuer', (d: Record<string, Record<string, unknown>>) => delete d['identity'], /identity/],
     ['missing the gateway', (d: Record<string, Record<string, unknown>>) => delete d['gatewayUrl'], /gatewayUrl/],
+    ['missing the knowledge base it serves', (d: Record<string, Record<string, unknown>>) => delete d['kb'], /is missing kb\b/],
     ['carrying a secret\'s value where its name belongs', (d: Record<string, Record<string, unknown>>) => (d['queue']!['password'] = 'hunter2'), /password/],
   ])('refuses a document %s, naming the field', async (_what, breakIt, field) => {
     const settings = world().settings;

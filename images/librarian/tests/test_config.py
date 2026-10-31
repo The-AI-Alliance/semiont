@@ -11,7 +11,7 @@ from typing import Final
 import pytest
 from pydantic import JsonValue
 from semiont.timing import HELD_JOB_STALL_MS
-from semiont.types import LibrarianConfig
+from semiont.types import KbIdentity, LibrarianConfig
 from semiont_service.config import Refused
 
 from semiont_librarian.config import SERVICE, api_key_of, embedding_key_of, graph_password_of, read_librarian_config
@@ -35,6 +35,7 @@ VOYAGE: Final[dict[str, JsonValue]] = {
 ENGINE: Final[dict[str, JsonValue]] = {"engine": {"provider": "ollama", "model": "a-model"}, "baseUrl": "http://127.0.0.1:1"}
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
+    "kb": {"name": "example-kb", "domain": "example.github.io:example-kb"},
     "gatewayUrl": "http://127.0.0.1:1",
     "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
     "archivist": {"host": "127.0.0.1", "port": 1},
@@ -79,6 +80,7 @@ def test_the_service_is_called_the_librarian() -> None:
 
 def test_a_document_that_states_everything_is_read_as_it_is(tmp_path: Path) -> None:
     config = read_librarian_config(written(tmp_path))
+    assert config.kb == KbIdentity(name="example-kb", domain="example.github.io:example-kb")
     assert config.gateway_url == "http://127.0.0.1:1"
     assert config.gather.settle_timeout_ms == 15000
     assert config.search.semantic_floor == 0.6

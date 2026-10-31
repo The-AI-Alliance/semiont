@@ -49,7 +49,7 @@ withArchivist(
         const span = await eventually(`a ${name} span`, 10_000, () => otlp().spans.find((s) => s.name === name));
         expect(span.kind).toBe(kind);
         expect(span.attributes['bus.channel']).toBe(channel);
-        expect(span.service).toBe('semiont-archivist');
+        expect(span.resource['service.name']).toBe('semiont-archivist');
       }
     });
 
@@ -82,7 +82,7 @@ withArchivist(
     // Last, and judged on everything the cases above made the Archivist
     // export: run it with them, never alone.
     it('exports exactly the telemetry the spec lists: every row it can, and nothing else', async () => {
-      expect(await outsideTheTable(otlp(), 'archivist')).toEqual([]);
+      expect(await outsideTheTable(otlp(), 'archivist', world().world.kb.domain)).toEqual([]);
     });
   },
   {

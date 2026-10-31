@@ -158,9 +158,6 @@ func sameEngine(a, b api.WorkerEngineConfig) bool {
 // derivePlan refuses an Inference document that gives a job an engine when
 // there is no WorkerPool document.
 func workerDocument(p placement, kbDomain string, added []addedKB) ([]byte, error) {
-	if kbDomain == "" {
-		return nil, fmt.Errorf("the knowledge base declares no site.domain in its .semiont/config.yaml: the worker has no knowledge base to confirm")
-	}
 	if err := refuseOwnKB(kbDomain, added); err != nil {
 		return nil, err
 	}

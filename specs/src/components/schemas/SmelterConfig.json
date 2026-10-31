@@ -2,6 +2,9 @@
   "type": "object",
   "description": "Everything a Smelter reads at boot: nothing in it is defaulted by the Smelter. Whoever starts a Smelter writes it, from the knowledge base's stack documents, and the Smelter reads it from the path its `--config` flag names. This schema is the contract, and a Smelter needs no launcher. Started without `--config`, or with a path that names no file, the Smelter refuses to start and says which. No secret is a value here: an embedding provider's key is named by the environment variable that holds it, and the Smelter's own service account is `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` in its environment. A document that does not validate is refused at boot, naming each failing field.",
   "properties": {
+    "kb": {
+      "$ref": "./KbIdentity.json"
+    },
     "gatewayUrl": {
       "type": "string",
       "minLength": 1,
@@ -91,6 +94,7 @@
     }
   },
   "required": [
+    "kb",
     "gatewayUrl",
     "identity",
     "archivist",

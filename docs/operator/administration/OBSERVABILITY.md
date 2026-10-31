@@ -201,6 +201,26 @@ propagation), a service between them exports nothing: one that installs
 no exporter sends no trace context on. Check each service's `OTEL_`
 variables as above.
 
+### Which knowledge base
+
+Every service that serves one knowledge base exports under a resource naming it:
+`semiont.kb`, the knowledge base's DID (`did:web:<site.domain>`). The worker serves
+several, so its resource names none. In Jaeger the DID is a tag of each service's
+process; the collector writes it on every metric it hands Prometheus as the label
+`semiont_kb`:
+
+```bash
+# Traces of one knowledge base
+curl -sG http://localhost:16686/api/traces --data-urlencode service=semiont-gateway \
+  --data-urlencode 'tags={"semiont.kb":"did:web:example.org"}' --data-urlencode lookback=10m \
+  | jq -r '.data[].traceID'
+
+# The knowledge bases Prometheus holds metrics of
+curl -sG http://localhost:9090/api/v1/label/semiont_kb/values | jq -r '.data[]'
+```
+
+`semiont status` reads only its own knowledge base's metrics out of the collector.
+
 ## Two invariants
 
 1. **No co-location with KB data.** Traces never go in Postgres, the

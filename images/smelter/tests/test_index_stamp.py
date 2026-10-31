@@ -20,6 +20,7 @@ def configured(embedding: dict[str, str], chunk_size: int, overlap: int) -> Smel
     """A Smelter's document, with this embedding provider and these two numbers."""
     return SmelterConfig.model_validate(
         {
+            "kb": {"name": "example-kb", "domain": "example.github.io:example-kb"},
             "gatewayUrl": "http://127.0.0.1:1",
             "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
             "archivist": {"host": "127.0.0.1", "port": 1},

@@ -94,7 +94,8 @@ again finds what it kept; one that is replaced starts with nothing.
 - **What it exports** (`telemetry.test.ts`): a Weaver told where to export,
   held to the telemetry table in both directions: every row the table lists
   for it arrives, under its name, and nothing arrives that the table does not
-  list.
+  list; and all of it under the resource the table lists for it, with
+  `semiont.kb` the DID of the knowledge base its document names.
 
 ## Running it
 

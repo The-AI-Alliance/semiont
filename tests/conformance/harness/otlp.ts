@@ -1,18 +1,22 @@
 /**
- * An OTLP/HTTP receiver: collects the spans a service exports, and for each
- * metric the instrument it arrived as and the attributes and values its data
- * points carried, so a case can hold the service to the telemetry the spec
- * lists (specs/src/service-telemetry/telemetry.json, by telemetry.ts). It
- * reads either encoding OTLP/HTTP has, by `Content-Type`, as a collector does.
+ * An OTLP/HTTP receiver: collects the spans a service exports, each with the
+ * attributes of the resource it was exported under, and for each metric the
+ * instrument it arrived as, the attributes and values its data points
+ * carried and the resources it arrived under, so a case can hold the service
+ * to the telemetry the spec lists (specs/src/service-telemetry/telemetry.json,
+ * by telemetry.ts). It reads either encoding OTLP/HTTP has, by
+ * `Content-Type`, as a collector does.
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { isDeepStrictEqual } from 'node:util';
 import { metricsRequest, traceRequest } from './otlp-protobuf';
 
 export interface ReceivedSpan {
   name: string;
   kind: number;
-  service: string | undefined;
+  /** The attributes of the resource it was exported under. */
+  resource: Record<string, unknown>;
   attributes: Record<string, unknown>;
   traceId: string;
   parentSpanId: string | undefined;
@@ -25,6 +29,8 @@ export interface ReceivedMetric {
   readonly attributes: Map<string, Set<string>>;
   /** Every value its sum and gauge data points carried, in arrival order. */
   readonly values: number[];
+  /** The attributes of each resource it was exported under, each once, in arrival order. */
+  readonly resources: Record<string, unknown>[];
 }
 
 export interface OtlpReceiver {
@@ -51,6 +57,12 @@ function attributes(kvs: unknown): Record<string, unknown> {
   return out;
 }
 
+/** The attributes of the resource a `resourceSpans` or `resourceMetrics` entry was exported under. */
+function resourceOf(entry: Record<string, unknown>): Record<string, unknown> {
+  const resource = entry['resource'];
+  return attributes(isObject(resource) ? resource['attributes'] : undefined);
+}
+
 export async function startOtlp(): Promise<OtlpReceiver> {
   const spans: ReceivedSpan[] = [];
   const metrics = new Map<string, ReceivedMetric>();
@@ -70,8 +82,7 @@ export async function startOtlp(): Promise<OtlpReceiver> {
         if (req.url === '/v1/traces') {
           for (const rs of list(body['resourceSpans'])) {
             if (!isObject(rs)) continue;
-            const resource = rs['resource'];
-            const service = str(attributes(isObject(resource) ? resource['attributes'] : undefined)['service.name']);
+            const resource = resourceOf(rs);
             for (const ss of list(rs['scopeSpans'])) {
               if (!isObject(ss)) continue;
               for (const span of list(ss['spans'])) {
@@ -79,7 +90,7 @@ export async function startOtlp(): Promise<OtlpReceiver> {
                 spans.push({
                   name: str(span['name']) ?? '',
                   kind: typeof span['kind'] === 'number' ? span['kind'] : 0,
-                  service,
+                  resource,
                   attributes: attributes(span['attributes']),
                   traceId: str(span['traceId']) ?? '',
                   parentSpanId: str(span['parentSpanId']) || undefined,
@@ -90,13 +101,15 @@ export async function startOtlp(): Promise<OtlpReceiver> {
         } else if (req.url === '/v1/metrics') {
           for (const rm of list(body['resourceMetrics'])) {
             if (!isObject(rm)) continue;
+            const resource = resourceOf(rm);
             for (const sm of list(rm['scopeMetrics'])) {
               if (!isObject(sm)) continue;
               for (const m of list(sm['metrics'])) {
                 const name = isObject(m) ? str(m['name']) : undefined;
                 if (!isObject(m) || !name) continue;
-                const metric: ReceivedMetric = metrics.get(name) ?? { instruments: new Set<string>(), attributes: new Map<string, Set<string>>(), values: [] };
+                const metric: ReceivedMetric = metrics.get(name) ?? { instruments: new Set<string>(), attributes: new Map<string, Set<string>>(), values: [], resources: [] };
                 metrics.set(name, metric);
+                if (!metric.resources.some((seen) => isDeepStrictEqual(seen, resource))) metric.resources.push(resource);
                 for (const kind of ['sum', 'gauge', 'histogram']) {
                   const data = m[kind];
                   if (!isObject(data)) continue;

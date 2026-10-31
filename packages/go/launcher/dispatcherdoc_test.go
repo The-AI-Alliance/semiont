@@ -26,7 +26,7 @@ func dispatcherDocumentFrom(t *testing.T, b []byte) api.DispatcherConfig {
 
 func dispatcherDocumentOf(t *testing.T, p placement) api.DispatcherConfig {
 	t.Helper()
-	b, err := dispatcherDocument(p)
+	b, err := dispatcherDocument(p, exampleKB)
 	if err != nil {
 		t.Fatal(err)
 	}

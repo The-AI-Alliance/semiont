@@ -6,6 +6,7 @@
  * carried a message the spec does not allow.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import type { components } from '@semiont/core';
 import { SignJWT } from 'jose';
 import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest';
 import { startArchivist, type FakeArchivist } from './archivist';
@@ -36,6 +37,11 @@ export interface WorldOptions {
   accounts?: Record<string, ServiceAccount>;
   /** The knowledge base the world is, when it is not the suite's own: one of kb-identity/cases.json. */
   kb?: KbIdentity;
+}
+
+/** `kb` as a service's document names the knowledge base it serves. */
+function servedOf(kb: { name: string; domain: string }): components['schemas']['KbIdentity'] {
+  return { name: kb.name, domain: kb.domain };
 }
 
 export class World {
@@ -70,7 +76,7 @@ export class World {
       ...options.env,
     };
     const base = await defaultSettings({
-      kb: { name: kb.name, domain: kb.domain },
+      kb: servedOf(kb),
       issuer: issuer.origin,
       archivist: { host: archivist.host, port: archivist.port },
       plane,
@@ -79,6 +85,11 @@ export class World {
     const settings = options.settings ? options.settings(base) : base;
     const gateway = await startGateway({ settings, env });
     return new World(kb, plane, issuer, archivist, broker, env, gateway);
+  }
+
+  /** The knowledge base as a service's document names the one it serves. */
+  get served(): components['schemas']['KbIdentity'] {
+    return servedOf(this.kb);
   }
 
   get origin(): string {

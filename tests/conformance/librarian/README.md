@@ -148,15 +148,17 @@ the stand-in answers what the real Archivist answers when it is asked.
   indexed resource that nothing is like and for an image, and one answered
   without similar passages when the settle bound passes; and a
   Librarian that answers as before after it is started again.
-- **What it exports** (`telemetry.test.ts`): a Librarian told where to
-  export, held to the telemetry table in both directions: every row the table
-  lists for it arrives, under its name, and nothing arrives that the table
-  does not list. Its traffic is a gather whose model answers and reports its
-  tokens, one whose model fails, one around a bound reference whose model
-  fails on the linked resource's summary and on the relationship sentence,
-  one that reads a PDF's text, one the Smelter does not decide in time, and
-  one for a resource the graph does not come to hold: every way a request of
-  a model ends, and everything a gather can go without.
+- **What it exports** (`telemetry.test.ts`): a Librarian told where to export,
+  held to the telemetry table in both directions: every row the table lists
+  for it arrives, under its name, and nothing arrives that the table does not
+  list; and all of it under the resource the table lists for it, with
+  `semiont.kb` the DID of the knowledge base its document names. Its traffic
+  is a gather whose model answers and reports its tokens, one whose model
+  fails, one around a bound reference whose model fails on the linked
+  resource's summary and on the relationship sentence, one that reads a PDF's
+  text, one the Smelter does not decide in time, and one for a resource the
+  graph does not come to hold: every way a request of a model ends, and
+  everything a gather can go without.
 
 ## Running it
 
