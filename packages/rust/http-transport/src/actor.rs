@@ -631,17 +631,16 @@ async fn connection(
     body: BusSubscribeRequest,
     events: mpsc::Sender<Event>,
 ) {
-    let response = shared
+    let request = shared
         .http
         .post(format!("{}/bus/subscribe", shared.base_url))
         .bearer_auth(&token)
         .header(reqwest::header::ACCEPT, "text/event-stream")
         .json(&body)
-        .send()
-        .await;
-    let response = match response {
-        Ok(response) => response,
-        Err(_) => {
+        .send();
+    let response = match tokio::time::timeout(shared.timing.stream_open, request).await {
+        Ok(Ok(response)) => response,
+        Ok(Err(_)) | Err(_) => {
             let _ = events.send(Event::Ended { conn }).await;
             return;
         }

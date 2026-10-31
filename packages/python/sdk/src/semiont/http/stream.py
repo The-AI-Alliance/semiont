@@ -55,6 +55,7 @@ from semiont.timing import (
     RECONNECT_DEBOUNCE_MS,
     RECONNECT_MS,
     SEEN_EVENT_IDS_COUNT,
+    STREAM_OPEN_TIMEOUT_MS,
 )
 from semiont.transport import CONNECTION_STATE_MAY_BECOME, ConnectionState, Frame, FrameHub, ReplyRouter, TraceContext
 from semiont.types import BusFrame, BusSubscribeRequest, BusSubscribeRequestScopedItem, ErrorResponse
@@ -87,6 +88,8 @@ class Timing:
     seen_event_ids_count: int = SEEN_EVENT_IDS_COUNT
     http_request_ms: int = HTTP_REQUEST_TIMEOUT_MS
     """The deadline on one request that is neither the stream nor an emit."""
+    stream_open_ms: int = STREAM_OPEN_TIMEOUT_MS
+    """The deadline on the gateway's answer to the request that opens the stream: its status and headers."""
 
 
 def backoff_cap_ms(reconnect_ms: int, failures: int) -> int:
@@ -663,14 +666,17 @@ class Stream:
 
     async def _connection(self, conn: int, token: str, body: BusSubscribeRequest) -> None:
         """One connection: the subscribe request, and every event its stream carries, reported in order."""
-        request = self._http.stream(
+        request = self._http.build_request(
             "POST",
             f"{self._base_url}/bus/subscribe",
             content=body.model_dump_json(exclude_none=True),
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "text/event-stream"},
         )
         try:
-            async with request as response:
+            # Only the answer has a deadline: an open stream says nothing for as long as nothing happens.
+            async with asyncio.timeout(self._timing.stream_open_ms / 1000):
+                response = await self._http.send(request, stream=True)
+            try:
                 if not response.is_success:
                     self._reports.put_nowait(_Refused(conn, await _refusal(response)))
                     return
@@ -680,8 +686,10 @@ class Stream:
                     for event in parser.feed(read):
                         if event.event == "bus-event" and event.data != "":
                             self._reports.put_nowait(_Framed(conn, event.id, event.data))
-        except httpx.HTTPError:
-            # No answer, or a stream that broke: a state, reported as the stream's end.
+            finally:
+                await response.aclose()
+        except (httpx.HTTPError, TimeoutError):
+            # No answer, none by the deadline, or a stream that broke: a state, reported as the stream's end.
             pass
         self._reports.put_nowait(_Ended(conn))
 

@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -23,6 +23,12 @@ export interface ActorStateUnitOptions {
    * n resets on a successful open. Default `RECONNECT_MS`.
    */
   reconnectMs?: number;
+  /**
+   * How long a connect waits for the gateway's answer (its status and
+   * headers). Unanswered by then, the connect has failed, and the stream is
+   * opened again on the backoff. Default `STREAM_OPEN_TIMEOUT_MS`.
+   */
+  streamOpenTimeoutMs?: number;
   /**
    * The SAME hook `HttpTransportConfig.tokenRefresher` renews a refused
    * request's credential with — there is no second refresh mechanism.
@@ -119,7 +125,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, seenEventIdsCount = SEEN_EVENT_IDS_COUNT, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, streamOpenTimeoutMs = STREAM_OPEN_TIMEOUT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, seenEventIdsCount = SEEN_EVENT_IDS_COUNT, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -420,7 +426,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
-      const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
+      // The answer's deadline: a gateway that accepts the connection and never
+      // answers has failed the connect, which the backoff below makes again.
+      // A signal of its own, so that the cut is not the `AbortError` of a stop
+      // or a handoff, and cleared at the answer, so that it never reaches a
+      // stream that opened.
+      const opening = new AbortController();
+      const openDeadline = setTimeout(() => {
+        opening.abort(new DOMException(`/bus/subscribe got no answer within ${streamOpenTimeoutMs}ms`, 'TimeoutError'));
+      }, streamOpenTimeoutMs);
+      const response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.any([controller.signal, opening.signal]) })
+        .finally(() => clearTimeout(openDeadline));
 
       if (!response.ok || !response.body) {
         // The body says which limit refused it: a 429 `refusal-rate` is a

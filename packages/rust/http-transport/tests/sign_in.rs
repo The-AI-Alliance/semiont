@@ -38,7 +38,7 @@ use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::as_id;
 use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
-use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
+use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::{Envelope, PutBinaryRequest};
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
@@ -1381,9 +1381,12 @@ async fn the_device_grant_shows_the_code_and_asks_until_the_person_approves() {
         )
     );
     // At the issuer's interval, and more slowly once it said to slow down:
-    // five seconds, five, and then ten.
+    // its five seconds, five, and then five and the step a `slow_down` adds.
     assert!(
-        took(started.elapsed(), Duration::from_secs(20)),
+        took(
+            started.elapsed(),
+            Duration::from_secs(15) + DEVICE_SLOW_DOWN
+        ),
         "{:?}",
         started.elapsed()
     );

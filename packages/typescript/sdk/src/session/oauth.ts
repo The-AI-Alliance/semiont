@@ -10,6 +10,9 @@
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import {
   BROWSER_CLIENT_ID,
+  DEVICE_CODE_LIFETIME_MS,
+  DEVICE_POLL_MS,
+  DEVICE_SLOW_DOWN_MS,
   REFRESH_RETRY,
   HTTP_REQUEST_TIMEOUT_MS,
   RETRY_RULES,
@@ -445,7 +448,7 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
   ) {
     throw new SignInError('exchange', `The issuer refused the device authorization request (${refusal(status, body)})`);
   }
-  const expiresIn = typeof body['expires_in'] === 'number' ? body['expires_in'] : 600;
+  const expiresIn = typeof body['expires_in'] === 'number' ? body['expires_in'] : DEVICE_CODE_LIFETIME_MS / 1000;
   opts.onCode({
     userCode: body['user_code'],
     verificationUri: body['verification_uri'],
@@ -453,7 +456,7 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
     expiresIn,
   });
 
-  let interval = Math.max(typeof body['interval'] === 'number' ? body['interval'] : 5, 1) * 1000;
+  let interval = Math.max(typeof body['interval'] === 'number' ? body['interval'] * 1000 : DEVICE_POLL_MS, 1000);
   const deadline = Date.now() + expiresIn * 1000;
   for (;;) {
     await sleep(interval, opts.signal);
@@ -474,7 +477,7 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
       case 'authorization_pending':
         break;
       case 'slow_down':
-        interval += 5000;
+        interval += DEVICE_SLOW_DOWN_MS;
         break;
       case 'access_denied':
         throw new SignInError('denied', 'The sign-in was denied at the issuer');

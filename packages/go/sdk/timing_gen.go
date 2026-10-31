@@ -56,6 +56,18 @@ type Timing struct {
 	// wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not
 	// made again.
 	RequestRetryPause time.Duration
+	// StreamOpenTimeout is streamOpenTimeoutMs: How long a client waits for the
+	// gateway to answer the request that opens its stream (POST /bus/subscribe):
+	// for the answer's status and headers. Unanswered here, the open has failed,
+	// and the stream is opened again on the backoff (`reconnectMs`), as after
+	// any open that failed. Without it, a gateway that accepts the connection
+	// and says nothing is waited on for as long as the process lives, and the
+	// stream is never opened again. The gateway answers an open as promptly as
+	// one of its own operations, so this is as long as `httpRequestTimeoutMs`.
+	// Only the answer is bounded: an open stream that carries nothing for a
+	// while has not failed, since a knowledge base where nothing happens has
+	// nothing to send.
+	StreamOpenTimeout time.Duration
 	// Reconnect is reconnectMs: The first wait before a failed stream is opened
 	// again. Each further failure doubles it, up to `maxReconnectMs`, and a
 	// successful open resets it. Also the cadence at which a transport with no
@@ -108,6 +120,25 @@ type Timing struct {
 	// tokens gets one attempt per interval. Waiting is cheap here: a 401 still
 	// drives a renewal.
 	MinRefreshDelay time.Duration
+	// DevicePoll is devicePollMs: How long a sign-in by the device grant (RFC
+	// 8628) waits before each time it asks the token endpoint whether the person
+	// has approved the code, when the issuer's answer states no `interval`. RFC
+	// 8628 §3.2 names five seconds: an issuer that wants a client to ask less
+	// often says so.
+	DevicePoll time.Duration
+	// DeviceSlowDown is deviceSlowDownMs: How much longer a sign-in by the
+	// device grant waits between its asks, for that ask and every one after it,
+	// each time the issuer answers `slow_down`. RFC 8628 §3.5 names five
+	// seconds, so an issuer that says it again is given more time again.
+	DeviceSlowDown time.Duration
+	// DeviceCodeLifetime is deviceCodeLifetimeMs: How long a sign-in by the
+	// device grant takes its code to be good for when the issuer's answer states
+	// no `expires_in`, which RFC 8628 §3.2 requires of it: the whole of the wait
+	// for the person to approve the code, after which the sign-in has failed as
+	// expired and the token endpoint is not asked again. RFC 8628 leaves the
+	// lifetime to the issuer, and ten minutes is the common choice: long enough
+	// to reach a browser and sign in there.
+	DeviceCodeLifetime time.Duration
 	// InvalidationWindow is invalidationWindowMs: How long bus-driven
 	// invalidations of one cache key fold together (CACHE-SEMANTICS B19). The
 	// first runs at once; any more inside the window become one refetch at its
@@ -225,6 +256,7 @@ func DefaultTiming() Timing {
 		EmitRetry:                         RetryPolicy{Attempts: 4, InitialDelay: 1000 * time.Millisecond, MaxDelay: 4000 * time.Millisecond},
 		HttpRequestTimeout:                30000 * time.Millisecond,
 		RequestRetryPause:                 300 * time.Millisecond,
+		StreamOpenTimeout:                 30000 * time.Millisecond,
 		Reconnect:                         5000 * time.Millisecond,
 		MaxReconnect:                      60000 * time.Millisecond,
 		DegradedThreshold:                 3000 * time.Millisecond,
@@ -235,6 +267,9 @@ func DefaultTiming() Timing {
 		RefreshRetry:                      RetryPolicy{Attempts: 4, InitialDelay: 500 * time.Millisecond, MaxDelay: 4000 * time.Millisecond},
 		RefreshBeforeExp:                  300000 * time.Millisecond,
 		MinRefreshDelay:                   10000 * time.Millisecond,
+		DevicePoll:                        5000 * time.Millisecond,
+		DeviceSlowDown:                    5000 * time.Millisecond,
+		DeviceCodeLifetime:                600000 * time.Millisecond,
 		InvalidationWindow:                1000 * time.Millisecond,
 		SaveDebounce:                      50 * time.Millisecond,
 		MaxStoredBytesCount:               2097152,

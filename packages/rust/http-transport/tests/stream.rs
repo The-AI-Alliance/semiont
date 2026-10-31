@@ -4,8 +4,8 @@
 //! the real transport — no stream that could never fire (L1), a request that
 //! settles under any schedule of gateway faults (L2), exactly-once delivery
 //! across handoffs under generated interleavings (L3), the breadcrumb a frame
-//! from a superseded connection leaves (L4) — and the two ways a handoff can
-//! go wrong.
+//! from a superseded connection leaves (L4) — the two ways a handoff can go
+//! wrong, and an open the gateway takes and never answers.
 
 use axum::Json;
 use axum::Router;
@@ -211,6 +211,10 @@ impl Gateway {
 
     /// A transport to this gateway, with timing a test does not wait out.
     fn client(&self, linger: Duration) -> HttpTransport {
+        self.client_timed(quick(linger))
+    }
+
+    fn client_timed(&self, timing: Timing) -> HttpTransport {
         // Already installed by another test of this process: one is enough.
         let _ = rustls::crypto::ring::default_provider().install_default();
         HttpTransport::new(HttpTransportConfig {
@@ -223,19 +227,24 @@ impl Gateway {
                     .to_vec(),
             ),
             http: reqwest::Client::new(),
-            timing: Timing {
-                reconnect: Duration::from_millis(20),
-                lazy_remove: Duration::from_millis(20),
-                linger,
-                emit_retry: RetryPolicy {
-                    attempts: 2,
-                    initial_delay: Duration::from_millis(10),
-                    max_delay: Duration::from_millis(10),
-                },
-                ..Timing::default()
-            },
+            timing,
             bookmarks: None,
         })
+    }
+}
+
+/// Timing a test does not wait out, with the stream's open left as it is.
+fn quick(linger: Duration) -> Timing {
+    Timing {
+        reconnect: Duration::from_millis(20),
+        lazy_remove: Duration::from_millis(20),
+        linger,
+        emit_retry: RetryPolicy {
+            attempts: 2,
+            initial_delay: Duration::from_millis(10),
+            max_delay: Duration::from_millis(10),
+        },
+        ..Timing::default()
     }
 }
 
@@ -501,6 +510,34 @@ async fn the_live_stream_ending_during_a_handoff_is_a_drop_the_handoff_recovers(
     // The connect already in flight was the recovery: no third was made.
     assert_eq!(gateway.arrived(), 2);
     assert_eq!(gateway.opened().len(), 1);
+    transport.close().await;
+}
+
+#[tokio::test]
+async fn an_open_the_gateway_never_answers_has_failed_and_the_stream_is_opened_again() {
+    let gateway = Gateway::start().await;
+    // The first subscribe is taken and never answered: `_never` is held to
+    // the end, so what it releases is never released.
+    let (_never, held) = oneshot::channel::<()>();
+    *gateway.staged.held.lock().unwrap() = Some(held);
+    let transport = gateway.client_timed(Timing {
+        stream_open: Duration::from_millis(100),
+        ..quick(Duration::from_millis(60))
+    });
+    let states = states_of(&transport);
+
+    reaches(&transport, ConnectionState::Open).await;
+
+    assert_eq!(gateway.arrived(), 2);
+    assert_eq!(gateway.opened().len(), 1);
+    assert!(
+        states
+            .lock()
+            .unwrap()
+            .contains(&ConnectionState::Reconnecting),
+        "{:?}",
+        states.lock().unwrap()
+    );
     transport.close().await;
 }
 

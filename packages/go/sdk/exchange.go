@@ -144,20 +144,15 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 	}
 }
 
-// refusalMessage is what a refusal says: its body's message or error, or
-// its status and its reason, worded as the TypeScript transport words it.
+// refusalMessage is what a refusal says: its body's error (an
+// ErrorResponse), or its status and its reason, worded as the TypeScript
+// transport words it.
 func refusalMessage(response *http.Response, said []byte) string {
 	var body struct {
-		Message *string `json:"message"`
-		Error   *string `json:"error"`
+		Error *string `json:"error"`
 	}
-	if json.Unmarshal(said, &body) == nil {
-		if body.Message != nil {
-			return *body.Message
-		}
-		if body.Error != nil {
-			return *body.Error
-		}
+	if json.Unmarshal(said, &body) == nil && body.Error != nil {
+		return *body.Error
 	}
 	return fmt.Sprintf("HTTP %d: %s", response.StatusCode, http.StatusText(response.StatusCode))
 }

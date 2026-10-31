@@ -65,6 +65,8 @@ public data class Timing @JvmOverloads constructor(
     public val seenEventIdsCount: Int = Timings.SEEN_EVENT_IDS_COUNT.toInt(),
     /** The deadline on one request that is neither the stream nor an emit. */
     public val httpRequestMs: Long = Timings.HTTP_REQUEST_TIMEOUT_MS,
+    /** The deadline on the gateway's answer to the request that opens the stream: its status and headers. */
+    public val streamOpenMs: Long = Timings.STREAM_OPEN_TIMEOUT_MS,
 )
 
 /**
