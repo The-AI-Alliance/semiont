@@ -136,7 +136,7 @@
     "GenerationJobParams": {"allOf":[{"ref":"GenerationJobRequest"},{"required":["context"],"members":{"context":{"ref":"GatheredContext"}}}]},
     "GenerationJobRequest": {"required":["title","storageUri"]},
     "GetAnnotationHistoryResponse": {"required":["events","total","annotationId","resourceId"],"members":{"events":{"items":{"ref":"AttributedEvent"}}}},
-    "GetAnnotationResponse": {"required":["annotation","resource","resolvedResource"],"nullable":["resource","resolvedResource"],"members":{"annotation":{"ref":"Annotation"},"resolvedResource":{"ref":"ResourceDescriptor"},"resource":{"ref":"ResourceDescriptor"}}},
+    "GetAnnotationResponse": {"required":["annotation","resource","resolvedResource"],"nullable":["resource","resolvedResource"],"members":{"annotation":{"ref":"Annotation"},"resolvedResource":{"oneOf":[{"kinds":["null"],"shape":{}},{"kinds":["object"],"shape":{"ref":"ResourceDescriptor"}}]},"resource":{"oneOf":[{"kinds":["null"],"shape":{}},{"kinds":["object"],"shape":{"ref":"ResourceDescriptor"}}]}}},
     "GetAnnotationsResponse": {"required":["annotations","total"],"members":{"annotations":{"items":{"ref":"Annotation"}}}},
     "GetEntityTypesResponse": {"required":["entityTypes"]},
     "GetEventsResponse": {"required":["events","total","resourceId"],"members":{"events":{"items":{"ref":"AttributedEvent"}}}},

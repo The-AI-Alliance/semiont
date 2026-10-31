@@ -45,6 +45,7 @@
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { translated } from './openapi-schema.mjs';
 
 const KINDS = ['object', 'array', 'string', 'number', 'boolean', 'null'];
 
@@ -66,7 +67,8 @@ export function readRequiredMembers(root, refuse) {
     fileOf.set(name, file);
     nameOf.set(file, name);
   }
-  const schemaOf = new Map([...fileOf].map(([name, file]) => [name, JSON.parse(readFileSync(file, 'utf8'))]));
+  // Read as JSON Schema, translated where every generator translates the spec's components.
+  const schemaOf = new Map([...fileOf].map(([name, file]) => [name, translated(JSON.parse(readFileSync(file, 'utf8')))]));
 
   /** The component a reference in `file` names. */
   function referred(file, ref) {
@@ -107,18 +109,17 @@ export function readRequiredMembers(root, refuse) {
     } else {
       kinds = new Set(KINDS);
     }
-    if (schema.nullable === true) kinds.add('null');
     return kinds;
   }
 
-  /** Whether `schema` allows null: OpenAPI 3.0's `nullable`, or a schema that says nothing of a value's kind. */
+  /** Whether `schema` allows null: one that says so, or says nothing of a value's kind. */
   const acceptsNull = (schema, file) => kindsOf(schema, file).has('null');
 
   /** `schema`, written in `file`, as a shape, before what can lack nothing is left out. */
   function shapeOf(schema, file) {
     if (schema.$ref !== undefined) return { ref: referred(file, schema.$ref) };
     const own = Object.keys(schema).filter((key) => ['properties', 'required', 'additionalProperties', 'items', 'oneOf', 'anyOf'].includes(key));
-    // `allOf` around one schema only describes it, or lets it be null.
+    // `allOf` around one schema only describes it.
     if (schema.allOf?.length === 1 && own.length === 0) return shapeOf(schema.allOf[0], file);
     const shape = {};
     const properties = schema.properties ?? {};
