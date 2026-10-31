@@ -31,8 +31,9 @@ func gatewayNaming(t *testing.T, issuers ...string) string {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"resource":                 "https://other.example/kb",
-			"authorization_servers":    issuers,
+			"resource": "https://other.example/kb",
+			// A gateway that names none names an empty list: a nil slice writes null.
+			"authorization_servers":    append([]string{}, issuers...),
 			"bearer_methods_supported": []string{"header"},
 		})
 	}))

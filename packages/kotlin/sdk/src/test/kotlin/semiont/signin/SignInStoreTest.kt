@@ -281,6 +281,34 @@ class SignInStoreTest {
 
     private fun entryOf(path: Path, key: String): JsonObject = SignInStore(path).read().getValue(key).jsonObject
 
+    /**
+     * The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it.
+     * The user is named as an access list written out names it: by its SID, or by an abbreviation (the built-in administrator
+     * is `LA`). Windows PowerShell is given no `PSModulePath`: the one PowerShell 7 sets, which a CI step's shell hands down,
+     * leads it to modules it cannot load.
+     */
+    private fun accessListOf(path: Path): Pair<String, String> {
+        val script = "[Security.AccessControl.RawSecurityDescriptor]::new('O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value)" +
+            ".GetSddlForm('Owner').Substring(2); " +
+            "(Get-Acl -LiteralPath '${path.toString().replace("'", "''")}').GetSecurityDescriptorSddlForm('Access')"
+        val command = ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", script).redirectErrorStream(true)
+        command.environment().remove("PSModulePath")
+        val process = command.start()
+        val said = process.inputStream.bufferedReader().readText().split(Regex("""\s+""")).filter { it.isNotEmpty() }
+        assertEquals(0, process.waitFor(), "PowerShell said $said")
+        assertEquals(2, said.size, "PowerShell said $said")
+        return said[0] to said[1]
+    }
+
+    /**
+     * An access list's flags (`D:PAI`) and its entries, sorted. PowerShell reads a list through .NET, which writes the entries a
+     * list sets itself in an order of its own (by SID), and the order of entries that each allow does not change what they allow.
+     */
+    private fun entriesOf(list: String): Pair<String, List<String>> {
+        val flags = list.substringBefore("(")
+        return flags to list.drop(flags.length).split(")").filter { it.isNotEmpty() }.map { "$it)" }.sorted()
+    }
+
     @Test
     fun theEntryThisSdkWritesIsTheSchemas() {
         val schema = Spec.read("sign-in-store/SignIn.json").jsonObject
@@ -316,10 +344,26 @@ class SignInStoreTest {
             assertTrue(Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z""").matches(stated), "$name is $stated")
         }
         assertEquals(held(access), SignInStore(path).entry("local").held())
-        // The file holds bearer credentials: its owner's alone, and so is its lock. Nothing else is left beside it.
+        // The file holds bearer credentials: its owner's alone, and so is its lock, in a directory kept to its owner as the
+        // launcher keeps its state home. Nothing else is left beside it.
         if ("posix" in path.fileSystem.supportedFileAttributeViews()) {
+            assertEquals("rwx------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path.parent)))
             assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path)))
             assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path.resolveSibling("tokens.lock"))))
+        } else {
+            // The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
+            val (user, list) = accessListOf(path.parent)
+            fun ownerOnly(inherit: String) = listOf(user, "SY", "BA").map { "(A;$inherit;FA;;;$it)" }.sorted()
+            val (flags, entries) = entriesOf(list)
+            assertTrue(flags in setOf("D:PAI", "D:P") && entries == ownerOnly("OICI"), "the state home's access list is $list, not its owner's ($user) alone")
+            for (made in listOf(path, path.resolveSibling("tokens.lock"))) {
+                val (_, inherited) = accessListOf(made)
+                val (madeFlags, madeEntries) = entriesOf(inherited)
+                assertTrue(
+                    madeFlags in setOf("D:AI", "D:") && madeEntries == ownerOnly("ID"),
+                    "$made's access list is $inherited, not the one its directory hands down to its owner ($user)",
+                )
+            }
         }
         assertEquals(listOf("tokens.json", "tokens.lock"), Files.list(path.parent).use { files -> files.map { it.fileName.toString() }.sorted().toList() })
         assertTrue(Files.readString(path).endsWith("}\n"))

@@ -109,6 +109,9 @@ type stubGateway struct {
 	mu sync.Mutex
 	// refusals is the statuses the next subscribes are refused with.
 	refusals []int
+	// unanswered is how many of the next subscribes are taken and never
+	// answered, after any refusals.
+	unanswered int
 	// arrived is how many subscribes have arrived.
 	arrived int
 }
@@ -122,10 +125,18 @@ func newStubGateway(t *testing.T) *stubGateway {
 			g.mu.Lock()
 			g.arrived++
 			var refusal int
+			silent := false
 			if len(g.refusals) > 0 {
 				refusal, g.refusals = g.refusals[0], g.refusals[1:]
+			} else if g.unanswered > 0 {
+				g.unanswered--
+				silent = true
 			}
 			g.mu.Unlock()
+			if silent {
+				<-r.Context().Done()
+				return
+			}
 			if refusal != 0 {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(refusal)
@@ -219,6 +230,35 @@ func TestAListenerTakenAfterTheFirstConnectWasRefusedStillHearsTheRefusal(t *tes
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the refusal reported before anything listened is not heard")
+	}
+}
+
+// An open the gateway takes and never answers has failed once
+// StreamOpenTimeout has passed, and the stream is opened again on the
+// backoff, as after any open that failed.
+func TestAnOpenTheGatewayNeverAnswersFailsAtItsDeadlineAndIsMadeAgain(t *testing.T) {
+	gateway := newStubGateway(t)
+	gateway.unanswered = 1
+	timing := DefaultTiming()
+	timing.Reconnect = 20 * time.Millisecond
+	timing.StreamOpenTimeout = 200 * time.Millisecond
+	transport := NewHTTPTransport(HTTPTransportConfig{
+		BaseURL:  gateway.URL,
+		Token:    NewVariable("a-token"),
+		Channels: []bus.Channel{bus.BeckonFocus.Channel()},
+		HTTP:     &http.Client{Transport: &http.Transport{}},
+		Timing:   timing,
+	})
+	defer transport.Close()
+	started := time.Now()
+	until(t, "the stream to open on the subscribe after the unanswered one", func() bool {
+		return transport.State().Value() == ConnectionStateOpen
+	})
+	if waited := time.Since(started); waited < timing.StreamOpenTimeout {
+		t.Errorf("the stream opened %v after it started, before the unanswered open's deadline", waited)
+	}
+	if gateway.subscribes() != 2 {
+		t.Errorf("%d subscribes arrived, want 2", gateway.subscribes())
 	}
 }
 

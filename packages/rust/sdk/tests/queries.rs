@@ -9,6 +9,7 @@
 use semiont::cache::CacheState;
 use semiont::cached::Observed;
 use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
+use semiont::errors::SemiontError;
 use semiont::namespaces::ResourceFilters;
 use semiont::storage::InMemorySessionStorage;
 use semiont::testing::as_id;
@@ -525,7 +526,11 @@ async fn b13a_an_annotation_that_is_gone_fails_its_watchers_as_not_found_and_ask
 
         heard(&client, channel, event);
         match holds(&mut watcher).await {
-            CacheState::Failed(gone) => assert_eq!(gone.code(), "bus.not-found", "{channel}"),
+            CacheState::Failed(gone) => assert_eq!(
+                gone.downcast_ref::<SemiontError>().map(SemiontError::code),
+                Some("bus.not-found"),
+                "{channel}"
+            ),
             other => panic!("{channel}: the key was to fail, not be {other:?}"),
         }
         tokio::time::sleep(WINDOW * 3).await;
@@ -686,7 +691,12 @@ async fn b16_b19_a_closed_client_drops_what_its_windows_owed_and_no_event_asks_a
         .fresh()
         .await
         .expect_err("it is closed");
-    assert_eq!(refusal.code(), "bus.closed");
+    assert_eq!(
+        refusal
+            .downcast_ref::<SemiontError>()
+            .map(SemiontError::code),
+        Some("bus.closed")
+    );
     assert_eq!(given(&mut client.browse.entity_types().watch()).await, None);
 }
 

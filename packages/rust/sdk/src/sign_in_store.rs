@@ -24,7 +24,10 @@
 //! **Every change is a read, a change and a write under a lock**
 //! (`tokens.lock`, beside the file): another process renewing another stack
 //! at the same moment loses nothing. What the file holds that is not a
-//! sign-in as this release knows one is written back as it was.
+//! sign-in as this release knows one is written back as it was. Under the
+//! lock, the file's directory is kept to its owner, as the launcher keeps its
+//! state home: mode `0700`, and on Windows the launcher's access list, which
+//! what is made in it inherits.
 //!
 //! A file that cannot be read or written is said to `on_failure`, and the
 //! store then behaves as if the file held nothing, or the write was not
@@ -42,7 +45,7 @@ use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
 use serde_json::{Map, Value};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
@@ -50,6 +53,172 @@ include!(concat!(env!("OUT_DIR"), "/sign_in.rs"));
 
 /// The file's name in the launcher's state home.
 pub const FILE_NAME: &str = "tokens.json";
+
+/// Keep `directory`, and everything made in it from then on, to its owner,
+/// with the access list the launcher gives its state home: the user this
+/// process runs as, the system and the administrators, each with full
+/// access, handed down to what is made in it, and nothing inherited from
+/// above. A mode keeps nobody out on Windows; the access list is what does. A
+/// directory that has the list already is left as it is: setting a list
+/// hands it down to everything beneath, which in a state home is no small
+/// walk. The two lists are compared as Windows writes each out, which names
+/// some users by an abbreviation (the built-in administrator is `LA`) rather
+/// than by their SID, and with their entries in any order.
+#[cfg(windows)]
+#[allow(unsafe_code)]
+fn owner_only(directory: &Path) -> io::Result<()> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use std::ptr::{null, null_mut};
+    use windows_sys::Win32::Foundation::{HANDLE, LocalFree};
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertSecurityDescriptorToStringSecurityDescriptorW, ConvertSidToStringSidW,
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, GetNamedSecurityInfoW,
+        SDDL_REVISION_1, SE_FILE_OBJECT, SetNamedSecurityInfoW,
+    };
+    use windows_sys::Win32::Security::{
+        ACL, DACL_SECURITY_INFORMATION, GetSecurityDescriptorDacl, GetTokenInformation,
+        PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, TOKEN_USER, TokenUser,
+    };
+
+    /// This process's token, as `GetCurrentProcessToken` names it.
+    const CURRENT_PROCESS_TOKEN: HANDLE = -4isize as HANDLE;
+    let wide = |text: &OsStr| text.encode_wide().chain([0]).collect::<Vec<u16>>();
+
+    // SAFETY: each buffer handed to the system is as large as the system says
+    // it needs, each pointer it hands back is read only up to the terminator
+    // it writes, and what it allocates is freed once, after its last use.
+    unsafe {
+        /// Text the system wrote and allocated, taken and freed.
+        unsafe fn taken(text: *mut u16) -> String {
+            // SAFETY: the system wrote the text and its terminator.
+            let length = (0..)
+                .take_while(|&at| unsafe { *text.add(at) } != 0)
+                .count();
+            // SAFETY: as above, and the text is freed once, here.
+            unsafe {
+                let taken = String::from_utf16_lossy(std::slice::from_raw_parts(text, length));
+                LocalFree(text.cast());
+                taken
+            }
+        }
+
+        /// The access list `descriptor` holds, as Windows writes it out (SDDL).
+        unsafe fn written(descriptor: PSECURITY_DESCRIPTOR) -> io::Result<String> {
+            let mut text = null_mut();
+            // SAFETY: the descriptor is one the system made, and the text it
+            // writes out is taken once.
+            unsafe {
+                if ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                    descriptor,
+                    SDDL_REVISION_1,
+                    DACL_SECURITY_INFORMATION,
+                    &mut text,
+                    null_mut(),
+                ) == 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(taken(text))
+            }
+        }
+
+        /// An access list as Windows writes it out, with its entries sorted:
+        /// entries that each allow mean the same in any order, and a list's
+        /// own entries need not be read back in the order they were set.
+        fn in_any_order(list: &str) -> String {
+            let (flags, entries) = match list.find('(') {
+                Some(at) => list.split_at(at),
+                None => (list, ""),
+            };
+            let mut entries: Vec<&str> = entries.split_inclusive(')').collect();
+            entries.sort_unstable();
+            format!("{flags}{}", entries.concat())
+        }
+
+        let mut size = 0u32;
+        GetTokenInformation(CURRENT_PROCESS_TOKEN, TokenUser, null_mut(), 0, &mut size);
+        // Aligned as a TOKEN_USER is: the SID it points to follows it.
+        let mut user = vec![0u64; (size as usize).div_ceil(8)];
+        if GetTokenInformation(
+            CURRENT_PROCESS_TOKEN,
+            TokenUser,
+            user.as_mut_ptr().cast(),
+            size,
+            &mut size,
+        ) == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+        let mut named = null_mut();
+        if ConvertSidToStringSidW((*user.as_ptr().cast::<TOKEN_USER>()).User.Sid, &mut named) == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let sddl = wide(OsStr::new(&format!(
+            "D:PAI(A;OICI;FA;;;{})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
+            taken(named)
+        )));
+        let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
+        if ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            sddl.as_ptr(),
+            SDDL_REVISION_1,
+            &mut descriptor,
+            null_mut(),
+        ) == 0
+        {
+            return Err(io::Error::last_os_error());
+        }
+
+        let name = wide(directory.as_os_str());
+        let kept = (|| {
+            let (mut dacl, mut held): (*mut ACL, PSECURITY_DESCRIPTOR) = (null_mut(), null_mut());
+            let failed = GetNamedSecurityInfoW(
+                name.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                null_mut(),
+                null_mut(),
+                &mut dacl,
+                null_mut(),
+                &mut held,
+            );
+            if failed != 0 {
+                return Err(io::Error::from_raw_os_error(failed as i32));
+            }
+            let has = written(held);
+            LocalFree(held);
+            if in_any_order(&has?) == in_any_order(&written(descriptor)?) {
+                return Ok(());
+            }
+            let (mut present, mut defaulted) = (0, 0);
+            if GetSecurityDescriptorDacl(descriptor, &mut present, &mut dacl, &mut defaulted) == 0 {
+                return Err(io::Error::last_os_error());
+            }
+            match SetNamedSecurityInfoW(
+                name.as_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                null_mut(),
+                null_mut(),
+                dacl,
+                null(),
+            ) {
+                0 => Ok(()),
+                failed => Err(io::Error::from_raw_os_error(failed as i32)),
+            }
+        })();
+        LocalFree(descriptor);
+        kept
+    }
+}
+
+/// Keep `directory` to its owner: mode `0700`, as the launcher keeps its
+/// state home.
+#[cfg(unix)]
+fn owner_only(directory: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
+}
 
 /// The systems the state home differs by, as
 /// specs/src/sign-in-store/cases.json names them.
@@ -241,11 +410,18 @@ impl SignInStore {
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let _turn = locked(&self.turn);
         let changed = (|| -> io::Result<Result<(), Box<dyn std::error::Error + Send + Sync>>> {
-            if let Some(directory) = self.path.parent() {
-                fs::create_dir_all(directory)?;
-            }
+            // A path with no directory part is in the current one, as Go and Python read it.
+            let directory = match self.path.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent,
+                _ => Path::new("."),
+            };
+            fs::create_dir_all(directory)?;
             let lock = File::create(self.path.with_extension("lock"))?;
             lock.lock()?;
+            // Under the lock: setting the list hands it down to the file, and
+            // another writer renaming over the file at that moment would be
+            // refused.
+            owner_only(directory)?;
             let mut document = self.read()?;
             let (changed, beneath) = change(&mut document);
             if changed {

@@ -507,6 +507,26 @@ describe('the device grant', () => {
     expect(await outcome).toMatchObject({ code: 'denied' });
   });
 
+  it('refuses a device authorization answer that states no lifetime, and shows nobody a code', async () => {
+    // RFC 8628 §3.2 requires `expires_in`: one without it has answered
+    // without what was asked for.
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/.well-known/openid-configuration')) return reply(DISCOVERY);
+      if (url === `${ISSUER}/device`) {
+        return reply({ device_code: 'dev', user_code: 'ABCD-EFGH', verification_uri: `${ISSUER}/device/verify`, interval: 1 });
+      }
+      return reply(undefined, 404);
+    });
+    const onCode = vi.fn();
+
+    const refused = await signInWithDeviceGrant({ target: TARGET, onCode }).catch((e: unknown) => e);
+
+    expect(refused).toBeInstanceOf(SignInError);
+    expect(refused).toMatchObject({ code: 'exchange', message: 'The issuer refused the device authorization request (HTTP 200)' });
+    expect(onCode).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls.filter(([url]) => url === `${ISSUER}/token`)).toEqual([]);
+  });
+
   it('refuses an issuer without a device endpoint, naming the client', async () => {
     const { device_authorization_endpoint: _omitted, ...withoutDevice } = DISCOVERY;
     fetchMock.mockImplementation(async () => reply(withoutDevice));

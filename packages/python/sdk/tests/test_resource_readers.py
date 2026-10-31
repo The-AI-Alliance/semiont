@@ -29,6 +29,8 @@ class Refused(BaseModel, frozen=True, extra="forbid"):
     why: str
     resource: JsonObject
     refused: Literal[True]
+    lacks: str | None = None
+    """The way to the member it lacks, where it lacks one: the names of the members it is within, and its own, joined by dots."""
 
 
 class Table(BaseModel, frozen=True):
@@ -49,7 +51,8 @@ def test_the_table_has_a_resource_of_each_shape() -> None:
     assert any(isinstance(representations, list) and not representations for representations in stated)
     assert any(case.entity_types for case in READ)
     assert any(not case.entity_types for case in READ)
-    assert REFUSED
+    assert any(case.lacks is not None for case in REFUSED)
+    assert any(case.lacks is None for case in REFUSED)
 
 
 @pytest.mark.parametrize("case", READ, ids=lambda case: case.why)
@@ -62,5 +65,7 @@ def test_every_reader_gives_what_the_table_says(case: Case) -> None:
 
 @pytest.mark.parametrize("case", REFUSED, ids=lambda case: case.why)
 def test_a_resource_the_schema_does_not_allow_is_refused_when_it_is_decoded(case: Refused) -> None:
-    with pytest.raises(ValidationError, match="representations"):
+    # The refusal names the member it lacks, where it lacks one, and the representations otherwise.
+    named = "representations" if case.lacks is None else case.lacks.rsplit(".", 1)[-1]
+    with pytest.raises(ValidationError, match=named):
         ResourceDescriptor.model_validate(case.resource)

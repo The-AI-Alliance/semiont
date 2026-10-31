@@ -179,7 +179,7 @@ where
     K: CacheKey + Serialize + DeserializeOwned,
     V: CacheValue + Serialize + DeserializeOwned,
     F: Fn(K) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Result<V, SemiontError>> + Send + 'static,
+    Fut: Future<Output = Result<V, Box<dyn std::error::Error + Send + Sync>>> + Send + 'static,
 {
     match persistence {
         None => Cache::new(fetch),
@@ -391,11 +391,10 @@ impl Live {
         if self.annotation.known(&id) {
             self.annotation.remove(
                 &id,
-                BusRequestError::new(
+                Box::new(SemiontError::from(BusRequestError::new(
                     BusRequestErrorCode::NotFound,
                     format!("Annotation {annotation_id} was removed"),
-                )
-                .into(),
+                ))),
             );
         }
     }
@@ -482,9 +481,12 @@ impl Stream for Joined {
 }
 
 impl Source<Vec<EngineWithLimits>> for Engines {
-    fn fresh(&self) -> BoxFuture<'static, Result<Vec<EngineWithLimits>, SemiontError>> {
+    fn fresh(
+        &self,
+    ) -> BoxFuture<'static, Result<Vec<EngineWithLimits>, Arc<dyn std::error::Error + Send + Sync>>>
+    {
         enum Answer {
-            Engines(Result<Vec<EngineEntry>, SemiontError>),
+            Engines(Result<Vec<EngineEntry>, Arc<dyn std::error::Error + Send + Sync>>),
             Limits(Vec<EngineLimits>),
         }
         // The engines are asked for first; each key holder's limits after them.

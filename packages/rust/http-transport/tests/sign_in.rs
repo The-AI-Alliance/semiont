@@ -38,7 +38,7 @@ use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::as_id;
 use semiont::testing::examples::{assert_blocks_are_examples, assert_readme_shows};
-use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
+use semiont::timing::{DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::{Envelope, PutBinaryRequest};
 use semiont::types::{
     AgentSoftware, Annotation, FailureClass, HttpEndpoint, HttpEndpointProtocol,
@@ -1381,9 +1381,12 @@ async fn the_device_grant_shows_the_code_and_asks_until_the_person_approves() {
         )
     );
     // At the issuer's interval, and more slowly once it said to slow down:
-    // five seconds, five, and then ten.
+    // its five seconds, five, and then five and the step a `slow_down` adds.
     assert!(
-        took(started.elapsed(), Duration::from_secs(20)),
+        took(
+            started.elapsed(),
+            Duration::from_secs(15) + DEVICE_SLOW_DOWN
+        ),
         "{:?}",
         started.elapsed()
     );
@@ -1434,6 +1437,41 @@ async fn an_issuer_with_no_device_endpoint_is_refused_naming_the_client() {
     assert_eq!(refused.code, SignInErrorCode::Discovery);
     assert!(refused.message.contains("semiont-cli"), "{refused}");
     assert!(world.staged.device_forms.lock().unwrap().is_empty());
+}
+
+/// RFC 8628 §3.2 requires `expires_in` of a device authorization answer: one
+/// without it has answered without what was asked for, and a code whose
+/// lifetime nobody knows is shown to nobody.
+#[tokio::test]
+async fn a_device_authorization_answer_with_no_lifetime_is_refused() {
+    let world = World::start().await;
+    world
+        .staged
+        .device_answer
+        .lock()
+        .unwrap()
+        .1
+        .as_object_mut()
+        .expect("the answer is an object")
+        .remove("expires_in");
+    let shown = Arc::new(Mutex::new(0));
+    let showing = shown.clone();
+
+    let refused = sign_in_with_device_grant(
+        &world.target(),
+        move |_| *showing.lock().unwrap() += 1,
+        &world.http,
+    )
+    .await
+    .expect_err("the answer has no lifetime");
+
+    assert_eq!(code(&refused), (SignInErrorCode::Exchange, Some(200)));
+    assert_eq!(
+        refused.message,
+        "The issuer refused the device authorization request (HTTP 200)"
+    );
+    assert_eq!(*shown.lock().unwrap(), 0);
+    assert!(world.token_forms().is_empty());
 }
 
 // ── Sessions over a gateway ─────────────────────────────────────────────

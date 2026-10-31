@@ -16,7 +16,9 @@ beside the file; `flock`, and `LockFileEx` on Windows): another process
 renewing another stack at the same moment loses nothing. What the file holds
 that is not a sign-in as this release knows one is written back as it was. A
 reader that only reads takes no lock: the file is replaced whole, so every
-document read is a whole one.
+document read is a whole one. Under the lock, the file's directory is kept to
+its owner, as the launcher keeps its state home: mode `0700`, and on Windows the
+launcher's access list, which what is made in it inherits.
 
 This module reads no environment. An application reads its own and says what
 it found: `state_dir(this_system(), home=..., xdg_state_home=..., local_app_data=...)`.
@@ -113,11 +115,168 @@ if sys.platform == "win32":
         if not locked:
             raise ctypes.WinError()
 
+    _CURRENT_PROCESS_TOKEN: Final = -4
+    _TOKEN_USER: Final = 1
+    _SDDL_REVISION_1: Final = 1
+    _SE_FILE_OBJECT: Final = 1
+    _DACL_SECURITY_INFORMATION: Final = 0x00000004
+    _PROTECTED_DACL_SECURITY_INFORMATION: Final = 0x80000000
+
+    _advapi32: Final = ctypes.WinDLL("advapi32")
+    _kernel32: Final = ctypes.WinDLL("kernel32")
+
+    # Each procedure with its result type and its arguments' types, and the
+    # error it leaves kept for `ctypes.get_last_error`.
+    _GetTokenInformation: Final = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+        use_last_error=True,
+    )(("GetTokenInformation", _advapi32))
+    _ConvertSidToStringSidW: Final = ctypes.WINFUNCTYPE(
+        wintypes.BOOL, ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR), use_last_error=True
+    )(("ConvertSidToStringSidW", _advapi32))
+    _GetNamedSecurityInfoW: Final = ctypes.WINFUNCTYPE(
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    )(("GetNamedSecurityInfoW", _advapi32))
+    _ConvertSecurityDescriptorToStringSecurityDescriptorW: Final = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.LPWSTR),
+        ctypes.POINTER(wintypes.ULONG),
+        use_last_error=True,
+    )(("ConvertSecurityDescriptorToStringSecurityDescriptorW", _advapi32))
+    _ConvertStringSecurityDescriptorToSecurityDescriptorW: Final = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.ULONG),
+        use_last_error=True,
+    )(("ConvertStringSecurityDescriptorToSecurityDescriptorW", _advapi32))
+    _GetSecurityDescriptorDacl: Final = ctypes.WINFUNCTYPE(
+        wintypes.BOOL,
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.BOOL),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.BOOL),
+        use_last_error=True,
+    )(("GetSecurityDescriptorDacl", _advapi32))
+    _SetNamedSecurityInfoW: Final = ctypes.WINFUNCTYPE(
+        wintypes.DWORD,
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    )(("SetNamedSecurityInfoW", _advapi32))
+    _LocalFree: Final = ctypes.WINFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p)(("LocalFree", _kernel32))
+
+    def _user() -> str | None:
+        """The user this process runs as, as a SID."""
+        size = wintypes.DWORD()
+        _GetTokenInformation(_CURRENT_PROCESS_TOKEN, _TOKEN_USER, None, 0, ctypes.byref(size))
+        user = ctypes.create_string_buffer(size.value)
+        if not _GetTokenInformation(_CURRENT_PROCESS_TOKEN, _TOKEN_USER, user, size, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        # A TOKEN_USER begins with the user's SID_AND_ATTRIBUTES, which begins with the SID.
+        named = wintypes.LPWSTR()
+        if not _ConvertSidToStringSidW(ctypes.c_void_p.from_buffer(user), ctypes.byref(named)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return named.value
+        finally:
+            _LocalFree(named)
+
+    def _written(descriptor: ctypes.c_void_p) -> str:
+        """The access list `descriptor` holds, as Windows writes it out (SDDL)."""
+        written = wintypes.LPWSTR()
+        if not _ConvertSecurityDescriptorToStringSecurityDescriptorW(
+            descriptor, _SDDL_REVISION_1, _DACL_SECURITY_INFORMATION, ctypes.byref(written), None
+        ):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return ctypes.wstring_at(written)
+        finally:
+            _LocalFree(written)
+
+    def _in_any_order(listed: str) -> str:
+        """An access list as Windows writes it out, with its entries sorted.
+
+        Entries that each allow mean the same in any order, and a list's own
+        entries need not be read back in the order they were set.
+        """
+        flags = listed.split("(", 1)[0]
+        return flags + "".join(sorted(f"{entry})" for entry in listed[len(flags) :].split(")") if entry))
+
+    def _access_list(path: str) -> str:
+        """The access list of `path`, as Windows writes it out (SDDL)."""
+        descriptor, dacl = ctypes.c_void_p(), ctypes.c_void_p()
+        failed = _GetNamedSecurityInfoW(
+            path, _SE_FILE_OBJECT, _DACL_SECURITY_INFORMATION, None, None, ctypes.byref(dacl), None, ctypes.byref(descriptor)
+        )
+        if failed:
+            raise ctypes.WinError(failed)
+        try:
+            return _written(descriptor)
+        finally:
+            _LocalFree(descriptor)
+
+    def _owner_only(directory: str) -> None:
+        """Keep `directory`, and everything made in it from then on, to its owner, with the access list the launcher gives its state home.
+
+        The user this process runs as, the system and the administrators, each
+        with full access, handed down to what is made in it, and nothing
+        inherited from above. A mode keeps nobody out on Windows; the access
+        list is what does. A directory that has the list already is left as it
+        is: setting a list hands it down to everything beneath, which in a state
+        home is no small walk. The two lists are compared as Windows writes each
+        out, which names some users by an abbreviation (the built-in
+        administrator is `LA`) rather than by their SID, and with their entries
+        in any order.
+        """
+        listed = f"D:PAI(A;OICI;FA;;;{_user()})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        descriptor = ctypes.c_void_p()
+        if not _ConvertStringSecurityDescriptorToSecurityDescriptorW(listed, _SDDL_REVISION_1, ctypes.byref(descriptor), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            if _in_any_order(_access_list(directory)) == _in_any_order(_written(descriptor)):
+                return
+            present, defaulted, dacl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
+            if not _GetSecurityDescriptorDacl(descriptor, ctypes.byref(present), ctypes.byref(dacl), ctypes.byref(defaulted)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            failed = _SetNamedSecurityInfoW(
+                directory, _SE_FILE_OBJECT, _DACL_SECURITY_INFORMATION | _PROTECTED_DACL_SECURITY_INFORMATION, None, None, dacl, None
+            )
+            if failed:
+                raise ctypes.WinError(failed)
+        finally:
+            _LocalFree(descriptor)
+
 else:
     import fcntl
 
     def _lock(descriptor: int) -> None:
         fcntl.flock(descriptor, fcntl.LOCK_EX)
+
+    def _owner_only(directory: str) -> None:
+        """Keep `directory` to its owner: mode `0700`, as the launcher keeps its state home."""
+        os.chmod(directory, 0o700)
 
 
 @final
@@ -146,12 +305,21 @@ class SignInStore:
 
     @contextmanager
     def _locked(self) -> Generator[None]:
-        """Hold the lock every writer of the document takes, from before its read until after its rename."""
-        os.makedirs(os.path.dirname(self._path) or ".", exist_ok=True)
+        """Hold the lock every writer of the document takes, from before its read until after its rename.
+
+        Under the lock, before the read, the directory is kept to its owner, as
+        the launcher keeps its state home, so the file and what replaces it are
+        its owner's alone from the moment each is made, and the lock from then
+        on: setting the list hands it down to the file, and another writer
+        renaming over the file at that moment would be refused.
+        """
+        directory = os.path.dirname(self._path) or "."
+        os.makedirs(directory, exist_ok=True)
         with self._turn:
             descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, 0o600)
             try:
                 _lock(descriptor)
+                _owner_only(directory)
                 yield
             finally:
                 # Closing it lets the lock go.

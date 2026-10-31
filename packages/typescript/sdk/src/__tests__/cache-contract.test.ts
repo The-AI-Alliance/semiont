@@ -17,8 +17,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { isReady } from '../cache';
 import { resourceId as makeResourceId } from '@semiont/core';
-import { createTestClient } from '../testing';
+import { createTestClient, refuseUnscriptedOperation } from '../testing';
 import { contentTransportSpies } from './helpers/in-memory-transport';
+import { mockResource } from './fixtures/resource';
 
 const flush = () => new Promise((r) => setTimeout(r, 10));
 
@@ -27,9 +28,9 @@ const RESPONSES = (op: string): unknown => {
     case 'browse:entity-types-requested':
       return { entityTypes: ['Person'] };
     case 'browse:resource-requested':
-      return { resource: { '@id': 'res-1', name: 'R' }, lastSequence: 1 };
+      return { resource: mockResource('res-1', { name: 'R' }), lastSequence: 1 };
     default:
-      return {};
+      return refuseUnscriptedOperation(op);
   }
 };
 

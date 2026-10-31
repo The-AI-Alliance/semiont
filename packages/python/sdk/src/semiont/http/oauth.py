@@ -52,7 +52,7 @@ from semiont.retry import REFRESH, RetryFacts, retry_with_backoff
 from semiont.session import SignInKept, is_token_expired
 from semiont.storage import SessionStorage
 from semiont.stored import PENDING_AUTHORIZATION_KEY
-from semiont.timing import HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
+from semiont.timing import DEVICE_POLL_FLOOR_MS, DEVICE_POLL_MS, DEVICE_SLOW_DOWN_MS, HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY
 from semiont.types import HttpEndpoint
 from semiont.watched import Variable
 
@@ -79,11 +79,6 @@ __all__ = [
 ]
 
 _DEVICE_GRANT: Final = "urn:ietf:params:oauth:grant-type:device_code"
-# How long a device code is good for when the issuer does not say.
-_DEVICE_CODE_LIFETIME_S: Final = 600.0
-# How often the token endpoint is asked when the issuer does not say, and how
-# much longer it is left between asks each time it says to slow down.
-_DEVICE_POLL_S: Final = 5.0
 
 _OBJECT: Final = TypeAdapter[dict[str, JsonValue]](dict[str, JsonValue])
 
@@ -490,16 +485,14 @@ async def sign_in_with_device_grant(base_url: str, on_code: Callable[[DeviceCode
         )
     async with issuer_client() as http:
         status, body = await post_form(http, issuer.device, [("client_id", SCRIPT_CLIENT_ID), ("scope", SIGN_IN_SCOPE)])
-        device_code, user_code, verification_uri = (
+        device_code, user_code, verification_uri, expires_in = (
             text_in(body, "device_code"),
             text_in(body, "user_code"),
             text_in(body, "verification_uri"),
+            seconds_in(body, "expires_in"),
         )
-        if status != 200 or device_code is None or user_code is None or verification_uri is None:
+        if status != 200 or device_code is None or user_code is None or verification_uri is None or expires_in is None:
             raise SignInError("exchange", f"The issuer refused the device authorization request ({_refusal(status, body)})", status=status)
-        expires_in = seconds_in(body, "expires_in")
-        if expires_in is None:
-            expires_in = _DEVICE_CODE_LIFETIME_S
         on_code(
             DeviceCode(
                 user_code=user_code,
@@ -510,7 +503,7 @@ async def sign_in_with_device_grant(base_url: str, on_code: Callable[[DeviceCode
         )
 
         stated = seconds_in(body, "interval")
-        interval = max(_DEVICE_POLL_S if stated is None else stated, 1.0)
+        interval = max(DEVICE_POLL_MS if stated is None else stated * 1000, DEVICE_POLL_FLOOR_MS) / 1000
         loop = asyncio.get_running_loop()
         deadline = loop.time() + expires_in
         while True:
@@ -530,7 +523,7 @@ async def sign_in_with_device_grant(base_url: str, on_code: Callable[[DeviceCode
                 case "authorization_pending":
                     pass
                 case "slow_down":
-                    interval += _DEVICE_POLL_S
+                    interval += DEVICE_SLOW_DOWN_MS / 1000
                 case "access_denied":
                     raise SignInError("denied", "The sign-in was denied at the issuer", status=status)
                 case "expired_token":

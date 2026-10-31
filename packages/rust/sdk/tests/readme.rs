@@ -103,7 +103,7 @@ async fn a_first_program(
 async fn a_script(
     client: &SemiontClient,
     resource_id: ResourceId,
-) -> Result<MarkJobCompleteCommand, SemiontError> {
+) -> Result<MarkJobCompleteCommand, Box<dyn std::error::Error + Send + Sync>> {
     // <readme:script>
     // Asked once, answered once.
     let about = client.browse.kb().await?;

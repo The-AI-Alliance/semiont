@@ -25,6 +25,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/mediatypes"
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/semionttest"
 )
@@ -239,15 +240,28 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 			PrimaryRepresentation json.RawMessage `json:"primaryRepresentation"`
 			PrimaryMediaType      *string         `json:"primaryMediaType"`
 			Refused               *bool           `json:"refused"`
+			Lacks                 *string         `json:"lacks"`
 		}
 		strictly(t, raw, &stated)
 		var resource api.ResourceDescriptor
 		if err := json.Unmarshal(stated.Resource, &resource); err != nil {
 			t.Fatalf("%s: the resource does not decode: %v", stated.Why, err)
 		}
+		// What the SDK holds a resource it decodes to, beside Go's decoding.
+		lacks, lacking := required.Lacking(stated.Resource, reflect.TypeFor[api.ResourceDescriptor]())
+		if stated.Refused != nil && *stated.Refused && stated.Lacks != nil {
+			shapes["refused, lacking a member"] = true
+			if !lacking || lacks != *stated.Lacks {
+				t.Errorf("%s: lacks %q (%v), and the table says its decoding refuses it, lacking %q", stated.Why, lacks, lacking, *stated.Lacks)
+			}
+			continue
+		}
+		if lacking {
+			t.Errorf("%s: lacks %q, and the table says it lacks nothing", stated.Why, lacks)
+		}
 		if stated.Refused != nil && *stated.Refused {
-			// Go's decoding takes what it is handed, so its readers refuse it.
-			shapes["refused"] = true
+			// It lacks no member, which is all Go's decoding refuses, so its readers refuse it.
+			shapes["refused, lacking nothing"] = true
 			_, _, err := semiont.PrimaryRepresentation(resource)
 			refusedNaming(t, stated.Why+": PrimaryRepresentation", err, "representation")
 			_, _, err = semiont.PrimaryMediaType(resource)
@@ -296,7 +310,7 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 		shapes["entity types"] = shapes["entity types"] || len(stated.EntityTypes) > 0
 		shapes["no entity types"] = shapes["no entity types"] || len(stated.EntityTypes) == 0
 	}
-	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types", "refused"} {
+	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types", "refused, lacking a member", "refused, lacking nothing"} {
 		if !shapes[shape] {
 			t.Errorf("the table lacks a case of a resource: %s", shape)
 		}

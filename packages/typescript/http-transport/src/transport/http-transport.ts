@@ -29,6 +29,7 @@ import {
 import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import { createActorStateUnit, renewedToken, type ActorStateUnit } from './actor-state-unit';
 import { APIError, refusalBody, refusesCredential } from './api-error';
+import { declaredBody } from './declared-body';
 import type {
   ConnectionState,
   IGatewayOperations,
@@ -75,12 +76,13 @@ export interface HttpTransportConfig {
    */
   channels?: readonly (keyof EventMap)[];
   /**
-   * `reconnectMs`, `lazyRemoveMs`, `lingerMs`, `emitRetry` and
-   * `seenEventIdsCount` of specs/src/client/timing.json, for a caller that
-   * must not wait them out: a test, or the conformance driver. Absent, the
-   * table's values stand.
+   * `reconnectMs`, `streamOpenTimeoutMs`, `lazyRemoveMs`, `lingerMs`,
+   * `emitRetry` and `seenEventIdsCount` of specs/src/client/timing.json, for
+   * a caller that must not wait them out: a test, or the conformance driver.
+   * Absent, the table's values stand.
    */
   reconnectMs?: number;
+  streamOpenTimeoutMs?: number;
   lazyRemoveMs?: number;
   lingerMs?: number;
   emitRetry?: RetryPolicy;
@@ -196,8 +198,8 @@ const CURRENT_USER = '/api/users/me';
  * session asks this of a credential it found stored, before it trusts it.
  */
 export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<UserResponse> {
-  return asked('GET', CURRENT_USER, () =>
-    ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
+  return asked('GET', CURRENT_USER, async () =>
+    declaredBody('UserResponse', 'GET', CURRENT_USER, await ky.get(`${withoutTrailingSlash(baseUrl)}${CURRENT_USER}`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: HTTP_REQUEST_TIMEOUT_MS,
       retry: RETRY,
@@ -210,7 +212,7 @@ export function currentUserOf(baseUrl: BaseUrl, token: AccessToken): Promise<Use
           },
         ],
       },
-    }).json<UserResponse>());
+    })));
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -365,6 +367,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
         ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
+        ...(this.config.streamOpenTimeoutMs !== undefined ? { streamOpenTimeoutMs: this.config.streamOpenTimeoutMs } : {}),
         ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
@@ -393,8 +396,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         this._actor,
         {
           emit: (channel, payload, envelope) => {
+            // A payload that is not its channel's is handed to nobody.
             const declared = asDeclared(channel, payload);
-            for (const bus of this.bridges) bus.emit(channel, declared, envelope);
+            if (declared === undefined) return;
+            for (const bus of this.bridges) bus.emit(channel, declared.payload, envelope);
           },
         },
         [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
@@ -456,8 +461,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   /**
    * Wire this transport's SSE fan-in into the given bus. Every channel
    * in `BRIDGED_CHANNELS` (and subsequently per-resource scoped channels
-   * opened by `subscribeToResource`) is published on the bus. Safe to
-   * call multiple times — each bus is added to the fan-out list.
+   * opened by `subscribeToResource`) is published on the bus, as its
+   * channel types it; one that is not its channel's is published to nobody.
+   * Safe to call multiple times — each bus is added to the fan-out list.
    */
   bridgeInto(bus: EventBus): void {
     this.bridges.push(bus);
@@ -542,30 +548,36 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   async getCurrentUser(): Promise<UserResponse> {
-    return this.ask('GET', CURRENT_USER, (http) => http.get(`${this.baseUrl}${CURRENT_USER}`, { headers: this.authHeaders() }).json<UserResponse>());
+    return this.ask('GET', CURRENT_USER, async (http) =>
+      declaredBody('UserResponse', 'GET', CURRENT_USER, await http.get(`${this.baseUrl}${CURRENT_USER}`, { headers: this.authHeaders() }), (failure) =>
+        this.pushError(failure)));
   }
 
   async getProtectedResourceMetadata(): Promise<ProtectedResourceMetadata> {
     const path = '/.well-known/oauth-protected-resource';
-    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`).json<ProtectedResourceMetadata>());
+    return this.ask('GET', path, async (http) =>
+      declaredBody('ProtectedResourceMetadata', 'GET', path, await http.get(`${this.baseUrl}${path}`), (failure) => this.pushError(failure)));
   }
 
   async getMediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     const path = '/api/tokens/media';
-    return this.ask('POST', path, (http) =>
-      http.post(`${this.baseUrl}${path}`, { json: { resourceId }, headers: this.authHeaders() }).json<{ token: string }>());
+    return this.ask('POST', path, async (http) =>
+      declaredBody('MediaTokenResponse', 'POST', path, await http.post(`${this.baseUrl}${path}`, { json: { resourceId }, headers: this.authHeaders() }), (failure) =>
+        this.pushError(failure)));
   }
 
   // ── System status ─────────────────────────────────────────────────────
 
   async healthCheck(): Promise<HealthCheckResponse> {
     const path = '/api/health';
-    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }).json<HealthCheckResponse>());
+    return this.ask('GET', path, async (http) =>
+      declaredBody('HealthResponse', 'GET', path, await http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), (failure) => this.pushError(failure)));
   }
 
   async getStatus(): Promise<StatusResponse> {
     const path = '/api/status';
-    return this.ask('GET', path, (http) => http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }).json<StatusResponse>());
+    return this.ask('GET', path, async (http) =>
+      declaredBody('StatusResponse', 'GET', path, await http.get(`${this.baseUrl}${path}`, { headers: this.authHeaders() }), (failure) => this.pushError(failure)));
   }
 
   // ── Internal: how the content transport asks ──────────────────────────

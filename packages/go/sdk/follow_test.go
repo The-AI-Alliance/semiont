@@ -749,9 +749,9 @@ func TestAJobWhoseCreationIsRefusedIsItsFollowersFailure(t *testing.T) {
 	}
 }
 
-// Go's decoding refuses no member that is missing, so a job:created naming no
-// job is refused by the follower, where it would otherwise wait for a job it
-// can never recognise.
+// A job:created naming no job lacks a member its schema requires, and is
+// refused as it is decoded: its follower ends with the refusal, where it
+// would otherwise wait for a job it can never recognise.
 func TestACreationThatNamesNoJobIsItsFollowersFailure(t *testing.T) {
 	t.Parallel()
 	c, _ := creatingWorld(t, json.RawMessage(`{}`), semiont.DefaultTiming())

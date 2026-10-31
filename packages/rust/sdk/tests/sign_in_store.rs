@@ -259,10 +259,53 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
     assert!(home.failures().is_empty());
 }
 
-#[cfg(unix)]
+/// The user this process runs as, and the access list of the file at
+/// `path` as Windows writes it out (SDDL), each as PowerShell reads it. The
+/// user is named as an access list written out names it: by its SID, or by
+/// an abbreviation (the built-in administrator is `LA`). Windows PowerShell
+/// is given no `PSModulePath`: the one PowerShell 7 sets, which a CI step's
+/// shell hands down, leads it to modules it cannot load.
+#[cfg(windows)]
+fn access_list_of(path: &std::path::Path) -> (String, String) {
+    let script = format!(
+        "[Security.AccessControl.RawSecurityDescriptor]::new('O:' + [Security.Principal.WindowsIdentity]::GetCurrent().User.Value).GetSddlForm('Owner').Substring(2); (Get-Acl -LiteralPath '{}').GetSecurityDescriptorSddlForm('Access')",
+        path.display().to_string().replace('\'', "''")
+    );
+    let out = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .env_remove("PSModulePath")
+        .output()
+        .expect("PowerShell runs");
+    assert!(
+        out.status.success(),
+        "PowerShell exited {}: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said: Vec<String> = String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
+    match said.as_slice() {
+        [user, list] => (user.clone(), list.clone()),
+        _ => panic!("PowerShell said {said:?}"),
+    }
+}
+
+/// An access list's flags (`D:PAI`) and its entries, sorted. PowerShell
+/// reads a list through .NET, which writes the entries a list sets itself in
+/// an order of its own (by SID), and the order of entries that each allow
+/// does not change what they allow.
+#[cfg(windows)]
+fn entries_of(list: &str) -> (&str, Vec<String>) {
+    let (flags, entries) = list.split_at(list.find('(').expect("an access list with entries"));
+    let mut entries: Vec<String> = entries.split_inclusive(')').map(str::to_owned).collect();
+    entries.sort();
+    (flags, entries)
+}
+
 #[test]
 fn the_file_is_written_whole_for_its_owner_alone() {
-    use std::os::unix::fs::PermissionsExt;
     let home = Home::new();
     store_session(&home.store(), "local", &script(&issued("a1"), "r1")).expect("stored");
 
@@ -271,11 +314,49 @@ fn the_file_is_written_whole_for_its_owner_alone() {
         text.starts_with("{\n  \"local\": {\n") && text.ends_with("}\n"),
         "{text}"
     );
-    let mode = std::fs::metadata(home.path())
-        .expect("metadata")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o600);
+    // In a directory kept to its owner, as the launcher keeps its state home.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |path: &std::path::Path| {
+            std::fs::metadata(path)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(&home.dir), 0o700);
+        assert_eq!(mode(&home.path()), 0o600);
+    }
+    // The launcher's access list: the user, the system and the
+    // administrators, handed down to what is made in it, and nothing
+    // inherited from above.
+    #[cfg(windows)]
+    {
+        let (user, list) = access_list_of(&home.dir);
+        let owner_only = |inherit: &str| {
+            let mut entries: Vec<String> = [user.as_str(), "SY", "BA"]
+                .iter()
+                .map(|who| format!("(A;{inherit};FA;;;{who})"))
+                .collect();
+            entries.sort();
+            entries
+        };
+        let (flags, entries) = entries_of(&list);
+        assert!(
+            ["D:PAI", "D:P"].contains(&flags) && entries == owner_only("OICI"),
+            "the state home's access list is {list}, not its owner's ({user}) alone"
+        );
+        for made in [home.path(), home.dir.join("tokens.lock")] {
+            let (_, list) = access_list_of(&made);
+            let (flags, entries) = entries_of(&list);
+            assert!(
+                ["D:AI", "D:"].contains(&flags) && entries == owner_only("ID"),
+                "{}'s access list is {list}, not the one its directory hands down to its owner ({user})",
+                made.display()
+            );
+        }
+    }
     // Nothing is left beside it but the lock.
     let mut beside: Vec<String> = std::fs::read_dir(&home.dir)
         .expect("the directory is there")

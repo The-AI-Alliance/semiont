@@ -370,6 +370,11 @@ result and failure channels are the registry's.
   `busRequestTimeoutMs` unless the caller gave another; or because its
   caller abandoned it.
   *Held by `sdk/wire/failure-codes`, `sdk/wire/request-timeout`.*
+- **A result that lacks a member its schema requires** is no result,
+  wherever the member is missing: the request fails as `error`, saying the
+  payload is not its channel's and naming the member by the members it is
+  within.
+  *Held by `specs/src/resources/reader-cases.json`, `packages/go/sdk/replies_test.go`, `packages/typescript/core/src/__tests__/bus-request.test.ts`.*
 - **A request nobody is there to answer** fails as `peer-unavailable` when
   the gateway can tell, and as a timeout when it cannot.
   *Held by `sdk/wire/request-unanswerable`, `gateway/emit.test.ts`.*
@@ -405,6 +410,12 @@ this emit, never provenance.
   payload schema does not declare is the bus's, not the payload's, and is
   left out. A transport's own frames are the wire's, and keep every stamp.
   *Held by `sdk/live/job-failed`, `sdk/live/generation-retried`, `sdk/live/job-created`, `sdk/wire/chunked-stream`.*
+- A payload that lacks a member its channel's schema requires is not its
+  channel's, wherever the member is missing: a typed read does not deliver
+  it, and says so in the words a request's refusal does. Rust and Go give it
+  as the stream's error and go on; TypeScript, Python and Kotlin, whose
+  streams cannot, drop it with a warning.
+  *Held by `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/go/sdk/internal/required/required_test.go`.*
 
 ## Content and the gateway's own operations
 
@@ -432,6 +443,10 @@ Bytes do not ride the bus.
 - Each of the gateway's own operations is one request to its own path,
   carrying the client's token.
   *Held by `sdk/wire/gateway-operations`.*
+- An answer that lacks a member its declared body requires fails as
+  `error`, with the answer's status, saying it is not its declared body and
+  naming the member; it is reported on the error stream too.
+  *Held by `packages/go/sdk/replies_test.go`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`.*
 - A read or one of the gateway's own operations whose credential is refused
   is renewed, as § A refused credential says.
   *Held by `sdk/wire/request-credential-renewed`, `sdk/wire/request-credential-limit-refused-twice`.*

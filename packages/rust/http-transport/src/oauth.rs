@@ -27,7 +27,9 @@ use semiont::session::{
     session_key,
 };
 use semiont::storage::SessionStorage;
-use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
+use semiont::timing::{
+    DEVICE_POLL, DEVICE_POLL_FLOOR, DEVICE_SLOW_DOWN, HTTP_REQUEST_TIMEOUT, REFRESH_RETRY,
+};
 use semiont::transport::{GatewayOperations, Transport};
 use semiont::types::HttpEndpoint;
 use serde::{Deserialize, Serialize};
@@ -39,11 +41,6 @@ use tokio::time::Instant;
 /// Where a sign-in that is under way is remembered.
 pub const PENDING_AUTHORIZATION_KEY: &str = "semiont.pendingAuthorization";
 const DEVICE_GRANT: &str = "urn:ietf:params:oauth:grant-type:device_code";
-/// How long a device code is good for when the issuer does not say.
-const DEVICE_CODE_LIFETIME: Duration = Duration::from_secs(600);
-/// How often the token endpoint is asked when the issuer does not say, and
-/// how much longer it is left between asks each time it says to slow down.
-const DEVICE_POLL: Duration = Duration::from_secs(5);
 
 /// An issuer, and the endpoints of it a client uses.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -611,10 +608,18 @@ pub async fn sign_in_with_device_grant(
         &[("client_id", SCRIPT_CLIENT_ID), ("scope", SIGN_IN_SCOPE)],
     )
     .await?;
-    let (Some(device_code), Some(user_code), Some(verification_uri)) = (
+    let seconds = |name: &str| {
+        body.as_ref()
+            .and_then(|body| body.get(name))
+            .and_then(Value::as_f64)
+            .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
+            .map(Duration::from_secs_f64)
+    };
+    let (Some(device_code), Some(user_code), Some(verification_uri), Some(expires_in)) = (
         text(&body, "device_code").filter(|_| status == 200),
         text(&body, "user_code"),
         text(&body, "verification_uri"),
+        seconds("expires_in"),
     ) else {
         return Err(SignInError::answered(
             SignInErrorCode::Exchange,
@@ -625,14 +630,6 @@ pub async fn sign_in_with_device_grant(
             status,
         ));
     };
-    let seconds = |name: &str| {
-        body.as_ref()
-            .and_then(|body| body.get(name))
-            .and_then(Value::as_f64)
-            .filter(|seconds| seconds.is_finite() && *seconds >= 0.0)
-            .map(Duration::from_secs_f64)
-    };
-    let expires_in = seconds("expires_in").unwrap_or(DEVICE_CODE_LIFETIME);
     on_code(DeviceCode {
         user_code: user_code.to_owned(),
         verification_uri: verification_uri.to_owned(),
@@ -648,7 +645,7 @@ pub async fn sign_in_with_device_grant(
     };
     let mut interval = seconds("interval")
         .unwrap_or(DEVICE_POLL)
-        .max(Duration::from_secs(1));
+        .max(DEVICE_POLL_FLOOR);
     let deadline = Instant::now() + expires_in;
     loop {
         tokio::time::sleep(interval).await;
@@ -677,7 +674,7 @@ pub async fn sign_in_with_device_grant(
         }
         match text(&answer, "error") {
             Some("authorization_pending") => {}
-            Some("slow_down") => interval += DEVICE_POLL,
+            Some("slow_down") => interval += DEVICE_SLOW_DOWN,
             Some("access_denied") => {
                 return Err(SignInError::answered(
                     SignInErrorCode::Denied,

@@ -206,12 +206,12 @@ Script the transport, then observe through a real client:
 import { createTestClient } from '@semiont/sdk/testing'
 
 const { client, transport } = createTestClient()
-transport.queueReply('browse:resources-requested', { resources: [], total: 0, offset: 0 })
+transport.queueReply('browse:resources-requested', { resources: [], total: 0, offset: 0, limit: 20 })
 // Hand `client` to the unit under test. An operation nobody scripted throws
 // "No response scripted for bus operation ..." instead of answering.
 ```
 
-`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). A reply that names what it answers for beside its response, as a gathered context names its resource, takes that from the request, so a test queues the response alone. For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles. The patterns are in [react-ui's testing guide](../builder/react-ui/TESTING.md).
+`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). A reply that names what it answers for beside its response, as a gathered context names its resource, takes that from the request, so a test queues the response alone. A reply is held to what its schema requires, as the gateway's is: one that lacks a member fails its request, so a test scripts complete replies. For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles. The patterns are in [react-ui's testing guide](../builder/react-ui/TESTING.md).
 
 Do not mock the transport by hand. A hand-rolled mock encodes its author's model of the contract, and the contract moves:
 
@@ -253,6 +253,7 @@ This stays invisible until the mock is given a throwing implementation. Then the
 |---|---|
 | `Unit test attempted a network request: <url>` | react-ui's setup file refuses every `fetch`. Build the client from `@semiont/sdk/testing`, or through `renderWithProviders`, and script the response |
 | `No response scripted for bus operation "<op>"` | The unit reached an operation the test did not script. Add `transport.queueReply('<op>', <response>)` |
+| ``a payload on <channel> is not that channel's: it has no `<member>` `` | The reply the test scripted lacks a member its schema requires. Complete it: the schema is the channel's, in `specs/src/components/schemas` |
 | A global such as `describe` is not defined | The workspace's config does not merge the shared one, which sets `globals: true` |
 
 `transport.requestLog` lists every request a `FaultyTransport` saw, in order, with the action its schedule applied.

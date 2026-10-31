@@ -31,6 +31,11 @@
       "docs": "The wait before an HTTP request that is neither the stream nor an emit is made a second time. It is made again when the gateway answered it with a status that promises recovery, or did not answer at all, on a method that cannot cause a second effect (`transport` in specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when that is longer. A request whose credential was refused is renewed and sent again at once, without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made again."
     },
     {
+      "name": "streamOpenTimeoutMs",
+      "value": 30000,
+      "docs": "How long a client waits for the gateway to answer the request that opens its stream (POST /bus/subscribe): for the answer's status and headers. Unanswered here, the open has failed, and the stream is opened again on the backoff (`reconnectMs`), as after any open that failed. Without it, a gateway that accepts the connection and says nothing is waited on for as long as the process lives, and the stream is never opened again. The gateway answers an open as promptly as one of its own operations, so this is as long as `httpRequestTimeoutMs`. Only the answer is bounded: an open stream that carries nothing for a while has not failed, since a knowledge base where nothing happens has nothing to send."
+    },
+    {
       "name": "reconnectMs",
       "value": 5000,
       "docs": "The first wait before a failed stream is opened again. Each further failure doubles it, up to `maxReconnectMs`, and a successful open resets it. Also the cadence at which a transport with no usable credential checks for one, which costs no request."
@@ -83,6 +88,21 @@
       "name": "minRefreshDelayMs",
       "value": 10000,
       "docs": "The shortest the proactive renewal ever waits. A timer due now that reschedules itself on arrival is a closed loop; a floor makes that impossible, so even an issuer minting expired tokens gets one attempt per interval. Waiting is cheap here: a 401 still drives a renewal."
+    },
+    {
+      "name": "devicePollMs",
+      "value": 5000,
+      "docs": "How long a sign-in by the device grant (RFC 8628) waits before each time it asks the token endpoint whether the person has approved the code, when the issuer's answer states no `interval`. RFC 8628 §3.2 names five seconds: an issuer that wants a client to ask less often says so."
+    },
+    {
+      "name": "deviceSlowDownMs",
+      "value": 5000,
+      "docs": "How much longer a sign-in by the device grant waits between its asks, for that ask and every one after it, each time the issuer answers `slow_down`. RFC 8628 §3.5 names five seconds, so an issuer that says it again is given more time again."
+    },
+    {
+      "name": "devicePollFloorMs",
+      "value": 1000,
+      "docs": "The shortest a sign-in by the device grant ever waits between its asks of the token endpoint, whatever `interval` the issuer states. An issuer that states zero, or a fraction of a second, would otherwise be asked again at once for as long as the code lives; a floor makes that impossible, as `minRefreshDelayMs` does for renewals. RFC 8628 sets no lower bound, and a second is not long enough for a person who has approved the code to notice."
     },
     {
       "name": "invalidationWindowMs",

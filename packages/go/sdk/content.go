@@ -22,6 +22,7 @@ import (
 	"sync"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
+	"github.com/The-AI-Alliance/semiont/packages/go/sdk/internal/required"
 )
 
 // ContentTransport carries bytes, which never ride the bus, a resource's
@@ -429,10 +430,10 @@ func (t *HTTPTransport) GetProtectedResourceMetadata(ctx context.Context) (api.P
 
 // HealthCheck asks the gateway to report itself. A nil error means it
 // answered with a success status: it is alive. Its report is the body, when
-// the body is one; ok is false for a success whose body does not read, a live
-// gateway behind a schema this client does not know, since calling that down
-// would take a gateway offline over a field renamed. Liveness is the status;
-// the body is detail.
+// the body is one; ok is false for a success whose body does not read, or
+// lacks a member its schema requires, a live gateway behind a schema this
+// client does not know, since calling that down would take a gateway offline
+// over a field renamed. Liveness is the status; the body is detail.
 func (t *HTTPTransport) HealthCheck(ctx context.Context) (report api.HealthResponse, ok bool, err error) {
 	spec := t.operation(http.MethodGet, "/api/health", true)
 	got, err := t.shared.exchange(ctx, spec)
@@ -443,10 +444,11 @@ func (t *HTTPTransport) HealthCheck(ctx context.Context) (report api.HealthRespo
 	reading, cancel := context.WithTimeout(ctx, spec.deadline)
 	defer cancel()
 	body, err := io.ReadAll(readerWithContext(reading, got.response.Body))
-	if err != nil || json.Unmarshal(body, &report) != nil {
+	if err != nil {
 		return api.HealthResponse{}, false, nil
 	}
-	return report, true, nil
+	report, ok = required.ReadAs[api.HealthResponse](body)
+	return report, ok, nil
 }
 
 // GetStatus is the gateway's status.

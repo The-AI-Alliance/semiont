@@ -16,6 +16,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventBus } from '../event-bus';
+import { annotationId, resourceId } from '../identifiers';
+
+const RID = resourceId('res-1');
 
 describe('EventBus busLog integration', () => {
   let savedFlag: unknown;
@@ -104,7 +107,18 @@ describe('EventBus dropped-reply detection', () => {
     // gather:resource-complete IS bridged — a 0-observer emit here is a duplicate
     // the awaiting take(1) already consumed, not a drop. Warning on it would be
     // a false-positive [bus DROP] flood.
-    bus.emit('gather:resource-complete', { response: {} } as never, { correlationId: 'deadbeef-5' });
+    bus.emit(
+      'gather:resource-complete',
+      {
+        resourceId: RID,
+        response: {
+          focus: { kind: 'resource', resource: { '@context': 'https://schema.org/', '@id': RID, name: 'A resource', representations: [] } },
+          graph: { nodes: [], edges: [] },
+          metadata: {},
+        },
+      },
+      { correlationId: 'deadbeef-5' },
+    );
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
@@ -112,14 +126,14 @@ describe('EventBus dropped-reply detection', () => {
   it('does NOT warn when the reply has an observer', () => {
     const bus = new EventBus();
     bus.on('gather:resource-failed').subscribe(() => {});
-    bus.emit('gather:resource-failed', {} as never, { correlationId: 'deadbeef-2' });
+    bus.emit('gather:resource-failed', { message: 'no context was gathered', resourceId: RID }, { correlationId: 'deadbeef-2' });
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('does NOT warn for a non-reply emit (no correlationId) with no observers', () => {
     const bus = new EventBus();
-    bus.emit('match:search-results', {} as never);
+    bus.emit('match:search-results', { referenceId: annotationId('ann-1'), response: [] });
 
     expect(warnSpy).not.toHaveBeenCalled();
   });

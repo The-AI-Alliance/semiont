@@ -41,6 +41,7 @@ import java.io.IOException
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.time.Duration
 
 /** The frames of every channel anybody listens to, a broadcast per channel, and the buses every frame is bridged into. */
 internal class FrameHub {
@@ -491,6 +492,7 @@ internal class Stream(
                 .header("Authorization", "Bearer $token")
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
+                .timeout(Duration.ofMillis(timing.streamOpenMs))
                 .build()
             val response = http.exchange(request, HttpResponse.BodyHandlers.ofPublisher())
             val status = response.statusCode()
