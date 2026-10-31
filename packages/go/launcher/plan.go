@@ -391,7 +391,7 @@ func (p *launchPlan) runs(role string) bool {
 // the launcher actually provides claim ports, and a port a person and the
 // containers both dial claims its containers' side too (e). The order is the
 // order the checks run in, and the start goldens pin it.
-func planPortChecks(plan *launchPlan, observe bool, e exposure) []portNeed {
+func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 	var checks []portNeed
 	addRole := func(role string) {
 		rp := plan.Roles[role]
@@ -414,7 +414,7 @@ func planPortChecks(plan *launchPlan, observe bool, e exposure) []portNeed {
 	// and only when (re)starting.
 	gateway := portNeed{plan.GatewayPort, "Gateway"}
 	checks = append(append(checks, gateway), e.containersSideNeed("gateway", gateway)...)
-	for _, role := range fiatRoles(observe) {
+	for _, role := range fiatRoles() {
 		if plan.runs(role) {
 			checks = append(checks, stackPortNeeds(role)...)
 		}
@@ -422,20 +422,13 @@ func planPortChecks(plan *launchPlan, observe bool, e exposure) []portNeed {
 	return checks
 }
 
-// fiatRoles: the roles whose ports are the launcher's fiat, whatever a config
-// says — the Semiont services behind the gateway, then observability. ONE
-// list for the two sites that decide it: a full start requires the ports of
-// the ones it runs free, and a stop holding no record of the stack's claims
-// verifies every one's released.
-func fiatRoles(observe bool) []string {
-	roles := []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
-	// The collector runs on every start, observed or not.
-	roles = append(roles, "collector")
-	if observe {
-		// --no-observe declines the observability BACKENDS (Jaeger, Prometheus).
-		roles = append(roles, "traces", "metrics")
-	}
-	return roles
+// fiatRoles: the stack's roles whose ports are the launcher's fiat, whatever
+// a config says — the Semiont services behind the gateway. ONE list for the
+// two sites that decide it: a full start requires the ports of the ones it
+// runs free, and a stop holding no record of the stack's claims verifies
+// every one's released. The telemetry's are the machine's, not a stack's.
+func fiatRoles() []string {
+	return []string{"worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
 }
 
 func knownDrivers(role string) string {

@@ -139,7 +139,7 @@ var depRoleTitles = map[string]string{
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → traces and metrics (--observe) → collector → database → messaging →
+// pulls → the machine's traces and metrics (--observe) → its collector → database → messaging →
 // identity → gateway → graph → vectors → inference → embedding → archivist →
 // librarian → dispatcher → sidecars → Browser.
 //
@@ -194,7 +194,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// Neo4j's aux port (exactly what a torn-down stack still holds), or
 	// includes ports for roles bound to a REMOTE service, which this start
 	// never binds.
-	checks := planPortChecks(fc.plan, fc.opts.observe, x.exposure(addr))
+	checks := planPortChecks(fc.plan, x.exposure(addr))
 	if removed > 0 || swept {
 		x.settle(portNumbers(checks)...)
 	}
@@ -237,19 +237,20 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayOK, "Images pulled")
 	}
 
+	// --no-observe skips the backends, Jaeger and Prometheus, and leaves
+	// running ones alone: they are the machine's.
 	if fc.opts.observe {
 		if code := flowTraces(x, fc, addr); code != 0 {
 			return code
 		}
-		if code := flowMetrics(x, fc, addr, stage); code != 0 {
+		if code := flowMetrics(x, fc, addr); code != 0 {
 			return code
 		}
 	}
 
-	// The collector always runs; --no-observe declines only the backends
-	// (Jaeger and Prometheus, above), and the staged config then routes traces
-	// to `nop`. After Jaeger, so a first trace export has somewhere to land.
-	if code := flowCollector(x, fc, addr, stage); code != 0 {
+	// The collector always runs. After Jaeger, so a first trace export has
+	// somewhere to land.
+	if code := flowCollector(x, fc, addr); code != 0 {
 		return code
 	}
 	otel := otelArgs(addr)
@@ -361,7 +362,7 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 		desired, doc.endpoint(), doc.spec.Resources.Limits.Memory)
 	x.note("(the Browser is not a stack member: semiont stop --service browser stops it alone)")
 	return x.either(func() bool {
-		return !forceRestart && recordedAs(x.browserRecord(), doc) && x.containerCurrent("semiont-browser", desired)
+		return !forceRestart && recordedAs(x.machineRecord("semiont-browser"), doc) && x.containerCurrent("semiont-browser", desired)
 	},
 		func() int {
 			x.say(sayOK, "Browser already running on %s %s", doc.endpoint(),
@@ -398,7 +399,8 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 				return 1
 			}
 			x.say(sayOK, "Browser on %s %s", doc.endpoint(), x.dim("("+took(d)+")"))
-			x.recordBrowser(id, desired, doc)
+			x.recordMachine(ServiceState{Container: "semiont-browser", ID: id, Image: desired,
+				Endpoint: doc.endpoint(), Memory: doc.spec.Resources.Limits.Memory, Ports: portNumbers(needs)})
 			return 0
 		})
 }
@@ -410,61 +412,109 @@ func recordedAs(rec *ServiceState, doc browserDocument) bool {
 	return rec != nil && rec.Endpoint == doc.endpoint() && rec.Memory == doc.spec.Resources.Limits.Memory
 }
 
-// flowTraces, flowMetrics, flowCollector: the observability tier's launches,
-// written once, so a full start and `start --service traces` cannot drift on
-// argv or on the endpoint they record.
+// machineRun: one of the telemetry containers the launcher runs for the
+// machine, as this start would run it.
+type machineRun struct {
+	role, driver string
+	title        string // its banner
+	ready        string // what is said once it answers
+	// file and config: the launcher's own config for it, written to file
+	// only as it (re)starts; no file for one that reads none.
+	file, config string
+	args         func(e exposure, configPath string) []string
+}
+
+// flowMachine: the telemetry, which runs for the machine rather than for one
+// stack (each record is the machine's, in StackSet.Machine): one collector
+// takes every KB's signals, each labelled with the KB that sent it, with
+// Jaeger and Prometheus behind it. A start keeps a running one when its
+// record says it runs under this start's runtime and answers where this
+// start would probe it, its config file says what this start would write,
+// and it runs the image this start would; `start --service` restarts it.
+// Otherwise it is stopped wherever its record says it runs, and run afresh.
+func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
+	d := descriptorFor(m.role, m.driver)
+	x.banner(roleBanner(fc, m.title))
+	rec := x.machineRecord(d.container)
+	e := x.exposure(addr)
+	health := healthEndpoint(m.role, m.driver, fc.plan, e)
+	configClause := ""
+	if m.file != "" {
+		configClause = ", its " + m.file + " is what this start writes,"
+	}
+	x.note("%s: keep %s if its record says %s under %s%s and it runs %s; else stop/rm it, then run it",
+		m.role, d.container, health, x.rtName(), configClause, d.image)
+	return x.either(func() bool {
+		return !fc.restart && rec != nil && rec.Runtime == x.rtName() && rec.Endpoint == health &&
+			(m.file == "" || x.machineConfigCurrent(m.file, m.config)) && x.containerCurrent(d.container, d.image)
+	},
+		func() int {
+			x.say(sayOK, "%s — %s already running %s", m.role, d.display,
+				x.dim("(kept: it serves every KB here; semiont stop --service "+m.role+" stops it)"))
+			x.servedByMachine(m.role, d.container, health, m.driver)
+			return 0
+		},
+		func() int {
+			needs := stackPortNeeds(m.role)
+			if x.stopMachine(d.container, rec) {
+				x.settle(portNumbers(needs)...)
+			}
+			if !x.portChecks(needs) {
+				return 1
+			}
+			path := ""
+			if m.file != "" {
+				var ok bool
+				if path, ok = x.writeMachineConfig(m.file, m.config); !ok {
+					return 1
+				}
+			}
+			args := m.args(e, path)
+			id, ok := x.runDetached(args)
+			if !ok {
+				x.say(sayFail, "%s (%s) failed to start.", m.role, d.display)
+				return 1
+			}
+			waited, ok := x.waitHTTP(m.role+" ("+d.display+")", d.container, health, 30)
+			if !ok {
+				x.dumpLogs(d.container, m.role)
+				return 1
+			}
+			x.say(sayOK, "%s — %s %s", m.role, m.ready, x.dim("("+took(waited)+")"))
+			x.recordMachine(ServiceState{Container: d.container, ID: id, Image: d.image, Endpoint: health, Ports: portNumbers(needs)})
+			x.servedByMachine(m.role, d.container, health, m.driver)
+			return 0
+		})
+}
+
 func flowTraces(x executor, fc flowCtx, addr string) int {
-	x.banner(roleBanner(fc, "Traces (Jaeger)"))
-	args := tracesArgs(x.exposure(addr))
-	id, ok := x.runDetached(args)
-	if !ok {
-		x.say(sayFail, "traces (Jaeger) failed to start.")
-		return 1
-	}
-	d, ok := x.waitHTTP("traces (Jaeger)", roleContainer("traces"), healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)), 30)
-	if !ok {
-		x.dumpLogs(roleContainer("traces"), "traces")
-		return 1
-	}
-	x.say(sayOK, "traces — Jaeger UI on %s %s", healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)), x.dim("("+took(d)+")"))
-	x.record("traces", id, args[len(args)-1], providedLauncher, healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)), "jaeger")
-	return 0
+	return flowMachine(x, fc, machineRun{
+		role: "traces", driver: "jaeger", title: "Traces (Jaeger)",
+		ready: "Jaeger UI on " + healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)),
+		args:  func(e exposure, _ string) []string { return tracesArgs(e) },
+	}, addr)
 }
 
-func flowMetrics(x executor, fc flowCtx, addr, stage string) int {
-	x.banner(roleBanner(fc, "Metrics (Prometheus)"))
-	args := prometheusArgs(x.exposure(addr), stage)
-	id, ok := x.runDetached(args)
-	if !ok {
-		x.say(sayFail, "metrics (Prometheus) failed to start.")
-		return 1
-	}
-	d, ok := x.waitHTTP("metrics (Prometheus)", roleContainer("metrics"), healthEndpoint("metrics", "prometheus", fc.plan, x.exposure(addr)), 30)
-	if !ok {
-		x.dumpLogs(roleContainer("metrics"), "metrics")
-		return 1
-	}
-	x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(d)+")"))
-	x.record("metrics", id, args[len(args)-1], providedLauncher, healthEndpoint("metrics", "prometheus", fc.plan, x.exposure(addr)), "prometheus")
-	return 0
+func flowMetrics(x executor, fc flowCtx, addr string) int {
+	return flowMachine(x, fc, machineRun{
+		role: "metrics", driver: "prometheus", title: "Metrics (Prometheus)",
+		ready: "Prometheus on http://localhost:9090",
+		file:  "prometheus.yml", config: prometheusConfig(addr),
+		args: prometheusArgs,
+	}, addr)
 }
 
-func flowCollector(x executor, fc flowCtx, addr, stage string) int {
-	x.banner(roleBanner(fc, "Telemetry (OTel Collector)"))
-	args := collectorArgs(x.exposure(addr), stage)
-	id, ok := x.runDetached(args)
-	if !ok {
-		x.say(sayFail, "collector failed to start.")
-		return 1
-	}
-	d, ok := x.waitHTTP("collector", roleContainer("collector"), healthEndpoint("collector", "otel", fc.plan, x.exposure(addr)), 30)
-	if !ok {
-		x.dumpLogs(roleContainer("collector"), "collector")
-		return 1
-	}
-	x.say(sayOK, "collector — OTLP on %s:4318, metrics on %s %s", addr, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr)), x.dim("("+took(d)+")"))
-	x.record("collector", id, args[len(args)-1], providedLauncher, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr)), "otel")
-	return 0
+// flowCollector: its traces go to Jaeger when Jaeger answers by now — the
+// one rule, whether a full start ran Jaeger just before it, --no-observe
+// left a running one alone, or `--service collector` finds one.
+func flowCollector(x executor, fc flowCtx, addr string) int {
+	traces := x.tracesUp(healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)))
+	return flowMachine(x, fc, machineRun{
+		role: "collector", driver: "otel", title: "Telemetry (OTel Collector)",
+		ready: fmt.Sprintf("OTLP on %s:4318, metrics on %s", addr, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr))),
+		file:  "collector.yaml", config: collectorConfig(addr, traces),
+		args: collectorArgs,
+	}, addr)
 }
 
 // flowDepRole: the uniform dependency-role shape for database / messaging /
@@ -630,13 +680,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		}
 		// A role sharing another's Ollama reports how that Ollama is
 		// provided, not a flat "external" — same process, same answer.
-		provided := providedExternal
-		if rp.SharesOllamaWith != "" {
-			if p := x.providerOf(rp.SharesOllamaWith); p != "" {
-				provided = p
-			}
+		switch shared := x.recorded(rp.SharesOllamaWith); shared.Provided {
+		case "":
+			x.record(role, "", "", providedExternal, externalEndpoint(role, rp), rp.Driver)
+		case providedMachine:
+			x.servedByMachine(role, shared.Container, externalEndpoint(role, rp), rp.Driver)
+		default:
+			x.record(role, "", "", shared.Provided, externalEndpoint(role, rp), rp.Driver)
 		}
-		x.record(role, "", "", provided, externalEndpoint(role, rp), rp.Driver)
 	}
 	return 0
 }
@@ -732,7 +783,7 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 }
 
 // flowOllama: the machine's Ollama, which runs outside every stack (its
-// record is the machine's, StackSet.Ollama) and serves every KB whose engines
+// record is the machine's, in StackSet.Machine) and serves every KB whose engines
 // name Ollama. A start keeps the running one when its record says it is
 // published where this start would publish it, under this start's runtime,
 // with the model cache --ollama-cache asks for (any, when it asks none), and
@@ -748,7 +799,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		title = depRoleTitles[role]
 	}
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
-	rec := x.ollamaRecord()
+	rec := x.machineRecord("semiont-ollama")
 	health := healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr))
 	base := fmt.Sprintf("http://%s:%d", x.exposure(addr).probeHost(role, rp.Port), rp.Port)
 	asked := ollamaCacheAsked(fc.opts.ollamaCache)
@@ -760,7 +811,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		func() int {
 			x.say(sayOK, "%s — the machine's Ollama already running on %s %s", role, base,
 				x.dim("(kept: it serves every KB here; semiont stop --service "+role+" stops it)"))
-			x.record(role, "", "", providedMachine, health, rp.Driver)
+			x.servedByMachine(role, "semiont-ollama", health, rp.Driver)
 			x.ensureModels(base, fc.plan.OllamaModels)
 			return 0
 		},
@@ -781,14 +832,15 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 						return 1
 					}
 					x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
-					x.forgetOllama()
+					x.forgetMachine("semiont-ollama")
 					x.record(role, "", "", providedHost, healthEndpoint(role, rp.Driver, fc.plan, exposure{}), rp.Driver)
 					x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 					return 0
 				},
 				func() int {
 					x.say(sayLog, "No host Ollama detected — starting container...")
-					if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
+					need := portNeed{rp.Port, "Ollama"}
+					if !x.portCheck(need) {
 						return 1
 					}
 					volume := x.ollamaVolume(fc.opts)
@@ -806,8 +858,9 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 						return 1
 					}
 					x.say(sayOK, "%s — Ollama container on %s (24 GB memory) %s", role, base, x.dim("("+took(d)+")"))
-					x.recordOllama(id, rp.Image, base, volume)
-					x.record(role, "", "", providedMachine, health, rp.Driver)
+					x.recordMachine(ServiceState{Container: "semiont-ollama", ID: id, Image: rp.Image,
+						Endpoint: base, Cache: volume, Ports: portNumbers([]portNeed{need})})
+					x.servedByMachine(role, "semiont-ollama", health, rp.Driver)
 					x.ensureModels(base, fc.plan.OllamaModels)
 					return 0
 				})
@@ -1061,11 +1114,11 @@ func flowOneService(x executor, fc flowCtx) int {
 		return 1
 	}
 
-	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
-	// and its port must NEVER enter the STACK's recorded claims: stop
-	// verifies stack-port release while the Browser deliberately keeps
-	// running on its port.
-	if svc != "inference" && svc != "browser" {
+	// The machine's containers are handled entirely by their own flows (their
+	// own stop, ports and run) — and their ports must NEVER enter the STACK's
+	// recorded claims: stop verifies stack-port release while the machine's
+	// containers deliberately keep running on theirs.
+	if !contains(machineRoles, svc) {
 		ports := servicePortNeeds(svc, fc.plan, fc.browser, x.exposure(""))
 		if x.stopRm(roleContainer(svc)) {
 			x.say(sayLog, "Removed prior %s container", svc)
@@ -1111,19 +1164,11 @@ func flowOneService(x executor, fc flowCtx) int {
 
 	switch svc {
 	case "collector":
-		cstage, ok := x.stageCollector(addr)
-		if !ok {
-			return 1
-		}
-		if code := flowCollector(x, fc, addr, cstage); code != 0 {
+		if code := flowCollector(x, fc, addr); code != 0 {
 			return code
 		}
 	case "metrics":
-		mstage, ok := x.stageMetrics(addr)
-		if !ok {
-			return 1
-		}
-		if code := flowMetrics(x, fc, addr, mstage); code != 0 {
+		if code := flowMetrics(x, fc, addr); code != 0 {
 			return code
 		}
 	case "traces":

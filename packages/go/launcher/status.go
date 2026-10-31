@@ -296,7 +296,7 @@ type BrowserProbe struct {
 // neither there is no endpoint to probe: the launcher started no Browser it
 // knows the port of.
 func BrowserTarget(ss *StackSet, override string) BrowserProbe {
-	b := ss.Browser
+	b := ss.Machine["semiont-browser"]
 	var p BrowserProbe
 	handle := "semiont-browser"
 	if b != nil {
@@ -332,7 +332,7 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 // is visible: a kept Browser can legitimately outlive several stacks.
 func printBrowser(u *UI, ss *StackSet) (healthy bool) {
 	u.Section("BROWSER")
-	b := ss.Browser
+	b := ss.Machine["semiont-browser"]
 	p := BrowserTarget(ss, "")
 	healthy = p.Running
 	word := p.State
@@ -457,9 +457,9 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 	if st != nil {
 		at = st.exposure()
 	}
-	// The machine's Ollama runs outside the stack: a row it serves reads its
-	// state from Ollama's own record.
-	machineOllama := LoadStackSet().Ollama
+	// The machine's containers run outside the stack: a row one serves reads
+	// its state from that container's own record.
+	machine := LoadStackSet().Machine
 	lastGroup := 0
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
@@ -523,11 +523,12 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		case rec != nil && rec.Provided == providedHost:
 			rt = "host"
 		case rec != nil && rec.Provided == providedMachine:
-			// The machine's Ollama, under the runtime and handle its own
-			// record names. With no record it is absent: stopped alone.
-			if machineOllama != nil {
-				h := machineHandles(machineOllama.Runtime, "semiont-ollama", machineOllama)[0]
-				state, rt = containerState([]string{machineOllama.Runtime}, h)
+			// The machine's container the stack's record names, under the
+			// runtime and handle its own record names. With no record it is
+			// absent: stopped alone.
+			if m := machine[rec.Container]; m != nil {
+				h := machineHandles(m.Runtime, rec.Container, m)[0]
+				state, rt = containerState([]string{m.Runtime}, h)
 			}
 		case handle == "":
 			// A container-less role (embedding, provided elsewhere) has
