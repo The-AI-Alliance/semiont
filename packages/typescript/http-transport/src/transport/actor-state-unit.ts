@@ -9,6 +9,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { APIError, refusalBody, retryableUnlessRefused } from './api-error';
+import { fetchOf } from './fetch-of';
 
 export type { ConnectionState };
 
@@ -422,7 +423,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
-      const response = await (options.fetch ?? fetch)(url, { method: 'POST', headers, body, signal: controller.signal });
+      const response = await fetchOf(options.fetch)(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
         // The body says which limit refused it: a 429 `refusal-rate` is a
@@ -811,7 +812,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         // the caller's loop forever. AbortSignal.timeout rejects with a
         // DOMException named TimeoutError — which the predicate treats as
         // retryable, since a deadline is the definition of "try again".
-        const attempt = await (options.fetch ?? fetch)(`${baseUrl}/bus/emit`, {
+        const attempt = await fetchOf(options.fetch)(`${baseUrl}/bus/emit`, {
           method: 'POST',
           headers: { ...headers, Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),

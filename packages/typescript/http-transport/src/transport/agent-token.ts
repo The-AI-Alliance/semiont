@@ -33,6 +33,7 @@ import {
   type UserId,
 } from '@semiont/core';
 import { APIError, retryableUnlessRefused } from './api-error';
+import { fetchOf } from './fetch-of';
 
 export interface AgentSignIn {
   /** The gateway, e.g. `http://gateway:4000`: where the process dials, and nothing about who it is. */
@@ -83,7 +84,7 @@ export async function agentToken(opts: AgentSignIn): Promise<{ token: string; di
 async function named(baseUrl: string, token: string, fetch: typeof globalThis.fetch | undefined): Promise<UserId> {
   const url = `${baseUrl.replace(/\/$/, '')}/api/users/me`;
   const unanswered = (error: unknown) => new UnansweredError(url, error);
-  const response = await (fetch ?? globalThis.fetch)(url, {
+  const response = await fetchOf(fetch)(url, {
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => {

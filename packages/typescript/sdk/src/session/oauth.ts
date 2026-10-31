@@ -26,6 +26,7 @@ import {
 } from '@semiont/core';
 import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from '@semiont/core';
+import { fetchOf } from '../fetch-of';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
 import { getStoredSession, kbGatewayUrl, sessionKey, storedSessionIn } from './storage';
@@ -77,7 +78,7 @@ export async function discoverIssuer(target: HttpEndpoint, fetch?: typeof global
 
   const unanswered = (error: unknown) =>
     new SignInError('discovery', `Issuer ${issuer}: discovery was not answered: ${whyUnanswered(error)}`);
-  const response = await (fetch ?? globalThis.fetch)(`${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`, {
+  const response = await fetchOf(fetch)(`${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => {
@@ -287,7 +288,7 @@ async function postForm(
   fetch: typeof globalThis.fetch | undefined,
 ): Promise<{ status: number; body: Record<string, unknown> | null }> {
   const unanswered = (error: unknown) => new SignInError('exchange', `The issuer did not answer: ${whyUnanswered(error)}`);
-  const response = await (fetch ?? globalThis.fetch)(endpoint, {
+  const response = await fetchOf(fetch)(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(form),

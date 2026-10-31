@@ -29,6 +29,7 @@ import {
 import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import { createActorStateUnit, renewedToken, type ActorStateUnit } from './actor-state-unit';
 import { APIError, refusalBody, refusesCredential } from './api-error';
+import { fetchOf } from './fetch-of';
 import type {
   ConnectionState,
   IGatewayOperations,
@@ -208,7 +209,7 @@ export function currentUserOf(baseUrl: BaseUrl, token: AccessToken, fetch?: type
       headers: { Authorization: `Bearer ${token}` },
       timeout: HTTP_REQUEST_TIMEOUT_MS,
       retry: RETRY,
-      ...(fetch ? { fetch } : {}),
+      fetch: fetchOf(fetch),
       hooks: {
         beforeError: [
           async ({ request, error }) => {
@@ -264,7 +265,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     this.http = ky.create({
       timeout,
       retry: RETRY,
-      ...(config.fetch ? { fetch: config.fetch } : {}),
+      fetch: fetchOf(config.fetch),
       hooks: {
         beforeRequest: [
           ({ request }) => {

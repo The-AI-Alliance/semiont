@@ -48,6 +48,15 @@ export interface KeyCredential {
 /** A service account at an issuer, by how it proves itself. */
 export type ServiceAccountCredential = SecretCredential | KeyCredential;
 
+/**
+ * The fetch a request is sent with: the one its caller gave, or the runtime's
+ * own, looked up as each request is made. Either is called as a plain
+ * function, never as a method of something else, which a browser refuses.
+ */
+function fetchOf(given: typeof fetch | undefined): typeof fetch {
+  return (...request: Parameters<typeof fetch>) => (given ?? globalThis.fetch)(...request);
+}
+
 /** Cache discovery per issuer: it is a fixed document and the process is long-lived. */
 const tokenEndpoints = new Map<string, Promise<string>>();
 
@@ -97,7 +106,7 @@ async function tokenEndpoint(issuer: string, fetch: typeof globalThis.fetch | un
         issuer.endsWith('/') ? issuer : `${issuer}/`,
       );
       const unanswered = (error: unknown) => new UnansweredError(`OIDC discovery for ${issuer}`, error);
-      const response = await (fetch ?? globalThis.fetch)(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
+      const response = await fetchOf(fetch)(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
         throw unanswered(error);
       });
       if (!response.ok) {
@@ -152,7 +161,7 @@ export async function serviceAccountToken(
   const form = await proof(credential, endpoint);
 
   const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
-  const response = await (fetch ?? globalThis.fetch)(endpoint, {
+  const response = await fetchOf(fetch)(endpoint, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: form,

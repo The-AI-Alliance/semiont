@@ -23,6 +23,7 @@
 import { Observable } from 'rxjs';
 import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, isArray, isNumber, isObject, isString } from '@semiont/core';
 import type { DiscoveredKB } from '@semiont/core';
+import { fetchOf } from './fetch-of';
 
 /** Why discovery reads as "no launcher detected". */
 export type DiscoveryAbsentReason =
@@ -165,7 +166,7 @@ export function httpDiscovery(url: string = DISCOVERY_URL_PATH, fetch?: typeof g
       try {
         // With a deadline: a read that is never answered would hold the
         // poll that awaits it, and every poll after it, for good.
-        response = await (fetch ?? globalThis.fetch)(url, {
+        response = await fetchOf(fetch)(url, {
           ...(etag !== null ? { headers: { 'If-None-Match': etag } } : {}),
           signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
         });
