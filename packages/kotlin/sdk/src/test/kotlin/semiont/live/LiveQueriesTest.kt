@@ -233,6 +233,8 @@ class LiveQueriesTest {
             client.browse.annotation(RESOURCE, ANNOTATION).fresh()
             client.browse.entityTypes().fresh()
             client.browse.tagSchemas().fresh()
+            // The reads take longer than a save waits: each kept query's save begins before the last read is made.
+            delay(semiont.Timings.SAVE_DEBOUNCE_MS * 4)
             client.browse.events(RESOURCE).fresh()
             client.gather.referencedBy(RESOURCE).fresh()
             client.browse.resources().fresh()
