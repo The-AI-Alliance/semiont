@@ -511,9 +511,12 @@ jobs:
           path: images/browser/.lighthouseci
           retention-days: 30
 
-      # A run Dependabot started has a read-only token, which cannot comment.
-      - name: Comment PR with Lighthouse results
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+      # The scores go to the run's summary. A pull request is commented on only
+      # when they fall short or Lighthouse produced no report: a passing run's
+      # green check says so. A run Dependabot started has a read-only token,
+      # which cannot comment.
+      - name: Report the Lighthouse results
+        if: ${{ !cancelled() }}
         uses: actions/github-script@v9
         env:
           ASSERT_OUTCOME: ${{ steps.assert.outcome }}
@@ -553,16 +556,21 @@ jobs:
                 '',
                 verdict,
                 '',
-                'Full results are in the workflow artifacts.',
+                'Full results are in the run\'s `lighthouse-results` artifact.',
               ].join('\n');
             }
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body,
-            })
+            await core.summary.addRaw(body).write();
+
+            const passed = process.env.ASSERT_OUTCOME === 'success';
+            if (!passed && context.eventName === 'pull_request' && context.actor !== 'dependabot[bot]') {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }
 
   # The audits in scripts/compliance, against the built packages. They read the
   # sources of every app, the launcher, the docs and the Dockerfiles, so they
