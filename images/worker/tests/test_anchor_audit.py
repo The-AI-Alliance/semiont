@@ -21,7 +21,7 @@ ANCHORS = "semiont.detection.anchors"
 
 
 def anchors(reader: InMemoryMetricReader) -> Counter[tuple[object, ...]]:
-    """How many anchors have been counted so far, by what was anchored and how. A point carries those two attributes and no other."""
+    """How many anchors have been counted so far, by what was anchored and how. A point carries those and its knowledge base."""
     return counted(reader, ANCHORS, "detection.label", "anchor.method")
 
 
@@ -64,7 +64,11 @@ def test_what_is_counted_is_what_the_table_lists(metric_reader: InMemoryMetricRe
     assert row.instrument == "counter"
     listed = {attribute.key: attribute.values for attribute in row.attributes}
     # Every kind of mark job by every way a span is found: the two lists are the worker's own and the SDK's, and each is the table's.
-    assert listed == {"detection.label": list(get_args(DetectionLabel.__value__)), "anchor.method": list(get_args(AnchorMethod.__value__))}
+    assert listed == {
+        "detection.label": list(get_args(DetectionLabel.__value__)),
+        "anchor.method": list(get_args(AnchorMethod.__value__)),
+        "semiont.kb": None,
+    }
     assert all(attribute.only is None for attribute in row.attributes)
 
     before = anchors(metric_reader)

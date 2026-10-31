@@ -184,7 +184,7 @@ def main() -> int:
     exporting: Exporting | None = None
     try:
         started = boot(sys.argv[1:], os.environ)
-        # It serves several knowledge bases, so its resource names none.
+        # It serves several knowledge bases, so its resource names none: what it records of a job names that job's (`telemetry.serving`).
         exporting = install(SERVICE, os.environ, kb=None)
         return asyncio.run(_serve(started, exporting))
     except Exception as failure:

@@ -7,6 +7,7 @@
  * then, the answer it takes as a stream, the tokens it counts, and what a
  * cancellation and a stop do to a request that is under way.
  */
+import { kbDid } from '@semiont/core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import type { ScriptedMessage } from '../harness/anthropic';
 import { everyJob } from '../harness/dispatcher-world';
@@ -549,9 +550,9 @@ eachWorkerService('a worker on Anthropic', (world) => {
     const served = await w.start({ engines: [w.entry(engine, everyJob())], env: { OTEL_EXPORTER_OTLP_ENDPOINT: otlp().endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', OTEL_BSP_SCHEDULE_DELAY: '100' } });
     await settled(served, job);
 
-    // The generation's span names who was asked, and for how much.
+    // The generation's span names who was asked, and for how much, at which knowledge base.
     const span = await eventually('the span of the generation', 15_000, () => otlp().spans.find((s) => s.name === spanName('inference:structured')));
-    expect(span.attributes).toEqual({ 'inference.provider': 'anthropic', 'inference.model': engine.model, 'inference.max_tokens': ANTHROPIC_OUTPUT });
+    expect(span.attributes).toEqual({ 'inference.provider': 'anthropic', 'inference.model': engine.model, 'inference.max_tokens': ANTHROPIC_OUTPUT, 'semiont.kb': kbDid(w.domain) });
 
     // The two counts the provider stated, and no other.
     const tokens = await eventually('the tokens of the generation, read and written', 15_000, () => {

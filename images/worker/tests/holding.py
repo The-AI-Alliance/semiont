@@ -19,7 +19,8 @@ from typing import Final, final
 from pydantic import JsonValue
 from semiont.claims import ClaimRefusal, Claims, HeldJob
 from semiont.client import SemiontClient
-from semiont.identifiers import ResourceId
+from semiont.identifiers import ResourceId, UserId
+from semiont.identity import kb_did
 from semiont.testing import FaultyTransport, create_test_client, refuse_unscripted_operation
 from semiont.transport import Content, Frame
 from semiont.types import JobFilter, MarkJobFilter, MarkJobFilterParams, YieldJobFilter
@@ -41,6 +42,9 @@ EVERY_JOB: Final[list[JobFilter]] = [
 
 DOMAIN: Final = "test.local"
 """The domain the knowledge base says it is, unless a test says another."""
+
+KB: Final[UserId] = kb_did(DOMAIN)
+"""The knowledge base's DID: what everything a test records names, unless the test runs another's claims (`conftest.served`)."""
 
 TEXT: Final = "Ada Lovelace published the first program in 1843. Charles Babbage designed the engine in London.\n"
 

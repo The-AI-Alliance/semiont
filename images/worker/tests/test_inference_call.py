@@ -14,6 +14,7 @@ from typing import Final, final
 
 import pytest
 from aio import pass_time, run, under_way
+from holding import KB
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -287,8 +288,8 @@ def test_each_call_is_a_span_the_table_lists_of_its_kind_and_with_its_attributes
     # The provider is asked inside the span: what a driver records of the request is a part of it.
     assert [client.asked_inside for client in clients] == [["inference:text"], ["inference:structured"]]
     assert [dict(span.attributes or {}) for span in spans] == [
-        {"inference.provider": "ollama", "inference.model": "bound-model", "inference.max_tokens": 100},
-        {"inference.provider": "ollama", "inference.model": "bound-model", "inference.max_tokens": 4242},
+        {"semiont.kb": KB, "inference.provider": "ollama", "inference.model": "bound-model", "inference.max_tokens": 100},
+        {"semiont.kb": KB, "inference.provider": "ollama", "inference.model": "bound-model", "inference.max_tokens": 4242},
     ]
     for span in spans:
         row = listed[span.name]

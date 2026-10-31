@@ -27,8 +27,7 @@ and when a case of the suite is named by no rule.
 **What this document does not cover.** A `yield` job to PDF, and so the
 citations of a generated PDF; and the budget of an Anthropic model whose
 `contextTokens` leave 64 tokens or fewer to read once its `maxOutputTokens`
-and the prompt are taken from them. Nor which knowledge base a span or a metric
-came from: the service's telemetry names none.
+and the prompt are taken from them.
 
 **What an offset counts.** An offset into a text counts Unicode code points
 from the start of the text, exactly as it was decoded
@@ -964,7 +963,8 @@ focused on a resource or on an annotation.
 - **T1.** A service started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
   `semiont-worker`, under a resource of exactly the keys the table's
   `resource` rows list for the worker: its name and its version. It serves
-  several knowledge bases, so its resource names none. It exports exactly what
+  several knowledge bases, so its resource names none
+  ([T4](#telemetry)). It exports exactly what
   [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
   lists for the worker, and the rows of
   [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
@@ -991,6 +991,15 @@ focused on a resource or on an annotation.
   provider and the model. What learns a model's limits
   ([M2 and M5](#limits)) is no generation, and is not counted.
   *Held by `worker-service/telemetry`, `worker-service/anthropic`.*
+- **T4.** Each span and data point of a row that lists the worker alone
+  carries `semiont.kb`: the DID of the knowledge base whose claims handed
+  the job over, `did:web:` and the domain its document names there. Of a
+  service of two knowledge bases, what it records of each job names that
+  job's own. The rows it shares with others name none: what the process says
+  of itself, the SDK's rows, and what a provider's driver counts of a
+  generation (`semiont.inference.*`), since one engine's client serves every
+  knowledge base that names it.
+  *Held by `worker-service/telemetry`.*
 
 ## Environment
 
