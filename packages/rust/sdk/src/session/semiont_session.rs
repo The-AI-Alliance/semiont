@@ -11,14 +11,18 @@
 //! - `validate` asks the gateway who a token is: when the session starts,
 //!   and of a token renewed because the gateway refused the one before. A
 //!   session of a service has none: there is nobody to ask about.
-//! - `on_auth_failed` is told when the session is over, and why: it could
-//!   not be renewed (`Expired`), or the gateway refused a token the issuer
-//!   had just issued (`Refused`). What a person reads of it is the host's.
+//! - `on_auth_failed` is told when the session is over, and why: its issuer
+//!   refused to renew it (`Expired`), or the gateway refused a token the
+//!   issuer had just issued (`Refused`). What a person reads of it is the host's.
 //!   `on_error` is told of every failure that makes the session unusable.
 //!
-//! A session that cannot be renewed clears its token and what it stored, so a
-//! dead credential is never used again. One that never had a credential is
-//! only signed out: there is nothing to end, and nothing is said.
+//! A session whose issuer refuses to renew it clears its token and what it
+//! stored, so a dead credential is never used again. One that never had a credential is
+//! only signed out: there is nothing to end, and nothing is said. Whenever a
+//! token is renewed, what is stored is forgotten only when the issuer
+//! refuses: a renewal that got no answer leaves the session no usable token
+//! and keeps what is stored, and the next refusal renews again, and so does
+//! the session on its own, on the reconnect backoff.
 //!
 //! The token is renewed before it expires, by the schedule every Semiont
 //! client keeps (`super::refresh_delay`). What another context writes under
@@ -36,11 +40,15 @@ use super::stored::{
 };
 use super::{renew_when_due, token_expiry};
 use crate::client::SemiontClient;
-use crate::errors::{SemiontError, SessionError, SessionErrorCode, TransportErrorCode};
+use crate::errors::{
+    SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportErrorCode,
+};
 use crate::locked;
+use crate::retry::{REFRESH, RetryFacts, equal_jitter};
 use crate::state::{Held, Tasks};
 use crate::state_unit::StateUnit;
 use crate::storage::{SessionStorage, StorageSubscription};
+use crate::timing::{MAX_RECONNECT, RECONNECT};
 use crate::transport::{BoxFuture, ConnectionState, Failures};
 use crate::types::{KbTarget, UserResponse};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -50,9 +58,16 @@ use tokio::sync::watch;
 
 /// Renew the token the session holds, which it is given (none when it holds
 /// none): the new one, `None` when there is nothing to renew with, or why
-/// the renewal failed.
-pub type Refresh =
-    Arc<dyn Fn(Option<String>) -> BoxFuture<'static, Result<Option<String>, String>> + Send + Sync>;
+/// the renewal failed: a `SignInError` of the issuer's answer, or of its
+/// absence, or the failure of whatever else the renewal needed.
+pub type Refresh = Arc<
+    dyn Fn(
+            Option<String>,
+        )
+            -> BoxFuture<'static, Result<Option<String>, Arc<dyn std::error::Error + Send + Sync>>>
+        + Send
+        + Sync,
+>;
 
 /// Ask the gateway who `token` is.
 pub type Validate =
@@ -65,11 +80,27 @@ pub type OnAuthFailed = Arc<dyn Fn(SessionEndReason) + Send + Sync>;
 pub type OnSessionError = Arc<dyn Fn(SessionError) + Send + Sync>;
 
 /// Why a renewal gave no token, for whoever reads the error.
-fn not_renewed(failure: Option<String>) -> String {
+fn not_renewed(failure: Option<&(dyn std::error::Error + Send + Sync)>) -> String {
     match failure {
         Some(failure) => format!("Token refresh failed: {failure}"),
         None => "Token refresh failed".to_owned(),
     }
+}
+
+/// Whether a renewal failed because the issuer refused it: an answer the
+/// `refresh` rule does not try again. No answer, and one it tries again
+/// until the budget is spent, is no refusal.
+fn refused(failure: &(dyn std::error::Error + Send + Sync + 'static)) -> bool {
+    failure
+        .downcast_ref::<SignInError>()
+        .is_some_and(|failure| {
+            failure.code == SignInErrorCode::Exchange
+                && failure.status.is_some()
+                && !REFRESH.retryable(&RetryFacts {
+                    status: failure.status,
+                    method: Some("POST"),
+                })
+        })
 }
 
 /// Why a session failed, and why its credential could not be forgotten.
@@ -101,6 +132,8 @@ struct Shared {
     token: Held<Option<String>>,
     user: Held<Option<UserResponse>>,
     ready: Held<bool>,
+    /// Holds while a renewal that got no answer is owed another attempt.
+    unanswered: Held<bool>,
     refresh: Option<Refresh>,
     validate: Option<Validate>,
     on_auth_failed: Option<OnAuthFailed>,
@@ -128,6 +161,7 @@ impl SemiontSession {
             token: Held::of(config.token),
             user: Held::new(None),
             ready: Held::new(false),
+            unanswered: Held::new(false),
             refresh: config.refresh,
             validate: config.validate,
             on_auth_failed: config.on_auth_failed,
@@ -157,6 +191,11 @@ impl SemiontSession {
                     shared.renew().await;
                 }
             }));
+
+        let retrying = shared.clone();
+        shared
+            .tasks
+            .spawn(async move { retrying.renew_when_unanswered().await });
 
         let heard = Arc::downgrade(&shared);
         *locked(&shared.storage_changes) = shared.storage.subscribe(Arc::new(move |key, value| {
@@ -225,8 +264,9 @@ impl SemiontSession {
 
     /// The gateway refused the session's token: renew it, and ask the
     /// gateway who the new one is. The token the session then holds, or
-    /// none: it holds no token, and if it had a stored credential it is
-    /// over. See `SessionRenewer`, through which a transport asks.
+    /// none: it holds no token, and if the issuer refused to renew a stored
+    /// credential it is over. See `SessionRenewer`, through which a transport
+    /// asks.
     pub async fn refresh(&self) -> Option<String> {
         self.shared.refused().await
     }
@@ -313,12 +353,18 @@ impl Shared {
         self.token.end();
         self.user.end();
         self.ready.end();
+        self.unanswered.end();
     }
 
     /// Ask `refresh`, with a failure to ask read as there being no token:
     /// a renewal that could not be made and one that was refused both leave
     /// the session without one. The reason is kept for whoever reads why.
-    async fn try_refresh(&self) -> (Option<String>, Option<String>) {
+    async fn try_refresh(
+        &self,
+    ) -> (
+        Option<String>,
+        Option<Arc<dyn std::error::Error + Send + Sync>>,
+    ) {
         match &self.refresh {
             None => (None, None),
             Some(refresh) => match refresh(self.token.now()).await {
@@ -339,6 +385,7 @@ impl Shared {
             return None;
         }
         if let Some(token) = renewed {
+            self.unanswered.set(false);
             self.token.set(Some(token.clone()));
             return Some(token);
         }
@@ -346,13 +393,61 @@ impl Shared {
         // A session that never had a credential cannot expire: it is signed
         // out, which is no failure. Ending the session below also clears the
         // credential, so the refusals that follow it are quiet too.
-        stored_session(self.storage.as_ref(), &self.kb.id)?;
-        self.signed_out(
-            SessionEndReason::Expired,
-            SessionErrorCode::RefreshExhausted,
-            not_renewed(failure),
-        );
+        if stored_session(self.storage.as_ref(), &self.kb.id).is_none() {
+            self.unanswered.set(false);
+            return None;
+        }
+        self.unrenewed(failure);
         None
+    }
+
+    /// After a renewal that got no answer, renew again on the reconnect
+    /// backoff: each wait is the equal jitter of its step, the step
+    /// `RECONNECT` doubling to `MAX_RECONNECT`. It stops when a renewal is
+    /// made or refused, when a token arrives some other way, and when the
+    /// session ends. A renewal made while nobody has said who the session's
+    /// token is asks the gateway once, as the start would have.
+    async fn renew_when_unanswered(&self) {
+        let mut owed = self.unanswered.read();
+        loop {
+            if owed.wait_for(|owed| *owed).await.is_err() {
+                return;
+            }
+            let mut step = RECONNECT;
+            while self.unanswered.now() {
+                tokio::time::sleep(equal_jitter(step)).await;
+                if self.token.now().is_some() {
+                    self.unanswered.set(false);
+                } else if self.unanswered.now() {
+                    if self.user.now().is_none() {
+                        self.refused().await;
+                    } else {
+                        self.renew().await;
+                    }
+                }
+                step = (step * 2).min(MAX_RECONNECT);
+            }
+        }
+    }
+
+    /// A renewal of what is stored gave no token, and the session holds
+    /// none. The issuer's refusal, or nothing left to renew with, ends the
+    /// session; any other failure keeps what is stored, and says why: the
+    /// next refusal renews again, and so does the reconnect backoff.
+    fn unrenewed(&self, failure: Option<Arc<dyn std::error::Error + Send + Sync>>) {
+        self.token.set(None);
+        let why = not_renewed(failure.as_deref());
+        match failure {
+            Some(failure) if !refused(failure.as_ref()) => {
+                self.unanswered.set(true);
+                self.failed(SessionErrorCode::RefreshExhausted, why);
+            }
+            _ => self.signed_out(
+                SessionEndReason::Expired,
+                SessionErrorCode::RefreshExhausted,
+                why,
+            ),
+        }
     }
 
     /// The gateway refused the session's token: renew it, and ask the
@@ -361,9 +456,10 @@ impl Shared {
     /// just issued and the gateway refuses is final, and the session ends as
     /// `CredentialRefused`. So one refusal costs at most one renewal and one
     /// ask, and a gateway that refuses whatever its issuer issues is not
-    /// asked again for every request that follows. A gateway that cannot be
-    /// asked refuses nothing: the renewed token is given. A session of a
-    /// service, which has nobody to ask about, only renews.
+    /// asked again for every request that follows. Who the gateway says the
+    /// renewed token is, is who is signed in. A gateway that cannot be asked
+    /// refuses nothing: the renewed token is given. A session of a service,
+    /// which has nobody to ask about, only renews.
     ///
     /// One refusal is answered at a time, so however many requests were
     /// refused at once, they cost one renewal and one ask.
@@ -390,18 +486,23 @@ impl Shared {
         if self.closed() {
             return None;
         }
-        if let Err(SemiontError::Transport(refusal)) = &answer
-            && refusal.code == TransportErrorCode::Unauthorized
-            // Only a token the session still holds ends it: one replaced
-            // while the gateway was being asked (another context signed in,
-            // or renewed) is no longer the session's to be refused.
-            && self.token.now().as_deref() == Some(renewed.as_str())
-        {
-            self.signed_out(
-                SessionEndReason::Refused,
-                SessionErrorCode::CredentialRefused,
-                "The gateway refused a token its issuer had just issued".to_owned(),
-            );
+        // Only a token the session still holds is its to be refused, or to say
+        // who it is: one replaced while the gateway was being asked (another
+        // context signed in, or renewed) is not.
+        if self.token.now().as_deref() == Some(renewed.as_str()) {
+            match answer {
+                Ok(user) => self.user.set(Some(user)),
+                Err(SemiontError::Transport(refusal))
+                    if refusal.code == TransportErrorCode::Unauthorized =>
+                {
+                    self.signed_out(
+                        SessionEndReason::Refused,
+                        SessionErrorCode::CredentialRefused,
+                        "The gateway refused a token its issuer had just issued".to_owned(),
+                    );
+                }
+                Err(_) => {}
+            }
         }
         self.token.now()
     }
@@ -410,6 +511,7 @@ impl Shared {
     /// the application are each told why. The one teardown, whichever way
     /// the session ended.
     fn signed_out(&self, told: SessionEndReason, code: SessionErrorCode, why: String) {
+        self.unanswered.set(false);
         self.token.set(None);
         let why = match clear_stored_session(self.storage.as_ref(), &self.kb.id) {
             Ok(()) => why,
@@ -441,6 +543,17 @@ impl Shared {
         let mut token = if expired {
             match self.try_refresh().await {
                 (Some(renewed), _) => renewed,
+                (None, Some(failure)) if !refused(failure.as_ref()) => {
+                    // The issuer did not refuse it: the credential is kept,
+                    // and renewed on the reconnect backoff or when a request
+                    // is refused.
+                    self.unanswered.set(true);
+                    self.failed(
+                        SessionErrorCode::AuthFailed,
+                        not_renewed(Some(failure.as_ref())),
+                    );
+                    return;
+                }
                 (None, failure) => {
                     // There was no session to end: the credential is
                     // forgotten, and nothing is said unless it could not be.
@@ -448,7 +561,7 @@ impl Shared {
                     {
                         self.failed(
                             SessionErrorCode::RefreshExhausted,
-                            not_forgotten(not_renewed(failure), forgotten.as_ref()),
+                            not_forgotten(not_renewed(failure.as_deref()), forgotten.as_ref()),
                         );
                     }
                     return;
@@ -510,11 +623,7 @@ impl Shared {
                             just_issued = true;
                         }
                         None => {
-                            self.signed_out(
-                                SessionEndReason::Expired,
-                                SessionErrorCode::RefreshExhausted,
-                                not_renewed(failure),
-                            );
+                            self.unrenewed(failure);
                             return;
                         }
                     }

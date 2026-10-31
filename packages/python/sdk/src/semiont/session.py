@@ -13,9 +13,9 @@ shows nobody anything. What it needs of its surroundings it is given:
   with, and raises `SignInError` when the renewal failed.
 - `validate` asks the gateway who a token is: when the session starts, and of
   a token renewed because the gateway refused the one before.
-- `on_auth_failed` is told when the session is over, and why: it could not be
-  renewed (`expired`), or the gateway refused a token the issuer had just
-  issued (`refused`). A reason is not a sentence: what a person reads is the
+- `on_auth_failed` is told when the session is over, and why: its issuer
+  refused to renew it (`expired`), or the gateway refused a token the issuer
+  had just issued (`refused`). A reason is not a sentence: what a person reads is the
   host's to say. `on_error` is told of every failure that makes the session
   unusable.
 
@@ -35,9 +35,13 @@ renewed once and asked about once more, and a token the issuer has just
 issued and the gateway refuses is final. So one refusal costs at most one
 renewal and one ask, whatever the gateway and the issuer answer.
 
-A session that cannot be renewed clears its token and what it kept, so a dead
-credential is never used again. One that never had a credential is only
-signed out: there is nothing to end, and nothing is said.
+A session whose issuer refuses to renew it clears its token and what it kept,
+so a dead credential is never used again. One that never had a credential is
+only signed out: there is nothing to end, and nothing is said. A renewal that
+got no answer, whenever it is made, leaves the session no usable token and
+keeps what is kept: the next refusal renews again, and so does the session on
+its own, on the reconnect backoff (each wait a jittered share of a step that
+doubles from `RECONNECT_MS` to `MAX_RECONNECT_MS`).
 """
 
 import asyncio
@@ -56,8 +60,9 @@ from semiont._reading import Reading
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError, SessionError, SignInError, TransportError
 from semiont.events import Events
+from semiont.retry import REFRESH, RetryFacts, equal_jitter
 from semiont.state_unit import StateUnit
-from semiont.timing import MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS
+from semiont.timing import MAX_RECONNECT_MS, MIN_REFRESH_DELAY_MS, RECONNECT_MS, REFRESH_BEFORE_EXP_MS
 from semiont.transport import ConnectionState, Transport
 from semiont.types import KbTarget, UserResponse
 from semiont.watched import Variable, Watched
@@ -79,8 +84,8 @@ __all__ = [
 ]
 
 type SessionEndReason = Literal["expired", "refused"]
-"""Why a session ended: its token could not be renewed (`expired`), or the
-gateway refused a token its issuer had just issued (`refused`)."""
+"""Why a session ended: its issuer refused to renew its token (`expired`), or
+the gateway refused a token its issuer had just issued (`refused`)."""
 
 type Refresh = Callable[[], Awaitable[str | None]]
 """Renew the token: the new one, or nothing when there is nothing to renew with. Raises `SignInError` when the renewal failed."""
@@ -265,9 +270,19 @@ class MemorySignIn(SignInKept):
 # ── The session ─────────────────────────────────────────────────────────
 
 
-def _not_renewed(failure: str | None) -> str:
+def _not_renewed(failure: SignInError | None) -> str:
     """Why a renewal gave no token, for whoever reads the error."""
-    return "Token refresh failed" if failure is None else f"Token refresh failed: {failure}"
+    return "Token refresh failed" if failure is None else f"Token refresh failed: {failure.message}"
+
+
+def _refused(failure: SignInError) -> bool:
+    """Whether a renewal failed because the issuer refused it: an answer the `refresh` rule does not try again.
+
+    No answer, and one it tries again until the budget is spent, is no refusal.
+    """
+    if failure.code != "exchange" or failure.status is None:
+        return False
+    return not REFRESH.retryable(RetryFacts(status=failure.status, method="POST"))
 
 
 _JUST_ISSUED_AND_REFUSED: Final = "The gateway refused a token its issuer had just issued"
@@ -312,6 +327,8 @@ class SemiontSession[T: Transport](StateUnit):
         self._closing: Final = asyncio.Event()
         # Held while a refusal is being answered, so that the refusals that arrive during it are answered by it.
         self._answering: Final = asyncio.Lock()
+        # Set while a renewal that got no answer is owed another attempt.
+        self._unanswered: Final = asyncio.Event()
         self._running: asyncio.Task[None] | None = None
 
     @property
@@ -382,6 +399,7 @@ class SemiontSession[T: Transport](StateUnit):
     async def _run(self, kept: HeldSignIn | None) -> None:
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(renew_when_due(self._token, self._renew))
+            tasks.create_task(self._renew_when_unanswered())
             try:
                 await self._start(kept)
             finally:
@@ -391,12 +409,13 @@ class SemiontSession[T: Transport](StateUnit):
         """The gateway refused the session's token: renew it, and ask the gateway who the new one is.
 
         Returns the token the session then holds, or nothing: it holds no
-        token, and if it had a kept sign-in it is over. A transport asks this
-        when the gateway refuses it.
+        token, and if the issuer refused to renew a kept sign-in it is over. A
+        transport asks this when the gateway refuses it.
 
         One refusal is answered at a time, so however many requests were
-        refused at once, they cost one renewal and one ask. A gateway that
-        cannot be asked refuses nothing: the renewed token is given.
+        refused at once, they cost one renewal and one ask, and who the gateway
+        says the renewed token is, is who is signed in. A gateway that cannot
+        be asked refuses nothing: the renewed token is given.
         """
         refused_with = self._token.value
         async with self._answering:
@@ -413,7 +432,7 @@ class SemiontSession[T: Transport](StateUnit):
             if not self._ready.is_set():
                 return renewed
             try:
-                await self._validate(renewed)
+                user = await self._validate(renewed)
             except SemiontError as refusal:
                 # A gateway that could not be asked refused nothing. And only a
                 # token the session still holds ends it: one replaced while the
@@ -424,19 +443,23 @@ class SemiontSession[T: Transport](StateUnit):
                     await self._signed_out(
                         "refused", SessionError("session.credential-refused", _JUST_ISSUED_AND_REFUSED, kb_id=self.kb.id)
                     )
+            else:
+                # Who the token the session still holds is, as the gateway said.
+                if not self._closing.is_set() and self._token.value == renewed:
+                    self._user.set(user)
             return None if self._closing.is_set() else self._token.value
 
-    async def _try_refresh(self) -> tuple[str | None, str | None]:
+    async def _try_refresh(self) -> tuple[str | None, SignInError | None]:
         """Ask `refresh`. A renewal that could not be made and one that was refused both leave the session without a token.
 
-        Returns the token, and why there is none, for whoever reads why.
+        Returns the token, and why there is none.
         """
         if self._refresh is None:
             return None, None
         try:
             return await self._refresh(), None
         except SignInError as failure:
-            return None, failure.message
+            return None, failure
 
     async def _renew(self) -> str | None:
         """Renew the token at the issuer, with nobody asked afterwards: what the session does on its own schedule."""
@@ -446,6 +469,7 @@ class SemiontSession[T: Transport](StateUnit):
         if self._closing.is_set():
             return None
         if renewed is not None:
+            self._unanswered.clear()
             self._token.set(renewed)
             return renewed
         self._token.set(None)
@@ -453,11 +477,49 @@ class SemiontSession[T: Transport](StateUnit):
         # out, which is no failure. Ending the session below also forgets the
         # credential, so the refusals that follow it are quiet too.
         if await self._kept.held() is not None:
-            await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id))
+            await self._unrenewed(failure)
+        else:
+            self._unanswered.clear()
         return None
+
+    async def _renew_when_unanswered(self) -> None:
+        """After a renewal that got no answer, renew again on the reconnect backoff.
+
+        Each wait is the equal jitter of its step, the step `RECONNECT_MS`
+        doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or
+        refused, when a token arrives some other way, and when the session
+        ends. A renewal made while nobody has said who the session's token
+        is asks the gateway once, as the start would have.
+        """
+        while True:
+            await self._unanswered.wait()
+            step = RECONNECT_MS
+            while self._unanswered.is_set():
+                await asyncio.sleep(equal_jitter(step) / 1000)
+                if self._token.value is not None:
+                    self._unanswered.clear()
+                elif self._unanswered.is_set():
+                    await (self.refresh() if self._user.value is None else self._renew())
+                step = min(2 * step, MAX_RECONNECT_MS)
+
+    async def _unrenewed(self, failure: SignInError | None) -> None:
+        """A renewal of what is kept gave no token, and the session holds none.
+
+        The issuer's refusal, or nothing left to renew with, ends the session.
+        Any other failure keeps what is kept, and says why: the next refusal
+        renews again, and so does the reconnect backoff.
+        """
+        self._token.set(None)
+        not_renewed = SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id)
+        if failure is not None and not _refused(failure):
+            self._unanswered.set()
+            self._failed(not_renewed)
+        else:
+            await self._signed_out("expired", not_renewed)
 
     async def _signed_out(self, told: SessionEndReason, error: SessionError) -> None:
         """The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended."""
+        self._unanswered.clear()
         self._token.set(None)
         self._user.set(None)
         await self._kept.forget()
@@ -483,10 +545,15 @@ class SemiontSession[T: Transport](StateUnit):
         just_issued = is_token_expired(kept.access, now=time.time())
         token = kept.access
         if just_issued:
-            renewed, _ = await self._try_refresh()
+            renewed, failure = await self._try_refresh()
             if renewed is None:
-                # There was no session to end: the sign-in is forgotten, and nothing is said.
-                await self._kept.forget()
+                if failure is None or _refused(failure):
+                    # There was no session to end: the sign-in is forgotten, and nothing is said.
+                    await self._kept.forget()
+                else:
+                    # The issuer did not refuse it: the sign-in is kept, and renewed on the reconnect backoff or when a request is refused.
+                    self._unanswered.set()
+                    self._failed(SessionError("session.auth-failed", _not_renewed(failure), kb_id=self.kb.id))
                 return
             token = renewed
             self._token.set(token)
@@ -521,7 +588,7 @@ class SemiontSession[T: Transport](StateUnit):
             if self._closing.is_set():
                 return
             if renewed is None:
-                await self._signed_out("expired", SessionError("session.refresh-exhausted", _not_renewed(failure), kb_id=self.kb.id))
+                await self._unrenewed(failure)
                 return
             self._token.set(renewed)
             token, just_issued = renewed, True

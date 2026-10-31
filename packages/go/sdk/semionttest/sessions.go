@@ -8,13 +8,18 @@ package semionttest
 // A test scripts three things: what each knowledge base's gateway answers,
 // who the gateway says a token is, and what a renewal gives. Each refuses by
 // name until it is scripted: an unscripted request names its operation and
-// its knowledge base, an unscripted renewal is a renewal that failed, and a
-// gateway nobody scripted a user for cannot say who a token is.
+// its knowledge base, an unscripted renewal is a renewal that got no answer
+// (so the session renews again on the reconnect backoff, and fails again
+// until a renewal is scripted), and a gateway nobody scripted a user for
+// cannot say who a token is.
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
@@ -35,11 +40,39 @@ type Answer func(kbID string, operation bus.Channel, payload json.RawMessage) (j
 // channel; nil when it answers with none.
 type Refusal func(kbID string, operation bus.Channel, payload json.RawMessage) json.RawMessage
 
-// Renewal is what one renewal gives: a token, nothing (both fields "") for a
-// session that has nothing to renew with, or why it failed.
+// Renewal is what one renewal gives: a token, nothing (every field empty) for
+// a session that has nothing to renew with, or why it failed. A failure with a
+// Status is the issuer's answer, as the SDK's Issuer reads an issuer that
+// answers Why with that status: its refusal, unless the status is one worth
+// another attempt. A failure with none got no answer.
 type Renewal struct {
-	Token string
-	Why   string
+	Token  string
+	Why    string
+	Status int
+}
+
+// failure is how a renewal that failed fails.
+func (r Renewal) failure() error {
+	if r.Status == 0 {
+		return &semiont.SignInError{Code: semiont.SignInErrorCodeExchange, Message: r.Why}
+	}
+	said, err := json.Marshal(map[string]string{"error": r.Why})
+	if err != nil {
+		return err
+	}
+	issuer := semiont.Issuer{HTTP: &http.Client{Transport: answering{status: r.Status, body: said}}, Timing: semiont.DefaultTiming()}
+	_, err = issuer.Refresh(context.Background(), "https://issuer.test/token", semiont.ScriptClientID, "a-refresh-token")
+	return err
+}
+
+// answering is an issuer that answers every request with status and body.
+type answering struct {
+	status int
+	body   []byte
+}
+
+func (a answering) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: a.status, Header: http.Header{}, Body: io.NopCloser(bytes.NewReader(a.body))}, nil
 }
 
 // ScriptedSessions is a SessionFactory of sessions over scripted transports:
@@ -194,7 +227,7 @@ func (s *ScriptedSessions) Session(ctx context.Context, options registry.Session
 			renewal := s.renewals[0]
 			s.renewals = s.renewals[1:]
 			if renewal.Why != "" {
-				return "", &semiont.SignInError{Code: semiont.SignInErrorCodeExchange, Message: renewal.Why}
+				return "", renewal.failure()
 			}
 			return renewal.Token, nil
 		},

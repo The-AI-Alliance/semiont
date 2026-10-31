@@ -10,12 +10,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -69,22 +72,65 @@ func alice() api.UserResponse {
 	return api.UserResponse{Email: &email, Name: &name, Domain: "example.org"}
 }
 
+// answerTo is who the gateway says a token is when it accepts the nth ask:
+// told apart from every other answer.
+func answerTo(n int) api.UserResponse {
+	user := alice()
+	name := fmt.Sprintf("Alice %d", n)
+	user.Name = &name
+	return user
+}
+
+// renewal is what refresh answers: a token, or why there is none.
+type renewal struct {
+	token string
+	err   error
+}
+
+// answering is an HTTP client's transport whose every request is answered by
+// the function.
+type answering func(*http.Request) (*http.Response, error)
+
+func (a answering) RoundTrip(request *http.Request) (*http.Response, error) { return a(request) }
+
+// fromTheIssuer is how a renewal fails at an issuer that answers status, or
+// answers nothing when status is 0: what Issuer.Refresh returns.
+func fromTheIssuer(t *testing.T, status int) error {
+	t.Helper()
+	issuer := semiont.Issuer{HTTP: &http.Client{Transport: answering(func(*http.Request) (*http.Response, error) {
+		if status == 0 {
+			return nil, errors.New("the network is down")
+		}
+		body := `{"error":"invalid_grant","error_description":"Token is not active"}`
+		return &http.Response{StatusCode: status, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, nil
+	})}, Timing: semiont.DefaultTiming()}
+	_, err := issuer.Refresh(context.Background(), "https://issuer.test/token", "semiont-cli", "a-refresh-token")
+	if err == nil {
+		t.Fatalf("an issuer that answers %d renewed", status)
+	}
+	return err
+}
+
 // world is a session's surroundings, and a record of what the session did to
 // them. Each script's last answer repeats.
 type world struct {
 	mu       sync.Mutex
 	kept     *semiont.MemorySignIn
 	token    *semiont.Variable[string]
-	renewals []string // what refresh answers, in order: "" for a refusal
+	renewals []renewal // what refresh answers, in order; nothing once they are spent
 	renewed  int
+	// renewedAt is when each renewal was asked for.
+	renewedAt []time.Time
 	// takes is how long the issuer takes to answer a renewal.
 	takes       time.Duration
 	validations []error // what the gateway says of a token, in order: nil accepts
 	validated   []string
+	// answered is who the gateway last said a token is.
+	answered *api.UserResponse
 	// holding is the token the session held as each ask was made.
 	holding []string
 	told    []semiont.SessionEndReason
-	errors  []string
+	errors  []*semiont.SessionError
 }
 
 func newWorld(t *testing.T, kept string) *world {
@@ -102,12 +148,13 @@ func (w *world) refresh(context.Context, string) (string, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.renewed++
+	w.renewedAt = append(w.renewedAt, time.Now())
 	if len(w.renewals) == 0 {
 		return "", nil
 	}
 	answer := w.renewals[0]
 	w.renewals = w.renewals[1:]
-	return answer, nil
+	return answer.token, answer.err
 }
 
 func (w *world) validate(_ context.Context, token string) (api.UserResponse, error) {
@@ -115,15 +162,16 @@ func (w *world) validate(_ context.Context, token string) (api.UserResponse, err
 	defer w.mu.Unlock()
 	w.validated = append(w.validated, token)
 	w.holding = append(w.holding, w.token.Value())
-	if len(w.validations) == 0 {
-		return alice(), nil
+	if len(w.validations) != 0 {
+		answer := w.validations[0]
+		w.validations = w.validations[1:]
+		if answer != nil {
+			return api.UserResponse{}, answer
+		}
 	}
-	answer := w.validations[0]
-	w.validations = w.validations[1:]
-	if answer != nil {
-		return api.UserResponse{}, answer
-	}
-	return alice(), nil
+	user := answerTo(len(w.validated))
+	w.answered = &user
+	return user, nil
 }
 
 func (w *world) start(t *testing.T) *semiont.Session {
@@ -142,7 +190,7 @@ func (w *world) start(t *testing.T) *semiont.Session {
 		OnError: func(err *semiont.SessionError) {
 			w.mu.Lock()
 			defer w.mu.Unlock()
-			w.errors = append(w.errors, string(err.Code))
+			w.errors = append(w.errors, err)
 		},
 		Timing: semiont.DefaultTiming(),
 	})
@@ -179,12 +227,14 @@ func gatewaySays(row sessionRow, n int) error {
 	}
 }
 
-func issuerSays(row sessionRow, n int, renewed string) string {
+func issuerSays(t *testing.T, row sessionRow, n int, renewed string) renewal {
 	switch answer := scripted(row.Issuer, n); answer {
 	case "renews":
-		return renewed
+		return renewal{token: renewed}
 	case "refuses":
-		return ""
+		return renewal{err: fromTheIssuer(t, http.StatusBadRequest)}
+	case "unreachable":
+		return renewal{err: fromTheIssuer(t, 0)}
 	default:
 		panic(fmt.Sprintf("the issuer %s", answer))
 	}
@@ -213,8 +263,15 @@ func isAsStated(t *testing.T, row sessionRow, w *world, session *semiont.Session
 	if got := ends(session, w); got != row.Ends {
 		t.Errorf("%s: ended %s, want %s", row.Why, got, row.Ends)
 	}
+	if user := session.User().Value(); row.Ends == "signed-in" && (user == nil || w.answered == nil || *user.Name != *w.answered.Name) {
+		t.Errorf("%s: signed in as someone the gateway did not last say the token is", row.Why)
+	}
 	w.mu.Lock()
-	told, errs := slices.Clone(w.told), slices.Clone(w.errors)
+	told := slices.Clone(w.told)
+	var errs []string
+	for _, said := range w.errors {
+		errs = append(errs, string(said.Code))
+	}
 	w.mu.Unlock()
 	var wantTold []semiont.SessionEndReason
 	if row.Told != nil {
@@ -246,7 +303,7 @@ func TestASessionStartsAsTheTableStates(t *testing.T) {
 			stored := map[string]string{"none": "", "unexpired": tokenFor(time.Hour, 0), "expired": tokenFor(-time.Minute, 0)}[row.Stored]
 			w := newWorld(t, stored)
 			for n := range row.Renewals {
-				w.renewals = append(w.renewals, issuerSays(row, n, tokenFor(time.Hour, n+1)))
+				w.renewals = append(w.renewals, issuerSays(t, row, n, tokenFor(time.Hour, n+1)))
 			}
 			for n := range row.Asks {
 				w.validations = append(w.validations, gatewaySays(row, n))
@@ -266,7 +323,7 @@ func TestARefusedSessionRenewsAndAsksAsTheTableStates(t *testing.T) {
 			// Then the row's answers.
 			w := newWorld(t, tokenFor(time.Hour, 0))
 			for n := range row.Renewals {
-				w.renewals = append(w.renewals, issuerSays(row, n, tokenFor(time.Hour, 1)))
+				w.renewals = append(w.renewals, issuerSays(t, row, n, tokenFor(time.Hour, 1)))
 			}
 			w.validations = append(w.validations, nil)
 			for n := range row.Asks {
@@ -293,7 +350,7 @@ func TestARefusedSessionRenewsAndAsksAsTheTableStates(t *testing.T) {
 // were refused at once, they cost one renewal and one ask.
 func TestRefusalsThatArriveTogetherCostOneRenewalAndOneAsk(t *testing.T) {
 	w := newWorld(t, tokenFor(time.Hour, 0))
-	w.renewals = []string{tokenFor(time.Hour, 1), tokenFor(time.Hour, 2)}
+	w.renewals = []renewal{{token: tokenFor(time.Hour, 1)}, {token: tokenFor(time.Hour, 2)}}
 	session := w.start(t)
 	// An issuer that takes a moment, as one does: the refusals overlap.
 	w.takes = 200 * time.Millisecond
@@ -322,9 +379,6 @@ func TestRefusalsThatArriveTogetherCostOneRenewalAndOneAsk(t *testing.T) {
 
 // refusedAtTheGateway is the gateway's refusal of a token.
 var refusedAtTheGateway = &semiont.TransportError{Code: semiont.TransportErrorCodeUnauthorized, Message: "HTTP 401"}
-
-// invalidGrant is the issuer's refusal of a renewal, in its own words.
-var invalidGrant = errors.New("The issuer refused the token refresh (invalid_grant: Token is not active)")
 
 // keptUnexpired keeps a sign-in whose access token lives an hour, and is that
 // token.
@@ -357,6 +411,7 @@ func (f forgetsSlowly) Forget(ctx context.Context) error {
 // it ended, whichever refusal was answered first. A host that finds it ready
 // holding no token, with nothing said, is left to guess why.
 func TestASessionEndedAsItStartsHasSaidWhyByTheTimeItIsReady(t *testing.T) {
+	invalidGrant := fromTheIssuer(t, http.StatusBadRequest)
 	kept := forgetsSlowly{MemorySignIn: &semiont.MemorySignIn{}, let: make(chan struct{})}
 	refused := keptUnexpired(t, kept)
 	token := semiont.NewVariable("")
@@ -421,6 +476,7 @@ func TestASessionEndedAsItStartsHasSaidWhyByTheTimeItIsReady(t *testing.T) {
 // start's answer, which ended the session and said why, and costs the issuer
 // no second renewal.
 func TestARefusalMetWhileTheStartAnswersOneIsAnsweredByIt(t *testing.T) {
+	invalidGrant := fromTheIssuer(t, http.StatusBadRequest)
 	kept := &semiont.MemorySignIn{}
 	refused := keptUnexpired(t, kept)
 	token := semiont.NewVariable("")
@@ -496,7 +552,7 @@ func TestRefusalsOfOneTokenOneAfterAnotherCostOneRenewal(t *testing.T) {
 	refused := tokenFor(time.Hour, 0)
 	renewed := tokenFor(time.Hour, 1)
 	w := newWorld(t, refused)
-	w.renewals = []string{renewed, tokenFor(time.Hour, 2)}
+	w.renewals = []renewal{{token: renewed}, {token: tokenFor(time.Hour, 2)}}
 	session := w.start(t)
 	asked, _ := w.counts()
 
@@ -616,7 +672,7 @@ func TestTheTransportHasTheKeptTokenOnceTheGatewayHasNotRefusedIt(t *testing.T) 
 	} {
 		t.Run(row.why, func(t *testing.T) {
 			w := newWorld(t, kept)
-			w.renewals = []string{renewed}
+			w.renewals = []renewal{{token: renewed}}
 			w.validations = row.validations
 			w.start(t)
 			w.mu.Lock()
@@ -633,6 +689,220 @@ func TestTheTransportHasTheKeptTokenOnceTheGatewayHasNotRefusedIt(t *testing.T) 
 			}
 		})
 	}
+}
+
+// A kept token that has expired, and that the issuer will not renew, or that
+// nothing is kept to renew, is forgotten at the start, and nothing is said:
+// there was no session to end.
+func TestAnExpiredTokenTheIssuerWillNotRenewIsForgottenAndNothingIsSaid(t *testing.T) {
+	for _, row := range []struct {
+		why     string
+		renewal renewal
+	}{
+		{"nothing to renew with", renewal{}},
+		{"the issuer refuses", renewal{err: fromTheIssuer(t, http.StatusBadRequest)}},
+		{"the issuer answers with no token", renewal{err: fromTheIssuer(t, http.StatusOK)}},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			w := newWorld(t, tokenFor(-time.Minute, 0))
+			w.renewals = []renewal{row.renewal}
+			w.start(t)
+			if _, kept, _ := w.kept.Held(context.Background()); kept {
+				t.Error("the sign-in is still kept")
+			}
+			w.mu.Lock()
+			defer w.mu.Unlock()
+			if w.token.Value() != "" || len(w.told) != 0 || len(w.errors) != 0 {
+				t.Errorf("the session holds a token: %v; told %v and said %v", w.token.Value() != "", w.told, w.errors)
+			}
+		})
+	}
+}
+
+// A kept token that has expired, and whose renewal got no answer, or only
+// answers worth another attempt, is kept: the session starts with no token,
+// says why, and renews it when a request is refused.
+func TestAnExpiredTokenWhoseRenewalGotNoAnswerIsKeptAndRenewedWhenARequestIsRefused(t *testing.T) {
+	for _, row := range []struct {
+		why     string
+		failure error
+	}{
+		{"no answer", fromTheIssuer(t, 0)},
+		{"not now", fromTheIssuer(t, http.StatusServiceUnavailable)},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			renewed := tokenFor(time.Hour, 2)
+			w := newWorld(t, tokenFor(-time.Minute, 0))
+			w.renewals = []renewal{{err: row.failure}, {token: renewed}}
+			session := w.start(t)
+			if _, kept, _ := w.kept.Held(context.Background()); !kept {
+				t.Fatal("the sign-in was forgotten")
+			}
+			w.mu.Lock()
+			told, said := slices.Clone(w.told), slices.Clone(w.errors)
+			w.mu.Unlock()
+			if w.token.Value() != "" || len(told) != 0 {
+				t.Errorf("the session holds a token: %v; told %v", w.token.Value() != "", told)
+			}
+			want := "Token refresh failed: " + row.failure.Error()
+			if len(said) != 1 || said[0].Code != semiont.SessionErrorCodeAuthFailed || said[0].Message != want {
+				t.Fatalf("the session said %v, want %s: %q", said, semiont.SessionErrorCodeAuthFailed, want)
+			}
+			// The issuer answers again: a request refused for want of a token
+			// renews it.
+			given, ok := session.Refresh(context.Background(), "")
+			if !ok || given != renewed || w.token.Value() != renewed {
+				t.Errorf("a refusal after the start was given the renewed token: %v", ok && given == renewed)
+			}
+			if _, renewals := w.counts(); renewals != 2 {
+				t.Errorf("renewed %d times, want 2", renewals)
+			}
+		})
+	}
+}
+
+// A running session whose renewal got no answer, or only answers worth
+// another attempt, holds no usable token and keeps what is kept: it says why,
+// is not over, and the next refusal renews again.
+func TestARenewalThatGotNoAnswerKeepsWhatIsKeptAndTheNextRefusalRenewsAgain(t *testing.T) {
+	for _, row := range []struct {
+		why     string
+		failure error
+	}{
+		{"no answer", fromTheIssuer(t, 0)},
+		{"not now", fromTheIssuer(t, http.StatusServiceUnavailable)},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			refused, renewed := tokenFor(time.Hour, 0), tokenFor(time.Hour, 2)
+			w := newWorld(t, refused)
+			w.renewals = []renewal{{err: row.failure}, {token: renewed}}
+			session := w.start(t)
+			if _, ok := session.Refresh(context.Background(), refused); ok {
+				t.Fatal("a renewal that got no answer gave a token")
+			}
+			if _, kept, _ := w.kept.Held(context.Background()); !kept {
+				t.Fatal("the sign-in was forgotten")
+			}
+			w.mu.Lock()
+			told, said := slices.Clone(w.told), slices.Clone(w.errors)
+			w.mu.Unlock()
+			if w.token.Value() != "" || len(told) != 0 {
+				t.Errorf("the session holds a token: %v; told %v", w.token.Value() != "", told)
+			}
+			want := "Token refresh failed: " + row.failure.Error()
+			if len(said) != 1 || said[0].Code != semiont.SessionErrorCodeRefreshExhausted || said[0].Message != want {
+				t.Fatalf("the session said %v, want %s: %q", said, semiont.SessionErrorCodeRefreshExhausted, want)
+			}
+			if given, ok := session.Refresh(context.Background(), ""); !ok || given != renewed {
+				t.Errorf("the next refusal was given the renewed token: %v", ok && given == renewed)
+			}
+		})
+	}
+}
+
+// A renewal that got no answer is tried again on the reconnect backoff, each
+// wait the equal jitter of a step double the one before up to the longest,
+// until one is made; the issuer's refusal ends the attempts; and one made
+// while nobody has said who the token is asks the gateway once. On the test's
+// own clock.
+func TestARenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoff(t *testing.T) {
+	timing := semiont.DefaultTiming()
+	var steps []time.Duration
+	for step := timing.Reconnect; len(steps) < 6; step = min(2*step, timing.MaxReconnect) {
+		steps = append(steps, step)
+	}
+	unanswered := fromTheIssuer(t, 0)
+	refused := fromTheIssuer(t, http.StatusBadRequest)
+
+	t.Run("until one is made", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			first, renewed := tokenFor(time.Hour, 0), tokenFor(time.Hour, 2)
+			w := newWorld(t, first)
+			for range steps {
+				w.renewals = append(w.renewals, renewal{err: unanswered})
+			}
+			w.renewals = append(w.renewals, renewal{token: renewed})
+			session := w.start(t)
+			if _, ok := session.Refresh(context.Background(), first); ok {
+				t.Fatal("a renewal that got no answer gave a token")
+			}
+			var all time.Duration
+			for _, step := range steps {
+				all += step
+			}
+			time.Sleep(all)
+			synctest.Wait()
+			w.mu.Lock()
+			renewedAt := slices.Clone(w.renewedAt)
+			w.mu.Unlock()
+			if len(renewedAt) != len(steps)+1 {
+				t.Fatalf("renewed %d times, want %d", len(renewedAt), len(steps)+1)
+			}
+			for n, step := range steps {
+				if gap := renewedAt[n+1].Sub(renewedAt[n]); gap < step/2 || gap > step {
+					t.Errorf("waited %v for a step of %v", gap, step)
+				}
+			}
+			if w.token.Value() != renewed {
+				t.Error("the renewal made is not the session's token")
+			}
+			// The renewal made ends the waits, and asks nobody: the gateway
+			// said who the token is at the start.
+			time.Sleep(4 * timing.MaxReconnect)
+			synctest.Wait()
+			if asks, renewals := w.counts(); renewals != len(steps)+1 || asks != 1 {
+				t.Errorf("then renewed %d times and asked %d, want %d and 1", renewals, asks, len(steps)+1)
+			}
+		})
+	})
+
+	t.Run("until the issuer refuses", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			first := tokenFor(time.Hour, 0)
+			w := newWorld(t, first)
+			w.renewals = []renewal{{err: unanswered}, {err: refused}}
+			session := w.start(t)
+			session.Refresh(context.Background(), first)
+			time.Sleep(timing.Reconnect)
+			synctest.Wait()
+			if _, kept, _ := w.kept.Held(context.Background()); kept {
+				t.Error("the sign-in the issuer refused is still kept")
+			}
+			time.Sleep(2 * time.Hour)
+			synctest.Wait()
+			if _, renewals := w.counts(); renewals != 2 {
+				t.Errorf("renewed %d times, want 2", renewals)
+			}
+		})
+	})
+
+	t.Run("asking once who a token is that nobody has said", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			renewed := tokenFor(time.Hour, 2)
+			w := newWorld(t, tokenFor(-time.Minute, 0))
+			w.renewals = []renewal{{err: unanswered}, {token: renewed}}
+			session := w.start(t)
+			if asks, _ := w.counts(); asks != 0 || session.User().Value() != nil {
+				t.Fatalf("an offline start asked %d times, or says who signed in", asks)
+			}
+			time.Sleep(timing.Reconnect)
+			synctest.Wait()
+			if w.token.Value() != renewed {
+				t.Fatal("the renewal on the backoff was not made")
+			}
+			w.mu.Lock()
+			answered := w.answered
+			w.mu.Unlock()
+			if user := session.User().Value(); user == nil || answered == nil || *user.Name != *answered.Name {
+				t.Error("the session does not say who the gateway said the renewed token is")
+			}
+			time.Sleep(4 * timing.MaxReconnect)
+			synctest.Wait()
+			if asks, renewals := w.counts(); asks != 1 || renewals != 2 {
+				t.Errorf("asked %d times and renewed %d, want once and twice", asks, renewals)
+			}
+		})
+	})
 }
 
 // A session that never signed in cannot expire: a renewal that gives nothing
@@ -659,6 +929,7 @@ func (refusesToForget) Forget(context.Context) error { return errors.New("the st
 // at the start with nothing said. One the storage will not forget is said,
 // with why.
 func TestAnExpiredSignInTheStorageWillNotForgetIsSaidAtTheStart(t *testing.T) {
+	invalidGrant := fromTheIssuer(t, http.StatusBadRequest)
 	kept := refusesToForget{&semiont.MemorySignIn{}}
 	if err := kept.Keep(context.Background(), semiont.HeldSignIn{Access: tokenFor(-time.Hour, 0), Refresh: "a-refresh-token", ClientID: "semiont-cli", TokenEndpoint: "https://issuer.test/token"}); err != nil {
 		t.Fatal(err)

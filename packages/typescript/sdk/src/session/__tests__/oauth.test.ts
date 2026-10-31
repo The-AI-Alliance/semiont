@@ -286,9 +286,8 @@ describe('refresh and revocation', () => {
   // treats `null` as terminal — so a lost packet ended the session exactly
   // like a revocation. The issuer's answer is the verdict; its absence is not.
   //
-  // The retry lives HERE and not in the session on purpose: a session
-  // terminates on `null`, and on a thrown refresh exactly as on `null`,
-  // because retry belongs in the callback, which owns the HTTP call.
+  // The retry lives HERE and not in the session on purpose: retry belongs in
+  // the callback, which owns the HTTP call.
 
   describe('refreshStoredSession separates a refusal from an outage', () => {
     const KB = 'kb-alpha';
@@ -407,6 +406,22 @@ describe('refresh and revocation', () => {
       expect(fetchMock.mock.calls.length, 'and it did retry').toBeGreaterThan(1);
       expect(stored(storage), 'the stored session is left for the caller to clear').not.toBeNull();
     });
+
+    it.each([
+      { why: 'the last answer\'s status', answer: async () => reply(undefined, 503), status: 503 },
+      { why: 'no status when nothing answered', answer: async () => { throw new TypeError('fetch failed'); }, status: undefined },
+    ])('an exhausted budget states $why: a session tells it from a refusal by that', async ({ answer, status }) => {
+      vi.useFakeTimers();
+      fetchMock.mockImplementation(answer);
+
+      const failed = refreshStoredSession(seeded(), KB).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(60_000);
+      const failure = await failed;
+
+      expect(failure).toBeInstanceOf(SignInError);
+      expect(failure).toMatchObject({ code: 'exchange', message: expect.stringContaining(`${REFRESH_RETRY.attempts} attempts`), status });
+      vi.useRealTimers();
+    });
   });
 
   describe('a failed renewal says WHY, and how hard it tried', () => {
@@ -421,8 +436,7 @@ describe('refresh and revocation', () => {
     }
 
     // Returning `null` discards the reason: `tryRefresh` carries a cause only
-    // from a THROW. Throw and null are equivalent at the session precisely
-    // so the informative one can be used — so a failure throws, and only
+    // from a THROW, and the session reads it — so a failure throws, and only
     // "nothing is stored" answers null.
 
     it('throws the issuer\'s own words on a refusal', async () => {
@@ -438,6 +452,25 @@ describe('refresh and revocation', () => {
       fetchMock.mockImplementation(async () => reply(undefined, 503));
 
       await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow(/4 attempts.*HTTP 503/s);
+    });
+
+    it('a storage that will not keep a renewal it took retries to make fails as itself, not as the issuer', async () => {
+      vi.useFakeTimers();
+      fetchMock
+        .mockImplementationOnce(async () => reply(undefined, 503))
+        .mockImplementationOnce(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
+      const storage = seeded();
+      const full = new Error('the storage is full');
+      vi.spyOn(storage, 'update').mockImplementation(() => {
+        throw full;
+      });
+
+      const failed = refreshStoredSession(storage, KB).catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(await failed).toBe(full);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
     });
 
     it('still answers null — not a throw — when there is simply nothing stored', async () => {

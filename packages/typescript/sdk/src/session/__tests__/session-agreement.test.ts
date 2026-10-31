@@ -10,6 +10,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { BehaviorSubject } from 'rxjs';
 import type { AccessToken } from '@semiont/core';
+import { RECONNECT_MS, SignInError } from '@semiont/core';
 import { APIError } from '../../client';
 import { createTestClient } from '../../testing';
 import { httpKb } from '../knowledge-base';
@@ -36,25 +37,33 @@ interface ExpiryCase {
   exp: number | null;
 }
 
+/** What a case that ended signed out and kept what is stored comes to once the reconnect wait has passed. */
+interface Then {
+  asks: number;
+  renewals: number;
+  ends: 'signed-in' | 'signed-out' | 'unconfirmed';
+}
+
 interface StartupCase {
   why: string;
   stored: 'unexpired' | 'expired' | 'none';
   /** What the gateway answers each time it is asked; the last answer repeats. */
   gateway: Array<'accepts' | 'refuses' | 'unreachable'>;
   /** What the issuer answers each renewal; the last answer repeats. */
-  issuer: Array<'renews' | 'refuses'>;
+  issuer: Array<'renews' | 'refuses' | 'unreachable'>;
   asks: number;
   renewals: number;
   ends: 'signed-in' | 'signed-out' | 'unconfirmed';
   told: SessionEndReason | null;
   error: string | null;
   kept: boolean;
+  then?: Then;
 }
 
 interface RefusalCase {
   why: string;
   /** What the issuer answers the renewal. */
-  issuer: Array<'renews' | 'refuses'>;
+  issuer: Array<'renews' | 'refuses' | 'unreachable'>;
   /** What the gateway answers when asked who the renewed token is. */
   gateway: Array<'accepts' | 'refuses' | 'unreachable'>;
   asks: number;
@@ -64,6 +73,7 @@ interface RefusalCase {
   told: SessionEndReason | null;
   error: string | null;
   kept: boolean;
+  then?: Then;
 }
 
 const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../specs/src/session/cases.json');
@@ -109,6 +119,21 @@ describe('session — the SDK agrees with the shared table', () => {
   /** The `n`th answer of a script whose last answer repeats. */
   const answer = <T>(script: T[], n: number): T => script[Math.min(n, script.length - 1)]!;
 
+  /** A case's `then`, stated of every case that kept what is stored with no token, and of no other. */
+  const thenOf = (c: StartupCase | RefusalCase): Then | undefined => {
+    expect(c.then !== undefined, '`then` is stated of every case that kept what is stored with no token').toBe(c.ends === 'signed-out' && c.kept);
+    return c.then;
+  };
+
+  /** Who the gateway says a token is when it accepts the `n`th ask of a case: told apart from every other answer. */
+  const answering = (n: number): UserInfo => ({ ...ALICE, name: `Alice ${n}` });
+
+  /** What a renewal the issuer does not make throws: its refusal, with its status, or no answer, with none. */
+  const notRenewed = (said: 'refuses' | 'unreachable'): SignInError =>
+    said === 'refuses'
+      ? new SignInError('exchange', 'The issuer refused the token request (invalid_grant: Token is not active)', 400)
+      : new SignInError('exchange', 'The issuer did not answer: TypeError');
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -129,6 +154,7 @@ describe('session — the SDK agrees with the shared table', () => {
 
     let asks = 0;
     let renewals = 0;
+    let answered: UserInfo | null = null;
     const told: SessionEndReason[] = [];
     const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
@@ -141,10 +167,11 @@ describe('session — the SDK agrees with the shared table', () => {
         asks += 1;
         // The script's last answer repeats, so a session that asks without
         // end is stopped here, by an answer that is no refusal.
-        if (asks > c.asks) throw new Error(`the gateway was asked ${asks} times`);
+        if (asks > (thenOf(c) ?? c).asks) throw new Error(`the gateway was asked ${asks} times`);
         switch (answer(c.gateway, asks - 1)) {
           case 'accepts':
-            return ALICE;
+            answered = answering(asks - 1);
+            return answered;
           case 'refuses':
             throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
           case 'unreachable':
@@ -153,8 +180,10 @@ describe('session — the SDK agrees with the shared table', () => {
       },
       refresh: async () => {
         renewals += 1;
-        if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
-        return answer(c.issuer, renewals - 1) === 'renews' ? issued(renewals) : null;
+        if (renewals > (thenOf(c) ?? c).renewals) throw new Error(`the issuer was asked ${renewals} times`);
+        const said = answer(c.issuer, renewals - 1);
+        if (said !== 'renews') throw notRenewed(said);
+        return issued(renewals);
       },
       onAuthFailed: (reason) => told.push(reason),
       onError: (error) => errors.push(error),
@@ -164,13 +193,21 @@ describe('session — the SDK agrees with the shared table', () => {
     expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     const [token, user] = [token$.getValue(), session.user$.getValue()];
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
+    if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
     // A session that ended signed out asks nobody anything afterwards,
     // however long it is held.
-    if (c.ends === 'signed-out') {
+    const later = thenOf(c);
+    if (later) {
+      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      expect({ asks, renewals }).toEqual({ asks: later.asks, renewals: later.renewals });
+      const [held, signedIn] = [token$.getValue(), session.user$.getValue()];
+      expect(held === null ? 'signed-out' : signedIn === null ? 'unconfirmed' : 'signed-in').toBe(later.ends);
+      if (later.ends === 'signed-in') expect(signedIn).toEqual(answered);
+    } else if (c.ends === 'signed-out') {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }
@@ -192,6 +229,7 @@ describe('session — the SDK agrees with the shared table', () => {
     let started = false;
     let asks = 0;
     let renewals = 0;
+    let answered: UserInfo = ALICE;
     const told: SessionEndReason[] = [];
     const errors: SemiontSessionError[] = [];
     const token$ = new BehaviorSubject<AccessToken | null>(null);
@@ -204,10 +242,11 @@ describe('session — the SDK agrees with the shared table', () => {
         // The session starts signed in: the gateway accepts the stored token.
         if (!started) return ALICE;
         asks += 1;
-        if (asks > c.asks) throw new Error(`the gateway was asked ${asks} times`);
+        if (asks > (thenOf(c) ?? c).asks) throw new Error(`the gateway was asked ${asks} times`);
         switch (answer(c.gateway, asks - 1)) {
           case 'accepts':
-            return ALICE;
+            answered = answering(asks - 1);
+            return answered;
           case 'refuses':
             throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
           case 'unreachable':
@@ -216,8 +255,9 @@ describe('session — the SDK agrees with the shared table', () => {
       },
       refresh: async () => {
         renewals += 1;
-        if (renewals > c.renewals) throw new Error(`the issuer was asked ${renewals} times`);
-        if (answer(c.issuer, renewals - 1) !== 'renews') return null;
+        if (renewals > (thenOf(c) ?? c).renewals) throw new Error(`the issuer was asked ${renewals} times`);
+        const said = answer(c.issuer, renewals - 1);
+        if (said !== 'renews') throw notRenewed(said);
         const renewed = issued(renewals);
         setStoredSession(storage, KB.id, { ...getStoredSession(storage, KB.id)!, access: renewed });
         return renewed;
@@ -237,11 +277,19 @@ describe('session — the SDK agrees with the shared table', () => {
     if (c.given) expect(given).toBe(token$.getValue());
     const [token, user] = [token$.getValue(), session.user$.getValue()];
     expect(token === null ? 'signed-out' : user === null ? 'unconfirmed' : 'signed-in').toBe(c.ends);
+    if (c.ends === 'signed-in') expect(user).toEqual(answered);
     expect(told).toEqual(c.told === null ? [] : [c.told]);
     expect(errors.map((error) => error.code)).toEqual(c.error === null ? [] : [c.error]);
     expect(getStoredSession(storage, KB.id) !== null).toBe(c.kept);
 
-    if (c.ends === 'signed-out') {
+    const later = thenOf(c);
+    if (later) {
+      await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+      expect({ asks, renewals }).toEqual({ asks: later.asks, renewals: later.renewals });
+      const [held, signedIn] = [token$.getValue(), session.user$.getValue()];
+      expect(held === null ? 'signed-out' : signedIn === null ? 'unconfirmed' : 'signed-in').toBe(later.ends);
+      if (later.ends === 'signed-in') expect(signedIn).toEqual(answered);
+    } else if (c.ends === 'signed-out') {
       await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
       expect({ asks, renewals }).toEqual({ asks: c.asks, renewals: c.renewals });
     }

@@ -31,8 +31,8 @@
 //   - no answer is no verdict, and changes nothing.
 //
 // A request the gateway refuses for want of a valid token renews the session,
-// and only a session that cannot be renewed is said to have expired. A
-// request refused for lack of permission is said at once.
+// and only a session whose issuer refuses to renew it is said to have
+// expired. A request refused for lack of permission is said at once.
 //
 // Every change to what is open is made against what the storage holds, as one
 // step, so two contexts that each open a resource both keep theirs. A write the

@@ -6,18 +6,25 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import semiont.SemiontClient
 import semiont.StateUnit
+import semiont.Timings
 import semiont.errors.SemiontError
 import semiont.errors.SessionError
 import semiont.errors.SessionErrorCode
 import semiont.errors.SignInError
+import semiont.errors.SignInErrorCode
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
+import semiont.retry.REFRESH
+import semiont.retry.RetryFacts
+import semiont.retry.equalJitter
 import semiont.signin.HeldSignIn
 import semiont.signin.SignInKept
 import semiont.telemetry.futureOf
@@ -30,7 +37,7 @@ import semiont.types.UserResponse
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-/** Why a session ended: its token could not be renewed (`EXPIRED`), or the gateway refused a token its issuer had just issued (`REFUSED`). */
+/** Why a session ended: its issuer refused to renew its token (`EXPIRED`), or the gateway refused a token its issuer had just issued (`REFUSED`). */
 public enum class SessionEndReason(
     /** The reason as every SDK spells it. */
     public val wire: String,
@@ -42,7 +49,11 @@ public enum class SessionEndReason(
 private const val JUST_ISSUED_AND_REFUSED = "The gateway refused a token its issuer had just issued"
 
 /** Why a renewal gave no token, for whoever reads the error. */
-private fun notRenewed(failure: String?): String = if (failure == null) "Token refresh failed" else "Token refresh failed: $failure"
+private fun notRenewed(failure: SignInError?): String = if (failure == null) "Token refresh failed" else "Token refresh failed: ${failure.message}"
+
+/** Whether a renewal failed because the issuer refused it: an answer the `refresh` rule does not try again. No answer, and one it tries again until the budget is spent, is no refusal. */
+private fun refused(failure: SignInError): Boolean =
+    failure.reason == SignInErrorCode.Exchange && failure.status != null && !REFRESH.retryable(RetryFacts(status = failure.status, method = "POST"))
 
 private fun now(): Double = System.currentTimeMillis() / 1000.0
 
@@ -56,7 +67,10 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
  * At its start it asks the gateway who the kept token is. A token the gateway
  * refuses is renewed once and asked about once more; a token its issuer had
  * just issued and the gateway refuses is final. So the gateway is asked at most
- * twice and the issuer at most once.
+ * twice and the issuer at most once. Whenever a token is renewed, what is kept
+ * is forgotten only when the issuer refuses: a renewal that got no answer leaves
+ * the session no usable token and keeps what is kept, and the next refusal
+ * renews again, and so does the session on its own, on the reconnect backoff.
  */
 public class SemiontSession internal constructor(
     /** The knowledge base the session is with: where it is reached, and `id`, the key its credentials are kept under. */
@@ -81,6 +95,9 @@ public class SemiontSession internal constructor(
 
     // Held while a refusal is being answered, so that the refusals that arrive during it are answered by it.
     private val answering = Mutex()
+
+    // Holds while a renewal that got no answer is owed another attempt.
+    private val unanswered = MutableStateFlow(false)
 
     @Volatile
     private var closing = false
@@ -119,6 +136,7 @@ public class SemiontSession internal constructor(
         val scope = CoroutineScope(currentCoroutineContext().minusKey(Job) + SupervisorJob())
         work = scope
         scope.launch { renewWhenDue(tokens) { renewed() } }
+        scope.launch { renewWhenUnanswered() }
         scope.launch {
             try {
                 begin(found)
@@ -131,9 +149,10 @@ public class SemiontSession internal constructor(
     /**
      * The gateway refused the session's token: renew it, and ask the gateway
      * who the new one is. Returns the token the session then holds, or null:
-     * it holds no token, and if it had a kept sign-in it is over. One refusal
+     * it holds no token, and if the issuer refused to renew a kept sign-in it is over. One refusal
      * is answered at a time, so refusals that arrive together cost one renewal
-     * and one ask. A gateway that cannot be asked refuses nothing: the renewed
+     * and one ask, and who the gateway says the renewed token is, is who is
+     * signed in. A gateway that cannot be asked refuses nothing: the renewed
      * token is given.
      */
     public suspend fun refresh(): String? = refreshOf(tokens.value)
@@ -152,7 +171,9 @@ public class SemiontSession internal constructor(
             // While the session is starting, its start is what asks: it takes the renewed token up as the just-issued one.
             if (!readied.isCompleted) return@withLock renewed
             try {
-                validate.invoke(renewed)
+                val user = validate.invoke(renewed)
+                // Who the token the session still holds is, as the gateway said.
+                if (!closing && tokens.value == renewed) users.set(user)
             } catch (refusal: SemiontError) {
                 // Only a token the session still holds ends it: one replaced meanwhile is no longer the session's to be refused.
                 val refused = refusal is TransportError && refusal.reason == TransportErrorCode.Unauthorized
@@ -167,12 +188,12 @@ public class SemiontSession internal constructor(
     public fun refreshFuture(): CompletableFuture<String?> = client.links.future { refresh() }
 
     /** Ask the renewal: one that could not be made and one that was refused both leave the session without a token. */
-    private suspend fun tryRefresh(): Pair<String?, String?> {
+    private suspend fun tryRefresh(): Pair<String?, SignInError?> {
         val renewing = renew ?: return null to null
         return try {
             renewing() to null
         } catch (failure: SignInError) {
-            null to failure.message
+            null to failure
         }
     }
 
@@ -182,17 +203,58 @@ public class SemiontSession internal constructor(
         val (token, failure) = tryRefresh()
         if (closing) return null
         if (token != null) {
+            unanswered.value = false
             tokens.value = token
             return token
         }
         tokens.value = null
         // A session that never had a credential cannot expire: it is signed out, which is no failure.
-        if (kept.held() != null) signedOut(SessionEndReason.EXPIRED, SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id))
+        if (kept.held() != null) unrenewed(failure) else unanswered.value = false
         return null
+    }
+
+    /**
+     * After a renewal that got no answer, renew again on the reconnect backoff: each wait is the equal jitter of its
+     * step, the step `RECONNECT_MS` doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or refused, when a
+     * token arrives some other way, and when the session ends. A renewal made while nobody has said who the session's
+     * token is asks the gateway once, as the start would have.
+     */
+    private suspend fun renewWhenUnanswered() {
+        while (true) {
+            unanswered.first { it }
+            var step = Timings.RECONNECT_MS
+            while (unanswered.value) {
+                delay(equalJitter(step))
+                when {
+                    tokens.value != null -> unanswered.value = false
+                    !unanswered.value -> {}
+                    users.value == null -> refreshOf(null)
+                    else -> renewed()
+                }
+                step = minOf(2 * step, Timings.MAX_RECONNECT_MS)
+            }
+        }
+    }
+
+    /**
+     * A renewal of what is kept gave no token, and the session holds none. The issuer's refusal, or nothing left to renew
+     * with, ends the session; any other failure keeps what is kept, and says why: the next refusal renews again, and so
+     * does the reconnect backoff.
+     */
+    private suspend fun unrenewed(failure: SignInError?) {
+        tokens.value = null
+        val notRenewed = SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id)
+        if (failure != null && !refused(failure)) {
+            unanswered.value = true
+            onError?.invoke(notRenewed)
+        } else {
+            signedOut(SessionEndReason.EXPIRED, notRenewed)
+        }
     }
 
     /** The session is over: its credential is forgotten, and its host is told why. The one teardown, whichever way it ended. */
     private suspend fun signedOut(told: SessionEndReason, error: SessionError) {
+        unanswered.value = false
         tokens.value = null
         users.set(null)
         kept.forget()
@@ -209,10 +271,16 @@ public class SemiontSession internal constructor(
         var justIssued = isTokenExpired(found.access, now())
         var token = found.access
         if (justIssued) {
-            val (renewed, _) = tryRefresh()
+            val (renewed, failure) = tryRefresh()
             if (renewed == null) {
-                // There was no session to end: the sign-in is forgotten, and nothing is said.
-                kept.forget()
+                if (failure == null || refused(failure)) {
+                    // There was no session to end: the sign-in is forgotten, and nothing is said.
+                    kept.forget()
+                } else {
+                    // The issuer did not refuse it: the sign-in is kept, and renewed on the reconnect backoff or when a request is refused.
+                    unanswered.value = true
+                    onError?.invoke(SessionError(SessionErrorCode.AuthFailed, notRenewed(failure), kb.id))
+                }
                 return
             }
             token = renewed
@@ -259,7 +327,7 @@ public class SemiontSession internal constructor(
             if (closing) return
             val (renewed, failure) = renewal
             if (renewed == null) {
-                signedOut(SessionEndReason.EXPIRED, SessionError(SessionErrorCode.RefreshExhausted, notRenewed(failure), kb.id))
+                unrenewed(failure)
                 return
             }
             token = renewed

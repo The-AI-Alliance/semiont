@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.Timings
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
 import semiont.errors.SemiontError
@@ -133,8 +134,9 @@ class SessionTest {
     }
 
     @Test
-    fun anExpiredTokenThatCannotBeRenewedIsForgottenAndTheSessionIsReadyAnyway() = runTest {
-        for (renewal in listOf(null, SignInError(SignInErrorCode.Exchange, "the network is down"))) {
+    fun anExpiredTokenTheIssuerWillNotRenewIsForgottenAndTheSessionIsReadyAnyway() = runTest {
+        val refusedWithNoToken = SignInError(SignInErrorCode.Exchange, "The issuer refused the token request (HTTP 200)", 200)
+        for (renewal in listOf(null, refusedByTheIssuer(), refusedWithNoToken)) {
             val world = SessionWorld(kept = expired(), renewals = listOf(renewal))
             world.session().use { session ->
                 session.start()
@@ -144,6 +146,27 @@ class SessionTest {
                 assertFalse(world.isKept())
                 // There was no session to end: nothing is said.
                 assertEquals(emptyList<SessionEndReason>() to emptyList<Any>(), world.told to world.errors)
+            }
+        }
+    }
+
+    @Test
+    fun anExpiredTokenWhoseRenewalGotNoAnswerIsKeptAndRenewedWhenARequestIsRefused() = runTest {
+        val renewed = token(3600, 2)
+        val spentOnNotNow = SignInError(SignInErrorCode.Exchange, "The session could not be renewed after 4 attempts: HTTP 503", 503)
+        for (failure in listOf(unansweredByTheIssuer(), spentOnNotNow)) {
+            val world = SessionWorld(kept = expired(), renewals = listOf(failure, renewed))
+            world.session().use { session ->
+                session.start()
+                session.ready()
+                assertNull(session.token.value)
+                assertTrue(world.isKept())
+                assertEquals(emptyList<SessionEndReason>(), world.told)
+                assertEquals(listOf("session.auth-failed" to "Token refresh failed: ${failure.message}"), world.said())
+                // The issuer answers again: a request refused for want of a token renews it.
+                assertEquals(renewed, session.refresh())
+                assertEquals(renewed, session.token.value)
+                assertEquals(2, world.renewed)
             }
         }
     }
@@ -306,15 +329,79 @@ class SessionTest {
     }
 
     @Test
-    fun aRenewalThatFailedEndsTheSessionAsARefusalDoesAndNamesItsCause() = runTest {
-        val world = SessionWorld(kept = token(3600, 1), renewals = listOf(SignInError(SignInErrorCode.Exchange, "the network is down")))
+    fun aRenewalTheIssuerRefusedEndsTheSessionAndNamesItsCause() = runTest {
+        val world = SessionWorld(kept = token(3600, 1), renewals = listOf(refusedByTheIssuer()))
         world.session().use { session ->
             session.start()
             session.ready()
             assertNull(session.refresh())
             assertFalse(world.isKept())
             assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
-            assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed: the network is down"), world.said())
+            assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed: ${refusedByTheIssuer().message}"), world.said())
+        }
+    }
+
+    @Test
+    fun aRenewalThatGotNoAnswerKeepsWhatIsKeptAndTheNextRefusalRenewsAgain() = runTest {
+        val renewed = token(3600, 2)
+        val spentOnNotNow = SignInError(SignInErrorCode.Exchange, "The session could not be renewed after 4 attempts: HTTP 503", 503)
+        for (failure in listOf(unansweredByTheIssuer(), spentOnNotNow)) {
+            val world = SessionWorld(kept = token(3600, 1), renewals = listOf(failure, renewed))
+            world.session().use { session ->
+                session.start()
+                session.ready()
+                assertNull(session.refresh())
+                // No usable token, what is kept stays, and the session is not over.
+                assertNull(session.token.value)
+                assertTrue(world.isKept())
+                assertEquals(emptyList<SessionEndReason>(), world.told)
+                assertEquals(listOf("session.refresh-exhausted" to "Token refresh failed: ${failure.message}"), world.said())
+                assertEquals(renewed, session.refresh())
+                assertEquals(renewed, session.token.value)
+            }
+        }
+    }
+
+    @Test
+    fun aRenewalThatGotNoAnswerIsTriedAgainOnTheReconnectBackoffUntilOneIsMade() = runTest {
+        val waits = (0 until 6).map { minOf(Timings.RECONNECT_MS shl it, Timings.MAX_RECONNECT_MS) }
+        val renewed = token(3600, 2)
+        val world = SessionWorld(kept = token(3600, 1), renewals = waits.map { unansweredByTheIssuer() } + renewed)
+        world.clock = { testScheduler.currentTime }
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            assertNull(session.refresh())
+            advanceTimeBy(waits.sum() + 1)
+            runCurrent()
+            assertEquals(waits.size + 1, world.renewed)
+            // Each wait is the equal jitter of its step, the step doubling from the reconnect wait up to the longest.
+            for ((gap, wait) in world.renewedAt.zipWithNext { earlier, later -> later - earlier }.zip(waits)) {
+                assertTrue(gap in wait / 2..wait, "waited $gap of a step of $wait")
+            }
+            assertEquals(renewed, session.token.value)
+            // The renewal made ends the waits, and asks nobody.
+            advanceTimeBy(4 * Timings.MAX_RECONNECT_MS)
+            runCurrent()
+            assertEquals(waits.size + 1 to 1, world.renewed to world.validated.size)
+        }
+    }
+
+    @Test
+    fun theIssuersRefusalEndsTheRenewalsOnTheReconnectBackoff() = runTest {
+        val world = SessionWorld(kept = token(3600, 1), renewals = listOf(unansweredByTheIssuer(), refusedByTheIssuer()))
+        world.session().use { session ->
+            session.start()
+            session.ready()
+            assertNull(session.refresh())
+            advanceTimeBy(Timings.RECONNECT_MS)
+            runCurrent()
+            assertEquals(2, world.renewed)
+            assertFalse(world.isKept())
+            assertEquals(listOf(SessionEndReason.EXPIRED), world.told)
+            advanceTimeBy(2 * 60 * 60 * 1000L)
+            runCurrent()
+            assertEquals(2, world.renewed)
         }
     }
 

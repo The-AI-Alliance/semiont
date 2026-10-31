@@ -359,3 +359,15 @@ func transientRenewal(err error) bool {
 	}
 	return RetryRuleRefresh.Retryable(facts)
 }
+
+// refusedRenewal is whether a renewal failed because the issuer refused it:
+// an answer RetryRuleRefresh does not try again. No answer, and one it tries
+// again until the budget is spent, is no refusal.
+func refusedRenewal(err error) bool {
+	var failed *SignInError
+	if !errors.As(err, &failed) || failed.Code != SignInErrorCodeExchange {
+		return false
+	}
+	_, answered := failed.Status()
+	return answered && !transientRenewal(err)
+}

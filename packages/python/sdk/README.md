@@ -114,8 +114,11 @@ async def as_me(kb: KbTarget, home: str) -> None:
 - **A person's session ends once, and says why.** A token the issuer will not
   renew ends it as `expired`, and a token the issuer has just issued and the
   gateway refuses ends it as `refused` (`on_auth_failed`). The sign-in is
-  then forgotten, so a dead credential is never sent again. What a session
-  does at its start and when it is refused is
+  then forgotten, so a dead credential is never sent again. A renewal that
+  got no answer, whenever it is made, ends nothing: the session holds no
+  token, keeps the sign-in, says why (`session.auth-failed` at its start,
+  `session.refresh-exhausted` after), and renews it on the reconnect backoff
+  or when a request is refused. What a session does at its start and when it is refused is
   [`specs/src/session/cases.json`][session-cases], row for row.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer, a renewal the issuer did not refuse is tried

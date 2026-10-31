@@ -20,6 +20,7 @@ Each SDK's README has its own forms in full: [TypeScript](../../packages/typescr
 
 - **An access token is short-lived**: five minutes from the Keycloak a launcher stack runs. A session renews it before it expires and stores what it holds. A bare client with a bare token stops working when the token does.
 - **A person's session ends once, and says why**: `expired` when the identity provider will not renew it, `refused` when the gateway will not accept a token the provider has just issued. Neither is a prompt to retry.
+- **A stored sign-in outlives the network**: it is forgotten only when the identity provider refuses to renew it, whenever the session renews it: at its start, on its schedule, or when the gateway refuses its token. When the provider cannot be reached, the sign-in is kept, the session holds no token and says so (`session.auth-failed` at its start, `session.refresh-exhausted` after), and it renews the token on the reconnect backoff, or when a request is refused, once the provider answers again.
 - **What a program writes is attributed to who signed in**: a person's work to the person, an agent's to the agent.
 
 ## The device grant
