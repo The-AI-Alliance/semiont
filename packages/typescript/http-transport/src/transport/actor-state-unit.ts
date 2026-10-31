@@ -435,8 +435,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const openDeadline = setTimeout(() => {
         opening.abort(new DOMException(`/bus/subscribe got no answer within ${streamOpenTimeoutMs}ms`, 'TimeoutError'));
       }, streamOpenTimeoutMs);
-      const response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.any([controller.signal, opening.signal]) })
-        .finally(() => clearTimeout(openDeadline));
+      // Cleared by the await's own `finally`, not one chained to the fetch,
+      // which would put promise turns between the answer and the state's
+      // `open`.
+      let response: Response;
+      try {
+        response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.any([controller.signal, opening.signal]) });
+      } finally {
+        clearTimeout(openDeadline);
+      }
 
       if (!response.ok || !response.body) {
         // The body says which limit refused it: a 429 `refusal-rate` is a
