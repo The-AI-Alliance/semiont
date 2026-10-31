@@ -259,10 +259,31 @@ fn a_renewal_is_written_as_the_launcher_keeps_it_and_keeps_what_the_sign_in_lear
     assert!(home.failures().is_empty());
 }
 
-#[cfg(unix)]
+/// The user this process runs as, and the access list of the file at
+/// `path` as Windows writes it out (SDDL), each as PowerShell reads it.
+#[cfg(windows)]
+fn access_list_of(path: &std::path::Path) -> (String, String) {
+    let script = format!(
+        "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; (Get-Acl -LiteralPath '{}').GetSecurityDescriptorSddlForm('Access')",
+        path.display().to_string().replace('\'', "''")
+    );
+    let out = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .expect("PowerShell runs");
+    assert!(out.status.success(), "PowerShell failed: {out:?}");
+    let said: Vec<String> = String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
+    match said.as_slice() {
+        [user, list] => (user.clone(), list.clone()),
+        _ => panic!("PowerShell said {said:?}"),
+    }
+}
+
 #[test]
 fn the_file_is_written_whole_for_its_owner_alone() {
-    use std::os::unix::fs::PermissionsExt;
     let home = Home::new();
     store_session(&home.store(), "local", &script(&issued("a1"), "r1")).expect("stored");
 
@@ -271,11 +292,44 @@ fn the_file_is_written_whole_for_its_owner_alone() {
         text.starts_with("{\n  \"local\": {\n") && text.ends_with("}\n"),
         "{text}"
     );
-    let mode = std::fs::metadata(home.path())
-        .expect("metadata")
-        .permissions()
-        .mode();
-    assert_eq!(mode & 0o777, 0o600);
+    // In a directory kept to its owner, as the launcher keeps its state home.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |path: &std::path::Path| {
+            std::fs::metadata(path)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(&home.dir), 0o700);
+        assert_eq!(mode(&home.path()), 0o600);
+    }
+    // The launcher's access list: the user, the system and the
+    // administrators, handed down to what is made in it, and nothing
+    // inherited from above.
+    #[cfg(windows)]
+    {
+        let (user, list) = access_list_of(&home.dir);
+        let entries =
+            |flags: &str| format!("(A;{flags};FA;;;{user})(A;{flags};FA;;;SY)(A;{flags};FA;;;BA)");
+        assert_eq!(
+            list.strip_prefix("D:PAI")
+                .or_else(|| list.strip_prefix("D:P")),
+            Some(entries("OICI").as_str()),
+            "{list}"
+        );
+        for made in [home.path(), home.dir.join("tokens.lock")] {
+            let (_, list) = access_list_of(&made);
+            assert_eq!(
+                list.strip_prefix("D:AI")
+                    .or_else(|| list.strip_prefix("D:")),
+                Some(entries("ID").as_str()),
+                "{list}"
+            );
+        }
+    }
     // Nothing is left beside it but the lock.
     let mut beside: Vec<String> = std::fs::read_dir(&home.dir)
         .expect("the directory is there")

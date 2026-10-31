@@ -15,9 +15,12 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -164,20 +167,58 @@ func TestKeepingASignInRefusesAFileItCannotRead(t *testing.T) {
 	}
 }
 
+// accessListOf is the user this process runs as, and the access list of path
+// as Windows writes it out (SDDL), each as PowerShell reads it.
+func accessListOf(t *testing.T, path string) (user, list string) {
+	t.Helper()
+	script := "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; " +
+		"(Get-Acl -LiteralPath '" + strings.ReplaceAll(path, "'", "''") + "').GetSecurityDescriptorSddlForm('Access')"
+	out, err := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script).Output()
+	if err != nil {
+		t.Fatalf("reading the access list of %s: %v", path, err)
+	}
+	said := strings.Fields(string(out))
+	if len(said) != 2 {
+		t.Fatalf("PowerShell said %q", out)
+	}
+	return said[0], said[1]
+}
+
 // The file holds bearer credentials: its owner's alone, and no stray
-// temporary file beside it.
+// temporary file beside it. The directory is kept to its owner as the
+// launcher keeps its state home, and what is made in it inherits that: on
+// Windows the launcher's access list, the user, the system and the
+// administrators with full access and nobody else, handed down to the file
+// and its lock and inheriting nothing from above.
 func TestTheSignInStoreIsWrittenPrivately(t *testing.T) {
 	store := storeIn(t)
 	if err := store.Entry("local").Keep(context.Background(), heldFor(1)); err != nil {
 		t.Fatal(err)
 	}
-	if runtime.GOOS != "windows" {
-		info, err := os.Stat(store.Path())
-		if err != nil {
-			t.Fatal(err)
+	dir := filepath.Dir(store.Path())
+	if runtime.GOOS == "windows" {
+		user, list := accessListOf(t, dir)
+		ownerOnly := func(flags string) string {
+			sid := regexp.QuoteMeta(user)
+			return `\(A;` + flags + `;FA;;;` + sid + `\)\(A;` + flags + `;FA;;;SY\)\(A;` + flags + `;FA;;;BA\)$`
 		}
-		if mode := info.Mode().Perm(); mode&0o077 != 0 {
-			t.Errorf("tokens.json is open to others: %v", mode)
+		if !regexp.MustCompile(`^D:P(AI)?` + ownerOnly("OICI")).MatchString(list) {
+			t.Errorf("the state home's access list is %s, not its owner's alone", list)
+		}
+		for _, name := range []string{SignInFile, signInLock} {
+			if _, list := accessListOf(t, filepath.Join(dir, name)); !regexp.MustCompile(`^D:(AI)?` + ownerOnly("ID")).MatchString(list) {
+				t.Errorf("%s's access list is %s, not the one its directory hands down", name, list)
+			}
+		}
+	} else {
+		for path, want := range map[string]os.FileMode{dir: 0o700, store.Path(): 0o600} {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mode := info.Mode().Perm(); mode != want {
+				t.Errorf("%s is mode %v, want %v", path, mode, want)
+			}
 		}
 	}
 	entries, err := os.ReadDir(filepath.Dir(store.Path()))

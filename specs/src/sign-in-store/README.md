@@ -49,6 +49,20 @@ written by writing a sibling temporary file and renaming it over the old
 one, so no reader sees half a document and no credential is left in a stray
 file.
 
+Before every write, every writer keeps `<stateDir>` to its owner, as the
+launcher keeps its state home, so the file, its lock and the temporary file
+are its owner's alone from the moment each is made: mode `0700`, and on
+Windows, where a mode keeps nobody out, an access list. The list allows full
+access to the user the writer runs as (its process token's user), to the
+system and to the administrators, and to nobody else; it is handed down to
+everything made in the directory, and it is protected, so nothing is
+inherited from above:
+
+    D:PAI(A;OICI;FA;;;<the user's SID>)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)
+
+A directory that has the list already is left as it is: setting a list hands
+it down to everything beneath.
+
 ## Writing it
 
 Every change to the document is a read, a change and a write, and more than

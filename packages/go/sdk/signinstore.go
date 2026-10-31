@@ -131,13 +131,18 @@ func plainJSON(v any, indent string) ([]byte, error) {
 // change, and a write when it changed. The lock is held from before the read
 // until after the rename. The write is a sibling file renamed over the old
 // one: no reader sees half a document, and no credential is left in a stray
-// file.
+// file. The directory is kept to its owner first, as the launcher keeps its
+// state home, so the file, its lock and the sibling are its owner's alone
+// from the moment each is made.
 func (s *SignInStore) change(change func(document map[string]json.RawMessage) (changed bool, err error)) error {
 	s.turn.Lock()
 	defer s.turn.Unlock()
 	dir := filepath.Dir(s.path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
+	}
+	if err := ownerOnlyDir(dir); err != nil {
+		return fmt.Errorf("the state home %s cannot be kept to its owner: %w", dir, err)
 	}
 	// Opened only to be locked: nothing is ever written to it, so it is opened
 	// read-only, which both flock and LockFileEx accept.

@@ -9,6 +9,7 @@ lock every writer of the file takes.
 import asyncio
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -51,6 +52,20 @@ def held(access: str, refresh: str = "refresh-1", *, revocation: str | None = f"
 
 def document(path: Path) -> JsonObject:
     return read(path)
+
+
+def access_list_of(path: Path) -> tuple[str, str]:
+    """The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it."""
+    quoted = str(path).replace("'", "''")
+    script = (
+        "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
+        f"(Get-Acl -LiteralPath '{quoted}').GetSecurityDescriptorSddlForm('Access')"
+    )
+    said = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script], capture_output=True, text=True, check=True
+    ).stdout.split()
+    assert len(said) == 2, said
+    return said[0], said[1]
 
 
 def entry(path: Path, key: str) -> JsonObject:
@@ -98,10 +113,24 @@ def test_a_sign_in_is_kept_as_the_launcher_keeps_one(tmp_path: Path) -> None:
         assert stated.endswith("Z"), stated
     assert set(kept) <= {field.alias or name for name, field in SignIn.model_fields.items()}
     assert run(store.entry("local").held()) == held(access)
-    # The file holds bearer credentials: it is its owner's alone, and so is its lock. Nothing else is left beside it.
+    # The file holds bearer credentials: it is its owner's alone, and so is its lock, in a directory kept to its owner
+    # as the launcher keeps its state home. Nothing else is left beside it.
     if os.name == "posix":
+        assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
         assert stat.S_IMODE((path.parent / "tokens.lock").stat().st_mode) == 0o600
+    else:
+        # The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
+        user, listed = access_list_of(path.parent)
+        sid = re.escape(user)
+
+        def entries(flags: str) -> str:
+            return rf"\(A;{flags};FA;;;{sid}\)\(A;{flags};FA;;;SY\)\(A;{flags};FA;;;BA\)"
+
+        assert re.fullmatch("D:P(AI)?" + entries("OICI"), listed), listed
+        for made in (path, path.parent / "tokens.lock"):
+            _, listed = access_list_of(made)
+            assert re.fullmatch("D:(AI)?" + entries("ID"), listed), listed
     assert sorted(found.name for found in path.parent.iterdir()) == ["tokens.json", "tokens.lock"]
     assert path.read_bytes().endswith(b"}\n")
 

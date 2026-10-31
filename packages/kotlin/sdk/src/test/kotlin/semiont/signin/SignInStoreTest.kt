@@ -281,6 +281,17 @@ class SignInStoreTest {
 
     private fun entryOf(path: Path, key: String): JsonObject = SignInStore(path).read().getValue(key).jsonObject
 
+    /** The user this process runs as, and the access list of `path` as Windows writes it out (SDDL), each as PowerShell reads it. */
+    private fun accessListOf(path: Path): Pair<String, String> {
+        val script = "[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; " +
+            "(Get-Acl -LiteralPath '${path.toString().replace("'", "''")}').GetSecurityDescriptorSddlForm('Access')"
+        val process = ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command", script).redirectErrorStream(true).start()
+        val said = process.inputStream.bufferedReader().readText().split(Regex("""\s+""")).filter { it.isNotEmpty() }
+        assertEquals(0, process.waitFor(), "PowerShell said $said")
+        assertEquals(2, said.size, "PowerShell said $said")
+        return said[0] to said[1]
+    }
+
     @Test
     fun theEntryThisSdkWritesIsTheSchemas() {
         val schema = Spec.read("sign-in-store/SignIn.json").jsonObject
@@ -316,10 +327,21 @@ class SignInStoreTest {
             assertTrue(Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z""").matches(stated), "$name is $stated")
         }
         assertEquals(held(access), SignInStore(path).entry("local").held())
-        // The file holds bearer credentials: its owner's alone, and so is its lock. Nothing else is left beside it.
+        // The file holds bearer credentials: its owner's alone, and so is its lock, in a directory kept to its owner as the
+        // launcher keeps its state home. Nothing else is left beside it.
         if ("posix" in path.fileSystem.supportedFileAttributeViews()) {
+            assertEquals("rwx------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path.parent)))
             assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path)))
             assertEquals("rw-------", java.nio.file.attribute.PosixFilePermissions.toString(Files.getPosixFilePermissions(path.resolveSibling("tokens.lock"))))
+        } else {
+            // The launcher's access list: the user, the system and the administrators, handed down, and nothing inherited from above.
+            val (user, list) = accessListOf(path.parent)
+            fun entries(flags: String) = """\(A;$flags;FA;;;${Regex.escape(user)}\)\(A;$flags;FA;;;SY\)\(A;$flags;FA;;;BA\)"""
+            assertTrue(Regex("D:P(AI)?" + entries("OICI")).matches(list), list)
+            for (made in listOf(path, path.resolveSibling("tokens.lock"))) {
+                val (_, inherited) = accessListOf(made)
+                assertTrue(Regex("D:(AI)?" + entries("ID")).matches(inherited), inherited)
+            }
         }
         assertEquals(listOf("tokens.json", "tokens.lock"), Files.list(path.parent).use { files -> files.map { it.fileName.toString() }.sorted().toList() })
         assertTrue(Files.readString(path).endsWith("}\n"))

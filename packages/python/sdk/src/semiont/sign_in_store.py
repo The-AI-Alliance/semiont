@@ -15,7 +15,9 @@ beside the file; `flock`, and `LockFileEx` on Windows): another process
 renewing another stack at the same moment loses nothing. What the file holds
 that is not a sign-in as this release knows one is written back as it was. A
 reader that only reads takes no lock: the file is replaced whole, so every
-document read is a whole one.
+document read is a whole one. The file's directory is kept to its owner first,
+as the launcher keeps its state home: mode `0700`, and on Windows the
+launcher's access list, which what is made in it inherits.
 
 This module reads no environment. An application reads its own and says what
 it found: `state_dir(this_system(), home=..., xdg_state_home=..., local_app_data=...)`.
@@ -112,11 +114,148 @@ if sys.platform == "win32":
         if not locked:
             raise ctypes.WinError()
 
+    _CURRENT_PROCESS_TOKEN: Final = -4
+    _TOKEN_USER: Final = 1
+    _SDDL_REVISION_1: Final = 1
+    _SE_FILE_OBJECT: Final = 1
+    _DACL_SECURITY_INFORMATION: Final = 0x00000004
+    _PROTECTED_DACL_SECURITY_INFORMATION: Final = 0x80000000
+
+    _advapi32: Final = ctypes.WinDLL("advapi32", use_last_error=True)
+    _kernel32: Final = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    _GetTokenInformation: Final = _advapi32.GetTokenInformation
+    _GetTokenInformation.argtypes = (wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD))
+    _GetTokenInformation.restype = wintypes.BOOL
+    _ConvertSidToStringSidW: Final = _advapi32.ConvertSidToStringSidW
+    _ConvertSidToStringSidW.argtypes = (ctypes.c_void_p, ctypes.POINTER(wintypes.LPWSTR))
+    _ConvertSidToStringSidW.restype = wintypes.BOOL
+    _GetNamedSecurityInfoW: Final = _advapi32.GetNamedSecurityInfoW
+    _GetNamedSecurityInfoW.argtypes = (
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    )
+    _GetNamedSecurityInfoW.restype = wintypes.DWORD
+    _ConvertSecurityDescriptorToStringSecurityDescriptorW: Final = _advapi32.ConvertSecurityDescriptorToStringSecurityDescriptorW
+    _ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = (
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.LPWSTR),
+        ctypes.POINTER(wintypes.ULONG),
+    )
+    _ConvertSecurityDescriptorToStringSecurityDescriptorW.restype = wintypes.BOOL
+    _ConvertStringSecurityDescriptorToSecurityDescriptorW: Final = _advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    _ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.ULONG),
+    )
+    _ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = wintypes.BOOL
+    _GetSecurityDescriptorDacl: Final = _advapi32.GetSecurityDescriptorDacl
+    _GetSecurityDescriptorDacl.argtypes = (
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.BOOL),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.BOOL),
+    )
+    _GetSecurityDescriptorDacl.restype = wintypes.BOOL
+    _SetNamedSecurityInfoW: Final = _advapi32.SetNamedSecurityInfoW
+    _SetNamedSecurityInfoW.argtypes = (
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+    )
+    _SetNamedSecurityInfoW.restype = wintypes.DWORD
+    _LocalFree: Final = _kernel32.LocalFree
+    _LocalFree.argtypes = (ctypes.c_void_p,)
+    _LocalFree.restype = ctypes.c_void_p
+
+    def _user() -> str | None:
+        """The user this process runs as, as a SID."""
+        size = wintypes.DWORD()
+        _GetTokenInformation(_CURRENT_PROCESS_TOKEN, _TOKEN_USER, None, 0, ctypes.byref(size))
+        user = ctypes.create_string_buffer(size.value)
+        if not _GetTokenInformation(_CURRENT_PROCESS_TOKEN, _TOKEN_USER, user, size, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        # A TOKEN_USER begins with the user's SID_AND_ATTRIBUTES, which begins with the SID.
+        named = wintypes.LPWSTR()
+        if not _ConvertSidToStringSidW(ctypes.c_void_p.from_buffer(user), ctypes.byref(named)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            return named.value
+        finally:
+            _LocalFree(named)
+
+    def _access_list(path: str) -> str | None:
+        """The access list of `path`, as Windows writes it out (SDDL)."""
+        descriptor, dacl = ctypes.c_void_p(), ctypes.c_void_p()
+        failed = _GetNamedSecurityInfoW(
+            path, _SE_FILE_OBJECT, _DACL_SECURITY_INFORMATION, None, None, ctypes.byref(dacl), None, ctypes.byref(descriptor)
+        )
+        if failed:
+            raise ctypes.WinError(failed)
+        try:
+            written = wintypes.LPWSTR()
+            if not _ConvertSecurityDescriptorToStringSecurityDescriptorW(
+                descriptor, _SDDL_REVISION_1, _DACL_SECURITY_INFORMATION, ctypes.byref(written), None
+            ):
+                raise ctypes.WinError(ctypes.get_last_error())
+            try:
+                return written.value
+            finally:
+                _LocalFree(written)
+        finally:
+            _LocalFree(descriptor)
+
+    def _owner_only(directory: str) -> None:
+        """Keep `directory`, and everything made in it from then on, to its owner, with the access list the launcher gives its state home.
+
+        The user this process runs as, the system and the administrators, each
+        with full access, handed down to what is made in it, and nothing
+        inherited from above. A mode keeps nobody out on Windows; the access
+        list is what does. A directory that has the list already is left as it
+        is: setting a list hands it down to everything beneath, which in a state
+        home is no small walk.
+        """
+        listed = f"D:PAI(A;OICI;FA;;;{_user()})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        if _access_list(directory) == listed:
+            return
+        descriptor = ctypes.c_void_p()
+        if not _ConvertStringSecurityDescriptorToSecurityDescriptorW(listed, _SDDL_REVISION_1, ctypes.byref(descriptor), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            present, defaulted, dacl = wintypes.BOOL(), wintypes.BOOL(), ctypes.c_void_p()
+            if not _GetSecurityDescriptorDacl(descriptor, ctypes.byref(present), ctypes.byref(dacl), ctypes.byref(defaulted)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            failed = _SetNamedSecurityInfoW(
+                directory, _SE_FILE_OBJECT, _DACL_SECURITY_INFORMATION | _PROTECTED_DACL_SECURITY_INFORMATION, None, None, dacl, None
+            )
+            if failed:
+                raise ctypes.WinError(failed)
+        finally:
+            _LocalFree(descriptor)
+
 else:
     import fcntl
 
     def _lock(descriptor: int) -> None:
         fcntl.flock(descriptor, fcntl.LOCK_EX)
+
+    def _owner_only(directory: str) -> None:
+        """Keep `directory` to its owner: mode `0700`, as the launcher keeps its state home."""
+        os.chmod(directory, 0o700)
 
 
 @final
@@ -145,8 +284,15 @@ class SignInStore:
 
     @contextmanager
     def _locked(self) -> Generator[None]:
-        """Hold the lock every writer of the document takes, from before its read until after its rename."""
-        os.makedirs(os.path.dirname(self._path) or ".", exist_ok=True)
+        """Hold the lock every writer of the document takes, from before its read until after its rename.
+
+        The directory is kept to its owner first, as the launcher keeps its
+        state home, so the file, its lock and what replaces the file are its
+        owner's alone from the moment each is made.
+        """
+        directory = os.path.dirname(self._path) or "."
+        os.makedirs(directory, exist_ok=True)
+        _owner_only(directory)
         with self._turn:
             descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, 0o600)
             try:
