@@ -704,4 +704,13 @@ class CacheTest {
         assertEquals(listOf(mapOf("kept" to 7, "abc" to 3)), kept.saves)
         assertEquals(BusRequestErrorCode.Closed, assertThrows<BusRequestError> { cache.fetch("abc") }.reason)
     }
+
+    @Test
+    fun aCacheAHostMakesOfAFetchAloneKeepsNothing() = runBlocking {
+        val cache = Cache<String, Int>({ key -> key.length })
+        assertEquals(3, cache.fetch("abc"))
+        assertEquals(3, cache.get("abc"))
+        assertFalse(cache.persistencePending)
+        cache.close()
+    }
 }
