@@ -43,7 +43,7 @@ A Weaver reads its settings from a configuration document, the protocol's
 [`WeaverConfig`](../../specs/src/components/schemas/WeaverConfig.json), at the
 path its `--config` flag names. The document is resolved: every address in it
 is literal, every credential is named by the variable that holds it, and the
-Weaver defaults nothing it leaves out. It states the gateway's
+Weaver defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's
 URL; the issuer the Weaver's service account signs in at; the graph database
 ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the environment
@@ -310,7 +310,10 @@ holds what the Weaver once applied to it.
   of the frames it sent. Every span and metric it exports is one of those
   rows, of the row's kind, carrying only the row's attributes; and every one
   of those rows that its work can make arrives, with every attribute the row
-  does not mark as conditional. *Held by `weaver/telemetry`.*
+  does not mark as conditional. All of it is exported under the resource the
+  table's `resource` rows list for the weaver: its name, its version, and
+  `semiont.kb`, the DID of the knowledge base its document's `kb` names.
+  *Held by `weaver/telemetry`.*
 - **An event it logs while a span is current carries that span's trace and
   its own id** (`trace_id` and `span_id`), in either form of its log. One
   logged in no span carries neither.

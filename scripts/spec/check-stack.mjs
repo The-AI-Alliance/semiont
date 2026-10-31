@@ -18,7 +18,10 @@
 //   - a project file of specs/src/kb-identity/cases.json validates when its
 //     case says every reader refuses it, or does not when it says none does;
 //   - a property a schema names has no field of the launcher's generated types
-//     (packages/go/launcher/stack/types_gen.go) tagged with its name.
+//     (packages/go/launcher/stack/types_gen.go) tagged with its name;
+//   - KbIdentity, which names in a service's document the knowledge base the
+//     launcher read from its project file, holds its name or domain to other
+//     rules than ProjectConfig holds `project.name` and `site.domain` to.
 //
 // It reads the source files, so it cannot pass on a stale bundle.
 
@@ -209,6 +212,19 @@ for (const path of [...stackSchemas, SCHEMAS.ProjectConfig]) {
       }
     }
   })(JSON.parse(readFileSync(resolve(ROOT, path), 'utf8')), '');
+}
+
+// ── a service's document names its knowledge base as the project file does ─
+
+// KbIdentity restates two keys of the project file, so it holds each to the
+// same rules: everything but its description.
+const rulesOf = (schema) => JSON.stringify(Object.entries(schema).filter(([key]) => key !== 'description').sort(([a], [b]) => a.localeCompare(b)));
+const project = JSON.parse(readFileSync(resolve(ROOT, SCHEMAS.ProjectConfig), 'utf8')).properties;
+const served = JSON.parse(readFileSync(resolve(ROOT, 'specs/src/components/schemas/KbIdentity.json'), 'utf8')).properties;
+for (const [key, [section, owned]] of Object.entries({ name: ['project', 'name'], domain: ['site', 'domain'] })) {
+  const restated = served[key];
+  const owner = project[section].properties[owned];
+  if (rulesOf(restated) !== rulesOf(owner)) fail(`specs/src/components/schemas/KbIdentity.json /properties/${key}: holds it to ${rulesOf(restated)}, and ProjectConfig holds ${section}.${owned} to ${rulesOf(owner)}`);
 }
 
 for (const [name, { accepted, refused }] of Object.entries(held)) {

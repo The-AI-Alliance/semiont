@@ -2,6 +2,9 @@
   "type": "object",
   "description": "Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.",
   "properties": {
+    "kb": {
+      "$ref": "./KbIdentity.json"
+    },
     "gatewayUrl": {
       "type": "string",
       "minLength": 1,
@@ -112,6 +115,7 @@
     }
   },
   "required": [
+    "kb",
     "gatewayUrl",
     "identity",
     "queue",

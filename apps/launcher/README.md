@@ -376,9 +376,14 @@ semiont stop
   runs, nothing of where they listen, so the files are the same on every
   machine. Each service's document states every address this start placed,
   as a literal: the gateway's, the dispatcher's, the Archivist's, the
-  worker's, the Smelter's, the Weaver's and the Librarian's. One address
-  reaches a container through its environment instead: the telemetry
-  collector's (`OTEL_EXPORTER_OTLP_ENDPOINT`). `semiont start --dry-run` lists
+  worker's, the Smelter's, the Weaver's and the Librarian's. The gateway's,
+  the dispatcher's, the Smelter's, the Weaver's and the Librarian's also name
+  the knowledge base the service serves (`kb`); the Archivist reads it from the
+  tree it keeps. Every service but the worker names it by its DID in its
+  telemetry (`semiont.kb`), by which `semiont status` reads that knowledge
+  base's numbers and no other's. One address reaches a container through its
+  environment instead: the telemetry collector's
+  (`OTEL_EXPORTER_OTLP_ENDPOINT`). `semiont start --dry-run` lists
   what it would place.
   **The inference driver is who performs inference per the
   engines, not which process the launcher runs**: any engine on `ollama` →

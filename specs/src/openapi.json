@@ -858,6 +858,9 @@
       "GatewayConfig": {
         "$ref": "components/schemas/GatewayConfig.json"
       },
+      "KbIdentity": {
+        "$ref": "components/schemas/KbIdentity.json"
+      },
       "ResourceUpload": {
         "$ref": "components/schemas/ResourceUpload.json"
       },

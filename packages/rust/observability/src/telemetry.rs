@@ -2,13 +2,14 @@
 //! instruments every process shares, and the readings it takes of itself.
 //!
 //! It reads the environment itself and configures the SDK from the values:
-//! an empty resource and an explicit endpoint, so no standard variable changes
-//! what a service's telemetry table promises. With neither an endpoint nor the
-//! console exporter, or with the SDK disabled, nothing is exported and no
-//! trace context travels. What it builds it registers as the process's
-//! (`opentelemetry::global`), which is what `semiont-telemetry`'s spans and
-//! the transport's count report to. A service's own instruments are made on
-//! `meter()`.
+//! a resource built on an empty one, holding only the service's name, its
+//! version and the knowledge base it serves, and an explicit endpoint, so no
+//! standard variable changes what a service's telemetry table promises. With
+//! neither an endpoint nor the console exporter, or with the SDK disabled,
+//! nothing is exported and no trace context travels. What it builds it
+//! registers as the process's (`opentelemetry::global`), which is what
+//! `semiont-telemetry`'s spans and the transport's count report to. A
+//! service's own instruments are made on `meter()`.
 
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Meter, MeterProvider as _};
@@ -38,10 +39,13 @@ fn telemetry() -> Option<&'static Telemetry> {
 }
 
 /// Start exporting, as the environment says, as `service_name` (unless
-/// `OTEL_SERVICE_NAME` says otherwise) at `version`. Call once, before the
-/// runtime starts: the OTLP exporter's HTTP client runs threads of its own.
-pub fn initialize(service_name: &str, version: &str) -> Result<(), String> {
-    let configured = configure(service_name, version)?;
+/// `OTEL_SERVICE_NAME` says otherwise) at `version`, for `kb`: the DID of the
+/// knowledge base the process serves (`semiont::identity::kb_did` of its
+/// domain), or none, for a process that serves none. Call
+/// once, before the runtime starts: the OTLP exporter's HTTP client runs
+/// threads of its own.
+pub fn initialize(service_name: &str, version: &str, kb: Option<&str>) -> Result<(), String> {
+    let configured = configure(service_name, version, kb)?;
     if TELEMETRY.set(configured).is_err() {
         panic!("telemetry is initialized once");
     }
@@ -58,7 +62,11 @@ pub fn initialize(service_name: &str, version: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemetry>, String> {
+fn configure(
+    default_service_name: &str,
+    version: &str,
+    kb: Option<&str>,
+) -> Result<Option<Telemetry>, String> {
     if std::env::var("OTEL_SDK_DISABLED").is_ok_and(|v| v == "true") {
         return Ok(None);
     }
@@ -72,12 +80,7 @@ fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemet
     let service_name = std::env::var("OTEL_SERVICE_NAME")
         .ok()
         .unwrap_or_else(|| default_service_name.to_owned());
-    let resource = Resource::builder_empty()
-        .with_attributes([
-            KeyValue::new("service.name", service_name),
-            KeyValue::new("service.version", version.to_owned()),
-        ])
-        .build();
+    let resource = resource(service_name, version, kb);
 
     let url = |path: &str| {
         endpoint
@@ -144,6 +147,21 @@ fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemet
         tracer_provider,
         meter_provider,
     }))
+}
+
+/// What every span and metric is exported under: the service's name, its
+/// version, and the DID of the knowledge base it serves, when it serves one.
+fn resource(service_name: String, version: &str, kb: Option<&str>) -> Resource {
+    Resource::builder_empty()
+        .with_attributes(
+            [
+                KeyValue::new("service.name", service_name),
+                KeyValue::new("service.version", version.to_owned()),
+            ]
+            .into_iter()
+            .chain(kb.map(|kb| KeyValue::new("semiont.kb", kb.to_owned()))),
+        )
+        .build()
 }
 
 /// Export what is buffered and stop, bounded: a collector that does not
@@ -375,4 +393,73 @@ fn install_fatal_hook() {
         eprintln!("[fatal] uncaughtException: {detail}");
         std::process::exit(1);
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resource;
+    use opentelemetry::Key;
+    use opentelemetry_sdk::Resource;
+    use semiont::identity::kb_did;
+    use serde_json::Value;
+    use std::collections::BTreeSet;
+
+    /// The services built on this crate.
+    const SERVICES: [&str; 3] = ["gateway", "dispatcher", "archivist"];
+
+    /// The resource keys specs/src/service-telemetry/telemetry.json lists for `service`.
+    fn listed(service: &str) -> BTreeSet<String> {
+        let table: Value = serde_json::from_str(include_str!(
+            "../../../../specs/src/service-telemetry/telemetry.json"
+        ))
+        .expect("the telemetry table is JSON");
+        table["resource"]
+            .as_array()
+            .expect("the telemetry table lists the resource")
+            .iter()
+            .filter(|row| {
+                row["services"]
+                    .as_array()
+                    .expect("a resource row lists its services")
+                    .iter()
+                    .any(|listed| listed == service)
+            })
+            .map(|row| {
+                row["key"]
+                    .as_str()
+                    .expect("a resource row has a key")
+                    .to_owned()
+            })
+            .collect()
+    }
+
+    fn keys(resource: &Resource) -> BTreeSet<String> {
+        resource
+            .iter()
+            .map(|(key, _)| key.as_str().to_owned())
+            .collect()
+    }
+
+    #[test]
+    fn a_service_names_its_knowledge_base_and_nothing_its_table_does_not_list() {
+        // What OTEL_RESOURCE_ATTRIBUTES would split or decode, a DID passes through.
+        let kb = kb_did("example.org%2Cone=two,three:kb");
+        for service in SERVICES {
+            let resource = resource(format!("semiont-{service}"), "1.2.3", Some(&kb));
+            assert_eq!(keys(&resource), listed(service), "{service}");
+            assert_eq!(
+                resource.get(&Key::from_static_str("semiont.kb")),
+                Some(opentelemetry::Value::from(
+                    "did:web:example.org%2Cone=two,three:kb"
+                )),
+                "{service}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_process_that_serves_no_knowledge_base_names_none_as_the_worker_does() {
+        let resource = resource("semiont-conformance-driver".to_owned(), "1.2.3", None);
+        assert_eq!(keys(&resource), listed("worker"));
+    }
 }

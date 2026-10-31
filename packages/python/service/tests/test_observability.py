@@ -4,17 +4,21 @@
 variable does, and that service's conformance suite holds a started service
 to it, exporter by exporter. A process installs its telemetry once, so what
 is installed is those suites' to hold. Here is what is decided before
-anything is installed, and each reading, held to the rows of
-`specs/src/service-telemetry/telemetry.json` that every service exports. And
-here is how a number a service reads of what it keeps is reported as a gauge:
-when it is read, and what the gauge says between two reads.
+anything is installed: whether anything is, and the resource everything is
+exported under, held to the `resource` rows of
+`specs/src/service-telemetry/telemetry.json`. Here is each reading, held to
+the rows of that table that every service exports. And here is how a number a
+service reads of what it keeps is reported as a gauge: when it is read, and
+what the gauge says between two reads.
 """
 
 import asyncio
 import threading
 import time
 from collections.abc import Mapping, Sequence
+from importlib.metadata import version
 from pathlib import Path
+from typing import Final
 
 import pytest
 from aio import pass_time, run, under_way
@@ -22,9 +26,29 @@ from counted import counted
 from opentelemetry.metrics import CallbackOptions
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import Gauge, InMemoryMetricReader, Metric, NumberDataPoint
-from telemetry_rows import MetricRow, as_the_table_writes, metrics_named
+from opentelemetry.util.types import AttributeValue
+from semiont.identifiers import UserId
+from semiont.identity import kb_did
+from spec import ROOT
+from telemetry_rows import MetricRow, as_the_table_writes, metrics_named, resource_keys
 
-from semiont_service.observability import Exporting, Lag, install, interval_ms, lives_less_one, memory, report_the_process, resident_bytes
+from semiont_service.observability import (
+    Exporting,
+    Lag,
+    install,
+    interval_ms,
+    lives_less_one,
+    memory,
+    report_the_process,
+    resident_bytes,
+    resource_of,
+)
+
+PYTHON_SERVICES: Final = sorted(path.parent.name for path in ROOT.glob("images/*/pyproject.toml"))
+"""The services built on this package, each by its word for itself."""
+
+NAMED: Final = {"service.name": "semiont-service", "service.version": version("semiont-service")}
+"""The name and the version every resource built here states: this package's own (`exported_under`)."""
 
 
 def exported(environment: Mapping[str, str], lag: Lag) -> dict[str, Metric]:
@@ -37,6 +61,17 @@ def exported(environment: Mapping[str, str], lag: Lag) -> dict[str, Metric]:
     if data is None:
         return {}
     return {metric.name: metric for resource in data.resource_metrics for scope in resource.scope_metrics for metric in scope.metrics}
+
+
+def exported_under(environment: Mapping[str, str], kb: UserId | None) -> dict[str, AttributeValue]:
+    """The attributes of the resource a process is exported under, built under this package's word for itself.
+
+    Of the distributions a resource could name, only this package's own is
+    installed beside its tests.
+    """
+    attributes = resource_of("service", environment, kb=kb).attributes
+    assert attributes is not None
+    return dict(attributes)
 
 
 def points(metric: Metric) -> Sequence[NumberDataPoint]:
@@ -92,7 +127,35 @@ def held_to(row: MetricRow, metric: Metric) -> None:
     ],
 )
 def test_with_no_endpoint_and_no_console_exporter_or_with_the_sdk_disabled_nothing_is_installed(environment: dict[str, str]) -> None:
-    assert install("worker", environment) is None
+    assert install("worker", environment, kb=None) is None
+
+
+# ── what everything is exported under ───────────────────────────────────
+
+
+def test_a_service_that_serves_one_knowledge_base_is_exported_under_its_name_its_version_and_that_knowledge_base_s_did(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # What OpenTelemetry's SDK would read of its own adds nothing, and changes nothing: the resource is built on no other.
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "semiont.kb=did:web:elsewhere,deployment.environment=test")
+    monkeypatch.setenv("OTEL_SERVICE_NAME", "elsewhere")
+    # A domain may hold what that variable would have had to escape. The DID is carried as it is.
+    kb = kb_did("example.github.io:kb%2C1,v=2")
+    assert exported_under({}, kb) == {**NAMED, "semiont.kb": kb}
+    assert exported_under({"OTEL_SERVICE_NAME": "renamed"}, kb) == {**NAMED, "service.name": "renamed", "semiont.kb": kb}
+
+
+def test_a_service_that_names_no_knowledge_base_is_exported_under_its_name_and_its_version_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "semiont.kb=did:web:elsewhere")
+    assert exported_under({}, None) == NAMED
+
+
+def test_each_service_built_on_this_package_is_exported_under_the_keys_the_table_lists_for_it() -> None:
+    assert PYTHON_SERVICES
+    for service in PYTHON_SERVICES:
+        listed = resource_keys(service)
+        kb = kb_did("example.github.io:kb") if "semiont.kb" in listed else None
+        assert sorted(exported_under({}, kb)) == listed, service
 
 
 # ── how often metrics are exported ──────────────────────────────────────

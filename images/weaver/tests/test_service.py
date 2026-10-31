@@ -26,6 +26,7 @@ ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-weaver", "SEMIONT_OIDC_CLIE
 PASSWORD: Final = {"NEO4J_PASSWORD": "n30"}
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
+    "kb": {"name": "example-kb", "domain": "example.github.io:example-kb"},
     "gatewayUrl": "http://127.0.0.1:1",
     "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
     "graph": {"type": "neo4j", "uri": "bolt://127.0.0.1:1", "username": "neo4j", "passwordEnv": "NEO4J_PASSWORD", "database": "neo4j"},

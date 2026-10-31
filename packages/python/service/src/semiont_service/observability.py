@@ -11,10 +11,11 @@ What is installed is the process's: OpenTelemetry's API reports to it, so the
 spans Semiont's SDK makes, and whatever the service and the packages it is
 built on record, are exported with no word from any of them. The endpoint and
 the service's name are read here and handed to OpenTelemetry's SDK, and the
-resource is the two attributes stated here, so that no other variable changes
-what the telemetry table promises of the service. That SDK reads the standard
-variables it reads on its own, such as how long a finished span waits to be
-exported.
+resource is the attributes stated here, so that no other variable changes what
+the telemetry table promises of the service: its name, its version, and the
+DID of the knowledge base it serves, where it names one. That SDK reads the
+standard variables it reads on its own, such as how long a finished span waits
+to be exported.
 
 OpenTelemetry's SDK and its exporter are imported when something is exported,
 and not before: a process that exports nothing does not load them.
@@ -28,14 +29,28 @@ import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from importlib.metadata import version
 from pathlib import Path
-from typing import Final, final
+from typing import TYPE_CHECKING, Final, final
 
 from opentelemetry import metrics, trace
 from opentelemetry.metrics import CallbackOptions, Meter, Observation
+from semiont.identifiers import UserId
 
 from semiont_service.config import set_in
 
-__all__ = ["Exporting", "Lag", "install", "interval_ms", "lives_less_one", "memory", "report_the_process", "resident_bytes"]
+if TYPE_CHECKING:
+    from opentelemetry.sdk.resources import Resource
+
+__all__ = [
+    "Exporting",
+    "Lag",
+    "install",
+    "interval_ms",
+    "lives_less_one",
+    "memory",
+    "report_the_process",
+    "resident_bytes",
+    "resource_of",
+]
 
 _METRIC_EXPORT_INTERVAL_MS: Final = 30_000
 """How often metrics are exported, unless the environment states another interval."""
@@ -252,13 +267,30 @@ def report_the_process(meter: Meter, lag: Lag, environment: Mapping[str, str]) -
         )
 
 
-def install(service: str, environment: Mapping[str, str]) -> Exporting | None:
+def resource_of(service: str, environment: Mapping[str, str], *, kb: UserId | None) -> "Resource":
+    """What every span and metric of the process is exported under: the service's name and version, and the knowledge base it serves.
+
+    `service` is the service's word for itself: its telemetry is exported
+    under that word after `semiont-`, unless its environment states another
+    name, and at the version of the distribution of that name. `kb` is the DID
+    of the knowledge base it serves, or `None` for a service that names none.
+    Nothing else is added: the resource is built on no other, so neither what
+    OpenTelemetry's SDK detects nor `OTEL_RESOURCE_ATTRIBUTES` adds a key.
+    """
+    from opentelemetry.sdk.resources import Resource
+
+    distribution = f"semiont-{service}"
+    named = {"service.name": set_in(environment, "OTEL_SERVICE_NAME") or distribution, "service.version": version(distribution)}
+    return Resource(named if kb is None else {**named, "semiont.kb": kb})
+
+
+def install(service: str, environment: Mapping[str, str], *, kb: UserId | None) -> Exporting | None:
     """Start exporting the process's telemetry as `environment` says, or do nothing where it says to export none.
 
-    Called once, before anything the process does is to be told. `service` is
-    the service's word for itself: its telemetry is exported under that word
-    after `semiont-`, unless its environment states another name, and at the
-    version of the distribution of that name.
+    Called once, before anything the process does is to be told. Everything
+    it exports is under the resource `resource_of` makes: of `service`, the
+    service's word for itself, and of `kb`, the DID of the knowledge base it
+    serves, which a service that names none states as `None`.
     """
     if environment.get("OTEL_SDK_DISABLED") == "true":
         return None
@@ -270,14 +302,10 @@ def install(service: str, environment: Mapping[str, str]) -> Exporting | None:
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, MetricExporter, PeriodicExportingMetricReader
-    from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
 
-    distribution = f"semiont-{service}"
-    resource = Resource(
-        {"service.name": set_in(environment, "OTEL_SERVICE_NAME") or distribution, "service.version": version(distribution)}
-    )
+    resource = resource_of(service, environment, kb=kb)
 
     spans: SpanExporter = ConsoleSpanExporter(out=sys.stdout)
     if endpoint is not None:

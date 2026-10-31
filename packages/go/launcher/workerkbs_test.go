@@ -105,7 +105,7 @@ func TestAStartWithNoKnowledgeBaseAddedServesItsOwnAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := api.WorkerKnowledgeBaseConfig{Domain: exampleKBDomain, GatewayUrl: p.gatewayURL(), Engines: engines}
+	want := api.WorkerKnowledgeBaseConfig{Domain: exampleKB.Domain, GatewayUrl: p.gatewayURL(), Engines: engines}
 	want.Identity.Issuer, want.Identity.ClientId = p.issuer(), serviceClientID("worker")
 	got, err := json.Marshal(workerDocumentOf(t, p).KnowledgeBases)
 	if err != nil {
@@ -125,7 +125,7 @@ func TestAddedKnowledgeBasesFollowTheStartsOwnWithItsEngines(t *testing.T) {
 		addedKBOf("b.example:kb", "https://b.example", "https://id.b.example/realms/b", "semiont-worker-bob"),
 	}
 	p := placed(t, threeEngines(t))
-	b, err := workerDocument(p, exampleKBDomain, added)
+	b, err := workerDocument(p, exampleKB.Domain, added)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestAddedKnowledgeBasesFollowTheStartsOwnWithItsEngines(t *testing.T) {
 	for _, kb := range doc.KnowledgeBases {
 		domains = append(domains, kb.Domain)
 	}
-	if want := []string{exampleKBDomain, "a.example:kb", "b.example:kb"}; !reflect.DeepEqual(domains, want) {
+	if want := []string{exampleKB.Domain, "a.example:kb", "b.example:kb"}; !reflect.DeepEqual(domains, want) {
 		t.Fatalf("knowledgeBases name %v, want %v", domains, want)
 	}
 	own := doc.KnowledgeBases[0]
@@ -148,7 +148,7 @@ func TestAddedKnowledgeBasesFollowTheStartsOwnWithItsEngines(t *testing.T) {
 		}
 	}
 	for i := 0; i < 20; i++ {
-		again, err := workerDocument(placed(t, threeEngines(t)), exampleKBDomain, added)
+		again, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, added)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,19 +160,16 @@ func TestAddedKnowledgeBasesFollowTheStartsOwnWithItsEngines(t *testing.T) {
 
 // A start of a knowledge base that is among those added is refused, saying how
 // to remove it: the worker would serve it twice, and refuses a document that
-// names one domain twice. So is a knowledge base with no domain.
+// names one domain twice.
 func TestAKnowledgeBaseAddedToItsOwnStartIsRefused(t *testing.T) {
 	p := placed(t, fixtureStack(t, "anthropic"))
 	added := []addedKB{
 		addedKBOf("a.example:kb", "https://a.example", "https://id.a.example/realms/a", "semiont-worker-alice"),
-		addedKBOf(exampleKBDomain, "https://example.github.io", "https://id.example/realms/kb", "semiont-worker-alice"),
+		addedKBOf(exampleKB.Domain, "https://example.github.io", "https://id.example/realms/kb", "semiont-worker-alice"),
 	}
-	_, err := workerDocument(p, exampleKBDomain, added)
-	if err == nil || !strings.Contains(err.Error(), "semiont worker kb remove "+exampleKBDomain) {
-		t.Errorf("want a refusal saying how to remove %s, got %v", exampleKBDomain, err)
-	}
-	if _, err := workerDocument(p, "", nil); err == nil || !strings.Contains(err.Error(), "site.domain") {
-		t.Errorf("want a refusal of a knowledge base with no domain, got %v", err)
+	_, err := workerDocument(p, exampleKB.Domain, added)
+	if err == nil || !strings.Contains(err.Error(), "semiont worker kb remove "+exampleKB.Domain) {
+		t.Errorf("want a refusal saying how to remove %s, got %v", exampleKB.Domain, err)
 	}
 }
 

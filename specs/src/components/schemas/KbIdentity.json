@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Its name. The gateway publishes it as its resource metadata's `resource_name`."
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S+$",
+      "description": "Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under."
+    }
+  },
+  "required": [
+    "name",
+    "domain"
+  ],
+  "additionalProperties": false
+}

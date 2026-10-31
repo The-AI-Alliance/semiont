@@ -50,7 +50,7 @@ withDispatcher(
         const span = await eventually(`a ${name} span`, 10_000, () => otlp().spans.find((s) => s.name === name));
         expect(span.kind).toBe(kind);
         expect(span.attributes['bus.channel']).toBe(channel);
-        expect(span.service).toBe('semiont-dispatcher');
+        expect(span.resource['service.name']).toBe('semiont-dispatcher');
       }
     });
 
@@ -67,7 +67,7 @@ withDispatcher(
     // Last, and judged on everything the cases above made the dispatcher
     // export: run it with them, never alone.
     it('exports exactly the telemetry the spec lists: every row it can, and nothing else', async () => {
-      expect(await outsideTheTable(otlp(), 'dispatcher')).toEqual([]);
+      expect(await outsideTheTable(otlp(), 'dispatcher', world().settings.kb.domain)).toEqual([]);
     });
   },
   {

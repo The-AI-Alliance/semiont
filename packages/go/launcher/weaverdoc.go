@@ -66,11 +66,13 @@ func graphConfig(p placement, who string) (graph api.GraphConfig, err error) {
 	return graph, err
 }
 
-// weaverDocument renders the document from the start's placement. The Weaver
-// reads the record by position at the Archivist (placement).
-func weaverDocument(p placement) ([]byte, error) {
+// weaverDocument renders the document from the start's placement and the
+// knowledge base it serves. The Weaver reads the record by position at the
+// Archivist (placement).
+func weaverDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	var doc api.WeaverConfig
 	var err error
+	doc.Kb = served
 	doc.GatewayUrl = p.gatewayURL()
 	doc.Identity.Issuer = p.issuer()
 	doc.Archivist.Host, doc.Archivist.Port = p.archivist()

@@ -39,7 +39,7 @@ func librarianDocumentFrom(t *testing.T, b []byte) api.LibrarianConfig {
 
 func librarianDocumentOf(t *testing.T, p placement) api.LibrarianConfig {
 	t.Helper()
-	b, err := librarianDocument(p)
+	b, err := librarianDocument(p, exampleKB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestLibrarianDocumentRefusesWhatItCannotBeWrittenFrom(t *testing.T) {
 	} {
 		st := fixtureStack(t, "ollama-gemma")
 		c.vary(st)
-		_, err := librarianDocument(placed(t, st))
+		_, err := librarianDocument(placed(t, st), exampleKB)
 		if want := c.names(st); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: err = %v, want a refusal naming %q", c.why, err, want)
 		}

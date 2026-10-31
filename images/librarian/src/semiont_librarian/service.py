@@ -38,6 +38,7 @@ from semiont.bus import Bus, reply_channels_for
 from semiont.channels import SMELT_SETTLED, WEAVE_APPLIED
 from semiont.http import AgentToken, Credential, HttpTransport, ServiceToken
 from semiont.identifiers import ResourceId
+from semiont.identity import kb_did
 from semiont.operations import (
     GATHER_LIMITS_REQUESTED,
     GATHER_REFERENCED_BY_REQUESTED,
@@ -252,7 +253,7 @@ def main() -> int:
     exporting: Exporting | None = None
     try:
         started = boot(sys.argv[1:], os.environ)
-        exporting = install(SERVICE, os.environ)
+        exporting = install(SERVICE, os.environ, kb=kb_did(started.config.kb.domain))
         asyncio.run(_serve(started, exporting))
     except Exception as failure:
         # Whatever ends the service that was not its being told to stop is said once, as every service says it.

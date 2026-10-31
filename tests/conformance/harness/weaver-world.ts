@@ -185,6 +185,7 @@ export class WeaverWorld {
       new GraphReader(hand, at.database),
       service,
       {
+        kb: kb.world.served,
         gatewayUrl: kb.world.origin,
         issuer: kb.world.issuer.origin,
         archivist: { host: '127.0.0.1', port: kb.settings.port },

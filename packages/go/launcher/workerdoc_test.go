@@ -48,15 +48,11 @@ func workerDocumentFrom(t *testing.T, b []byte) api.WorkerConfig {
 	return doc
 }
 
-// exampleKBDomain: the committed domain of the knowledge base the documents'
-// tests start.
-const exampleKBDomain = "example.github.io:example-kb"
-
 // workerDocumentOf: the worker's document for a start of the example
 // knowledge base, with none added to this machine's worker.
 func workerDocumentOf(t *testing.T, p placement) api.WorkerConfig {
 	t.Helper()
-	b, err := workerDocument(p, exampleKBDomain, nil)
+	b, err := workerDocument(p, exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +155,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 			t.Errorf("%s/%s is reached at %q under %v, want the provider's baseURL and its key named", engine.Engine.Provider, engine.Engine.Model, engine.BaseUrl, engine.ApiKeyEnv)
 		}
 	}
-	if kb.Domain != exampleKBDomain {
+	if kb.Domain != exampleKB.Domain {
 		t.Errorf("domain = %q, want the knowledge base's committed domain", kb.Domain)
 	}
 	if kb.GatewayUrl != "http://192.168.64.1:14000" {
@@ -186,7 +182,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 // first job that needs each, each one's jobs in the jobs' order, and the same
 // documents are the same document every time.
 func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
-	b, err := workerDocument(placed(t, threeEngines(t)), exampleKBDomain, nil)
+	b, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +195,7 @@ func TestWorkerDocumentGroupsJobsByEngineInJobOrder(t *testing.T) {
 		t.Errorf("engines =\n  %s\nwant\n  %s", strings.Join(got, "\n  "), strings.Join(want, "\n  "))
 	}
 	for i := 0; i < 50; i++ {
-		again, err := workerDocument(placed(t, threeEngines(t)), exampleKBDomain, nil)
+		again, err := workerDocument(placed(t, threeEngines(t)), exampleKB.Domain, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,7 +259,7 @@ func TestPlanRunsAWorkerExactlyWhenAJobHasAnEngine(t *testing.T) {
 		if got := p.plan.Roles["worker"].Presence; got != c.want {
 			t.Errorf("%s: the plan's worker is %s, want %s", c.why, got, c.want)
 		}
-		_, err := workerDocument(p, exampleKBDomain, nil)
+		_, err := workerDocument(p, exampleKB.Domain, nil)
 		switch {
 		case c.want == presenceLauncher && err != nil:
 			t.Errorf("%s: the plan runs a worker, and its document is refused: %v", c.why, err)
@@ -327,7 +323,7 @@ func TestWorkerIsHandedOnlyTheKeysItsEnginesUse(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	withAnthropic(st)
 	p := placed(t, st)
-	b, err := workerDocument(p, exampleKBDomain, nil)
+	b, err := workerDocument(p, exampleKB.Domain, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

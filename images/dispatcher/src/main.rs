@@ -18,6 +18,7 @@ use semiont::channels::{
     BrowseEntityTypesRequested, BrowseTagSchemasRequested, Channel, JobQueued, Request,
 };
 use semiont::errors::relayed_failure_code;
+use semiont::identity::kb_did;
 use semiont::timing::BUS_REQUEST_TIMEOUT;
 use semiont::transport::{Envelope, Transport};
 use semiont::types::{BrowseEntityTypesRequest, BrowseTagSchemasRequest, BusFrame, TagSchema};
@@ -82,7 +83,11 @@ fn boot() -> Result<(), String> {
         progress_write_interval: Duration::from_millis(document.timing.progress_write_interval_ms),
     };
     logging::initialize(document.log_level, document.log_format);
-    telemetry::initialize("semiont-dispatcher", semiont_core::spec::VERSION)?;
+    telemetry::initialize(
+        "semiont-dispatcher",
+        semiont_core::spec::VERSION,
+        Some(&kb_did(&document.kb.domain)),
+    )?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

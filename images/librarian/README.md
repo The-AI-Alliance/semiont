@@ -89,6 +89,7 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 
 | Member | |
 | --- | --- |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | the Archivist's host and port |
@@ -108,10 +109,11 @@ database's password, for the embedding provider's key, and for the key of each a
 model. It signs in as itself, and the gateway names it by its account:
 `did:web:<the knowledge base's domain>:agents:<its subject at the issuer>`.
 
-**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-librarian`: what
-every Python service says of its own process, a span for each frame it sends and receives on
-the bus, what a driver records of each request of a model, and the count of gathers that
-went without something (`semiont.gather.degraded`). Without the endpoint the Librarian
+**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-librarian`, naming
+the knowledge base it serves by its DID (`semiont.kb`): what every Python service says of its
+own process, a span for each frame it sends and receives on the bus, what a driver records of
+each request of a model, and the count of gathers that went without something
+(`semiont.gather.degraded`). Without the endpoint the Librarian
 exports nothing, unless `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the trace and the span they were written in.
 
 **It refuses to start** without its document, without its account or without a variable its

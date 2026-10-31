@@ -117,6 +117,7 @@ It reads one document, the protocol's
 
 | Member | |
 | --- | --- |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | where the Archivist listens: the host and the port it reads bytes from, and keeps the anchored-text store at |
@@ -141,9 +142,10 @@ number the knowledge base's `KnowledgeIndex` stack document states (`spec.smelte
 `semiont init` writes one there for each 2 GB of memory it gives the Smelter's container, and
 at least one.
 
-**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-smelter`: what
-every service says of its own process, how many points its index holds
-(`semiont.vector.index.size`), and a span for each frame it sends and receives on the bus
+**Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-smelter`, naming
+the knowledge base it serves by its DID (`semiont.kb`): what every service says of its own
+process, how many points its index holds (`semiont.vector.index.size`), and a span for each
+frame it sends and receives on the bus
 ([SMELTER.md § Telemetry](../../docs/protocol/SMELTER.md#telemetry)). The launcher sets the
 endpoint for a stack it runs. Without it the Smelter exports nothing, unless
 `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the

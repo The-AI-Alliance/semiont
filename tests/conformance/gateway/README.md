@@ -64,7 +64,9 @@ configured another way).
   last case holds everything received to
   the rows of [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
   that list the gateway, in both directions — every span and metric a listed row of the listed kind,
-  carrying listed attributes, and every row the cases' traffic can produce arrived.
+  carrying listed attributes, and every row the cases' traffic can produce arrived; and every one
+  exported under exactly the keys the table's `resource` lists for the gateway, with `semiont.kb`
+  the DID of the knowledge base its document names.
 - **Principals** (`tokens.test.ts`): every person and agent case in
   [`specs/src/principals/cases.json`](../../../specs/src/principals/cases.json), named
   exactly by a running gateway; every DID the suite expects comes from that table.

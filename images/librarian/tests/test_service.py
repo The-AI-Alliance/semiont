@@ -117,6 +117,7 @@ def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp
 @pytest.mark.parametrize(
     "missing",
     [
+        "kb",
         "gatewayUrl",
         "identity",
         "archivist",

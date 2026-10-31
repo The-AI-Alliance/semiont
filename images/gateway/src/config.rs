@@ -1,5 +1,5 @@
 //! The gateway's configuration document: `GatewayConfig` in the spec, its type
-//! generated in `semiont_core::config`, read at boot from the path `--config`
+//! generated in `semiont_core::types`, read at boot from the path `--config`
 //! names (the image passes `/etc/semiont/gateway.json`, where the launcher
 //! mounts it) and validated against its schema before anything in it is used.
 

@@ -36,6 +36,7 @@ VOYAGE: Final[dict[str, JsonValue]] = {
 QDRANT: Final[dict[str, JsonValue]] = {"type": "qdrant", "host": "127.0.0.1", "port": 1}
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
+    "kb": {"name": "example-kb", "domain": "example.github.io:example-kb"},
     "gatewayUrl": "http://127.0.0.1:1",
     "identity": {"issuer": "http://127.0.0.1:1/realms/semiont"},
     "archivist": {"host": "127.0.0.1", "port": 1},
@@ -140,6 +141,8 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
 @pytest.mark.parametrize(
     ("document", "missing"),
     [
+        (without("kb"), "kb"),
+        ({**DOCUMENT, "kb": {"name": "example-kb"}}, "domain"),
         (without("gatewayUrl"), "gatewayUrl"),
         ({**DOCUMENT, "identity": {}}, "issuer"),
         (without("archivist"), "archivist"),
@@ -151,7 +154,7 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
         (without("chunking"), "chunking"),
         (without("cursorsPath"), "cursorsPath"),
     ],
-    ids=["gatewayUrl", "issuer", "archivist", "host", "port", "model", "baseUrl", "overlap", "chunking", "cursorsPath"],
+    ids=["kb", "domain", "gatewayUrl", "issuer", "archivist", "host", "port", "model", "baseUrl", "overlap", "chunking", "cursorsPath"],
 )
 def test_nothing_the_document_leaves_out_is_supplied_and_each_is_refused_by_name(
     tmp_path: Path, document: dict[str, JsonValue], missing: str

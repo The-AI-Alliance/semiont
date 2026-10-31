@@ -235,6 +235,7 @@ export class LibrarianWorld {
     });
 
     const graph: components['schemas']['Neo4jGraphConfig'] = { type: 'neo4j', uri: `bolt://${graphDatabase.host}:7687`, username: 'neo4j', database: 'neo4j', passwordEnv: GRAPH_PASSWORD };
+    const served = kb.world.served;
     const gatewayUrl = kb.world.origin;
     const issuer = kb.world.issuer.origin;
     const archivist = { host: '127.0.0.1', port: kb.settings.port };
@@ -242,6 +243,7 @@ export class LibrarianWorld {
       kb,
       command,
       settings: {
+        kb: served,
         gatewayUrl,
         issuer,
         archivist,
@@ -263,13 +265,14 @@ export class LibrarianWorld {
       smelterEmbedder,
       weaver: {
         service: weaverService,
-        settings: { gatewayUrl, issuer, archivist, graph },
+        settings: { kb: served, gatewayUrl, issuer, archivist, graph },
         env: { SEMIONT_OIDC_CLIENT_ID: WEAVER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.weaver, [GRAPH_PASSWORD]: graphDatabase.password },
         home: mkdtempSync(join(tmpdir(), 'conformance-librarian-weaver-')),
       },
       smelter: {
         command: smelterCommand,
         settings: {
+          kb: served,
           gatewayUrl,
           issuer,
           archivist,

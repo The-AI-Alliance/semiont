@@ -100,7 +100,9 @@ what its schema says; and a case fails otherwise, whatever it was about.
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
   that list the Archivist and the rows of
   [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
-  for the SDK transport it reaches the bus through.
+  for the SDK transport it reaches the bus through, and to the table's
+  `resource`: exported under exactly the keys it lists for the Archivist,
+  with `semiont.kb` the DID of the `site.domain` its tree commits.
 - **Staging** (`staging.test.ts`): what reaches the git index and within what
   bound, what an archive unstages, the branch, a batch that cannot be staged,
   and a knowledge base that does not sync git, which runs none.

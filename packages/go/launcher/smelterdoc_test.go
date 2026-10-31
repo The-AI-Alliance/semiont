@@ -35,7 +35,7 @@ func smelterDocumentFrom(t *testing.T, b []byte) api.SmelterConfig {
 
 func smelterDocumentOf(t *testing.T, p placement) api.SmelterConfig {
 	t.Helper()
-	b, err := smelterDocument(p)
+	b, err := smelterDocument(p, exampleKB)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func TestSmelterDocumentRefusesVoyageWithNoKey(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	voyageEmbedding(st)
 	st.KnowledgeIndex.Spec.Embedding.ApiKey = nil
-	_, err := smelterDocument(placed(t, st))
+	_, err := smelterDocument(placed(t, st), exampleKB)
 	if want := st.Files.KnowledgeIndex + ": spec.embedding.apiKey"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("err = %v, want a refusal naming %q", err, want)
 	}
