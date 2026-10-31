@@ -714,7 +714,11 @@ func (s *stream) read(ctx context.Context, conn uint64, token string, body api.B
 		report(streamEvent{kind: eventEnded})
 		return
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, s.shared.baseURL+"/bus/subscribe", bytes.NewReader(encoded))
+	// Only the answer's status and headers are waited for against
+	// StreamOpenTimeout: once the stream is open, it may be quiet.
+	opening, cancel := context.WithCancel(ctx)
+	defer cancel()
+	request, err := http.NewRequestWithContext(opening, http.MethodPost, s.shared.baseURL+"/bus/subscribe", bytes.NewReader(encoded))
 	if err != nil {
 		report(streamEvent{kind: eventEnded})
 		return
@@ -722,12 +726,18 @@ func (s *stream) read(ctx context.Context, conn uint64, token string, body api.B
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "text/event-stream")
 	request.Header.Set("Authorization", "Bearer "+token)
+	deadline := time.AfterFunc(s.shared.timing.StreamOpenTimeout, cancel)
 	response, err := s.shared.http.Do(request)
+	answered := deadline.Stop()
 	if err != nil {
 		report(streamEvent{kind: eventEnded})
 		return
 	}
 	defer response.Body.Close()
+	if !answered {
+		report(streamEvent{kind: eventEnded})
+		return
+	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		wait, hasWait := RetryAfter(response.Header.Get("Retry-After"))
 		said, _ := io.ReadAll(io.LimitReader(response.Body, 1<<16))

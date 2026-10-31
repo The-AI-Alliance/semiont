@@ -17,6 +17,7 @@ Defined, field by field, in [`src/transport/http-transport.ts`](../src/transport
 - **`channels`** narrows what the stream carries. A worker that awaits only some operations names their reply channels, and is sent nothing else.
 - **`loadLastEventIds`** and **`saveLastEventId`** let a client resume its stream where its last life stopped.
 - **`logger`** receives what the transport logs: see [Logging](./LOGGING.md).
+- **`streamOpenTimeoutMs`** bounds the wait for the gateway to answer the request that opens the stream: its status and headers. An open unanswered by then has failed, and the stream is opened again on the backoff, as after any open that failed. An open stream that carries nothing for a while has not failed. Absent, `STREAM_OPEN_TIMEOUT_MS`.
 - **`timeout`** bounds a plain request. One is made a second time at most once, after `REQUEST_RETRY_PAUSE_MS`, when `RETRY_RULES.transport` approves its status and method, with or without a `tokenRefresher`. The remaining fields override the timing of [`specs/src/client/timing.json`](../../../../specs/src/client/timing.json), for a test or the conformance driver, which cannot wait them out.
 
 ### `TokenRefresher`

@@ -1,7 +1,7 @@
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { EMIT_RETRY, annotationId, resourceId } from '@semiont/core';
+import { EMIT_RETRY, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId } from '@semiont/core';
 import { createActorStateUnit, type ActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
@@ -658,6 +658,63 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(states).toContain('open'));
 
     stateUnit.dispose();
+  });
+
+  it('a connect the gateway accepts and never answers fails at STREAM_OPEN_TIMEOUT_MS, and the stream is opened again on the backoff', async () => {
+    // A gateway that takes the connection and says nothing. Unbounded, the
+    // connect is waited on for as long as the process lives and the stream
+    // never reconnects. The double never answers and, as fetch does, rejects
+    // with its signal's reason when that signal is aborted.
+    vi.useFakeTimers();
+    mockFetch.mockImplementation((_url: string, opts: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      opts.signal.addEventListener('abort', () => reject(opts.signal.reason), { once: true });
+    }));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['beckon:hover'],
+    });
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+    const refusals: unknown[] = [];
+    stateUnit.errors$.subscribe((e) => refusals.push(e));
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(STREAM_OPEN_TIMEOUT_MS - 1);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(states).not.toContain('reconnecting');
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(states).toContain('reconnecting');
+    // The backoff's first wait is at most `RECONNECT_MS`.
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    // A connect that got no answer is a state, not a refusal.
+    expect(refusals).toEqual([]);
+
+    stateUnit.dispose();
+    vi.useRealTimers();
+  });
+
+  it('the deadline on a connect\'s answer does not reach a stream that opened, however long it carries nothing', async () => {
+    vi.useFakeTimers();
+    const conn = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['beckon:hover'],
+    });
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(2 * STREAM_OPEN_TIMEOUT_MS);
+    expect(conn.aborted).toBe(false);
+    expect(states[states.length - 1]).toBe('open');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    stateUnit.dispose();
+    vi.useRealTimers();
   });
 
   it('reassembles an event whose bytes span multiple reader.read() chunks', async () => {

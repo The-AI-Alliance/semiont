@@ -182,7 +182,7 @@ func TestADeviceSignInTheIssuerDeniesIsDenied(t *testing.T) {
 	s := newStack(t)
 	s.set(func() {
 		s.device = func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]any{"device_code": "dc", "user_code": "U", "verification_uri": "https://issuer.example/device", "interval": 0})
+			writeJSON(w, http.StatusOK, map[string]any{"device_code": "dc", "user_code": "U", "verification_uri": "https://issuer.example/device", "expires_in": 60, "interval": 0})
 		}
 		s.token = func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "access_denied"})
@@ -196,6 +196,38 @@ func TestADeviceSignInTheIssuerDeniesIsDenied(t *testing.T) {
 	_, err = issuerOf().SignInWithDeviceGrant(context.Background(), endpoints, func(DeviceCode) {})
 	if !errors.As(err, &failed) || failed.Code != SignInErrorCodeDenied {
 		t.Errorf("got %v, want denied", err)
+	}
+}
+
+// RFC 8628 §3.2 requires `expires_in` of a device authorization answer: one
+// without it has answered without what was asked for, and nobody is shown a
+// code whose lifetime nobody knows.
+func TestADeviceAuthorizationAnswerWithNoLifetimeIsRefused(t *testing.T) {
+	s := newStack(t)
+	s.set(func() {
+		s.device = func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, map[string]any{"device_code": "dc", "user_code": "U", "verification_uri": "https://issuer.example/device", "interval": 0})
+		}
+		s.token = issuing(1)
+	})
+	endpoints, err := issuerOf().Discover(context.Background(), s.gateway.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shown := 0
+	var failed *SignInError
+	_, err = issuerOf().SignInWithDeviceGrant(context.Background(), endpoints, func(DeviceCode) { shown++ })
+	if !errors.As(err, &failed) || failed.Code != SignInErrorCodeExchange {
+		t.Fatalf("got %v, want exchange", err)
+	}
+	if status, ok := failed.Status(); !ok || status != http.StatusOK {
+		t.Errorf("refused with status %d (%v), want the issuer's 200", status, ok)
+	}
+	s.mu.Lock()
+	grants := s.grants
+	s.mu.Unlock()
+	if shown != 0 || grants != 0 {
+		t.Errorf("showed %d codes and asked the token endpoint %d times, want neither", shown, grants)
 	}
 }
 

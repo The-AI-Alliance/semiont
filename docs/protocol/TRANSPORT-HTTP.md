@@ -336,6 +336,10 @@ sent.
 
 **After a drop** — the stream ended, or a connect was refused or failed:
 
+- A connect the gateway has not answered within `streamOpenTimeoutMs` has
+  failed. The answer is its status and headers: once the stream is open, it
+  may carry nothing for as long as nothing happens.
+  *Held by `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`, `packages/python/sdk/tests/test_http_transport.py`, `packages/go/sdk/stream_test.go`, `packages/rust/http-transport/tests/stream.rs`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/HttpTransportTest.kt`.*
 - The client opens its stream again on an equal-jitter exponential
   backoff: a wait in [cap/2, cap], where cap is `reconnectMs` doubled per
   failure up to `maxReconnectMs`, and a successful open resets it. A

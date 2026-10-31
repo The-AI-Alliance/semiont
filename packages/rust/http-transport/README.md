@@ -416,6 +416,10 @@ its `auth` and `system` namespaces are there.
   missed between them.
 - **A dropped stream is reopened** from where each resource's events had got
   to, with the replies still awaited. Each event is delivered once.
+- **Opening the stream has a deadline** (`Timing::stream_open`) on the
+  gateway's answer. Unanswered by then, the open has failed, and the stream
+  is opened again as after a drop. An open stream may stay quiet for as
+  long as nothing happens.
 - **A refused token closes the stream** until a new one arrives. The
   `refresher` is asked once per outage.
 - **A refused token is renewed, never retried.** An emit or a request the
