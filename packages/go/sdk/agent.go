@@ -136,11 +136,11 @@ func (s *ServiceToken) endpoint(ctx context.Context) (string, error) {
 		return "", signInUnanswered(SignInErrorCodeDiscovery, fmt.Sprintf("OIDC discovery for %s got no answer: %v", issuer, err))
 	}
 	if status < 200 || status > 299 {
-		return "", signInRefused(SignInErrorCodeDiscovery, fmt.Sprintf("OIDC discovery for %s failed: HTTP %d from %s", issuer, status, discovery), status)
+		return "", NewSignInError(SignInErrorCodeDiscovery, fmt.Sprintf("OIDC discovery for %s failed: HTTP %d from %s", issuer, status, discovery), status)
 	}
 	endpoint, ok := document.text("token_endpoint")
 	if !ok {
-		return "", signInRefused(SignInErrorCodeDiscovery, fmt.Sprintf("OIDC discovery for %s returned no token_endpoint", issuer), status)
+		return "", NewSignInError(SignInErrorCodeDiscovery, fmt.Sprintf("OIDC discovery for %s returned no token_endpoint", issuer), status)
 	}
 	s.tokenEndpoint = endpoint
 	return endpoint, nil
@@ -181,11 +181,11 @@ func (s *ServiceToken) token(ctx context.Context, renewed bool) (string, error) 
 	}
 	if status < 200 || status > 299 {
 		// The status, never the body: an error body can echo the secret or the assertion.
-		return "", signInRefused(SignInErrorCodeExchange, fmt.Sprintf("Client-credentials grant for %s at %s failed (HTTP %d)", clientID, issuer, status), status)
+		return "", NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("Client-credentials grant for %s at %s failed (HTTP %d)", clientID, issuer, status), status)
 	}
 	token, ok := answered.text("access_token")
 	if !ok {
-		return "", signInRefused(SignInErrorCodeExchange, fmt.Sprintf("Token endpoint for %s returned no access_token", issuer), status)
+		return "", NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("Token endpoint for %s returned no access_token", issuer), status)
 	}
 	// Used until it is due for renewal, and never past its expiry.
 	lifetime, hasLifetime := answered.seconds("expires_in")

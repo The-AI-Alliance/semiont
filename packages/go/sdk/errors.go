@@ -113,8 +113,9 @@ func (e *SignInError) ErrorCode() string { return string(e.Code) }
 // nothing.
 func (e *SignInError) Status() (int, bool) { return e.status, e.hasStatus }
 
-// signInRefused is the issuer's answer, a refusal with its status.
-func signInRefused(code SignInErrorCode, message string, status int) *SignInError {
+// NewSignInError is the issuer's answer, with the status it answered. One no
+// issuer answered is a SignInError of its Code and Message alone.
+func NewSignInError(code SignInErrorCode, message string, status int) *SignInError {
 	return &SignInError{Code: code, Message: message, status: status, hasStatus: true}
 }
 
