@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,16 +21,23 @@ import (
 
 const statusUsage = `Usage: semiont status [--root <path|name>] [--repo <owner/name> [--refresh]] [--service <name>] [--runtime container|docker|podman] [--verbose] [--billing]
 
-Reports what this machine knows about:
+Reports, by what each service is part of:
 
-  BROWSER        the machine-level viewer (not a stack member) — first,
-                 because it sits architecturally above everything it views
-  LOCAL STACK    a stack running here, and the root it belongs to: the
-                 one of the KB you stand in (or --root), else each one
   KNOWLEDGE BASES
-                 every KB this machine knows — file:// clones the launcher
-                 has used (roots.json), and https:// codespace-hosted repos
-                 with their state and KB port
+                 each knowledge base's stack — the one of the KB you stand
+                 in (or --root), else each one running: its clone, where it
+                 runs, and its record, index and issuer, a line each. Then
+                 how many KBs are known (file:// clones the launcher has
+                 used, and https:// codespace-hosted repos: semiont roots)
+  KNOWLEDGE WORKERS
+                 the Browser and the worker, where people and agents work
+  PROVIDERS      inference and embedding, with the models each KB uses
+  TELEMETRY      the collector, Jaeger and Prometheus
+
+The services in the last three serve every knowledge base, each shown once,
+naming the knowledge bases it serves when the report covers several.
+--service <name> shows that service's row alone: its runtime, state and the
+address it was asked at.
 
 --verbose adds LAUNCHER PATHS: the launcher's own config, cache, log, state,
 staging and model-cache paths on this host, plus the persistent per-root
@@ -69,12 +77,9 @@ const serviceCell = 27
 
 // Status implements `semiont status`.
 //
-// Layout follows the concepts, not the machinery. BROWSER opens the report:
-// the viewer sits architecturally above every stack it views (see
-// printBrowser). Then LOCAL STACK — present or not — because a stack is
-// transient status layered on one root. Then the durable things a user owns,
-// in one KNOWLEDGE BASES section, local before remote.
-// --verbose appends SESSIONS and LAUNCHER PATHS.
+// The report follows the groups (serviceGroups): each knowledge base with its
+// own services, then a section for each group of the services they all
+// share. --verbose appends SESSIONS and LAUNCHER PATHS.
 func Status(args []string) int {
 	u := NewUI(false)
 	runtime, service, repoFlag, rootFlag := "", "", "", ""
@@ -138,15 +143,17 @@ func Status(args []string) int {
 			return 1
 		}
 	}
-	// --service browser asks about the Browser — machine-level, outside
-	// every stack, so it bypasses the stack table entirely.
+	// --service browser asks about the Browser, which belongs to no stack, so
+	// it reads no stack's record.
 	if service == "browser" && repoFlag == "" {
 		ss := LoadStackSet()
 		if ss.refuseUnreadable(u) {
 			return 1
 		}
-		healthy := printBrowser(u, ss)
-		if healthy {
+		r := browserRow(ss)
+		printRowHeader()
+		printRow(u, r, nil)
+		if r.healthy {
 			return 0
 		}
 		return 1
@@ -185,7 +192,7 @@ func Status(args []string) int {
 	// The local stacks reported: --root's, which must be recorded; else the
 	// one of the knowledge base you stand in; else each one recorded. With
 	// none, the one discovered by name — the knowledge base you stand in's,
-	// else the machine's containers alone.
+	// else none, and only the services every knowledge base shares.
 	var reported []*StackState
 	key := ""
 	if rootFlag != "" {
@@ -215,30 +222,57 @@ func Status(args []string) int {
 		}
 	}
 
-	if service == "" {
-		printBrowser(u, ss)
-	}
-	healthy := true
+	views := []stackView{}
 	if len(reported) == 0 {
-		var code int
-		if healthy, code = printLocalStack(u, nil, key, runtime, service); code != 0 {
-			return code
-		}
-	}
-	for _, st := range reported {
-		up, code := printLocalStack(u, st, rootKey(st.KBDid, st.KBRoot), runtime, service)
+		v, code := newStackView(u, nil, key, runtime)
 		if code != 0 {
 			return code
 		}
-		healthy = healthy && up
+		views = append(views, v)
 	}
-	// ONE section: local and remote KBs are the same kind of thing, told
-	// apart by the scheme on their address (file:// vs https://) rather than
-	// by living under separate headings. Only the caller sees both halves,
-	// so the "nothing here" line belongs here too.
-	if service == "" {
+	for _, st := range reported {
+		v, code := newStackView(u, st, rootKey(st.KBDid, st.KBRoot), runtime)
+		if code != 0 {
+			return code
+		}
+		views = append(views, v)
+	}
+	nameViews(views)
+	// Each knowledge base's ceilings are its own gateway's answer, asked once
+	// and only for a row with models to decorate.
+	ceilingsOf := map[string]modelCeilings{}
+	ceilings := func(v stackView) modelCeilings {
+		c, ok := ceilingsOf[v.key]
+		if !ok {
+			c = fetchModelCeilings(u, v.st)
+			ceilingsOf[v.key] = c
+		}
+		return c
+	}
+
+	healthy := true
+	if service != "" {
+		healthy = printServiceRows(u, views, service, ss.Machine, ceilings)
+	} else {
+		// Each knowledge base, its own services by group; then the catalog,
+		// local and remote alike, told apart by the scheme on their address
+		// (file:// vs https://). Then the services they all share, a section
+		// for each group.
 		u.Section("KNOWLEDGE BASES")
+		readout := collectorReadout()
+		for i, v := range views {
+			if i > 0 {
+				fmt.Println()
+			}
+			healthy = printKnowledgeBase(u, v, ss.Machine, readout) && healthy
+		}
+		fmt.Println()
 		printRootsPointer(u, localStacks(ss), cs)
+		for _, g := range serviceGroups {
+			if g.shared() {
+				healthy = printSharedGroup(u, g, views, ss, ceilings) && healthy
+			}
+		}
 	}
 	if service == "" && verbose {
 		printSessions(u, ss)
@@ -273,7 +307,7 @@ type BrowserProbe struct {
 	State    string // container state; "" when no container carries either handle
 }
 
-// BrowserTarget probes the Browser, for printBrowser and for `browse
+// BrowserTarget probes the Browser, for browserRow and for `browse
 // --browser`, which needs the same three facts to explain an emit that
 // reached nobody: a second implementation would be a second set of bugs
 // (notably the stale-ID fallback below).
@@ -313,60 +347,27 @@ func BrowserTarget(ss *StackSet, override string) BrowserProbe {
 	return p
 }
 
-// printBrowser renders the BROWSER section — FIRST, because the viewer sits
-// architecturally above every stack it views (and is the least interesting
-// line, fine to scroll away). Shows the image tag so browser-vs-stack skew
-// is visible: a kept Browser can legitimately outlive several stacks.
-func printBrowser(u *UI, ss *StackSet) (healthy bool) {
-	u.Section("BROWSER")
-	b := ss.Machine[machineContainer("browser")]
-	p := BrowserTarget(ss, "")
-	healthy = p.Running
-	word := p.State
-	if word == "" {
-		word = "absent"
-	}
-	mark := u.Wrap(AnsiRed, "✗")
-	if healthy {
-		mark = u.Wrap(AnsiGreen, "✓")
-	}
-	detail := "serves every KB on this machine; discovery-synced"
-	if b != nil && b.Image != "" {
-		// A verified image is recorded by its digest too; the tag is before it.
-		tagged, _, _ := strings.Cut(b.Image, "@")
-		if i := strings.LastIndexByte(tagged, ':'); i > 0 {
-			detail = "images " + tagged[i+1:] + " · " + detail
-		}
-	}
-	if !healthy && p.State == "" {
-		fmt.Printf("  %s %-12s %s\n", mark, word, u.Dim("any semiont start brings it up (or: semiont start --service browser)"))
-		return healthy
-	}
-	where := p.Endpoint
-	if where == "" {
-		where = "not recorded here"
-	}
-	fmt.Printf("  %s %-12s %s  %s\n", mark, word, where, u.Dim("("+detail+")"))
-	return healthy
+// stackView: one local stack as status reads it. st is its record, nil for
+// one discovered by name; key names its containers, "" for no knowledge base
+// (which leaves only the services every knowledge base shares to ask of).
+type stackView struct {
+	st       *StackState
+	key      string
+	runtimes []string
+	at       exposure // where its services are published
+	name     string   // what the report calls its knowledge base beside a shared service
 }
 
-// printLocalStack renders a LOCAL STACK section: the root it belongs to, its
-// provenance, and the service table. st is the recorded stack, nil for one
-// discovered by name; key, the state key of its knowledge base, names its
-// containers — "" for no knowledge base, which leaves the machine's alone.
-// Returns whether every counted service is healthy, plus a nonzero code if
-// status itself could not run.
-func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healthy bool, code int) {
-	if service == "" {
-		u.Section("LOCAL STACK")
-	}
-
+// newStackView: the view of st (nil for none recorded) keyed key, asked of
+// --runtime's runtime when one is given, else the one its record names, else
+// every installed one. A nonzero code: status could not run.
+func newStackView(u *UI, st *StackState, key, runtime string) (stackView, int) {
 	var runtimes []string
 	switch {
 	case runtime != "":
 		if !onPath(runtime) {
 			fmt.Fprintf(os.Stderr, "--runtime %s requested, but '%s' is not on PATH.\n", runtime, runtime)
-			return false, 1
+			return stackView{}, 1
 		}
 		runtimes = []string{runtime}
 		if st != nil && runtime != st.Runtime {
@@ -380,250 +381,521 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 	}
 	if len(runtimes) == 0 {
 		u.Fail("No container runtime found. Install Apple Container, Docker, or Podman.")
-		return false, 1
+		return stackView{}, 1
+	}
+	v := stackView{st: st, key: key, runtimes: runtimes}
+	if st != nil {
+		v.at = st.exposure()
+	}
+	return v, 0
+}
+
+// nameViews names each view's knowledge base by the last segment of its DID,
+// or by its full DID where two would share one.
+func nameViews(views []stackView) {
+	short := func(v stackView) string {
+		if v.st == nil || v.st.KBDid == "" {
+			return v.key
+		}
+		return v.st.KBDid[strings.LastIndexByte(v.st.KBDid, ':')+1:]
+	}
+	seen := map[string]int{}
+	for _, v := range views {
+		seen[short(v)]++
+	}
+	for i, v := range views {
+		v.name = short(v)
+		if seen[v.name] > 1 && v.st != nil && v.st.KBDid != "" {
+			v.name = v.st.KBDid
+		}
+		views[i] = v
+	}
+}
+
+// statusRow: one role's row, as a stack's record and its runtime report it.
+type statusRow struct {
+	role         string
+	label        string // the role, and the product its driver names
+	rt           string // where it runs: a runtime, external, host, or —
+	word         string // running, exited, reachable, unreachable or absent
+	probe        string // the endpoint asked
+	detail       string // a dimmed note after the probe
+	healthy      bool
+	unconfigured bool          // the stack's documents ask for no such service
+	rec          *ServiceState // the stack's record of it; nil for one discovered by name
+}
+
+// counted: whether the row's health is the stack's. A service the documents
+// ask for none of is not missing, and the backends --no-observe leaves out
+// count only when asked about by name.
+func (r statusRow) counted(service string) bool {
+	return !r.unconfigured && (!contains(optionalBackends, r.role) || service != "")
+}
+
+// readRow reads role's row in v. A service every knowledge base shares reads
+// its state from the machine's own record of its container.
+func readRow(v stackView, role string, machine map[string]*ServiceState) statusRow {
+	handle := roleContainer(role, v.key)
+	// No record: the descriptor's static probe, for the driver a stack
+	// that has not recorded itself would be running. A record's endpoint
+	// is sharper — it names the port that start actually used. A recorded
+	// stack's own container with no entry (stopped alone, or not reached
+	// by its start) is asked nowhere, and reads down: its port is its
+	// knowledge base's, and the descriptor's is the default block's,
+	// which another knowledge base's stack may hold. The machine's
+	// containers, and a role that runs none, answer where the
+	// descriptor says for every knowledge base.
+	endpoint := ""
+	if v.st == nil || machineRole(role) || !runsContainer(role) {
+		endpoint = healthEndpoint(role, probeDriver(role), nil, v.at)
+	}
+	var rec *ServiceState
+	if v.st != nil {
+		if e, ok := v.st.Services[role]; ok {
+			rec = &e
+			if e.ID != "" {
+				handle = e.ID
+			}
+			if e.Endpoint != "" {
+				endpoint = e.Endpoint
+			}
+		}
 	}
 
-	// Identity first: a stack is status layered on a root, so name the root
-	// (and its did:web) before the services. Provenance is dimmed detail, not
-	// narration wedged between sections.
-	if service == "" {
-		if st != nil && st.KBRoot != "" {
-			fmt.Printf("  %s\n", st.KBRoot)
-			switch ident, err := readKBIdentity(st.KBRoot); {
-			case err != nil:
-				fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "⚠ "+err.Error()))
-			case ident != nil && ident.SiteName != "":
-				fmt.Printf("    %s %s\n", u.Dim(ident.didWeb()), u.Dim("— "+ident.SiteName))
+	// The concrete product rides in the SERVICE cell — "identity-store
+	// (PostgreSQL)" — rather than a column that is an em-dash for every
+	// Semiont service.
+	r := statusRow{role: role, label: role, rec: rec}
+	// No record, no driver, no product: the launcher does not name a
+	// technology for a role nothing has selected one for. Every record a
+	// start writes carries its driver.
+	tech := ""
+	if rec != nil && rec.Driver != "" {
+		tech = driverDisplay(role, rec.Driver)
+	}
+	// The dispatcher's product is its JOB QUEUE driver, which no state
+	// record carries — the queue is a config section, not a launched
+	// role. The dispatcher reports the one it connected to, so the row
+	// names the live driver rather than the configured intent.
+	if role == "dispatcher" && endpoint != "" {
+		if q, found := dispatcherQueueDriver(endpoint); found {
+			tech = q
+		}
+	}
+	if tech != "" {
+		r.label += " (" + tech + ")"
+	}
+	if rec != nil && rec.Provided == providedNone {
+		r.unconfigured = true
+		return r
+	}
+
+	state := ""
+	switch {
+	case rec != nil && rec.Provided == providedExternal:
+		r.rt = "external"
+	case rec != nil && rec.Provided == providedHost:
+		r.rt = "host"
+	case rec != nil && rec.Provided == providedMachine:
+		// The machine's container the stack's record names, under the
+		// runtime and handle its own record names. With no record it is
+		// absent: stopped alone.
+		if m := machine[rec.Container]; m != nil {
+			h := machineHandles(m.Runtime, rec.Container, m)[0]
+			state, r.rt = containerState([]string{m.Runtime}, h)
+		}
+	case handle == "":
+		// A container-less role (embedding, provided elsewhere) has
+		// nothing to inspect. Never ask the runtime with an empty name:
+		// Apple container answers [] and docker errors, but either could
+		// just as well answer with EVERY container and be read as this
+		// role running.
+		r.rt = "external"
+	default:
+		state, r.rt = containerState(v.runtimes, handle)
+	}
+	r.healthy = endpoint != "" && roleHealthy(role, endpoint)
+	if role == "inference" && rec == nil && state == "" && r.healthy {
+		r.rt = "host"
+	}
+
+	// The STATUS word: the container state when there is a container
+	// (running / exited), else what the probe can honestly say about a
+	// role provided elsewhere (reachable / unreachable), else "absent".
+	r.word = state
+	if r.word == "" {
+		switch {
+		case r.rt == "external" || r.rt == "host":
+			r.word = "unreachable"
+			if r.healthy {
+				r.word = "reachable"
 			}
-		} else if st == nil && key != "" {
-			fmt.Printf("  %s\n", u.Dim("(no recorded stack — services below are discovered by name)"))
-		} else if st == nil {
-			fmt.Printf("  %s\n", u.Dim("(no recorded stack — the machine's services below; cd into a KB clone, or --root, for its stack's)"))
+		default:
+			r.word = "absent"
 		}
-		if st != nil {
-			fmt.Printf("    %s\n", u.Dim(st.Runtime+" · "+statePath()))
+	}
+	if r.rt == "" {
+		r.rt = "—"
+	}
+	r.probe = endpoint
+	if rest, ok := strings.CutPrefix(r.probe, "tcp:"); ok {
+		r.probe = "tcp://" + rest
+	}
+	return r
+}
+
+// browserRow: the Browser's row. It belongs to no stack, so it reads its own
+// record; the image tag shows browser-vs-stack skew, since a kept Browser
+// can outlive several stacks.
+func browserRow(ss *StackSet) statusRow {
+	b := ss.Machine[machineContainer("browser")]
+	p := BrowserTarget(ss, "")
+	r := statusRow{role: "browser", label: "browser", rt: "—", word: p.State, probe: p.Endpoint, healthy: p.Running}
+	if b != nil && b.Runtime != "" {
+		r.rt = b.Runtime
+	}
+	if !p.Running && p.State == "" {
+		r.word, r.probe = "absent", "any semiont start brings it up (or: semiont start --service browser)"
+		return r
+	}
+	if r.word == "" {
+		r.word = "absent"
+	}
+	if r.probe == "" {
+		r.probe = "not recorded here"
+	}
+	r.detail = "discovery-synced"
+	if b != nil && b.Image != "" {
+		// A verified image is recorded by its digest too; the tag is before it.
+		tagged, _, _ := strings.Cut(b.Image, "@")
+		if i := strings.LastIndexByte(tagged, ':'); i > 0 {
+			r.detail = "images " + tagged[i+1:] + " · " + r.detail
 		}
-		if st != nil && st.KBRoot != "" {
-			// Named from the setting alone: status never reaches for secrets.
-			key := rootKey(st.KBDid, st.KBRoot)
-			if ref, configured, err := storeSettingFor(key); err != nil {
-				fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "secrets: "+err.Error()))
-			} else {
-				fmt.Printf("    %s\n", u.Dim("secrets: "+custodyStoreNamed(key, ref, configured).describe()))
-			}
+	}
+	return r
+}
+
+// printRowHeader: the header of a table of rows. One STATUS cell — mark +
+// word — instead of STATE and HEALTH columns that say yes twice on every
+// healthy row. The diagnostic divergences keep distinct words: "✗ running"
+// (up but unhealthy) vs "✗ exited" (crashed, kept for inspection) vs
+// "✓ reachable" (provided elsewhere). The probe endpoint stays, dimmed.
+func printRowHeader() {
+	fmt.Printf("  %-*s %-10s %s\n", serviceCell, "SERVICE", "RUNTIME", "STATUS")
+}
+
+// printRow prints r as a table row, naming the knowledge bases it serves when
+// the report covers more than one.
+func printRow(u *UI, r statusRow, serves []string) {
+	if r.unconfigured {
+		fmt.Printf("  %-*s %-10s %s\n", serviceCell, r.label, "—", u.Dim("not configured"))
+		return
+	}
+	tail := ""
+	if r.detail != "" {
+		tail += "  " + u.Dim("("+r.detail+")")
+	}
+	if len(serves) > 0 {
+		tail += "  " + u.Dim(strings.Join(serves, ", "))
+	}
+	fmt.Printf("  %-*s %-10s %s %-12s %s%s\n", serviceCell, r.label, r.rt, statusMark(u, r.healthy), r.word, u.Dim(r.probe), tail)
+}
+
+func statusMark(u *UI, healthy bool) string {
+	if healthy {
+		return u.Wrap(AnsiGreen, "✓")
+	}
+	return u.Wrap(AnsiRed, "✗")
+}
+
+// compactItem: r as one item of a knowledge base's group line — its mark and
+// role, where it runs when somebody else runs it, and its state when it is
+// not healthy.
+func compactItem(u *UI, r statusRow) string {
+	if r.unconfigured {
+		return u.Dim("– " + r.role + " not configured")
+	}
+	item := statusMark(u, r.healthy) + " " + r.role
+	if r.rt == "external" || r.rt == "host" {
+		item += " " + u.Dim(r.rt)
+	}
+	if !r.healthy {
+		word := r.word
+		if word == "running" {
+			word = "unhealthy"
 		}
-		if st != nil && st.LanAddr != "" {
-			fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "network lan: the gateway and the issuer answer the network at "+st.LanAddr+", over plain HTTP"))
+		item += " " + word
+	}
+	return item
+}
+
+// lazyBody: an HTTP body fetched on first ask, once.
+type lazyBody struct {
+	url     string
+	body    string
+	fetched bool
+}
+
+func (l *lazyBody) get() string {
+	if !l.fetched {
+		l.body, _ = httpBody(l.url)
+		l.fetched = true
+	}
+	return l.body
+}
+
+// collectorReadout: the collector's Prometheus readout, which every start
+// runs and every knowledge base's work in flight is read from.
+func collectorReadout() *lazyBody { return &lazyBody{url: "http://localhost:24110/metrics"} }
+
+// printInFlightOf prints what r has in flight in v's knowledge base, read from
+// the collector's readout. Only for a service that is up: a dead service's
+// last exported numbers are worse than no numbers. And only for the knowledge
+// base the record names: without one there is no telling whose numbers they
+// are.
+func printInFlightOf(u *UI, v stackView, r statusRow, readout *lazyBody) {
+	if r.healthy && (r.role == "dispatcher" || r.role == "gateway") && v.st != nil && v.st.KBDid != "" {
+		printInFlight(u, r.role, readout.get(), v.st.KBDid)
+	}
+}
+
+// printKnowledgeBase prints v's entry: what its knowledge base is and where
+// it runs, then each group of its own services on a line, then its work in
+// flight. Returns whether every counted service is healthy.
+func printKnowledgeBase(u *UI, v stackView, machine map[string]*ServiceState, readout *lazyBody) bool {
+	field := func(label, value string) { fmt.Printf("    %-8s %s\n", label, value) }
+	st := v.st
+	switch {
+	case st != nil && st.KBRoot != "":
+		ident, err := readKBIdentity(st.KBRoot)
+		switch {
+		case err != nil:
+			fmt.Printf("  %s\n", u.Bold(st.KBDid))
+			fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "⚠ "+err.Error()))
+		case ident != nil && ident.SiteName != "":
+			fmt.Printf("  %s   %s\n", u.Bold(ident.SiteName), u.Dim(ident.didWeb()))
+		default:
+			fmt.Printf("  %s\n", u.Bold(st.KBDid))
+		}
+		field("clone", st.KBRoot)
+		runs := st.Runtime
+		if base, err := GatewayBase(st); err == nil {
+			runs += " · gateway " + base
+		}
+		field("runs", runs)
+		// Named from the setting alone: status never reaches for secrets.
+		key := rootKey(st.KBDid, st.KBRoot)
+		if ref, configured, err := storeSettingFor(key); err != nil {
+			field("secrets", u.Wrap(AnsiYellow, err.Error()))
+		} else {
+			field("secrets", u.Dim(custodyStoreNamed(key, ref, configured).describe()))
+		}
+		if st.LanAddr != "" {
+			field("network", u.Wrap(AnsiYellow, "lan: the gateway and the issuer answer the network at "+st.LanAddr+", over plain HTTP"))
 			reviveIssuerProxy(u, st)
 			if p := st.IssuerProxy; p != nil {
-				fmt.Printf("    %s\n", u.Dim(fmt.Sprintf("issuer proxy: pid %d (%s → %s)", p.PID, p.Listen, p.Upstream)))
+				field("proxy", u.Dim(fmt.Sprintf("issuer pid %d (%s → %s)", p.PID, p.Listen, p.Upstream)))
 			}
 		}
-		fmt.Println()
+	case v.key != "":
+		fmt.Printf("  %s\n", u.Bold(v.key))
+		fmt.Printf("    %s\n", u.Dim("(no recorded stack — its services below are discovered by name)"))
+	default:
+		fmt.Printf("  %s\n", u.Dim("(no recorded stack — cd into a KB clone, or --root, for its stack's)"))
+		return true
 	}
 
-	// One STATUS cell — mark + word — instead of STATE and HEALTH columns
-	// that say yes twice on every healthy row. The diagnostic divergences
-	// keep distinct words: "✗ running" (up but unhealthy) vs "✗ exited"
-	// (crashed, kept for inspection) vs "✓ host"/"✓ reachable" (provided
-	// elsewhere). The probe endpoint stays, dimmed.
-	fmt.Printf("  %-*s %-10s %s\n", serviceCell, "SERVICE", "RUNTIME", "STATUS")
-	healthy = true
-	// Fetched once, lazily: the inference and embedding model rows both read
-	// it, and a stack with no ollama-served models never asks at all.
-	var facts modelFacts
-	factsFetched := false
-	// Same laziness for the platform's ceilings: one bus request, made only
-	// once a row actually has models to decorate, and never at all for a
-	// stack with none.
-	var ceilings modelCeilings
-	ceilingsFetched := false
-	// Same laziness for the collector's readout: fetched by the first row
-	// that has something to read out of it, and not at all for a stack whose
-	// dispatcher and gateway are both down.
-	var readout string
-	readoutFetched := false
-	// Where a service the record holds no endpoint for is asked: where the
-	// recorded stack was published, else loopback.
-	at := exposure{}
-	if st != nil {
-		at = st.exposure()
-	}
-	// The machine's containers run outside the stack: a row one serves reads
-	// its state from that container's own record.
-	machine := LoadStackSet().Machine
-	lastGroup := ""
-	for group, role := range groupedRoles() {
-		if role == "browser" {
-			continue // printBrowser opens the report
-		}
-		if service != "" && role != service {
+	healthy := true
+	var rows []statusRow
+	for _, g := range serviceGroups {
+		if g.shared() {
 			continue
 		}
-		if key == "" && !machineRole(role) {
+		var items []string
+		for _, role := range g.roles {
+			r := readRow(v, role, machine)
+			if r.counted("") {
+				healthy = healthy && r.healthy
+			}
+			items = append(items, compactItem(u, r))
+			rows = append(rows, r)
+		}
+		field(g.name, strings.Join(items, "  "))
+	}
+	for _, r := range rows {
+		printInFlightOf(u, v, r, readout)
+	}
+	return healthy
+}
+
+// sharedRow: one row of a service several knowledge bases share, and the
+// views it serves.
+type sharedRow struct {
+	row   statusRow
+	views []stackView
+}
+
+// printSharedGroup prints a section of the services every knowledge base
+// shares: each once, naming the knowledge bases it serves when the report
+// covers more than one, with the models each uses beneath it. Returns
+// whether every counted one is healthy. The Browser is reported and never
+// counted: a stack is healthy whether or not anyone is viewing it.
+func printSharedGroup(u *UI, g serviceGroup, views []stackView, ss *StackSet, ceilings func(stackView) modelCeilings) bool {
+	u.Section(strings.ToUpper(strings.ReplaceAll(g.name, "-", " ")))
+	printRowHeader()
+	healthy := true
+	for _, role := range g.roles {
+		if role == "browser" {
+			printRow(u, browserRow(ss), nil)
+			continue
+		}
+		var rows []*sharedRow
+		var unconfigured *statusRow
+		for _, v := range views {
+			r := readRow(v, role, ss.Machine)
+			if r.unconfigured {
+				unconfigured = &r
+				continue
+			}
+			i := slices.IndexFunc(rows, func(s *sharedRow) bool { return s.row.label == r.label && s.row.probe == r.probe })
+			if i < 0 {
+				rows = append(rows, &sharedRow{row: r})
+				i = len(rows) - 1
+			}
+			rows[i].views = append(rows[i].views, v)
+		}
+		if len(rows) == 0 && unconfigured != nil {
+			printRow(u, *unconfigured, nil)
+			continue
+		}
+		for _, s := range rows {
+			var serves []string
+			if len(views) > 1 {
+				for _, v := range s.views {
+					serves = append(serves, v.name)
+				}
+			}
+			printRow(u, s.row, serves)
+			if s.row.counted("") {
+				healthy = healthy && s.row.healthy
+			}
+			printSharedModels(u, s, len(views) > 1, ceilings)
+		}
+	}
+	return healthy
+}
+
+// printSharedModels prints the models each knowledge base s serves was
+// started with, beneath its row: a line each, and one line for a model
+// several use that reads the same for each, naming them when name says to.
+func printSharedModels(u *UI, s *sharedRow, name bool, ceilings func(stackView) modelCeilings) {
+	type using struct {
+		v   stackView
+		rec ServiceState
+	}
+	var uses []using
+	var all []servedModel
+	for _, v := range s.views {
+		if v.st == nil {
+			continue
+		}
+		if rec := v.st.Services[s.row.role]; len(rec.Models) > 0 {
+			uses = append(uses, using{v, rec})
+			all = append(all, rec.Models...)
+		}
+	}
+	if len(uses) == 0 {
+		return
+	}
+	// Only reach for Ollama when this row actually has models it serves —
+	// an all-remote row must not probe it at all.
+	var facts modelFacts
+	if len(servedBy(all, "ollama")) > 0 {
+		facts = fetchModelFacts(ollamaBase(uses[0].rec.Endpoint))
+	}
+	w := modelWidth(all)
+	var order []string
+	names := map[string][]string{}
+	for _, use := range uses {
+		for _, l := range modelLines(u, use.rec.Models, facts, remoteModels(use.rec), ceilings(use.v), w) {
+			if _, ok := names[l]; !ok {
+				order = append(order, l)
+			}
+			names[l] = append(names[l], use.v.name)
+		}
+	}
+	for _, l := range order {
+		if name {
+			l += "  " + u.Dim(strings.Join(names[l], ", "))
+		}
+		fmt.Println(l)
+	}
+}
+
+// remoteModels: what the record says of each remote model rec serves —
+// refreshed live, for Anthropic, only when its key is already in this
+// process's environment: status never resolves secrets (no op reads, no
+// prompts). Availability can drift after start (a model withdrawn
+// mid-flight), so fresher is better when it is free.
+func remoteModels(rec ServiceState) map[string]remoteModelMeta {
+	remote := rec.RemoteModels
+	if rec.Driver != "anthropic" {
+		return remote
+	}
+	key := os.Getenv("ANTHROPIC_API_KEY")
+	if key == "" {
+		return remote
+	}
+	live, ok := fetchAnthropicModels(anthropicBase(rec.Endpoint), key)
+	if !ok {
+		return remote
+	}
+	remote = map[string]remoteModelMeta{}
+	for _, m := range servedBy(rec.Models, "anthropic") {
+		if meta, listed := live[m]; listed {
+			remote[m] = meta
+		} else {
+			remote[m] = remoteModelMeta{Available: false}
+		}
+	}
+	return remote
+}
+
+// printServiceRows prints the row of the one service --service names, for
+// each view — under its knowledge base's name when there are several — with
+// what it has in flight and the models it serves beneath it. Returns whether
+// every such row is healthy.
+func printServiceRows(u *UI, views []stackView, service string, machine map[string]*ServiceState, ceilings func(stackView) modelCeilings) bool {
+	healthy := true
+	readout := collectorReadout()
+	for i, v := range views {
+		if len(views) > 1 {
+			if i > 0 {
+				fmt.Println()
+			}
+			fmt.Printf("  %s\n", u.Bold(v.name))
+		}
+		printRowHeader()
+		if v.key == "" && !machineRole(service) {
 			continue // no knowledge base names a stack container to ask of
 		}
-		if service == "" && lastGroup != "" && group != lastGroup {
-			fmt.Println()
+		r := readRow(v, service, machine)
+		printRow(u, r, nil)
+		if r.counted(service) {
+			healthy = healthy && r.healthy
 		}
-		lastGroup = group
-		handle := roleContainer(role, key)
-		// No record: the descriptor's static probe, for the driver a stack
-		// that has not recorded itself would be running. A record's endpoint
-		// is sharper — it names the port that start actually used.
-		endpoint := healthEndpoint(role, probeDriver(role), nil, at)
-		var rec *ServiceState
-		if st != nil {
-			if e, ok := st.Services[role]; ok {
-				rec = &e
-				if e.ID != "" {
-					handle = e.ID
-				}
-				if e.Endpoint != "" {
-					endpoint = e.Endpoint
-				}
+		printInFlightOf(u, v, r, readout)
+		if r.rec != nil && len(r.rec.Models) > 0 {
+			var facts modelFacts
+			if len(servedBy(r.rec.Models, "ollama")) > 0 {
+				facts = fetchModelFacts(ollamaBase(r.rec.Endpoint))
 			}
-		}
-
-		// The concrete product rides in the SERVICE cell — "identity-store
-		// (PostgreSQL)" — rather than a column that is an em-dash for every
-		// Semiont service.
-		label := role
-		// No record, no driver, no product: the launcher does not name a
-		// technology for a role nothing has selected one for. Every record a
-		// start writes carries its driver.
-		tech := ""
-		if rec != nil && rec.Driver != "" {
-			tech = driverDisplay(role, rec.Driver)
-		}
-		// The dispatcher's product is its JOB QUEUE driver, which no state
-		// record carries — the queue is a config section, not a launched
-		// role. The dispatcher reports the one it connected to, so the row
-		// names the live driver rather than the configured intent.
-		if role == "dispatcher" {
-			if q, found := dispatcherQueueDriver(endpoint); found {
-				tech = q
+			for _, l := range modelLines(u, r.rec.Models, facts, remoteModels(*r.rec), ceilings(v), modelWidth(r.rec.Models)) {
+				fmt.Println(l)
 			}
-		}
-		if tech != "" {
-			label += " (" + tech + ")"
-		}
-
-		if rec != nil && rec.Provided == providedNone {
-			fmt.Printf("  %-*s %-10s %s\n", serviceCell, label, "—", u.Dim("not configured"))
-			continue
-		}
-
-		state, rt := "", ""
-		switch {
-		case rec != nil && rec.Provided == providedExternal:
-			rt = "external"
-		case rec != nil && rec.Provided == providedHost:
-			rt = "host"
-		case rec != nil && rec.Provided == providedMachine:
-			// The machine's container the stack's record names, under the
-			// runtime and handle its own record names. With no record it is
-			// absent: stopped alone.
-			if m := machine[rec.Container]; m != nil {
-				h := machineHandles(m.Runtime, rec.Container, m)[0]
-				state, rt = containerState([]string{m.Runtime}, h)
-			}
-		case handle == "":
-			// A container-less role (embedding, provided elsewhere) has
-			// nothing to inspect. Never ask the runtime with an empty name:
-			// Apple container answers [] and docker errors, but either could
-			// just as well answer with EVERY container and be read as this
-			// role running.
-			rt = "external"
-		default:
-			state, rt = containerState(runtimes, handle)
-		}
-		isHealthy := roleHealthy(role, endpoint)
-		if role == "inference" && rec == nil && state == "" && isHealthy {
-			rt = "host"
-		}
-		if !isHealthy && (!contains(optionalBackends, role) || service != "") {
-			healthy = false
-		}
-
-		// The STATUS word: the container state when there is a container
-		// (running / exited), else what the probe can honestly say about a
-		// role provided elsewhere (reachable / unreachable), else "absent".
-		word := state
-		if word == "" {
-			switch {
-			case rt == "external" || rt == "host":
-				word = "unreachable"
-				if isHealthy {
-					word = "reachable"
-				}
-			default:
-				word = "absent"
-			}
-		}
-		if rt == "" {
-			rt = "—"
-		}
-		probe := endpoint
-		if rest, ok := strings.CutPrefix(probe, "tcp:"); ok {
-			probe = "tcp://" + rest
-		}
-		mark := u.Wrap(AnsiRed, "✗")
-		if isHealthy {
-			mark = u.Wrap(AnsiGreen, "✓")
-		}
-		fmt.Printf("  %-*s %-10s %s %-12s %s\n", serviceCell, label, rt, mark, word, u.Dim(probe))
-
-		// What this role has in flight, indented beneath it — read from the
-		// collector's readout, which every start runs and which the collector
-		// row above already fetched. Only for a row that is actually up: a
-		// dead service's last exported numbers are worse than no numbers. And
-		// only for the knowledge base the record names: without one there is
-		// no telling whose numbers they are.
-		if isHealthy && (role == "dispatcher" || role == "gateway") && st != nil && st.KBDid != "" {
-			if !readoutFetched {
-				readout, _ = httpBody("http://localhost:24110/metrics")
-				readoutFetched = true
-			}
-			printInFlight(u, role, readout, st.KBDid)
-		}
-
-		// The models this role was started with, indented beneath it.
-		if rec != nil && len(rec.Models) > 0 {
-			// Only reach for Ollama when this row actually has models it
-			// serves — an all-remote row must not probe it at all.
-			needsFacts := len(servedBy(rec.Models, "ollama")) > 0
-			if needsFacts && !factsFetched {
-				facts = fetchModelFacts(ollamaBase(rec.Endpoint))
-				factsFetched = true
-			}
-			remote := rec.RemoteModels
-			// Live refresh ONLY when the key is already in this process's
-			// environment — status never resolves secrets (no op reads, no
-			// prompts). Availability can drift after start (a model
-			// withdrawn mid-flight), so fresher is better when it is free.
-			if rec.Driver == "anthropic" {
-				if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
-					if live, ok := fetchAnthropicModels(anthropicBase(rec.Endpoint), key); ok {
-						remote = map[string]remoteModelMeta{}
-						for _, m := range servedBy(rec.Models, "anthropic") {
-							if meta, listed := live[m]; listed {
-								remote[m] = meta
-							} else {
-								remote[m] = remoteModelMeta{Available: false}
-							}
-						}
-					}
-				}
-			}
-			if !ceilingsFetched {
-				ceilings = fetchModelCeilings(u, st)
-				ceilingsFetched = true
-			}
-			printModels(u, rec.Models, facts, remote, ceilings)
 		}
 	}
-	return healthy, 0
+	return healthy
 }
 
 const rootsUsage = `Usage: semiont roots
@@ -693,16 +965,14 @@ func printRootsPointer(u *UI, locals, cs []*StackState) {
 	} else {
 		fmt.Printf("  %d known — full catalog: %s\n", n, u.Bold("semiont roots"))
 	}
-	// Every ACTIVE stack stays scannable here, addressed exactly as its
-	// row in `semiont roots` (file:// local, https:// codespace) so the
-	// jump from pointer to catalog is one glance. Active is a local fact:
-	// each running local stack per stack.json, and a codespace whose
-	// forward is alive AND answering (forwardAlive) — a record whose
-	// tunnel is gone is history, not activity, and no gh round-trip is
-	// spent deciding.
+	// Each running local stack has its entry above. An active codespace
+	// stack is listed here, addressed exactly as its row in `semiont roots`
+	// (https://), so the jump from pointer to catalog is one glance. Active
+	// is a local fact: a codespace whose forward is alive AND answering
+	// (forwardAlive) — a record whose tunnel is gone is history, not
+	// activity, and no gh round-trip is spent deciding.
 	cwdRunning := false
 	for _, st := range locals {
-		fmt.Printf("  active: file://%s %s\n", st.KBRoot, u.Dim("(a running local stack)"))
 		cwdRunning = cwdRunning || st.KBRoot == cwd
 	}
 	for _, c := range cs {

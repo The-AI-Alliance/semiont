@@ -88,10 +88,23 @@ func humanSize(n int64) string {
 	}
 }
 
-// printModels renders one role's configured models beneath its row. Remote
-// providers (Anthropic, Voyage) have nothing to install, so they get the name
-// and an honest "remote" rather than a fabricated install state.
-func printModels(u *UI, models []servedModel, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings) {
+// modelWidth: the model-name column's width for these models — the longest
+// name's, at least 24. A fixed 24 makes every longer name
+// (claude-sonnet-4-5-20250929) push its own line's status over by its own
+// overflow, so nothing lines up.
+func modelWidth(models []servedModel) int {
+	w := 24
+	for _, sm := range models {
+		w = max(w, len(sm.Model))
+	}
+	return w
+}
+
+// modelLines: one role's configured models, a line each, to print beneath
+// its row with the name column w wide. Remote providers (Anthropic, Voyage)
+// have nothing to install, so they get the name and an honest "remote"
+// rather than a fabricated install state.
+func modelLines(u *UI, models []servedModel, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings, w int) []string {
 	// Install state and ceiling both follow the MODEL's provider, never the
 	// row's driver: a config can point its workers at Anthropic while one job
 	// type runs on Ollama, and the inference row then lists Claude under a
@@ -105,15 +118,8 @@ func printModels(u *UI, models []servedModel, facts modelFacts, remote map[strin
 		}
 		return ceilingCell(l)
 	}
-	// The name column fits the longest model in THIS list — a fixed 24 makes
-	// every longer name (claude-sonnet-4-5-20250929) push its own line's
-	// status over by its own overflow, so nothing lines up.
-	w := 24
-	for _, sm := range models {
-		if len(sm.Model) > w {
-			w = len(sm.Model)
-		}
-	}
+	var lines []string
+	line := func(format string, a ...any) { lines = append(lines, fmt.Sprintf(format, a...)) }
 	for _, sm := range models {
 		m := sm.Model
 		c := ceiling(sm)
@@ -128,30 +134,31 @@ func printModels(u *UI, models []servedModel, facts modelFacts, remote map[strin
 			// failed): a plain "remote", never a fabricated verdict.
 			if meta, ok := remote[m]; ok {
 				if !meta.Available {
-					fmt.Printf("      %-*s %s\n", w, m, u.Wrap(AnsiRed, "NOT AVAILABLE")+u.Dim(" — not listed for this API key (withdrawn, or a typo'd id?)"))
+					line("      %-*s %s", w, m, u.Wrap(AnsiRed, "NOT AVAILABLE")+u.Dim(" — not listed for this API key (withdrawn, or a typo'd id?)"))
 					continue
 				}
-				fmt.Printf("      %-*s %s  %s%s\n", w, m, u.Dim(remoteMetaLine(meta, c != "")), u.Dim("remote"), tail)
+				line("      %-*s %s  %s%s", w, m, u.Dim(remoteMetaLine(meta, c != "")), u.Dim("remote"), tail)
 				continue
 			}
-			fmt.Printf("      %-*s %-43s %s%s\n", w, m, "", u.Dim("remote"), tail)
+			line("      %-*s %-43s %s%s", w, m, "", u.Dim("remote"), tail)
 			continue
 		}
 		key := normalizeModel(m)
 		switch {
 		case !facts.found:
-			fmt.Printf("      %-*s %s\n", w, m, u.Dim("unknown — Ollama unreachable"))
+			line("      %-*s %s", w, m, u.Dim("unknown — Ollama unreachable"))
 		case facts.loaded[key]:
-			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.Dim(modelMeta(facts.installed[key])), u.Wrap(AnsiGreen, "loaded"), tail)
+			line("      %-*s %s  %s%s", w, m, u.Dim(modelMeta(facts.installed[key])), u.Wrap(AnsiGreen, "loaded"), tail)
 		default:
 			im, ok := facts.installed[key]
 			if !ok {
-				fmt.Printf("      %-*s %s\n", w, m, u.Wrap(AnsiRed, "MISSING")+u.Dim(" — ollama pull "+m))
+				line("      %-*s %s", w, m, u.Wrap(AnsiRed, "MISSING")+u.Dim(" — ollama pull "+m))
 				continue
 			}
-			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.Dim(modelMeta(im)), u.Dim("installed"), tail)
+			line("      %-*s %s  %s%s", w, m, u.Dim(modelMeta(im)), u.Dim("installed"), tail)
 		}
 	}
+	return lines
 }
 
 // modelMeta is fixed-width so the sub-rows form their own aligned columns

@@ -102,11 +102,11 @@ func TestStatusPrintsEachKnowledgeBasesOwnNumbers(t *testing.T) {
 	for _, c := range []struct {
 		role, readout, kb, want string
 	}{
-		{"dispatcher", sampleReadout, kbA, "      queue      3 pending · 2 running · 10 completed · 3 failed since worker start\n"},
-		{"dispatcher", sampleReadout, kbB, "      queue      9 pending · 1 running · 6 completed · 1 failed since worker start\n"},
-		{"dispatcher", queueOnly.String(), kbA, "      queue      3 pending · 2 running\n"},
-		{"gateway", sampleReadout, kbA, "      ledger     7/4096 claims\n"},
-		{"gateway", sampleReadout, kbB, "      ledger     1/512 claims\n"},
+		{"dispatcher", sampleReadout, kbA, "    queue    3 pending · 2 running · 10 completed · 3 failed since worker start\n"},
+		{"dispatcher", sampleReadout, kbB, "    queue    9 pending · 1 running · 6 completed · 1 failed since worker start\n"},
+		{"dispatcher", queueOnly.String(), kbA, "    queue    3 pending · 2 running\n"},
+		{"gateway", sampleReadout, kbA, "    ledger   7/4096 claims\n"},
+		{"gateway", sampleReadout, kbB, "    ledger   1/512 claims\n"},
 		{"dispatcher", sampleReadout, other, ""},
 		{"gateway", sampleReadout, other, ""},
 	} {

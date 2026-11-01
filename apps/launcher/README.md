@@ -136,9 +136,9 @@ semiont stop
   record and under its own runtime; `semiont stop --service browser` stops it
   alone, and `semiont stop --repo` leaves it. Its record
   lives beside the stacks (machine-level, with its runtime and image), its
-  port is never among a stack's claims, and `status` opens with a BROWSER
-  section — first because it sits architecturally above everything it views
-  — showing its image tag so browser-vs-stack version skew is visible.
+  port is never among a stack's claims, and `status` reports it under
+  KNOWLEDGE WORKERS, beside the worker, showing its image tag so
+  browser-vs-stack version skew is visible.
 - `semiont start --service browser` is the explicit refresh: it always
   restarts the Browser, bypassing keep-if-current. Its port moves with an
   edit of its document; the realm's origin for the new port is added by
@@ -370,11 +370,19 @@ semiont stop
   `ANTHROPIC_API_KEY`, and the databases' passwords alike. Hosts, ports, client
   ids and paths stay visible. `inspect` still shows a running container's
   environment; that is what delivering secrets as environment means.
-- **`semiont status` reports in three layers** — LOCAL STACK (the one stack
-  running here, headed by the root it belongs to and its did:web), LOCAL
-  ROOTS, KNOWLEDGE BASES (local file:// clones plus codespace-hosted
-  https:// repos, their state, and each
-  KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's state
+- **`semiont status` reports by what each service is part of.** KNOWLEDGE
+  BASES has an entry for each knowledge base's stack — the one of the KB you
+  stand in, else each one running — headed by its name and did:web: its
+  clone, where it runs, where its secrets are kept, and a line each for its
+  record, index and issuer, a mark per service and the state of any that is
+  not healthy. Then how many KBs are known, local file:// clones and
+  codespace-hosted https:// repos alike (`semiont roots` lists them). The
+  services every knowledge base shares follow, a table for each group:
+  KNOWLEDGE WORKERS (the Browser and the worker), PROVIDERS (inference and
+  embedding, with the models each KB was started with) and TELEMETRY (the
+  collector, Jaeger and Prometheus). Each service is there once, naming the
+  KBs it serves when the report covers several. `--verbose` adds LAUNCHER
+  PATHS — the launcher's state
   home, log, config staging and model cache; then, for the knowledge base
   the command was run in, its `KB root` and the directory its stores are in
   (`its stores`), with each store's own directory, what it takes on disk and
@@ -383,9 +391,10 @@ semiont stop
   exists) called out alongside the `semiont clean --root <key>` that
   removes each. Sizes are what the files take on disk, not their lengths: a
   vector store's sparse files are long and take little. Roots and KBs are the durable
-  things; a stack is status layered on one of them. Per service it
-  shows the container STATE as the runtime sees it plus a host-side health
-  probe, with the concrete product in the service cell (`identity-store
+  things; a stack is status layered on one of them. A service's row — each
+  shared one's, and any one's under `--service <name>` — shows the container
+  STATE as the runtime sees it plus a host-side health probe and the address
+  it asked, with the concrete product in the service cell (`identity-store
   (PostgreSQL)`). **Who runs a role decides which verbs it has, and a role
   need not run here.** `embedding` is a role like any other, and somebody
   else runs it in both shapes — an `ollama` embedding is served by the same
@@ -446,6 +455,17 @@ semiont stop
   deliberately no `--force-kill-ports`-style option: the launcher owns
   everything named `semiont-*` across every runtime it can see, and never
   signals anything else.)
+- **`semiont stop --group <name>` stops one group of services**, named as
+  `status` reads them. A knowledge base's group (`record`, `index`,
+  `issuer`) takes along each of that knowledge base's services that needs
+  one of its own, last-started first, and says which and why ("smelter
+  stops too: it needs the gateway"). So `--group index` stops the librarian,
+  the smelter, the weaver, the graph and the vectors and nothing else, and
+  `--group issuer` stops every service behind the gateway. The worker goes
+  with a knowledge base's group only when no other local stack is
+  recorded, as with a bare stop. A shared group (`knowledge-workers`,
+  `providers`, `telemetry`) serves every knowledge base here, so it stops
+  alone, and each knowledge base goes on without it.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values
