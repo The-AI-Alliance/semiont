@@ -207,19 +207,21 @@ internal fun oauthClientsFile(table: JsonObject): String = buildString {
 }
 
 /**
- * How a writer keeps the sign-in store's directory to its owner (sign-in-store/owner-only.json): the mode, as the permissions a
- * POSIX file system names, and the access list Windows gives it, made for the user whose SID goes where the file's list says
- * `{owner}`.
+ * How a writer keeps the sign-in store's directory and its files to their owner (sign-in-store/owner-only.json): each mode, as
+ * the permissions a POSIX file system names, and the access list Windows gives the directory, made for the user whose SID goes
+ * where the file's list says `{owner}`.
  */
 internal fun ownerOnlyFile(table: JsonObject): String = buildString {
-    val mode = table["mode"].obj("the owner-only mode")
-    val octal = mode["value"].text("the owner-only mode's value")
-    if (!Regex("0[0-7]{3}").matches(octal)) refuse("the owner-only mode $octal is not four octal digits")
-    val permissions = octal.drop(1).map { it.digitToInt() }.joinToString("") { bits ->
-        "${if (bits and 4 != 0) 'r' else '-'}${if (bits and 2 != 0) 'w' else '-'}${if (bits and 1 != 0) 'x' else '-'}"
+    for ((key, constant) in listOf("directoryMode" to "OWNER_ONLY_DIRECTORY_PERMISSIONS", "fileMode" to "OWNER_ONLY_FILE_PERMISSIONS")) {
+        val mode = table[key].obj("the owner-only $key")
+        val octal = mode["value"].text("the owner-only $key's value")
+        if (!Regex("0[0-7]{3}").matches(octal)) refuse("the owner-only $key $octal is not four octal digits")
+        val permissions = octal.drop(1).map { it.digitToInt() }.joinToString("") { bits ->
+            "${if (bits and 4 != 0) 'r' else '-'}${if (bits and 2 != 0) 'w' else '-'}${if (bits and 1 != 0) 'x' else '-'}"
+        }
+        append(kdoc("", mode["docs"].text("the owner-only $key's docs")))
+        append("internal const val $constant: String = ${literal(permissions)}\n\n")
     }
-    append(kdoc("", mode["docs"].text("the owner-only mode's docs")))
-    append("internal const val OWNER_ONLY_PERMISSIONS: String = ${literal(permissions)}\n\n")
     val list = table["accessList"].obj("the owner-only access list")
     val parts = list["value"].text("the owner-only access list's value").split("{owner}")
     if (parts.size != 2) refuse("the owner-only access list names {owner} ${parts.size - 1} times, not once")

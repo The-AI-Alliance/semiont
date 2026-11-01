@@ -278,7 +278,7 @@ else:
 
     def _owner_only(directory: str) -> None:
         """Keep `directory` to its owner: the sign-in store's mode, as the launcher keeps its state home."""
-        os.chmod(directory, _owner_only_table.MODE)
+        os.chmod(directory, _owner_only_table.DIRECTORY_MODE)
 
 
 @final
@@ -318,7 +318,7 @@ class SignInStore:
         directory = os.path.dirname(self._path) or "."
         os.makedirs(directory, exist_ok=True)
         with self._turn:
-            descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+            descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, _owner_only_table.FILE_MODE)
             try:
                 _lock(descriptor)
                 _owner_only(directory)
@@ -338,7 +338,7 @@ class SignInStore:
         """Written beside the file and renamed over it: no reader sees half a document, and no credential is left in a stray file."""
         beside = f"{self._path}.tmp"
         try:
-            descriptor = os.open(beside, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            descriptor = os.open(beside, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, _owner_only_table.FILE_MODE)
             with os.fdopen(descriptor, "wb") as file:
                 file.write(_DOCUMENT.dump_json(document, indent=2) + b"\n")
             os.replace(beside, self._path)

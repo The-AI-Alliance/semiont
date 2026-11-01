@@ -1,8 +1,12 @@
 {
-  "$comment": "AUTHORITY for how a writer of tokens.json keeps <stateDir> to its owner (README.md, Where it is), and how the launcher keeps its state home: one mode and one access list, which every writer gives the directory. A list restated in each language is one that differs in one of them unseen. Go: scripts/spec/generate-sign-in-go.mjs writes packages/go/sdk/owneronly_gen.go and the launcher's packages/go/launcher/owneronly_gen.go. Python: scripts/spec/generate-sign-in-python.mjs writes packages/python/sdk/src/semiont/_owner_only_table.py. Rust: packages/rust/sdk/build.rs. Kotlin: the SDK's own generator writes semiont.signin's OwnerOnlyTable.kt as the SDK builds.",
-  "mode": {
+  "$comment": "AUTHORITY for how a writer of tokens.json keeps <stateDir> and its files to its owner (README.md, Where it is), and how the launcher keeps its state home and its own files there: one mode for a directory, one for a file, and one access list, which every writer gives what it makes. A mode or a list restated in each language is one that differs in one of them unseen. Go: scripts/spec/generate-sign-in-go.mjs writes packages/go/sdk/owneronly_gen.go and the launcher's packages/go/launcher/owneronly_gen.go. Python: scripts/spec/generate-sign-in-python.mjs writes packages/python/sdk/src/semiont/_owner_only_table.py. Rust: packages/rust/sdk/build.rs. Kotlin: the SDK's own generator writes semiont.signin's OwnerOnlyTable.kt as the SDK builds.",
+  "directoryMode": {
     "value": "0700",
     "docs": "The directory's mode, in octal, on a system that has modes: its owner reads, writes and enters it, and nobody else does."
+  },
+  "fileMode": {
+    "value": "0600",
+    "docs": "The mode, in octal, on a system that has modes, that a writer makes tokens.json's temporary file and its lock with, and the launcher its own files in its state home: its owner reads and writes each, and nobody else does."
   },
   "accessList": {
     "value": "D:PAI(A;OICI;FA;;;{owner})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",

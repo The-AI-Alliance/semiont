@@ -7,9 +7,15 @@ package launcher
 
 import "os"
 
-// ownerOnlyMode: The directory's mode, in octal, on a system that has modes:
-// its owner reads, writes and enters it, and nobody else does.
-const ownerOnlyMode os.FileMode = 0o700
+// ownerOnlyDirMode: The directory's mode, in octal, on a system that has
+// modes: its owner reads, writes and enters it, and nobody else does.
+const ownerOnlyDirMode os.FileMode = 0o700
+
+// ownerOnlyFileMode: The mode, in octal, on a system that has modes, that a
+// writer makes tokens.json's temporary file and its lock with, and the
+// launcher its own files in its state home: its owner reads and writes each,
+// and nobody else does.
+const ownerOnlyFileMode os.FileMode = 0o600
 
 // ownerOnlyDirAccessList: The directory's access list on Windows, where a
 // mode keeps nobody out, in SDDL, with `owner` where the SID of the user the

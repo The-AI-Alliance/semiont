@@ -93,7 +93,7 @@ public class SignInStore(path: Path) {
     /** A directory kept to its owner, with everything made in it from then on, as the launcher keeps its state home. */
     private fun ownerOnly(directory: Path) {
         if (posix) {
-            Files.setPosixFilePermissions(directory, PosixFilePermissions.fromString(OWNER_ONLY_PERMISSIONS))
+            Files.setPosixFilePermissions(directory, PosixFilePermissions.fromString(OWNER_ONLY_DIRECTORY_PERMISSIONS))
         } else if (thisPlatform() == Platform.WINDOWS) {
             OwnerOnly.keep(directory)
         }
@@ -105,7 +105,7 @@ public class SignInStore(path: Path) {
             Files.newByteChannel(
                 file,
                 setOf(StandardOpenOption.CREATE, StandardOpenOption.WRITE),
-                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")),
+                PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString(OWNER_ONLY_FILE_PERMISSIONS)),
             ).close()
         } else {
             Files.newByteChannel(file, StandardOpenOption.CREATE, StandardOpenOption.WRITE).close()

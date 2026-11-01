@@ -1,20 +1,23 @@
 #!/usr/bin/env node
 // generate-sign-in-go.mjs — generate the Go SDK's entry of the sign-in store
 // from specs/src/sign-in-store/SignIn.json, the schema the Rust and Python SDKs
-// generate theirs from, and how the store's directory is kept to its owner
-// from specs/src/sign-in-store/owner-only.json, for the SDK and the launcher.
+// generate theirs from, and how the store's directory and files are kept to
+// their owner from specs/src/sign-in-store/owner-only.json, for the SDK and
+// the launcher.
 //
 //   packages/go/sdk/signin_gen.go          the entry, and the names every
 //                                          entry must state
-//   packages/go/sdk/owneronly_gen.go       the directory's mode and access list
+//   packages/go/sdk/owneronly_gen.go       the directory's and the files' modes,
+//                                          and the directory's access list
 //   packages/go/launcher/owneronly_gen.go  the same, which the launcher gives
-//                                          its state home, and the access list
-//                                          as a file is given it
+//                                          its state home and its files there,
+//                                          and the access list as a file is
+//                                          given it
 //
 // Programs in several languages read and write <stateDir>/tokens.json, so the
-// entry's shape is the contract's to state, and so is how its directory is
-// kept. The launcher keeps its sign-ins through the SDK's store, and keeps its
-// state home to its owner itself.
+// entry's shape is the contract's to state, and so is how its directory and
+// files are kept. The launcher keeps its sign-ins through the SDK's store, and
+// keeps its state home and its own files to their owner itself.
 //
 // The reading of the schema is sign-in-schema.mjs's, and of the owner-only
 // file owner-only.mjs's, each shared with the Python SDK's generator.
@@ -80,7 +83,7 @@ var ${requiredName} = []string{${required.map((name) => JSON.stringify(name)).jo
 writeOrCheck(ROOT, OUT, text, CHECK);
 console.log(`properties: ${schema.fields.length}, required: ${required.length}`);
 
-const { mode, accessList } = readOwnerOnly(OWNER_ONLY);
+const { directoryMode, fileMode, accessList } = readOwnerOnly(OWNER_ONLY);
 
 /** A function that gives `list` with `owner` where the owner's SID goes. */
 const listFunction = (name, docs, list) =>
@@ -95,8 +98,11 @@ package ${pkg}
 
 import "os"
 
-${goComment(`ownerOnlyMode: ${mode.docs}`)}
-const ownerOnlyMode os.FileMode = 0o${mode.written.slice(1)}
+${goComment(`ownerOnlyDirMode: ${directoryMode.docs}`)}
+const ownerOnlyDirMode os.FileMode = 0o${directoryMode.octal}
+
+${goComment(`ownerOnlyFileMode: ${fileMode.docs}`)}
+const ownerOnlyFileMode os.FileMode = 0o${fileMode.octal}
 
 ${lists.join('\n')}`;
 
@@ -127,4 +133,4 @@ writeOrCheck(
   ),
   CHECK,
 );
-console.log(`the owner-only mode ${mode.written} and access list, for the SDK and the launcher`);
+console.log(`the owner-only modes ${directoryMode.written} and ${fileMode.written}, and the access list, for the SDK and the launcher`);

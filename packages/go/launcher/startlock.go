@@ -49,11 +49,11 @@ func acquireStartLock(u *UI, key string) bool {
 	if p == "" {
 		return true // no data home: no persistent state to protect
 	}
-	if err := os.MkdirAll(filepath.Dir(p), ownerOnlyMode); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), ownerOnlyDirMode); err != nil {
 		u.Fail("cannot create this knowledge base's stores directory %s: %v", filepath.Dir(p), err)
 		return false
 	}
-	f, err := os.OpenFile(p, os.O_RDONLY|os.O_CREATE, 0o600)
+	f, err := os.OpenFile(p, os.O_RDONLY|os.O_CREATE, ownerOnlyFileMode)
 	if err != nil {
 		u.Fail("cannot open the start lock %s: %v", p, err)
 		return false
@@ -67,7 +67,7 @@ func acquireStartLock(u *UI, key string) bool {
 			// Not the lock itself: a start that cannot record it still runs,
 			// and the others read "holder unknown".
 			note := fmt.Sprintf("pid %d since %s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339))
-			if err := os.WriteFile(p, []byte(note), 0o600); err != nil {
+			if err := os.WriteFile(p, []byte(note), ownerOnlyFileMode); err != nil {
 				u.Warn("Could not record this start as the holder of %s: %v", p, err)
 			}
 			heldStartLock = f

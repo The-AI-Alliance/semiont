@@ -43,7 +43,7 @@ use crate::session::{
 };
 use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
 use serde_json::{Map, Value};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -208,12 +208,28 @@ fn owner_only(directory: &Path) -> io::Result<()> {
     }
 }
 
-/// Keep `directory` to its owner: the sign-in store's mode, as the launcher
-/// keeps its state home.
+/// Keep `directory` to its owner: the sign-in store's directory mode, as the
+/// launcher keeps its state home.
 #[cfg(unix)]
 fn owner_only(directory: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(directory, fs::Permissions::from_mode(OWNER_ONLY_MODE))
+    fs::set_permissions(
+        directory,
+        fs::Permissions::from_mode(OWNER_ONLY_DIRECTORY_MODE),
+    )
+}
+
+/// How a file of the store is made, or opened over what is there: written,
+/// and on a system that has modes made with the store's file mode.
+fn owner_only_file() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(OWNER_ONLY_FILE_MODE);
+    }
+    options
 }
 
 /// The systems the state home differs by, as
@@ -412,7 +428,7 @@ impl SignInStore {
                 _ => Path::new("."),
             };
             fs::create_dir_all(directory)?;
-            let lock = File::create(self.path.with_extension("lock"))?;
+            let lock = owner_only_file().open(self.path.with_extension("lock"))?;
             lock.lock()?;
             // Under the lock: setting the list hands it down to the file, and
             // another writer renaming over the file at that moment would be
@@ -441,14 +457,7 @@ impl SignInStore {
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
         text.push('\n');
         let beside = self.path.with_extension("json.tmp");
-        let mut options = OpenOptions::new();
-        options.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let written = options
+        let written = owner_only_file()
             .open(&beside)
             .and_then(|mut file| file.write_all(text.as_bytes()))
             .and_then(|()| fs::rename(&beside, &self.path));

@@ -1,5 +1,6 @@
 // owner-only.mjs — read and check specs/src/sign-in-store/owner-only.json: the
-// mode and the access list a writer of the sign-in store gives its directory.
+// modes a writer of the sign-in store gives its directory and its files, and
+// the access list it gives the directory.
 //
 // One place for the checks, shared by the generators that read the file
 // (generate-sign-in-go.mjs for the Go SDK and the launcher,
@@ -13,7 +14,8 @@ import { readFileSync } from 'node:fs';
 const OWNER = '{owner}';
 
 /**
- * The mode (a number, and as the file writes it), the access list split
+ * The directory's mode and the file's (each as the file writes it, four octal
+ * digits, and in the digits after its leading zero), the access list split
  * around where the owner's SID goes, and each one's docs, the access list's
  * naming that place `owner`, as a generated function's argument; or exit 1
  * saying what is wrong with the file.
@@ -24,17 +26,23 @@ export function readOwnerOnly(tablePath) {
     process.exit(1);
   };
 
-  const { mode, accessList } = JSON.parse(readFileSync(tablePath, 'utf8'));
+  const { directoryMode, fileMode, accessList } = JSON.parse(readFileSync(tablePath, 'utf8'));
   const stated = (value) => typeof value === 'string' && value !== '';
-  if (!mode || !stated(mode.docs) || !stated(mode.value) || !/^0[0-7]{3}$/.test(mode.value)) {
-    refuse('states no mode, one with no docs, or one that is not four octal digits');
-  }
+  const mode = (which, entry) => {
+    if (!entry || !stated(entry.docs) || !stated(entry.value) || !/^0[0-7]{3}$/.test(entry.value)) {
+      refuse(`states no ${which}, one with no docs, or one that is not four octal digits`);
+    }
+    return { written: entry.value, octal: entry.value.slice(1), docs: entry.docs };
+  };
+  const directory = mode('directory mode', directoryMode);
+  const file = mode('file mode', fileMode);
   if (!accessList || !stated(accessList.docs) || !stated(accessList.value)) refuse('states no access list, or one with no docs');
   const parts = accessList.value.split(OWNER);
   if (parts.length !== 2) refuse(`the access list names ${OWNER} ${parts.length - 1} times, not once`);
   const [before, after] = parts;
   return {
-    mode: { value: Number.parseInt(mode.value, 8), written: mode.value, docs: mode.docs },
+    directoryMode: directory,
+    fileMode: file,
     accessList: { before, after, docs: accessList.docs.replaceAll(`\`${OWNER}\``, '`owner`') },
   };
 }
