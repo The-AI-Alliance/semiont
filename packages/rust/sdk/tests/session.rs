@@ -7,7 +7,9 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use semiont::client::SemiontClient;
-use semiont::errors::{SemiontError, SessionError, SessionErrorCode, TransportError};
+use semiont::errors::{
+    SemiontError, SessionError, SessionErrorCode, SignInError, SignInErrorCode, TransportError,
+};
 use semiont::session::{
     SemiontSession, SemiontSessionConfig, SessionEndReason, SessionSignals, StoredSession,
     session_key, store_session, stored_session,
@@ -19,6 +21,7 @@ use semiont::testing::{
     FaultyTransport, SharedStorage, TestClientOptions, TestSessionOptions, create_test_client,
     create_test_session,
 };
+use semiont::timing::{MAX_RECONNECT, RECONNECT};
 use semiont::types::{HttpEndpointProtocol, KbTarget, UserResponse};
 use serde_json::{Value, json};
 use std::collections::VecDeque;
@@ -74,11 +77,35 @@ fn alice() -> UserResponse {
     .expect("a user")
 }
 
+/// Who the gateway says a token is when it accepts the `n`th ask of a case:
+/// told apart from every other answer.
+fn answering(n: usize) -> UserResponse {
+    UserResponse {
+        name: Some(format!("Alice {n}")),
+        ..alice()
+    }
+}
+
 fn unauthorized() -> SemiontError {
     TransportError::of_status("HTTP 401", 401, None).into()
 }
 
-type Renewal = Result<Option<String>, String>;
+fn refused_by_the_issuer() -> SignInError {
+    SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The issuer refused the token request (invalid_grant: Token is not active)",
+        400,
+    )
+}
+
+fn unanswered_by_the_issuer() -> SignInError {
+    SignInError::new(
+        SignInErrorCode::Exchange,
+        "The issuer did not answer: the network is down",
+    )
+}
+
+type Renewal = Result<Option<String>, SignInError>;
 type Validation = Result<UserResponse, SemiontError>;
 
 /// A session's environment, and a record of what the session did to it.
@@ -91,9 +118,13 @@ struct World {
     /// What `refresh` answers, in order; `Ok(None)` once it is spent.
     renewals: Arc<Mutex<VecDeque<Renewal>>>,
     renewed: Arc<Mutex<usize>>,
+    /// When each renewal was asked for.
+    renewed_at: Arc<Mutex<Vec<tokio::time::Instant>>>,
     /// What the gateway says of a token, in order; Alice once it is spent.
     validations: Arc<Mutex<VecDeque<Validation>>>,
     validated: Arc<Mutex<Vec<String>>>,
+    /// Who the gateway last said a token is.
+    answered: Arc<Mutex<Option<UserResponse>>>,
     auth_failed: Arc<Mutex<Vec<String>>>,
     errors: Arc<Mutex<Vec<SessionError>>>,
 }
@@ -113,8 +144,10 @@ impl World {
             transport,
             renewals: Arc::default(),
             renewed: Arc::default(),
+            renewed_at: Arc::default(),
             validations: Arc::default(),
             validated: Arc::default(),
+            answered: Arc::default(),
             auth_failed: Arc::default(),
             errors: Arc::default(),
         }
@@ -140,7 +173,9 @@ impl World {
 
     fn config(&self) -> SemiontSessionConfig {
         let (renewals, renewed) = (self.renewals.clone(), self.renewed.clone());
+        let renewed_at = self.renewed_at.clone();
         let (validations, validated) = (self.validations.clone(), self.validated.clone());
+        let answered = self.answered.clone();
         let (auth_failed, errors) = (self.auth_failed.clone(), self.errors.clone());
         SemiontSessionConfig {
             kb: KbTarget::http(KB, "Alpha", "localhost", 4000, HttpEndpointProtocol::Http),
@@ -149,12 +184,20 @@ impl World {
             token: watch::channel(None).0,
             refresh: Some(Arc::new(move |_holding| {
                 *renewed.lock().expect("renewed") += 1;
+                renewed_at
+                    .lock()
+                    .expect("renewed at")
+                    .push(tokio::time::Instant::now());
                 let answer = renewals
                     .lock()
                     .expect("renewals")
                     .pop_front()
                     .unwrap_or(Ok(None));
-                Box::pin(async move { answer })
+                Box::pin(async move {
+                    answer.map_err(|failure| -> Arc<dyn std::error::Error + Send + Sync> {
+                        Arc::new(failure)
+                    })
+                })
             })),
             validate: Some(Arc::new(move |token| {
                 validated.lock().expect("validated").push(token);
@@ -163,6 +206,9 @@ impl World {
                     .expect("validations")
                     .pop_front()
                     .unwrap_or_else(|| Ok(alice()));
+                if let Ok(user) = &answer {
+                    *answered.lock().expect("answered") = Some(user.clone());
+                }
                 Box::pin(async move { answer })
             })),
             on_auth_failed: Some(Arc::new(move |reason: SessionEndReason| {
@@ -187,6 +233,10 @@ impl World {
 
     fn validated(&self) -> Vec<String> {
         self.validated.lock().expect("validated").clone()
+    }
+
+    fn answered(&self) -> Option<UserResponse> {
+        self.answered.lock().expect("answered").clone()
     }
 
     fn auth_failed(&self) -> Vec<String> {
@@ -292,8 +342,17 @@ async fn a_stored_token_that_has_expired_is_renewed_before_anyone_is_asked() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is_ready_anyway() {
-    for renewal in [Ok(None), Err("the network is down".to_owned())] {
+async fn an_expired_token_the_issuer_will_not_renew_is_forgotten_and_the_session_is_ready_anyway() {
+    let answered_with_no_token = SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The issuer refused the token request (HTTP 200)",
+        200,
+    );
+    for renewal in [
+        Ok(None),
+        Err(refused_by_the_issuer()),
+        Err(answered_with_no_token),
+    ] {
         let world = World::new().storing(&expired()).renewing([renewal]);
         let session = world.session();
         ready(&session).await;
@@ -302,6 +361,43 @@ async fn an_expired_token_that_cannot_be_renewed_is_forgotten_and_the_session_is
         assert_eq!(*session.user().borrow(), None);
         assert!(!world.has_stored());
         assert!(world.validated().is_empty());
+        // There was no session to end: nothing is said.
+        assert!(world.auth_failed().is_empty());
+        assert!(world.errors().is_empty());
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_expired_token_whose_renewal_got_no_answer_is_kept_and_renewed_when_a_request_is_refused()
+ {
+    let spent_on_not_now = SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The session could not be renewed after 4 attempts: HTTP 503",
+        503,
+    );
+    for failure in [unanswered_by_the_issuer(), spent_on_not_now] {
+        let renewed = token(3600, 2);
+        let world = World::new()
+            .storing(&expired())
+            .renewing([Err(failure.clone()), Ok(Some(renewed.clone()))]);
+        let session = world.session();
+        ready(&session).await;
+
+        assert_eq!(*session.token().borrow(), None);
+        assert!(world.has_stored());
+        assert!(world.auth_failed().is_empty());
+        assert_eq!(
+            world.errors(),
+            [(
+                SessionErrorCode::AuthFailed,
+                format!("Token refresh failed: {}", failure.message)
+            )]
+        );
+        // The issuer answers again: a request refused for want of a token
+        // renews it.
+        assert_eq!(session.refresh().await, Some(renewed.clone()));
+        assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+        assert_eq!(world.renewed(), 2);
     }
 }
 
@@ -339,7 +435,7 @@ impl SessionStorage for Unforgetting {
 async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
     let world = World::new()
         .storing(&expired())
-        .renewing([Err("the network is down".to_owned())]);
+        .renewing([Err(refused_by_the_issuer())]);
     let session = SemiontSession::new(SemiontSessionConfig {
         storage: Arc::new(Unforgetting(world.storage.context())),
         ..world.config()
@@ -352,7 +448,7 @@ async fn an_expired_token_the_storage_will_not_forget_is_said_at_the_start() {
         world.errors(),
         [(
             SessionErrorCode::RefreshExhausted,
-            "Token refresh failed: the network is down; and the sign-in could not be forgotten: the storage is full".to_owned()
+            "Token refresh failed: The issuer refused the token request (invalid_grant: Token is not active); and the sign-in could not be forgotten: the storage is full".to_owned()
         )]
     );
     assert!(world.auth_failed().is_empty());
@@ -408,6 +504,45 @@ async fn a_token_that_could_not_be_asked_about_is_kept_and_the_failure_is_said()
     assert!(world.auth_failed().is_empty());
 }
 
+/// What a row that ended signed out and kept what is stored comes to once
+/// the reconnect wait has passed: its `then`, stated of every such row and
+/// of no other.
+fn then(case: &Value) -> Option<&Value> {
+    let later = case.get("then");
+    let kept_with_no_token = case["ends"] == "signed-out" && case["kept"] == true;
+    assert_eq!(
+        later.is_some(),
+        kept_with_no_token,
+        "{}: `then` is stated of every row that kept what is stored with no token, and of no other",
+        case["why"]
+    );
+    later
+}
+
+/// The session stood as `later` states once the reconnect wait passed.
+fn then_ends_as_stated(why: &str, later: &Value, world: &World, session: &SemiontSession) {
+    let ends = match (
+        session.token().borrow().is_some(),
+        session.user().borrow().is_some(),
+    ) {
+        (false, _) => "signed-out",
+        (true, false) => "unconfirmed",
+        (true, true) => "signed-in",
+    };
+    assert_eq!(
+        ends,
+        later["ends"].as_str().expect("ends"),
+        "{why}: how the session stood once the reconnect wait passed"
+    );
+    if ends == "signed-in" {
+        assert_eq!(
+            *session.user().borrow(),
+            world.answered(),
+            "{why}: who the gateway last said the token is"
+        );
+    }
+}
+
 /// What a session does with the credential it finds stored, as
 /// specs/src/session/cases.json states it for every SDK: each row scripts
 /// the gateway and the issuer, and says how often each is asked and how the
@@ -431,12 +566,19 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
         let why = case["why"].as_str().expect("why");
         let count = |key: &str| case[key].as_u64().expect("a count") as usize;
         let (asks, renewals) = (count("asks"), count("renewals"));
+        let later = then(case);
+        let (answered_asks, answered_renewals) = later.map_or((asks, renewals), |later| {
+            (
+                later["asks"].as_u64().expect("a count") as usize,
+                later["renewals"].as_u64().expect("a count") as usize,
+            )
+        });
         // The script's last answer repeats, so a session that asks without
         // end is stopped by one answer more than the case allows: of the
         // gateway, an answer that is no refusal; of the issuer, none.
-        let validations = (0..asks)
+        let validations = (0..answered_asks)
             .map(|n| match answer(&case["gateway"], n).as_str() {
-                "accepts" => Ok(alice()),
+                "accepts" => Ok(answering(n)),
                 "refuses" => Err(unauthorized()),
                 "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
                 other => panic!("{why}: the gateway {other}"),
@@ -447,11 +589,13 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
                 None,
             )
             .into())]);
-        let renewed_tokens: Vec<String> =
-            (0..renewals).map(|n| token(3600, n as u64 + 1)).collect();
-        let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+        let renewed_tokens: Vec<String> = (0..answered_renewals)
+            .map(|n| token(3600, n as u64 + 1))
+            .collect();
+        let renewing = (0..answered_renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_tokens[n].clone())),
-            "refuses" => Ok(None),
+            "refuses" => Err(refused_by_the_issuer()),
+            "unreachable" => Err(unanswered_by_the_issuer()),
             other => panic!("{why}: the issuer {other}"),
         });
         let world = World::new().validating(validations).renewing(renewing);
@@ -478,6 +622,13 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             (true, true) => "signed-in",
         };
         assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
+        if ends == "signed-in" {
+            assert_eq!(
+                *session.user().borrow(),
+                world.answered(),
+                "{why}: who the gateway last said the token is"
+            );
+        }
         let told: Vec<String> = case["told"]
             .as_str()
             .map(str::to_owned)
@@ -497,9 +648,22 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
             "{why}: whether a session is still stored"
         );
 
-        // A session that ended signed out asks nobody anything afterwards,
-        // however long it is held.
-        if ends == "signed-out" {
+        // A session that ended signed out and kept what is stored renews it
+        // once more when the reconnect wait has passed, and asks nobody; one
+        // that kept nothing asks nobody anything afterwards, however long it
+        // is held.
+        if let Some(later) = later {
+            // Past the latest its renewal on the backoff falls due, and
+            // short of the earliest a second can.
+            tokio::time::sleep(RECONNECT * 6 / 5).await;
+            settle().await;
+            assert_eq!(
+                (world.validated().len(), world.renewed()),
+                (answered_asks, answered_renewals),
+                "{why}: what was asked and renewed once the reconnect wait passed"
+            );
+            then_ends_as_stated(why, later, &world, &session);
+        } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
             assert_eq!(
                 (world.validated().len(), world.renewed()),
@@ -531,13 +695,20 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
         let why = case["why"].as_str().expect("why");
         let count = |key: &str| case[key].as_u64().expect("a count") as usize;
         let (asks, renewals) = (count("asks"), count("renewals"));
+        let later = then(case);
+        let (answered_asks, answered_renewals) = later.map_or((asks, renewals), |later| {
+            (
+                later["asks"].as_u64().expect("a count") as usize,
+                later["renewals"].as_u64().expect("a count") as usize,
+            )
+        });
         // The session starts signed in: the gateway accepts the stored token.
         // Then the case's answers, and one more than it allows: of the
         // gateway, an answer that is no refusal; of the issuer, none.
         let validations = std::iter::once(Ok(alice()))
             .chain(
-                (0..asks).map(|n| match answer(&case["gateway"], n).as_str() {
-                    "accepts" => Ok(alice()),
+                (0..answered_asks).map(|n| match answer(&case["gateway"], n).as_str() {
+                    "accepts" => Ok(answering(n)),
                     "refuses" => Err(unauthorized()),
                     "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
                     other => panic!("{why}: the gateway {other}"),
@@ -550,9 +721,10 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             )
             .into())]);
         let renewed_token = token(3600, 1);
-        let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+        let renewing = (0..answered_renewals).map(|n| match answer(&case["issuer"], n).as_str() {
             "renews" => Ok(Some(renewed_token.clone())),
-            "refuses" => Ok(None),
+            "refuses" => Err(refused_by_the_issuer()),
+            "unreachable" => Err(unanswered_by_the_issuer()),
             other => panic!("{why}: the issuer {other}"),
         });
         let world = World::new()
@@ -593,6 +765,13 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             (true, true) => "signed-in",
         };
         assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
+        if ends == "signed-in" {
+            assert_eq!(
+                *session.user().borrow(),
+                world.answered(),
+                "{why}: who the gateway last said the token is"
+            );
+        }
         let told: Vec<String> = case["told"]
             .as_str()
             .map(str::to_owned)
@@ -611,7 +790,18 @@ async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_stat
             case["kept"].as_bool().expect("kept"),
             "{why}: whether a session is still stored"
         );
-        if ends == "signed-out" {
+        if let Some(later) = later {
+            // Past the latest its renewal on the backoff falls due, and
+            // short of the earliest a second can.
+            tokio::time::sleep(RECONNECT * 6 / 5).await;
+            settle().await;
+            assert_eq!(
+                (world.validated().len() - 1, world.renewed()),
+                (answered_asks, answered_renewals),
+                "{why}: what was asked and renewed once the reconnect wait passed"
+            );
+            then_ends_as_stated(why, later, &world, &session);
+        } else if ends == "signed-out" {
             tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
             assert_eq!(
                 (world.validated().len() - 1, world.renewed()),
@@ -965,10 +1155,10 @@ async fn a_session_whose_credential_the_storage_will_not_forget_says_so_as_it_en
 }
 
 #[tokio::test(start_paused = true)]
-async fn a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_cause() {
+async fn a_renewal_the_issuer_refused_ends_the_session_and_names_its_cause() {
     let world = World::new()
         .storing(&token(3600, 1))
-        .renewing([Err("the network is down".to_owned())]);
+        .renewing([Err(refused_by_the_issuer())]);
     let session = world.session();
     ready(&session).await;
 
@@ -979,9 +1169,99 @@ async fn a_renewal_that_failed_ends_the_session_as_a_refusal_does_and_names_its_
         world.errors(),
         [(
             SessionErrorCode::RefreshExhausted,
-            "Token refresh failed: the network is down".to_owned()
+            format!("Token refresh failed: {}", refused_by_the_issuer().message)
         )]
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_renewal_that_got_no_answer_keeps_what_is_stored_and_the_next_refusal_renews_again() {
+    let spent_on_not_now = SignInError::answered(
+        SignInErrorCode::Exchange,
+        "The session could not be renewed after 4 attempts: HTTP 503",
+        503,
+    );
+    for failure in [unanswered_by_the_issuer(), spent_on_not_now] {
+        let renewed = token(3600, 2);
+        let world = World::new()
+            .storing(&token(3600, 1))
+            .renewing([Err(failure.clone()), Ok(Some(renewed.clone()))]);
+        let session = world.session();
+        ready(&session).await;
+
+        assert_eq!(session.refresh().await, None);
+        // No usable token, what is stored stays, and the session is not over.
+        assert_eq!(*session.token().borrow(), None);
+        assert!(world.has_stored());
+        assert!(world.auth_failed().is_empty());
+        assert_eq!(
+            world.errors(),
+            [(
+                SessionErrorCode::RefreshExhausted,
+                format!("Token refresh failed: {}", failure.message)
+            )]
+        );
+        assert_eq!(session.refresh().await, Some(renewed.clone()));
+        assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_renewal_that_got_no_answer_is_tried_again_on_the_reconnect_backoff_until_one_is_made() {
+    let waits: Vec<Duration> = (0..6)
+        .map(|n| (RECONNECT * 2u32.pow(n)).min(MAX_RECONNECT))
+        .collect();
+    let renewed = token(3600, 2);
+    let world = World::new().storing(&token(3600, 1)).renewing(
+        waits
+            .iter()
+            .map(|_| Err(unanswered_by_the_issuer()))
+            .chain([Ok(Some(renewed.clone()))]),
+    );
+    let session = world.session();
+    ready(&session).await;
+
+    assert_eq!(session.refresh().await, None);
+    // Past every wait at its longest: the renewal made ends them.
+    tokio::time::sleep(waits.iter().sum::<Duration>() + Duration::from_secs(30)).await;
+    settle().await;
+    assert_eq!(world.renewed(), waits.len() + 1);
+    // Each wait is the equal jitter of its step, the step doubling from the
+    // reconnect wait up to the longest.
+    let renewed_at = world.renewed_at.lock().expect("renewed at").clone();
+    for (pair, wait) in renewed_at.windows(2).zip(&waits) {
+        let gap = pair[1] - pair[0];
+        assert!(
+            gap >= *wait / 2 && gap <= *wait + Duration::from_millis(1),
+            "waited {gap:?} for a step of {wait:?}"
+        );
+    }
+    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    // The renewal made ends the waits, and asks nobody.
+    tokio::time::sleep(MAX_RECONNECT * 4).await;
+    assert_eq!(
+        (world.renewed(), world.validated().len()),
+        (waits.len() + 1, 1)
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_issuers_refusal_ends_the_renewals_on_the_reconnect_backoff() {
+    let world = World::new().storing(&token(3600, 1)).renewing([
+        Err(unanswered_by_the_issuer()),
+        Err(refused_by_the_issuer()),
+    ]);
+    let session = world.session();
+    ready(&session).await;
+
+    assert_eq!(session.refresh().await, None);
+    tokio::time::sleep(RECONNECT * 6 / 5).await;
+    settle().await;
+    assert_eq!(world.renewed(), 2);
+    assert!(!world.has_stored());
+    assert_eq!(world.auth_failed(), ["expired"]);
+    tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
+    assert_eq!(world.renewed(), 2);
 }
 
 #[tokio::test(start_paused = true)]

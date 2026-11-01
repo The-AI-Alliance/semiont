@@ -7,9 +7,9 @@ package verbs
 // SDK runs (specs/src/session/cases.json): it asks the gateway who its token
 // is at its start, renews a token that has expired or that the gateway
 // refuses, goes on under the renewed token and keeps the rotation, and
-// forgets a sign-in it cannot renew. The user is sent back to `semiont login`
-// only when the renewal itself fails, or the gateway refuses the token it
-// renewed to.
+// forgets a sign-in the issuer will not renew. The user is sent back to
+// `semiont login` only when the renewal itself fails, or the gateway refuses
+// the token it renewed to.
 //
 // In process, over the SDK's real transport and session: the gateway is a
 // stub that accepts the tokens each test says it does, and records every one
@@ -401,6 +401,30 @@ func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
 	}
 }
 
+// A rejected session whose renewal the issuer does not answer is not over:
+// the command cannot go on and says why, its sign-in is kept, and logging in
+// again is not what puts it right.
+func TestBusVerbReportsAKeptSignInWhenTheIssuerDoesNotAnswer(t *testing.T) {
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, time.Hour)
+	issuer.Close()
+
+	_, stderr := harness.CaptureOutput(t, func() {
+		if code := Browse(nil); code == 0 {
+			t.Errorf("browse must fail when the session is rejected and the issuer does not answer")
+		}
+	})
+	harness.MustContainAll(t, "stderr", stderr, "browse", "could not be renewed", "is kept", "did not answer")
+	if strings.Contains(stderr, "semiont login") {
+		t.Errorf("a sign-in that is kept sent the user to log in again")
+	}
+	if _, still := kept(t); !still {
+		t.Errorf("a sign-in whose issuer did not answer was forgotten")
+	}
+}
+
 func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	gateway := newGatewayStub(t, nothing)
 	gatewayFixture(t, gateway)
@@ -557,5 +581,32 @@ func TestExpiredSessionWhoseRenewalFailsIsForgottenUntried(t *testing.T) {
 	}
 	if _, still := kept(t); still {
 		t.Errorf("a sign-in whose renewal failed is still kept")
+	}
+}
+
+// An expired token whose renewal the issuer does not answer is not tried
+// either, and the sign-in is kept: the command cannot go on, and says why,
+// and logging in again is not what puts it right.
+func TestExpiredSessionWhoseIssuerDoesNotAnswerIsKeptUntried(t *testing.T) {
+	gateway := newGatewayStub(t, nothing)
+	gatewayFixture(t, gateway)
+	issuer := newIssuerStub(t, http.StatusOK, renewed())
+	storeSession(t, issuer, -time.Minute)
+	issuer.Close()
+
+	_, stderr := harness.CaptureOutput(t, func() {
+		if code := Browse(nil); code == 0 {
+			t.Errorf("browse must fail when the stored token expired and its issuer does not answer")
+		}
+	})
+	harness.MustContainAll(t, "stderr", stderr, "could not be renewed", "is kept", "did not answer")
+	if strings.Contains(stderr, "semiont login") {
+		t.Errorf("a sign-in that is kept sent the user to log in again")
+	}
+	if n := gateway.times("", "token-1"); n != 0 {
+		t.Errorf("an expired token that could not be renewed was sent anyway (%d time(s))", n)
+	}
+	if _, still := kept(t); !still {
+		t.Errorf("a sign-in whose issuer did not answer was forgotten")
 	}
 }

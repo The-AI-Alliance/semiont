@@ -429,8 +429,9 @@ another: `mark.delete(&annotation_id, &resource_id)` does not compile.
 - **`SemiontSession`** is one session with one knowledge base: the token its
   client's transport sends, and who is signed in. It renews its token
   before the token expires, and again when the gateway refuses it. A session
-  that cannot be renewed clears its token and what it stored, and says so
-  once. It is a state unit: it only uses its client, so `dispose` ends the
+  whose issuer refuses to renew it clears its token and what it stored, and
+  says so once; one whose renewal got no answer keeps what it stored, says
+  why, and renews again on the reconnect backoff or at the next refusal. It is a state unit: it only uses its client, so `dispose` ends the
   session and leaves the client to whoever built it.
 - **`OpenedSession`** is a session and the client it was built with, which
   end together: what a script's sign-in gives.
