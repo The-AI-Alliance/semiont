@@ -711,22 +711,22 @@ func locallyBuilt(img string) bool {
 	return strings.HasSuffix(img, ":local")
 }
 
-// roleDocument: the document that says how a role of the stack runs, for a
-// message naming it.
+// roleDocument: the document that states a role as somebody else's, for a
+// message naming it. These are the roles a document can place elsewhere: the
+// daemons whose `external` it states, the issuer the knowledge base names,
+// and the remote providers. The launcher runs every other role itself.
 func roleDocument(st *stack.Stack, role string) string {
 	switch role {
-	case "graph", "vectors", "embedding", "librarian", "smelter", "weaver":
+	case "graph", "vectors", "embedding":
 		return st.Files.KnowledgeIndex
+	case "messaging", "identity":
+		return st.Files.KnowledgeBase
 	case "identity-store":
 		return st.Files.Issuer
-	case "identity":
-		if st.Issuer != nil {
-			return st.Files.Issuer
-		}
 	case "inference":
 		return st.Files.Inference
 	}
-	return st.Files.KnowledgeBase
+	panic("no document states " + role + " as somebody else's")
 }
 
 // prometheusConfig: launcher-owned, like the collector's.

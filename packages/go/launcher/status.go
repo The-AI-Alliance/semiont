@@ -63,42 +63,6 @@ KB's did:web identity over ssh to confirm the recorded one — it is skipped,
 with a note, unless the codespace is already running.
 `
 
-// statusServices drives the report in four groups, rendered with a blank
-// line between them: Semiont's own services; the infrastructure they run on
-// (the collector included — it runs on every start); the model providers;
-// and the optional observability backends, which --no-observe omits. A
-// chosen reading order, unrelated to start order and enforced by nothing;
-// place new rows where they belong.
-//
-// The rows carry no endpoint: the probe is the DRIVER's, and it comes from
-// the descriptor (healthEndpoint) or from the record a start wrote.
-var statusServices = []struct {
-	name  string // abstract role (keys the descriptor set)
-	core  bool   // counted toward the exit status
-	group int    // rendering group; a change inserts a blank line
-}{
-	{"worker", true, 1},
-	{"gateway", true, 1},
-	{"archivist", true, 1},
-	{"librarian", true, 1},
-	{"dispatcher", true, 1},
-	{"weaver", true, 1},
-	{"smelter", true, 1},
-
-	{"identity-store", true, 2},
-	{"messaging", true, 2},
-	{"identity", true, 2},
-	{"graph", true, 2},
-	{"vectors", true, 2},
-	{"collector", true, 2},
-
-	{"inference", true, 3},
-	{"embedding", true, 3},
-
-	{"traces", false, 4},
-	{"metrics", false, 4},
-}
-
 // serviceCell: the SERVICE column's width, the longest cell's:
 // "identity-store (PostgreSQL)".
 const serviceCell = 27
@@ -488,26 +452,29 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 	// The machine's containers run outside the stack: a row one serves reads
 	// its state from that container's own record.
 	machine := LoadStackSet().Machine
-	lastGroup := 0
-	for _, svc := range statusServices {
-		if service != "" && svc.name != service {
+	lastGroup := ""
+	for group, role := range groupedRoles() {
+		if role == "browser" {
+			continue // printBrowser opens the report
+		}
+		if service != "" && role != service {
 			continue
 		}
-		if key == "" && !machineRole(svc.name) {
+		if key == "" && !machineRole(role) {
 			continue // no knowledge base names a stack container to ask of
 		}
-		if service == "" && lastGroup != 0 && svc.group != lastGroup {
+		if service == "" && lastGroup != "" && group != lastGroup {
 			fmt.Println()
 		}
-		lastGroup = svc.group
-		handle := roleContainer(svc.name, key)
+		lastGroup = group
+		handle := roleContainer(role, key)
 		// No record: the descriptor's static probe, for the driver a stack
 		// that has not recorded itself would be running. A record's endpoint
 		// is sharper — it names the port that start actually used.
-		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil, at)
+		endpoint := healthEndpoint(role, probeDriver(role), nil, at)
 		var rec *ServiceState
 		if st != nil {
-			if e, ok := st.Services[svc.name]; ok {
+			if e, ok := st.Services[role]; ok {
 				rec = &e
 				if e.ID != "" {
 					handle = e.ID
@@ -521,19 +488,19 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 		// The concrete product rides in the SERVICE cell — "identity-store
 		// (PostgreSQL)" — rather than a column that is an em-dash for every
 		// Semiont service.
-		label := svc.name
+		label := role
 		// No record, no driver, no product: the launcher does not name a
 		// technology for a role nothing has selected one for. Every record a
 		// start writes carries its driver.
 		tech := ""
 		if rec != nil && rec.Driver != "" {
-			tech = driverDisplay(svc.name, rec.Driver)
+			tech = driverDisplay(role, rec.Driver)
 		}
 		// The dispatcher's product is its JOB QUEUE driver, which no state
 		// record carries — the queue is a config section, not a launched
 		// role. The dispatcher reports the one it connected to, so the row
 		// names the live driver rather than the configured intent.
-		if svc.name == "dispatcher" {
+		if role == "dispatcher" {
 			if q, found := dispatcherQueueDriver(endpoint); found {
 				tech = q
 			}
@@ -571,11 +538,11 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 		default:
 			state, rt = containerState(runtimes, handle)
 		}
-		isHealthy := roleHealthy(svc.name, endpoint)
-		if svc.name == "inference" && rec == nil && state == "" && isHealthy {
+		isHealthy := roleHealthy(role, endpoint)
+		if role == "inference" && rec == nil && state == "" && isHealthy {
 			rt = "host"
 		}
-		if !isHealthy && (svc.core || service != "") {
+		if !isHealthy && (!contains(optionalBackends, role) || service != "") {
 			healthy = false
 		}
 
@@ -613,12 +580,12 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 		// dead service's last exported numbers are worse than no numbers. And
 		// only for the knowledge base the record names: without one there is
 		// no telling whose numbers they are.
-		if isHealthy && (svc.name == "dispatcher" || svc.name == "gateway") && st != nil && st.KBDid != "" {
+		if isHealthy && (role == "dispatcher" || role == "gateway") && st != nil && st.KBDid != "" {
 			if !readoutFetched {
 				readout, _ = httpBody("http://localhost:24110/metrics")
 				readoutFetched = true
 			}
-			printInFlight(u, svc.name, readout, st.KBDid)
+			printInFlight(u, role, readout, st.KBDid)
 		}
 
 		// The models this role was started with, indented beneath it.

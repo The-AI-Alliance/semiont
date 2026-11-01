@@ -214,21 +214,26 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 }
 
 // A daemon whose document states `external` is somebody else's: verified at
-// the address it states, never launched, and given no image or memory.
+// the address it states, never launched, and given no image or memory. A
+// message names that document.
 func TestDerivePlanExternalDaemons(t *testing.T) {
 	for _, c := range []struct {
 		role string
 		want rolePlan
+		doc  func(stack.Files) string
 	}{
-		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}},
-		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}},
-		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}},
-		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}},
+		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}, func(f stack.Files) string { return f.KnowledgeIndex }},
+		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}, func(f stack.Files) string { return f.KnowledgeIndex }},
+		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}, func(f stack.Files) string { return f.Issuer }},
+		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}, func(f stack.Files) string { return f.KnowledgeBase }},
 	} {
 		t.Run(c.role, func(t *testing.T) {
 			st := fixtureStack(t, "anthropic")
 			asSomebodyElses(st, c.role)
 			checkRole(t, mustPlan(t, st), c.role, c.want)
+			if got, want := roleDocument(st, c.role), c.doc(st.Files); got != want {
+				t.Errorf("a message names %s as stated by %q, want %q", c.role, got, want)
+			}
 		})
 	}
 }
