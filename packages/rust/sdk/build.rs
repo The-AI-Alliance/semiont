@@ -8,9 +8,13 @@
 //!   failure answer each request, and which of them report inference limits;
 //! - `channels.rs`: the channels every client hears and the channels a
 //!   resource's scope carries, from the registry's `audience`; the field of a
-//!   relayed frame's payload its trace rides in, the registry's `trace`; and a
+//!   relayed frame's payload its trace rides in, the registry's `trace`; a
 //!   type per channel naming its payload's type, with each operation's request
-//!   tied to its result and its failure;
+//!   tied to its result and its failure; and what each channel's payload must
+//!   be, as `required.rs` states shapes;
+//! - `required.rs`: what each component schema requires of a value
+//!   (client/required.json, which scripts/spec/generate-required.mjs writes by
+//!   the rules of scripts/spec/required-shapes.mjs);
 //! - `error_codes.rs`: the codes a client reports and what maps onto them
 //!   (errors/codes.json);
 //! - `oauth_clients.rs`: the ids a client signs in under at an issuer, and
@@ -294,6 +298,116 @@ fn main() {
         utf8_labels(&read_json(&specs.join("text/encoding-cases.json"))),
     )
     .expect("cannot write utf8_labels.rs");
+    fs::write(
+        out.join("required.rs"),
+        required(&read_json(&specs.join("client/required.json"))),
+    )
+    .expect("cannot write required.rs");
+}
+
+/// What each component schema requires of a value, by its name, in the
+/// table's order, which is its names': `crate::required` finds a schema in
+/// it by its name. The table's own generator is where it is held to the
+/// spec; this refuses only what it cannot render.
+fn required(table: &Value) -> String {
+    let schemas = table["schemas"]
+        .as_object()
+        .expect("the table of what each schema requires has schemas");
+    let names: Vec<&String> = schemas.keys().collect();
+    if names.is_empty() || !names.is_sorted() {
+        panic!("the table of what each schema requires holds none, or not by its names' order");
+    }
+    let mut code = String::from(
+        "// Generated from specs/src/client/required.json; do not edit.\npub(crate) static SCHEMAS: &[(&str, Shape)] = &[\n",
+    );
+    for (name, shape) in schemas {
+        let _ = writeln!(code, "    ({name:?}, {}),", shape_of(shape, name));
+    }
+    code.push_str("];\n");
+    code
+}
+
+/// A shape of the table, as a `Shape` whose parts it does not state are
+/// `NONE`'s.
+fn shape_of(shape: &Value, of: &str) -> String {
+    let shape = shape
+        .as_object()
+        .unwrap_or_else(|| panic!("{of}: a shape is no object: {shape}"));
+    let shapes = |part: &Value| -> String {
+        list(part, of)
+            .iter()
+            .map(|one| shape_of(one, of))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let mut parts = Vec::new();
+    for (key, part) in shape {
+        parts.push(match key.as_str() {
+            "ref" => format!(
+                "reference: Some({:?})",
+                part.as_str()
+                    .unwrap_or_else(|| panic!("{of}: a ref is no name: {part}"))
+            ),
+            "kinds" => format!(
+                "kinds: Some(&[{}])",
+                list(part, of)
+                    .iter()
+                    .map(|kind| match kind.as_str() {
+                        Some("object") => "Kind::Object",
+                        Some("array") => "Kind::Array",
+                        Some("string") => "Kind::String",
+                        Some("integer") => "Kind::Integer",
+                        Some("number") => "Kind::Number",
+                        Some("boolean") => "Kind::Boolean",
+                        Some("null") => "Kind::Null",
+                        _ => panic!("{of}: {kind} is no kind of value"),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            "required" => format!(
+                "required: &{:?}",
+                list(part, of)
+                    .iter()
+                    .map(|name| name
+                        .as_str()
+                        .unwrap_or_else(|| panic!("{of}: a required member is no name: {name}")))
+                    .collect::<Vec<_>>()
+            ),
+            "members" => format!(
+                "members: &[{}]",
+                part.as_object()
+                    .unwrap_or_else(|| panic!("{of}: its members are no object: {part}"))
+                    .iter()
+                    .map(|(name, member)| format!("({name:?}, {})", shape_of(member, of)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            "items" => format!("items: Some(&{})", shape_of(part, of)),
+            "values" => format!("values: Some(&{})", shape_of(part, of)),
+            "oneOf" => format!("one_of: &[{}]", shapes(part)),
+            "discriminator" => format!(
+                "discriminator: Some(Discriminator {{ property: {:?}, mapping: &[{}] }})",
+                text(part, "property", of),
+                part["mapping"]
+                    .as_object()
+                    .unwrap_or_else(|| panic!("{of}: a discriminator maps nothing: {part}"))
+                    .iter()
+                    .map(|(value, at)| format!(
+                        "({value:?}, {})",
+                        at.as_u64().unwrap_or_else(|| panic!(
+                            "{of}: a discriminator maps {value} to no variant"
+                        ))
+                    ))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            "allOf" => format!("all_of: &[{}]", shapes(part)),
+            other => panic!("{of}: a shape states {other}, which no reader of the table reads"),
+        });
+    }
+    parts.push("..NONE".to_owned());
+    format!("Shape {{ {} }}", parts.join(", "))
 }
 
 /// The labels of UTF-8, as the table of the Encoding Standard's labels has
@@ -654,6 +768,7 @@ fn stamps(definitions: &Value, schema: &Value) -> Vec<String> {
 fn typed_channels(registry: &Value, definitions: &Value) -> String {
     let mut code = String::new();
     let mut markers: Vec<String> = Vec::new();
+    let mut shapes: Vec<(&str, String)> = Vec::new();
     let scoped = list(&registry["audience"]["scoped"], "audience.scoped");
     for channel in list(&registry["channels"], "channels") {
         let name = text(channel, "channel", "a registry channel");
@@ -663,19 +778,39 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
         }
         markers.push(marker.clone());
         let schema = || format!("crate::types::{}", text(channel, "schema", name));
-        let (payload, declared) = match text(channel, "shape", name) {
+        let of = |schema: &str| format!("Shape {{ reference: Some({schema:?}), ..NONE }}");
+        let (payload, declared, shape) = match text(channel, "shape", name) {
             "schema" => (
                 schema(),
                 stamps(definitions, &definitions[text(channel, "schema", name)]),
+                of(text(channel, "schema", name)),
             ),
-            "envelope" => (format!("Response<{}>", schema()), Vec::new()),
-            "storedEvent" if channel["enriched"] == true => {
-                ("crate::types::EnrichedResourceEvent".to_owned(), Vec::new())
-            }
-            "storedEvent" => ("crate::types::StoredEventResponse".to_owned(), Vec::new()),
-            "void" | "empty" => ("Empty".to_owned(), Vec::new()),
+            "envelope" => (
+                format!("Response<{}>", schema()),
+                Vec::new(),
+                format!(
+                    "Shape {{ kinds: Some(&[Kind::Object]), required: &[\"response\"], members: &[(\"response\", {})], ..NONE }}",
+                    of(text(channel, "schema", name))
+                ),
+            ),
+            "storedEvent" if channel["enriched"] == true => (
+                "crate::types::EnrichedResourceEvent".to_owned(),
+                Vec::new(),
+                of("EnrichedResourceEvent"),
+            ),
+            "storedEvent" => (
+                "crate::types::StoredEventResponse".to_owned(),
+                Vec::new(),
+                of("StoredEventResponse"),
+            ),
+            "void" | "empty" => (
+                "Empty".to_owned(),
+                Vec::new(),
+                "Shape { kinds: Some(&[Kind::Object]), ..NONE }".to_owned(),
+            ),
             other => panic!("{name} has the shape {other}, which has no Rust type"),
         };
+        shapes.push((name, shape));
         let _ = writeln!(
             code,
             "/// `{name}`\npub struct {marker};\nimpl Channel for {marker} {{\n    const NAME: &'static str = {name:?};\n    const STAMPS: &'static [&'static str] = &{declared:?};\n    type Payload = {payload};\n}}"
@@ -710,6 +845,13 @@ fn typed_channels(registry: &Value, definitions: &Value) -> String {
             marker("failure")
         );
     }
+    code.push_str("/// What a payload on each channel must be, by the channel's name, as\n/// `crate::required` holds a payload to it.\npub(crate) fn payload_shape(channel: &str) -> &'static crate::required::Shape {\n    use crate::required::{Kind, NONE, Shape};\n    match channel {\n");
+    for (name, shape) in shapes {
+        let _ = writeln!(code, "        {name:?} => &{shape},");
+    }
+    code.push_str(
+        "        other => panic!(\"{other} is no channel of the registry\"),\n    }\n}\n",
+    );
     code
 }
 

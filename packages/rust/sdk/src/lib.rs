@@ -45,6 +45,7 @@ pub mod job_filter;
 pub mod media_types;
 pub mod namespaces;
 pub mod refresh;
+mod required;
 pub mod resources;
 pub mod resume;
 pub mod retry;
