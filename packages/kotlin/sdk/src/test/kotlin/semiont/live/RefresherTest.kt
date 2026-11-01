@@ -1,8 +1,12 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package semiont.live
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -73,14 +77,18 @@ private suspend fun watched(world: KbWorld, queries: List<Cached<*>>): List<Watc
     world.watch(query).also { it.ready() }
 }
 
-/** What keeps a client's queries true: each row of specs/src/client/refresh.json, and the rules every row is applied under. */
+/**
+ * What keeps a client's queries true: each row of specs/src/client/refresh.json,
+ * and the rules every row is applied under. Each runs on a clock only the test
+ * moves: when one of its waits ends, everything due by then has run.
+ */
 class RefresherTest {
     @TestFactory
     fun eachRowOfTheRefreshTableDoesWhatItStatesToWhatIsHeld(): List<DynamicTest> =
         CACHE_REFRESH.flatMap { (trigger, rows) -> rows.map { trigger to it } }.map { (trigger, row) ->
             DynamicTest.dynamicTest("${trigger.wire}${row.whenIs?.let { " $it" } ?: ""}") {
-                runBlocking {
-                    val world = KbWorld()
+                runTest {
+                    val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
                     watched(world, everything(world))
                     val one = world.watch(world.client.browse.annotation(RESOURCE, ANNOTATION)).also { it.ready() }
                     val listed = world.watch(world.client.browse.annotations(RESOURCE)).also { it.ready() }
@@ -114,9 +122,9 @@ class RefresherTest {
     }
 
     @Test
-    fun b19TheRefetchesEventsAskOfOneKeyInsideAWindowAreOneRefetch() = runBlocking {
+    fun b19TheRefetchesEventsAskOfOneKeyInsideAWindowAreOneRefetch() = runTest {
         val window = 400L
-        val world = KbWorld(windowMs = window)
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = window)
         val kb = world.kb
         fun asked() = kb.askedFor("browse:resource-requested").size
         fun listsAndSearches() = kb.askedFor("browse:resources-requested").size to kb.askedFor("match:resources-requested").size
@@ -164,8 +172,10 @@ class RefresherTest {
     }
 
     @Test
-    fun b20AnEventAsksAgainOnlyForWhatTheCacheHolds() = runBlocking {
-        val world = KbWorld(windowMs = 0)
+    fun b20AnEventAsksAgainOnlyForWhatTheCacheHolds() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
+        // The client has heard the stream open, so the drop below is a reopening.
+        runCurrent()
         // Nothing is held: no event of any kind asks for anything.
         for (trigger in CacheRefreshTrigger.entries) if (trigger != CacheRefreshTrigger.Reopened) world.kb.deliver(event(trigger))
         reopen(world.kb)
@@ -186,9 +196,9 @@ class RefresherTest {
     }
 
     @Test
-    fun b20AKeyThatIsFailedOrBeingFetchedIsHeld() = runBlocking {
-        LaggingThread().use { lagging ->
-            val world = KbWorld(windowMs = 0)
+    fun b20AKeyThatIsFailedOrBeingFetchedIsHeld() = runTest {
+        Lagging(StandardTestDispatcher(testScheduler)).use { lagging ->
+            val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
             val kb = world.kb
             fun requests() = kb.askedFor("browse:events-requested")
             // Each request waits until the test refuses it: until then the key is being fetched, whenever its watcher catches up.
@@ -214,7 +224,7 @@ class RefresherTest {
         }
 
         // One whose first request nobody has answered.
-        val waiting = KbWorld(windowMs = 0, answered = false)
+        val waiting = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0, answered = false)
         waiting.watch(waiting.client.browse.events(RESOURCE))
         eventually { waiting.kb.askedFor("browse:events-requested").size == 1 }
         waiting.kb.deliver(event(CacheRefreshTrigger.MarkAdded))
@@ -223,8 +233,8 @@ class RefresherTest {
     }
 
     @Test
-    fun anEventThatCannotBeReadAsksAgainForEverythingHeld() = runBlocking {
-        val world = KbWorld()
+    fun anEventThatCannotBeReadAsksAgainForEverythingHeld() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         watched(world, everything(world))
         delay(SETTLE)
         // Something changed and nothing says what.
@@ -241,9 +251,10 @@ class RefresherTest {
     }
 
     @Test
-    fun b13OnlyAStreamThatLeftOpenAndReturnedHasReopened() = runBlocking {
-        val world = KbWorld(windowMs = 0)
+    fun b13OnlyAStreamThatLeftOpenAndReturnedHasReopened() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
         val kb = world.kb
+        // The client has run nothing yet: the first state it sees is a stream that has not opened.
         kb.setState(ConnectionState.Initial)
         fun asked() = kb.askedFor("browse:entity-types-requested").size
         // Its first opening is no reopening: nothing was missed. What was watched before it waits for it, and asks once.
@@ -272,8 +283,8 @@ class RefresherTest {
     }
 
     @Test
-    fun b13bAnEventThatCarriesAnAnnotationWritesItWhereItWasOrAtTheEndAndAsksNothing() = runBlocking {
-        val world = KbWorld(windowMs = 0)
+    fun b13bAnEventThatCarriesAnAnnotationWritesItWhereItWasOrAtTheEndAndAsksNothing() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
         val kb = world.kb
         val listed = world.watch(world.client.browse.annotations(RESOURCE)).also { it.ready() }
         delay(SETTLE)
@@ -313,9 +324,9 @@ class RefresherTest {
     }
 
     @Test
-    fun b13aAnAnnotationThatIsGoneEndsAsNotFoundAndItsNextWatcherAsksNamingItsResource() = runBlocking {
-        LaggingThread().use { lagging ->
-            val world = KbWorld(windowMs = 0)
+    fun b13aAnAnnotationThatIsGoneEndsAsNotFoundAndItsNextWatcherAsksNamingItsResource() = runTest {
+        Lagging(StandardTestDispatcher(testScheduler)).use { lagging ->
+            val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
             val kb = world.kb
             val one = Watcher(world.client.browse.annotation(RESOURCE, ANNOTATION), lagging.scope).also { it.ready() }
             val asked = kb.askedFor("browse:annotation-requested").size
@@ -344,8 +355,8 @@ class RefresherTest {
     }
 
     @Test
-    fun aClosedClientHearsNoEventGivesAWatcherNothingAndRefusesAReadAsClosed() = runBlocking {
-        val world = KbWorld(windowMs = 0)
+    fun aClosedClientHearsNoEventGivesAWatcherNothingAndRefusesAReadAsClosed() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
         val kb = world.kb
         assertEquals("A resource", withTimeout(5_000) { world.client.browse.resource(RESOURCE).fresh() }.name)
         kb.deliver(event(CacheRefreshTrigger.YieldUpdated))
@@ -363,8 +374,8 @@ class RefresherTest {
     }
 
     @Test
-    fun anEventThatNamesAnAnnotationAsksForThatOneAndOneThatNamesNoneForEachHeldOfItsResource() = runBlocking {
-        val world = KbWorld(windowMs = 0)
+    fun anEventThatNamesAnAnnotationAsksForThatOneAndOneThatNamesNoneForEachHeldOfItsResource() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, windowMs = 0)
         val kb = world.kb
         val third = AnnotationId("ann-3")
         fun annotationsAskedFor(since: Int) = kb.askedFor("browse:annotation-requested").drop(since).map { (it.payload.getValue("annotationId") as JsonPrimitive).content }.sorted()
@@ -389,9 +400,9 @@ class RefresherTest {
     }
 
     @Test
-    fun closingAClientEndsEveryQuerysWatcherAndFailsEveryReadStillWaitingAsClosed() = runBlocking {
+    fun closingAClientEndsEveryQuerysWatcherAndFailsEveryReadStillWaitingAsClosed() = runTest {
         // The knowledge base has answered nothing when the client closes: every watcher is pending, and every read waiting.
-        val world = KbWorld(answered = false)
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false)
         val watching = everything(world).map { world.watch(it) }
         for (watcher in watching) assertEquals(CacheState.Pending, watcher.next())
         val reads = everything(world).map { query -> async { runCatching { query.fresh() } } }

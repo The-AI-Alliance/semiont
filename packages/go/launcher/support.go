@@ -171,9 +171,9 @@ func treePrint(u *UI, items []treeItem, depth int, leaf func(treeItem, int)) {
 }
 
 // Section renders a status-report section header: bold, flush left, ruled —
-// the top-level groupings (LOCAL STACK / KNOWLEDGE BASES, plus LAUNCHER PATHS
-// under --verbose) must be findable at a glance in a report whose content
-// lines are all indented and dense.
+// the top-level groupings (KNOWLEDGE BASES and each group they share, plus
+// LAUNCHER PATHS under --verbose) must be findable at a glance in a report
+// whose content lines are all indented and dense.
 func (u *UI) Section(title string) {
 	fmt.Printf("\n%s\n%s\n", u.Bold(title), u.Dim(strings.Repeat("─", 60)))
 }

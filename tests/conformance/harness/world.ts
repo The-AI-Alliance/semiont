@@ -8,7 +8,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { components } from '@semiont/core';
 import { SignJWT } from 'jose';
-import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, type TestContext } from 'vitest';
 import { startArchivist, type FakeArchivist } from './archivist';
 import { startBroker, type Broker, type BrokerOptions } from './nats';
 import { defaultSettings, startGateway, type GatewayEnvironment, type GatewayProcess, type GatewaySettings, type Plane } from './gateway';
@@ -242,11 +242,20 @@ export function eachPlane(title: string, body: (world: () => World, plane: Plane
     afterAll(async () => {
       await world?.close();
     });
-    afterEach((context) => {
-      // A failing case shows what the gateway said while it ran.
-      if (context.task.result?.state === 'fail') console.error(`gateway output:\n${world?.gateway.output.join('\n')}`);
-      expect(world?.drain() ?? []).toEqual([]);
-    });
+    afterEach((context) => endCase(context, `gateway output:\n${world!.gateway.output.join('\n')}`, () => world!.drain()));
     body(() => world!, plane);
   });
+}
+
+/**
+ * The end of a case, as every suite's `afterEach` ends one. `account` is what
+ * the case shows of what its processes said while it ran, read before
+ * `settle` forgets the case; `settle` returns what went wrong that no case may
+ * let pass. The account is shown when the case failed or settling found
+ * anything, and the case fails when settling found anything.
+ */
+export async function endCase(context: TestContext, account: string, settle: () => string[] | Promise<string[]>): Promise<void> {
+  const violations = await settle();
+  if (context.task.result?.state === 'fail' || violations.length > 0) console.error(`${context.task.name}\n${account}`);
+  expect(violations).toEqual([]);
 }

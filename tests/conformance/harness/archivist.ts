@@ -191,7 +191,11 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     return Buffer.concat(chunks);
   };
 
-  const server: Server = createServer((req, res) => {
+  // Node closes an idle connection six seconds after its last answer, a
+  // deadline the Archivist does not set. The gateway pools the connection for
+  // longer, and a read it sends as Node closes it fails and is answered 503.
+  // So an idle connection stays open.
+  const server: Server = createServer({ keepAliveTimeout: 0 }, (req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://archivist');
       const claims = await authorize(req);
