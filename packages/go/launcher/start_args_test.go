@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -36,8 +37,27 @@ func TestParseStartReadsValues(t *testing.T) {
 	if opts.configName != "cloud" || !opts.configSet {
 		t.Errorf("--config not recorded: %q set=%v", opts.configName, opts.configSet)
 	}
-	if opts.service != "gateway" || opts.runtime != "docker" {
+	if !slices.Equal(memberRoles(opts.starts), []string{"gateway"}) || opts.runtime != "docker" {
 		t.Errorf("flags not recorded: %+v", opts)
+	}
+}
+
+// A group's flags are checked against every service it could start: the index
+// starts the inference it needs when that is not up, so --ollama-cache applies.
+// The start narrows the services to what is not up once it reads what runs.
+func TestParseStartGroupReach(t *testing.T) {
+	opts, _, msg := parseStart([]string{"--group", "index", "--ollama-cache", "host", "--config", "cloud"})
+	if msg != "" {
+		t.Fatalf("refused a valid command line: %s", msg)
+	}
+	if opts.group.name != "index" || opts.asked() != "--group index" {
+		t.Errorf("group not recorded: %q, asked %q", opts.group.name, opts.asked())
+	}
+	if got := memberRoles(opts.starts); !slices.Equal(got, memberRoles(groupStarts(mustGroup(t, "index"), func(string) bool { return false }))) {
+		t.Errorf("reach = %v, want every service the index could start", got)
+	}
+	if _, _, msg := parseStart([]string{"--group", "telemetry"}); msg != "" {
+		t.Errorf("--group telemetry refused: %s", msg)
 	}
 }
 
@@ -94,7 +114,20 @@ func TestParseStartRefusals(t *testing.T) {
 		{"service + list-configs", []string{"--service", "gateway", "--list-configs"}, "cannot be combined"},
 		{"service + clean-ollama", []string{"--service", "gateway", "--clean-ollama"}, "cannot be combined"},
 		{"service + no-observe", []string{"--service", "gateway", "--no-observe"}, "--no-observe does not apply to --service"},
-		{"ollama-cache on non-inference", []string{"--service", "gateway", "--ollama-cache", "host"}, "only applies to --service inference"},
+		{"ollama-cache on non-inference", []string{"--service", "gateway", "--ollama-cache", "host"}, "only applies to a start that runs inference (--service gateway does not)"},
+
+		// --group: a known name, alone, on a local start, and the same
+		// compatibility over every service it could start.
+		{"group missing value", []string{"--group"}, "Missing value for --group"},
+		{"unknown group", []string{"--group", "nosuch"}, "Unknown --group 'nosuch' (expected: record, index, issuer, knowledge-workers, providers, or telemetry)"},
+		{"group and service", []string{"--group", "index", "--service", "gateway"}, "--group and --service are contradictory"},
+		{"codespace + group", []string{"--runtime", "codespace", "--group", "index"}, "--group does not apply to --runtime codespace"},
+		{"group + list-configs", []string{"--group", "index", "--list-configs"}, "--list-configs cannot be combined with --group."},
+		{"group + clean-ollama", []string{"--group", "index", "--clean-ollama"}, "--clean-ollama cannot be combined with --group."},
+		{"group + no-observe", []string{"--group", "index", "--no-observe"}, "--no-observe does not apply to --group"},
+		{"ollama-cache on a group that runs no inference", []string{"--group", "issuer", "--ollama-cache", "host"}, "(--group issuer does not)"},
+		{"config on a config-free group", []string{"--group", "telemetry", "--config", "cloud"}, "--config does not apply to --group telemetry (it reads no config)."},
+		{"root on a config-free group", []string{"--group", "telemetry", "--root", "/k"}, "(--group telemetry does not)"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, msg := parseStart(tc.args)

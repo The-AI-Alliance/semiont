@@ -126,7 +126,7 @@ func errNoJobEngine(inference string) error {
 // engine has none, and is refused: an entry's `engines` is never empty. A
 // start of such a document puts no entry on the worker's list (workerPlan,
 // flowWorker), and a worker asked for by name is refused before anything runs
-// (flowOneService).
+// (flowServices).
 func workerEngines(p placement) ([]api.WorkerEngineConfig, error) {
 	given := jobEngines(p.st.Inference.Spec.Engines)
 	if len(given) == 0 {

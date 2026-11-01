@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name>] [--root <path>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
+var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name> | --group <name>] [--root <path>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop a knowledge base's Semiont stack — its services and dependencies — and
 clean up its staged configs. The machine's containers (the worker, the
@@ -42,6 +42,20 @@ metrics stops the machine's collector, Jaeger or Prometheus alone, and
 the stack runs it for the embeddings alone: each serves every KB here, so a
 stop of any other one service leaves it.
 
+With --group <name>, stop one group of services:
+
+  record, index, issuer
+                 the knowledge base's own, and each of its services that
+                 needs one of them, which stops too and is said: a stop of
+                 the record stops the smelter, the weaver and the librarian,
+                 and a stop of the issuer every service behind the gateway.
+                 The worker goes with them only when no other local stack is
+                 recorded, as with a bare stop.
+  knowledge-workers, providers, telemetry
+                 the Browser and the worker; the machine's Ollama; the
+                 collector, Jaeger and Prometheus. These serve every KB here,
+                 so they stop alone and each KB goes without them.
+
 The staged configs are left in place — the rest of the stack is still
 mounting them.
 
@@ -51,7 +65,7 @@ record is kept — resume with semiont start. --delete destroys the codespace
 (state and all) and forgets the record; it applies only to codespace stacks.
 A stop named with --repo stops that codespace stack alone, and leaves the
 Browser.
-`, roleListWrapped(78, ""))
+`, listWrapped(roleList, 78, ""))
 
 // machineHandles: what names the machine-level container `name` under rt:
 // its name, and its recorded ID where rt is the runtime its record names, an
@@ -142,6 +156,53 @@ func printMachineServicesStop(runtimes []string, ss *StackSet, blind bool) {
 	}
 }
 
+// stopSharedGroup: `stop --group` of a group every knowledge base shares.
+// Each of the machine's containers serving one of its roles for the
+// knowledge base asked of stops once, under every installed runtime, and no
+// knowledge base's services go with it: each goes on without it.
+func stopSharedGroup(u *UI, g serviceGroup, root string, dryRun bool) int {
+	ss := LoadStackSet()
+	asked, _, ok := askedLocalStack(u, "stop", ss, root, false)
+	if !ok {
+		return 1
+	}
+	// A container two roles share is the first's to stop (machineServing),
+	// so each is named once.
+	var names []string
+	for _, m := range groupStops(g, true) {
+		if name, ok := machineServing(asked, m.role); ok {
+			names = append(names, name)
+		}
+	}
+	for _, name := range names {
+		noun := machineNoun(machineRoleByContainer[name])
+		switch {
+		case dryRun:
+			printMachineStop("the machine's "+noun, installedRuntimes(), name, ss.Machine[name])
+		case stopMachineService(installedRuntimes(), name, ss):
+			u.Ok("%s stopped", noun)
+		default:
+			u.Log("%s was not running.", noun)
+		}
+	}
+	switch {
+	case len(names) == 0:
+		u.Log("Nothing in the %s group is the machine's to stop for this knowledge base: somebody else provides it.", g.name)
+	case !dryRun:
+		fmt.Printf("%s stopped %s\n", g.name, u.Dim("(it serves every KB here, and each goes without it; a start that runs it brings it back)"))
+	}
+	return 0
+}
+
+// memberRoles: the roles of ms.
+func memberRoles(ms []groupMember) []string {
+	out := make([]string, len(ms))
+	for i, m := range ms {
+		out[i] = m.role
+	}
+	return out
+}
+
 // machineNoun: what the machine's container for role is called when it is
 // stopped.
 func machineNoun(role string) string {
@@ -205,6 +266,7 @@ func Stop(args []string) int {
 	u := NewUI(false)
 	runtime := ""
 	service := ""
+	group := ""
 	repo := ""
 	root := ""
 	dryRun := false
@@ -224,6 +286,13 @@ func Stop(args []string) int {
 				return 1
 			}
 			service = args[i+1]
+			i++
+		case "--group":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --group")
+				return 1
+			}
+			group = args[i+1]
 			i++
 		case "--repo":
 			if i+1 >= len(args) {
@@ -252,11 +321,31 @@ func Stop(args []string) int {
 		}
 	}
 
+	var g serviceGroup
+	if group != "" {
+		var known bool
+		switch g, known = groupNamed(group); {
+		case !known:
+			u.Fail("Unknown --group '%s' (expected: %s)", group, groupList)
+			return 1
+		case service != "":
+			u.Fail("--group and --service are contradictory: stop one group, or one service.")
+			return 1
+		case repo != "":
+			u.Fail("--group does not apply to a codespace stack (the codespace's own launcher runs its services).")
+			return 1
+		}
+	}
+
 	// Every branch below either reads the record or rewrites it, and the
 	// no-record fallbacks (the all-runtimes name sweep, "nothing to stop")
 	// are only honest when there genuinely is no record.
 	if LoadStackSet().refuseUnreadable(u) {
 		return 1
+	}
+
+	if g.shared() {
+		return stopSharedGroup(u, g, root, dryRun)
 	}
 
 	// --service browser stops the Browser alone, under every installed
@@ -329,6 +418,10 @@ func Stop(args []string) int {
 		return 1
 	}
 	if codespace != nil {
+		if group != "" {
+			u.Fail("--group does not apply to a codespace stack (the codespace's own launcher runs its services).")
+			return 1
+		}
 		return stopCodespaceAndMachine(u, codespace, service, del, dryRun)
 	}
 	if del {
@@ -386,21 +479,64 @@ func Stop(args []string) int {
 	// recorded runtime — IDs are runtime-specific.
 	useState := st != nil && (runtime == "" || runtime == st.Runtime)
 
-	// The names swept: one service's, or each stack's (reverse-start order),
+	// The machine's containers go with the last local stack: the stop that
+	// leaves no other recorded.
+	others := 0
+	for _, o := range localStacks(ss) {
+		if scope.st == nil || StackKey(o) != StackKey(scope.st) {
+			others++
+		}
+	}
+	last := others == 0
+
+	// The roles stopped: one service, a group and what needs it, or (nil)
+	// the whole stack. A group's machine role (the worker) is the machine's
+	// to stop, and goes first: it needs the rest.
+	var roles []string
+	if service != "" {
+		roles = []string{service}
+	}
+	var stopping, machineAlong []groupMember
+	if group != "" {
+		roles = []string{}
+		for _, m := range groupStops(g, last) {
+			if machineRole(m.role) {
+				machineAlong = append(machineAlong, m)
+			} else {
+				roles = append(roles, m.role)
+			}
+			if m.because != "" {
+				stopping = append(stopping, m)
+			}
+		}
+	}
+	// What a group would take along with another stack recorded, and leaves.
+	var left []string
+	if group != "" && !last {
+		for _, m := range groupStops(g, true) {
+			if machineRole(m.role) {
+				left = append(left, m.role)
+			}
+		}
+	}
+
+	// The names swept: the roles', or each stack's (reverse-start order),
 	// for every knowledge base in scope. With a record: a host-reuse
 	// inference entry means no container exists — skip it; a recorded ID is
 	// the sharper handle than the name.
 	var names []string
 	for _, key := range scope.keys {
-		if service != "" {
-			names = append(names, containersForRole(service, key)...)
+		if roles != nil {
+			for _, role := range roles {
+				names = append(names, containersForRole(role, key)...)
+			}
 		} else {
 			names = append(names, stackContainers(key)...)
 		}
 	}
 	targets := names
 	if useState {
-		targets = recordedHandles(st, service)
+		targets = recordedHandles(st, roles)
 	}
 
 	// A bare full stop that used the record ALSO name-sweeps every other
@@ -408,7 +544,7 @@ func Stop(args []string) int {
 	// record) hold ports the record knows nothing about. Idempotent no-ops
 	// when clean; explicit --runtime keeps its narrow meaning.
 	strayRuntimes := []string(nil)
-	if runtime == "" && useState && service == "" {
+	if runtime == "" && useState && roles == nil {
 		for _, rt := range installedRuntimes() {
 			if rt != runtimes[0] {
 				strayRuntimes = append(strayRuntimes, rt)
@@ -424,15 +560,7 @@ func Stop(args []string) int {
 		snapKey = scope.keys[0]
 	}
 
-	// The machine's containers go with the last local stack: the stop that
-	// leaves no other recorded.
-	others := 0
-	for _, o := range localStacks(ss) {
-		if scope.st == nil || StackKey(o) != StackKey(scope.st) {
-			others++
-		}
-	}
-	machineToo := service == "" && others == 0
+	machineToo := roles == nil && last
 	staged := scope.staged()
 
 	if dryRun {
@@ -443,13 +571,23 @@ func Stop(args []string) int {
 		if snapKey != "" {
 			fmt.Println("# snapshot container logs into <state-root>/logs/<timestamp>/ before removal")
 		}
+		for _, m := range stopping {
+			fmt.Printf("# %s stops too: it needs the %s\n", m.role, m.because)
+		}
+		for _, role := range left {
+			fmt.Printf("# the machine's %s left running: another local stack is recorded\n", machineNoun(role))
+		}
+		for _, m := range machineAlong {
+			name := machineContainer(m.role)
+			printMachineStop("the machine's "+machineNoun(m.role), installedRuntimes(), name, ss.Machine[name])
+		}
 		for _, rt := range runtimes {
 			for _, c := range targets {
 				fmt.Println(renderCmd(rt, "stop", c))
 				fmt.Println(renderCmd(rt, "rm", c))
 			}
 		}
-		if useState && st.IssuerProxy != nil && (service == "" || service == "identity") {
+		if useState && st.IssuerProxy != nil && (roles == nil || slices.Contains(roles, "identity")) {
 			fmt.Printf("# end the issuer proxy (pid %d)\n", st.IssuerProxy.PID)
 		}
 		for _, rt := range strayRuntimes {
@@ -462,6 +600,8 @@ func Stop(args []string) int {
 		switch {
 		case service != "":
 			fmt.Println("# staged configs left in place (--service)")
+		case group != "":
+			fmt.Println("# staged configs left in place (--group)")
 		case st != nil && !useState:
 			fmt.Println("# staged configs and stack.json left in place (recorded stack is under " + st.Runtime + ")")
 		default:
@@ -474,6 +614,18 @@ func Stop(args []string) int {
 			fmt.Println("# wait until the stack's ports are released; report any still-held holder")
 		}
 		return 0
+	}
+
+	for _, m := range stopping {
+		u.Log("%s stops too: it needs the %s", m.role, m.because)
+	}
+	for _, role := range left {
+		u.Log("The machine's %s left running: another local stack is recorded.", machineNoun(role))
+	}
+	for _, m := range machineAlong {
+		if stopMachineService(installedRuntimes(), machineContainer(m.role), ss) {
+			u.Ok("%s stopped", machineNoun(m.role))
+		}
 	}
 
 	// stop-then-rm: the containers run without --rm, so a stopped one keeps its
@@ -526,17 +678,23 @@ func Stop(args []string) int {
 		}
 	}
 
-	if service != "" {
-		// The record forgets this one service; the rest of it stands. The
-		// issuer proxy goes with the issuer it serves.
+	if roles != nil {
+		// The record forgets the services stopped; the rest of it stands.
+		// The issuer proxy goes with the issuer it serves.
 		if useState {
-			if service == "identity" {
-				endIssuerProxy(u, st)
+			for _, role := range roles {
+				if role == "identity" {
+					endIssuerProxy(u, st)
+				}
+				delete(st.Services, role)
 			}
-			delete(st.Services, service)
 			saveStack(st)
 		}
-		fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
+		if group != "" {
+			fmt.Printf("%s stopped: %s (staged configs left in place; rest of the stack untouched).\n", group, strings.Join(slices.Concat(memberRoles(machineAlong), roles), ", "))
+		} else {
+			fmt.Printf("%s stopped (staged configs left in place; rest of the stack untouched).\n", service)
+		}
 		return 0
 	}
 
@@ -707,16 +865,16 @@ func knownKeys() []string {
 	return keys
 }
 
-// recordedHandles: what a stop of st sweeps, from its record — one service's
-// container, or each of the stack's in teardown order. Only containers this
+// recordedHandles: what a stop of st sweeps, from its record, in teardown
+// order — the containers of roles, or (nil) each of the stack's. Only containers this
 // launcher started for the stack are ours to stop here: the machine's
 // containers, host processes, external endpoints, and unreferenced roles
 // have nothing to sweep. A recorded ID is the sharper handle than the name.
-func recordedHandles(st *StackState, service string) []string {
+func recordedHandles(st *StackState, roles []string) []string {
 	key := rootKey(st.KBDid, st.KBRoot)
 	var out []string
 	for _, role := range teardownOrder {
-		if machineRole(role) || service != "" && role != service {
+		if machineRole(role) || roles != nil && !slices.Contains(roles, role) {
 			continue
 		}
 		for _, c := range containersForRole(role, key) {

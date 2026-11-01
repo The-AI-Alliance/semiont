@@ -25,7 +25,8 @@ type flowCtx struct {
 	opts    startOptions
 	kb      kbRoot
 	userEnv []string
-	// restart: this is `start --service <role>`, not a full start. The flows
+	// restart: this is a start of some services (--service, --group), not a
+	// full start. The flows
 	// are the SAME flows either way — it changes only what the banner says,
 	// which is the whole of what a single-service start does differently.
 	restart bool
@@ -1180,15 +1181,48 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	return 0
 }
 
-// flowOneService: `start --service` — the no-op presence gate, the
-// service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
-// staging for config consumers, then the service's launch and gate.
-func flowOneService(x executor, fc flowCtx) int {
+// flowServices: `start --service` and `start --group` — each service the start
+// runs, in start order, as a start of it alone runs it. The refusals that touch
+// no container come first, for every one of them, so a start refused leaves
+// what runs as it was.
+func flowServices(x executor, fc flowCtx) int {
 	fc, ok := withDaemonCredentials(x, fc)
 	if !ok {
 		return 1
 	}
-	svc := fc.opts.service
+	var images []string
+	for _, m := range fc.opts.starts {
+		// A worker the plan does not run has no image to pull and no job to do.
+		if m.role == "worker" && !fc.plan.runs("worker") {
+			x.say(sayFail, "%v", errNoJobEngine(fc.stack.Files.Inference))
+			return 1
+		}
+		if isConfigConsumer(m.role) || m.role == "worker" {
+			images = append(images, m.role)
+		}
+	}
+	// An image of Semiont's, a stack service's or the worker's, is verified
+	// before its container is touched, so a refusal leaves the running one as
+	// it was.
+	if len(images) > 0 && !verifyStackImages(x, fc, images) {
+		return 1
+	}
+	for _, m := range fc.opts.starts {
+		if m.because != "" {
+			x.say(sayLog, "%s starts too: the %s needs it", m.role, m.because)
+			x.note("%s starts too: the %s needs it", m.role, m.because)
+		}
+		if code := flowService(x, fc, m.role); code != 0 {
+			return code
+		}
+	}
+	return 0
+}
+
+// flowService: one service of a start of some — the no-op presence gate, the
+// service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
+// staging for config consumers, then the service's launch and gate.
+func flowService(x executor, fc flowCtx, svc string) int {
 	if rp, nothing := nothingToLaunch(fc.plan, svc); nothing {
 		if rp.Presence == presenceExternal {
 			x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, roleDocument(fc.stack, svc), rp.Address, rp.Port)
@@ -1198,18 +1232,6 @@ func flowOneService(x executor, fc flowCtx) int {
 		x.say(sayWarn, "%s is not referenced by the knowledge base's documents; nothing to launch.", svc)
 		x.note("%s: not referenced by the documents — nothing to launch", svc)
 		return 0
-	}
-	// A worker the plan does not run has no image to pull and no job to do.
-	if svc == "worker" && !fc.plan.runs("worker") {
-		x.say(sayFail, "%v", errNoJobEngine(fc.stack.Files.Inference))
-		return 1
-	}
-
-	// An image of Semiont's, a stack service's or the worker's, is verified
-	// before its container is touched, so a refusal leaves the running one as
-	// it was.
-	if (isConfigConsumer(svc) || svc == "worker") && !verifyStackImages(x, fc, []string{svc}) {
-		return 1
 	}
 
 	// The machine's containers are handled entirely by their own flows (their
@@ -1333,7 +1355,7 @@ func flowOneService(x executor, fc flowCtx) int {
 // documents hand to somebody else, or do not reference. ONE decider for the
 // flow's gate and the summary that follows it. Never one of Semiont's own
 // services: a worker asked for when no job has an engine is refused before
-// anything runs (flowOneService), not passed over.
+// anything runs (flowServices), not passed over.
 func nothingToLaunch(plan *launchPlan, svc string) (rolePlan, bool) {
 	if plan == nil {
 		return rolePlan{}, false
