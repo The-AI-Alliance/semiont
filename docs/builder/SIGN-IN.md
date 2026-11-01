@@ -30,7 +30,7 @@ Every way makes its requests, of the gateway and of the identity provider, with 
 
 | SDK | What it takes | Where | Given none |
 |---|---|---|---|
-| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromIssuedSession` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `createHttpSessionFactory` | the runtime's own |
+| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromIssuedSession` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `createHttpSessionFactory` and of `ServiceToken` | the runtime's own |
 | Python | an `httpx.AsyncClient` | `http=` on `sign_in_device`, `session_from_kept`, `ServiceToken`, `AgentToken`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory` | one of its own |
 | Rust | a `reqwest::Client` | `http` in `SignInDevice` and `StoredSignIn`, and the argument `http` of `ServiceToken::new`, `AgentToken::sign_in`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory::new` | none: it is required |
 | Go | a `*http.Client` | `HTTP` in the `Issuer` that `SignInWithDevice`, `NewServiceToken`, `BeginSignIn` and `CompleteSignIn` take, and in `AgentConfig`, `SessionFromKeptConfig` and `registry.HttpSessionFactory` | none: it is required |

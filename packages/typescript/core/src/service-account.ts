@@ -57,23 +57,6 @@ function fetchOf(given: typeof fetch | undefined): typeof fetch {
   return (...request: Parameters<typeof fetch>) => (given ?? globalThis.fetch)(...request);
 }
 
-/** Cache discovery per issuer: it is a fixed document and the process is long-lived. */
-const tokenEndpoints = new Map<string, Promise<string>>();
-
-/**
- * Cached tokens, keyed by issuer and client.
- *
- * Without this, a caller that resolves its credential per request — the
- * Archivist's content reads do, because a token held for the life of the
- * process would expire in it — would hit the issuer on every read.
- *
- * The lifetime comes from `expires_in` on the grant response, which is the
- * protocol's own field rather than a number restated here. Deliberately not
- * the JWT's `exp`: a client-credentials access token is not required to be a
- * JWT, and reading one would be assuming a shape the grant does not promise.
- */
-const tokens = new Map<string, { token: string; expiresAt: number }>();
-
 /** Renew this long before expiry, so a token never expires mid-flight. */
 const RENEW_BEFORE_EXPIRY_MS = 30_000;
 
@@ -97,101 +80,131 @@ async function proof(credential: ServiceAccountCredential, endpoint: string): Pr
   });
 }
 
-async function tokenEndpoint(issuer: string, fetch: typeof globalThis.fetch | undefined): Promise<string> {
-  let endpoint = tokenEndpoints.get(issuer);
-  if (!endpoint) {
-    endpoint = (async () => {
-      const url = new URL(
-        '.well-known/openid-configuration',
-        issuer.endsWith('/') ? issuer : `${issuer}/`,
-      );
-      const unanswered = (error: unknown) => new UnansweredError(`OIDC discovery for ${issuer}`, error);
-      const response = await fetchOf(fetch)(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
-        throw unanswered(error);
-      });
-      if (!response.ok) {
-        throw new SignInError('discovery', `OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`, response.status);
-      }
-      const document = await jsonOf(response, unanswered);
-      if (!isObject(document) || !isString(document['token_endpoint'])) {
-        throw new SignInError('discovery', `OIDC discovery for ${issuer} returned no \`token_endpoint\``);
-      }
-      return document['token_endpoint'];
-    })().catch((error: unknown) => {
-      // Do not cache a failure: a discovery that failed because the issuer was
-      // still booting must be retried, not remembered.
-      tokenEndpoints.delete(issuer);
-      throw error;
-    });
-    tokenEndpoints.set(issuer, endpoint);
-  }
-  return endpoint;
-}
-
 /**
- * The service account's access token: the one held until it is due for
- * renewal, and a new grant after it, or at once when `renewed` (the gateway
- * refused the one held, or it is due by the holder's own schedule).
+ * A service account's token, fetched on first use and held until it is due
+ * for renewal. A process makes one for its account, with the `fetch` its
+ * issuer is asked with, and asks it for the token whenever it needs one.
  *
- * Throws on refusal rather than returning null: a sidecar that cannot prove who
- * it is has nothing useful to do, and the caller's retry policy decides whether
- * this is worth attempting again. A refusal is a `SignInError` carrying the
- * status the issuer answered with; a request that got no answer is an
- * `UnansweredError`.
+ * The issuer's token endpoint is discovered by the first ask, and kept for as
+ * long as the holder is. A discovery that failed, because the issuer was still
+ * booting, is not kept: the next ask discovers again.
  *
- * Both requests, the issuer's discovery and the grant, are bounded by
- * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
- * accepts a connection and never answers would otherwise hold a process's
- * start, and every renewal after it, for as long as the process lives. Both
- * are sent with `fetch`, or the runtime's own.
+ * One grant is made at a time: those who ask while one is under way are given
+ * what it brings, as they wait their turn.
+ *
+ * The lifetime comes from `expires_in` on the grant response, which is the
+ * protocol's own field rather than a number restated here. Deliberately not
+ * the JWT's `exp`: a client-credentials access token is not required to be a
+ * JWT, and reading one would be assuming a shape the grant does not promise.
  */
-export async function serviceAccountToken(
-  credential: ServiceAccountCredential,
-  { renewed, fetch }: { renewed: boolean; fetch?: typeof globalThis.fetch },
-): Promise<string> {
-  const { issuer, clientId } = credential;
+export class ServiceToken {
+  private endpoint: string | null = null;
+  private held: { token: string; expiresAt: number } | null = null;
+  /** The ask whose turn it is; the next waits for it to settle, however it does. */
+  private asking: Promise<unknown> = Promise.resolve();
 
-  const key = `${issuer}\u0000${clientId}`;
-  const cached = tokens.get(key);
-  if (!renewed && cached && cached.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
-    return cached.token;
+  constructor(
+    private readonly credential: ServiceAccountCredential,
+    private readonly fetch?: typeof globalThis.fetch,
+  ) {}
+
+  private async tokenEndpoint(): Promise<string> {
+    if (this.endpoint === null) this.endpoint = await this.discover();
+    return this.endpoint;
   }
 
-  const endpoint = await tokenEndpoint(issuer, fetch);
-  const form = await proof(credential, endpoint);
+  private async discover(): Promise<string> {
+    const { issuer } = this.credential;
+    const url = new URL('.well-known/openid-configuration', issuer.endsWith('/') ? issuer : `${issuer}/`);
+    const unanswered = (error: unknown) => new UnansweredError(`OIDC discovery for ${issuer}`, error);
+    const response = await fetchOf(this.fetch)(url, { signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS) }).catch((error: unknown) => {
+      throw unanswered(error);
+    });
+    if (!response.ok) {
+      throw new SignInError('discovery', `OIDC discovery for ${issuer} failed: HTTP ${response.status} from ${url}`, response.status);
+    }
+    const document = await jsonOf(response, unanswered);
+    if (!isObject(document) || !isString(document['token_endpoint'])) {
+      throw new SignInError('discovery', `OIDC discovery for ${issuer} returned no \`token_endpoint\``);
+    }
+    return document['token_endpoint'];
+  }
 
-  const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
-  const response = await fetchOf(fetch)(endpoint, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: form,
-    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
-  }).catch((error: unknown) => {
-    throw unanswered(error);
-  });
+  /** The `Authorization` header's value: the account's token, renewed when it is due. */
+  async authorization(): Promise<string> {
+    return `Bearer ${await this.token({ renewed: false })}`;
+  }
 
-  if (!response.ok) {
-    // The status, not the body: a token endpoint's error body can echo the
-    // request, and this one carried the secret or the assertion.
-    throw new SignInError(
-      'exchange',
-      `Client-credentials grant for ${clientId} at ${issuer} failed (HTTP ${response.status})`,
-      response.status,
+  /**
+   * The account's access token: the one held until it is due for renewal,
+   * and a new grant after it, or at once when `renewed` (the gateway refused
+   * the one held, or it is due by the asker's own schedule).
+   *
+   * Throws on refusal rather than returning null: a sidecar that cannot prove
+   * who it is has nothing useful to do, and the caller's retry policy decides
+   * whether this is worth attempting again. A refusal is a `SignInError`
+   * carrying the status the issuer answered with; a request that got no
+   * answer is an `UnansweredError`.
+   *
+   * Both requests, the issuer's discovery and the grant, are bounded by
+   * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
+   * accepts a connection and never answers would otherwise hold a process's
+   * start, and every renewal after it, for as long as the process lives. Both
+   * are sent with the `fetch` this was made with, or the runtime's own.
+   */
+  token({ renewed }: { renewed: boolean }): Promise<string> {
+    const turn = this.asking.then(() => this.granted(renewed));
+    // The next ask waits for this one whether it brought a token or failed:
+    // its failure is its own asker's, who is handed `turn`.
+    this.asking = turn.then(
+      () => undefined,
+      () => undefined,
     );
+    return turn;
   }
 
-  const body = await jsonOf(response, unanswered);
-  if (!isObject(body) || !isString(body['access_token'])) {
-    throw new SignInError('exchange', `Token endpoint for ${issuer} returned no \`access_token\``);
-  }
+  /** `token`, in its turn. */
+  private async granted(renewed: boolean): Promise<string> {
+    const { issuer, clientId } = this.credential;
 
-  const token = body['access_token'];
-  const expiresIn = body['expires_in'];
-  // An issuer that reports no lifetime gets no cache entry rather than a
-  // guessed one: serving a token past its expiry fails at the far end, where
-  // the cause is hardest to see.
-  if (typeof expiresIn === 'number' && Number.isFinite(expiresIn)) {
-    tokens.set(key, { token, expiresAt: Date.now() + expiresIn * 1000 });
+    if (!renewed && this.held && this.held.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
+      return this.held.token;
+    }
+
+    const endpoint = await this.tokenEndpoint();
+    const form = await proof(this.credential, endpoint);
+
+    const unanswered = (error: unknown) => new UnansweredError(`Client-credentials grant for ${clientId} at ${issuer}`, error);
+    const response = await fetchOf(this.fetch)(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: form,
+      signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+    }).catch((error: unknown) => {
+      throw unanswered(error);
+    });
+
+    if (!response.ok) {
+      // The status, not the body: a token endpoint's error body can echo the
+      // request, and this one carried the secret or the assertion.
+      throw new SignInError(
+        'exchange',
+        `Client-credentials grant for ${clientId} at ${issuer} failed (HTTP ${response.status})`,
+        response.status,
+      );
+    }
+
+    const body = await jsonOf(response, unanswered);
+    if (!isObject(body) || !isString(body['access_token'])) {
+      throw new SignInError('exchange', `Token endpoint for ${issuer} returned no \`access_token\``);
+    }
+
+    const token = body['access_token'];
+    const expiresIn = body['expires_in'];
+    // A token whose grant reports no lifetime is not held, and neither is the
+    // one it replaces, rather than either living by a guess: serving a token
+    // past its expiry fails at the far end, where the cause is hardest to see.
+    this.held = typeof expiresIn === 'number' && Number.isFinite(expiresIn) ? { token, expiresAt: Date.now() + expiresIn * 1000 } : null;
+    return token;
   }
-  return token;
 }

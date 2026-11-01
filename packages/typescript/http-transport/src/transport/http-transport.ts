@@ -50,7 +50,11 @@ export interface HttpTransportConfig {
   baseUrl: BaseUrl;
   /** The token, read and never written here: headers read its current value. */
   token$?: Watched<AccessToken | null>;
-  /** The deadline on one request that is neither the stream nor an emit. Absent, `HTTP_REQUEST_TIMEOUT_MS`. */
+  /**
+   * The deadline on one request that is neither the stream nor an emit, and
+   * on reading any refusal's body, the stream's too. Absent,
+   * `HTTP_REQUEST_TIMEOUT_MS`.
+   */
   timeout?: number;
   logger?: Logger;
   /**
@@ -104,6 +108,36 @@ export interface HttpTransportConfig {
 function refusalOf(error: HTTPError): APIError {
   const { response, data } = error;
   return APIError.refusal(response.status, response.statusText, data, response.headers.get('retry-after'));
+}
+
+/**
+ * A refused response's body as text, read within `deadlineMs`, as ky reads
+ * the refusal it reports: a body not read by then, or not read at all, is
+ * `''`, a refusal that says nothing.
+ */
+async function refusalText(response: Response, deadlineMs: number): Promise<string> {
+  if (response.body === null) return '';
+  const reader = response.body.getReader();
+  let cut = false;
+  const deadline = setTimeout(() => {
+    cut = true;
+    reader.cancel().catch(() => {
+      // The body was given up on: how its cancellation went changes nothing.
+    });
+  }, deadlineMs);
+  try {
+    const decoder = new TextDecoder();
+    let text = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return cut ? '' : text + decoder.decode();
+      text += decoder.decode(value, { stream: true });
+    }
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(deadline);
+  }
 }
 
 /**
@@ -308,12 +342,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                 // attempt `limit` allows, so nothing sends it a third time.
                 async ({ request, response, retryCount }: AfterResponseState) => {
                   if (response.ok || retryCount > 0) return undefined;
-                  let said = '';
-                  try {
-                    said = await response.text();
-                  } catch {
-                    // status alone
-                  }
+                  const said = await refusalText(response, timeout);
                   if (!refusesCredential(response.status, refusalBody(said))) return undefined;
                   const sent = request.headers.get('Authorization');
                   const renewed = await this.renewal(sent === null ? undefined : sent.replace(/^Bearer /, ''));
@@ -378,6 +407,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
         ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
         ...(this.config.streamOpenTimeoutMs !== undefined ? { streamOpenTimeoutMs: this.config.streamOpenTimeoutMs } : {}),
+        ...(this.config.timeout !== undefined ? { httpRequestTimeoutMs: this.config.timeout } : {}),
         ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),

@@ -2,13 +2,17 @@ package semiont.http
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.errors.SemiontError
+import semiont.errors.TransportError
 import semiont.identifiers.ResourceId
+import semiont.retry.RetryPolicy
 import semiont.transport.ConnectionState
 import java.io.IOException
 import java.net.InetAddress
@@ -51,6 +55,53 @@ private class Silent : AutoCloseable {
         held.forEach { it.close() }
     }
 }
+
+/**
+ * A gateway that answers every request with `answer`, written as it is, and
+ * says nothing more: each connection is held until the gateway is closed, so
+ * what the answer's head says of its body is all the client goes by.
+ */
+private class Answering(private val answer: String) : AutoCloseable {
+    private val server = ServerSocket(0, 50, InetAddress.getLoopbackAddress())
+    val origin: String = "http://127.0.0.1:${server.localPort}"
+    private val held = CopyOnWriteArrayList<Socket>()
+
+    init {
+        thread(isDaemon = true) {
+            while (!server.isClosed) {
+                val socket = try {
+                    server.accept()
+                } catch (_: IOException) {
+                    break
+                }
+                held += socket
+                thread(isDaemon = true) {
+                    try {
+                        val reader = socket.getInputStream().bufferedReader()
+                        while (reader.readLine()?.isNotEmpty() == true) {
+                            // The request's head: what it asks is answered the same way whatever it is.
+                        }
+                        socket.getOutputStream().apply {
+                            write(answer.toByteArray())
+                            flush()
+                        }
+                    } catch (_: IOException) {
+                        // Closed with the gateway.
+                    }
+                }
+            }
+        }
+    }
+
+    override fun close() {
+        server.close()
+        held.forEach { it.close() }
+    }
+}
+
+/** A refusal with status 503: `body`, after a head that says the body is `length` bytes. */
+private fun unavailable(body: String, length: Int): String =
+    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: $length\r\nConnection: close\r\n\r\n$body"
 
 /** A transport's stream: opened once there is a token and something to carry; and the client it makes every request with. */
 class HttpTransportTest {
@@ -97,6 +148,71 @@ class HttpTransportTest {
                     }
                     assertEquals(listOf("POST /bus/subscribe HTTP/1.1", "POST /bus/subscribe HTTP/1.1"), gateway.asked.take(2))
                 }
+            }
+        }
+    }
+
+    /** What a transport with `timing` reports of the stream's first refused open, through `gateway`. */
+    private suspend fun firstRefusal(gateway: String, timing: Timing): SemiontError =
+        HttpTransport(gateway, MutableStateFlow("token"), emptyList(), timing).use { transport ->
+            transport.subscribeToResource(ResourceId("res-1")).use {
+                withTimeout(5_000) { transport.failures().use { it.first() } }
+            }
+        }
+
+    @Test
+    fun aRefusedOpenIsReportedInTheGatewaysWords() = runBlocking {
+        val words = """{"error":"the gateway is draining"}"""
+        Answering(unavailable(words, words.length)).use { gateway ->
+            assertEquals("SSE connect failed: 503: the gateway is draining", firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)).message)
+        }
+    }
+
+    @Test
+    fun aRefusedOpenWhoseBodySaysNothingIsReportedByItsStatus() = runBlocking {
+        Answering(unavailable("", 0)).use { gateway ->
+            assertEquals("SSE connect failed: 503", firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)).message)
+        }
+    }
+
+    @Test
+    fun aRefusedOpenWhoseBodyNeverEndsIsReportedAtTheRequestDeadlineWithNoWords() = runBlocking {
+        Answering(unavailable("""{"error":"ne""", 100)).use { gateway ->
+            val refused = firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10, httpRequestMs = 200))
+            assertEquals("SSE connect failed: 503", refused.message)
+        }
+    }
+
+    @Test
+    fun aRefusedEmitWhoseBodySaysNothingIsReportedByItsStatus() = runBlocking {
+        Answering(unavailable("", 0)).use { gateway ->
+            // Carrying nothing, the transport opens no stream: the emit is its only request.
+            HttpTransport(gateway.origin, MutableStateFlow("token"), emptyList(), Timing(emitRetry = RetryPolicy(attempts = 1, initialDelayMs = 1, maxDelayMs = 1))).use { transport ->
+                val refused = try {
+                    transport.emit("beckon:focus", JsonObject(emptyMap()), null, null)
+                    null
+                } catch (error: TransportError) {
+                    error
+                }
+                assertEquals("/bus/emit 503", refused?.message)
+            }
+        }
+    }
+
+    @Test
+    fun aRefusedRequestWhoseBodyNeverEndsIsReportedAtTheRequestDeadlineWithNoWords() = runBlocking {
+        Answering(unavailable("""{"error":"ne""", 100)).use { gateway ->
+            HttpTransport(gateway.origin, MutableStateFlow("token"), emptyList(), Timing(httpRequestMs = 200)).use { transport ->
+                val refused = withTimeout(5_000) {
+                    try {
+                        transport.getCurrentUser()
+                        null
+                    } catch (error: TransportError) {
+                        error
+                    }
+                }
+                assertEquals("HTTP 503", refused?.message)
+                assertEquals(503, refused?.status)
             }
         }
     }

@@ -92,6 +92,11 @@ export function delegated<C extends JobCompletion>(
           subscriber.error(new JobCancelledError(status.jobId));
         }
       },
+      (error) => {
+        if (done) return;
+        cleanup();
+        subscriber.error(error);
+      },
       timing,
     );
 

@@ -245,10 +245,12 @@ class Exchange:
             stated_wait_ms = retry_after_ms(response.headers.get("retry-after"))
             body: bytes | None = None
             try:
-                body = await response.aread()
+                # Read within the deadline too: a body not read by then says nothing.
+                async with asyncio.timeout(None if at_length else self._deadline_ms / 1000):
+                    body = await response.aread()
                 # The gateway's refusal, in its own words when its body states them.
                 said = ErrorResponse.model_validate_json(body).error
-            except (ValidationError, httpx.HTTPError):
+            except (ValidationError, httpx.HTTPError, TimeoutError):
                 said = f"HTTP {status}: {response.reason_phrase}"
             finally:
                 await response.aclose()

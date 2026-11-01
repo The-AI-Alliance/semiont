@@ -22,7 +22,7 @@
 //! this one task in order, so the state machine has no locks and no races.
 
 use crate::sse::SseParser;
-use crate::transport::{Shared, locked, refusal};
+use crate::transport::{Shared, gateway_words, locked, refusal};
 use futures::StreamExt;
 use semiont::bus_log::{bus_log, bus_note};
 use semiont::channels::{RESOURCE_SCOPED_CHANNELS, TRACE_FIELD};
@@ -653,13 +653,17 @@ async fn connection(
                 .get(reqwest::header::RETRY_AFTER)
                 .and_then(|value| value.to_str().ok()),
         );
-        let said = response.json::<Value>().await.ok();
-        let error = refusal(
-            format!("SSE connect failed: {status}"),
-            status,
-            stated_wait,
-            said.as_ref(),
-        );
+        // A refusal's body is read within the request deadline, as any other
+        // answer is: one not read by then is a refusal that says nothing.
+        let said = tokio::time::timeout(shared.timing.http_request, response.json::<Value>())
+            .await
+            .ok()
+            .and_then(Result::ok);
+        let message = match gateway_words(said.as_ref()) {
+            Some(words) => format!("SSE connect failed: {status}: {words}"),
+            None => format!("SSE connect failed: {status}"),
+        };
+        let error = refusal(message, status, stated_wait, said.as_ref());
         let _ = events.send(Event::Refused { conn, error }).await;
         return;
     }

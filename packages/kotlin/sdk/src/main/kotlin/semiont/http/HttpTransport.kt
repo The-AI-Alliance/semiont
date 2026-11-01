@@ -63,7 +63,7 @@ public data class Timing @JvmOverloads constructor(
     public val lingerMs: Long = Timings.LINGER_MS,
     public val emitRetry: RetryPolicy = Timings.EMIT_RETRY,
     public val seenEventIdsCount: Int = Timings.SEEN_EVENT_IDS_COUNT.toInt(),
-    /** The deadline on one request that is neither the stream nor an emit. */
+    /** The deadline on one request that is neither the stream nor an emit, and on reading any refusal's body, the stream's too. */
     public val httpRequestMs: Long = Timings.HTTP_REQUEST_TIMEOUT_MS,
     /** The deadline on the gateway's answer to the request that opens the stream: its status and headers. */
     public val streamOpenMs: Long = Timings.STREAM_OPEN_TIMEOUT_MS,
@@ -140,7 +140,11 @@ public class HttpTransport @JvmOverloads constructor(
                 val status = response.statusCode()
                 if (status in 200..299) return accepted(response.body())
                 val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
-                refusal("/bus/emit $status: ${said(response.body(), "")}", status, response.body(), stated)
+                val message = when (val words = said(response.body())) {
+                    null -> "/bus/emit $status"
+                    else -> "/bus/emit $status: $words"
+                }
+                refusal(message, status, response.body(), stated)
             } catch (_: HttpTimeoutException) {
                 TransportError.withoutResponse("/bus/emit got no answer within ${Timings.EMIT_TIMEOUT_MS}ms")
             } catch (error: IOException) {

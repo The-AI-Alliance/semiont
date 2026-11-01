@@ -206,6 +206,29 @@ internal fun oauthClientsFile(table: JsonObject): String = buildString {
     append("@Generated\npublic const val SIGN_IN_SCOPE: String = ${literal(scope["value"].text("the scope's value"))}\n")
 }
 
+/**
+ * How a writer keeps the sign-in store's directory and its files to their owner (sign-in-store/owner-only.json): each mode, as
+ * the permissions a POSIX file system names, and the access list Windows gives the directory, made for the user whose SID goes
+ * where the file's list says `{owner}`.
+ */
+internal fun ownerOnlyFile(table: JsonObject): String = buildString {
+    for ((key, constant) in listOf("directoryMode" to "OWNER_ONLY_DIRECTORY_PERMISSIONS", "fileMode" to "OWNER_ONLY_FILE_PERMISSIONS")) {
+        val mode = table[key].obj("the owner-only $key")
+        val octal = mode["value"].text("the owner-only $key's value")
+        if (!Regex("0[0-7]{3}").matches(octal)) refuse("the owner-only $key $octal is not four octal digits")
+        val permissions = octal.drop(1).map { it.digitToInt() }.joinToString("") { bits ->
+            "${if (bits and 4 != 0) 'r' else '-'}${if (bits and 2 != 0) 'w' else '-'}${if (bits and 1 != 0) 'x' else '-'}"
+        }
+        append(kdoc("", mode["docs"].text("the owner-only $key's docs")))
+        append("internal const val $constant: String = ${literal(permissions)}\n\n")
+    }
+    val list = table["accessList"].obj("the owner-only access list")
+    val parts = list["value"].text("the owner-only access list's value").split("{owner}")
+    if (parts.size != 2) refuse("the owner-only access list names {owner} ${parts.size - 1} times, not once")
+    append(kdoc("", list["docs"].text("the owner-only access list's docs").replace("`{owner}`", "`owner`")))
+    append("internal fun ownerOnlyAccessList(owner: String): String = ${literal(parts[0])} + owner + ${literal(parts[1])}\n")
+}
+
 /** The timing a client keeps: each row a constant, `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`, a budget as a `RetryPolicy`. */
 internal fun timingFile(table: JsonObject): String = buildString {
     append("/** The timing a client keeps (specs/src/client/timing.json). */\n")

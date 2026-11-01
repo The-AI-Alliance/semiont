@@ -121,7 +121,18 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 		if response.StatusCode >= 200 && response.StatusCode <= 299 {
 			return answered{response: response, done: func() { response.Body.Close(); cancel() }}, nil
 		}
-		said, _ := io.ReadAll(io.LimitReader(response.Body, 1<<16))
+		// A refusal's body is read within the deadline too: one not read by
+		// then is a refusal that says nothing.
+		if spec.deadline > 0 {
+			timer = time.AfterFunc(spec.deadline, cancel)
+		}
+		said, err := io.ReadAll(io.LimitReader(response.Body, 1<<16))
+		if timer != nil {
+			timer.Stop()
+		}
+		if err != nil {
+			said = nil
+		}
 		response.Body.Close()
 		cancel()
 		wait, hasWait := RetryAfter(response.Header.Get("Retry-After"))
@@ -147,17 +158,25 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 	}
 }
 
-// refusalMessage is what a refusal says: its body's error (an
-// ErrorResponse), or its status and its reason, worded as the TypeScript
-// transport words it.
+// refusalMessage is what a refusal says: the gateway's words, or its status
+// and its reason, worded as the TypeScript transport words it.
 func refusalMessage(response *http.Response, said []byte) string {
+	if words, ok := gatewayWords(said); ok {
+		return words
+	}
+	return fmt.Sprintf("HTTP %d: %s", response.StatusCode, http.StatusText(response.StatusCode))
+}
+
+// gatewayWords is what a refusal's body says when it is an ErrorResponse:
+// its error.
+func gatewayWords(said []byte) (string, bool) {
 	var body struct {
 		Error *string `json:"error"`
 	}
-	if json.Unmarshal(said, &body) == nil && body.Error != nil {
-		return *body.Error
+	if json.Unmarshal(said, &body) != nil || body.Error == nil {
+		return "", false
 	}
-	return fmt.Sprintf("HTTP %d: %s", response.StatusCode, http.StatusText(response.StatusCode))
+	return *body.Error, true
 }
 
 // pause waits for wait; false when ctx is done first.

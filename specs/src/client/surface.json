@@ -1742,6 +1742,33 @@
       ]
     },
     {
+      "module": "serviceToken",
+      "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/service-account.ts"
+        ],
+        "rust": [
+          "packages/rust/http-transport/src/service_account.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/http/agent.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ]
+      },
+      "members": [
+        {
+          "member": "ServiceToken",
+          "kind": "type"
+        }
+      ]
+    },
+    {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
       "where": {

@@ -186,7 +186,7 @@ func CompleteAuthorization(ctx context.Context, issuer Issuer, callbackURL strin
 	}
 	access, ok := answered.text("access_token")
 	if status != http.StatusOK || !ok {
-		return PendingAuthorization{}, IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
+		return PendingAuthorization{}, IssuedTokens{}, NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
 	}
 	refresh, ok := answered.text("refresh_token")
 	if !ok {

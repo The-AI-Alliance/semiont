@@ -34,7 +34,7 @@ func exclusively(file string, change func()) {
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(file), 0o755); err == nil {
-		if f, err := os.OpenFile(file+".lock", os.O_RDONLY|os.O_CREATE, 0o600); err == nil {
+		if f, err := os.OpenFile(file+".lock", os.O_RDONLY|os.O_CREATE, ownerOnlyFileMode); err == nil {
 			defer f.Close()
 			_ = lockFile(f, true)
 		}

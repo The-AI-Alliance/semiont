@@ -1,7 +1,7 @@
 /**
  * Why a sign-in at an issuer failed: a person's, over any of the grants the
  * session layer runs, or a service account's, over the client-credentials
- * grant (`serviceAccountToken`).
+ * grant (`ServiceToken`).
  */
 
 import type { SignInErrorCode } from './generated/error-codes';

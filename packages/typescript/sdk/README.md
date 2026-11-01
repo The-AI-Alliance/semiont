@@ -231,6 +231,9 @@ claims.subscribe(async (job) => {
   PEM that `privateKeyFromPem` reads. Each grant carries an assertion signed for it alone,
   which the issuer checks with the public half registered on the client, and no secret is
   sent. A service account that holds a secret signs in with a `SecretCredential` instead.
+- **A service reaches another as itself** with a `ServiceToken` made for its account: its
+  `authorization()` is the `Authorization` header's value, the token held until it is due
+  and one grant at a time.
 - **It says what it is called**, as itself, on `principal:profile`. Readers name an agent by
   the last name it said, as they name a person, so a `generator` carries no name of its own.
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of whatever else it
