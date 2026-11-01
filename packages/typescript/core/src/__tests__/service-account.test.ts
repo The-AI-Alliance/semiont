@@ -77,6 +77,31 @@ describe('ServiceToken', () => {
     expect(refused).toMatchObject({ code: 'exchange', status: 401 });
   });
 
+  it('makes one grant at a time: those who ask while one is under way are given what it brings', async () => {
+    let granted = 0;
+    const asked = stubFetch(() => Response.json({ access_token: `service-account-token-${++granted}`, expires_in: 300 }));
+    const service = new ServiceToken(ACCOUNT);
+
+    const tokens = await Promise.all([service.token({ renewed: false }), service.token({ renewed: false }), service.token({ renewed: false })]);
+
+    expect(tokens).toEqual(['service-account-token-1', 'service-account-token-1', 'service-account-token-1']);
+    expect(grants(asked)).toHaveLength(1);
+  });
+
+  it('a grant that fails is its own asker\'s failure, and the next ask makes another', async () => {
+    let granted = 0;
+    const asked = stubFetch(() =>
+      ++granted === 1 ? Response.json({ error: 'temporarily_unavailable' }, { status: 503 }) : Response.json({ access_token: 'service-account-token', expires_in: 300 }),
+    );
+    const service = new ServiceToken(ACCOUNT);
+
+    const [failed, next] = await Promise.allSettled([service.token({ renewed: false }), service.token({ renewed: false })]);
+
+    expect(failed).toMatchObject({ status: 'rejected', reason: { code: 'exchange', status: 503 } });
+    expect(next).toEqual({ status: 'fulfilled', value: 'service-account-token' });
+    expect(grants(asked)).toHaveLength(2);
+  });
+
   it('holds the token until it is due, and asks for another at once when renewed', async () => {
     let granted = 0;
     const asked = stubFetch(() => Response.json({ access_token: `service-account-token-${++granted}`, expires_in: 300 }));

@@ -86,7 +86,11 @@ async function proof(credential: ServiceAccountCredential, endpoint: string): Pr
  * issuer is asked with, and asks it for the token whenever it needs one.
  *
  * The issuer's token endpoint is discovered by the first ask, and kept for as
- * long as the holder is.
+ * long as the holder is. A discovery that failed, because the issuer was still
+ * booting, is not kept: the next ask discovers again.
+ *
+ * One grant is made at a time: those who ask while one is under way are given
+ * what it brings, as they wait their turn.
  *
  * The lifetime comes from `expires_in` on the grant response, which is the
  * protocol's own field rather than a number restated here. Deliberately not
@@ -94,24 +98,19 @@ async function proof(credential: ServiceAccountCredential, endpoint: string): Pr
  * JWT, and reading one would be assuming a shape the grant does not promise.
  */
 export class ServiceToken {
-  private discovered: Promise<string> | null = null;
+  private endpoint: string | null = null;
   private held: { token: string; expiresAt: number } | null = null;
+  /** The ask whose turn it is; the next waits for it to settle, however it does. */
+  private asking: Promise<unknown> = Promise.resolve();
 
   constructor(
     private readonly credential: ServiceAccountCredential,
     private readonly fetch?: typeof globalThis.fetch,
   ) {}
 
-  private tokenEndpoint(): Promise<string> {
-    if (this.discovered === null) {
-      this.discovered = this.discover().catch((error: unknown) => {
-        // Not kept: a discovery that failed because the issuer was still
-        // booting must be tried again, not remembered.
-        this.discovered = null;
-        throw error;
-      });
-    }
-    return this.discovered;
+  private async tokenEndpoint(): Promise<string> {
+    if (this.endpoint === null) this.endpoint = await this.discover();
+    return this.endpoint;
   }
 
   private async discover(): Promise<string> {
@@ -148,7 +147,19 @@ export class ServiceToken {
    * start, and every renewal after it, for as long as the process lives. Both
    * are sent with the `fetch` this was made with, or the runtime's own.
    */
-  async token({ renewed }: { renewed: boolean }): Promise<string> {
+  token({ renewed }: { renewed: boolean }): Promise<string> {
+    const turn = this.asking.then(() => this.granted(renewed));
+    // The next ask waits for this one whether it brought a token or failed:
+    // its failure is its own asker's, who is handed `turn`.
+    this.asking = turn.then(
+      () => undefined,
+      () => undefined,
+    );
+    return turn;
+  }
+
+  /** `token`, in its turn. */
+  private async granted(renewed: boolean): Promise<string> {
     const { issuer, clientId } = this.credential;
 
     if (!renewed && this.held && this.held.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
