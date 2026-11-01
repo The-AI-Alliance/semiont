@@ -1,25 +1,32 @@
 #!/usr/bin/env node
 // generate-sign-in-python.mjs — generate the Python SDK's entry of the sign-in
 // store from specs/src/sign-in-store/SignIn.json, the schema the launcher and
-// the Rust SDK generate their own from.
+// the Rust SDK generate their own from, and how the store's directory is kept
+// to its owner from specs/src/sign-in-store/owner-only.json.
 //
-//   packages/python/sdk/src/semiont/sign_in.py
+//   packages/python/sdk/src/semiont/sign_in.py            the entry
+//   packages/python/sdk/src/semiont/_owner_only_table.py  the directory's mode
+//                                                         and access list
 //
 // The launcher, an application on the Rust SDK and one on this SDK all read
 // and write <stateDir>/tokens.json, so the entry's shape is the contract's to
-// state. The reading of the schema is sign-in-schema.mjs's.
+// state, and so is how its directory is kept. The reading of the schema is
+// sign-in-schema.mjs's, and of the owner-only file owner-only.mjs's.
 //
 // --check compares without writing (the CI drift gate).
 
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeOrCheck } from './committed-source.mjs';
+import { readOwnerOnly } from './owner-only.mjs';
 import { pyBanner, pyComment, pyDocstring, pySnake, pyString } from './python-source.mjs';
 import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
+const OWNER_ONLY = resolve(ROOT, 'specs/src/sign-in-store/owner-only.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/sign_in.py');
+const OWNER_ONLY_OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/_owner_only_table.py');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {
@@ -62,3 +69,23 @@ ${schema.fields.map(field).join('\n\n')}
 `;
 
 writeOrCheck(ROOT, OUT, text, CHECK);
+
+const { mode, accessList } = readOwnerOnly(OWNER_ONLY);
+
+const ownerOnly = `${pyBanner('specs/src/sign-in-store/owner-only.json', 'scripts/spec/generate-sign-in-python.mjs')}
+"""How a writer of the sign-in store keeps its directory to its owner, as the launcher keeps its state home."""
+
+from typing import Final
+
+__all__ = ["MODE", "access_list"]
+
+${pyComment(mode.docs)}
+MODE: Final = 0o${mode.written.slice(1)}
+
+
+def access_list(owner: str) -> str:
+${pyDocstring(accessList.docs, '    ')}
+    return ${pyString(accessList.before)} + owner + ${pyString(accessList.after)}
+`;
+
+writeOrCheck(ROOT, OWNER_ONLY_OUT, ownerOnly, CHECK);

@@ -140,7 +140,7 @@ func (s *SignInStore) change(change func(document map[string]json.RawMessage) (c
 	s.turn.Lock()
 	defer s.turn.Unlock()
 	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, ownerOnlyMode); err != nil {
 		return err
 	}
 	// Opened only to be locked: nothing is ever written to it, so it is opened

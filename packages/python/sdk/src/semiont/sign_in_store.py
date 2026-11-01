@@ -17,8 +17,9 @@ renewing another stack at the same moment loses nothing. What the file holds
 that is not a sign-in as this release knows one is written back as it was. A
 reader that only reads takes no lock: the file is replaced whole, so every
 document read is a whole one. Under the lock, the file's directory is kept to
-its owner, as the launcher keeps its state home: mode `0700`, and on Windows the
-launcher's access list, which what is made in it inherits.
+its owner, as the launcher keeps its state home: the mode, and on Windows the
+access list, which what is made in it inherits, that
+`specs/src/sign-in-store/owner-only.json` states.
 
 This module reads no environment. An application reads its own and says what
 it found: `state_dir(this_system(), home=..., xdg_state_home=..., local_app_data=...)`.
@@ -36,6 +37,7 @@ from typing import Final, Literal, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont import _owner_only_table
 from semiont.errors import SignInError
 from semiont.oauth_clients import SCRIPT_CLIENT_ID
 from semiont.session import HeldSignIn, SignInKept, text_claim, token_expiry
@@ -250,7 +252,7 @@ if sys.platform == "win32":
         administrator is `LA`) rather than by their SID, and with their entries
         in any order.
         """
-        listed = f"D:PAI(A;OICI;FA;;;{_user()})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        listed = _owner_only_table.access_list(_user())
         descriptor = ctypes.c_void_p()
         if not _ConvertStringSecurityDescriptorToSecurityDescriptorW(listed, _SDDL_REVISION_1, ctypes.byref(descriptor), None):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -275,8 +277,8 @@ else:
         fcntl.flock(descriptor, fcntl.LOCK_EX)
 
     def _owner_only(directory: str) -> None:
-        """Keep `directory` to its owner: mode `0700`, as the launcher keeps its state home."""
-        os.chmod(directory, 0o700)
+        """Keep `directory` to its owner: the sign-in store's mode, as the launcher keeps its state home."""
+        os.chmod(directory, _owner_only_table.MODE)
 
 
 @final

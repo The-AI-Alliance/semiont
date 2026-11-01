@@ -17,6 +17,8 @@
 //!   the scope it asks for (session/oauth.json);
 //! - `sign_in.rs`: an entry of the store `semiont login` keeps
 //!   (sign-in-store/SignIn.json);
+//! - `owner_only.rs`: the mode and the access list the store's directory is
+//!   kept to its owner with (sign-in-store/owner-only.json);
 //! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
 //!   keeps (client/timing.json);
 //! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
@@ -262,6 +264,11 @@ fn main() {
         ),
     )
     .expect("cannot write sign_in.rs");
+    fs::write(
+        out.join("owner_only.rs"),
+        owner_only(&read_json(&specs.join("sign-in-store/owner-only.json"))),
+    )
+    .expect("cannot write owner_only.rs");
     fs::write(
         out.join("oauth_clients.rs"),
         oauth_clients(&read_json(&specs.join("session/oauth.json"))),
@@ -845,6 +852,41 @@ fn oauth_clients(table: &Value) -> String {
         "/// {}\npub const SIGN_IN_SCOPE: &str = {:?};",
         text(scope, "docs", "scope"),
         text(scope, "value", "scope")
+    );
+    code
+}
+
+/// How a writer keeps the sign-in store's directory to its owner: the mode,
+/// on a system that has modes, and the access list Windows gives it, made for
+/// the user whose SID goes where the file's list says `{owner}`.
+fn owner_only(table: &Value) -> String {
+    let mode = text(&table["mode"], "value", "the owner-only mode");
+    assert!(
+        mode.len() == 4 && mode.starts_with('0') && mode.chars().all(|c| ('0'..='7').contains(&c)),
+        "owner-only.json: the mode {mode:?} is not four octal digits"
+    );
+    let list = text(&table["accessList"], "value", "the owner-only access list");
+    let parts: Vec<&str> = list.split("{owner}").collect();
+    assert!(
+        parts.len() == 2,
+        "owner-only.json: the access list names {{owner}} {} times, not once",
+        parts.len() - 1
+    );
+    let mut code =
+        String::from("// Generated from specs/src/sign-in-store/owner-only.json; do not edit.\n");
+    let _ = writeln!(
+        code,
+        "/// {}\n#[cfg(unix)]\nconst OWNER_ONLY_MODE: u32 = 0o{};",
+        text(&table["mode"], "docs", "the owner-only mode"),
+        &mode[1..]
+    );
+    let _ = writeln!(
+        code,
+        "/// {}\n#[cfg(windows)]\nfn owner_only_access_list(owner: &str) -> String {{\n    [{:?}, owner, {:?}].concat()\n}}",
+        text(&table["accessList"], "docs", "the owner-only access list")
+            .replace("`{owner}`", "`owner`"),
+        parts[0],
+        parts[1]
     );
     code
 }

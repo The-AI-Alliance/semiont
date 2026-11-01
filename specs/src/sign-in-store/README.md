@@ -52,13 +52,13 @@ file.
 Every writer keeps `<stateDir>` to its owner, as the launcher keeps its state
 home, once it holds the lock (below) and before it reads, so the file and the
 temporary file are its owner's alone from the moment each is made, and the
-lock from then on: mode `0700`, and on Windows, where a mode keeps nobody out,
-an access list. The list allows full access to the user the writer runs as
-(its process token's user), to the system and to the administrators, and to
-nobody else; it is handed down to everything made in the directory, and it is
-protected, so nothing is inherited from above:
-
-    D:PAI(A;OICI;FA;;;<the user's SID>)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)
+lock from then on: with the mode, and on Windows, where a mode keeps nobody
+out, the access list, that [`owner-only.json`](owner-only.json) states. The
+list allows full access to the user the writer runs as (its process token's
+user), to the system and to the administrators, and to nobody else; it is
+handed down to everything made in the directory, and it is protected, so
+nothing is inherited from above. Every writer, and the launcher, generates
+both from that file.
 
 A directory that has the list already is left as it is: setting a list hands
 it down to everything beneath, and is done under the lock because a file
