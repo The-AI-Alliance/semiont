@@ -52,9 +52,9 @@ var groupList = func() string {
 	return strings.Join(names[:len(names)-1], ", ") + ", or " + names[len(names)-1]
 }()
 
-// groupMember: a role a group's stop acts on. because is "" for the
-// group's own roles, and for one it takes along, the role it needs that
-// brings it.
+// groupMember: a role a group's start or stop acts on. because is "" for
+// the group's own roles, and for one it takes along, the role that brings
+// it: the one it needs, for a stop; the one that needs it, for a start.
 type groupMember struct{ role, because string }
 
 // groupStops: what `stop --group g` stops, last-started first: g's roles,
@@ -83,6 +83,29 @@ func groupStops(g serviceGroup, last bool) []groupMember {
 		}
 	}
 	return membersIn(teardownOrder, because)
+}
+
+// groupStarts: what `start --group g` starts, in the start walk's order: g's
+// roles, each started afresh as `start --service` starts one, and what they
+// need, transitively, that is not up (up says which is).
+func groupStarts(g serviceGroup, up func(role string) bool) []groupMember {
+	because := map[string]string{}
+	for _, role := range g.roles {
+		because[role] = ""
+	}
+	// Walked backwards, a role is reached after everything that needs it, so
+	// its own needs are asked of only once it is known to start.
+	for _, role := range slices.Backward(startOrder) {
+		if _, ok := because[role]; !ok {
+			continue
+		}
+		for _, need := range dependenciesOf(role) {
+			if _, ok := because[need]; !ok && !up(need) {
+				because[need] = role
+			}
+		}
+	}
+	return membersIn(startOrder, because)
 }
 
 // membersIn: the roles because names, in order.

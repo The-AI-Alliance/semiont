@@ -2,6 +2,8 @@ package launcher
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
@@ -50,31 +52,40 @@ func digString(m map[string]any, path ...string) (string, bool) {
 	return s, ok
 }
 
-// runStartService: the live `start --service` — flowOneService with
-// liveExec, plus the live-only rocket summary (skipped for the external/
-// absent no-ops, which launch nothing).
+// runStartService: the live `start --service` and `start --group` —
+// flowServices with liveExec, plus the live-only rocket summary (skipped when
+// every service is an external/absent no-op, which launches nothing).
 func runStartService(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan, browser browserDocument) int {
 	t0 := time.Now()
 	x := &liveExec{u: u, rt: rt, kb: kb, plan: plan, lan: lan}
-	if code := flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true, browser: browser}); code != 0 {
+	if code := flowServices(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true, browser: browser}); code != 0 {
 		return code
 	}
-	if _, nothing := nothingToLaunch(plan, opts.service); nothing {
+	if !slices.ContainsFunc(opts.starts, func(m groupMember) bool {
+		_, nothing := nothingToLaunch(plan, m.role)
+		return !nothing
+	}) {
 		return 0
 	}
+	_, name, _ := strings.Cut(opts.asked(), " ")
+	detail := took(time.Since(t0))
+	if opts.group.shared() {
+		detail = "it serves every KB here; " + detail
+	}
 	fmt.Println()
-	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 "+opts.service+" is up"), u.Dim("("+took(time.Since(t0))+")"))
+	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 "+name+" is up"), u.Dim("("+detail+")"))
 	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))
 	return 0
 }
 
-// renderServicePlan is --dry-run for --service: the same flow, plan mode.
+// renderServicePlan is --dry-run for --service and --group: the same flow,
+// plan mode.
 // Real root for the same reason as renderStartPlan: the state path is
 // plan-time truth; the kb mount keeps its placeholder via val().
 func renderServicePlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan, browser browserDocument) {
 	x := &planExec{rt: rt, lan: lan, kb: kb}
-	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
+	x.c("semiont start %s --dry-run — the exact runtime commands a real", opts.asked())
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
 	x.stateHomeDocumentWrites(browser, plan)
-	flowOneService(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true, browser: browser})
+	flowServices(x, flowCtx{plan: plan, stack: st, opts: opts, kb: kb, userEnv: userEnv, restart: true, browser: browser})
 }

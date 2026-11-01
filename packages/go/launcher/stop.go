@@ -65,7 +65,7 @@ record is kept — resume with semiont start. --delete destroys the codespace
 (state and all) and forgets the record; it applies only to codespace stacks.
 A stop named with --repo stops that codespace stack alone, and leaves the
 Browser.
-`, roleListWrapped(78, ""))
+`, listWrapped(roleList, 78, ""))
 
 // machineHandles: what names the machine-level container `name` under rt:
 // its name, and its recorded ID where rt is the runtime its record names, an

@@ -30,7 +30,7 @@ By default follows Semiont's own services (%s). With
 The runtime and container identities come from the recorded stack state when
 present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
-`, strings.Join(logServices, ", "), roleListWrapped(78, ""))
+`, strings.Join(logServices, ", "), listWrapped(roleList, 78, ""))
 
 // logServices: the default follow set — Semiont's own services, the ones
 // whose logs are ours to read. Derived, so a new Semiont service is followed

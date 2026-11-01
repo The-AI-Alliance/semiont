@@ -215,7 +215,7 @@ func TestInitWritesNoDaemonPassword(t *testing.T) {
 				t.Errorf("--inference %s: the born KB has somebody else run its %s", inference, role)
 			}
 		}
-		if got := secretsRead(p, ""); !slices.Equal(got, want) {
+		if got := secretsRead(p, startOptions{}.includes); !slices.Equal(got, want) {
 			t.Errorf("--inference %s: a start of the born KB reads %v, want %v", inference, got, want)
 		}
 	}
