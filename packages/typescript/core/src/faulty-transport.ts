@@ -18,6 +18,7 @@
  */
 
 import { BehaviorSubject, Subject, type Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import type { SemiontError } from './errors';
 import type { BaseUrl } from './branded-types';
 import { baseUrl as makeBaseUrl } from './branded-types';
@@ -28,7 +29,20 @@ import type { ConnectionState, ITransport } from './transport';
 import { EventBus } from './event-bus';
 import { BRIDGED_CHANNELS } from './bridged-channels';
 import { BUS_OPERATIONS, REPLY_NAMES, type BusOperationKey } from './bus-operations';
-import { asDeclared } from './bus';
+import { FrameRefusal, asDeclared } from './bus';
+
+/**
+ * A frame of this double's wire as a wire delivers it. Its bus is its wire,
+ * and nothing bridges into it: a refusal there is no frame any wire carries,
+ * and is this double's own fault.
+ */
+function onTheWire<T>(frame: BusFrame<T | FrameRefusal>): BusFrame<T> {
+  const { payload, ...envelope } = frame;
+  if (payload instanceof FrameRefusal) {
+    throw new Error(`FaultyTransport: its wire holds a refusal on ${payload.channel}, which no wire carries`);
+  }
+  return { ...envelope, payload };
+}
 
 /** One wire behavior, applied to a single request-channel emit. */
 export type FaultAction =
@@ -251,12 +265,12 @@ export class FaultyTransport implements ITransport {
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
-    const sub = this.bus.on(channel).subscribe(handler);
+    const sub = this.stream(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.bus.on(channel);
+    return this.bus.frames(channel).pipe(map((frame) => onTheWire<EventMap[K]>(frame).payload));
   }
 
   /**
@@ -265,7 +279,7 @@ export class FaultyTransport implements ITransport {
    * (`Bus.frames(channel, resourceId)`).
    */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
-    return this.bus.channelStream(channel).asObservable();
+    return this.bus.channelStream(channel).asObservable().pipe(map((frame) => onTheWire<EventMap[K]>(frame)));
   }
 
   /**
@@ -311,9 +325,8 @@ export class FaultyTransport implements ITransport {
         // the envelope here would strip the correlation key on the way to the
         // application bus and strand the awaiting request.
         const { payload, ...envelope } = frame;
-        // A payload that is not its channel's is handed to nobody, as a wire transport's bridge does.
-        const declared = asDeclared(channel as keyof EventMap, payload as EventMap[keyof EventMap]);
-        if (declared !== undefined) bus.emit(channel as keyof EventMap, declared.payload, envelope);
+        // A payload that is not its channel's is published as its refusal, as a wire transport's bridge does.
+        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload), envelope);
       });
     }
   }

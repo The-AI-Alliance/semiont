@@ -1,4 +1,4 @@
-from semiont.bus import Bus
+from semiont.bus import Bus, Delivered, FrameRefusal
 from semiont.channels import MARK_ADDED
 from semiont.errors import BusRequestError
 from semiont.http import HttpTransport
@@ -20,5 +20,9 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
 
         # A resource's channel is read for the resource: the read holds its scope, and lets go on the way out.
         async with bus.frames(MARK_ADDED, resource) as added:
-            async for frame in added:
-                print(frame.scope, frame.payload.type)
+            async for heard in added:
+                match heard:
+                    case Delivered():
+                        print(heard.scope, heard.payload.type)
+                    case FrameRefusal():
+                        print(f"a payload on {heard.channel} that has no `{heard.lacks}`")

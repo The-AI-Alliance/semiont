@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { CACHE_REFRESH, INVALIDATION_WINDOW_MS } from '@semiont/core';
+import { CACHE_QUERIES, CACHE_REFRESH, FrameRefusal, INVALIDATION_WINDOW_MS } from '@semiont/core';
 import type {
   Annotation,
   AnnotationId,
@@ -188,13 +188,23 @@ export class CacheRefresher<Q extends CacheQuery> {
     }
   }
 
+  /** Ask again for every key held by each query this refresher acts on. */
+  private everythingHeld(): void {
+    for (const query of CACHE_QUERIES) {
+      if (this.answers(query)) this.acts[query].refetch({}, 'held');
+    }
+  }
+
   /** Subscribe `channel`'s row of the refresh table to its events. */
   private refreshOn<K extends RefreshChannel>(channel: K): void {
     const subjectOf: (event: EventMap[K]) => RefreshSubject = SUBJECT_OF[channel];
     this.subs.push(
-      (this.bus.on(channel) as {
-        subscribe(fn: (p: EventMap[K]) => void): { unsubscribe(): void };
-      }).subscribe((event) => this.refresh(channel, subjectOf(event))),
+      this.bus.on(channel).subscribe((event) => {
+        // An event that cannot be read: something changed and nothing says
+        // what. Everything held is asked for again, as after a gap.
+        if (event instanceof FrameRefusal) this.everythingHeld();
+        else this.refresh(channel, subjectOf(event));
+      }),
     );
   }
 }

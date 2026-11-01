@@ -8,7 +8,7 @@ import type { Annotation, AnnotationId, EventBus, EventMap } from '@semiont/core
 import type { LinkComponentProps, RouteBuilder } from '../../../../contexts/RoutingContext';
 import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper } from '../../../../test-utils';
-import { jobId, resourceId } from '@semiont/core';
+import { FrameRefusal, jobId, resourceId } from '@semiont/core';
 
 // Composition-based event tracker
 interface TrackedEvent {
@@ -25,6 +25,8 @@ function createEventTracker() {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload) => {
+          // Nothing bridges into this test's bus: a refusal on it is the test's own fault.
+          if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
           events.push({ event: eventName, payload });
         });
       });

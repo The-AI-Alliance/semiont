@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import { DELEGATE_SILENCE_MS, watched, type JobId, type MarkJobParams, type Motivation, type ResourceId, type Selector, type StateUnit, type Watched, type components } from '@semiont/core';
+import { DELEGATE_SILENCE_MS, FrameRefusal, watched, type JobId, type MarkJobParams, type Motivation, type ResourceId, type Selector, type StateUnit, type Watched, type components } from '@semiont/core';
 import { JobCancelledError } from '../../namespaces/job-status-poll';
 
 type JobProgress = components['schemas']['JobProgress'];
@@ -75,13 +75,14 @@ export function createMarkStateUnit(
   // The view layer opens the annotations panel when `pendingAnnotation$`
   // becomes non-null: the unit updates state, and UI side effects belong to
   // the view, where the host's bus is.
+  // A signal whose payload is not its channel's names no resource it is for.
   subs.push(client.bus.on('mark:requested').subscribe((event) => {
-    if (event.source !== resourceId) return;
+    if (event instanceof FrameRefusal || event.source !== resourceId) return;
     pendingAnnotation$.next({ selector: event.selector as Selector | Selector[], motivation: event.motivation });
   }));
 
   subs.push(client.bus.on('mark:submit').subscribe(async (event) => {
-    if (event.source !== resourceId) return;
+    if (event instanceof FrameRefusal || event.source !== resourceId) return;
     try {
       await client.mark.annotation({
         motivation: event.motivation,

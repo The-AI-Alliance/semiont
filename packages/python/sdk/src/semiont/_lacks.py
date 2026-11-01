@@ -57,6 +57,19 @@ def _place(shapes: tuple[type[WireModel], ...], way: tuple[int | str, ...]) -> t
     return ".".join(names), left
 
 
+def missing(shapes: tuple[type[WireModel], ...], error: ValidationError) -> str | None:
+    """The way to the first member a value lacks to be one of `shapes`, by the names the wire gives them, joined by dots.
+
+    None when it lacks none, as far as the shapes name the way: one refused
+    for what it holds, or for a member one of several shapes lacks.
+    """
+    for detail in error.errors(include_url=False, include_context=False, include_input=False):
+        place, left = _place(shapes, detail["loc"])
+        if place and not left and detail["type"] == "missing":
+            return place
+    return None
+
+
 def lacks(shapes: tuple[type[WireModel], ...], error: ValidationError, what: str) -> str:
     """What a value lacks to be one of `shapes`, which a reader knows as `what`.
 

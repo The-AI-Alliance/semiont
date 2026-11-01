@@ -280,7 +280,7 @@ public final class semiont/bus/BusKt {
 	public static final fun requestFuture (Lsemiont/transport/Transport;Lsemiont/bus/Operation;Lkotlinx/serialization/json/JsonObject;J)Ljava/util/concurrent/CompletableFuture;
 }
 
-public final class semiont/bus/Delivered {
+public final class semiont/bus/Delivered : semiont/bus/Heard {
 	public synthetic fun <init> (Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Lsemiont/transport/TraceContext;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/Object;
 	public final fun component2 ()Ljava/lang/String;
@@ -294,6 +294,7 @@ public final class semiont/bus/Delivered {
 	public final fun getPayload ()Ljava/lang/Object;
 	public final fun getScope ()Lsemiont/identifiers/ResourceId;
 	public final fun getScope-Au_5XH8 ()Ljava/lang/String;
+	public fun getStatus ()Ljava/lang/String;
 	public final fun getTrace ()Lsemiont/transport/TraceContext;
 	public final fun getUserId ()Lsemiont/identifiers/UserId;
 	public final fun getUserId-1KRECTw ()Ljava/lang/String;
@@ -315,6 +316,26 @@ public final class semiont/bus/EventBus : semiont/transport/FrameSink {
 	public final fun isDestroyed ()Z
 	public final fun publish (Lsemiont/channels/Channel;Ljava/lang/Object;Lsemiont/identifiers/ResourceId;Ljava/lang/String;)V
 	public final fun publish-NOvym2Y (Lsemiont/channels/Channel;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V
+}
+
+public final class semiont/bus/FrameRefusal : semiont/bus/Heard {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lkotlinx/serialization/json/JsonObject;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)Lsemiont/bus/FrameRefusal;
+	public static synthetic fun copy$default (Lsemiont/bus/FrameRefusal;Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)Lsemiont/bus/FrameRefusal;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChannel ()Ljava/lang/String;
+	public final fun getLacks ()Ljava/lang/String;
+	public final fun getPayload ()Lkotlinx/serialization/json/JsonObject;
+	public fun getStatus ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class semiont/bus/Heard {
+	public abstract fun getStatus ()Ljava/lang/String;
 }
 
 public final class semiont/bus/Operation {

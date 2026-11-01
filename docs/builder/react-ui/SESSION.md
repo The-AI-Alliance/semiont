@@ -21,7 +21,8 @@ import type { Observable } from 'rxjs';
 
 // emit returns how many subscribers the payload reached
 const reached: number = client.bus.emit('beckon:hover', { annotationId });
-const hovers: Observable<EventMap['beckon:hover']> = client.bus.on('beckon:hover');
+// each hover's payload, or, in place of one that is not the channel's, its FrameRefusal
+const hovers: Observable<EventMap['beckon:hover'] | FrameRefusal> = client.bus.on('beckon:hover');
 ```
 
 Typed namespace methods are the way to say something on the bus —

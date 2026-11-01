@@ -2,6 +2,7 @@ package semiont.bus
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -97,6 +98,12 @@ private val ADD = Operations.FRAME_ADD_ENTITY_TYPE
 
 private fun added(tag: String): FrameAddEntityTypeCommand = decoded(Channels.FRAME_ADD_ENTITY_TYPE, json("""{"tag":"$tag"}"""))
 
+/** This as the frame it is; a test that reads a refusal here fails. */
+private fun <P> Heard<P>.delivered(): Delivered<P> = when (this) {
+    is Delivered -> this
+    is FrameRefusal -> throw AssertionError("refused: $this")
+}
+
 class BusTest {
     @Test
     fun anEmitSendsThePayloadAsTheWireCarriesIt() = runBlocking {
@@ -112,7 +119,8 @@ class BusTest {
         val frames = Bus(wire).frames(Channels.FRAME_ADD_ENTITY_TYPE)
         val trace = TraceContext("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
         wire.deliver(Frame("frame:add-entity-type", json("""{"tag":"Person","_userId":"$ALICE","$TRACE_FIELD":{"traceparent":"${trace.traceparent}"}}"""), "c-1", null, trace))
-        val delivered = withTimeout(5_000) { frames.first() }
+        val delivered = withTimeout(5_000) { frames.first() }.delivered()
+        assertEquals("delivered", delivered.status)
         assertEquals("Person", delivered.payload.tag)
         // A stamp its payload declares is the payload's own, and kept.
         assertEquals(UserId.parse(ALICE), delivered.payload.userId)
@@ -127,18 +135,38 @@ class BusTest {
         val wire = Wire(emptySet())
         val frames = Bus(wire).frames(Channels.PANEL_CLOSE)
         wire.deliver(Frame("panel:close", json("""{"_userId":"$ALICE","$TRACE_FIELD":{"traceparent":"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"}}""")))
-        val delivered = withTimeout(5_000) { frames.first() }
+        val delivered = withTimeout(5_000) { frames.first() }.delivered()
         assertEquals(Empty, delivered.payload)
         assertEquals(UserId.parse(ALICE), delivered.userId)
     }
 
     @Test
-    fun aFrameThatIsNotTheChannelsIsNotGiven() = runBlocking {
+    fun aFrameThatIsNotTheChannelsIsToldTheReaderInItsPlaceAndTheNextFollows() = runBlocking {
         val wire = Wire(emptySet())
         val frames = Bus(wire).frames(Channels.FRAME_ADD_ENTITY_TYPE)
-        wire.deliver(Frame("frame:add-entity-type", json("""{"label":"no tag"}""")))
+        val lacking = json("""{"_userId":"$ALICE"}""")
+        val malformed = json("""{"tag":{"not":"a tag"}}""")
+        wire.deliver(Frame("frame:add-entity-type", lacking))
+        wire.deliver(Frame("frame:add-entity-type", malformed))
         wire.deliver(Frame("frame:add-entity-type", json("""{"tag":"Person"}""")))
-        assertEquals("Person", withTimeout(5_000) { frames.first() }.payload.tag)
+        val (refused, unread, next) = withTimeout(5_000) { frames.take(3).toList() }
+        // The way to what it lacks, and the payload as it came.
+        assertEquals(FrameRefusal("frame:add-entity-type", "tag", lacking), refused)
+        assertEquals("refused", refused.status)
+        // One refused for what it holds lacks nothing.
+        assertEquals(FrameRefusal("frame:add-entity-type", null, malformed), unread)
+        assertEquals("Person", next.delivered().payload.tag)
+    }
+
+    @Test
+    fun aFrameThatLacksAMemberDeepInsideItIsRefusedByTheWayToIt() = runBlocking {
+        val wire = Wire(emptySet())
+        val frames = Bus(wire).frames(Channels.JOB_STARTED, ONE)
+        val unsequenced = json(
+            """{"id":"e-1","type":"job:started","timestamp":"2026-10-29T00:00:00Z","userId":"$ALICE","resourceId":"${ONE.value}","version":1,"payload":{},"metadata":{}}""",
+        )
+        wire.deliver(Frame("job:started", unsequenced, null, ONE))
+        assertEquals(FrameRefusal("job:started", "metadata.sequenceNumber", unsequenced), withTimeout(5_000) { frames.first() })
     }
 
     @Test
@@ -151,7 +179,7 @@ class BusTest {
         )
         wire.deliver(Frame("job:started", stored(TWO), null, TWO))
         wire.deliver(Frame("job:started", stored(ONE), null, ONE))
-        val delivered = withTimeout(5_000) { frames.first() }
+        val delivered = withTimeout(5_000) { frames.first() }.delivered()
         assertEquals(ONE, delivered.scope)
         assertEquals("job:started", delivered.payload.type)
         // Its reading is over, and with it the hold.
@@ -164,7 +192,7 @@ class BusTest {
         val frames = Bus(wire).frames(Channels.JOB_STARTED, ONE)
         frames.close()
         assertEquals(0, wire.holds[ONE])
-        assertEquals(emptyList<Delivered<*>>(), withTimeout(5_000) { frames.toList() })
+        assertEquals(emptyList<Heard<*>>(), withTimeout(5_000) { frames.toList() })
     }
 
     @Test

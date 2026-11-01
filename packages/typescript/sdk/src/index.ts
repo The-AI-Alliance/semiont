@@ -145,6 +145,10 @@ export {
   // Bus-mediated command error — re-exported for catch-convenience (defined in
   // @semiont/core next to `Bus`).
   BusRequestError,
+  // What a read of a channel gives in place of a frame whose payload is not
+  // the channel's (defined in @semiont/core next to `Bus`): a reader of
+  // `client.bus` tells one apart with `instanceof`.
+  FrameRefusal,
   // The read-only view a state unit hands out of a state it holds.
   watched,
 } from '@semiont/core';

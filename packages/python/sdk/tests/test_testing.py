@@ -14,7 +14,7 @@ from pydantic import JsonValue
 from spec import JsonObject
 from tokens import token
 
-from semiont.bus import request
+from semiont.bus import Delivered, request
 from semiont.cache import Pending, Ready
 from semiont.channels import BECKON_FOCUS
 from semiont.client import CachePersistence, ClientTiming, SemiontClient
@@ -269,7 +269,9 @@ def test_what_is_only_sent_is_delivered_to_whoever_listens_and_into_a_clients_bu
         assert await soon(anext(heard)) == Frame(
             channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": "ann-1"}, scope=RESOURCE
         )
-        assert (await soon(anext(on_the_bus))).payload.annotation_id == "ann-1"
+        bussed = await soon(anext(on_the_bus))
+        assert isinstance(bussed, Delivered)
+        assert bussed.payload.annotation_id == "ann-1"
         # It is no request: the log does not hold it.
         assert transport.request_log == []
         assert [frame.channel for frame in transport.emitted] == ["beckon:focus"]

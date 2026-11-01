@@ -13,12 +13,17 @@
  * that genuinely owns a scope (the Archivist's fact pump) emits directly.
  */
 import type { Observable, Subscription } from 'rxjs';
+import type { FrameRefusal } from './bus';
 import type { BusEnvelope, BusFrame } from './event-bus';
 import type { EventMap } from './bus-protocol';
 
-/** Anything that publishes a channel's frames: `EventBus`, `ITransport`. */
+/**
+ * Anything that publishes a channel's frames: `EventBus`, `ITransport`. A bus
+ * a transport bridged into carries a refusal in place of a payload that is not
+ * its channel's, and a relay passes it on as it passes on any frame.
+ */
 export interface FrameSource {
-  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K] | FrameRefusal>>;
 }
 
 /**
@@ -27,7 +32,7 @@ export interface FrameSource {
  * type cannot be handed a payload alone.
  */
 export interface FrameSink {
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope: BusEnvelope): unknown;
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal, envelope: BusEnvelope): unknown;
 }
 
 /** Per-channel so `K` is one channel's type, not the union of all of them. */

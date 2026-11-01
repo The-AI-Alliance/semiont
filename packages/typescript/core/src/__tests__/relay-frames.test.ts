@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom, of, take, timeout } from 'rxjs';
+import { FrameRefusal } from '../bus';
 import { EventBus } from '../event-bus';
 import { resourceId } from '../identifiers';
 import { relayFrames, type FrameSink, type FrameSource } from '../relay-frames';
@@ -99,6 +100,21 @@ describe('relayFrames', () => {
       expect(seen[0]).toEqual({ channel: CHANNEL, payload: PAYLOAD, envelope: { correlationId: 'cid-a' } });
       expect(seen[1]!.channel).toBe(OTHER);
       expect(seen[1]!.envelope).toEqual({ correlationId: 'cid-b' });
+    } finally {
+      from.destroy();
+    }
+  });
+
+  it('passes on a refusal its source bus carries, in place of the payload, as it passes on any frame', async () => {
+    const from = new EventBus();
+    const { sink, seen } = recordingSink();
+    const refused = new FrameRefusal(CHANNEL, 'tag', {});
+    try {
+      relayFrames(from, sink, [CHANNEL], () => {});
+      from.emit(CHANNEL, refused, { correlationId: 'cid-r' });
+      await vi.waitFor(() => expect(seen).toHaveLength(1));
+      expect(seen[0]).toEqual({ channel: CHANNEL, payload: refused, envelope: { correlationId: 'cid-r' } });
+      expect(seen[0]!.payload).toBe(refused);
     } finally {
       from.destroy();
     }

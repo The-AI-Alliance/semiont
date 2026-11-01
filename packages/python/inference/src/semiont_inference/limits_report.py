@@ -21,7 +21,7 @@ from collections.abc import Sequence
 from typing import Final
 
 from semiont import telemetry
-from semiont.bus import Bus, Delivered
+from semiont.bus import Bus, Delivered, FrameRefusal
 from semiont.channel import Operation
 from semiont.errors import SemiontError
 from semiont.model import stated
@@ -126,4 +126,9 @@ async def answer_limits_requests(
     """
     async with bus.frames(operation.request) as requests, asyncio.TaskGroup() as answering:
         async for request in requests:
-            answering.create_task(_answer(bus, operation, clients, request))
+            match request:
+                case Delivered():
+                    answering.create_task(_answer(bus, operation, clients, request))
+                case FrameRefusal():
+                    # A request that is not the operation's asks for nothing this can answer.
+                    pass

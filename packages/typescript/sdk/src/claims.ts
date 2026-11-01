@@ -666,19 +666,22 @@ class ClaimLoop implements Holder {
     this.phase = 'claiming';
     this.reader = reader;
 
+    // All three are read as they come, and not as their channels type them, as
+    // every SDK's worker reads them: the comparison of an announcement with a
+    // filter knows no field by name, so a job this SDK cannot type still wakes
+    // a worker whose claim it matches.
     this.subscriptions.push(
-      this.wire.frames('job:queued').subscribe(({ payload: announced }) => {
+      this.bus.frames('job:queued').subscribe(({ payload: announced }) => {
         // Every announcement received is stamped, before any filtering.
         this.lastQueuedEventAt = Date.now();
         if (this.accepts.some((filter) => jobMatchesFilter(filter, announced))) this.pull();
       }),
       // A cancellation is the held job's only when it names it.
-      this.wire.frames('job:cancel-requested').subscribe(({ payload: request }) => {
+      this.bus.frames('job:cancel-requested').subscribe(({ payload: request }) => {
         if (this.held !== null && request.jobId === this.held.jobId) this.held.signalCancellation();
       }),
-      // Read as it comes, and not as its channel types it: a reply that names
-      // no job is refused where the claim's answer is read (C9).
-      this.wire.frames('job:claimed').subscribe(({ payload: reply }) => {
+      // A reply that names no job is refused where the claim's answer is read (C9).
+      this.bus.frames('job:claimed').subscribe(({ payload: reply }) => {
         const response: unknown = reply.response;
         const metadata = isObject(response) ? response['metadata'] : undefined;
         if (this.claimInFlight && isObject(metadata) && isString(metadata['id'])) this.arrivedIn.set(metadata['id'], getActiveTraceparent());

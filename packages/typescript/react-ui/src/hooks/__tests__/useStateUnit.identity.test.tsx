@@ -18,11 +18,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { BehaviorSubject, Subject, map } from 'rxjs';
+import { BehaviorSubject, Subject, map, type Observable } from 'rxjs';
 import { readyValue } from '@semiont/sdk';
 import { inMemoryContent } from '@semiont/sdk/testing';
-import type { ConnectionState, SemiontError } from '@semiont/core';
-import { EventBus, baseUrl } from '@semiont/core';
+import type { BusFrame, ConnectionState, EventMap, SemiontError } from '@semiont/core';
+import { EventBus, FrameRefusal, baseUrl } from '@semiont/core';
 import { type ITransport } from '@semiont/core';
 import { BrowseNamespace } from '@semiont/sdk';
 import { useStateUnit } from '../useStateUnit';
@@ -62,6 +62,15 @@ function inMemoryTransport(
     envelope?: { correlationId?: string },
   ) => void,
 ): ITransport {
+  // The bus is this transport's wire, and nothing bridges into it: a refusal
+  // there is no frame any wire carries, and is the test's own fault.
+  const frames = <K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> =>
+    bus.frames(channel).pipe(
+      map(({ payload, ...envelope }) => {
+        if (payload instanceof FrameRefusal) throw new Error(`this double's wire holds a refusal on ${payload.channel}`);
+        return { ...envelope, payload };
+      }),
+    );
   return {
     baseUrl: baseUrl('http://transport.test'),
     // Adapting a spy here (rather than taking `ITransport['emit']` directly)
@@ -75,11 +84,11 @@ function inMemoryTransport(
       return 1;
     },
     on: (channel, handler) => {
-      const sub = bus.on(channel).subscribe(handler);
+      const sub = frames(channel).subscribe((frame) => handler(frame.payload));
       return () => sub.unsubscribe();
     },
-    stream: (channel) => bus.on(channel),
-    frames: (channel) => bus.frames(channel),
+    stream: (channel) => frames(channel).pipe(map((frame) => frame.payload)),
+    frames,
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),

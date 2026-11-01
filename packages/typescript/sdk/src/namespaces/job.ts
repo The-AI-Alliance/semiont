@@ -1,5 +1,5 @@
 import type { Observable } from 'rxjs';
-import type { EventBus, EventMap, JobId, components } from '@semiont/core';
+import type { EventBus, EventMap, FrameRefusal, JobId, components } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { Bus, BusRequestError } from '@semiont/core';
 import { ClaimsObservable, type ClaimOptions } from '../claims';
@@ -20,24 +20,26 @@ export class JobNamespace implements IJobNamespace {
   /**
    * Live stream of `job:queued` events. Surfaces a typed view onto the
    * underlying bus channel for consumers (CLIs, MCP handlers, widgets)
-   * that orchestrate jobs and need to react to lifecycle transitions.
+   * that orchestrate jobs and need to react to lifecycle transitions. Each
+   * stream here gives, in place of an event whose payload is not its
+   * channel's, its `FrameRefusal`.
    */
-  get queued$(): Observable<EventMap['job:queued']> {
+  get queued$(): Observable<EventMap['job:queued'] | FrameRefusal> {
     return this.bus.on('job:queued');
   }
 
   /** Live stream of `job:report-progress` events. */
-  get progress$(): Observable<EventMap['job:report-progress']> {
+  get progress$(): Observable<EventMap['job:report-progress'] | FrameRefusal> {
     return this.bus.on('job:report-progress');
   }
 
   /** Live stream of `job:complete` events (global; filter by `jobId`). */
-  get complete$(): Observable<EventMap['job:complete']> {
+  get complete$(): Observable<EventMap['job:complete'] | FrameRefusal> {
     return this.bus.on('job:complete');
   }
 
   /** Live stream of `job:fail` events (global; filter by `jobId`). */
-  get fail$(): Observable<EventMap['job:fail']> {
+  get fail$(): Observable<EventMap['job:fail'] | FrameRefusal> {
     return this.bus.on('job:fail');
   }
 

@@ -11,7 +11,8 @@ writes what it is scripted to, as it is (`Answer.raw`).
 
 The bus carries a credential too, the token a resource is cloned by, and its
 payloads are decoded as an answer's body is. What is said of one that is not
-its channel's is held to the same.
+its channel's is held to the same: its refusal hands the payload to its
+reader, and nothing logs it.
 """
 
 import logging
@@ -29,7 +30,7 @@ from shown import CARRIED, parts_of, printed
 from tokens import token
 
 from semiont._lacks import lacks
-from semiont.bus import Bus
+from semiont.bus import Bus, FrameRefusal
 from semiont.channel import Channel
 from semiont.channels import (
     BECKON_HOVER,
@@ -304,23 +305,15 @@ DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id
 @pytest.mark.parametrize(
     ("channel", "payload", "lacks"),
     [
-        (YIELD_CLONE_RESOURCE_REQUESTED, {"token": [CARRIED]}, "its `token` is malformed"),
-        (YIELD_CLONE_TOKEN_GENERATED, {"token": CARRIED, "resource": DESCRIBED}, "it has no `response`"),
-        (
-            YIELD_CLONE_TOKEN_GENERATED,
-            {"response": {"token": [CARRIED], "resource": DESCRIBED}},
-            "its `response.token` is malformed; it has no `response.expiresAt`; it has no `response.resource.name`",
-        ),
-        (BECKON_HOVER, {"annotation_id": [CARRIED]}, "its `annotationId` is malformed"),
-        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, "it has a member that channel's payload has not"),
-        (
-            JOB_CHECKPOINT,
-            {"jobId": "job-1", "completedUnits": [[CARRIED]], "unitCursors": {CARRIED: {"next": CARRIED}}},
-            "its `completedUnits` is malformed; its `unitCursors` is malformed",
-        ),
-        (JOB_COMPLETE, {"jobType": "mark", "result": [CARRIED]}, "it has no `resourceId`; it has no `jobId`; its `result` is malformed"),
-        (JOB_COMPLETE, {"jobType": CARRIED}, "it is not the JSON object that channel's payload is"),
-        (JOB_COMPLETE, {"result": {"token": CARRIED}}, "it is not the JSON object that channel's payload is"),
+        (YIELD_CLONE_RESOURCE_REQUESTED, {"token": [CARRIED]}, None),
+        (YIELD_CLONE_TOKEN_GENERATED, {"token": CARRIED, "resource": DESCRIBED}, "response"),
+        (YIELD_CLONE_TOKEN_GENERATED, {"response": {"token": [CARRIED], "resource": DESCRIBED}}, "response.expiresAt"),
+        (BECKON_HOVER, {"annotation_id": [CARRIED]}, None),
+        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, None),
+        (JOB_CHECKPOINT, {"jobId": "job-1", "completedUnits": [[CARRIED]], "unitCursors": {CARRIED: {"next": CARRIED}}}, None),
+        (JOB_COMPLETE, {"jobType": "mark", "result": [CARRIED]}, "resourceId"),
+        (JOB_COMPLETE, {"jobType": CARRIED}, None),
+        (JOB_COMPLETE, {"result": {"token": CARRIED}}, None),
     ],
     ids=[
         "a member that is malformed",
@@ -334,20 +327,20 @@ DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id
         "one of several shapes, not named",
     ],
 )
-def test_a_payload_that_is_not_its_channel_s_is_said_by_what_it_lacks_and_in_none_of_its_own_words[P: WireModel](
-    channel: Channel[P], payload: dict[str, JsonValue], lacks: str, caplog: pytest.LogCaptureFixture
+def test_a_payload_that_is_not_its_channel_s_is_refused_to_its_reader_by_the_way_to_what_it_lacks_and_logged_nowhere[P: WireModel](
+    channel: Channel[P], payload: dict[str, JsonValue], lacks: str | None, caplog: pytest.LogCaptureFixture
 ) -> None:
     async def scenario() -> None:
         bus = EventBus()
         read = bus.frames(channel)
         bus.emit(channel.name, payload)
         bus.destroy()
-        assert [delivered async for delivered in read] == []
+        # The payload is its reader's, as it came; the way to what it lacks is named by the shape, never by the payload.
+        assert [heard async for heard in read] == [FrameRefusal(channel=channel.name, lacks=lacks, payload=payload)]
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())
-    assert [record.getMessage() for record in caplog.records] == [f"a payload on {channel.name} is not that channel's: {lacks}"]
-    assert parts_of(CARRIED, said_by_this_package(caplog)) == []
+    assert said_by_this_package(caplog) == ""
 
 
 def test_a_result_that_is_not_its_operation_s_is_refused_for_what_it_lacks_and_in_none_of_its_own_words() -> None:

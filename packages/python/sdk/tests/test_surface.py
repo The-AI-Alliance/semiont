@@ -24,7 +24,7 @@ from aio import run, soon
 from pydantic import JsonValue, TypeAdapter
 from spec import SPEC, JsonObject, objects, read, text
 
-from semiont.bus import Typed
+from semiont.bus import FrameRefusal, Typed
 from semiont.client import SemiontClient
 from semiont.identifiers import AnnotationId, JobId, ResourceId
 from semiont.model import WireModel, written
@@ -344,8 +344,11 @@ CALLS: Final[dict[tuple[str, str], Callable[[Client, Args], Awaitable[object] | 
 
 
 async def first_payload[P: WireModel](events: Typed[P]) -> JsonObject:
-    """The payload of the next event, as the wire would carry it."""
-    return written((await anext(events)).payload)
+    """The payload of the next event, as the wire would carry it. A refusal of it fails the case."""
+    heard = await anext(events)
+    if isinstance(heard, FrameRefusal):
+        raise AssertionError(f"a payload on {heard.channel} was refused: it lacks {heard.lacks}")
+    return written(heard.payload)
 
 
 # Every method that gives the events of a channel: what the next one carried.

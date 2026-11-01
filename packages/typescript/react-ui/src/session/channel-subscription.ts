@@ -13,7 +13,7 @@
  * compile, and is refused when called.
  */
 
-import { isResourceScopedChannel } from '@semiont/core';
+import { FrameRefusal, isResourceScopedChannel } from '@semiont/core';
 import type { EventMap, UnscopedChannel } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
@@ -28,7 +28,11 @@ export function subscribeChannel<K extends UnscopedChannel>(
       `${channel} is delivered on a resource's scope, so a subscription with no resource would hear nothing: client.wire.frames(channel, resourceId)`,
     );
   }
-  const sub = client.bus.on(channel).subscribe(handler);
+  // A handler is given the channel's payloads; a refusal of one that is not
+  // the channel's has nothing in it for the handler to act on.
+  const sub = client.bus.on(channel).subscribe((payload) => {
+    if (!(payload instanceof FrameRefusal)) handler(payload);
+  });
   return () => sub.unsubscribe();
 }
 
