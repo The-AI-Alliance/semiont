@@ -17,7 +17,7 @@ func TestHealthEndpointReproducesTheStatusRoster(t *testing.T) {
 		{"dispatcher", "http://localhost:24105/health"},
 		{"weaver", "http://localhost:24102/health"},
 		{"smelter", "http://localhost:24101/health"},
-		{"database", "tcp:localhost:5432"},
+		{"identity-store", "tcp:localhost:5432"},
 		{"messaging", "tcp:localhost:4222"},
 		{"identity", "http://localhost:8080/realms/master"},
 		{"graph", "http://localhost:7474"},
@@ -40,12 +40,12 @@ func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 	plan := &launchPlan{
 		GatewayPort: 4000,
 		Roles: map[string]rolePlan{
-			"database":  {Role: "database", Driver: "postgres", Port: 5432},
-			"messaging": {Role: "messaging", Driver: "jetstream", Port: 4222},
-			"graph":     {Role: "graph", Driver: "neo4j", Port: 7687},
-			"vectors":   {Role: "vectors", Driver: "qdrant", Port: 6333},
-			"inference": {Role: "inference", Driver: "ollama", Port: 11434},
-			"identity":  {Role: "identity", Driver: "keycloak", Port: 8080, Issuer: "http://localhost:8080/realms/semiont"},
+			"identity-store": {Role: "identity-store", Driver: "postgres", Port: 5432},
+			"messaging":      {Role: "messaging", Driver: "jetstream", Port: 4222},
+			"graph":          {Role: "graph", Driver: "neo4j", Port: 7687},
+			"vectors":        {Role: "vectors", Driver: "qdrant", Port: 6333},
+			"inference":      {Role: "inference", Driver: "ollama", Port: 11434},
+			"identity":       {Role: "identity", Driver: "keycloak", Port: 8080, Issuer: "http://localhost:8080/realms/semiont"},
 		},
 	}
 	for _, c := range []struct{ role, driver, want string }{
@@ -61,7 +61,7 @@ func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 		{"graph", "neo4j", "http://localhost:7474"},
 		{"vectors", "qdrant", "http://localhost:6333/readyz"},
 		{"inference", "ollama", "http://localhost:11434/api/version"},
-		{"database", "postgres", "tcp:localhost:5432"},
+		{"identity-store", "postgres", "tcp:localhost:5432"},
 		{"archivist", driverSemiont, "http://localhost:24103/health"},
 		{"librarian", driverSemiont, "http://localhost:24104/health"},
 		{"dispatcher", driverSemiont, "http://localhost:24105/health"},
@@ -81,14 +81,14 @@ func TestHealthEndpointFollowsAConfigThatMovesAPort(t *testing.T) {
 	plan := &launchPlan{
 		GatewayPort: 4400,
 		Roles: map[string]rolePlan{
-			"database":  {Role: "database", Driver: "postgres", Port: 5433},
-			"messaging": {Role: "messaging", Driver: "jetstream", Port: 4333},
-			"vectors":   {Role: "vectors", Driver: "qdrant", Port: 6444},
-			"inference": {Role: "inference", Driver: "ollama", Port: 11555},
+			"identity-store": {Role: "identity-store", Driver: "postgres", Port: 5433},
+			"messaging":      {Role: "messaging", Driver: "jetstream", Port: 4333},
+			"vectors":        {Role: "vectors", Driver: "qdrant", Port: 6444},
+			"inference":      {Role: "inference", Driver: "ollama", Port: 11555},
 		},
 	}
 	for _, c := range []struct{ role, driver, want string }{
-		{"database", "postgres", "tcp:localhost:5433"},
+		{"identity-store", "postgres", "tcp:localhost:5433"},
 		{"messaging", "jetstream", "tcp:localhost:4333"},
 		{"vectors", "qdrant", "http://localhost:6444/readyz"},
 		{"inference", "ollama", "http://localhost:11555/api/version"},

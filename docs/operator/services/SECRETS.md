@@ -129,8 +129,8 @@ reject every login, so `semiont start` refuses and names the fix:
 
 ```bash
 semiont stop
-semiont clean --store graph      # Neo4j: a projection, rebuilt from the event log
-semiont clean --store database   # PostgreSQL: Keycloak's accounts go with it
+semiont clean --store graph           # Neo4j: a projection, rebuilt from the event log
+semiont clean --store identity-store  # PostgreSQL: Keycloak's accounts go with it
 semiont start
 semiont useradd --email you@example.com --generate-password
 ```

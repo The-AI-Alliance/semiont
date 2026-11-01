@@ -210,7 +210,7 @@ func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 func TestInitWritesNoDaemonPassword(t *testing.T) {
 	for inference, want := range map[string][]string{"anthropic": {"ANTHROPIC_API_KEY"}, "ollama": nil} {
 		p := placed(t, bornStack(t, genFor(inference), inference))
-		for _, role := range []string{"graph", "vectors", "database", "messaging", "identity"} {
+		for _, role := range []string{"graph", "vectors", "identity-store", "messaging", "identity"} {
 			if !p.placed(role) {
 				t.Errorf("--inference %s: the born KB has somebody else run its %s", inference, role)
 			}

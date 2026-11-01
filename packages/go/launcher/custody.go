@@ -67,9 +67,9 @@ var daemonPasswords = map[string]struct {
 	// so a store with data and no kept password holds one the launcher lacks.
 	kept bool
 }{
-	"graph":     {"NEO4J_PASSWORD", "neo4j-password", "Neo4j", true},
-	"database":  {"POSTGRES_PASSWORD", "postgres-password", "PostgreSQL", true},
-	"messaging": {"NATS_PASSWORD", "nats-password", "the broker", false},
+	"graph":          {"NEO4J_PASSWORD", "neo4j-password", "Neo4j", true},
+	"identity-store": {"POSTGRES_PASSWORD", "postgres-password", "PostgreSQL", true},
+	"messaging":      {"NATS_PASSWORD", "nats-password", "the broker", false},
 }
 
 // brokerUser: the user of the broker the launcher runs. Not a secret; the

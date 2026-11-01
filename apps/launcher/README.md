@@ -385,7 +385,7 @@ semiont stop
   vector store's sparse files are long and take little. Roots and KBs are the durable
   things; a stack is status layered on one of them. Per service it
   shows the container STATE as the runtime sees it plus a host-side health
-  probe, with the concrete product in the service cell (`database
+  probe, with the concrete product in the service cell (`identity-store
   (PostgreSQL)`). **Who runs a role decides which verbs it has, and a role
   need not run here.** `embedding` is a role like any other, and somebody
   else runs it in both shapes — an `ollama` embedding is served by the same
@@ -602,7 +602,7 @@ semiont stop
   belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
   (named by role: gateway, worker, smelter, weaver, archivist, librarian,
-  dispatcher, browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
+  dispatcher, browser, identity-store, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start reads the
   service's own credential from the per-root state a full start persisted —
   nothing is recovered out of a running container — auto-enables OTel iff the collector is up, and stages the
@@ -1045,7 +1045,7 @@ Librarian each mount a store of their own (`gateway/`, `librarian/`) for their
 supervisor's events log, which no image stamps.
 
 `semiont clean` is the one way this state dies: it removes the current
-root's state directory (`--store database|vectors|graph|anchored-text|messaging|state|gateway|librarian`
+root's state directory (`--store identity-store|vectors|graph|anchored-text|messaging|state|gateway|librarian`
 scopes to one
 store; `--dry-run` shows what would go, with sizes; `--root <path|name|key>`
 targets another root — a literal key is how you remove *orphaned* state

@@ -53,8 +53,8 @@ func TestDerivePlanIdentityOIDCExternal(t *testing.T) {
 	if got := plan.Roles["identity"].Issuer; got != "https://login.example.com/realms/acme" {
 		t.Errorf("issuer %q, want the URL the KnowledgeBase states", got)
 	}
-	if got := plan.Roles["database"].Presence; got != presenceAbsent {
-		t.Errorf("with no Issuer document the database is %s, want absent", got)
+	if got := plan.Roles["identity-store"].Presence; got != presenceAbsent {
+		t.Errorf("with no Issuer document the identity store is %s, want absent", got)
 	}
 }
 

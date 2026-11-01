@@ -10,7 +10,7 @@ import (
 // service.go — the `--service` half of the lifecycle verbs.
 //
 // The launcher's primary vocabulary is the ROLE a container plays in the
-// stack: database, graph, vectors, inference, traces — plus Semiont's own
+// stack: identity-store, graph, vectors, inference, traces — plus Semiont's own
 // services by name. The concrete product behind an infra role (PostgreSQL,
 // Neo4j, …) belongs to its DRIVER, and both live in descriptors.go;
 // container names and config env vars stay at the wire level
@@ -25,7 +25,7 @@ func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 // serviceNeedsAddr: does this role's start use the host address? Every stack
 // service's does (the addresses its document states), and so do the roles the
 // launcher reaches or configures through it: the worker, whose document
-// states where it reaches each knowledge base, the database and the broker
+// states where it reaches each knowledge base, the identity store and the broker
 // it waits on from a container's side, the Ollama it probes from one (owned
 // by inference or embedding), the identity provider whose KC_DB_URL names the
 // PostgreSQL, the collector whose document names Jaeger, and Prometheus, whose
@@ -33,7 +33,7 @@ func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 // publishes a port on it.
 func serviceNeedsAddr(svc string, e exposure) bool {
 	return e.confined() || isConfigConsumer(svc) ||
-		contains([]string{"worker", "database", "messaging", "inference", "embedding", "identity", "collector", "metrics"}, svc)
+		contains([]string{"worker", "identity-store", "messaging", "inference", "embedding", "identity", "collector", "metrics"}, svc)
 }
 
 // digString walks a nested inspect entry for a string leaf.

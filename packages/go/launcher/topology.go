@@ -144,8 +144,8 @@ func (p placement) placedLines() []string {
 		host, port := p.vectors()
 		add("vectors", fmt.Sprintf("%s:%d", host, port))
 	}
-	if p.placed("database") {
-		add("database", fmt.Sprintf("%s:%d", p.addr, p.plan.Roles["database"].Port))
+	if p.placed("identity-store") {
+		add("identity-store", fmt.Sprintf("%s:%d", p.addr, p.plan.Roles["identity-store"].Port))
 	}
 	if p.placed("messaging") {
 		add("messaging", p.brokerServers())

@@ -97,7 +97,7 @@ func TestAppleContainerPublishesEachPortWhereItsDialersAre(t *testing.T) {
 		{"gateway", 4000, 4000, []string{"127.0.0.1:4000:4000", bridge + ":14000:4000"}},
 		{"identity", 8080, 8080, []string{bridge + ":8080:8080"}},
 		{"identity", 8081, 8080, []string{bridge + ":8081:8080"}},
-		{"database", 5432, 5432, []string{bridge + ":5432:5432"}},
+		{"identity-store", 5432, 5432, []string{bridge + ":5432:5432"}},
 		{"messaging", 4222, 4222, []string{bridge + ":4222:4222"}},
 		{"graph", 7474, 7474, []string{"127.0.0.1:7474:7474"}},
 		{"graph", 7687, 7687, []string{"127.0.0.1:7687:7687", bridge + ":17687:7687"}},
@@ -137,7 +137,7 @@ func TestNetworkLANPublishesTheGatewayAndTheIssuerAlone(t *testing.T) {
 		{"identity", 8080, 8080, []string{bridge + ":18080:8080"}},
 		{"identity", 8081, 8080, []string{bridge + ":18081:8080"}},
 		{"browser", 3000, 3000, []string{"127.0.0.1:3000:3000", bridge + ":13000:3000"}},
-		{"database", 5432, 5432, []string{bridge + ":5432:5432"}},
+		{"identity-store", 5432, 5432, []string{bridge + ":5432:5432"}},
 		{"graph", 7474, 7474, []string{"127.0.0.1:7474:7474"}},
 		{"graph", 7687, 7687, []string{"127.0.0.1:7687:7687", bridge + ":17687:7687"}},
 		{"metrics", 9090, 9090, []string{"127.0.0.1:9090:9090"}},
@@ -184,7 +184,7 @@ func TestNetworkLANPlacesTheIssuerAtTheNetworkAddress(t *testing.T) {
 func TestDockerAndPodmanPublishAsBefore(t *testing.T) {
 	for _, rt := range []string{"docker", "podman"} {
 		e := exposure{rt: rt, addr: "host.docker.internal"}
-		for _, role := range []string{"gateway", "graph", "database", "browser"} {
+		for _, role := range []string{"gateway", "graph", "identity-store", "browser"} {
 			if got := e.publishSpecs(role, 4000, 4000); !slices.Equal(got, []string{"4000:4000"}) {
 				t.Errorf("%s publishes %s as %v, want 4000:4000", rt, role, got)
 			}
@@ -204,7 +204,7 @@ func TestTheLaunchersProbesGoWhereTheDialersAre(t *testing.T) {
 		{"graph", "neo4j", "http://localhost:7474"},
 		{"metrics", "prometheus", "http://localhost:9090/-/healthy"},
 		{"vectors", "qdrant", "http://" + bridge + ":6333/readyz"},
-		{"database", "postgres", "tcp:" + bridge + ":5432"},
+		{"identity-store", "postgres", "tcp:" + bridge + ":5432"},
 		{"messaging", "jetstream", "tcp:" + bridge + ":4222"},
 		{"collector", "otel", "http://" + bridge + ":24110/metrics"},
 		{"identity", "keycloak", "http://" + bridge + ":8080/realms/semiont"},

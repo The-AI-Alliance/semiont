@@ -44,7 +44,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 
 	// The refusal path must NOT restamp: the data on disk is still the old
 	// image's, and the stamp is the record of that fact.
-	pgsd := stateStores["database"].storeDir(key)
+	pgsd := stateStores["identity-store"].storeDir(key)
 	if err := os.MkdirAll(pgsd, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -52,13 +52,13 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	meta = loadRootMeta(dir)
-	meta.Stores["database"] = storeMeta{Image: "pg:old"}
+	meta.Stores["identity-store"] = storeMeta{Image: "pg:old"}
 	saveRootMeta(dir, meta)
 
-	if x.resolveStoreStamp("database", "pg:new", key) {
-		t.Fatal("a database mismatch must refuse")
+	if x.resolveStoreStamp("identity-store", "pg:new", key) {
+		t.Fatal("an identity-store mismatch must refuse")
 	}
-	if got := loadRootMeta(dir).Stores["database"].Image; got != "pg:old" {
+	if got := loadRootMeta(dir).Stores["identity-store"].Image; got != "pg:old" {
 		t.Errorf("stamp after a refusal = %q, want %q untouched", got, "pg:old")
 	}
 }

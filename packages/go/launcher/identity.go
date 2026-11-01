@@ -265,7 +265,7 @@ const natsConfPath = "/etc/nats/semiont.conf"
 // It carries NO credential — only the two variable NAMES, which nats-server
 // interpolates from its own environment. That is what lets the values travel
 // the way every other service credential here does (the graph role hands neo4j
-// NEO4J_AUTH, the database role hands postgres POSTGRES_PASSWORD) instead of
+// NEO4J_AUTH, the identity-store role hands postgres POSTGRES_PASSWORD) instead of
 // on argv, where every process listing would carry them.
 //
 // nats-server reads no credential from the environment by itself, which is why
@@ -558,7 +558,7 @@ func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 // exists.
 func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAccounts, string, bool) {
 	rp := fc.plan.Roles["identity"]
-	db := fc.plan.Roles["database"]
+	db := fc.plan.Roles["identity-store"]
 	dbName := fc.stack.Issuer.Spec.Database.Name
 	dbHost := db.Address
 	// Authority, not presence: an external PostgreSQL is somebody's shared

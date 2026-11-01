@@ -84,13 +84,13 @@ The report calls out orphaned state, whose knowledge base's directory no longer 
 
 ```bash
 semiont clean --dry-run              # what would go, and how big
-semiont clean --store vectors        # one store: database, graph, vectors,
-                                     #   anchored-text, messaging, state,
-                                     #   gateway or librarian
+semiont clean --store vectors        # one store: identity-store, graph,
+                                     #   vectors, anchored-text, messaging,
+                                     #   state, gateway or librarian
 semiont clean --root <path|name|key> # another knowledge base's, including an orphan's
 ```
 
-An unscoped `semiont clean` also deletes the secrets the launcher kept for the knowledge base. Clearing `database` removes the issuer's accounts with it, and clearing `messaging` drops the jobs that were waiting.
+An unscoped `semiont clean` also deletes the secrets the launcher kept for the knowledge base. Clearing `identity-store` removes the issuer's accounts with it, and clearing `messaging` drops the jobs that were waiting.
 
 The Ollama model cache is separate, and can be large:
 

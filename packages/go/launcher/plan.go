@@ -426,7 +426,7 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 	}
 	addRole("graph")
 	addRole("vectors")
-	addRole("database")
+	addRole("identity-store")
 	addRole("messaging")
 	addRole("identity")
 	// The gateway's port is config-owned; every other Semiont port is
@@ -462,7 +462,7 @@ func knownDrivers(role string) string {
 // port is the launcher's to choose. The gateway's is its document's, the
 // Keycloak's this start's (keycloakPort), and the machine's containers' the
 // machine's.
-var blockRoles = slices.Concat(fiatRoles(), []string{"graph", "vectors", "database", "messaging"})
+var blockRoles = slices.Concat(fiatRoles(), []string{"graph", "vectors", "identity-store", "messaging"})
 
 // hostPort: where this start publishes role's port that its container
 // listens on at ctrPort — on the knowledge base's port block for one of
@@ -623,29 +623,29 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 		plan.Roles["vectors"] = rp
 	}
 
-	// database — the Issuer's, so present only with the Keycloak the launcher
+	// identity-store — the Issuer's, so present only with the Keycloak the launcher
 	// runs.
 	if st.Issuer == nil {
-		plan.Roles["database"] = rolePlan{Role: "database", Presence: presenceAbsent}
+		plan.Roles["identity-store"] = rolePlan{Role: "identity-store", Presence: presenceAbsent}
 	} else {
 		d := st.Issuer.Spec.Database
-		spec, ok := lookupDescriptor("database", d.Type)
+		spec, ok := lookupDescriptor("identity-store", d.Type)
 		if !ok {
-			return nil, planErr(files.Issuer, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("database"))
+			return nil, planErr(files.Issuer, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("identity-store"))
 		}
-		rp := rolePlan{Role: "database", Driver: d.Type, Port: spec.defaultPort}
+		rp := rolePlan{Role: "identity-store", Driver: d.Type, Port: spec.defaultPort}
 		if d.External != nil {
 			rp.Presence, rp.Address, rp.Port = presenceExternal, d.External.Host, d.External.Port
 		} else {
 			rp.Presence, rp.Image, rp.Memory = presenceLauncher, *d.Image, d.Resources.Limits.Memory
-			rp.Port = plan.hostPort("database", spec.defaultPort)
+			rp.Port = plan.hostPort("identity-store", spec.defaultPort)
 			rp.Env = []string{"POSTGRES_DB=" + d.Name}
 			// POSTGRES_USER only when it departs from the image's own.
 			if d.User != "postgres" {
 				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
 			}
 		}
-		plan.Roles["database"] = rp
+		plan.Roles["identity-store"] = rp
 	}
 
 	// messaging — the one broker: the dispatcher's queue is JetStream, and a

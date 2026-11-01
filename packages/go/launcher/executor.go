@@ -543,7 +543,7 @@ func (x *liveExec) waitTCP(label, pollHost, addr string, port, seconds int) (tim
 }
 
 func (x *liveExec) waitPGAccepting(seconds int) bool {
-	return waitPGAccepting(x.u, x.rt, roleContainer("database", x.kb.key()), seconds)
+	return waitPGAccepting(x.u, x.rt, roleContainer("identity-store", x.kb.key()), seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -707,7 +707,7 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 // makes a recovered start look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
-	args := []string{"exec", "-i", roleContainer("database", x.kb.key()), "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	args := []string{"exec", "-i", roleContainer("identity-store", x.kb.key()), "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
 	x.u.EchoCmd(x.rt, args...)
 	var err error
 	var out string
@@ -923,7 +923,7 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, accounts realm
 		x.u.Warn("This realm mints access tokens that live %ds, but the config asks for %ds.", observedLifespan, wantLifespan)
 		fmt.Fprintln(os.Stderr, "    A realm is imported once, on its first boot — a lifespan changed afterwards does")
 		fmt.Fprintln(os.Stderr, "    not reach it. The revocation window in force is the realm's, not the config's.")
-		fmt.Fprintln(os.Stderr, "    Change it in the Keycloak console, or `semiont clean --store database` and start again.")
+		fmt.Fprintln(os.Stderr, "    Change it in the Keycloak console, or `semiont clean --store identity-store` and start again.")
 	}
 
 	// The six machine identities being sound says nothing about whether a
@@ -1042,7 +1042,7 @@ func (x *liveExec) ensureModels(base string, models []modelNeed) {
 }
 
 // resolveStoreStamp is THE decider for existing store data vs the launching
-// image: refuse for the system of record (database — user rows), clear
+// image: refuse for the system of record (identity-store — user rows), clear
 // CONTENTS for projections (rebuildable from the log). Never unlinks the
 // store dir: an attached share survives a contents-clear and is orphaned
 // forever by delete-and-recreate.
@@ -1102,7 +1102,7 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 
 // stateMounts prepares a role's persistent state dir and returns the run
 // args that mount it. The image-mismatch split lives in resolveStoreStamp:
-// database data is user rows — refuse, fix-it names the clean command;
+// identity-store data is user rows — refuse, fix-it names the clean command;
 // projections (vectors/graph) auto-clean and rebuild.
 func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
 	key := kb.key()
@@ -1325,7 +1325,7 @@ func (x *planExec) waitHTTP(_, _, url string, seconds int) (time.Duration, bool)
 
 func (x *planExec) waitPGAccepting(seconds int) bool {
 	x.c("wait: %s exec %s pg_isready -h 127.0.0.1 (%ds) — the REAL server; initdb's temporary one answers the socket only",
-		x.rt, roleContainer("database", x.kb.key()), seconds)
+		x.rt, roleContainer("identity-store", x.kb.key()), seconds)
 	return true
 }
 
@@ -1430,7 +1430,7 @@ func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
 }
 
 func (x *planExec) createDatabase(user, name string) bool {
-	x.c("create database %s on PostgreSQL if absent: %s exec -i %s psql -U %s (SQL on stdin)", name, x.rt, roleContainer("database", x.kb.key()), user)
+	x.c("create database %s on PostgreSQL if absent: %s exec -i %s psql -U %s (SQL on stdin)", name, x.rt, roleContainer("identity-store", x.kb.key()), user)
 	return true
 }
 
@@ -1542,7 +1542,7 @@ func (x *planExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool)
 }
 
 func (x *planExec) resolveStoreStamps(flowCtx) bool {
-	x.c("resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)")
+	x.c("resolve persistent-store stamps before any container runs: an identity-store mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)")
 	return true
 }
 

@@ -79,32 +79,32 @@ func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
 // knowledge base is a fault, not a name.
 func TestAStacksContainersAreNamedForItsKnowledgeBase(t *testing.T) {
 	for role, want := range map[string]string{
-		"database":  "semiont-example.org-kb-postgres",
-		"gateway":   "semiont-example.org-kb-gateway",
-		"identity":  "semiont-example.org-kb-keycloak",
-		"worker":    "semiont-worker",
-		"inference": "semiont-ollama",
-		"collector": "semiont-otel-collector",
+		"identity-store": "semiont-example.org-kb-postgres",
+		"gateway":        "semiont-example.org-kb-gateway",
+		"identity":       "semiont-example.org-kb-keycloak",
+		"worker":         "semiont-worker",
+		"inference":      "semiont-ollama",
+		"collector":      "semiont-otel-collector",
 	} {
 		if got := roleContainer(role, "example.org-kb"); got != want {
 			t.Errorf("%s runs %s, want %s", role, got, want)
 		}
 	}
-	if a, b := roleContainer("database", "a"), roleContainer("database", "b"); a == b {
-		t.Errorf("two knowledge bases' databases share the name %s", a)
+	if a, b := roleContainer("identity-store", "a"), roleContainer("identity-store", "b"); a == b {
+		t.Errorf("two knowledge bases' identity stores share the name %s", a)
 	}
 	defer func() {
 		if recover() == nil {
 			t.Error("a stack's container was named for no knowledge base")
 		}
 	}()
-	roleContainer("database", "")
+	roleContainer("identity-store", "")
 }
 
 // The `--service` vocabulary, derived from the start walk: a reader meets
 // the roles in the order they come up — one list of roles, not two.
 func TestRoleListDerivesTheStartWalk(t *testing.T) {
-	want := "traces, metrics, collector, database, messaging, identity, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
+	want := "traces, metrics, collector, identity-store, messaging, identity, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
 	if roleList != want {
 		t.Errorf("roleList =\n  %s\nwant\n  %s", roleList, want)
 	}
@@ -234,5 +234,21 @@ func assertNames(t *testing.T, what string, got, want []string) {
 		if got[i] != want[i] {
 			t.Fatalf("%s[%d] = %q, want %q:\n  got  %s\n  want %s", what, i, got[i], want[i], strings.Join(got, " "), strings.Join(want, " "))
 		}
+	}
+}
+
+// The SERVICE column is as wide as its longest cell: a role, and the product
+// a driver of it names.
+func TestTheServiceColumnIsAsWideAsItsLongestCell(t *testing.T) {
+	longest := ""
+	for _, row := range statusServices {
+		for _, driver := range driversFor(row.name) {
+			if cell := row.name + " (" + driverDisplay(row.name, driver) + ")"; len(cell) > len(longest) {
+				longest = cell
+			}
+		}
+	}
+	if len(longest) != serviceCell {
+		t.Errorf("the longest SERVICE cell is %q, %d wide; the column is %d", longest, len(longest), serviceCell)
 	}
 }

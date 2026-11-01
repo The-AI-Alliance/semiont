@@ -62,7 +62,7 @@ func asSomebodyElses(st *stack.Stack, role string) {
 		v := &st.KnowledgeIndex.Spec.Vectors
 		v.Image, v.Resources = nil, nil
 		v.External = &stack.HostPort{Host: "vectors.example.com", Port: 6334}
-	case "database":
+	case "identity-store":
 		d := &st.Issuer.Spec.Database
 		d.Image, d.Resources = nil, nil
 		d.External = &stack.IssuerDatabaseExternal{Host: "db.example.com", Port: 5433, Password: stack.SecretRef{FromEnv: "EXT_DB_PASSWORD"}}
@@ -147,7 +147,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 					t.Errorf("the embedding shares the Ollama of %q, want the inference role's", got)
 				}
 			}
-			checkRole(t, plan, "database", rolePlan{
+			checkRole(t, plan, "identity-store", rolePlan{
 				Presence: presenceLauncher, Driver: "postgres",
 				Image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", Memory: "1G", Port: 5432,
 				Env: []string{"POSTGRES_DB=keycloak"},
@@ -222,7 +222,7 @@ func TestDerivePlanExternalDaemons(t *testing.T) {
 	}{
 		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}},
 		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}},
-		{"database", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}},
+		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}},
 		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}},
 	} {
 		t.Run(c.role, func(t *testing.T) {
@@ -238,7 +238,7 @@ func TestDerivePlanExternalDaemons(t *testing.T) {
 // names holds.
 func TestTheLaunchersKeycloakReadsAnExternalDatabasesPasswordFromItsVariable(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	asSomebodyElses(st, "database")
+	asSomebodyElses(st, "identity-store")
 	if got := mustPlan(t, st).Roles["identity"].ExternalDBPassword; got != "EXT_DB_PASSWORD" {
 		t.Errorf("the Keycloak reads its database's password from %q, want the variable the Issuer document names", got)
 	}
@@ -260,8 +260,8 @@ func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
 	if got := plan.Roles["graph"]; got.Image != graphImage || got.Memory != "4G" {
 		t.Errorf("graph runs from %q with %q, want %s with 4G", got.Image, got.Memory, graphImage)
 	}
-	if got := plan.Roles["database"].Image; got != dbImage {
-		t.Errorf("database image: got %q", got)
+	if got := plan.Roles["identity-store"].Image; got != dbImage {
+		t.Errorf("identity-store image: got %q", got)
 	}
 	args := providedRunArgs(exposure{}, plan, plan.Roles["graph"], "kb")
 	if args[len(args)-1] != graphImage {
@@ -577,7 +577,7 @@ func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 	verified := fiatPorts(swept, true)
 	// The documents set these roles' ports and may bind them to somebody
 	// else's service, and a stop with no record reads no document.
-	configOwned := []string{"gateway", "graph", "vectors", "database", "identity"}
+	configOwned := []string{"gateway", "graph", "vectors", "identity-store", "identity"}
 	for _, block := range []int{first, third} {
 		onBlock := &launchPlan{Block: block}
 		for _, role := range startOrder {

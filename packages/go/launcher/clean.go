@@ -3,7 +3,7 @@ package launcher
 // clean.go — `semiont clean`: remove one root's persistent local-stack
 // state. start persists postgres/qdrant/neo4j under <dataDir>/roots/<key>;
 // this command is the only way that data dies — stop deliberately leaves it,
-// and start's database image-mismatch refusal names this command as the way
+// and start's identity-store image-mismatch refusal names this command as the way
 // out.
 //
 // An UNSCOPED clean also deletes every secret the launcher keeps for the root
@@ -36,7 +36,7 @@ PostgreSQL data just removed — and the passwords of the stores going with
 it. The store setting itself stays. A --store clean keeps the secrets.
 
 Options:
-  --store <role>   Remove one store only: database, vectors, graph,
+  --store <role>   Remove one store only: identity-store, vectors, graph,
                    anchored-text, messaging (the NATS daemon's JetStream
                    store: the job queue and the gateway's ledger claims —
                    pending work is dropped; jobs are re-submittable), state

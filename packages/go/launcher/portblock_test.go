@@ -98,7 +98,7 @@ func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for role, want := range map[string]int{"graph": 7697, "vectors": 6343, "database": 5442, "messaging": 4232, "identity": 8090, "inference": 11434} {
+	for role, want := range map[string]int{"graph": 7697, "vectors": 6343, "identity-store": 5442, "messaging": 4232, "identity": 8090, "inference": 11434} {
 		if got := plan.Roles[role].Port; got != want {
 			t.Errorf("%s is published at %d, want %d", role, got, want)
 		}

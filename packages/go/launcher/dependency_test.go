@@ -177,8 +177,8 @@ func TestAuthorityMatchesTheLinesTheCodeDraws(t *testing.T) {
 		rp    rolePlan
 		want  bool
 	}{
-		{"a PostgreSQL we run", rolePlan{Role: "database", Driver: "postgres", Presence: presenceLauncher}, true},
-		{"somebody else's PostgreSQL", rolePlan{Role: "database", Driver: "postgres", Presence: presenceExternal}, false},
+		{"a PostgreSQL we run", rolePlan{Role: "identity-store", Driver: "postgres", Presence: presenceLauncher}, true},
+		{"somebody else's PostgreSQL", rolePlan{Role: "identity-store", Driver: "postgres", Presence: presenceExternal}, false},
 		{"a Keycloak we run", rolePlan{Role: "identity", Driver: "keycloak", Presence: presenceLauncher}, true},
 		{"somebody else's Keycloak", rolePlan{Role: "identity", Driver: "keycloak", Presence: presenceExternal}, false},
 		{"an issuer that is not ours", rolePlan{Role: "identity", Driver: "oidc", Presence: presenceExternal}, false},

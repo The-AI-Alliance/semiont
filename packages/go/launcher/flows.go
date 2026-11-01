@@ -45,7 +45,7 @@ func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 		return fc, true
 	}
 	env := append([]string{}, fc.userEnv...)
-	for _, role := range []string{"graph", "database", "messaging"} {
+	for _, role := range []string{"graph", "identity-store", "messaging"} {
 		if fc.plan.Roles[role].Presence != presenceLauncher {
 			continue
 		}
@@ -86,13 +86,13 @@ func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 	switch role {
 	case "graph":
 		return []string{"NEO4J_AUTH=" + rp.User + "/" + kept("graph")}, nil
-	case "database":
-		return []string{"POSTGRES_PASSWORD=" + kept("database")}, nil
+	case "identity-store":
+		return []string{"POSTGRES_PASSWORD=" + kept("identity-store")}, nil
 	case "messaging":
 		return []string{"NATS_USER=" + natsConfString(brokerUser), "NATS_PASSWORD=" + natsConfString(kept("messaging"))}, nil
 	case "identity":
 		if rp.ExternalDBPassword == "" {
-			return []string{"KC_DB_PASSWORD=" + kept("database")}, nil
+			return []string{"KC_DB_PASSWORD=" + kept("identity-store")}, nil
 		}
 		pw, err := userEnvValue("spec.database.external.password", rp.ExternalDBPassword, fc.userEnv)
 		if err != nil {
@@ -136,12 +136,12 @@ func startBanner(fc flowCtx, noun string) string {
 }
 
 var depRoleTitles = map[string]string{
-	"graph": "Graph", "vectors": "Vectors", "database": "Database",
+	"graph": "Graph", "vectors": "Vectors", "identity-store": "Identity store",
 	"embedding": "Embedding", "messaging": "Messaging", "identity": "Identity",
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → the machine's traces and metrics (--observe) → its collector → database → messaging →
+// pulls → the machine's traces and metrics (--observe) → its collector → identity-store → messaging →
 // identity → gateway → graph → vectors → inference → embedding → archivist →
 // librarian → dispatcher → sidecars → Browser.
 //
@@ -270,7 +270,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	otel := otelArgs(addr)
 
-	// Database, messaging and identity — everything the Gateway itself needs —
+	// The identity store, messaging and identity — everything the Gateway itself needs —
 	// AHEAD of the stores the actors use. The gateway dials no graph, vector or
 	// embedding client, and no database of its own: the PostgreSQL started here
 	// is Keycloak's, whose realm lives in it. What the gateway does wait for is
@@ -278,7 +278,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// issuer whose keys it verifies tokens against, both below. It has the most
 	// ways to fail, so it precedes the stores.
 	// Invariant: everything below needs the Gateway; nothing above it does.
-	if code := flowDepRole(x, "database", fc, addr); code != 0 {
+	if code := flowDepRole(x, "identity-store", fc, addr); code != 0 {
 		return code
 	}
 	// The broker (NATS: the dispatcher's JetStream queue, and the nats signal
@@ -289,7 +289,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	// The identity provider (Keycloak, when the stack has an Issuer document) is a
 	// gateway dependency too: the gateway verifies human tokens against its
-	// keys. After the database, whose PostgreSQL holds its realm.
+	// keys. After the identity store, whose PostgreSQL holds its realm.
 	if code := flowDepRole(x, "identity", fc, addr); code != 0 {
 		return code
 	}
@@ -637,7 +637,7 @@ func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
 	}, addr)
 }
 
-// flowDepRole: the uniform dependency-role shape for database / messaging /
+// flowDepRole: the uniform dependency-role shape for identity-store / messaging /
 // identity / graph / vectors / embedding, presence-dispatched.
 func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles[role]
@@ -652,7 +652,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	switch rp.Presence {
 	case presenceLauncher:
 		// Persistent state rides the run argv: roles in stateStores mount
-		// their per-root dir; a database refusal (data written by another
+		// their per-root dir; an identity-store refusal (data written by another
 		// image) stops the start here.
 		extra, ok := x.stateMounts(role, rp.Image, fc.kb)
 		if !ok {
@@ -740,18 +740,18 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
-		case "database":
+		case "identity-store":
 			d, ok := x.waitTCP("PostgreSQL", x.exposure(addr).probeHost(role, descriptorFor(role, rp.Driver).defaultPort), addr, rp.Port, 20)
 			if !ok {
-				x.dumpLogs(roleContainer("database", fc.kb.key()), "database")
+				x.dumpLogs(roleContainer("identity-store", fc.kb.key()), "identity-store")
 				return 1
 			}
 			// The port is the runtime's; sessions are the server's.
 			if !x.waitPGAccepting(30) {
-				x.dumpLogs(roleContainer("database", fc.kb.key()), "database")
+				x.dumpLogs(roleContainer("identity-store", fc.kb.key()), "identity-store")
 				return 1
 			}
-			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
+			x.say(sayOK, "identity-store — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "messaging":
 			// Same two-phase wait as Postgres: TCP up, then reachable on
@@ -846,7 +846,7 @@ func externalEndpoint(role string, rp rolePlan) string {
 		return dial
 	case "vectors":
 		return probe
-	default: // graph, database, identity: not an unauthenticated HTTP route
+	default: // graph, identity-store, identity: not an unauthenticated HTTP route
 		return dial
 	}
 }
@@ -1273,7 +1273,7 @@ func flowOneService(x executor, fc flowCtx) int {
 		if code := flowTraces(x, fc, addr); code != 0 {
 			return code
 		}
-	case "graph", "vectors", "database", "messaging", "identity":
+	case "graph", "vectors", "identity-store", "messaging", "identity":
 		// The same flow a full start walks — one implementation, so a
 		// dependency started alone cannot differ from one started with the
 		// stack.

@@ -10,7 +10,7 @@ import (
 // descriptors.go — the service descriptor set.
 //
 // A stack is described by two axes. The ROLE is what the stack needs — graph,
-// database, identity, gateway — abstract, independent of who provides it. The
+// identity-store, identity, gateway — abstract, independent of who provides it. The
 // DRIVER is the technology providing it — neo4j, postgres, keycloak, oidc —
 // and it owns every concrete fact: the container name, the image, the memory
 // ceiling, the ports, the product name.
@@ -187,7 +187,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// claims the one its document names, and status reports it from its record.
 	{role: "browser", driver: driverSemiont, name: "browser", mem: "1G", defaultPort: 3000},
 
-	{role: "database", driver: "postgres", name: "postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
+	{role: "identity-store", driver: "postgres", name: "postgres", image: "postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f", mem: "1G",
 		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL",
 		health: healthProbe{tcp: true}},
 
@@ -228,7 +228,7 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "identity", driver: "keycloak", name: "keycloak", image: "quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start", "--import-realm", "--http-enabled=true", "--hostname-backchannel-dynamic=true", "--cache=local"},
-		needs: []string{"database"},
+		needs: []string{"identity-store"},
 		// The master realm always exists, so it answers for a server whose
 		// own realm this launcher has not been told about. A configured
 		// stack is probed at its issuer instead (healthEndpoint).
@@ -302,7 +302,7 @@ var descriptorIndex = func() map[string]map[string]serviceDescriptor {
 // in this order only so `--service browser` and the role census can find it.
 var startOrder = []string{
 	"traces", "metrics", "collector",
-	"database", "messaging", "identity",
+	"identity-store", "messaging", "identity",
 	"gateway",
 	"graph", "vectors", "inference", "embedding",
 	"archivist", "librarian", "dispatcher",
