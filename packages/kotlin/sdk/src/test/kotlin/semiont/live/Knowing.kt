@@ -1,11 +1,11 @@
 package semiont.live
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
@@ -56,8 +56,8 @@ import semiont.types.wireJson
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.Executors
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.TimeSource
 
 /*
  * A knowledge base's answers and events, as small as their shapes allow: what
@@ -259,12 +259,16 @@ internal class KbContent(private val answered: Boolean = true) : ContentTranspor
     override fun close() = Unit
 }
 
-/** A client over a knowledge base that answers every read a live query makes, or none, keeping its queries where `persistence` says. */
-internal class KbWorld(windowMs: Long = 100, answered: Boolean = true, persistence: CachePersistence? = null) {
+/**
+ * A client over a knowledge base that answers every read a live query makes,
+ * or none, keeping its queries where `persistence` says. The client's work and
+ * its watchers' run on `context`, whose waits keep `clock`'s time.
+ */
+internal class KbWorld(context: CoroutineContext, clock: TimeSource, windowMs: Long = 100, answered: Boolean = true, persistence: CachePersistence? = null) {
     val kb = Kb(answered)
     val content = KbContent(answered)
-    val client = SemiontClient(kb, content, Recording(), ClientTiming(invalidationWindowMs = windowMs), persistence)
-    private val watching = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val client = SemiontClient(kb, content, Recording(), ClientTiming(invalidationWindowMs = windowMs), persistence, context, clock)
+    private val watching = CoroutineScope(SupervisorJob() + context)
 
     /** How often each operation is asked, and the annotations read, so far. */
     fun asked(): Map<String, Int> = (kb.emitted.map { it.channel } + content.reads.map { "getAnnotations" }).groupingBy { it }.eachCount()
@@ -315,33 +319,31 @@ internal class Watcher<T : Any>(query: Cached<T>, scope: CoroutineScope) {
 }
 
 /**
- * A thread a watcher can collect on, which a test keeps busy: while it is,
- * the watcher lags, and when it catches up it is given only the latest state.
+ * Where a watcher can collect, which a test keeps busy: while it is, the
+ * watcher lags, and when it catches up it is given only the latest state. What
+ * runs here runs on `beneath`, the test's dispatcher, once it is let go.
  */
-internal class LaggingThread : AutoCloseable {
-    private val thread = Executors.newSingleThreadExecutor()
-    val scope = CoroutineScope(SupervisorJob() + thread.asCoroutineDispatcher())
+internal class Lagging(private val beneath: CoroutineDispatcher) : CoroutineDispatcher(), AutoCloseable {
+    private val waiting = ArrayDeque<Pair<CoroutineContext, Runnable>>()
+    private var busy = false
+    val scope = CoroutineScope(SupervisorJob() + this)
 
-    /** Do `block` while the thread is busy, and let it go after. */
+    override fun dispatch(context: CoroutineContext, block: Runnable) {
+        if (busy) waiting.addLast(context to block) else beneath.dispatch(context, block)
+    }
+
+    /** Do `block` while it is busy, and let it go after. */
     suspend fun <R> whileBusy(block: suspend () -> R): R {
-        val busy = CountDownLatch(1)
-        val letGo = CountDownLatch(1)
-        thread.execute {
-            busy.countDown()
-            letGo.await()
-        }
-        busy.await()
+        busy = true
         try {
             return block()
         } finally {
-            letGo.countDown()
+            busy = false
+            while (waiting.isNotEmpty()) waiting.removeFirst().let { (context, work) -> beneath.dispatch(context, work) }
         }
     }
 
-    override fun close() {
-        scope.cancel()
-        thread.shutdownNow()
-    }
+    override fun close(): Unit = scope.cancel()
 }
 
 /** Wait until `done`, as soon as it is so. */
