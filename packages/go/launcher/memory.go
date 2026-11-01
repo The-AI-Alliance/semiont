@@ -81,7 +81,7 @@ func startCeilingsGB(plan *launchPlan, browser browserDocument, opts startOption
 	if plan == nil {
 		return sum
 	}
-	for _, role := range []string{"graph", "vectors", "database", "messaging", "identity"} {
+	for _, role := range []string{"graph", "vectors", "identity-store", "messaging", "identity"} {
 		if rp := plan.Roles[role]; rp.Presence == presenceLauncher {
 			sum += memCeilingGB(rp.Memory)
 		}

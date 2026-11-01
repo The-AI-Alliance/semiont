@@ -2626,7 +2626,7 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pg, "PG_VERSION"), []byte("14\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"database":{"image":"postgres:14.9-alpine"}}}`
+	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"identity-store":{"image":"postgres:14.9-alpine"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -2640,9 +2640,9 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
 	}
 	mustContain(t, "refusal", stdout+stderr,
-		"postgres:14.9-alpine",           // what wrote the data
-		"postgres:15.18-alpine",          // what the plan wants
-		"semiont clean --store database") // the way out
+		"postgres:14.9-alpine",                 // what wrote the data
+		"postgres:15.18-alpine",                // what the plan wants
+		"semiont clean --store identity-store") // the way out
 	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
 		t.Error("a refusal must not touch the data dir")
 	}
@@ -2734,7 +2734,7 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	s := newScenario(t, "container")
 	// Graph/vectors are PROJECTIONS of the event log: data written by a
 	// different image is auto-cleaned (announced), never a refusal — the
-	// rebuild is the freshness guarantee. Contrast: the database refusal
+	// rebuild is the freshness guarantee. Contrast: the identity-store refusal
 	// in TestStateImageMismatchRefuses.
 	dir := stateRootFor(s.home, testKBKey)
 	stale := filepath.Join(dir, "neo4j", "data", "databases")
@@ -2871,7 +2871,7 @@ func seedStateDir(t *testing.T, s *scenario) string {
 		}
 	}
 	meta := `{"kbRoot":"` + inJSON(s.kb) + `","did":"did:web:example.github.io:test-kb","stores":{` +
-		`"database":{"image":"postgres:15.18-alpine"},` +
+		`"identity-store":{"image":"postgres:15.18-alpine"},` +
 		`"vectors":{"image":"qdrant/qdrant:v1.19.1"},` +
 		`"graph":{"image":"neo4j:5.26.28-community"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
@@ -2953,7 +2953,7 @@ func TestCleanStoreScopes(t *testing.T) {
 	if strings.Contains(string(meta), `"vectors"`) {
 		t.Error("vectors stamp survived its store's clean")
 	}
-	mustContain(t, "meta.json keeps other stamps", string(meta), `"database"`, `"graph"`)
+	mustContain(t, "meta.json keeps other stamps", string(meta), `"identity-store"`, `"graph"`)
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, "qdrant")))
 	if strings.Count(string(log), "find /store") != 1 {
@@ -3003,12 +3003,12 @@ func TestCleanOrphanKeyTarget(t *testing.T) {
 	}
 }
 
-func TestStartServiceDatabaseMountsState(t *testing.T) {
+func TestStartServiceIdentityStoreMountsState(t *testing.T) {
 	s := newScenario(t, "container")
 	// --service must apply the SAME persistence rules as a full start: a
-	// database restarted alone that silently skipped its mount would write
+	// identity store restarted alone that silently skipped its mount would write
 	// rows into a container that dies with it.
-	_, stderr, code := s.run(t, "start", "--service", "database")
+	_, stderr, code := s.run(t, "start", "--service", "identity-store")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -3102,7 +3102,7 @@ func TestStatusVerboseDiskUsage(t *testing.T) {
 	sep := regexp.QuoteMeta(string(os.PathSeparator))
 	at := map[string]int{}
 	for _, row := range []struct{ store, size, holds string }{
-		{"postgres", `3\.\d MB`, "database"},
+		{"postgres", `3\.\d MB`, "Keycloak's realm and accounts"},
 		{"qdrant", `2\.\d MB`, "vectors"},
 		{"neo4j", `1\.\d MB`, "graph"},
 		{"logs", `\d+(\.\d)? K?B`, "container logs kept from earlier starts"},
@@ -3599,8 +3599,8 @@ func TestStatusMixed(t *testing.T) {
 	)
 	// No stack is recorded here, so the rows are discovered BY NAME and no
 	// config has selected a driver. The report says so by naming no product:
-	// "database (PostgreSQL)" would be a guess that is only right while the
-	// database role has one driver, and guessing it is exactly what keying
+	// "identity-store (PostgreSQL)" would be a guess that is only right while
+	// the identity-store role has one driver, and guessing it is exactly what keying
 	// the descriptor set by (role, driver) rules out. A recorded stack
 	// names its products — every record carries its driver.
 	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
@@ -6972,7 +6972,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
-	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "identity", "inference", "embedding", "database",
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "identity", "inference", "embedding", "identity-store",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
@@ -11868,7 +11868,7 @@ func TestSingleServiceStartIssuesTheSameArgvAsAFullStart(t *testing.T) {
 	}
 	full = s.norm(full)
 
-	for _, role := range []string{"traces", "metrics", "collector", "database", "identity", "graph", "vectors", "gateway", "archivist", "librarian", "dispatcher", "worker", "smelter", "weaver"} {
+	for _, role := range []string{"traces", "metrics", "collector", "identity-store", "identity", "graph", "vectors", "gateway", "archivist", "librarian", "dispatcher", "worker", "smelter", "weaver"} {
 		t.Run(role, func(t *testing.T) {
 			one, stderr, code := s.run(t, "start", "--service", role, "--dry-run")
 			if code != 0 {
@@ -11926,7 +11926,7 @@ func roleContainerHint(role string) string {
 		return "prometheus"
 	case "collector":
 		return "otel-collector"
-	case "database":
+	case "identity-store":
 		return "postgres"
 	case "identity":
 		return "keycloak"

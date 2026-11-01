@@ -47,7 +47,7 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | Role | What the launcher runs | Port | Who uses it |
 |---|---|---|---|
 | `identity` | Keycloak | 8080 | People and services sign in there; the gateway verifies every token against its keys |
-| `database` | PostgreSQL | 5432 | Keycloak, and nothing else. Semiont stores nothing in it ([Database](../administration/DATABASE.md)) |
+| `identity-store` | PostgreSQL | 5432 | Keycloak, and nothing else. Semiont stores nothing in it ([Database](../administration/DATABASE.md)) |
 | `messaging` | NATS, with JetStream | 4222 | The dispatcher's job queue; the gateway's signal plane, when it is `nats` |
 | `graph` | Neo4j | 7687 (Bolt), 7474 (HTTP) | Librarian, weaver |
 | `vectors` | Qdrant | 6333 | Librarian, smelter |
@@ -68,7 +68,7 @@ None of these is fixed. Each role sits behind a driver interface, so a stack can
 `semiont start` brings a stack up in this order:
 
 1. `traces`, `metrics`, `collector`
-2. `database`, `messaging`, `identity`
+2. `identity-store`, `messaging`, `identity`
 3. `gateway`
 4. `graph`, `vectors`, `inference`, `embedding`
 5. `archivist`, `librarian`, `dispatcher`
@@ -86,7 +86,7 @@ Every service answers a health request on its own port. `semiont status` probes 
 | gateway | `GET /api/health` on 4000 |
 | worker, smelter, weaver, archivist, librarian, dispatcher | `GET /health` on the service's port |
 | `identity` | the realm's own URL |
-| `database`, `messaging` | a TCP connect |
+| `identity-store`, `messaging` | a TCP connect |
 | `graph` | `GET /` on 7474 |
 | `vectors` | `GET /readyz` on 6333 |
 | `inference`, `embedding` | `GET /api/version` on 11434 |
@@ -98,7 +98,7 @@ These answer liveness: the process is up and serving. The gateway's `/api/health
 
 ## The launcher's names
 
-`--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `database`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack. Each of these commands acts on the knowledge base whose clone you stand in, or the one `--root <path>` names: `semiont logs --service gateway` follows that knowledge base's gateway.
+`--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `identity-store`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack. Each of these commands acts on the knowledge base whose clone you stand in, or the one `--root <path>` names: `semiont logs --service gateway` follows that knowledge base's gateway.
 
 Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `keycloak`, `postgres`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The machine's containers serve every knowledge base on it and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
 

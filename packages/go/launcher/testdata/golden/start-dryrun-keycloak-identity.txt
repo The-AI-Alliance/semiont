@@ -45,12 +45,12 @@ container rm semiont-example.github.io-test-kb-postgres
 # write into each document the addresses this start places, as literals (launcher-placed topology):
 #   graph: bolt://<host-addr>:17687
 #   vectors: <host-addr>:6333
-#   database: <host-addr>:5432
+#   identity-store: <host-addr>:5432
 #   messaging: <host-addr>:4222
 #   identity: http://<host-addr>:8080/realms/semiont
 #   embedding: http://<host-addr>:11434
 #   inference: http://<host-addr>:11434
-# resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
+# resolve persistent-store stamps before any container runs: an identity-store mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
 container image pull ghcr.io/the-ai-alliance/semiont-gateway:latest@sha256:<verified>
 container image pull ghcr.io/the-ai-alliance/semiont-archivist:latest@sha256:<verified>
 container image pull ghcr.io/the-ai-alliance/semiont-librarian:latest@sha256:<verified>
@@ -81,7 +81,7 @@ container rm semiont-otel-collector
 # write <state-home>/machine/collector.yaml (the launcher's own; only as its container (re)starts)
 container run -d --name semiont-otel-collector --memory 1G -p <host-addr>:4318:4318 -p <host-addr>:24110:24110 --volume <state-home>/machine/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c
 # wait: http://<host-addr>:24110/metrics (30s)
-# database state: <data-home>/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
+# identity-store state: <data-home>/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
 container run -d --name semiont-example.github.io-test-kb-postgres --memory 1G -p <host-addr>:5432:5432 -v <data-home>/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
 # wait: tcp <host-addr>:5432 (20s)
 # probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 5432

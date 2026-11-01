@@ -80,7 +80,7 @@ type stateStoreSpec struct {
 	mode   os.FileMode  // non-zero: host-side perms on the mount dirs (see the rows that set it)
 	// projection: this store derives from the event log — an image mismatch
 	// auto-cleans and rebuilds instead of refusing. False = system of
-	// record (database): existing data is never auto-deleted.
+	// record (identity-store): existing data is never auto-deleted.
 	projection bool
 	// owner: the one role whose container mounts this store — the writer
 	// whose code the contents reflect, and so, unless unstamped, the image
@@ -99,12 +99,12 @@ type stateMount struct{ sub, target string }
 var stateStores = map[string]stateStoreSpec{
 	// The entrypoint chmods $PGDATA only — a created-inside subdir — never
 	// the mount root (which virtiofs refuses).
-	"database": {
+	"identity-store": {
 		dir:    "postgres",
-		holds:  "database",
+		holds:  "Keycloak's realm and accounts",
 		mounts: []stateMount{{"", "/var/lib/postgresql/data"}},
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
-		owner:  "database",
+		owner:  "identity-store",
 	},
 	// Qdrant just writes files; a plain mount works.
 	"vectors": {
@@ -274,7 +274,7 @@ func stateMountArgs(role, key string) []string {
 
 // rootMeta is <stateRootDir>/meta.json: which root this state belongs to
 // and which image wrote each store — the stamp the freshness/safety split
-// reads (database mismatch refuses; projections auto-clean).
+// reads (identity-store mismatch refuses; projections auto-clean).
 type rootMeta struct {
 	KBRoot    string               `json:"kbRoot"`
 	Did       string               `json:"did,omitempty"`

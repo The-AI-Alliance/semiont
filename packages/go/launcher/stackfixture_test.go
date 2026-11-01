@@ -80,7 +80,7 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 		{"the graph store", *index.Spec.Graph.Image, index.Spec.Graph.Resources.Limits.Memory, descriptorFor("graph", "neo4j").image, descriptorFor("graph", "neo4j").mem},
 		{"the vector store", *index.Spec.Vectors.Image, index.Spec.Vectors.Resources.Limits.Memory, descriptorFor("vectors", "qdrant").image, descriptorFor("vectors", "qdrant").mem},
 		{"the issuer", issuer.Spec.Image, issuer.Spec.Resources.Limits.Memory, descriptorFor("identity", "keycloak").image, descriptorFor("identity", "keycloak").mem},
-		{"the issuer's database", *issuer.Spec.Database.Image, issuer.Spec.Database.Resources.Limits.Memory, descriptorFor("database", "postgres").image, descriptorFor("database", "postgres").mem},
+		{"the issuer's database", *issuer.Spec.Database.Image, issuer.Spec.Database.Resources.Limits.Memory, descriptorFor("identity-store", "postgres").image, descriptorFor("identity-store", "postgres").mem},
 	} {
 		if c.image != c.wantImage {
 			t.Errorf("the fixture runs %s from %s, and the launcher's is %s", c.what, c.image, c.wantImage)

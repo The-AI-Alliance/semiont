@@ -51,9 +51,9 @@ func About(args []string) int {
 
 	fmt.Println()
 	fmt.Println(u.Dim("This launcher runs the local Semiont stack — graph (Neo4j), vectors"))
-	fmt.Println(u.Dim("(Qdrant), inference (Ollama), database (PostgreSQL), traces (Jaeger), and the"))
-	fmt.Println(u.Dim("Semiont gateway, worker, smelter, weaver, and Browser — by driving your"))
-	fmt.Println(u.Dim("container runtime directly. Try: semiont start --help"))
+	fmt.Println(u.Dim("(Qdrant), inference (Ollama), identity-store (PostgreSQL), traces"))
+	fmt.Println(u.Dim("(Jaeger), and the Semiont gateway, worker, smelter, weaver, and Browser —"))
+	fmt.Println(u.Dim("by driving your container runtime directly. Try: semiont start --help"))
 	fmt.Println()
 	fmt.Println(u.Wrap(AnsiMagenta, "✨ Make Meaning"))
 	return 0

@@ -54,7 +54,7 @@ func TestStoreUseListsEachDirectoryLargestFirst(t *testing.T) {
 	for _, use := range uses {
 		names = append(names, use.dir+": "+use.holds)
 	}
-	want := []string{"neo4j: graph", "logs: container logs kept from earlier starts", "postgres: database"}
+	want := []string{"neo4j: graph", "logs: container logs kept from earlier starts", "postgres: Keycloak's realm and accounts"}
 	if !slices.Equal(names, want) {
 		t.Errorf("rows are %q, want %q", names, want)
 	}

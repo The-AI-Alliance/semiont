@@ -29,7 +29,7 @@ func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	placedByLauncher := []string{
 		"graph: bolt://192.168.64.1:17687",
 		"vectors: 192.168.64.1:6333",
-		"database: 192.168.64.1:5432",
+		"identity-store: 192.168.64.1:5432",
 		"messaging: 192.168.64.1:4222",
 		"identity: http://192.168.64.1:8080/realms/semiont",
 		"embedding: http://192.168.64.1:11434",
@@ -39,7 +39,7 @@ func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 		"anthropic":    placedByLauncher,
 	} {
 		p := placed(t, fixtureStack(t, inference))
-		for _, role := range []string{"graph", "vectors", "database", "messaging", "identity"} {
+		for _, role := range []string{"graph", "vectors", "identity-store", "messaging", "identity"} {
 			if p.plan.Roles[role].Presence != presenceLauncher {
 				t.Errorf("%s: the launcher does not run the %s its documents leave to it", inference, role)
 			}
@@ -68,7 +68,7 @@ func TestADocumentsExternalIsSomebodyElsesDaemon(t *testing.T) {
 			v.Image, v.Resources = nil, nil
 			v.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
 		}, func(p placement) string { host, port := p.vectors(); return fmt.Sprintf("%s:%d", host, port) }, "qdrant.internal:7000"},
-		{"database", "pg.internal", func(st *stack.Stack) {
+		{"identity-store", "pg.internal", func(st *stack.Stack) {
 			d := &st.Issuer.Spec.Database
 			d.Image, d.Resources = nil, nil
 			d.External = &stack.IssuerDatabaseExternal{Host: "pg.internal", Port: 5432, Password: stack.SecretRef{FromEnv: "PG_PASSWORD"}}
@@ -147,9 +147,9 @@ func TestAGeneratedStackLeavesEveryAddressToTheLauncher(t *testing.T) {
 		places []string
 	}{
 		{genParams{Inference: "ollama", Model: "gemma4:26b", EmbeddingModel: "nomic-embed-text", GatewayPort: 4000},
-			[]string{"graph", "vectors", "database", "messaging", "identity", "embedding", "inference"}},
+			[]string{"graph", "vectors", "identity-store", "messaging", "identity", "embedding", "inference"}},
 		{genParams{Inference: "anthropic", Model: "claude-sonnet-4-5-20250929", EmbeddingModel: "nomic-embed-text", AnthropicEndpoint: "https://api.anthropic.com", GatewayPort: 4000},
-			[]string{"graph", "vectors", "database", "messaging", "identity", "embedding"}},
+			[]string{"graph", "vectors", "identity-store", "messaging", "identity", "embedding"}},
 	} {
 		inference := c.params.Inference
 		files, err := generateStack(c.params, inference)

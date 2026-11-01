@@ -717,7 +717,7 @@ func roleDocument(st *stack.Stack, role string) string {
 	switch role {
 	case "graph", "vectors", "embedding", "librarian", "smelter", "weaver":
 		return st.Files.KnowledgeIndex
-	case "database":
+	case "identity-store":
 		return st.Files.Issuer
 	case "identity":
 		if st.Issuer != nil {
@@ -1339,7 +1339,7 @@ func refuseDaemonCredentialNames(p placement) error {
 			return fmt.Errorf("the knowledge base's documents name the variable %s (fromEnv), which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", name)
 		}
 	}
-	for _, role := range []string{"graph", "database", "messaging"} {
+	for _, role := range []string{"graph", "identity-store", "messaging"} {
 		if plan.Roles[role].Presence != presenceLauncher {
 			continue
 		}

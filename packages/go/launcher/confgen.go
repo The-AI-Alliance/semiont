@@ -122,7 +122,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	issuer.Spec.Image, issuer.Spec.Resources = identity.image, limits(identity.mem)
 	issuer.Spec.AccessTokenLifespan = keycloakAccessTokenLifespan
 	issuer.Spec.Database.Type, issuer.Spec.Database.Name, issuer.Spec.Database.User = "postgres", "keycloak", "postgres"
-	issuer.Spec.Database.Image, issuer.Spec.Database.Resources = daemon("database", "postgres")
+	issuer.Spec.Database.Image, issuer.Spec.Database.Resources = daemon("identity-store", "postgres")
 
 	var inference stack.Inference
 	inference.ApiVersion, inference.Kind, inference.Metadata = meta("Inference", name)

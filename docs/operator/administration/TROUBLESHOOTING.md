@@ -119,7 +119,7 @@ If `semiont status` shows the stack green while emits still fail, the served-hea
 ```bash
 container ps --all | grep semiont-<kb>-postgres
 container exec semiont-<kb>-postgres pg_isready -U postgres
-semiont logs --service database
+semiont logs --service identity-store
 semiont logs --service identity
 ```
 
@@ -208,7 +208,7 @@ A projection that disagrees with the event log is a bug in the projection, not m
 ```bash
 semiont stop
 semiont clean --dry-run          # What would go, and how big
-semiont clean --store database
+semiont clean --store identity-store
 semiont start
 ```
 

@@ -85,7 +85,7 @@ var statusServices = []struct {
 	{"weaver", true, 1},
 	{"smelter", true, 1},
 
-	{"database", true, 2},
+	{"identity-store", true, 2},
 	{"messaging", true, 2},
 	{"identity", true, 2},
 	{"graph", true, 2},
@@ -98,6 +98,10 @@ var statusServices = []struct {
 	{"traces", false, 4},
 	{"metrics", false, 4},
 }
+
+// serviceCell: the SERVICE column's width, the longest cell's:
+// "identity-store (PostgreSQL)".
+const serviceCell = 27
 
 // Status implements `semiont status`.
 //
@@ -459,7 +463,7 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 	// keep distinct words: "✗ running" (up but unhealthy) vs "✗ exited"
 	// (crashed, kept for inspection) vs "✓ host"/"✓ reachable" (provided
 	// elsewhere). The probe endpoint stays, dimmed.
-	fmt.Printf("  %-22s %-10s %s\n", "SERVICE", "RUNTIME", "STATUS")
+	fmt.Printf("  %-*s %-10s %s\n", serviceCell, "SERVICE", "RUNTIME", "STATUS")
 	healthy = true
 	// Fetched once, lazily: the inference and embedding model rows both read
 	// it, and a stack with no ollama-served models never asks at all.
@@ -514,7 +518,7 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 			}
 		}
 
-		// The concrete product rides in the SERVICE cell — "database
+		// The concrete product rides in the SERVICE cell — "identity-store
 		// (PostgreSQL)" — rather than a column that is an em-dash for every
 		// Semiont service.
 		label := svc.name
@@ -539,7 +543,7 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 		}
 
 		if rec != nil && rec.Provided == providedNone {
-			fmt.Printf("  %-22s %-10s %s\n", label, "—", u.Dim("not configured"))
+			fmt.Printf("  %-*s %-10s %s\n", serviceCell, label, "—", u.Dim("not configured"))
 			continue
 		}
 
@@ -601,7 +605,7 @@ func printLocalStack(u *UI, st *StackState, key, runtime, service string) (healt
 		if isHealthy {
 			mark = u.Wrap(AnsiGreen, "✓")
 		}
-		fmt.Printf("  %-22s %-10s %s %-12s %s\n", label, rt, mark, word, u.Dim(probe))
+		fmt.Printf("  %-*s %-10s %s %-12s %s\n", serviceCell, label, rt, mark, word, u.Dim(probe))
 
 		// What this role has in flight, indented beneath it — read from the
 		// collector's readout, which every start runs and which the collector

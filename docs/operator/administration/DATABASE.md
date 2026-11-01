@@ -58,7 +58,7 @@ and check the identity service for whether Keycloak is actually using it:
 
 ```bash
 container exec semiont-<kb>-postgres pg_isready -U postgres
-semiont logs --service database
+semiont logs --service identity-store
 semiont logs --service identity
 ```
 
