@@ -77,6 +77,16 @@ describe('ServiceToken', () => {
     expect(refused).toMatchObject({ code: 'exchange', status: 401 });
   });
 
+  it('gives the `Authorization` header\'s value: the token held, renewed when it is due', async () => {
+    let granted = 0;
+    const asked = stubFetch(() => Response.json({ access_token: `service-account-token-${++granted}`, expires_in: 300 }));
+    const service = new ServiceToken(ACCOUNT);
+
+    await expect(service.authorization()).resolves.toBe('Bearer service-account-token-1');
+    await expect(service.authorization(), 'the token held').resolves.toBe('Bearer service-account-token-1');
+    expect(grants(asked)).toHaveLength(1);
+  });
+
   it('makes one grant at a time: those who ask while one is under way are given what it brings', async () => {
     let granted = 0;
     const asked = stubFetch(() => Response.json({ access_token: `service-account-token-${++granted}`, expires_in: 300 }));

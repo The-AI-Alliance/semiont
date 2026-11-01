@@ -130,6 +130,11 @@ export class ServiceToken {
     return document['token_endpoint'];
   }
 
+  /** The `Authorization` header's value: the account's token, renewed when it is due. */
+  async authorization(): Promise<string> {
+    return `Bearer ${await this.token({ renewed: false })}`;
+  }
+
   /**
    * The account's access token: the one held until it is due for renewal,
    * and a new grant after it, or at once when `renewed` (the gateway refused
