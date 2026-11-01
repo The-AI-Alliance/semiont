@@ -242,6 +242,34 @@ eachPlane('content', (world) => {
     }
   });
 
+  it('a read whose connection the Archivist closes without answering is sent once more, and its answer served', async () => {
+    const id = `res-${randomUUID()}`;
+    world().archivist.resources.set(id, { storageUri: `file://${id}`, mediaType: 'text/plain' });
+    world().archivist.content.set(`file://${id}`, EVERY_BYTE);
+    const token = await world().person('reader');
+
+    world().archivist.mode.closesNextUnanswered = true;
+    const reply = await call(world().origin, 'GET', `/resources/${id}`, { token });
+    expect(reply.status, reply.text).toBe(200);
+    expect(nonConformance('get', '/resources/{id}', reply)).toEqual([]);
+    expect(reply.bytes.equals(EVERY_BYTE)).toBe(true);
+    expect(world().archivist.calls.filter((c) => c.method === 'GET' && c.path === `/resources/${id}/content`)).toHaveLength(2);
+  });
+
+  it('an upload whose connection the Archivist closes without answering is not sent again: a 503', async () => {
+    const token = await world().person('uploader');
+    const asked = world().archivist.calls.length;
+
+    world().archivist.mode.closesNextUnanswered = true;
+    const reply = await call(world().origin, 'POST', '/resources', {
+      token,
+      body: upload({ name: 'n', format: 'text/plain', storageUri: `file://uploads/${randomUUID()}` }, { bytes: Buffer.from('x'), type: 'text/plain' }),
+    });
+    expect(reply.status, reply.text).toBe(503);
+    expect(nonConformance('post', '/resources', reply)).toEqual([]);
+    expect(world().archivist.calls.slice(asked).filter((c) => c.method === 'POST' && c.path === '/resources')).toHaveLength(1);
+  });
+
   it('the JSON-LD description is the record\'s answer, never cached', async () => {
     const id = `res-${randomUUID()}`;
     const description = {

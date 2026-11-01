@@ -199,6 +199,15 @@ client-credentials grant, kept until shortly before it expires:
 | `GET /resources/{id}/anchored-text` | `GET /resources/{id}/anchored-text`, streamed back unread |
 | `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse`, an answer at a time until the stream's `lastSequence` |
 
+A read (`GET`) that gets no answer — its connection could not be made, or
+broke or closed before a response came back, as a pooled connection the
+Archivist closes just as the read is written to it does — is sent once more,
+at once: reqwest's own retry, on the gateway's client, for requests to the
+Archivist's host and port alone. An answer is never asked again, whatever its
+status, and an upload is never sent again: its body is streamed, and a
+streamed body cannot be sent twice. A content route whose call still gets no
+answer is a 503, `Content store unavailable`.
+
 Everything else the Archivist answers, it answers over the bus the gateway
 relays. The gateway makes no bus request of its own.
 

@@ -8,7 +8,7 @@
 
 use crate::http::ApiError;
 use axum::body::Body;
-use axum::http::StatusCode;
+use axum::http::{StatusCode, Uri};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity::encode_uri_component;
@@ -47,6 +47,52 @@ fn client(fields: Value) -> Value {
     fields
 }
 
+/// The retry policy of the client the gateway reaches the Archivist with: a
+/// read that got no answer — its connection could not be made, or broke or
+/// closed before a response came back, as a pooled connection the Archivist
+/// closes just as a read is written to it does — is sent once more. An answer
+/// is never asked again, whatever its status, and an upload is never sent
+/// again: its body is streamed, and a streamed body cannot be sent twice.
+pub(crate) fn read_retry(host: &str, port: u16) -> Result<reqwest::retry::Builder, String> {
+    let address = origin(host, port);
+    let archivist = reqwest::Url::parse(&address)
+        .map_err(|e| format!("The Archivist's address {address} is not a URL: {e}"))?;
+    Ok(reqwest::retry::for_host(host.to_owned())
+        .max_retries_per_request(1)
+        // With one retry a read, the most retries can add is a second read
+        // to a store that is not answering; a budget would only take some
+        // reads' one retry away.
+        .no_budget()
+        .classify_fn(move |attempt| {
+            // reqwest asks its scope only before a second retry, so the first
+            // is refused here to every request but the Archivist's, port and
+            // all: the issuer may be on the Archivist's host.
+            if attempt.method() == reqwest::Method::GET
+                && to_archivist(&archivist, attempt.uri())
+                && attempt.status().is_none()
+            {
+                attempt.retryable()
+            } else {
+                attempt.success()
+            }
+        }))
+}
+
+/// Where the gateway's requests to the Archivist at `host` and `port` go.
+fn origin(host: &str, port: u16) -> String {
+    format!("http://{host}:{port}")
+}
+
+/// Whether a request to `uri` is one to `archivist`: the same host and port,
+/// each read as the URL parser writes it, which drops a scheme's default port
+/// and lowercases a host, as it did to the request's own URL.
+fn to_archivist(archivist: &reqwest::Url, uri: &Uri) -> bool {
+    reqwest::Url::parse(&uri.to_string()).is_ok_and(|url| {
+        url.host_str() == archivist.host_str()
+            && url.port_or_known_default() == archivist.port_or_known_default()
+    })
+}
+
 /// Every operation the gateway calls is one the Archivist's document declares.
 pub fn undeclared_calls() -> Vec<String> {
     let declared = Spec::operations_of(&spec().archivist);
@@ -82,7 +128,7 @@ async fn in_client_span<T>(operation: &str, work: impl std::future::Future<Outpu
 impl Archivist {
     pub fn new(host: &str, port: u16, credential: Credential, http: reqwest::Client) -> Archivist {
         Archivist {
-            base: format!("http://{host}:{port}"),
+            base: origin(host, port),
             token: ServiceToken::new(credential, http.clone()),
             http,
         }
@@ -386,5 +432,64 @@ impl Archivist {
             return Err("Archivist replay answer holds no events or no lastSequence".to_owned());
         };
         Ok((events, last))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Archivist at `host` and `port`, as the retry policy reads it.
+    fn archivist(host: &str, port: u16) -> reqwest::Url {
+        reqwest::Url::parse(&origin(host, port)).unwrap()
+    }
+
+    /// The URI a request to `url` carries: reqwest parses the URL, then writes it as a URI.
+    fn sent_to(url: &str) -> Uri {
+        reqwest::Url::parse(url).unwrap().as_str().parse().unwrap()
+    }
+
+    /// The URI of a content read of the Archivist's at `host` and `port`.
+    fn content_read(host: &str, port: u16) -> Uri {
+        sent_to(&format!(
+            "{}{}",
+            origin(host, port),
+            path("/resources/{id}/content", "res-1")
+        ))
+    }
+
+    #[test]
+    fn a_request_is_the_archivists_by_host_and_port_as_the_url_parser_writes_them() {
+        assert!(
+            to_archivist(&archivist("archivist", 80), &content_read("archivist", 80)),
+            "port 80, written out in the configuration and dropped from the request"
+        );
+        assert!(to_archivist(
+            &archivist("archivist", 9090),
+            &content_read("archivist", 9090)
+        ));
+        assert!(
+            to_archivist(
+                &archivist("Archivist.Internal", 9090),
+                &content_read("Archivist.Internal", 9090)
+            ),
+            "a host configured in capitals, lowercased in the request"
+        );
+
+        let on_loopback = archivist("127.0.0.1", 9090);
+        assert!(
+            !to_archivist(
+                &on_loopback,
+                &sent_to("http://127.0.0.1:8080/realms/semiont/protocol/openid-connect/certs")
+            ),
+            "the issuer, on the Archivist's host at a port of its own"
+        );
+        assert!(
+            !to_archivist(
+                &on_loopback,
+                &sent_to("http://keycloak:9090/realms/semiont/protocol/openid-connect/certs")
+            ),
+            "another host"
+        );
     }
 }

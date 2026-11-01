@@ -100,6 +100,12 @@ export interface FakeArchivist {
     refuseUploads: string | undefined;
     /** A read of anchored text answers 500. */
     anchoredTextFails: boolean;
+    /**
+     * The next request is read whole and its connection closed with no
+     * answer, as an Archivist closing an idle connection a request had just
+     * been written to closes it. The switch clears itself.
+     */
+    closesNextUnanswered: boolean;
   };
   close(): Promise<void>;
 }
@@ -164,6 +170,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
     replayAnswer: undefined,
     refuseUploads: undefined,
     anchoredTextFails: false,
+    closesNextUnanswered: false,
   };
   const supported = new Set(spec().schema('SupportedMediaType')['enum'] as string[]);
   /** The most events one answer to `GET /events/{resourceId}` holds, as the Archivist's API states it. */
@@ -193,8 +200,8 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
 
   // Node closes an idle connection six seconds after its last answer, a
   // deadline the Archivist does not set. The gateway pools the connection for
-  // longer, and a read it sends as Node closes it fails and is answered 503.
-  // So an idle connection stays open.
+  // longer, and an upload it sends as Node closes it fails and is answered
+  // 503: unlike a read, it is not sent again. So an idle connection stays open.
   const server: Server = createServer({ keepAliveTimeout: 0 }, (req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://archivist');
@@ -210,6 +217,13 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         return;
       }
       violations.push(...requestProblems(operation, req, url));
+
+      if (mode.closesNextUnanswered) {
+        mode.closesNextUnanswered = false;
+        await readBody(req);
+        req.socket.destroy();
+        return;
+      }
 
       /** Answer, and check the answer against the operation's declaration first. */
       const reply = (status: number, headers: Record<string, string>, body: Buffer) => {
