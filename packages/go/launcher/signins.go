@@ -8,8 +8,6 @@ package launcher
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 	"path/filepath"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
@@ -48,21 +46,13 @@ func LoadTokens() map[string]semiont.SignIn {
 	return signIns
 }
 
-// keepSignIn keeps the sign-in of the stack key. The state home holds bearer
-// credentials, so it is kept to its owner first, with everything created in
-// it from then on: the store's file, its lock, and what a renewal writes in
-// their place.
+// keepSignIn keeps the sign-in of the stack key. The store keeps the state
+// home to its owner before it writes, with everything created in it from then
+// on: the store's file, its lock, and what a renewal writes in their place.
 func keepSignIn(ctx context.Context, key string, held semiont.HeldSignIn) error {
 	store, ok := signInStore()
 	if !ok {
 		return errors.New("there is no state home to keep the session in")
-	}
-	dir := StateDir()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
-	}
-	if err := ownerOnlyDir(dir); err != nil {
-		return fmt.Errorf("the state home %s cannot be kept to its owner: %w", dir, err)
 	}
 	return store.Entry(key).Keep(ctx, held)
 }

@@ -311,7 +311,9 @@ export class FaultyTransport implements ITransport {
         // the envelope here would strip the correlation key on the way to the
         // application bus and strand the awaiting request.
         const { payload, ...envelope } = frame;
-        bus.emit(channel as keyof EventMap, asDeclared(channel as keyof EventMap, payload as EventMap[keyof EventMap]), envelope);
+        // A payload that is not its channel's is handed to nobody, as a wire transport's bridge does.
+        const declared = asDeclared(channel as keyof EventMap, payload as EventMap[keyof EventMap]);
+        if (declared !== undefined) bus.emit(channel as keyof EventMap, declared.payload, envelope);
       });
     }
   }

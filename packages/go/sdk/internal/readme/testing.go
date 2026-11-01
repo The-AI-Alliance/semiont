@@ -25,7 +25,7 @@ func ATitleIsItsResourcesNameInCapitals(t *testing.T) {
 	defer made.Transport.Close()
 	defer made.Client.Close()
 	asked := bus.BrowseResourceRequested.Request().Channel()
-	made.Transport.QueueReply(asked, json.RawMessage(`{"resource":{"@context":"https://schema.org","@id":"res-1","name":"a page of notes","representations":[]}}`))
+	made.Transport.QueueReply(asked, json.RawMessage(`{"resource":{"@context":"https://schema.org","@id":"res-1","name":"a page of notes","representations":[]},"lastSequence":1}`))
 
 	resource, err := api.ParseResourceId("res-1")
 	if err != nil {

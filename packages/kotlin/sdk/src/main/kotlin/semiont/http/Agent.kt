@@ -32,6 +32,7 @@ import semiont.types.UserResponse
 import semiont.types.wireJson
 import java.io.IOException
 import java.net.URI
+import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.security.KeyFactory
@@ -119,9 +120,10 @@ private fun proof(credential: Credential, tokenEndpoint: String): List<Pair<Stri
  * it is kept until it is due for renewal by the schedule every Semiont client
  * keeps, half its lifetime before it expires and at most
  * `refreshBeforeExpMs`. A service reaches another as itself with this token.
- * A failure names the issuer and the client, and never the secret or the key.
+ * Its issuer is asked with `http`. A failure names the issuer and the client,
+ * and never the secret or the key.
  */
-public class ServiceToken(private val credential: Credential) {
+public class ServiceToken @JvmOverloads constructor(private val credential: Credential, private val http: HttpClient = ownHttp) {
     // One grant at a time: those who ask while one is under way are given what it brings.
     private val asking = Mutex()
     private var tokenEndpoint: String? = null
@@ -135,7 +137,7 @@ public class ServiceToken(private val credential: Credential) {
         val url = "${if (issuer.endsWith('/')) issuer else "$issuer/"}.well-known/openid-configuration"
         val request = HttpRequest.newBuilder(URI.create(url)).GET().timeout(Duration.ofMillis(Timings.HTTP_REQUEST_TIMEOUT_MS)).build()
         val response = try {
-            issuerHttp.exchange(request, HttpResponse.BodyHandlers.ofString())
+            http.exchange(request, HttpResponse.BodyHandlers.ofString())
         } catch (error: IOException) {
             throw SignInError(SignInErrorCode.Discovery, "OIDC discovery for $issuer got no answer: ${error.message ?: error::class.simpleName}")
         }
@@ -162,7 +164,7 @@ public class ServiceToken(private val credential: Credential) {
         val clientId = credential.clientId
         val endpoint = endpoint()
         val answer = try {
-            postForm(endpoint, proof(credential, endpoint))
+            postForm(endpoint, proof(credential, endpoint), http)
         } catch (_: SignInError) {
             throw SignInError(SignInErrorCode.Exchange, "Client-credentials grant for $clientId at $issuer got no answer")
         }
@@ -197,9 +199,11 @@ private fun transient(error: SemiontError): Boolean = REFRESH.retryable(RetryFac
  * It is not a session. A person whose token cannot be renewed is signed out;
  * an agent whose renewal fails keeps the token it has and tries again, so a
  * process holding a token that still works does not stop over one bad round
- * trip. `signIn` signs it in, and it is kept signed in until `close`.
+ * trip. `signIn` signs it in, and it is kept signed in until `close`. The
+ * gateway is asked who the agent is with `http`; its issuer is asked with the
+ * client `service` was given.
  */
-public class AgentToken(gateway: String, private val service: ServiceToken) : TokenRefresher, AutoCloseable {
+public class AgentToken @JvmOverloads constructor(gateway: String, private val service: ServiceToken, private val http: HttpClient = ownHttp) : TokenRefresher, AutoCloseable {
     /** The gateway the agent signs in at. */
     public val gateway: String = gateway.trimEnd('/')
     private val current = MutableStateFlow<String?>(null)
@@ -263,7 +267,7 @@ public class AgentToken(gateway: String, private val service: ServiceToken) : To
             .timeout(Duration.ofMillis(Timings.HTTP_REQUEST_TIMEOUT_MS))
             .build()
         val response = try {
-            issuerHttp.exchange(request, HttpResponse.BodyHandlers.ofByteArray())
+            http.exchange(request, HttpResponse.BodyHandlers.ofByteArray())
         } catch (error: IOException) {
             throw TransportError.withoutResponse("$url got no answer: ${error.message ?: error::class.simpleName}")
         }

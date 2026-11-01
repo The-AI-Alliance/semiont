@@ -150,6 +150,12 @@ export interface SemiontBrowserConfig {
    * `@semiont/sdk`; an in-process app passes its own.
    */
   sessionFactory: SessionFactory;
+  /**
+   * What a sign-in's requests and a sign-out's revocation are sent with: of
+   * the knowledge base, and of its issuer. Absent, the runtime's own `fetch`.
+   * The sessions' own requests are the factory's.
+   */
+  fetch?: typeof fetch;
 }
 
 export class SemiontBrowser {
@@ -186,6 +192,7 @@ export class SemiontBrowser {
 
   private readonly storage: SessionStorage;
   private readonly sessionFactory: SessionFactory;
+  private readonly fetch: typeof fetch | undefined;
   /**
    * App-scoped EventBus. Hosts UI-shell events that must work regardless
    * of whether a KB session is active: panel toggles, sidebar state,
@@ -214,6 +221,7 @@ export class SemiontBrowser {
   constructor(config: SemiontBrowserConfig) {
     this.storage = config.storage;
     this.sessionFactory = config.sessionFactory;
+    this.fetch = config.fetch;
 
     const kbs = loadKnowledgeBases(this.storage);
     const storedActive = this.storage.get(ACTIVE_KEY);
@@ -328,7 +336,7 @@ export class SemiontBrowser {
    * `window.location`, a test asserts the URL.
    */
   async beginSignIn(opts: BeginAuthorizationOptions): Promise<string> {
-    return beginAuthorization(opts, this.storage);
+    return beginAuthorization(opts, this.storage, this.fetch);
   }
 
   /**
@@ -347,8 +355,8 @@ export class SemiontBrowser {
    * Several entries can share an address, one per KB that has answered there.
    */
   async completeSignIn(callbackUrl: string): Promise<SignInOutcome> {
-    const { pending, tokens } = await completeAuthorization(callbackUrl, this.storage);
-    const identity = await describeConnection(pending.target, tokens.access);
+    const { pending, tokens } = await completeAuthorization(callbackUrl, this.storage, this.fetch);
+    const identity = await describeConnection(pending.target, tokens.access, this.fetch);
     const label = identity.description.name;
     const lastRead = kbRead(identity.description, new Date());
     const session: StoredSession = {
@@ -613,7 +621,7 @@ export class SemiontBrowser {
     if (stored?.revocationEndpoint) {
       // The local act is the sign-out; an unreachable issuer must not trap
       // the user in a session they asked to end.
-      void revokeAtIssuer(stored.revocationEndpoint, stored.clientId, stored.refresh).catch(() => {});
+      void revokeAtIssuer(stored.revocationEndpoint, stored.clientId, stored.refresh, this.fetch).catch(() => {});
     }
 
     // Bump the kbs$ list so downstream status-derivations re-run.

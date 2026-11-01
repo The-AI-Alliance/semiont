@@ -2,13 +2,15 @@
 //
 // The components (specs/src/components/schemas) are OpenAPI 3.0 schemas, and
 // one of 3.0's keywords means something JSON Schema has no keyword for:
-// `nullable`. Every generator that hands a component to a JSON Schema
-// validator translates it here, in one place:
+// `nullable`. Every generator that reads a component as JSON Schema
+// translates it here, in one place:
 //
 //   - scripts/spec/generate-validators.mjs, TypeScript's validators (draft-07,
 //     through the bundled spec)
 //   - scripts/spec/generate-mcp-tools-go.mjs, the launcher's MCP tools
 //     (2020-12, each tool's schema self-contained)
+//   - scripts/spec/required-members.mjs, what each component requires of a
+//     value, which Go's and TypeScript's reply checks are generated from
 //
 // `discriminator` is left as it is written: a dispatch hint beside the `oneOf`
 // that decides, which is OpenAPI's own meaning for it, and a keyword a JSON
@@ -48,6 +50,13 @@ export function convertNullable(obj) {
   for (const value of Object.values(obj)) {
     if (typeof value === 'object') convertNullable(value);
   }
+}
+
+/** `schema` as standard JSON Schema: a deep copy, its `nullable` translated. */
+export function translated(schema) {
+  const copy = structuredClone(schema);
+  convertNullable(copy);
+  return copy;
 }
 
 /** A component schema by name, as it is written in specs/src/components/schemas. */
@@ -94,14 +103,10 @@ export function selfContained(root, schema) {
     }
     return out;
   };
-  const top = structuredClone(schema);
-  convertNullable(top);
-  const result = rewrite(top);
+  const result = rewrite(translated(schema));
   while (pending.length > 0) {
     const name = pending.shift();
-    const def = component(root, name);
-    convertNullable(def);
-    defs[name] = rewrite(def);
+    defs[name] = rewrite(translated(component(root, name)));
   }
   const sorted = Object.fromEntries(Object.keys(defs).sort().map((name) => [name, defs[name]]));
   return Object.keys(sorted).length === 0 ? result : { ...result, $defs: sorted };

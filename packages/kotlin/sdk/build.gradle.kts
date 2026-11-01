@@ -100,6 +100,10 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     // The sign-in store calls flock through the foreign-function API, as an application that uses it enables.
     jvmArgs("--enable-native-access=ALL-UNNAMED")
+    // A failure says what failed, where CI shows only the log.
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 val javaTestRun = tasks.register<Test>("javaTest") {

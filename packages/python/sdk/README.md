@@ -135,6 +135,16 @@ async def as_me(kb: KbTarget, home: str) -> None:
   ([Telemetry](#telemetry)). Everything else it needs, it is given: an
   application reads its own environment (`HOME`, a secret, an address) and
   says what it found.
+- **Its HTTP client can be the application's.** Everything that makes a
+  request over HTTP takes `http=`, an `httpx.AsyncClient` the application
+  builds: `HttpTransport`, `ServiceToken`, `AgentToken`, `session_from_kept`,
+  `sign_in_device`, `sign_out`, `HttpSessionFactory`, `begin_sign_in`,
+  `complete_sign_in` and `http_discovery`. The certificates trusted and the
+  proxy gone through are then that client's, so
+  `httpx.AsyncClient(verify=ssl.create_default_context(cafile=path))` trusts
+  what `path` lists. The package never closes a client it is given. Given
+  none, it makes its own, which trusts `certifi`'s certificates and reads no
+  environment variable: no proxy and no certificate file it was not given.
 
 ## Eight verbs
 

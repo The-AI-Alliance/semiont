@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Sequence
 from typing import Final, final, override
 
+import httpx
 import pytest
 from aio import hurried, pass_time, run, run_still
 from gateway_server import Answer, GatewayServer
@@ -365,3 +366,24 @@ def test_a_launchers_document_that_is_never_served_is_unreadable_at_the_deadline
     deadline = HTTP_REQUEST_TIMEOUT_MS / 1000
     assert deadline <= took < deadline + 2, f"took {took}s"
     assert read == Absent(reason="unreadable", diagnostic="the document was not served within 30s")
+
+
+def test_a_reader_given_a_client_reads_through_it_follows_a_redirect_whatever_the_client_says_and_leaves_it_open() -> None:
+    asked: list[str] = []
+
+    def launcher(request: httpx.Request) -> httpx.Response:
+        asked.append(request.url.path)
+        if request.url.path == "/moved":
+            return httpx.Response(302, headers={"Location": PATH})
+        return httpx.Response(200, headers={"Content-Type": "application/json"}, text=document(entry("localhost", 4000, A)))
+
+    async def scenario() -> tuple[DiscoveryRead, bool]:
+        # A client that follows no redirect of its own accord, as an httpx client by default does not.
+        async with httpx.AsyncClient(transport=httpx.MockTransport(launcher)) as http:
+            read = await http_discovery("http://launcher.test/moved", http=http).read()
+            return read, http.is_closed
+
+    read, closed = run(scenario())
+    assert read == Managed(kbs=(kb(entry("localhost", 4000, A)),))
+    assert asked == ["/moved", PATH]
+    assert not closed

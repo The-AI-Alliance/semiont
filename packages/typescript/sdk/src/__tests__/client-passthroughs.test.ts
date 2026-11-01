@@ -26,6 +26,7 @@ import {
 import { SemiontClient } from '../client';
 import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 import { inMemoryTransport, gatewayOperationSpies, contentTransportSpies } from './helpers/in-memory-transport';
+import { annotationContextFor } from './fixtures/gathered-context';
 
 const TEST_BASE = baseUrl('http://test.local');
 
@@ -170,10 +171,10 @@ describe('SemiontClient lifecycle + namespace routing', () => {
       expect(emitted).toBeTruthy();
       const cid = emitted![2]?.correlationId;
 
-      wire.emit('gather:complete', ({
-        annotationId: testAnnotationId as unknown as string,
-        response: { sourceContext: {} },
-      }) as never, { correlationId: cid });
+      wire.emit('gather:complete', {
+        annotationId: testAnnotationId,
+        response: annotationContextFor(testResourceId, testAnnotationId),
+      }, { correlationId: cid });
 
       const result = await gatherP;
       expect((result as { annotationId: string }).annotationId).toBe(testAnnotationId as unknown as string);

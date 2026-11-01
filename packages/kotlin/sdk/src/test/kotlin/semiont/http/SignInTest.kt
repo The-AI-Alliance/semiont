@@ -27,12 +27,24 @@ import semiont.types.HttpEndpoint
 import semiont.types.HttpEndpointProtocol
 import semiont.types.KbTarget
 import java.io.OutputStream
+import java.net.Authenticator
+import java.net.CookieHandler
 import java.net.InetAddress
 import java.net.InetSocketAddress
+import java.net.ProxySelector
 import java.net.URLDecoder
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 import java.util.Base64
+import java.util.Optional
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLParameters
 
 /** One answer of the fake: its status and its JSON body. */
 internal class Said(val status: Int, val body: JsonObject)
@@ -139,6 +151,57 @@ internal class Realm(trustsAnIssuer: Boolean = true) : AutoCloseable {
     fun of(path: String): List<Asked> = asked.filter { it.path == path }
 
     override fun close(): Unit = server.stop(0)
+}
+
+/** An HTTP client a caller built: a JDK client underneath, which keeps the path of each request it is asked to make. */
+internal class CallersHttp : HttpClient() {
+    private val underneath: HttpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build()
+    val made = CopyOnWriteArrayList<String>()
+
+    override fun cookieHandler(): Optional<CookieHandler> = underneath.cookieHandler()
+
+    override fun connectTimeout(): Optional<Duration> = underneath.connectTimeout()
+
+    override fun followRedirects(): HttpClient.Redirect = underneath.followRedirects()
+
+    override fun proxy(): Optional<ProxySelector> = underneath.proxy()
+
+    override fun sslContext(): SSLContext = underneath.sslContext()
+
+    override fun sslParameters(): SSLParameters = underneath.sslParameters()
+
+    override fun authenticator(): Optional<Authenticator> = underneath.authenticator()
+
+    override fun version(): HttpClient.Version = underneath.version()
+
+    override fun executor(): Optional<Executor> = underneath.executor()
+
+    override fun <T> send(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): HttpResponse<T> {
+        made += request.uri().path
+        return underneath.send(request, responseBodyHandler)
+    }
+
+    override fun <T> sendAsync(request: HttpRequest, responseBodyHandler: HttpResponse.BodyHandler<T>): CompletableFuture<HttpResponse<T>> {
+        made += request.uri().path
+        return underneath.sendAsync(request, responseBodyHandler)
+    }
+
+    override fun <T> sendAsync(
+        request: HttpRequest,
+        responseBodyHandler: HttpResponse.BodyHandler<T>,
+        pushPromiseHandler: HttpResponse.PushPromiseHandler<T>?,
+    ): CompletableFuture<HttpResponse<T>> {
+        made += request.uri().path
+        return underneath.sendAsync(request, responseBodyHandler, pushPromiseHandler)
+    }
+}
+
+/** Every request the realm was asked, `http` made: none reached it through another client. */
+internal fun Realm.askedOnlyThrough(http: CallersHttp) {
+    val made = http.made.groupingBy { it }.eachCount()
+    for ((path, times) in asked.groupingBy { it.path }.eachCount()) {
+        assertTrue(made.getOrDefault(path, 0) >= times, "$path was asked $times times, ${made.getOrDefault(path, 0)} of them with the caller's client")
+    }
 }
 
 private fun jwt(claims: JsonObject): String {
@@ -474,6 +537,44 @@ class SignInTest {
             assertNull(agent.refresh(held))
             assertEquals(held, agent.token.value)
         }
+    }
+
+    // ── A client of the caller's ─────────────────────────────────────────
+
+    @Test
+    fun aDeviceSignInGivenItsCallersClientAsksTheKnowledgeBaseAndItsIssuerWithIt() = runBlocking {
+        val realm = realm()
+        realm.script("/device", devicesCode)
+        realm.script("/token", issued(tokenFor("access-1"), "refresh-1"))
+        val http = CallersHttp()
+        signInDevice(kb(realm), MemorySignIn(), http) {}
+        assertEquals(listOf("/.well-known/oauth-protected-resource", "/.well-known/openid-configuration", "/device", "/token"), http.made.toList())
+        assertEquals(realm.asked.map { it.path }, http.made.toList())
+    }
+
+    @Test
+    fun aRenewalAndASignOutGivenTheirCallersClientTellTheIssuerWithIt() = runBlocking {
+        val realm = realm()
+        realm.script("/token", issued(tokenFor("access-2"), "refresh-2"))
+        realm.script("/revoke", Said(200, JsonObject(emptyMap())))
+        val access = tokenFor("access-1")
+        val kept = MemorySignIn(HeldSignIn(access, "refresh-1", SCRIPT_CLIENT_ID, "${realm.origin}/token", "${realm.origin}/revoke"))
+        val http = CallersHttp()
+        renewKept(kept, access, http)
+        signOut(kept, http)
+        assertEquals(listOf("/token", "/revoke"), http.made.toList())
+        assertEquals(realm.asked.map { it.path }, http.made.toList())
+    }
+
+    @Test
+    fun aServiceAndItsAgentGivenTheirCallersClientAskTheIssuerAndTheGatewayWithIt() = runBlocking {
+        val realm = realm()
+        realm.script("/token", issued(tokenFor("service-1")))
+        realm.script("/api/users/me", named(AGENT_DID))
+        val http = CallersHttp()
+        AgentToken(realm.origin, ServiceToken(SecretCredential(realm.origin, "worker", "the-secret"), http), http).use { agent -> agent.signIn() }
+        assertEquals(listOf("/.well-known/openid-configuration", "/token", "/api/users/me"), http.made.toList())
+        assertEquals(realm.asked.map { it.path }, http.made.toList())
     }
 
     @Test

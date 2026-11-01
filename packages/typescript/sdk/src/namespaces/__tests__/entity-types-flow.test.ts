@@ -27,7 +27,7 @@ import type {
   UserId,
 } from '@semiont/core';
 import type { BrowseNamespace } from '../browse';
-import { createTestClient } from '../../testing';
+import { createTestClient, refuseUnscriptedOperation } from '../../testing';
 import { isReady, readyValue } from '../../cache';
 
 import type { Annotation } from '@semiont/core';
@@ -125,7 +125,7 @@ function createHarness(): Harness {
           case 'browse:events-requested':
             return { events: [], total: 0, resourceId: 'res-1' };
           default:
-            return {};
+            return refuseUnscriptedOperation(op);
         }
       },
     },

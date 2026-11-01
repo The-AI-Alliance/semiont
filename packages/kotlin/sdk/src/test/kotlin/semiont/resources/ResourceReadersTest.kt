@@ -40,7 +40,8 @@ class ResourceReadersTest {
         assertTrue(stated.any { it is ResourceDescriptorRepresentations.List && it.value.isEmpty() })
         assertTrue(read.any { it.getValue("entityTypes").jsonArray.isNotEmpty() })
         assertTrue(read.any { it.getValue("entityTypes").jsonArray.isEmpty() })
-        assertTrue(refused.isNotEmpty())
+        assertTrue(refused.any { "lacks" in it })
+        assertTrue(refused.any { "lacks" !in it })
     }
 
     @TestFactory
@@ -60,7 +61,10 @@ class ResourceReadersTest {
     @TestFactory
     fun aResourceTheSchemaDoesNotAllowIsRefusedWhenItIsDecoded(): List<DynamicTest> = refused.map { case ->
         DynamicTest.dynamicTest(case.why()) {
-            assertEquals(setOf("why", "resource", "refused"), case.keys)
+            // `lacks`, where it lacks a member, is the way to it, as Go and TypeScript name it; decoding refuses
+            // it here as it refuses every refused case.
+            assertEquals(setOf("why", "resource", "refused"), case.keys - "lacks")
+            case["lacks"]?.let { lacks -> assertTrue(lacks.jsonPrimitive.content.isNotEmpty()) }
             assertThrows(SerializationException::class.java) { resource(case) }
         }
     }

@@ -4,7 +4,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.identifiers.ResourceId
 import semiont.transport.ConnectionState
@@ -50,8 +52,24 @@ private class Silent : AutoCloseable {
     }
 }
 
-/** A transport's stream: opened once there is a token and something to carry. */
+/** A transport's stream: opened once there is a token and something to carry; and the client it makes every request with. */
 class HttpTransportTest {
+    @Test
+    fun aTransportGivenItsCallersClientMakesItsStreamItsEmitsAndItsRequestsWithIt() = runBlocking {
+        Realm().use { realm ->
+            val http = CallersHttp()
+            HttpTransport(realm.origin, MutableStateFlow("token"), listOf("browse:kb-result"), http = http).use { transport ->
+                withTimeout(5_000) {
+                    while (realm.of("/bus/subscribe").isEmpty()) delay(5)
+                }
+                transport.emit("browse:kb-requested", JsonObject(emptyMap()), null, "c-1")
+                transport.getProtectedResourceMetadata()
+            }
+            assertTrue(http.made.containsAll(listOf("/bus/subscribe", "/bus/emit", "/.well-known/oauth-protected-resource")), "${http.made}")
+            realm.askedOnlyThrough(http)
+        }
+    }
+
     @Test
     fun aTransportThatCarriesNothingOpensNoStreamUntilAScopeGivesItSomething() = runBlocking {
         Realm().use { realm ->

@@ -323,7 +323,7 @@ func TestBusVerbAgainstAGatewayThatIsNotThereFailsAtOnce(t *testing.T) {
 
 func TestBusVerbRenewsARejectedSessionAndGoesOn(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-2"))
-	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
+	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0,"offset":0,"limit":20}`
 	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed())
 	storeSession(t, issuer, time.Hour)
@@ -524,7 +524,7 @@ func TestBusVerbWithNoRefreshTokenReportsRejection(t *testing.T) {
 // stream opens, so the verb never spends a round-trip to be told 401.
 func TestExpiredSessionIsRenewedBeforeTheFirstRequest(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-2"))
-	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
+	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0,"offset":0,"limit":20}`
 	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed())
 	storeSession(t, issuer, -time.Minute)
@@ -549,7 +549,7 @@ func TestExpiredSessionIsRenewedBeforeTheFirstRequest(t *testing.T) {
 // would make the refresh token the access token.
 func TestALiveSessionIsSentWithoutRenewal(t *testing.T) {
 	gateway := newGatewayStub(t, only("token-1"))
-	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0}`
+	gateway.replies["browse:resources-requested"] = `{"resources":[],"total":0,"offset":0,"limit":20}`
 	gatewayFixture(t, gateway)
 	issuer := newIssuerStub(t, http.StatusOK, renewed())
 	storeSession(t, issuer, time.Hour)

@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { EventBus, GENERATION_STALL_FLOOR_MS, resourceId, jobId } from '@semiont/core';
+import { EventBus, GENERATION_STALL_FLOOR_MS, resourceId, jobId, userId } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { resourceContextFor } from '../../__tests__/fixtures/gathered-context';
 import { YieldNamespace } from '../yield';
@@ -23,6 +23,13 @@ import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
 import { GenerationStallError, deriveStallDeadlineMs } from '../generation-stall';
 
 const CTX_RES = resourceContextFor('res-1');
+// What the dispatcher holds for job `j1` whatever its status.
+const J1_STORED = {
+  jobId: jobId('j1'),
+  type: 'yield',
+  userId: userId('did:web:test:users:u'),
+  created: '2026-01-01T00:00:00.000Z',
+};
 
 type ResponseMap = Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }>;
 
@@ -66,7 +73,7 @@ function harness() {
   const bus = new EventBus();
   const { transport, emitSpy } = createMockTransport({
     'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-    'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { status: 'running' } }),
+    'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { ...J1_STORED, status: 'running' } }),
     'job:cancel-requested': () => ({ resultChannel: 'job:cancel-ok', response: { cancelled: true } }),
   });
   const y = new YieldNamespace(transport, bus, makeMockContent());
@@ -151,7 +158,7 @@ describe('generation stall guard', () => {
     const bus = new EventBus();
     const { transport } = createMockTransport({
       'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
-      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'cancelled' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { ...J1_STORED, status: 'cancelled' } }),
     });
     const y = new YieldNamespace(transport, bus, makeMockContent());
 

@@ -79,6 +79,7 @@ vi.mock('../actor-state-unit', async (importOriginal) => {
 
 import ky from 'ky';
 import { HttpTransport } from '../http-transport';
+import { APIError } from '../api-error';
 import { HttpContentTransport } from '../http-content-transport';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
@@ -122,7 +123,7 @@ describe('HttpTransport — HTTP wire shape', () => {
   describe('Auth', () => {
     test('getCurrentUser gets /api/users/me', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ id: 'u1' }),
+        json: vi.fn().mockResolvedValue({ did: 'did:web:localhost:users:u1', email: null, name: null, image: null, domain: 'localhost' }),
       } as never);
       await transport.getCurrentUser();
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/users/me`, { headers: {} });
@@ -130,7 +131,11 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('getProtectedResourceMetadata gets /.well-known/oauth-protected-resource with no token', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: testBaseUrl }),
+        json: vi.fn().mockResolvedValue({
+          resource: testBaseUrl,
+          authorization_servers: ['http://localhost:8080/realms/semiont'],
+          bearer_methods_supported: ['header'],
+        }),
       } as never);
       await transport.getProtectedResourceMetadata();
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/.well-known/oauth-protected-resource`);
@@ -152,7 +157,12 @@ describe('HttpTransport — HTTP wire shape', () => {
   describe('System status', () => {
     test('getStatus gets /api/status', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ version: '1.0.0' }),
+        json: vi.fn().mockResolvedValue({
+          status: 'ok',
+          version: '1.0.0',
+          features: { semanticContent: 'enabled', collaboration: 'enabled' },
+          message: 'Semiont is running',
+        }),
       } as never);
       const result = await transport.getStatus();
       expect((result as { version: string }).version).toBe('1.0.0');
@@ -161,7 +171,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('healthCheck gets /api/health', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ status: 'ok' }),
+        json: vi.fn().mockResolvedValue({ status: 'ok', message: 'Semiont is running', version: '1.0.0', timestamp: '2026-10-31T00:00:00.000Z' }),
       } as never);
       await transport.healthCheck();
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/health`, { headers: {} });
@@ -212,8 +222,12 @@ describe('HttpTransport — HTTP wire shape', () => {
   });
 
   describe('Resource graph (HttpContentTransport.getResourceGraph)', () => {
+    const graph = {
+      resource: { '@context': 'https://schema.org/', '@id': 'test-resource-id', name: 'A resource', representations: [] },
+      annotations: [],
+    };
+
     test('GETs /resources/:id/jsonld and returns the parsed graph', async () => {
-      const graph = { resource: { '@id': 'test-resource-id' }, annotations: [] };
       vi.mocked(mockKy.get).mockReturnValue({
         json: vi.fn().mockResolvedValue(graph),
       } as never);
@@ -228,7 +242,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('an id is one segment of the path, whatever text a caller with no type checker hands over', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [] }),
+        json: vi.fn().mockResolvedValue(graph),
       } as never);
 
       // Not a ResourceId: its constructor refuses this. JavaScript does not ask.
@@ -241,7 +255,7 @@ describe('HttpTransport — HTTP wire shape', () => {
 
     test('sends the bearer auth header when a token is provided', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ resource: {}, annotations: [] }),
+        json: vi.fn().mockResolvedValue(graph),
       } as never);
 
       await content.getResourceGraph(testResourceId, { auth: 'tok-123' as never });
@@ -551,7 +565,25 @@ describe('HttpTransport — HTTP wire shape', () => {
       const received: unknown[] = [];
       bus.on('mark:added').subscribe((p) => received.push(p));
 
-      actorHarness.pushEvent('mark:added', { resourceId: 'test-resource-id' });
+      actorHarness.pushEvent('mark:added', {
+        id: 'evt-test-resource-id-1',
+        type: 'mark:added',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        userId: 'did:web:example.org:users:alice',
+        resourceId: 'test-resource-id',
+        version: 1,
+        payload: {
+          annotation: {
+            '@context': 'http://www.w3.org/ns/anno.jsonld',
+            type: 'Annotation',
+            id: 'ann-1',
+            motivation: 'highlighting',
+            target: { source: 'test-resource-id' },
+            created: '2026-01-01T00:00:00.000Z',
+          },
+        },
+        metadata: { sequenceNumber: 1 },
+      });
       expect(received).toHaveLength(1);
 
       bus.destroy();
@@ -577,6 +609,70 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(bridged).toEqual([failed]);
 
       bus.destroy();
+    });
+
+    test("a payload that lacks a member its channel's schema requires is published to nobody, and said so in a warning", async () => {
+      const { EventBus } = await import('@semiont/core');
+      const bus = new EventBus();
+      transport.bridgeInto(bus);
+      const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // The wire's own frames are read first, which is what makes the actor the bridge relays from.
+      const wire: unknown[] = [];
+      transport.frames('job:fail').subscribe((frame) => wire.push(frame.payload));
+      const bridged: unknown[] = [];
+      bus.on('job:fail').subscribe((payload) => bridged.push(payload));
+
+      const lacking ={ resourceId: 'res-1', jobType: 'mark', error: 'the model did not answer' };
+      const failed = { ...lacking, jobId: 'job-1' };
+      actorHarness.pushEvent('job:fail', lacking);
+      actorHarness.pushEvent('job:fail', failed);
+
+      expect(wire, "the transport's own frames are the wire's").toEqual([lacking, failed]);
+      expect(bridged).toEqual([failed]);
+      expect(warned).toHaveBeenCalledWith("a payload on job:fail is not that channel's: it has no `jobId`");
+
+      warned.mockRestore();
+      bus.destroy();
+    });
+  });
+
+  describe('An answer that lacks a member its schema requires', () => {
+    // Refused as Rust's, Python's and Go's transports refuse it as they read
+    // it: an `error` that states the answer's status, says the answer is not
+    // its declared body and names the member, and is on `errors$` as well.
+    async function refusedAs(answering: () => Promise<unknown>, said: string): Promise<void> {
+      const reported: unknown[] = [];
+      const listening = transport.errors$.subscribe((failure) => reported.push(failure));
+      const refusal = await answering().then(
+        () => undefined,
+        (thrown: unknown) => thrown,
+      );
+      listening.unsubscribe();
+      expect(refusal).toBeInstanceOf(APIError);
+      expect(refusal).toMatchObject({ code: 'error', status: 200, message: said });
+      expect(reported).toEqual([refusal]);
+    }
+
+    test("is refused: the gateway's answer to who a token is", async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockResolvedValue({ did: 'did:web:example.org:users:alice', email: null, name: null, image: null }),
+      } as never);
+      await refusedAs(() => transport.getCurrentUser(), 'GET /api/users/me answered what is not its declared body: it has no `domain`');
+    });
+
+    test("is refused: a resource's description whose resource states no representations", async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        status: 200,
+        statusText: 'OK',
+        json: vi.fn().mockResolvedValue({ resource: { '@context': 'https://schema.org/', '@id': 'test-resource-id', name: 'A resource' }, annotations: [] }),
+      } as never);
+      await refusedAs(
+        () => content.getResourceGraph(testResourceId),
+        `GET /resources/${testResourceId}/jsonld answered what is not its declared body: it has no \`resource.representations\``,
+      );
     });
   });
 

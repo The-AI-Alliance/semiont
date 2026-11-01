@@ -232,6 +232,15 @@ func AsMe(ctx context.Context, kb api.KbTarget, home string) error {
   ([Telemetry](#telemetry)). Everything else it needs, it is given: an
   application reads its own environment (`HOME`, a secret, an address) and
   says what it found.
+- **Every request is made with the `*http.Client` the application gives**:
+  `HTTPTransportConfig.HTTP` for the stream, the emits, the gateway's own
+  operations and content; `Issuer.HTTP` for the issuer's discovery, grants,
+  renewals and revocations; and the `HTTP` of `AgentConfig`,
+  `SessionFromKeptConfig`, `ResumeConfig` and `registry.HttpSessionFactory`,
+  and the client `DescribeConnection` and `discovery.HttpDiscovery` take. The
+  certificates trusted and the proxy are that client's: one whose
+  `*http.Transport` has a `TLSClientConfig` with its own `RootCAs` trusts those.
+  The examples give `http.DefaultClient`, Go's own.
 
 ## Eight verbs
 
@@ -783,7 +792,7 @@ func ATitleIsItsResourcesNameInCapitals(t *testing.T) {
 	defer made.Transport.Close()
 	defer made.Client.Close()
 	asked := bus.BrowseResourceRequested.Request().Channel()
-	made.Transport.QueueReply(asked, json.RawMessage(`{"resource":{"@context":"https://schema.org","@id":"res-1","name":"a page of notes","representations":[]}}`))
+	made.Transport.QueueReply(asked, json.RawMessage(`{"resource":{"@context":"https://schema.org","@id":"res-1","name":"a page of notes","representations":[]},"lastSequence":1}`))
 
 	resource, err := api.ParseResourceId("res-1")
 	if err != nil {

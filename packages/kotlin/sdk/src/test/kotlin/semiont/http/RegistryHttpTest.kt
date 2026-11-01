@@ -15,6 +15,7 @@ import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.errors.IdentityUnverifiableError
 import semiont.errors.IdentityUnverifiableReason
@@ -269,6 +270,27 @@ class RegistryHttpTest {
                 val exchanged = realm.of("/token").first().form
                 assertEquals(Triple("authorization_code", "semiont-browser", "the-code"), Triple(exchanged["grant_type"], exchanged["client_id"], exchanged["code"]))
             }
+        }
+    }
+
+    @Test
+    fun aRegistrysSignInItsSessionAndItsSignOutGivenTheirCallersClientAskWithIt() = runBlocking {
+        Realm().use { realm ->
+            Behind(realm)
+            realm.knowsAlice()
+            realm.script("/token", issued(tokenFor("access"), "a-refresh-token"))
+            realm.script("/revoke", Said(200, JsonObject(emptyMap())))
+            val http = CallersHttp()
+            SemiontBrowser(SemiontBrowserConfig(MemoryStorage(), HttpSessionFactory(http))).use { browser ->
+                val address = beginSignIn(browser, BeginAuthorizationOptions(realm.endpoint(), CALLBACK), http)
+                val outcome = withTimeout(10_000) { completeSignIn(browser, "$CALLBACK?state=${asked(address).getValue("state")}&code=the-code", http) }
+                live(browser).ready()
+                browser.signOut(outcome.kb.id)
+                until("the issuer was told") { realm.of("/revoke").isNotEmpty() }
+            }
+            val paths = listOf("/.well-known/oauth-protected-resource", "/.well-known/openid-configuration", "/token", "/bus/subscribe", "/bus/emit", "/api/users/me", "/revoke")
+            assertTrue(http.made.containsAll(paths), "${http.made}")
+            realm.askedOnlyThrough(http)
         }
     }
 
