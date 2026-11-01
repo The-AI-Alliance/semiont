@@ -116,16 +116,18 @@ func TestRoleListDerivesTheStartWalk(t *testing.T) {
 func TestEveryRoleHasOneGroup(t *testing.T) {
 	groupOf := map[string]string{}
 	var telemetry []string
-	for group, role := range groupedRoles() {
-		if !knownRole(role) {
-			t.Errorf("the %s group names %q, which is not a role", group, role)
-		}
-		if other, ok := groupOf[role]; ok {
-			t.Errorf("%s is in the %s group and the %s group", role, other, group)
-		}
-		groupOf[role] = group
-		if group == "telemetry" {
-			telemetry = append(telemetry, role)
+	for _, g := range serviceGroups {
+		for _, role := range g.roles {
+			if !knownRole(role) {
+				t.Errorf("the %s group names %q, which is not a role", g.name, role)
+			}
+			if other, ok := groupOf[role]; ok {
+				t.Errorf("%s is in the %s group and the %s group", role, other, g.name)
+			}
+			groupOf[role] = g.name
+			if g.name == "telemetry" {
+				telemetry = append(telemetry, role)
+			}
 		}
 	}
 	for _, role := range roleOrder {
@@ -148,6 +150,14 @@ func TestEveryRoleHasOneGroup(t *testing.T) {
 			t.Errorf("--no-observe leaves out %s, which is in the %s group, not telemetry", role, groupOf[role])
 		}
 	}
+	var shared []string
+	for _, g := range serviceGroups {
+		if g.shared() {
+			shared = append(shared, g.name)
+		}
+	}
+	// The issuer joins them when one Keycloak serves every knowledge base.
+	assertNames(t, "shared groups", shared, []string{"knowledge-workers", "providers", "telemetry"})
 }
 
 // The realm's accounts are every Semiont service that presents a token to

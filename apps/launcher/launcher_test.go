@@ -1059,7 +1059,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 		t.Errorf("the admin console through the issuer proxy answered %d, want 404", got)
 	}
 	sstdout, _, _ := s.run(t, "status")
-	mustContain(t, "status", sstdout, "network lan", "issuer proxy: pid")
+	mustContain(t, "status", sstdout, "network  lan: the gateway and the issuer answer the network at 192.168.2.10", "proxy    issuer pid ")
 	// A proxy that died is started again by status: under `network lan`
 	// nobody signs in without it. The killed proxy is reaped by init, not by
 	// this test, and a status that finds it not yet gone, or its port not yet
@@ -3564,34 +3564,57 @@ func serveHealth(t *testing.T, ports ...int) {
 	}
 }
 
-// statusRows: the SERVICE table's rows by role, in order, with "" for each
-// blank line between two groups. A row's detail lines (its models, its work in
-// flight) are indented below it and are not rows.
-func statusRows(stdout string) []string {
-	_, table, _ := strings.Cut(stdout, "SERVICE ")
-	table, _, _ = strings.Cut(table, "\nKNOWLEDGE BASES")
-	var rows []string
-	for _, line := range strings.Split(table, "\n")[1:] {
+// statusLayout: the report as what each section holds, in order — a
+// section's title, a knowledge base's group line as its group and roles
+// ("record: gateway archivist …"), and a table's row as its role. The other
+// lines (a knowledge base's name and fields, the catalog pointer, a row's
+// models and work in flight) are not part of the layout.
+func statusLayout(stdout string) []string {
+	var layout []string
+	section := ""
+	for _, line := range strings.Split(stdout, "\n") {
+		fields := strings.Fields(line)
 		switch {
-		case strings.TrimSpace(line) == "":
-			rows = append(rows, "")
-		case !strings.HasPrefix(line, "    "):
-			rows = append(rows, strings.Fields(line)[0])
+		case len(fields) == 0 || strings.HasPrefix(fields[0], "─"):
+		case !strings.HasPrefix(line, " "):
+			section = line
+			layout = append(layout, line)
+		case section == "KNOWLEDGE BASES":
+			if g := fields[0]; strings.HasPrefix(line, "    ") && slices.Contains([]string{"record", "index", "issuer"}, g) {
+				roles := []string{}
+				for _, item := range strings.Split(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), g)), "  ") {
+					roles = append(roles, strings.Fields(item)[1])
+				}
+				layout = append(layout, g+": "+strings.Join(roles, " "))
+			}
+		case !strings.HasPrefix(line, "   ") && fields[0] != "SERVICE":
+			layout = append(layout, fields[0])
 		}
 	}
-	for len(rows) > 0 && rows[len(rows)-1] == "" {
-		rows = rows[:len(rows)-1]
+	return layout
+}
+
+// statusLine: the report's line that opens with label, after its indent.
+func statusLine(t *testing.T, stdout, label string) string {
+	t.Helper()
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), label+" ") {
+			return line
+		}
 	}
-	return rows
+	t.Fatalf("no %s line:\n%s", label, stdout)
+	return ""
 }
 
 func TestStatusMixed(t *testing.T) {
-	// docker-only runtime; gateway running+healthy, worker running but
-	// unhealthy, smelter exited, everything else absent — except a host
-	// Ollama answering with no container, which must report runtime "host".
+	// docker-only runtime; gateway running+healthy, archivist and worker
+	// running but unhealthy, smelter exited, everything else absent — except
+	// a host Ollama answering with no container, which must report runtime
+	// "host".
 	s := newScenario(t, "docker")
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_example.github.io-test-kb-gateway=running",
+		"FAKERT_STATE_example.github.io-test-kb-archivist=running",
 		"FAKERT_STATE_worker=running",
 		"FAKERT_STATE_example.github.io-test-kb-smelter=exited",
 	)
@@ -3605,38 +3628,56 @@ func TestStatusMixed(t *testing.T) {
 	if _, _, code := s.run(t, "status", "--service", "worker"); code != 1 {
 		t.Errorf("--service names one stack, so it must exit on health; got %d", code)
 	}
-	mustContain(t, "stdout", stdout,
-		"SERVICE", "RUNTIME", "STATUS",
-		"LOCAL STACK",
-		"KNOWLEDGE BASES",
-		"semiont roots",
-		// The merged STATUS cell: mark + word, probe dimmed after. The
-		// diagnostic matrix each word pins: running-and-healthy, running-
-		// but-unhealthy, crashed, absent, host-provided.
-		"✓ running", "✗ running", "✗ exited", "✗ absent", "✓ reachable",
-		"http://localhost:4000/api/health",
-		"http://localhost:24100/health",
-		"tcp://localhost:5432",
-	)
-	// No stack is recorded here, so the rows are discovered BY NAME and no
-	// config has selected a driver. The report says so by naming no product:
-	// "identity-store (PostgreSQL)" would be a guess that is only right while
-	// the identity-store role has one driver, and guessing it is exactly what keying
-	// the descriptor set by (role, driver) rules out. A recorded stack
-	// names its products — every record carries its driver.
-	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
-	// The rows read group by group, with a blank line between two: the
-	// knowledge base's record, its index and its issuer, then the worker, the
-	// providers and the telemetry.
-	wantRows := []string{"gateway", "archivist", "dispatcher", "messaging", "",
-		"librarian", "smelter", "weaver", "graph", "vectors", "",
-		"identity", "identity-store", "",
-		"worker", "",
-		"inference", "embedding", "",
-		"collector", "traces", "metrics"}
-	if got := statusRows(stdout); !slices.Equal(got, wantRows) {
-		t.Errorf("status rows are\n  %q\nwant\n  %q", got, wantRows)
+	// The report reads by what each service is part of: the knowledge base,
+	// its record, index and issuer a line each, then the services every
+	// knowledge base shares, a table for each group.
+	wantLayout := []string{"KNOWLEDGE BASES",
+		"record: gateway archivist dispatcher messaging",
+		"index: librarian smelter weaver graph vectors",
+		"issuer: identity identity-store",
+		"KNOWLEDGE WORKERS", "browser", "worker",
+		"PROVIDERS", "inference", "embedding",
+		"TELEMETRY", "collector", "traces", "metrics"}
+	if got := statusLayout(stdout); !slices.Equal(got, wantLayout) {
+		t.Errorf("status reads\n  %q\nwant\n  %q\n%s", got, wantLayout, stdout)
 	}
+	// A knowledge base's line marks each service and names the state of
+	// one that is not healthy. The diagnostic matrix the words pin:
+	// running-and-healthy, running-but-unhealthy, crashed, absent,
+	// host-provided.
+	mustContain(t, "record", statusLine(t, stdout, "record"), "✓ gateway  ✗ archivist unhealthy  ✗ dispatcher absent")
+	mustContain(t, "index", statusLine(t, stdout, "index"), "✗ smelter exited", "✗ weaver absent")
+	mustContain(t, "worker", statusLine(t, stdout, "worker"), "docker", "✗ running", "http://localhost:24100/health")
+	mustContain(t, "inference", statusLine(t, stdout, "inference"), "host", "✓ reachable")
+	mustContain(t, "collector", statusLine(t, stdout, "collector"), "✗ absent")
+	mustContain(t, "stdout", stdout, "SERVICE", "RUNTIME", "STATUS", "semiont roots")
+	// A knowledge base's own services name no address: one is a --service
+	// away, with its runtime and the endpoint asked.
+	mustNotContain(t, "stdout", stdout, "http://localhost:4000/api/health", "tcp://localhost:5432", "machine")
+	for _, c := range []struct {
+		service string
+		code    int
+		want    []string
+	}{
+		{"gateway", 0, []string{"docker", "✓ running", "http://localhost:4000/api/health"}},
+		{"smelter", 1, []string{"docker", "✗ exited"}},
+		{"identity-store", 1, []string{"—", "✗ absent", "tcp://localhost:5432"}},
+	} {
+		out, _, code := s.run(t, "status", "--service", c.service)
+		if code != c.code {
+			t.Errorf("status --service %s: exit %d, want %d\n%s", c.service, code, c.code, out)
+		}
+		mustContain(t, c.service+"'s row", statusLine(t, out, c.service), c.want...)
+		// No stack is recorded here, so the rows are discovered BY NAME and
+		// no config has selected a driver. The report says so by naming no
+		// product: "identity-store (PostgreSQL)" would be a guess that is
+		// only right while the identity-store role has one driver, and
+		// guessing it is exactly what keying the descriptor set by (role,
+		// driver) rules out. A recorded stack names its products — every
+		// record carries its driver.
+		mustNotContain(t, "status --service "+c.service, out, "PostgreSQL")
+	}
+	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
 	if strings.Contains(stdout, "LAUNCHER PATHS") {
 		t.Errorf("default status printed LAUNCHER PATHS without --verbose:\n%s", stdout)
@@ -3661,22 +3702,6 @@ func TestStatusMixed(t *testing.T) {
 	if row := regexp.MustCompile(`(?m)^  (config|cache)\s`).FindString(vstdout); row != "" {
 		t.Errorf("LAUNCHER PATHS has a %q row, a directory the launcher keeps nothing in:\n%s", strings.TrimSpace(row), vstdout)
 	}
-
-	for _, line := range strings.Split(stdout, "\n") {
-		if !strings.Contains(line, "localhost") {
-			continue // service-table rows only, not the host-dirs block
-		}
-		switch {
-		case strings.Contains(line, "gateway"):
-			mustContain(t, "gateway row", line, "running", "docker", "✓")
-		case strings.Contains(line, "worker"):
-			mustContain(t, "worker row", line, "running", "✗")
-		case strings.Contains(line, "inference"):
-			mustContain(t, "inference row", line, "host", "✓")
-		case strings.Contains(line, "weaver"):
-			mustContain(t, "weaver row", line, "—", "✗")
-		}
-	}
 }
 
 func TestStatusAllHealthy(t *testing.T) {
@@ -3693,11 +3718,7 @@ func TestStatusAllHealthy(t *testing.T) {
 		t.Fatalf("want exit 0 with all core healthy, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "traces")
-	for _, line := range strings.Split(stdout, "\n") {
-		if strings.Contains(line, "gateway") && strings.Contains(line, "✗") {
-			t.Errorf("gateway reported unhealthy:\n%s", stdout)
-		}
-	}
+	mustContain(t, "record", statusLine(t, stdout, "record"), "✓ gateway  ✓ archivist")
 }
 
 // Naming one stack makes status's exit its health. A stack started without
@@ -3723,6 +3744,146 @@ func TestStatusRootCountsNoOptionalBackend(t *testing.T) {
 		if !found {
 			t.Errorf("status reports no %s row:\n%s", role, stdout)
 		}
+	}
+}
+
+// Naming one stack makes the exit its health: its own services' and the
+// ones it shares with every knowledge base, so a smelter, a worker or a
+// collector down fails it. The Browser never does — a stack is healthy
+// whether or not anyone is viewing it — and --service browser exits on the
+// Browser's own health.
+func TestStatusRootIsItsStacksHealth(t *testing.T) {
+	for _, c := range []struct {
+		down, line string // the service stopped, and the line that reports it
+		code       int
+	}{
+		{"smelter", "index", 1},
+		{"worker", "worker", 1},
+		{"collector", "collector", 1},
+		{"browser", "browser", 0},
+	} {
+		t.Run(c.down, func(t *testing.T) {
+			s := newScenario(t, "container")
+			if stdout, stderr, code := s.run(t, "start"); code != 0 {
+				t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+			}
+			if stdout, _, code := s.run(t, "status", "--root", s.kb); code != 0 {
+				t.Fatalf("status --root: exit %d for a stack all up\n%s", code, stdout)
+			}
+			if _, stderr, code := s.run(t, "stop", "--service", c.down); code != 0 {
+				t.Fatalf("stop --service %s: exit %d\n%s", c.down, code, stderr)
+			}
+			stdout, _, code := s.run(t, "status", "--root", s.kb)
+			if code != c.code {
+				t.Errorf("status --root: exit %d with the %s stopped, want %d\n%s", code, c.down, c.code, stdout)
+			}
+			mustContain(t, c.line+" line", statusLine(t, stdout, c.line), "✗")
+			if _, _, code := s.run(t, "status", "--service", c.down); code != 1 {
+				t.Errorf("status --service %s: exit %d with it stopped, want 1", c.down, code)
+			}
+		})
+	}
+}
+
+// Two knowledge bases' report: each is an entry of its own, its services a
+// group to a line, and the services they share are each a row once, naming
+// both.
+func TestStatusReadsByConcept(t *testing.T) {
+	s := newScenario(t, "container")
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	for _, kb := range []string{s.kb, other} {
+		s.kb = kb
+		if stdout, stderr, code := s.run(t, "start"); code != 0 {
+			t.Fatalf("start %s: exit %d\nstdout:\n%s\nstderr:\n%s", kb, code, stdout, stderr)
+		}
+	}
+	s.cwd = t.TempDir() // in neither, so status reports each one running
+	stdout, stderr, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	kb := []string{"record: gateway archivist dispatcher messaging",
+		"index: librarian smelter weaver graph vectors",
+		"issuer: identity identity-store"}
+	want := slices.Concat([]string{"KNOWLEDGE BASES"}, kb, kb,
+		[]string{"KNOWLEDGE WORKERS", "browser", "worker",
+			"PROVIDERS", "inference", "embedding",
+			"TELEMETRY", "collector", "traces", "metrics"})
+	if got := statusLayout(stdout); !slices.Equal(got, want) {
+		t.Errorf("status reads\n  %q\nwant\n  %q\n%s", got, want, stdout)
+	}
+	mustContain(t, "stdout", stdout, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
+	for _, role := range []string{"worker", "inference", "embedding", "collector", "traces", "metrics"} {
+		mustContain(t, role+"'s row", statusLine(t, stdout, role), "test-kb", "other-kb")
+	}
+	mustNotContain(t, "browser's row", statusLine(t, stdout, "browser"), "test-kb", "other-kb")
+	mustNotContain(t, "stdout", stdout, "LOCAL STACK", "machine")
+	// A model both use reads the same for each, so it is a line once,
+	// naming both.
+	_, providers, _ := strings.Cut(stdout, "\nPROVIDERS\n")
+	providers, _, _ = strings.Cut(providers, "\nTELEMETRY\n")
+	models := map[string]int{}
+	for _, line := range strings.Split(providers, "\n") {
+		if strings.HasPrefix(line, "      ") {
+			models[strings.Fields(line)[0]]++
+			mustContain(t, "a model's line", line, "test-kb", "other-kb")
+		}
+	}
+	if len(models) == 0 {
+		t.Errorf("PROVIDERS names no model:\n%s", stdout)
+	}
+	for model, n := range models {
+		if n != 1 {
+			t.Errorf("%s is %d lines, want one:\n%s", model, n, stdout)
+		}
+	}
+	// --service is each knowledge base's row of that service, under its name.
+	gateways, _, code := s.run(t, "status", "--service", "gateway")
+	if code != 0 {
+		t.Errorf("status --service gateway: exit %d\n%s", code, gateways)
+	}
+	mustContain(t, "status --service gateway", gateways, "localhost:4000/api/health", "localhost:4010/api/health")
+	lines := strings.Split(gateways, "\n")
+	for _, name := range []string{"test-kb", "other-kb"} {
+		if !slices.Contains(lines, "  "+name) {
+			t.Errorf("status --service gateway names no %s:\n%s", name, gateways)
+		}
+	}
+	// A provider's row has the models that knowledge base was started with
+	// beneath it.
+	inference, _, _ := s.run(t, "status", "--service", "inference")
+	modelsOf := map[string]int{}
+	kbName := ""
+	for _, line := range strings.Split(inference, "\n") {
+		switch {
+		case line == "  test-kb" || line == "  other-kb":
+			kbName = strings.TrimSpace(line)
+		case strings.HasPrefix(line, "      "):
+			modelsOf[kbName]++
+		}
+	}
+	if modelsOf["test-kb"] == 0 || modelsOf["test-kb"] != modelsOf["other-kb"] || modelsOf[""] != 0 {
+		t.Errorf("status --service inference lists models %v by knowledge base, want the same ones beneath each:\n%s", modelsOf, inference)
+	}
+}
+
+// Outside every knowledge base, with no stack recorded, the report has no
+// entry to read and says how to name one; the services every knowledge base
+// shares are each a row still.
+func TestStatusOutsideAnyKnowledgeBase(t *testing.T) {
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stdout", stdout, "(no recorded stack — cd into a KB clone, or --root, for its stack's)")
+	want := []string{"KNOWLEDGE BASES", "KNOWLEDGE WORKERS", "browser", "worker",
+		"PROVIDERS", "inference", "embedding", "TELEMETRY", "collector", "traces", "metrics"}
+	if got := statusLayout(stdout); !slices.Equal(got, want) {
+		t.Errorf("status reads\n  %q\nwant\n  %q\n%s", got, want, stdout)
 	}
 }
 
@@ -5767,8 +5928,7 @@ func TestCodespaceStatus(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
-	mustContain(t, "status stdout", stdout,
-		"LOCAL STACK", "KNOWLEDGE BASES", "semiont roots")
+	mustContain(t, "status stdout", stdout, "KNOWLEDGE BASES", "semiont roots")
 	// The forward is dead (killServes above): a record without a live
 	// tunnel is history, not activity.
 	if strings.Contains(stdout, "active: https://github.com/"+csRepo) {
@@ -7862,7 +8022,7 @@ func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
 	}
 
 	stdout, _, _ = s.run(t, "status")
-	mustContain(t, "status", stdout, `secrets: 1Password vault "Semiont", item "Semiont — `+testKBKey+`"`)
+	mustContain(t, "status", stdout, `secrets  1Password vault "Semiont", item "Semiont — `+testKBKey+`"`)
 	stdout, _, code = s.run(t, "settings", "secret-store")
 	if code != 0 {
 		t.Fatalf("secret store (show): exit %d", code)
@@ -11615,9 +11775,8 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	}
 	stdout, stderr, _ := s.run(t, "status") // cwd is s.kb — a KB, but not the stack's root
 	mustContain(t, "cwd mismatch", stdout+stderr, "cwd KB: "+s.kb, "no running stack's root")
-	// Active stacks stay scannable in the slim section, addressed exactly
-	// as their rows in `semiont roots` — find one there in one glance.
-	mustContain(t, "active line", stdout, "active: file://"+other)
+	// The running stack is reported, though cwd is another KB's.
+	mustContain(t, "the running stack's clone", statusLine(t, stdout, "clone"), other)
 }
 
 // --- the passwords of the daemons the launcher runs are the launcher's: it

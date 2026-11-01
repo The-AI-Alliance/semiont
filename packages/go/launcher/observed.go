@@ -210,11 +210,11 @@ func printInFlight(u *UI, role, readout, kb string) {
 				line += fmt.Sprintf(" · %d completed · %d failed since worker start",
 					completed, failed)
 			}
-			fmt.Printf("      %-10s %s\n", "queue", u.Dim(line))
+			fmt.Printf("    %-8s %s\n", "queue", u.Dim(line))
 		}
 	case "gateway":
 		if claims, claimsMax, ok := ledgerOccupancy(readout, kb); ok {
-			fmt.Printf("      %-10s %s\n", "ledger", u.Dim(fmt.Sprintf("%d/%d claims", claims, claimsMax)))
+			fmt.Printf("    %-8s %s\n", "ledger", u.Dim(fmt.Sprintf("%d/%d claims", claims, claimsMax)))
 		}
 	}
 }
