@@ -52,6 +52,9 @@ export interface JobFollowTiming {
  * nothing redelivers them. So a follower that has heard nothing of
  * its job for `jobSilenceMs` asks for the job's status, and goes on asking
  * every `jobStatusPollMs` until the job says something or it is told to stop.
+ * An ask that fails with a `SemiontError` is asked again at the next poll;
+ * one that fails with anything else is given to `onFailure`, which ends the
+ * follower.
  */
 export class JobStatusPoll {
   private silence: ReturnType<typeof setTimeout> | null = null;
@@ -64,6 +67,7 @@ export class JobStatusPoll {
   constructor(
     transport: ITransport,
     private readonly onStatus: (status: JobStatusResponse) => void,
+    private readonly onFailure: (error: unknown) => void,
     timing: JobFollowTiming = {},
   ) {
     this.wire = new Bus(transport);
@@ -86,8 +90,10 @@ export class JobStatusPoll {
   }
 
   private ask(jobId: string): void {
-    // A status that cannot be had is asked for again at the next poll.
-    this.wire.request('job:status-requested', { jobId }).then(this.onStatus, () => {});
+    this.wire.request('job:status-requested', { jobId }).then(this.onStatus, (error: unknown) => {
+      // A status that cannot be had is asked for again at the next poll.
+      if (!(error instanceof SemiontError)) this.onFailure(error);
+    });
   }
 }
 

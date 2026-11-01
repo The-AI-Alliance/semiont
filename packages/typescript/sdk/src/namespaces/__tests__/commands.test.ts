@@ -513,6 +513,49 @@ describe('MarkNamespace', () => {
     bus.destroy();
     vi.useRealTimers();
   });
+
+  it('delegate() asks again at the next poll for a status that could not be had', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-failed', { message: 'the queue is not answering' }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let ended = false;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: () => { ended = true; }, complete: () => { ended = true; } });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    // A refused ask is a SemiontError: the job is still followed, and asked about again.
+    expect(mock.emitSpy.mock.calls.filter(([channel]) => channel === 'job:status-requested')).toHaveLength(2);
+    expect(ended).toBe(false);
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('delegate() ends with what a status ask failed with when that is no SemiontError', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const broken = new TypeError('the transport broke');
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': () => { throw broken; },
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let failure: unknown;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: (e) => { failure = e; } });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(failure).toBe(broken);
+    // Asked about once: the follower ended there.
+    expect(mock.emitSpy.mock.calls.filter(([channel]) => channel === 'job:status-requested')).toHaveLength(1);
+    bus.destroy();
+    vi.useRealTimers();
+  });
 });
 
 // ── Bind ────────────────────────────────────────────────────────────────────
