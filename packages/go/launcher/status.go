@@ -252,7 +252,7 @@ func Status(args []string) int {
 
 	healthy := true
 	if service != "" {
-		healthy = printServiceRows(u, views, service, ss.Machine, ceilings)
+		healthy = printServiceRows(u, views, service, ss.Shared, ceilings)
 	} else {
 		// Each knowledge base, its own services by group; then the catalog,
 		// local and remote alike, told apart by the scheme on their address
@@ -264,7 +264,7 @@ func Status(args []string) int {
 			if i > 0 {
 				fmt.Println()
 			}
-			healthy = printKnowledgeBase(u, v, ss.Machine, readout) && healthy
+			healthy = printKnowledgeBase(u, v, ss.Shared, readout) && healthy
 		}
 		fmt.Println()
 		printRootsPointer(u, localStacks(ss), cs)
@@ -316,8 +316,8 @@ type BrowserProbe struct {
 // neither there is no endpoint to probe: the launcher started no Browser it
 // knows the port of.
 func BrowserTarget(ss *StackSet, override string) BrowserProbe {
-	name := machineContainer("browser")
-	b := ss.Machine[name]
+	name := sharedContainer("browser")
+	b := ss.Shared[name]
 	var p BrowserProbe
 	handle := name
 	if b != nil {
@@ -433,8 +433,8 @@ func (r statusRow) counted(service string) bool {
 }
 
 // readRow reads role's row in v. A service every knowledge base shares reads
-// its state from the machine's own record of its container.
-func readRow(v stackView, role string, machine map[string]*ServiceState) statusRow {
+// its state from the shared record of its container.
+func readRow(v stackView, role string, shared map[string]*ServiceState) statusRow {
 	handle := roleContainer(role, v.key)
 	// No record: the descriptor's static probe, for the driver a stack
 	// that has not recorded itself would be running. A record's endpoint
@@ -442,11 +442,11 @@ func readRow(v stackView, role string, machine map[string]*ServiceState) statusR
 	// stack's own container with no entry (stopped alone, or not reached
 	// by its start) is asked nowhere, and reads down: its port is its
 	// knowledge base's, and the descriptor's is the default block's,
-	// which another knowledge base's stack may hold. The machine's
+	// which another knowledge base's stack may hold. The shared
 	// containers, and a role that runs none, answer where the
 	// descriptor says for every knowledge base.
 	endpoint := ""
-	if v.st == nil || machineRole(role) || !runsContainer(role) {
+	if v.st == nil || sharedRole(role) || !runsContainer(role) {
 		endpoint = healthEndpoint(role, probeDriver(role), nil, v.at)
 	}
 	var rec *ServiceState
@@ -496,12 +496,12 @@ func readRow(v stackView, role string, machine map[string]*ServiceState) statusR
 		r.rt = "external"
 	case rec != nil && rec.Provided == providedHost:
 		r.rt = "host"
-	case rec != nil && rec.Provided == providedMachine:
-		// The machine's container the stack's record names, under the
+	case rec != nil && rec.Provided == providedShared:
+		// The shared container the stack's record names, under the
 		// runtime and handle its own record names. With no record it is
 		// absent: stopped alone.
-		if m := machine[rec.Container]; m != nil {
-			h := machineHandles(m.Runtime, rec.Container, m)[0]
+		if m := shared[rec.Container]; m != nil {
+			h := sharedHandles(m.Runtime, rec.Container, m)[0]
 			state, r.rt = containerState([]string{m.Runtime}, h)
 		}
 	case handle == "":
@@ -548,7 +548,7 @@ func readRow(v stackView, role string, machine map[string]*ServiceState) statusR
 // record; the image tag shows browser-vs-stack skew, since a kept Browser
 // can outlive several stacks.
 func browserRow(ss *StackSet) statusRow {
-	b := ss.Machine[machineContainer("browser")]
+	b := ss.Shared[sharedContainer("browser")]
 	p := BrowserTarget(ss, "")
 	r := statusRow{role: "browser", label: "browser", rt: "—", word: p.State, probe: p.Endpoint, healthy: p.Running}
 	if b != nil && b.Runtime != "" {
@@ -662,7 +662,7 @@ func printInFlightOf(u *UI, v stackView, r statusRow, readout *lazyBody) {
 // printKnowledgeBase prints v's entry: what its knowledge base is and where
 // it runs, then each group of its own services on a line, then its work in
 // flight. Returns whether every counted service is healthy.
-func printKnowledgeBase(u *UI, v stackView, machine map[string]*ServiceState, readout *lazyBody) bool {
+func printKnowledgeBase(u *UI, v stackView, shared map[string]*ServiceState, readout *lazyBody) bool {
 	field := func(label, value string) { fmt.Printf("    %-8s %s\n", label, value) }
 	st := v.st
 	switch {
@@ -713,7 +713,7 @@ func printKnowledgeBase(u *UI, v stackView, machine map[string]*ServiceState, re
 		}
 		var items []string
 		for _, role := range g.roles {
-			r := readRow(v, role, machine)
+			r := readRow(v, role, shared)
 			if r.counted("") {
 				healthy = healthy && r.healthy
 			}
@@ -752,7 +752,7 @@ func printSharedGroup(u *UI, g serviceGroup, views []stackView, ss *StackSet, ce
 		var rows []*sharedRow
 		var unconfigured *statusRow
 		for _, v := range views {
-			r := readRow(v, role, ss.Machine)
+			r := readRow(v, role, ss.Shared)
 			if r.unconfigured {
 				unconfigured = &r
 				continue
@@ -865,7 +865,7 @@ func remoteModels(rec ServiceState) map[string]remoteModelMeta {
 // each view — under its knowledge base's name when there are several — with
 // what it has in flight and the models it serves beneath it. Returns whether
 // every such row is healthy.
-func printServiceRows(u *UI, views []stackView, service string, machine map[string]*ServiceState, ceilings func(stackView) modelCeilings) bool {
+func printServiceRows(u *UI, views []stackView, service string, shared map[string]*ServiceState, ceilings func(stackView) modelCeilings) bool {
 	healthy := true
 	readout := collectorReadout()
 	for i, v := range views {
@@ -876,10 +876,10 @@ func printServiceRows(u *UI, views []stackView, service string, machine map[stri
 			fmt.Printf("  %s\n", u.Bold(v.name))
 		}
 		printRowHeader()
-		if v.key == "" && !machineRole(service) {
+		if v.key == "" && !sharedRole(service) {
 			continue // no knowledge base names a stack container to ask of
 		}
-		r := readRow(v, service, machine)
+		r := readRow(v, service, shared)
 		printRow(u, r, nil)
 		if r.counted(service) {
 			healthy = healthy && r.healthy

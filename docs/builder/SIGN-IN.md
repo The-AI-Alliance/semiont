@@ -76,7 +76,7 @@ A Go, Python, Rust or Kotlin program builds its session over that entry, so a pe
 
 The TypeScript SDK does not read the store: a TypeScript script signs in by the device grant.
 
-A program in a container sees the machine's state directory only if it is mounted into the container.
+A program in a container sees the launcher's state directory only if it is mounted into the container.
 
 ## A service or a worker
 

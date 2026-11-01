@@ -119,8 +119,8 @@ func keycloakBase(e exposure, port int) string {
 
 // secretClients: the realm's view of `stackServices`, every one of which
 // proves itself with a secret — every process that PRESENTS a token to
-// another Semiont service, and so needs an account, but the machine's worker,
-// which proves itself with this machine's key (workerkey.go). The Browser
+// another Semiont service, and so needs an account, but the shared worker,
+// which proves itself with the worker key (workerkey.go). The Browser
 // presents none: it is a viewer, and the only one of ours without an account.
 //
 // The gateway is among them. "It verifies tokens, it never presents one" is
@@ -138,7 +138,7 @@ var secretClients = func() []string {
 }()
 
 // serviceClientID: the realm client id for one service's account. The
-// worker's is the machine's, not the root's: one key here serves every realm
+// worker's is shared, not the root's: one key here serves every realm
 // this launcher runs, so one name does — the worker admitted under
 // localWorkerLabel.
 func serviceClientID(svc string) string {
@@ -381,7 +381,7 @@ func cliClient(audience string) map[string]any {
 // keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
 // realm itself, two public clients — the Browser's (authorization code
 // with PKCE) and the launcher's (the device grant) — and a service account
-// for each of secretClients and for the machine's worker, every one with an
+// for each of secretClients and for the shared worker, every one with an
 // audience mapper that stamps audience, the KB's resource identifier, into
 // every access token: the value the gateway's verifier checks.
 //
@@ -524,7 +524,7 @@ func masterRealmOverHTTP() []string {
 }
 
 // realmAccounts: what the realm's service accounts prove themselves with —
-// the root's secret for each of secretClients, and the machine's worker key.
+// the root's secret for each of secretClients, and the shared worker key.
 type realmAccounts struct {
 	secrets map[string]string
 	worker  workerKey
@@ -574,7 +574,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAcco
 		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, dbName)
 	}
 	realm := keycloakRealm(issuerPath(rp.Issuer))
-	// Resolved here and kept (per root, and the worker's key per machine), so
+	// Resolved here and kept (per root, and the worker's key shared), so
 	// the container that must PRESENT each credential reads the same value out
 	// of the same file rather than having it threaded through the start flow.
 	// Returned as well, because the preflight checks these same values against

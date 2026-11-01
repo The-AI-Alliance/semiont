@@ -6,7 +6,7 @@
     "baseURL": {
       "type": "string",
       "minLength": 1,
-      "description": "Where the provider's API is reached. Anthropic's own API, and an Ollama the machine runs, are stated by no baseURL."
+      "description": "Where the provider's API is reached. Anthropic's own API, and the shared Ollama, are stated by no baseURL."
     },
     "apiKey": { "$ref": "./SecretRef.json" }
   },

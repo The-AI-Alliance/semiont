@@ -41,7 +41,7 @@ Two kinds of streams live under `events/`:
 
 ### `.semiont/stack/`
 
-The stack's documents, each a YAML document held to its schema in [`specs/src/stack/`](../../specs/src/stack/README.md): the knowledge base's own services and the issuer it trusts (`knowledge-base.yaml`), its indexes (`index.yaml`), the Keycloak the launcher runs for it (`issuer.yaml`), and under `inference/` one document per way of serving its models, usually one per provider. The worker that does its jobs is the machine's, and so is its document (`semiont settings worker`). `semiont init` writes them; `semiont start --config <name>` picks the Inference document a start runs. A document states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md#semiontstack).
+The stack's documents, each a YAML document held to its schema in [`specs/src/stack/`](../../specs/src/stack/README.md): the knowledge base's own services and the issuer it trusts (`knowledge-base.yaml`), its indexes (`index.yaml`), the Keycloak the launcher runs for it (`issuer.yaml`), and under `inference/` one document per way of serving its models, usually one per provider. The worker that does its jobs is shared, and so is its document (`semiont settings worker`). `semiont init` writes them; `semiont start --config <name>` picks the Inference document a start runs. A document states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md#semiontstack).
 
 ### Resource files
 
@@ -108,7 +108,7 @@ semiont init
 
 ## Related
 
-- [Running a local stack](./LOCAL-SEMIONT.md): starting a stack for a knowledge base
+- [Running knowledge bases on your computer](./LOCAL-SEMIONT.md): starting a stack for a knowledge base
 - [Configuration](./administration/CONFIGURATION.md): what the project file and the stack's documents hold
 - [Where a knowledge base lives on disk](../architecture/FILESYSTEM.md): the event log, the views, and what rebuilds what
 - [Knowledge Bases](../KNOWLEDGE-BASES.md): the demo knowledge bases, and starting one of your own

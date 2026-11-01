@@ -121,4 +121,4 @@ Everything you just did travelled over one event bus, spoken as [eight verbs](..
 
 - **[Building with the Semiont SDK](README.md)**: the same verbs from TypeScript, Rust, Python, Go, Kotlin or Java
 - **[Working in the Browser](../analyst/FEATURES.md)**: what you can do with the document you just opened
-- **[Running a local stack](../operator/LOCAL-SEMIONT.md)**: what this page leaves out about the stack you just started
+- **[Running knowledge bases on your computer](../operator/LOCAL-SEMIONT.md)**: what this page leaves out about the stack you just started

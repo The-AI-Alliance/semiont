@@ -43,7 +43,7 @@ You write code against a knowledge base, in TypeScript, Rust, Python, Go, Kotlin
 You run a knowledge base, on your own machine or for others.
 
 - [Quick Start](builder/QUICK-START.md): install the launcher, create a knowledge base, start it
-- [Running a local stack](operator/LOCAL-SEMIONT.md), and [the launcher's manual](../apps/launcher/README.md) for every command and setting
+- [Running knowledge bases on your computer](operator/LOCAL-SEMIONT.md), and [the launcher's manual](../apps/launcher/README.md) for every command and setting
 - [Deploying Semiont](operator/administration/DEPLOYMENT.md): on your machine, on a hosted machine, or on a platform of your own
 - [The service catalog](operator/services/OVERVIEW.md) and [container topology](operator/CONTAINER-TOPOLOGY.md): what a stack is made of
 - [Administration](operator/administration/): configuration, authentication, security, observability, backup, scaling, troubleshooting

@@ -1,7 +1,7 @@
 {
   "title": "WorkerPool",
   "type": "object",
-  "description": "The worker a machine runs knowledge bases' jobs with: its image, its memory and its log level. They are the machine's, not any knowledge base's, so its document is kept in the launcher's state home, in `stack/workers.yaml`, not in a knowledge base's repository. A knowledge base's jobs are done when its Inference document gives a job an engine. A worker needs only the Gateway, and an issuer's token with the worker's role.",
+  "description": "The shared worker that does knowledge bases' jobs: its image, its memory and its log level. They are shared, not any knowledge base's, so its document is kept in the launcher's state home, in `stack/workers.yaml`, not in a knowledge base's repository. A knowledge base's jobs are done when its Inference document gives a job an engine. A worker needs only the Gateway, and an issuer's token with the worker's role.",
   "properties": {
     "apiVersion": {
       "$ref": "./ApiVersion.json"

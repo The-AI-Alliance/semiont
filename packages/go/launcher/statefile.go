@@ -27,17 +27,17 @@ import (
 // Provided values: who provides this role.
 const (
 	providedLauncher = "launcher" // a container this launcher started for this stack
-	providedMachine  = "machine"  // a container this launcher runs for the machine, outside every stack (StackSet.Machine)
+	providedShared   = "shared"   // a container this launcher runs for every knowledge base here, outside every stack (StackSet.Shared)
 	providedHost     = "host"     // a host process (reused, not launched)
 	providedExternal = "external" // config-declared external endpoint
 	providedNone     = "none"     // not referenced by the config
 )
 
 type ServiceState struct {
-	Container string `json:"container,omitempty"` // container name (launcher- and machine-provided only)
+	Container string `json:"container,omitempty"` // container name (launcher-provided and shared only)
 	ID        string `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string `json:"image,omitempty"`     // full image ref
-	Provided  string `json:"provided,omitempty"`  // launcher|machine|host|external|none
+	Provided  string `json:"provided,omitempty"`  // launcher|shared|host|external|none
 	Driver    string `json:"driver,omitempty"`    // config `type` (infra roles)
 	// Models: the models this role uses, each with its provider, per the
 	// config it started with.
@@ -48,8 +48,8 @@ type ServiceState struct {
 	// live only when the key happens to be in its environment.
 	RemoteModels map[string]remoteModelMeta `json:"remoteModels,omitempty"`
 	Endpoint     string                     `json:"endpoint,omitempty"` // health probe: http(s) URL or tcp:<host>:<port>
-	Runtime      string                     `json:"runtime,omitempty"`  // machine records only: the runtime that runs it (stack services get theirs from the stack)
-	// Ports: machine records only — the host ports its start required free,
+	Runtime      string                     `json:"runtime,omitempty"`  // shared records only: the runtime that runs it (stack services get theirs from the stack)
+	// Ports: shared records only — the host ports its start required free,
 	// which a stop verifies released, as a stack's record holds its own.
 	Ports []int `json:"ports,omitempty"`
 	// Memory: the Browser's record only — the ceiling its document gave it,
@@ -143,13 +143,13 @@ type StackSet struct {
 	UpdatedAt time.Time              `json:"updatedAt"`
 	Launcher  string                 `json:"launcherVersion"`
 	Stacks    map[string]*StackState `json:"stacks"`
-	// Machine: the containers the launcher runs for the machine rather than
-	// for one stack, by container name: the Browser, the machine's Ollama,
+	// Shared: the containers the launcher runs for every knowledge base here rather than
+	// for one stack, by container name: the Browser, the shared Ollama,
 	// and the telemetry (the collector, Jaeger and Prometheus). Each serves
 	// every KB here, a start keeps a current one, and only a bare stop or a
 	// stop of its own role stops it. A host Ollama is the host's, and has no
 	// record.
-	Machine map[string]*ServiceState `json:"machine,omitempty"`
+	Shared map[string]*ServiceState `json:"shared,omitempty"`
 	// unreadable: why the file on disk could not be understood, nil when it
 	// was (an ABSENT file included — no record is a clean, expected state).
 	//
@@ -229,7 +229,7 @@ func (ss *StackSet) refuseUnreadable(u *UI) bool {
 	fmt.Fprintln(os.Stderr, "  nothing to stop while the real stack keeps running.")
 	fmt.Fprintln(os.Stderr, "  Set the record aside, then stop what is running by name:")
 	fmt.Fprintf(os.Stderr, "    %s\n", setAsideHint(systemName(), p, p+".unreadable"))
-	fmt.Fprintln(os.Stderr, "    semiont stop          (sweeps this machine's containers by name)")
+	fmt.Fprintln(os.Stderr, "    semiont stop          (sweeps every Semiont container here by name)")
 	fmt.Fprintln(os.Stderr, "    gh codespace list     (a codespace stack stops there)")
 	return true
 }
@@ -304,7 +304,7 @@ func saveStackSet(ss *StackSet) {
 	if ss.unreadable != nil {
 		return
 	}
-	if len(ss.Stacks) == 0 && len(ss.Machine) == 0 {
+	if len(ss.Stacks) == 0 && len(ss.Shared) == 0 {
 		_ = os.Remove(p)
 		writeDiscovery(ss) // empty list, not an absent file
 		return
@@ -349,28 +349,27 @@ func forgetStack(key string) {
 	})
 }
 
-// saveMachine upserts the record of a container the launcher runs for the
-// machine, by its container name.
-func saveMachine(e *ServiceState) {
+// saveShared upserts the record of a container the launcher runs for every knowledge base here, by its container name.
+func saveShared(e *ServiceState) {
 	exclusively(statePath(), func() {
 		ss := LoadStackSet()
-		if ss.Machine == nil {
-			ss.Machine = map[string]*ServiceState{}
+		if ss.Shared == nil {
+			ss.Shared = map[string]*ServiceState{}
 		}
-		ss.Machine[e.Container] = e
+		ss.Shared[e.Container] = e
 		saveStackSet(ss)
 	})
 }
 
-// forgetMachine forgets the machine container name: stopped, or (Ollama)
+// forgetShared forgets the shared container name: stopped, or (Ollama)
 // replaced by a host install.
-func forgetMachine(name string) {
+func forgetShared(name string) {
 	exclusively(statePath(), func() {
 		ss := LoadStackSet()
-		if ss.Machine[name] == nil {
+		if ss.Shared[name] == nil {
 			return
 		}
-		delete(ss.Machine, name)
+		delete(ss.Shared, name)
 		saveStackSet(ss)
 	})
 }

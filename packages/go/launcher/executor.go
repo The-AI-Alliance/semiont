@@ -30,8 +30,8 @@ type stager interface {
 	stageRealm(realm string, doc []byte) (string, bool)          // the realm file Keycloak imports; returns its staged path
 	stageNatsConf(doc []byte) (string, bool)                     // the broker's authorization block (no secret in it); returns its staged path
 	sweepStaging()                                               // this KB's /tmp/semiont-config.<key>.* removal (+ its record forgotten)
-	machineConfigCurrent(file, want string) bool                 // whether the machine container's config file says want, byte for byte
-	writeMachineConfig(file, content string) (string, bool)      // a machine container's config, outside every stack's staging; returns its path
+	sharedConfigCurrent(file, want string) bool                  // whether the shared container's config file says want, byte for byte
+	writeSharedConfig(file, content string) (string, bool)       // a shared container's config, outside every stack's staging; returns its path
 }
 
 // runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
@@ -41,7 +41,7 @@ type runner interface {
 	pull(img string) bool
 	runDetached(args []string) (string, bool)        // echo + run -d; returns runtime-reported id
 	stopRm(name string) bool                         // teardown; reports whether anything existed
-	stopMachine(name string, rec *ServiceState) bool // a machine-level container's teardown, under this runtime and the one its record names; reports whether anything existed
+	stopShared(name string, rec *ServiceState) bool  // a shared container's teardown, under this runtime and the one its record names; reports whether anything existed
 	sweepStray(names []string) bool                  // stop+rm the names under every OTHER installed runtime; reports whether anything existed
 	settle(ports ...int)                             // wait for torn-down ports to be released
 	snapshotLogs(kb kbRoot, names []string)          // crash evidence: capture container logs into the root's state area before a teardown deletes them
@@ -72,13 +72,13 @@ type recorder interface {
 	initStack(kb kbRoot, config, addr, stage string) // begin the belief record
 	recordPorts(ports []portNeed)                    // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
-	servedByMachine(role, container, endpoint, driver string) // the stack's role is served by the machine's container
-	recorded(role string) ServiceState                        // the stack's record of a role, zero when it has none
-	containerCurrent(name, desired string) bool               // running under this runtime AND image identity matches
-	machineRecord(name string) *ServiceState                  // a machine container's record, by name
-	recordMachine(rec ServiceState)                           // a machine container this start ran, under this runtime
-	forgetMachine(name string)                                // the machine runs no such container of the launcher's
-	keepWorkerList(list workerList) bool                      // the knowledge bases the machine's worker serves, as this start leaves them
+	servedByShared(role, container, endpoint, driver string) // the stack's role is served by the shared container
+	recorded(role string) ServiceState                       // the stack's record of a role, zero when it has none
+	containerCurrent(name, desired string) bool              // running under this runtime AND image identity matches
+	sharedRecord(name string) *ServiceState                  // a shared container's record, by name
+	recordShared(rec ServiceState)                           // a shared container this start ran, under this runtime
+	forgetShared(name string)                                // no shared container of the launcher's runs by this name
+	keepWorkerList(list workerList) bool                     // the knowledge bases the shared worker serves, as this start leaves them
 }
 
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
@@ -87,7 +87,7 @@ type keeper interface {
 	jwtSecret(kb kbRoot) (string, bool)                       // gateway token-signing key: env, else persisted per-root, else generated
 	identityAdminPassword(kb kbRoot) (string, bool)           // Keycloak's bootstrap admin password: same three sources
 	serviceClientSecret(kb kbRoot, svc string) (string, bool) // one service's account credential, per root
-	workerKey() (workerKey, bool)                             // the key this machine's worker proves itself with, one per machine
+	workerKey() (workerKey, bool)                             // the key the shared worker proves itself with, one for every knowledge base
 	daemonPassword(kb kbRoot, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root
 }
 
@@ -238,10 +238,10 @@ func (x *liveExec) stopRm(name string) bool {
 	return stopped || rmed
 }
 
-// stopMachine: a machine-level container may run under another runtime than
+// stopShared: a shared container may run under another runtime than
 // this start's, the one its record names, so both are looked in, its recorded
 // ID among the handles there. Like stopRm, it stops only what is there.
-func (x *liveExec) stopMachine(name string, rec *ServiceState) bool {
+func (x *liveExec) stopShared(name string, rec *ServiceState) bool {
 	runtimes := []string{x.rt}
 	if rec != nil && rec.Runtime != "" && rec.Runtime != x.rt && onPath(rec.Runtime) {
 		runtimes = append(runtimes, rec.Runtime)
@@ -252,7 +252,7 @@ func (x *liveExec) stopMachine(name string, rec *ServiceState) bool {
 			holding = append(holding, rt)
 		}
 	}
-	stopped := stopMachineContainer(holding, name, rec)
+	stopped := stopSharedContainer(holding, name, rec)
 	for _, rt := range holding {
 		delete(x.existing[rt], name)
 	}
@@ -450,29 +450,29 @@ func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	return stage, true
 }
 
-// machineConfigDir: where the configs of the machine's own containers live,
+// sharedConfigDir: where the configs of the shared containers live,
 // beside the record: the telemetry's and the worker's. A stack's staging dir
-// goes with its stop, and a machine container outlives every stack, so its
+// goes with its stop, and a shared container outlives every stack, so its
 // live bind mount cannot be there.
-func machineConfigDir() string {
-	return filepath.Join(StateDir(), "machine")
+func sharedConfigDir() string {
+	return filepath.Join(StateDir(), "shared")
 }
 
-func (x *liveExec) machineConfigCurrent(file, want string) bool {
-	have, err := os.ReadFile(filepath.Join(machineConfigDir(), file))
+func (x *liveExec) sharedConfigCurrent(file, want string) bool {
+	have, err := os.ReadFile(filepath.Join(sharedConfigDir(), file))
 	return err == nil && string(have) == want
 }
 
-// writeMachineConfig: written only when its container is about to (re)start,
+// writeSharedConfig: written only when its container is about to (re)start,
 // never under a running one, so the file is the record of what the running
 // one was started with.
-func (x *liveExec) writeMachineConfig(file, content string) (string, bool) {
+func (x *liveExec) writeSharedConfig(file, content string) (string, bool) {
 	if StateDir() == "" {
 		x.u.Fail("Writing %s: no state home to keep it in", file)
 		return "", false
 	}
-	path := filepath.Join(machineConfigDir(), file)
-	if err := os.MkdirAll(machineConfigDir(), 0o755); err != nil {
+	path := filepath.Join(sharedConfigDir(), file)
+	if err := os.MkdirAll(sharedConfigDir(), 0o755); err != nil {
 		x.u.Fail("Writing %s: %v", file, err)
 		return "", false
 	}
@@ -744,12 +744,12 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 	x.stack().recordService(role, container, id, image, provided, endpoint, driver, models)
 }
 
-func (x *liveExec) servedByMachine(role, container, endpoint, driver string) {
+func (x *liveExec) servedByShared(role, container, endpoint, driver string) {
 	var models []servedModel
 	if x.plan != nil {
 		models = x.plan.Roles[role].Models
 	}
-	x.stack().recordService(role, container, "", "", providedMachine, endpoint, driver, models)
+	x.stack().recordService(role, container, "", "", providedShared, endpoint, driver, models)
 }
 
 // stack: the record this start writes to. A full start began it (initStack);
@@ -1016,22 +1016,22 @@ func (x *liveExec) containerCurrent(name, desired string) bool {
 	return strings.TrimSpace(idOut) == runningID
 }
 
-func (x *liveExec) machineRecord(name string) *ServiceState {
-	return LoadStackSet().Machine[name]
+func (x *liveExec) sharedRecord(name string) *ServiceState {
+	return LoadStackSet().Shared[name]
 }
 
-func (x *liveExec) recordMachine(rec ServiceState) {
+func (x *liveExec) recordShared(rec ServiceState) {
 	rec.Provided = providedLauncher
 	rec.Runtime = x.rt
 	rec.StartedAt = time.Now().UTC()
-	saveMachine(&rec)
+	saveShared(&rec)
 }
 
-func (x *liveExec) forgetMachine(name string) { forgetMachine(name) }
+func (x *liveExec) forgetShared(name string) { forgetShared(name) }
 
 func (x *liveExec) keepWorkerList(list workerList) bool {
 	if err := saveWorkerList(list); err != nil {
-		x.u.Fail("Keeping the knowledge bases this machine's worker serves: %v", err)
+		x.u.Fail("Keeping the knowledge bases the shared worker serves: %v", err)
 		return false
 	}
 	return true
@@ -1214,11 +1214,11 @@ func (x *planExec) snapshotLogs(kbRoot, []string) {
 }
 func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name); return false }
 
-// --dry-run reads no record, so the machine-level container is the name under
+// --dry-run reads no record, so the shared container is the name under
 // this runtime alone, as stopRm prints it.
-func (x *planExec) stopMachine(name string, _ *ServiceState) bool { return x.stopRm(name) }
-func (x *planExec) settle(...int)                                 {} // plan mode tears nothing down
-func (x *planExec) sweepStaging()                                 { x.c("remove staged configs: %s", keyStagingPattern(x.kb.key())) }
+func (x *planExec) stopShared(name string, _ *ServiceState) bool { return x.stopRm(name) }
+func (x *planExec) settle(...int)                                {} // plan mode tears nothing down
+func (x *planExec) sweepStaging()                                { x.c("remove staged configs: %s", keyStagingPattern(x.kb.key())) }
 
 func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {
@@ -1249,10 +1249,10 @@ func (x *planExec) portChecks(ports []portNeed) bool {
 
 // --dry-run: whether a running container's config is current is a runtime
 // fact; either() shows both branches.
-func (x *planExec) machineConfigCurrent(string, string) bool { return false }
+func (x *planExec) sharedConfigCurrent(string, string) bool { return false }
 
-func (x *planExec) writeMachineConfig(file, _ string) (string, bool) {
-	path := "<state-home>/machine/" + file
+func (x *planExec) writeSharedConfig(file, _ string) (string, bool) {
+	path := "<state-home>/shared/" + file
 	x.c("write %s (the launcher's own; only as its container (re)starts)", path)
 	return path, true
 }
@@ -1443,7 +1443,7 @@ func (x *planExec) ollamaVolume(opts startOptions) string {
 
 func (x *planExec) record(_, _, _, _, _, _ string) {}
 
-func (x *planExec) servedByMachine(_, _, _, _ string) {}
+func (x *planExec) servedByShared(_, _, _, _ string) {}
 
 // --dry-run records nothing, so there is nothing to read back.
 func (x *planExec) recorded(string) ServiceState { return ServiceState{} }
@@ -1463,9 +1463,9 @@ func (x *planExec) retireIssuerProxy() {
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
 func (x *planExec) containerCurrent(string, string) bool { return false }
-func (x *planExec) machineRecord(string) *ServiceState   { return nil }
-func (x *planExec) recordMachine(ServiceState)           {}
-func (x *planExec) forgetMachine(string)                 {}
+func (x *planExec) sharedRecord(string) *ServiceState    { return nil }
+func (x *planExec) recordShared(ServiceState)            {}
+func (x *planExec) forgetShared(string)                  {}
 
 func (x *planExec) keepWorkerList(list workerList) bool {
 	var domains []string
@@ -1476,10 +1476,10 @@ func (x *planExec) keepWorkerList(list workerList) bool {
 		domains = append(domains, kb.Domain+" (added, offered "+kb.EnginesOf+"'s engines)")
 	}
 	if len(domains) == 0 {
-		x.c("remove <data-home>/machine/%s: the worker's list is empty", workerListFile)
+		x.c("remove <data-home>/shared/%s: the worker's list is empty", workerListFile)
 		return true
 	}
-	x.c("write <data-home>/machine/%s: the worker's list, %s", workerListFile, strings.Join(domains, ", "))
+	x.c("write <data-home>/shared/%s: the worker's list, %s", workerListFile, strings.Join(domains, ", "))
 	return true
 }
 
@@ -1491,7 +1491,7 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, accounts realm
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
 	}
-	x.c("client-credentials grant at %s as %s, by an assertion signed with the machine's worker key (%s) — require flat `roles` containing %q and %q, and `aud` containing %s",
+	x.c("client-credentials grant at %s as %s, by an assertion signed with the shared worker key (%s) — require flat `roles` containing %q and %q, and `aud` containing %s",
 		issuerBase, serviceClientID("worker"), accounts.worker.thumbprint, serviceRole, workerRole, audience)
 	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, semiont.ScriptClientID)
 	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, semiont.BrowserClientID, browserRedirect(browserPort))

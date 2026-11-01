@@ -69,10 +69,10 @@ func custodyFor(u *UI, key string) (custodyStore, bool) {
 	return s, ok
 }
 
-// machineCustody: the store of what the launcher keeps for this machine
+// sharedCustody: the store of what the launcher keeps for this machine
 // rather than for one root — the worker's key (workerkey.go). The file store,
 // beside the roots': a store setting is a root's, and the machine has none.
-func machineCustody() custodyStore { return custodyStore{fileBackend{machineStateDir()}} }
+func sharedCustody() custodyStore { return custodyStore{fileBackend{sharedStateDir()}} }
 
 // configuredCustody: the store a root's setting names, adopting
 // nothing — for a caller that clears or moves values (clean, the

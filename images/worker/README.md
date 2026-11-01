@@ -5,8 +5,8 @@
 **The worker claims queued jobs and runs them against a model**: the detection passes, the
 generation and the other long-running work that a request cannot wait on. It is a Python
 service, answers for its health on port 24100, and is started by the
-[launcher](../../apps/launcher/README.md) (`semiont start`) as the machine's: one worker
-serves every knowledge base on the machine's list at once, each apart from the others.
+[launcher](../../apps/launcher/README.md) (`semiont start`) as a shared service: one worker
+serves every knowledge base on its list at once, each apart from the others.
 
 | | |
 | --- | --- |
@@ -139,7 +139,7 @@ defaults nothing in it.
 | `port` | the health port |
 | `logLevel`, `logFormat` | how it logs |
 
-It reads no configuration of a knowledge base: the launcher resolves the machine's WorkerPool
+It reads no configuration of a knowledge base: the launcher resolves the shared WorkerPool
 document and the Inference document of each local knowledge base on the worker's list
 ([Configuration](../../docs/operator/administration/CONFIGURATION.md#the-worker)) into this
 document for the worker it starts, and a worker started some other way is given the same

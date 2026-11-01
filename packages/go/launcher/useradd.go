@@ -55,15 +55,15 @@ Launcher-owned (consumed here, not forwarded):
 
   --repo <owner/name>   Target that codespace stack
   --root <path>         Target the stack of the knowledge base at path
-  --runtime <name>      Target a LOCAL stack (selector only, as in stop)
+  --runtime <name>      Target a stack here (selector only, as in stop)
   --help, -h            Show this help
 
 Needs a started stack: the realm is reached at the issuer this KB configures,
 and semiont start is what records which config that is. With more than one
-stack recorded, the working directory disambiguates (the clone whose local stack
-is running means local; a clone whose origin names a codespace stack, with
-no local stack, means that one) — anywhere less certain, useradd refuses to
-guess: say which with --repo or --runtime.
+stack recorded, the working directory disambiguates (a clone whose stack runs
+here means that one; a clone whose origin names a codespace stack, with no
+stack here, means the codespace's) — anywhere less certain, useradd refuses
+to guess: say which with --repo or --runtime.
 
 NOTHING auto-creates an account — local and codespace alike. A fresh realm has
 no users at all, so this is how the first one comes to exist, and how every
@@ -209,7 +209,7 @@ func Useradd(args []string) int {
 		return 1
 	}
 	if target == nil || target.Codespace == nil && target.KBRoot == "" {
-		u.Fail("No local stack is running, so there is no realm to administer.")
+		u.Fail("No stack is running here, so there is no realm to administer.")
 		fmt.Fprintln(os.Stderr, "  Start it first:  semiont start")
 		return 1
 	}
@@ -236,7 +236,7 @@ func Useradd(args []string) int {
 	// The next steps are for a person reading a terminal. Over ssh the
 	// codespace's own launcher writes to a pipe and prints none, so the lines
 	// the person sees name the stack the way they selected it here.
-	browser := stacks.Machine[machineContainer("browser")]
+	browser := stacks.Shared[sharedContainer("browser")]
 	if target.Codespace != nil {
 		code := useraddCodespace(u, target, rest, password)
 		if code == 0 && !update && !o.inactive && !o.upsert && stdoutIsTerminal() {

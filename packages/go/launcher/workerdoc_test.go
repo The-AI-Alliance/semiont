@@ -49,7 +49,7 @@ func workerDocumentFrom(t *testing.T, b []byte) api.WorkerConfig {
 }
 
 // workerDocumentOf: the worker's document for a start of the example
-// knowledge base, with none added to this machine's worker.
+// knowledge base, with none added to the shared worker.
 // aloneWorkerDocument: the worker's document for a start of the fixture
 // knowledge base, placed at p, when the list holds it alone.
 func aloneWorkerDocument(p placement) ([]byte, error) {
@@ -147,7 +147,7 @@ func enginesOfJobs(engines api.ArchivistEngines) map[string]api.Engine {
 }
 
 // Every address is the placement's, each provider's key is named, and the log
-// level is the machine's worker document's. The jobs given one engine are one
+// level is the shared worker document's. The jobs given one engine are one
 // entry.
 func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	p := placed(t, fixtureStack(t, "anthropic"))
@@ -176,7 +176,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		t.Errorf("issuer = %q", kb.Identity.Issuer)
 	}
 	if kb.Identity.ClientId != serviceClientID("worker") {
-		t.Errorf("clientId = %q, want this machine's worker's, %s", kb.Identity.ClientId, serviceClientID("worker"))
+		t.Errorf("clientId = %q, want the shared worker's, %s", kb.Identity.ClientId, serviceClientID("worker"))
 	}
 	if doc.ModelCatalogue != "/usr/share/semiont/model-catalogue.json" {
 		t.Errorf("modelCatalogue = %q, want where the image carries it", doc.ModelCatalogue)
@@ -407,7 +407,7 @@ func TestWorkerDocumentReachesAnthropicWhereTheLauncherDoes(t *testing.T) {
 	}
 }
 
-// An Ollama entry that states no baseURL is the machine's, at the address this
+// An Ollama entry that states no baseURL is shared, at the address this
 // start places it.
 func TestWorkerDocumentReachesTheOllamaTheLauncherPlaces(t *testing.T) {
 	p := placed(t, fixtureStack(t, "ollama-gemma"))
@@ -435,8 +435,8 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	args := strings.Join(workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil), " ")
-	if want := "/state/machine/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
+	args := strings.Join(workerArgs("/state/shared/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, "client-key", "v", semiontDescriptor("worker").mem, nil, nil), " ")
+	if want := "/state/shared/" + workerDocumentFile + ":" + workerDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the worker's document is not mounted onto %s:\n%s", workerDocumentTarget, args)
 	}
 	for _, unread := range []string{"GATEWAY_HOST", "OLLAMA_HOST", "KEYCLOAK_HOST", stack.Dir} {
@@ -445,10 +445,10 @@ func TestWorkerDocumentIsWhereTheImageLooks(t *testing.T) {
 		}
 	}
 	if !strings.Contains(args, "SEMIONT_OIDC_CLIENT_KEY=client-key") {
-		t.Errorf("the worker is not handed the machine's key it signs in with:\n%s", args)
+		t.Errorf("the worker is not handed the worker key it signs in with:\n%s", args)
 	}
 	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_SECRET") {
-		t.Errorf("the worker is handed a secret; it proves itself with the machine's key:\n%s", args)
+		t.Errorf("the worker is handed a secret; it proves itself with the worker key:\n%s", args)
 	}
 	if strings.Contains(args, "SEMIONT_OIDC_CLIENT_ID") {
 		t.Errorf("the worker is handed a client id; each knowledge base's entry in its document names the client it signs in as there:\n%s", args)

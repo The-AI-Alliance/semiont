@@ -428,7 +428,7 @@ func driversFor(role string) []string {
 }
 
 // containerName: the container d's driver runs for the knowledge base whose
-// state is keyed key (rootKey). A machine role's is the machine's one,
+// state is keyed key (rootKey). A shared role's is the shared one,
 // semiont-<name>, serving every knowledge base here; a stack role's is
 // semiont-<key>-<name>, so each knowledge base's stack runs under names of its
 // own. "" when the driver runs none.
@@ -436,7 +436,7 @@ func (d serviceDescriptor) containerName(key string) string {
 	switch {
 	case d.name == "":
 		return ""
-	case machineRole(d.role):
+	case sharedRole(d.role):
 		return "semiont-" + d.name
 	case key == "":
 		panic("the " + d.role + " container is named for a knowledge base, and none was named")
@@ -479,18 +479,18 @@ func runsContainer(role string) bool {
 	return false
 }
 
-// machineContainer: the machine's container for one of machineRoles.
-func machineContainer(role string) string {
-	if !machineRole(role) {
-		panic(role + " is no machine role: its container is a knowledge base's")
+// sharedContainer: the shared container for one of sharedRoles.
+func sharedContainer(role string) string {
+	if !sharedRole(role) {
+		panic(role + " is no shared role: its container is a knowledge base's")
 	}
 	return roleContainer(role, "")
 }
 
-// machineRole: whether role's container is the machine's, run once for every
+// sharedRole: whether role's container is shared, run once for every
 // knowledge base here, rather than one stack's.
-func machineRole(role string) bool {
-	return contains(machineRoles, role)
+func sharedRole(role string) bool {
+	return contains(sharedRoles, role)
 }
 
 // stackPortNeeds: the launcher-fiat ports a role claims, whichever driver a
@@ -514,13 +514,13 @@ func stackPortNeeds(role string) []portNeed {
 	return out
 }
 
-// machineRoleByContainer inverts the machine's containers (name → role).
+// sharedRoleByContainer inverts the shared containers (name → role).
 // Container-less drivers must not be indexed: mapping "" would hand a role
 // back for every unmatched lookup.
-var machineRoleByContainer = func() map[string]string {
+var sharedRoleByContainer = func() map[string]string {
 	m := map[string]string{}
 	for _, d := range serviceDescriptors {
-		if c := d.name; c != "" && machineRole(d.role) {
+		if c := d.name; c != "" && sharedRole(d.role) {
 			m[d.containerName("")] = d.role
 		}
 	}
@@ -606,7 +606,7 @@ func probeDriver(role string) string {
 	return ""
 }
 
-// stackServices: Semiont's own services, in start order, minus the machine's:
+// stackServices: Semiont's own services, in start order, minus the shared ones:
 // the worker and the Browser.
 //
 // ONE list for three jobs that coincide on it, and coincide for one reason —
@@ -616,7 +616,7 @@ func probeDriver(role string) string {
 // drift: one an entry short stages that service no config and passes it
 // empty hosts. A start pulls and stages the ones its plan runs
 // (launchPlan.runs); the realm holds an account for every one, whichever
-// start imported it, and one for the machine's worker (secretClients).
+// start imported it, and one for the shared worker (secretClients).
 var stackServices = func() []string {
 	var out []string
 	for _, role := range startOrder {
@@ -630,17 +630,17 @@ var stackServices = func() []string {
 	return out
 }()
 
-// telemetryRoles: the telemetry the launcher runs for the machine, in the
+// telemetryRoles: the telemetry the launcher runs for every knowledge base here, in the
 // order a bare stop stops it — the collector before the backends it exports
 // to.
 var telemetryRoles = []string{"collector", "metrics", "traces"}
 
-// machineRoles: the roles whose container the launcher runs for the machine
+// sharedRoles: the roles whose container the launcher runs for every knowledge base here
 // rather than for one stack, in the order a bare stop stops them after the
 // stack: the worker, before the collector it exports to; the telemetry; the
 // machine's Ollama; the Browser. Neither sweep names them; each is kept,
 // replaced and stopped from its own record.
-var machineRoles = slices.Concat([]string{"worker"}, telemetryRoles, []string{"inference", "browser"})
+var sharedRoles = slices.Concat([]string{"worker"}, telemetryRoles, []string{"inference", "browser"})
 
 // stackContainers: every container of the knowledge base keyed key's stack,
 // in teardown order — what a start's preflight and a stop sweep. The
@@ -649,7 +649,7 @@ var machineRoles = slices.Concat([]string{"worker"}, telemetryRoles, []string{"i
 func stackContainers(key string) []string {
 	var out []string
 	for _, r := range teardownOrder {
-		if machineRole(r) {
+		if sharedRole(r) {
 			continue
 		}
 		for _, c := range containersForRole(r, key) {

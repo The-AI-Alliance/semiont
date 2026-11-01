@@ -41,7 +41,7 @@ func syncFixture(t *testing.T, admin *stubAdmin) string {
 		t.Setenv(serviceClientSecretEnv(svc), secretForTest(svc))
 	}
 	// This machine's worker key, kept where the launcher keeps it.
-	if !machineCustody().put(NewUI(true), custodyWorkerKey, testWorkerKey().private) {
+	if !sharedCustody().put(NewUI(true), custodyWorkerKey, testWorkerKey().private) {
 		t.Fatal("keeping the test worker key")
 	}
 	t.Chdir(t.TempDir())
@@ -190,7 +190,7 @@ func TestIdentityGrantPrintsWhatTheWorkersOwnerNeeds(t *testing.T) {
 }
 
 // What a grant must not do is refused before the realm is reached: a label
-// that is this machine's own worker's, a key file holding a private key, or no
+// that is the shared worker's, a key file holding a private key, or no
 // key at all.
 func TestIdentityGrantRefusesBeforeReachingTheRealm(t *testing.T) {
 	admin := newStubAdmin(t, "semiont", correctRealm())

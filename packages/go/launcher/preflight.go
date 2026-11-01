@@ -58,7 +58,7 @@ var preflightNoRedirect = &http.Client{
 }
 
 // verifyServiceAccounts performs the client-credentials grant for every entry
-// in `secretClients`, and for the machine's worker by an assertion signed with
+// in `secretClients`, and for the shared worker by an assertion signed with
 // its key, against `issuerBase`, and checks what comes back.
 //
 // `issuerBase` is the issuer the services sign in at, as their documents name
@@ -106,7 +106,7 @@ func verifyServiceAccounts(issuerBase, audience string, accounts realmAccounts) 
 		check(svc, claims, err, "the realm has no such client, or its secret differs")
 	}
 	claims, err := clientCredentialsClaims(endpoint, semiont.KeyCredential{Issuer: issuerBase, ClientID: serviceClientID("worker"), PrivateKey: accounts.worker.signer})
-	check("worker", claims, err, "the realm has no such client, or it holds another key than this machine's")
+	check("worker", claims, err, "the realm has no such client, or it holds another key than the worker's")
 	return findings, observedLifespan
 }
 

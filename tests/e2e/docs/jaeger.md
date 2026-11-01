@@ -99,7 +99,7 @@ failing test's directory ends up with the full cross-process record.
 Defaults:
 
 - **Containers**: `gateway,worker,smelter`. A bare product is the one
-  container named `semiont-<product>` (the machine's, such as the
+  container named `semiont-<product>` (a shared one, such as the
   worker) or `semiont-<kb>-<product>` (a knowledge base's, where `<kb>`
   is its did:web domain made safe for a name:
   [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names)).

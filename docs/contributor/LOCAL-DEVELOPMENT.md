@@ -43,7 +43,7 @@ The Python packages' distributions are published nowhere: Verdaccio holds npm pa
 
 Two things make the stack use your build:
 
-- **The `:local` images, named.** A knowledge base's documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. Write `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` of a Semiont service there, and the Browser's and the worker's, which are the machine's, as the image in each one's own document, the file `semiont settings browser --path` or `semiont settings worker --path` prints; `:latest` there returns it to the published one. A document still naming `:latest` runs the published image, and your change is not in it.
+- **The `:local` images, named.** A knowledge base's documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. Write `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` of a Semiont service there, and the Browser's and the worker's, which are shared, as the image in each one's own document, the file `semiont settings browser --path` or `semiont settings worker --path` prints; `:latest` there returns it to the published one. A document still naming `:latest` runs the published image, and your change is not in it.
 - **The launcher you just built**, not one installed with Homebrew. The launcher and the images are released together, so a launcher from an earlier release may not match images built from your tree.
 
 ### Rebuilding one thing
@@ -101,5 +101,5 @@ In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for 
 - [scripts/ci/README.md](../../scripts/ci/README.md): `local-build.sh` and the build and publish scripts
 - [Testing](TESTING.md): the suites and how to run them
 - [The service catalog](../operator/services/OVERVIEW.md): what is running, and on which ports
-- [Running a local stack](../operator/LOCAL-SEMIONT.md): the launcher from an operator's side
+- [Running knowledge bases on your computer](../operator/LOCAL-SEMIONT.md): the launcher from an operator's side
 - [Troubleshooting](../operator/administration/TROUBLESHOOTING.md): when a start fails or a service is unhealthy

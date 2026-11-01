@@ -52,7 +52,7 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 	// either.
 	domain, ok := strings.CutPrefix(did, "did:web:")
 	if !ok || domain == "" {
-		u.Fail("The local stack at %s was started with no did:web identity, so no account can be named under it.", root)
+		u.Fail("The stack at %s was started with no did:web identity, so no account can be named under it.", root)
 		return realmAdmin{}, false
 	}
 	configName := configForRealm(root)

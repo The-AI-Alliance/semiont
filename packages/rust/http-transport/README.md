@@ -93,7 +93,7 @@ it. `state_home` is the directory that holds it:
 environment. The crates read none themselves.
 
 ```rust
-// The sign-in `semiont login` made for the local stack. The stack's key
+// The sign-in `semiont login` made for the knowledge base running here. Its key
 // is the knowledge base's id.
 let store = SignInStore::at(
     state_home.join(FILE_NAME),

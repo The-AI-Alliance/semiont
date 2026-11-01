@@ -73,7 +73,7 @@ func resolveKBRoot() (path, source string, ident *kbIdentity, err error) {
 // not silently dropped — an unmounted volume may come back. This registry is
 // the substrate for multi-root support, for `--root <name>` selection, and
 // for sticky preferences: per-KB ones (config) live on the root's entry,
-// machine-wide ones (runtime — the local stack is one per machine) live
+// machine-wide ones (runtime: every stack here runs on one) live
 // at the top level. Per-user-per-machine facts belong beside the KB, never
 // inside it.
 
@@ -272,8 +272,8 @@ func recordRuntimePref(rt string) {
 
 // portStride: how far apart two knowledge bases' port blocks place one
 // port. 10 keeps every block's Semiont services (24101–24105 on block 0)
-// clear of the machine's worker and collector (24100, 24110), and no two of
-// the ports a block places meet one another, or one of the machine's, below
+// clear of the shared worker and collector (24100, 24110), and no two of
+// the ports a block places meet one another, or one of the shared containers', below
 // block 101.
 const portStride = 10
 

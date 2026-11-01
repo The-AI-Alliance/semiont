@@ -325,8 +325,8 @@ type KnowledgeIndexEmbedding struct {
 	// How a text is cut before it is embedded.
 	Chunking KnowledgeIndexEmbeddingChunking `json:"chunking"`
 
-	// Where the provider's API is reached. An Ollama the machine runs is stated
-	// by no endpoint.
+	// Where the provider's API is reached. The shared Ollama is stated by no
+	// endpoint.
 	Endpoint *string `json:"endpoint,omitempty"`
 
 	// A secret the document names and does not hold. The launcher hands it to
@@ -475,13 +475,12 @@ type IssuerDatabaseExternal struct {
 	Password SecretRef `json:"password"`
 }
 
-// WorkerPool: The worker a machine runs knowledge bases' jobs with: its
-// image, its memory and its log level. They are the machine's, not any
-// knowledge base's, so its document is kept in the launcher's state home, in
-// `stack/workers.yaml`, not in a knowledge base's repository. A knowledge
-// base's jobs are done when its Inference document gives a job an engine. A
-// worker needs only the Gateway, and an issuer's token with the worker's
-// role.
+// WorkerPool: The shared worker that does knowledge bases' jobs: its image,
+// its memory and its log level. They are shared, not any knowledge base's, so
+// its document is kept in the launcher's state home, in `stack/workers.yaml`,
+// not in a knowledge base's repository. A knowledge base's jobs are done when
+// its Inference document gives a job an engine. A worker needs only the
+// Gateway, and an issuer's token with the worker's role.
 type WorkerPool struct {
 	// The group and version of Semiont's kinds. The group names who defines a
 	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
@@ -551,8 +550,8 @@ type InferenceSpec struct {
 
 // Provider: How an inference provider is reached.
 type Provider struct {
-	// Where the provider's API is reached. Anthropic's own API, and an Ollama
-	// the machine runs, are stated by no baseURL.
+	// Where the provider's API is reached. Anthropic's own API, and the shared
+	// Ollama, are stated by no baseURL.
 	BaseURL *string `json:"baseURL,omitempty"`
 
 	// A secret the document names and does not hold. The launcher hands it to
@@ -560,10 +559,10 @@ type Provider struct {
 	ApiKey *SecretRef `json:"apiKey,omitempty"`
 }
 
-// Browser: The Browser a machine runs: one viewer for every knowledge base
-// the machine reaches. It belongs to no knowledge base, so its document is
-// kept in the launcher's state home, in `stack/browser.yaml`, not in a
-// knowledge base's repository.
+// Browser: The shared Browser: one viewer for every knowledge base the
+// machine reaches. It belongs to no knowledge base, so its document is kept
+// in the launcher's state home, in `stack/browser.yaml`, not in a knowledge
+// base's repository.
 type Browser struct {
 	// The group and version of Semiont's kinds. The group names who defines a
 	// kind, under the domain the knowledge bases' DIDs use; which knowledge base

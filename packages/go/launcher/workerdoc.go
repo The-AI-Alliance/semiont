@@ -2,7 +2,7 @@ package launcher
 
 // workerdoc.go — the worker's configuration document: WorkerConfig in specs/,
 // the Go type generated from it (packages/go/sdk). The launcher writes it for
-// the machine's one worker from the knowledge bases on its list
+// the one shared worker from the knowledge bases on its list
 // (workerkbs.go), every address a literal (placement), keeps it with the
 // machine's containers' configs, and mounts it where the worker's image points
 // its `--config` flag, so the worker neither reads a knowledge base's
@@ -162,7 +162,7 @@ func sameEngine(a, b api.WorkerEngineConfig) bool {
 
 // workerEntry: the knowledge base at kbDomain's entry on the worker's list,
 // as this start places it: at the gateway and the issuer it places, signed in
-// at as this machine's own worker, and offered the engines its Inference
+// at as the shared worker, and offered the engines its Inference
 // document gives jobs (workerEngines).
 func workerEntry(p placement, kbDomain string) (api.WorkerKnowledgeBaseConfig, error) {
 	engines, err := workerEngines(p)
@@ -175,7 +175,7 @@ func workerEntry(p placement, kbDomain string) (api.WorkerKnowledgeBaseConfig, e
 	return entry, nil
 }
 
-// workerDocument renders the document for the machine's worker from the
+// workerDocument renders the document for the shared worker from the
 // entries its list serves (workerList.served), in their order, and the
 // machine's worker document, whose log level it carries.
 func workerDocument(entries []api.WorkerKnowledgeBaseConfig, pool workerPoolDocument) ([]byte, error) {

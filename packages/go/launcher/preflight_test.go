@@ -21,7 +21,7 @@ import (
 
 // The identity preflight: before anything starts, each service account's
 // client-credentials grant is performed with the secret about to be injected —
-// the worker's with an assertion signed by the machine's key — and the token's
+// the worker's with an assertion signed by the worker key — and the token's
 // flat roles and audience are checked. Every case here drives
 // a STUB issuer rather than a Keycloak: what these assert is the launcher's
 // reading of a token, and a real realm cannot be made to emit the broken
@@ -80,7 +80,7 @@ func testSecrets() map[string]string {
 	return m
 }
 
-// testWorkerKey: the machine's worker key, as the tests hold it — one per test
+// testWorkerKey: the shared worker key, as the tests hold it — one per test
 // binary, since generating one is the slow part.
 var testWorkerKey = sync.OnceValue(func() workerKey {
 	key, err := rsa.GenerateKey(rand.Reader, workerKeyBits)
@@ -291,7 +291,7 @@ func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
 	}
 }
 
-// The worker proves itself with the machine's key: the preflight signs the
+// The worker proves itself with the worker key: the preflight signs the
 // assertion the worker's own sign-in would, and an issuer checking it as
 // Keycloak does grants the worker's client a token. A realm holding another
 // machine's key refuses it, and the finding names the worker's client and
@@ -305,7 +305,7 @@ func TestPreflightSignsInAsTheWorkerWithTheMachinesKey(t *testing.T) {
 		})
 	})
 	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testAccounts()); len(findings) != 0 {
-		t.Fatalf("a realm holding the machine's key refused it: %v", findings)
+		t.Fatalf("a realm holding the worker key refused it: %v", findings)
 	}
 
 	another, err := rsa.GenerateKey(rand.Reader, workerKeyBits)

@@ -102,7 +102,7 @@ func Clean(args []string) int {
 		return 1
 	}
 	if st := localStack(ss, key); st != nil {
-		u.Fail("A recorded local stack is using this state (per %s).", statePath())
+		u.Fail("A recorded stack is using this state (per %s).", statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop --root "+st.KBRoot)
 		return 1
 	}

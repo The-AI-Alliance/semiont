@@ -38,18 +38,18 @@ func TestEveryImageTheLauncherNamesIsPinnedByDigest(t *testing.T) {
 // a literal only together with the behaviour it pins.
 
 // Every container the descriptor set can produce is in a stack's sweep —
-// what start's preflight clears and stop tears down — except the machine's,
+// what start's preflight clears and stop tears down — except the shared ones,
 // each named for why: a container a stack runs that its sweep misses survives
 // the teardown, and the port check then reports it as somebody else's
 // process.
 func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
-	machine := map[string]string{
-		"worker":    "the machine's worker: kept or replaced by flowWorker, and stopped after the last stack by stopMachineServices, from its own record, since it serves every KB on its list",
-		"browser":   "not a stack member — kept open across stacks, and stopped after the last stack by stopMachineServices, from its own record",
-		"inference": "the machine's Ollama: kept or replaced in the Ollama section, where a host instance may make the container unnecessary, and stopped after the last stack, from its own record",
-		"collector": "the machine's collector: kept or replaced by flowMachine, and stopped after the last stack, from its own record, since it takes every KB's signals",
-		"metrics":   "the machine's Prometheus: kept or replaced by flowMachine, and stopped after the last stack, from its own record",
-		"traces":    "the machine's Jaeger: kept or replaced by flowMachine, and stopped after the last stack, from its own record",
+	shared := map[string]string{
+		"worker":    "the shared worker: kept or replaced by flowWorker, and stopped after the last stack by stopSharedServices, from its own record, since it serves every KB on its list",
+		"browser":   "not a stack member — kept open across stacks, and stopped after the last stack by stopSharedServices, from its own record",
+		"inference": "the shared Ollama: kept or replaced in the Ollama section, where a host instance may make the container unnecessary, and stopped after the last stack, from its own record",
+		"collector": "the shared collector: kept or replaced by flowShared, and stopped after the last stack, from its own record, since it takes every KB's signals",
+		"metrics":   "the shared Prometheus: kept or replaced by flowShared, and stopped after the last stack, from its own record",
+		"traces":    "the shared Jaeger: kept or replaced by flowShared, and stopped after the last stack, from its own record",
 	}
 	swept := stackContainers("kb")
 	for _, d := range serviceDescriptors {
@@ -57,12 +57,12 @@ func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
 		if c == "" {
 			continue // this driver launches nothing (oidc, anthropic, voyage, shared Ollama)
 		}
-		if reason, exempt := machine[d.role]; exempt {
+		if reason, exempt := shared[d.role]; exempt {
 			if contains(swept, c) {
-				t.Errorf("%s/%s is the machine's (%s), but a stack's sweep lists it", d.role, d.driver, reason)
+				t.Errorf("%s/%s is shared (%s), but a stack's sweep lists it", d.role, d.driver, reason)
 			}
-			if !machineRole(d.role) {
-				t.Errorf("%s/%s is exempt as the machine's, but machineRoles does not name it", d.role, d.driver)
+			if !sharedRole(d.role) {
+				t.Errorf("%s/%s is exempt as shared, but sharedRoles does not name it", d.role, d.driver)
 			}
 			continue
 		}
@@ -73,7 +73,7 @@ func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
 	}
 }
 
-// A machine role's container is the machine's one, whatever knowledge base
+// A shared role's container is the shared one, whatever knowledge base
 // asks; a stack role's is named for its knowledge base, so two knowledge
 // bases' stacks never share a name. Naming a stack's container for no
 // knowledge base is a fault, not a name.
@@ -111,8 +111,7 @@ func TestRoleListDerivesTheStartWalk(t *testing.T) {
 }
 
 // Every role is in one group, each group's roles are roles, and no two groups
-// share a name. The telemetry group is the telemetry the launcher runs for the
-// machine, and holds the backends --no-observe leaves out.
+// share a name. The telemetry group is the telemetry the launcher runs for every knowledge base here, and holds the backends --no-observe leaves out.
 func TestEveryRoleHasOneGroup(t *testing.T) {
 	groupOf := map[string]string{}
 	var telemetry []string
@@ -143,7 +142,7 @@ func TestEveryRoleHasOneGroup(t *testing.T) {
 		named[g.name] = true
 	}
 	if got, want := slices.Sorted(slices.Values(telemetry)), slices.Sorted(slices.Values(telemetryRoles)); !slices.Equal(got, want) {
-		t.Errorf("the telemetry group is %v; the machine's telemetry is %v", got, want)
+		t.Errorf("the telemetry group is %v; the shared telemetry is %v", got, want)
 	}
 	for _, role := range optionalBackends {
 		if groupOf[role] != "telemetry" {
@@ -161,15 +160,15 @@ func TestEveryRoleHasOneGroup(t *testing.T) {
 }
 
 // The realm's accounts are every Semiont service that presents a token to
-// another: the stack's, each with a secret, and the machine's worker, which
-// proves itself with the machine's key. The Browser presents none — it is a
+// another: the stack's, each with a secret, and the shared worker, which
+// proves itself with the worker key. The Browser presents none — it is a
 // viewer, and the only Semiont role without an account. The list is derived;
 // the literal pins it.
 func TestSecretClientsDeriveTheRealmAccountList(t *testing.T) {
 	assertNames(t, "secretClients", secretClients,
 		[]string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver"})
-	if slices.Contains(stackServices, "worker") || slices.Contains(secretClients, "worker") || !slices.Contains(machineRoles, "worker") {
-		t.Error("the worker is the machine's, not a stack service, and proves itself with a key, not a secret")
+	if slices.Contains(stackServices, "worker") || slices.Contains(secretClients, "worker") || !slices.Contains(sharedRoles, "worker") {
+		t.Error("the worker is shared, not a stack service, and proves itself with a key, not a secret")
 	}
 }
 
@@ -231,24 +230,66 @@ func TestTheServiceCatalogNamesWhatTheDescriptorsRun(t *testing.T) {
 		slices.Sort(out)
 		return out
 	}
-	var products, machine []string
+	var products, shared []string
 	for _, d := range serviceDescriptors {
 		switch c := d.containerName("kb"); {
 		case c == "":
-		case machineRole(d.role):
-			machine = append(machine, c)
+		case sharedRole(d.role):
+			shared = append(shared, c)
 		default:
 			products = append(products, d.name)
 		}
 	}
 	roles := slices.Clone(roleOrder)
-	for _, list := range []*[]string{&roles, &products, &machine} {
+	for _, list := range []*[]string{&roles, &products, &shared} {
 		slices.Sort(*list)
 		*list = slices.Compact(*list)
 	}
 	assertNames(t, "the roles --service takes", named("takes a role name from the tables above: ", ". It takes"), roles)
 	assertNames(t, "a knowledge base's products", named("`<product>` is ", ". `<kb>`"), products)
-	assertNames(t, "the machine's containers", named("are named `semiont-<name>`: ", ".\n"), machine)
+	assertNames(t, "the shared containers", named("are named `semiont-<name>`: ", ".\n"), shared)
+}
+
+// The operator's guide tells a reader the groups `status` reads and `--group`
+// takes, what each holds and whether every knowledge base shares it. Its table
+// is held to serviceGroups here, so a group or a member the launcher gains
+// fails until the guide names it.
+func TestTheOperatorGuideNamesEachGroup(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "operator", "LOCAL-SEMIONT.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, section, ok := strings.Cut(string(b), "## What runs\n")
+	if !ok {
+		t.Fatal("the operator's guide has no section on what runs")
+	}
+	section, _, _ = strings.Cut(section, "\n## ")
+	backticked := regexp.MustCompile("`([^`]+)`")
+	var rows [][]string
+	for _, line := range strings.Split(section, "\n") {
+		cells := strings.Split(strings.Trim(line, "|"), "|")
+		if len(cells) != 3 || !strings.HasPrefix(strings.TrimSpace(cells[0]), "`") {
+			continue
+		}
+		row := []string{strings.Trim(strings.TrimSpace(cells[0]), "`"), strings.TrimSpace(cells[2])}
+		for _, m := range backticked.FindAllStringSubmatch(cells[1], -1) {
+			row = append(row, m[1])
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) != len(serviceGroups) {
+		t.Fatalf("the guide's table has %d groups, want %d: %v", len(rows), len(serviceGroups), rows)
+	}
+	for i, g := range serviceGroups {
+		whose := "each knowledge base's own"
+		if g.shared() {
+			whose = "shared"
+		}
+		want := append([]string{g.name, whose}, g.roles...)
+		if !slices.Equal(rows[i], want) {
+			t.Errorf("the guide's row %d reads %q, want %q", i+1, rows[i], want)
+		}
+	}
 }
 
 func assertNames(t *testing.T, what string, got, want []string) {

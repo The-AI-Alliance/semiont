@@ -17,7 +17,7 @@ import (
 
 // mixedActors: the ollama-gemma fixture with its matcher asking Anthropic's
 // haiku, at Anthropic's own address, under the key named ANTHROPIC_API_KEY.
-// Its gatherer asks the machine's Ollama.
+// Its gatherer asks the shared Ollama.
 func mixedActors(t *testing.T) *stack.Stack {
 	t.Helper()
 	st := fixtureStack(t, "ollama-gemma")

@@ -25,7 +25,7 @@ func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 	harness.StandIn(t, shim, "docker", harness.Says{Out: "running", OnlyGiven: "semiont-browser"})
 	t.Setenv("PATH", shim)
 
-	ss := &StackSet{Machine: map[string]*ServiceState{"semiont-browser": {
+	ss := &StackSet{Shared: map[string]*ServiceState{"semiont-browser": {
 		Container: "semiont-browser", ID: "0000deadbeef", Runtime: "docker", Endpoint: harness.LiveOrigin(t),
 	}}}
 	p := BrowserTarget(ss, "")
@@ -43,7 +43,7 @@ func TestBrowserTargetFallsBackToTheStableNameForAStaleID(t *testing.T) {
 func TestBrowserTargetPrefersTheOverrideOverTheRecord(t *testing.T) {
 	harness.NoRuntimes(t)
 	live := harness.LiveOrigin(t)
-	ss := &StackSet{Machine: map[string]*ServiceState{"semiont-browser": {Container: "semiont-browser", Endpoint: harness.DeadOrigin(t)}}}
+	ss := &StackSet{Shared: map[string]*ServiceState{"semiont-browser": {Container: "semiont-browser", Endpoint: harness.DeadOrigin(t)}}}
 
 	if p := BrowserTarget(ss, live); !p.Running || p.Endpoint != live {
 		t.Errorf("override ignored: endpoint %q running %v, want %q true", p.Endpoint, p.Running, live)
