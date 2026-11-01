@@ -58,19 +58,20 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// `resourceId` on `beckon:focus` is a GUARD, not navigation.
-//
-// The schema says so out loud: "it names the resource this focus applies
-// to, and a viewer currently showing a different resource ignores the event".
-// Without the comparison the field is decorative — a guide beckoning a
+// A focus on an annotation is guarded by `resourceId`: a viewer showing a
+// different resource ignores it. Without the comparison a guide beckoning a
 // reference in doc B scrolls every participant's doc A.
+//
+// A focus naming a resource and no annotation is on the resource itself:
+// the view showing it scrolls its content to the top, and the host brings
+// any other resource forward.
 // ─────────────────────────────────────────────────────────────────────
 describe('AnnotateView — beckon:focus is guarded by resourceId', () => {
   beforeEach(() => { scrollSpy.mockClear(); });
 
   const renderAt = (resourceUri: string) => {
     const { session, client } = createTestSemiontWrapper();
-    renderInEnglish(
+    const { container } = renderInEnglish(
       <AnnotateView
         translationManager={englishTranslationManager}
         content="hello world"
@@ -82,25 +83,37 @@ describe('AnnotateView — beckon:focus is guarded by resourceId', () => {
         annotateMode
       />,
     );
-    return client;
+    // jsdom lays nothing out and gives an element no scrollTo of its own.
+    const content = container.querySelector<HTMLElement>('.semiont-annotate-view__content');
+    if (!content) throw new Error('the view rendered no content to scroll');
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+    return { client, scrollTo };
   };
 
   it('ignores a focus aimed at a DIFFERENT resource', () => {
-    const client = renderAt('res-1');
+    const { client } = renderAt('res-1');
     client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7'), resourceId: resourceId('res-2') });
     expect(scrollSpy).not.toHaveBeenCalled();
   });
 
   it('still scrolls when the resource matches', () => {
-    const client = renderAt('res-1');
+    const { client } = renderAt('res-1');
     client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7'), resourceId: resourceId('res-1') });
     expect(scrollSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('hands the scroll no annotation when the focus names this resource and no annotation', () => {
-    const client = renderAt('res-1');
+  it('scrolls its content to the top when the focus names this resource and no annotation', () => {
+    const { client, scrollTo } = renderAt('res-1');
     client.bus.emit('beckon:focus', { resourceId: resourceId('res-1') });
-    expect(scrollSpy).toHaveBeenCalledTimes(1);
-    expect(scrollSpy.mock.calls[0]?.[0]).toBeNull();
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 0, behavior: 'smooth' });
+    expect(scrollSpy).not.toHaveBeenCalled();
+  });
+
+  it('leaves a focus on another resource alone to the host', () => {
+    const { client, scrollTo } = renderAt('res-1');
+    client.bus.emit('beckon:focus', { resourceId: resourceId('res-2') });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(scrollSpy).not.toHaveBeenCalled();
   });
 });

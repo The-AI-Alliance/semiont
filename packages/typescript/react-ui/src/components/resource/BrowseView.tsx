@@ -1,6 +1,6 @@
 'use client';
 
-import type { ResourceId } from '@semiont/core';
+import type { EventMap, ResourceId } from '@semiont/core';
 import { useEffect, useRef, useCallback, useMemo, memo, type MouseEvent as ReactMouseEvent } from 'react';
 import { annotationId as toAnnotationId } from '@semiont/core';
 import { capabilitiesOf, getBodySource, isResolvedReference, textOffsets } from '@semiont/core';
@@ -88,7 +88,7 @@ export const BrowseView = memo(function BrowseView(props: Props & TranslationSou
  * @emits beckon:hover - User hovered over annotation. Payload: { annotationId: string | null }
  *
  * @subscribes beckon:hover - Highlight annotation on hover. Payload: { annotationId: string | null }
- * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { resourceId: string, annotationId?: string }
+ * @subscribes beckon:focus - Scroll to and highlight the annotation, or to the top when it names none, unless `resourceId` names a different resource. Payload: { resourceId: string, annotationId?: string }
  */
 function BrowseViewBody({
   content,
@@ -282,20 +282,25 @@ function BrowseViewBody({
     scrollToAnnotation(annotationId);
   }, [scrollToAnnotation]);
 
-  // `resourceId` is a GUARD, not navigation: it names the resource this focus
-  // applies to, and a viewer showing a different one ignores it. Focus never
-  // navigates; driving the Browser to a resource is `browse:resource-open`'s job.
-  const handleAnnotationFocus = useCallback(
-    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId: string }) => {
+  // A focus on another resource is not this view's: one on an annotation
+  // there is ignored, and one on the resource alone is the host's to bring
+  // forward. A focus on this resource and no annotation scrolls to its top.
+  const handleFocus = useCallback(
+    ({ annotationId, resourceId }: EventMap['beckon:focus']) => {
       if (resourceId !== resourceUri) return;
-      scrollToAnnotation(annotationId ?? null, true);
+      if (annotationId === undefined) {
+        if (!containerRef.current) return;
+        containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      scrollToAnnotation(annotationId, true);
     },
     [scrollToAnnotation, resourceUri],
   );
 
   useSessionEventSubscriptions(session, {
     'beckon:hover': handleAnnotationHover,
-    'beckon:focus': handleAnnotationFocus,
+    'beckon:focus': handleFocus,
   });
 
   // A content link inside the rendered output (react-markdown / HTML `<a href>`) must never navigate

@@ -1,5 +1,5 @@
 {
-  "$comment": "The tools `semiont mcp` serves: a curated set, named by Semiont's verbs. Each tool names the SDK methods it calls, as specs/src/client/surface.json names them, and its arguments and result by where the spec states them; scripts/spec/generate-mcp-tools-go.mjs writes mcp_tools_gen.go from this file, each schema self-contained. An argument is a member of a component (`from` and `member`), required when the component requires it, unless `optional` says why the tool leaves it out or `required` with `why` says why the tool asks for it; or, by `name` with `required`, a whole component (`schema`), a list of a component or of a member of one (`listOf`), or the tool's own (`own`: the MCP layer's schema, not the spec's). `kb` is added to every tool that calls an SDK method. A member whose name starts with `_` is the gateway's (docs/protocol/EVENT-BUS.md) and is never an argument. A result is a whole component (`component`), or an object of members, each `required` or not and named as an argument is; a tool with no result answers in text alone. `leftOut` is every method of surface.json no tool calls, with its reason: TestMCPToolsCensus holds the tools and it to surface.json both ways.",
+  "$comment": "The tools `semiont mcp` serves: a curated set, named by Semiont's verbs. Each tool names the SDK methods it calls, as specs/src/client/surface.json names them, and its arguments and result by where the spec states them; scripts/spec/generate-mcp-tools-go.mjs writes mcp_tools_gen.go from this file, each schema self-contained. An argument is a member of a component (`from` and `member`), required when the component requires it, unless `optional` says why the tool leaves it out; or, by `name` with `required`, a whole component (`schema`), a list of a component or of a member of one (`listOf`), or the tool's own (`own`: the MCP layer's schema, not the spec's). `kb` is added to every tool that calls an SDK method. A member whose name starts with `_` is the gateway's (docs/protocol/EVENT-BUS.md) and is never an argument. A result is a whole component (`component`), or an object of members, each `required` or not and named as an argument is; a tool with no result answers in text alone. `leftOut` is every method of surface.json no tool calls, with its reason: TestMCPToolsCensus holds the tools and it to surface.json both ways.",
   "tools": [
     {
       "name": "knowledge_bases",
@@ -294,10 +294,10 @@
     {
       "name": "beckon_attention",
       "title": "Draw a person's attention",
-      "description": "Draw the attention of whoever is watching the knowledge base in a Browser to an annotation, on the resource it is on. `resourceId` is a guard, not a destination: a Browser showing another resource ignores the beckon. Answers how many Browsers it reached, when the gateway counted them.",
+      "description": "Draw the attention of whoever is watching the knowledge base in a Browser to a resource, or to one annotation on it. A beckon at an annotation scrolls to it, and a Browser showing another resource ignores it. A beckon at a resource alone brings that resource forward, opened if it is not open, at its top. Answers how many Browsers it reached, when the gateway counted them.",
       "calls": ["beckon.attention"],
       "arguments": [
-        { "from": "BeckonFocusEvent", "member": "annotationId", "required": true, "why": "A beckon with no annotation draws nothing (GUIDED-TOUR D7)." },
+        { "from": "BeckonFocusEvent", "member": "annotationId" },
         { "from": "BeckonFocusEvent", "member": "resourceId" }
       ],
       "result": { "reached": { "required": false, "own": { "type": "integer", "minimum": 0, "description": "How many Browsers the beckon reached; absent when the gateway kept no count." } } }

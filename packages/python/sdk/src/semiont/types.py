@@ -526,7 +526,7 @@ class AnnotationRemovedPayload(WireModel, frozen=True):
 
 class BeckonFocusEvent(WireModel, frozen=True):
     """
-    Emitted to draw attention within one resource: to one of its annotations, or, with no annotation, to the resource as a whole. The resource is always named. resourceId is a guard, not navigation: a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
+    Emitted to draw attention to a resource: to one of its annotations, or, with no annotation, to the resource as a whole. The resource is always named. A focus on an annotation scrolls a viewer showing that resource to it, and a viewer showing a different resource ignores it — a deliberate ignore rather than a silent no-op. A focus on the resource as a whole brings that resource forward, opened if it is not open, at its top.
     """
 
     annotation_id: Annotated[AnnotationId | None, Field(alias="annotationId")] = None
@@ -534,7 +534,7 @@ class BeckonFocusEvent(WireModel, frozen=True):
         ResourceId,
         Field(
             alias="resourceId",
-            description="Guard: the resource this focus applies to, always named. A viewer showing a different resource ignores the event. A focus with no annotation attends to this resource as a whole. Never causes navigation.",
+            description="The resource this focus applies to, always named. With an annotation it is a guard: a viewer showing a different resource ignores the event. With none it is the resource the focus brings forward.",
         ),
     ]
 

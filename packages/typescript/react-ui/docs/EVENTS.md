@@ -48,7 +48,10 @@ launcher, an agent) to know the Browser's route shapes.
 
 ### Host routing (`nav:*`)
 
-react-ui emits; the Browser's `NavigationHandler` performs.
+react-ui emits; the Browser's `NavigationHandler` performs. It is mounted on
+every page, and it is also where a `beckon:focus` that names a resource and no
+annotation becomes routing: it pushes `routes.resourceDetail(resourceId)`
+unless that resource is already shown, whose view then scrolls to its top.
 
 | Channel | Payload | Meaning |
 |---|---|---|

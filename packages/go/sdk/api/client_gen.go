@@ -2743,12 +2743,12 @@ type AttributedEvent struct {
 	Version int `json:"version"`
 }
 
-// BeckonFocusEvent Emitted to draw attention within one resource: to one of its annotations, or, with no annotation, to the resource as a whole. The resource is always named. resourceId is a guard, not navigation: a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
+// BeckonFocusEvent Emitted to draw attention to a resource: to one of its annotations, or, with no annotation, to the resource as a whole. The resource is always named. A focus on an annotation scrolls a viewer showing that resource to it, and a viewer showing a different resource ignores it — a deliberate ignore rather than a silent no-op. A focus on the resource as a whole brings that resource forward, opened if it is not open, at its top.
 type BeckonFocusEvent struct {
 	// AnnotationId An annotation's id: a name, never the annotation's URI. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule.
 	AnnotationId *AnnotationId `json:"annotationId,omitempty"`
 
-	// ResourceId Guard: the resource this focus applies to, always named. A viewer showing a different resource ignores the event. A focus with no annotation attends to this resource as a whole. Never causes navigation.
+	// ResourceId The resource this focus applies to, always named. With an annotation it is a guard: a viewer showing a different resource ignores the event. With none it is the resource the focus brings forward.
 	ResourceId ResourceId `json:"resourceId"`
 }
 

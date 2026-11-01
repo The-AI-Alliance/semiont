@@ -150,7 +150,7 @@ func TestMCPAnIdThatBreaksItsRuleOrIsMissingIsRefused(t *testing.T) {
 		{"bind_link", map[string]any{"resourceId": "res-1", "annotationId": "ann-1", "operations": operations}, []string{"resourceId", "annotationId"}},
 		{"job_status", map[string]any{"jobId": "job-1"}, []string{"jobId"}},
 		{"job_cancel", map[string]any{"jobId": "job-1"}, []string{"jobId"}},
-		{"beckon_attention", map[string]any{"resourceId": "res-1", "annotationId": "ann-1"}, []string{"resourceId", "annotationId"}},
+		{"beckon_attention", map[string]any{"resourceId": "res-1"}, []string{"resourceId"}},
 	} {
 		for _, id := range c.ids {
 			broken := clone(c.args)
@@ -168,6 +168,36 @@ func TestMCPAnIdThatBreaksItsRuleOrIsMissingIsRefused(t *testing.T) {
 	if sent := fake.RequestLog(); len(sent) != 0 {
 		t.Errorf("a refused id was sent: %d requests, the first on %s", len(sent), sent[0].Channel)
 	}
+}
+
+// A beckon names its resource and may name no annotation: it then focuses
+// the resource as a whole, and the focus sent names the resource and nothing
+// else. An annotation it does name is held to the rule of an id.
+func TestMCPABeckonAtAResourceAloneFocusesIt(t *testing.T) {
+	cs, fake, _ := mcpFixture(t)
+	result := callTool(t, cs, "beckon_attention", map[string]any{"resourceId": "res-1"})
+	if result.IsError {
+		t.Fatalf("a beckon at a resource alone was refused:\n%s", said(result))
+	}
+	var focuses []json.RawMessage
+	for _, frame := range fake.Emitted() {
+		if frame.Channel == bus.BeckonFocus.Channel() {
+			focuses = append(focuses, frame.Payload)
+		}
+	}
+	if len(focuses) != 1 {
+		t.Fatalf("%d beckon:focus emits, want one", len(focuses))
+	}
+	var focus map[string]any
+	if err := json.Unmarshal(focuses[0], &focus); err != nil {
+		t.Fatal(err)
+	}
+	if len(focus) != 1 || focus["resourceId"] != "res-1" {
+		t.Errorf("the focus names the resource and nothing else, got %v", focus)
+	}
+
+	refusedNaming(t, "beckon_attention with a broken annotationId", callTool(t, cs, "beckon_attention",
+		map[string]any{"resourceId": "res-1", "annotationId": "not an id!"}), "`annotationId`")
 }
 
 func clone(args map[string]any) map[string]any {

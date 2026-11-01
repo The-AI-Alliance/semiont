@@ -282,10 +282,10 @@ var mcpHandlers = map[string]mcpHandler{
 	}),
 
 	"beckon_attention": handle(func(ctx context.Context, call mcpCall, args struct {
-		AnnotationId api.AnnotationId `json:"annotationId"`
-		ResourceId   api.ResourceId   `json:"resourceId"`
+		AnnotationId *api.AnnotationId `json:"annotationId"`
+		ResourceId   api.ResourceId    `json:"resourceId"`
 	}) (mcpAnswer, error) {
-		reached, counted, err := call.client().Beckon.Attention(ctx, args.ResourceId, &args.AnnotationId)
+		reached, counted, err := call.client().Beckon.Attention(ctx, args.ResourceId, args.AnnotationId)
 		if err != nil || !counted {
 			return mcpAnswer{structured: map[string]any{}}, err
 		}

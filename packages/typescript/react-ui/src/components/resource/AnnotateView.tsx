@@ -1,6 +1,6 @@
 'use client';
 
-import type { ResourceId } from '@semiont/core';
+import type { EventMap, ResourceId } from '@semiont/core';
 import { useRef, useEffect, useCallback, useMemo } from 'react';
 import { capabilitiesOf, textOffsets } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
@@ -64,7 +64,7 @@ export function AnnotateView(props: Props & TranslationSource) {
  *
  * @emits mark:requested - User requested to create annotation. Payload: { source: ResourceId, selector: Selector | Selector[], motivation: SelectionMotivation }
  * @subscribes beckon:hover - Annotation hovered. Payload: { annotationId: string | null }
- * @subscribes beckon:focus - Scroll to and highlight annotation, unless `resourceId` names a different resource. Payload: { resourceId: string, annotationId?: string }
+ * @subscribes beckon:focus - Scroll to and highlight the annotation, or to the top when it names none, unless `resourceId` names a different resource. Payload: { resourceId: string, annotationId?: string }
  */
 function AnnotateViewBody({
   content,
@@ -86,6 +86,7 @@ function AnnotateViewBody({
   renderers,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const render = capabilitiesOf(mimeType)?.render ?? 'none';
 
@@ -128,14 +129,19 @@ function AnnotateViewBody({
   // serves, so the behaviour does not depend on which view mode is active.
   // The `scrollToAnnotationId` prop path (uiState → renderer) stays as the
   // host-facing capability it is; this is the in-app producer's route.
-  // `resourceId` is a GUARD, not navigation: it names the resource this focus
-  // applies to, and a viewer showing a different one ignores it. Focus never
-  // navigates; driving the Browser to a resource is `browse:resource-open`'s job.
-  const handleAnnotationFocus = useCallback(
-    ({ annotationId, resourceId }: { annotationId?: string | null; resourceId: string }) => {
+  // A focus on another resource is not this view's: one on an annotation
+  // there is ignored, and one on the resource alone is the host's to bring
+  // forward. A focus on this resource and no annotation scrolls to its top.
+  const handleFocus = useCallback(
+    ({ annotationId, resourceId }: EventMap['beckon:focus']) => {
       if (resourceId !== resourceUri) return;
+      if (annotationId === undefined) {
+        if (!contentRef.current) return;
+        contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       if (!containerRef.current) return;
-      scrollAnnotationIntoView(annotationId ?? null, containerRef.current, { pulse: true });
+      scrollAnnotationIntoView(annotationId, containerRef.current, { pulse: true });
     },
     [resourceUri],
   );
@@ -144,7 +150,7 @@ function AnnotateViewBody({
   // props/callbacks, not the bus.
   useSessionEventSubscriptions(session, {
     'beckon:hover': handleAnnotationHover,
-    'beckon:focus': handleAnnotationFocus,
+    'beckon:focus': handleFocus,
   });
 
   // Handle text annotation with sparkle or immediate creation
@@ -271,7 +277,7 @@ function AnnotateViewBody({
           onShapeChange={handleToolbarShapeChange}
         />
       )}
-      <div className="semiont-annotate-view__content">
+      <div className="semiont-annotate-view__content" ref={contentRef}>
         <Renderer
           content={content}
           mimeType={mimeType}
