@@ -1,16 +1,16 @@
 git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c ip route | awk '/default/{print $3}'
-container logs semiont-weaver
-container logs semiont-smelter
-container logs semiont-dispatcher
-container logs semiont-librarian
-container logs semiont-archivist
-container logs semiont-qdrant
-container logs semiont-neo4j
-container logs semiont-gateway
-container logs semiont-keycloak
-container logs semiont-nats
-container logs semiont-postgres
+container logs semiont-example.github.io-test-kb-weaver
+container logs semiont-example.github.io-test-kb-smelter
+container logs semiont-example.github.io-test-kb-dispatcher
+container logs semiont-example.github.io-test-kb-librarian
+container logs semiont-example.github.io-test-kb-archivist
+container logs semiont-example.github.io-test-kb-qdrant
+container logs semiont-example.github.io-test-kb-neo4j
+container logs semiont-example.github.io-test-kb-gateway
+container logs semiont-example.github.io-test-kb-keycloak
+container logs semiont-example.github.io-test-kb-nats
+container logs semiont-example.github.io-test-kb-postgres
 container list -a
 lsof -nP -iTCP:7474 -sTCP:LISTEN
 ps -p 12345 -o comm=

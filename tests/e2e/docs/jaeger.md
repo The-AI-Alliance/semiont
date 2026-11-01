@@ -90,18 +90,23 @@ and writes a `<container>.log` slice into the test's output directory.
 python3 tests/e2e/scripts/slice-container-logs.py
 ```
 
-That writes `semiont-gateway.log`, `semiont-worker.log`, and
-`semiont-smelter.log` (when each has events in the test window) into
+That writes `semiont-<kb>-gateway.log`, `semiont-worker.log`, and
+`semiont-<kb>-smelter.log` (when each has events in the test window) into
 every test directory next to the existing Jaeger artifacts. Combined
 with the `jaeger-*.json` artifacts and the Playwright trace.zip, a
 failing test's directory ends up with the full cross-process record.
 
 Defaults:
 
-- **Containers**: `semiont-gateway,semiont-worker,semiont-smelter`. The
-  Browser container is omitted because its log format is mostly
-  unstructured stdout without timestamps. Override with
-  `--containers <comma-list>`.
+- **Containers**: `gateway,worker,smelter`. A bare product is the one
+  container named `semiont-<product>` (the machine's, such as the
+  worker) or `semiont-<kb>-<product>` (a knowledge base's, where `<kb>`
+  is its did:web domain made safe for a name:
+  [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names)).
+  With several knowledge bases running, a bare product matches several
+  and is skipped. The Browser container is omitted because its log
+  format is mostly unstructured stdout without timestamps. Override
+  with `--containers <comma-list>` of products or full names.
 - **Filtering**: lines whose JSON `timestamp` is in the test window.
   Lines without a parseable timestamp (boot banners, panic dumps) are
   dropped — pass `--keep-full` to also write the verbatim

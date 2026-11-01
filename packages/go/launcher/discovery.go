@@ -50,10 +50,10 @@ func writeDiscovery(ss *StackSet) {
 	// localhost:4000, the Browser renders the user's own KB under the other
 	// repo's name.
 	//
-	// The local stack is published first and wins the address: `start`
-	// verified the port was free and its containers bound it, which is the
-	// strongest claim available here. A codespace forward must then prove it
-	// still exists.
+	// The local stacks are published first and win their addresses: each
+	// `start` verified its port was free, refused one another local stack
+	// claims, and its containers bound it, which is the strongest claim
+	// available here. A codespace forward must then prove it still exists.
 	// `did` is REQUIRED in the schema, so an entry without one cannot be
 	// published at all. `start` refuses a KB that declares no site.domain,
 	// which is where a user gets a fix-it they can act on; these guards are
@@ -61,7 +61,11 @@ func writeDiscovery(ss *StackSet) {
 	// without one is in the set.
 	claimed := map[int]bool{}
 	kbs := []DiscoveredKB{}
-	if st := ss.Stacks["local"]; st != nil && st.KBDid != "" {
+	roots := loadRoots().Roots
+	for _, st := range localStacks(ss) {
+		if st.KBDid == "" {
+			continue
+		}
 		e := DiscoveredKB{Host: "localhost", Port: 4000, Placement: DiscoveredKBPlacementLocal,
 			Did: st.KBDid, ManagedBy: "semiont-launcher"}
 		// The gateway endpoint carries the real port when the config moved it.
@@ -70,10 +74,13 @@ func writeDiscovery(ss *StackSet) {
 				e.Port = p
 			}
 		}
+		if claimed[e.Port] {
+			continue // a stale record of a port another local stack holds
+		}
 		// The site name the start recorded on the root's row, as the did is
 		// the one it recorded on the stack: what was started, not what the
 		// tree says now.
-		for _, r := range loadRoots().Roots {
+		for _, r := range roots {
 			if r.Path == st.KBRoot && r.SiteName != "" {
 				e.SiteName = opt(r.SiteName)
 			}

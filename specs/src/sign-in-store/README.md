@@ -16,7 +16,7 @@ under the key of the stack it is for:
 
 | Key | The stack |
 |---|---|
-| `local` | the machine's one local stack |
+| `local:<did-key>` | the local stack of the knowledge base whose did:web is `did:web:<domain>`: `<did-key>` is `<domain>` with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-` (`did:web:example.org:my-kb` is `local:example.org-my-kb`) |
 | `codespace:<owner>/<name>` | the codespace stack of that repository |
 
 The keys are the launcher's stack keys, as in its `stack.json`. An SDK

@@ -36,8 +36,9 @@ Options:
                        a resource's scope carries)
   --scope <resourceId> Subscribe to one resource's scoped channels
   --json               Print each event as raw JSON
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 
 Requires a session:  semiont login
@@ -66,6 +67,7 @@ func Listen(args []string) int {
 	var channels []bus.Channel
 	var scope, repo string
 	asJSON, wantLocal := false, false
+	rootFlag := ""
 
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -89,6 +91,8 @@ func Listen(args []string) int {
 			scope, ok = val()
 		case "--repo":
 			repo, ok = val()
+		case "--root":
+			rootFlag, ok = val()
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
@@ -134,7 +138,7 @@ func Listen(args []string) int {
 	if scope == "" {
 		global = channels
 	}
-	sess, ok := launcher.VerbSession(u, "listen", repo, wantLocal, global...)
+	sess, ok := launcher.VerbSession(u, "listen", repo, rootFlag, wantLocal, global...)
 	if !ok {
 		return 1
 	}

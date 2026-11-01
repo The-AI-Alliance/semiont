@@ -200,18 +200,18 @@ func secretSourcesCmd(u *UI, args []string) int {
 			u.Fail("Usage: semiont settings secret rm <VAR>")
 			return 1
 		}
-		reg, err := readRoots()
-		if err != nil {
-			u.Fail("%v", err)
-			return 1
-		}
-		if _, ok := reg.Secrets[args[1]]; !ok {
-			u.Fail("No secret source registered for %s.", args[1])
-			return 1
-		}
-		delete(reg.Secrets, args[1])
-		if err := writeRoots(reg); err != nil {
+		registered := true
+		if err := changeRoots(func(reg *rootsRegistry) error {
+			if _, registered = reg.Secrets[args[1]]; registered {
+				delete(reg.Secrets, args[1])
+			}
+			return nil
+		}); err != nil {
 			u.Fail("Forgetting the source: %v", err)
+			return 1
+		}
+		if !registered {
+			u.Fail("No secret source registered for %s.", args[1])
 			return 1
 		}
 		u.Ok("Forgot the source for %s.", args[1])
@@ -396,16 +396,13 @@ func storeSecret(u *UI, name string, ref secretRef) int {
 		u.Fail("Verification failed: %v", err)
 		return 1
 	}
-	reg, err := readRoots()
-	if err != nil {
-		u.Fail("%v", err)
-		return 1
-	}
-	if reg.Secrets == nil {
-		reg.Secrets = map[string]secretRef{}
-	}
-	reg.Secrets[name] = ref
-	if err := writeRoots(reg); err != nil {
+	if err := changeRoots(func(reg *rootsRegistry) error {
+		if reg.Secrets == nil {
+			reg.Secrets = map[string]secretRef{}
+		}
+		reg.Secrets[name] = ref
+		return nil
+	}); err != nil {
 		u.Fail("Recording the source: %v", err)
 		return 1
 	}

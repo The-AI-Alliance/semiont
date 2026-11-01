@@ -1,10 +1,10 @@
 package launcher
 
 // stackselect.go — which recorded stack does a knowledge verb (useradd,
-// login, yield) target? One ladder, shared: explicit --repo wins; the cwd's
-// clone disambiguates; a lone stack answers for itself; anything ambiguous
-// refuses with a menu rather than guessing — acting on the wrong KB is not
-// something to do silently.
+// login, yield) target? One ladder, shared: explicit --repo or --root wins;
+// the knowledge base you stand in disambiguates; a lone stack answers for
+// itself; anything ambiguous refuses with a menu rather than guessing —
+// acting on the wrong KB is not something to do silently.
 
 import (
 	"errors"
@@ -12,61 +12,111 @@ import (
 	"os"
 )
 
-// SelectVerbStack resolves the target. (nil, true) = the local stack;
-// (non-nil, true) = that codespace stack; ok=false = refused, message
-// printed with verb-specific fix-it lines.
-func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bool) (*StackState, bool) {
-	// Nine verbs resolve their target through here, so this is also where
-	// they all learn that the record could not be read — without it every
-	// one of them would say "needs a running stack, and none is recorded"
-	// about a stack that is up.
+// SelectVerbStack resolves a verb's target: the recorded stack it acts on — a
+// codespace's when its Codespace is set, else a local one — or nil when no
+// stack is recorded and none was named, which each verb refuses in its own
+// words. ok=false = refused, message printed with verb-specific fix-it lines.
+//
+// --repo names a codespace stack and --root a local one; else the knowledge
+// base you stand in names its own; else, standing in none, the one stack
+// recorded; else, with no local stack, the codespace this clone's origin
+// names. --runtime narrows the choice to the local stacks.
+func SelectVerbStack(u *UI, verb string, ss *StackSet, repo, root string, wantLocal bool) (*StackState, bool) {
+	// Every knowledge verb resolves its target through here, so this is also
+	// where they all learn that the record could not be read — without it
+	// every one of them would say "needs a running stack, and none is
+	// recorded" about a stack that is up.
 	if ss.refuseUnreadable(u) {
 		return nil, false
 	}
-	// The contradiction check lives HERE, once — a verb that forgot it
-	// would silently resolve --repo+--runtime to the local stack (the
-	// wantLocal arm wins the switch), targeting the wrong KB.
-	if repo != "" && wantLocal {
-		u.Fail("--repo and --runtime are contradictory: one names a codespace stack, the other the local one.")
+	// The contradiction check lives HERE, once — a verb that forgot it would
+	// silently resolve one of them and ignore the other, targeting the wrong
+	// KB.
+	if repo != "" && (wantLocal || root != "") {
+		u.Fail("--repo and --root or --runtime are contradictory: one names a codespace stack, the other a local one.")
 		return nil, false
 	}
-	cs := codespaceStacks(ss)
-	local := ss.Stacks["local"]
+	if repo != "" {
+		return repoCodespaceStack(u, ss, repo)
+	}
+	if root != "" {
+		return rootLocalStack(u, ss, root)
+	}
 	cwdRoot, err := CwdKBRoot()
 	if err != nil {
 		u.Fail("%v", err)
 		return nil, false
 	}
+	locals, cs := localStacks(ss), codespaceStacks(ss)
+	// Standing in the clone whose stack is running says which: demanding a
+	// flag here would make the user restate the prompt (same rule stop and
+	// start keep).
+	for _, st := range locals {
+		if cwdRoot != "" && st.KBRoot == cwdRoot {
+			return st, true
+		}
+	}
+	// A clone whose stack is not recorded still says which, as --root would:
+	// not the lone stack of another knowledge base. Only a codespace, which
+	// that clone's origin may name, keeps the choice open.
+	if cwdRoot != "" && len(locals) > 0 && len(cs) == 0 {
+		return rootLocalStack(u, ss, cwdRoot)
+	}
+	if wantLocal {
+		cs = nil
+	}
 	switch {
-	case wantLocal:
-	case repo != "":
-		return repoCodespaceStack(u, ss, repo)
-	// Standing in the clone whose stack is running: the cwd says "local" —
-	// demanding --runtime here would make the user restate the prompt (same
-	// rule stop and start keep).
-	case local != nil && local.KBRoot != "" && local.KBRoot == cwdRoot:
-	case local != nil && len(cs) == 0:
-	case local == nil && len(cs) == 1:
+	case len(locals) == 0 && len(cs) == 0:
+		return nil, true
+	case len(locals) == 1 && len(cs) == 0:
+		return locals[0], true
+	case len(locals) == 0 && len(cs) == 1:
 		return cs[0], true
-	case local == nil && len(cs) == 0:
-	default:
-		// No local stack, several codespaces: this clone's origin may name
-		// one — the same convenience repoFromRoot gives start.
-		if local == nil {
-			if c := originCodespace(cs, cwdRoot); c != nil {
-				return c, true
-			}
+	case len(locals) == 0:
+		// Several codespaces: this clone's origin may name one — the same
+		// convenience repoFromRoot gives start.
+		if c := originCodespace(cs, cwdRoot); c != nil {
+			return c, true
 		}
-		u.Fail("Multiple stacks are recorded — say which:")
-		if local != nil {
-			fmt.Fprintf(os.Stderr, "    semiont %s --runtime %s ...   (the local stack)\n", verb, local.Runtime)
-		}
-		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    semiont %s --repo %s ...\n", verb, c.Codespace.Repo)
-		}
+	}
+	u.Fail("Multiple stacks are recorded — say which:")
+	printStackMenu(verb, "", locals, cs)
+	return nil, false
+}
+
+// printStackMenu lists the commands that name each of the stacks, for a
+// refusal to choose among them; flag is any flag the asked-for command
+// carried (stop's --delete) that the choices must repeat.
+func printStackMenu(verb, flag string, locals, cs []*StackState) {
+	for _, st := range locals {
+		fmt.Fprintf(os.Stderr, "    semiont %s --root %s%s ...\n", verb, st.KBRoot, flag)
+	}
+	for _, c := range cs {
+		fmt.Fprintf(os.Stderr, "    semiont %s --repo %s%s ...\n", verb, c.Codespace.Repo, flag)
+	}
+}
+
+// rootLocalStack: the recorded local stack of the knowledge base at root, as
+// --root names it. A machine runs one copy of a knowledge base, so the record
+// of its did is that copy's, and one running from another clone is not the
+// stack root names.
+func rootLocalStack(u *UI, ss *StackSet, root string) (*StackState, bool) {
+	dir, ident, err := resolveRootArg(root)
+	if err != nil {
+		u.Fail("%v", err)
 		return nil, false
 	}
-	return nil, true
+	st := localStack(ss, kbRoot{dir: dir, ident: ident}.key())
+	switch {
+	case st == nil:
+		u.Fail("No stack of %s is recorded (per %s).", dir, statePath())
+		fmt.Fprintln(os.Stderr, "  Start it:  semiont start --root "+dir)
+		return nil, false
+	case st.KBRoot != dir:
+		u.Fail("%s's stack runs from %s, not %s (per %s).", ident.didWeb(), st.KBRoot, dir, statePath())
+		return nil, false
+	}
+	return st, true
 }
 
 // repoCodespaceStack: the stack a --repo names — its record, or, on a miss,
@@ -136,10 +186,10 @@ func CodespaceBase(target *StackState) (string, error) {
 	return fmt.Sprintf("http://localhost:%d", cs.ForwardPort), nil
 }
 
-// ForwardedBase: the URL a verb dials for a codespace stack's KB
+// forwardedBase: the URL a verb dials for a codespace stack's KB
 // (CodespaceBase). ok=false: it cannot be reached, which was said for verb
 // with the command that restores it.
-func ForwardedBase(u *UI, target *StackState, verb string) (string, bool) {
+func forwardedBase(u *UI, target *StackState, verb string) (string, bool) {
 	base, err := CodespaceBase(target)
 	var unreachable *CodespaceUnreachable
 	if errors.As(err, &unreachable) {

@@ -13,11 +13,11 @@ import (
 // anthropic, voyage, a shared Ollama) are the legitimate blanks.
 func TestEveryContaineredDriverHasAMemoryCeiling(t *testing.T) {
 	for _, d := range serviceDescriptors {
-		if d.container == "" {
+		if d.name == "" {
 			continue
 		}
 		if d.mem == "" {
-			t.Errorf("%s/%s (%s) has no memory ceiling — it would get the runtime's silent default", d.role, d.driver, d.container)
+			t.Errorf("%s/%s (%s) has no memory ceiling — it would get the runtime's silent default", d.role, d.driver, d.name)
 		}
 		if memCeilingGB(d.mem) <= 0 {
 			t.Errorf("%s/%s ceiling %q does not parse — the preflight would undercount", d.role, d.driver, d.mem)

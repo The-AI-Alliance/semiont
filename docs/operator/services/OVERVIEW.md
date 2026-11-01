@@ -98,9 +98,9 @@ These answer liveness: the process is up and serving. The gateway's `/api/health
 
 ## The launcher's names
 
-`--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `database`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack.
+`--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `database`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack. Each of these commands acts on the knowledge base whose clone you stand in, or the one `--root <path>` names: `semiont logs --service gateway` follows that knowledge base's gateway.
 
-Containers are named `semiont-<service>` for Semiont's own, and after the product for the rest: `semiont-keycloak`, `semiont-postgres`, `semiont-nats`, `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
+Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `keycloak`, `postgres`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The machine's containers serve every knowledge base on it and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
 
 ## Related
 

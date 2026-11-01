@@ -18,7 +18,7 @@ import (
 	"golang.org/x/term"
 )
 
-const loginUsage = `Usage: semiont login [--repo <owner/name> | --runtime <rt>]
+const loginUsage = `Usage: semiont login [--repo <owner/name> | --root <path> | --runtime <rt>]
 
 Sign in to a running stack's knowledge base through the issuer it trusts,
 and store the session (launcher state home, mode 0600). The launcher asks
@@ -30,14 +30,16 @@ Sessions renew themselves from the stored refresh token; sign in again only
 when the issuer says so.
 
 Options:
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 `
 
 func Login(args []string) int {
 	u := NewUI(false)
 	repo, wantLocal := "", false
+	rootFlag := ""
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--repo":
@@ -46,6 +48,13 @@ func Login(args []string) int {
 				return 1
 			}
 			repo = args[i+1]
+			i++
+		case "--root":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --root")
+				return 1
+			}
+			rootFlag = args[i+1]
 			i++
 		case "--runtime":
 			if i+1 >= len(args) {
@@ -63,29 +72,15 @@ func Login(args []string) int {
 		}
 	}
 
-	ss := LoadStackSet()
-	target, ok := SelectVerbStack(u, "login", ss, repo, wantLocal)
+	target, ok := SelectVerbStack(u, "login", LoadStackSet(), repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}
-	base, key := "", ""
-	if target != nil {
-		if base, ok = ForwardedBase(u, target, "login"); !ok {
-			return 1
-		}
-		key = "codespace:" + target.Codespace.Repo
-	} else {
-		local := ss.Stacks["local"]
-		if local == nil {
-			u.Fail("login needs a running stack, and none is recorded.")
-			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
-			return 1
-		}
-		if base, ok = LocalBase(u, local, "login"); !ok {
-			return 1
-		}
-		key = "local"
+	base, ok := StackBase(u, target, "login")
+	if !ok {
+		return 1
 	}
+	key := StackKey(target)
 
 	ctx := context.Background()
 	issuer := semiont.Issuer{HTTP: &http.Client{Transport: launcherTransport}, Timing: semiont.DefaultTiming()}
@@ -162,9 +157,9 @@ func GatewayBase(st *StackState) (string, error) {
 	return "", &NoGatewayRecorded{}
 }
 
-// LocalBase is GatewayBase for verb. ok=false: the record names no gateway,
+// localBase is GatewayBase for verb. ok=false: the record names no gateway,
 // which was said with the command that records one.
-func LocalBase(u *UI, st *StackState, verb string) (string, bool) {
+func localBase(u *UI, st *StackState, verb string) (string, bool) {
 	base, err := GatewayBase(st)
 	if err != nil {
 		u.Fail("%v, so %s cannot reach its KB.", err, verb)

@@ -5,7 +5,9 @@
 **The HTTP entry point to a Semiont knowledge base**: the one address clients and sidecar
 services dial. It is a Rust binary built against [`specs/`](../../specs/src/openapi.json),
 which is compiled into it, and it serves on port 4000. The launcher starts it, as the
-`semiont-gateway` container, with the rest of the stack (`semiont start`).
+`semiont-<kb>-gateway` container, with the rest of the stack (`semiont start`). `<kb>` is the
+knowledge base's did:web domain made safe for a name
+([the launcher's names](../../docs/operator/services/OVERVIEW.md#the-launchers-names)).
 
 | | |
 | --- | --- |
@@ -78,7 +80,7 @@ downstream.
 For the gateway, `semiont start` resolves to roughly this:
 
 ```
-container run -d --name semiont-gateway \
+container run -d --name semiont-<kb>-gateway \
   --publish 4000:4000 \
   --memory <limit> \
   --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro \

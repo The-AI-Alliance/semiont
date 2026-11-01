@@ -54,7 +54,8 @@ sign-in rather than have an administrator guess how to split one string.
 Launcher-owned (consumed here, not forwarded):
 
   --repo <owner/name>   Target that codespace stack
-  --runtime <name>      Target the LOCAL stack (selector only, as in stop)
+  --root <path>         Target the stack of the knowledge base at path
+  --runtime <name>      Target a LOCAL stack (selector only, as in stop)
   --help, -h            Show this help
 
 Needs a started stack: the realm is reached at the issuer this KB configures,
@@ -107,10 +108,11 @@ func Useradd(args []string) int {
 	}
 
 	// Every flag is READ here — the local path acts on them directly — and
-	// every flag but --repo and --runtime is also FORWARDED, because the
-	// codespace path hands them to the codespace's own launcher. --repo and
-	// --runtime select a stack and never cross.
+	// every flag but --repo, --root and --runtime is also FORWARDED, because
+	// the codespace path hands them to the codespace's own launcher. --repo,
+	// --root and --runtime select a stack and never cross.
 	repo, wantLocal := "", false
+	rootFlag := ""
 	generate, update, wantStdin := false, false, false
 	o := useraddOpts{}
 	rest := make([]string, 0, len(args))
@@ -136,7 +138,15 @@ func Useradd(args []string) int {
 			repo = args[i+1]
 			i++
 			continue
-		case "--runtime": // selector only, mirroring stop: "the local stack"
+		case "--root":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --root")
+				return 1
+			}
+			rootFlag = args[i+1]
+			i++
+			continue
+		case "--runtime": // selector only, mirroring stop: "a local stack"
 			if i+1 >= len(args) {
 				u.Fail("Missing value for --runtime")
 				return 1
@@ -194,20 +204,14 @@ func Useradd(args []string) int {
 	// root decides the config, the issuer port and the admin password — not
 	// the current directory, which may be another knowledge base entirely.
 	stacks := LoadStackSet()
-	target, ok := SelectVerbStack(u, "useradd", stacks, repo, wantLocal)
+	target, ok := SelectVerbStack(u, "useradd", stacks, repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}
-	localRoot, localDid := "", ""
-	if target == nil {
-		if local := stacks.Stacks["local"]; local != nil {
-			localRoot, localDid = local.KBRoot, local.KBDid
-		}
-		if localRoot == "" {
-			u.Fail("No local stack is running, so there is no realm to administer.")
-			fmt.Fprintln(os.Stderr, "  Start it first:  semiont start")
-			return 1
-		}
+	if target == nil || target.Codespace == nil && target.KBRoot == "" {
+		u.Fail("No local stack is running, so there is no realm to administer.")
+		fmt.Fprintln(os.Stderr, "  Start it first:  semiont start")
+		return 1
 	}
 
 	// The password is read LAST, after every refusal this command can make.
@@ -232,16 +236,17 @@ func Useradd(args []string) int {
 	// The next steps are for a person reading a terminal. Over ssh the
 	// codespace's own launcher writes to a pipe and prints none, so the lines
 	// the person sees name the stack the way they selected it here.
-	if target != nil {
+	browser := stacks.Machine[machineContainer("browser")]
+	if target.Codespace != nil {
 		code := useraddCodespace(u, target, rest, password)
 		if code == 0 && !update && !o.inactive && !o.upsert && stdoutIsTerminal() {
-			printLines(useraddNextSteps(target, nil, stacks.Machine["semiont-browser"]))
+			printLines(useraddNextSteps(target, nil, browser))
 		}
 		return code
 	}
-	code, created := useraddLocal(u, o, password, localRoot, localDid)
+	code, created := useraddLocal(u, o, password, target.KBRoot, target.KBDid)
 	if code == 0 && created && !o.inactive && stdoutIsTerminal() {
-		printLines(useraddNextSteps(nil, stacks.Stacks["local"], stacks.Machine["semiont-browser"]))
+		printLines(useraddNextSteps(nil, target, browser))
 	}
 	return code
 }

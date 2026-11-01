@@ -32,16 +32,19 @@ dependencies on the host beyond Python (which macOS ships with).
 
 ### Streaming tails (one terminal each, or all backgrounded)
 
-One per container, filtered to errors and warnings:
+One per container, filtered to errors and warnings. The gateway and the
+smelter are the knowledge base's, `semiont-<kb>-<product>`, where `<kb>` is
+its did:web domain made safe for a name; the worker is the machine's
+([the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names)):
 
 ```sh
-container logs --follow semiont-gateway 2>&1 \
+container logs --follow semiont-<kb>-gateway 2>&1 \
   | python3 tests/e2e/scripts/log-filter.py --source gateway &
 
 container logs --follow semiont-worker 2>&1 \
   | python3 tests/e2e/scripts/log-filter.py --source worker &
 
-container logs --follow semiont-smelter 2>&1 \
+container logs --follow semiont-<kb>-smelter 2>&1 \
   | python3 tests/e2e/scripts/log-filter.py --source smelter &
 ```
 
@@ -71,9 +74,11 @@ python3 tests/e2e/scripts/snapshot.py --seconds 60 --errors-only
 # Last 5 minutes, full firehose
 python3 tests/e2e/scripts/snapshot.py --seconds 300
 
-# Override Jaeger / containers if your stack isn't local-default
+# Override Jaeger / containers if your stack isn't local-default. A bare
+# product (gateway, worker, smelter) is this machine's one container of it;
+# with several knowledge bases running, name each container in full.
 python3 tests/e2e/scripts/snapshot.py --jaeger-url http://other:16686 \
-  --containers semiont-gateway,semiont-other
+  --containers semiont-<kb>-gateway,worker,semiont-<kb>-smelter
 ```
 
 Output: per-container log lines in the window, plus per-service Jaeger

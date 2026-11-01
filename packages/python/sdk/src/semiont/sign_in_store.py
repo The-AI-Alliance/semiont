@@ -3,9 +3,10 @@
 One sign-in serves the launcher's verbs and an application built on this SDK.
 
 The launcher keeps one sign-in per stack in `<stateDir>/tokens.json`, under
-the stack's key (`local`, `codespace:<owner>/<name>`). A session reaches one
-by that key: `SignInStore(path).entry("local")` is where the session of the
-local stack's knowledge base is kept.
+the stack's key (`local:<did-key>`, `codespace:<owner>/<name>`). A session
+reaches one by that key: `SignInStore(path).entry("local:example.org-my-kb")`
+is where the session of the local stack of `did:web:example.org:my-kb` is
+kept.
 
 What is in the file was issued to the script client and is renewed as it, and
 that is the only client this SDK signs in as.

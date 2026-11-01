@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,15 +29,6 @@ func startReadsBrowserDocument(opts startOptions) bool {
 	}
 	return opts.service == "" || opts.service == "browser" || opts.service == "identity"
 }
-
-// preflightNames: the containers start's stop-then-rm sweep removes. A
-// sweep is a teardown, so it runs in teardown order — dependents first.
-//
-// The machine's containers are exempt: the telemetry, the machine's Ollama
-// and the Browser serve every KB here, and each is kept or replaced from its
-// own record by its own flow (flowMachine, flowOllama, flowBrowser). The
-// exemptions are gated by descriptor_census_test.go.
-var preflightNames = sweepNames(machineRoles...)
 
 type startOptions struct {
 	configName  string
@@ -220,7 +212,7 @@ func Start(args []string) int {
 			u.Fail("%v", rootErr)
 			return 1
 		}
-		if cs := codespaceStacks(ss); rootErr != nil && ss.Stacks["local"] == nil && len(cs) > 0 {
+		if cs := codespaceStacks(ss); rootErr != nil && len(localStacks(ss)) == 0 && len(cs) > 0 {
 			if len(cs) > 1 {
 				u.Fail("%d codespace stacks are recorded — say which:", len(cs))
 				for _, c := range cs {
@@ -318,9 +310,8 @@ func Start(args []string) int {
 	var plan *launchPlan
 	var kcPort int
 	var kcFromEnv bool
-	// The knowledge base's port block, which its first successful start
-	// keeps.
-	block, blockKept := portBlockOf(root)
+	// The knowledge base's port block, which its first start keeps.
+	block := portBlockOf(root)
 	if configNeeded {
 		if _, err := os.Stat(filepath.Join(root, stack.InferencePath(opts.configName))); err != nil {
 			u.Fail("Config not found: %s", stack.InferencePath(opts.configName))
@@ -397,7 +388,7 @@ func Start(args []string) int {
 	// staged configs out from under its live mounts. A record whose runtime
 	// is not installed is stale (that stack cannot be running) and doesn't
 	// bind anything.
-	if recSt := loadLocalState(); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
+	if recSt := localStack(LoadStackSet(), kb.key()); recSt != nil && recSt.Runtime != "" && recSt.Runtime != rt && onPath(recSt.Runtime) {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
 			rtFrom = ""
@@ -450,7 +441,7 @@ func Start(args []string) int {
 	} else {
 		u.Log("Container runtime: %s", u.Bold(rt))
 	}
-	lan, ok := startNetwork(u, rt, opts)
+	lan, ok := startNetwork(u, rt, kb, opts)
 	if !ok {
 		return 1
 	}
@@ -564,19 +555,27 @@ func Start(args []string) int {
 	if root != "" && !acquireStartLock(u, kb.key()) {
 		return 1
 	}
+	var needs []portNeed
+	if opts.service != "" {
+		needs = servicePortNeeds(opts.service, plan, browser, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
+	} else {
+		needs = planPortChecks(plan, exposure{rt: rt, lan: lan}) // full start always has a plan
+	}
+	if refuseOtherStacks(u, LoadStackSet(), kb, st, plan, needs) {
+		return 1
+	}
+	if plan != nil {
+		if err := keepPortBlock(kb, plan.Block); err != nil {
+			u.Fail("%v.", err)
+			fmt.Fprintln(os.Stderr, "  Start again: a new start plans on a block no other knowledge base keeps.")
+			return 1
+		}
+	}
 	// A codespace KB forward may squat on a port this start claims (a
 	// forward is a view, not a stack — dropping one stops nothing in the
 	// cloud). Only colliding forwards drop; concurrent KBs on allocated
 	// ports keep running.
-	if !opts.dryRun {
-		var needs []portNeed
-		if opts.service != "" {
-			needs = servicePortNeeds(opts.service, plan, browser, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
-		} else {
-			needs = planPortChecks(plan, exposure{rt: rt, lan: lan}) // full start always has a plan
-		}
-		dropCollidingForwards(u, needs)
-	}
+	dropCollidingForwards(u, needs)
 
 	// Record sticky preferences only when this start SUCCEEDED with the
 	// explicit flag: preferences are "what I actually run", so a typo'd
@@ -598,11 +597,45 @@ func Start(args []string) int {
 		if kcFromEnv {
 			recordKeycloakPort(root, kcPort)
 		}
-		if plan != nil && !blockKept {
-			recordPortBlock(root, block)
-		}
 	}
 	return code
+}
+
+// refuseOtherStacks: the refusals a start of the knowledge base kb makes on
+// the other local stacks this machine records. A machine runs one copy of a
+// knowledge base, so a record of its did from another root is that copy. And
+// no port this start claims may be one another knowledge base's stack claims:
+// the launcher gives each its own port block, but the gateway's port is the
+// knowledge base's own, committed in its documents, and two clones of one
+// template commit the same one.
+func refuseOtherStacks(u *UI, ss *StackSet, kb kbRoot, st *stack.Stack, plan *launchPlan, claims []portNeed) bool {
+	if kb.dir == "" {
+		return false
+	}
+	if rec := localStack(ss, kb.key()); rec != nil && rec.KBRoot != kb.dir {
+		u.Fail("%s is running from %s (per %s), and a machine runs one copy of a knowledge base.", kb.ident.didWeb(), rec.KBRoot, statePath())
+		fmt.Fprintln(os.Stderr, "  Stop that copy first:  semiont stop --root "+rec.KBRoot)
+		return true
+	}
+	for _, other := range localStacks(ss) {
+		if StackKey(other) == localStackKey(kb.key()) {
+			continue
+		}
+		for _, c := range claims {
+			if !slices.Contains(other.Ports, c.port) {
+				continue
+			}
+			u.Fail("%s's stack holds port %d, which this start claims for the %s (per %s).", other.KBRoot, c.port, c.label, statePath())
+			if plan != nil && c.port == plan.GatewayPort {
+				fmt.Fprintf(os.Stderr, "  It is this knowledge base's gateway port, committed in %s: give it a port of its own there,\n", st.Files.KnowledgeBase)
+				fmt.Fprintln(os.Stderr, "  or stop the other first:  semiont stop --root "+other.KBRoot)
+			} else {
+				fmt.Fprintln(os.Stderr, "  Stop it first:  semiont stop --root "+other.KBRoot)
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // startNetwork: this Mac's address on the network when the start is `network
@@ -611,12 +644,12 @@ func Start(args []string) int {
 // document that stack staged names it, and refuses a setting the running
 // stack was not started with. lan is built for Apple container alone. The
 // Browser never answers the network, so its start reads nothing.
-func startNetwork(u *UI, rt string, opts startOptions) (string, bool) {
+func startNetwork(u *UI, rt string, kb kbRoot, opts startOptions) (string, bool) {
 	if opts.service == "browser" {
 		return "", true
 	}
 	lan := networkSetting() == networkLAN
-	if rec := loadLocalState(); opts.service != "" && rec != nil && !opts.dryRun {
+	if rec := localStack(LoadStackSet(), kb.key()); opts.service != "" && rec != nil && !opts.dryRun {
 		if (rec.LanAddr != "") != lan {
 			u.Fail("The network setting is %s, and the running stack was started otherwise.", networkSetting())
 			fmt.Fprintln(os.Stderr, "  Start the whole stack to change who reaches it: semiont start")
@@ -711,7 +744,7 @@ scrape_configs:
 }
 
 func prometheusArgs(e exposure, configPath string) []string {
-	a := []string{"run", "-d", "--name", "semiont-prometheus", // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", machineContainer("metrics"), // no --rm: see providedRunArgs
 		"--memory", descriptorFor("metrics", "prometheus").mem}
 	a = append(a, e.publish("-p", "metrics", 9090, 9090)...)
 	return append(a, "--volume", configPath+":/etc/prometheus/prometheus.yml:ro",
@@ -761,7 +794,7 @@ service:
 }
 
 func collectorArgs(e exposure, configPath string) []string {
-	a := []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", machineContainer("collector"), // no --rm: see providedRunArgs
 		"--memory", descriptorFor("collector", "otel").mem}
 	a = append(a, e.publish("-p", "collector", 4318, 4318)...)
 	a = append(a, e.publish("-p", "collector", 24110, 24110)...)
@@ -770,7 +803,7 @@ func collectorArgs(e exposure, configPath string) []string {
 }
 
 func tracesArgs(e exposure) []string {
-	a := []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", machineContainer("traces"), // no --rm: see providedRunArgs
 		"--memory", descriptorFor("traces", "jaeger").mem}
 	a = append(a, e.publish("-p", "traces", 16686, 16686)...)
 	// 14318: the collector owns 4318 and exports traces here.
@@ -801,8 +834,8 @@ const kbMountTarget = "/kb"
 // never signs anything. No admin password rides in here: `semiont useradd`
 // administers the realm itself, so none sits in the container's inspectable
 // env.
-func gatewayArgs(stage string, e exposure, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
-	a := []string{"run", "-d", "--name", "semiont-gateway"} // no --rm: see providedRunArgs
+func gatewayArgs(key string, stage string, e exposure, clientSecret, jwt, img, mem string, port int, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", roleContainer("gateway", key)} // no --rm: see providedRunArgs
 	a = append(a, e.publish("--publish", "gateway", port, port)...)
 	a = append(a, "--memory", mem,
 		"--volume", stage+"/"+gatewayDocumentFile+":"+gatewayDocumentTarget+":ro")
@@ -844,8 +877,8 @@ func superviseEnv() []string {
 // Deliberately NO JWT_SECRET: it signs nothing. It authenticates as its own
 // service account at the issuer, and admits callers by verifying theirs (the
 // same fact the gateway's event read from it relies on).
-func archivistArgs(kbRoot, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
-	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
+func archivistArgs(key string, kbRoot, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", roleContainer("archivist", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "archivist", port, semiontDescriptor("archivist").ports[0].port)...)
 	a = append(a, "--volume", kbRoot+":"+kbMountTarget,
@@ -874,8 +907,8 @@ func archivistArgs(kbRoot, stage string, e exposure, port int, clientSecret, img
 // own for a Neo4j it runs), which arrive among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name. No
 // JWT_SECRET: it signs nothing. Nothing dials it.
-func librarianArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
-	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
+func librarianArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", roleContainer("librarian", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "librarian", port, semiontDescriptor("librarian").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+librarianDocumentFile+":"+librarianDocumentTarget+":ro")
@@ -899,8 +932,8 @@ func librarianArgs(stage string, e exposure, port int, clientSecret, img, mem st
 // passes to `--config`, so it is handed no *_HOST variables: the document
 // carries every address already. It keeps the issuer's host entry, because it
 // signs in at the issuer by name.
-func dispatcherArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
-	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
+func dispatcherArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
+	a := []string{"run", "-d", "--name", roleContainer("dispatcher", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "dispatcher", port, semiontDescriptor("dispatcher").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+dispatcherDocumentFile+":"+dispatcherDocumentTarget+":ro")
@@ -926,7 +959,7 @@ func dispatcherArgs(stage string, e exposure, port int, clientSecret, img, mem s
 // entry, because it signs in at a local knowledge base's issuer by name.
 func workerArgs(document string, e exposure, clientKey, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("worker").ports[0].port
-	a := []string{"run", "-d", "--name", "semiont-worker", // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", machineContainer("worker"), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "worker", port, port)...)
 	a = append(a, "--volume", document+":"+workerDocumentTarget+":ro")
@@ -952,8 +985,8 @@ func workerArgs(document string, e exposure, clientKey, img, mem string, userEnv
 // names the variable holding Voyage's key
 // (embeddingSecrets), which arrives among the user's. It keeps the issuer's
 // host entry, because it signs in at the issuer by name.
-func smelterArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
-	a := []string{"run", "-d", "--name", "semiont-smelter", // no --rm: see providedRunArgs
+func smelterArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
+	a := []string{"run", "-d", "--name", roleContainer("smelter", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "smelter", port, semiontDescriptor("smelter").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+smelterDocumentFile+":"+smelterDocumentTarget+":ro")
@@ -978,8 +1011,8 @@ func smelterArgs(stage string, e exposure, port int, clientSecret, img, mem stri
 // holding the graph database's password (graphSecrets, and the launcher's
 // own for a Neo4j it runs), which arrives among the user's. It keeps the
 // issuer's host entry, because it signs in at the issuer by name.
-func weaverArgs(stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
-	a := []string{"run", "-d", "--name", "semiont-weaver", // no --rm: see providedRunArgs
+func weaverArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
+	a := []string{"run", "-d", "--name", roleContainer("weaver", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "weaver", port, semiontDescriptor("weaver").ports[0].port)...)
 	a = append(a, "--volume", stage+"/"+weaverDocumentFile+":"+weaverDocumentTarget+":ro")
@@ -999,7 +1032,7 @@ func weaverArgs(stage string, e exposure, port int, clientSecret, img, mem strin
 // names, and is published on its document's port. Its server listens on the
 // catalog's port inside its container, whichever host port publishes it.
 func browserArgs(e exposure, doc browserDocument, img string) []string {
-	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", machineContainer("browser"), // no --rm: see providedRunArgs
 		"--memory", doc.spec.Resources.Limits.Memory}
 	a = append(a, e.publish("--publish", "browser", doc.spec.Port, semiontDescriptor("browser").defaultPort)...)
 	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
@@ -1082,10 +1115,10 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	// The machine's, whichever start ran them: --no-observe leaves running
 	// ones alone.
 	machine := LoadStackSet().Machine
-	if machine[roleContainer("traces")] != nil {
+	if machine[machineContainer("traces")] != nil {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
-	if machine[roleContainer("metrics")] != nil {
+	if machine[machineContainer("metrics")] != nil {
 		fmt.Println("  Prometheus         http://localhost:9090")
 	}
 	// The readout is the containers' (Prometheus scrapes it), published
@@ -1218,10 +1251,10 @@ func resolveHostAddr(rt string) (addr, why string) {
 	return "", why
 }
 
-// removeStagedConfigs sweeps every staging dir (stagingPattern) — shared by
-// start's preflight and semiont stop.
-func removeStagedConfigs() {
-	dirs, _ := filepath.Glob(stagingPattern())
+// removeStaged removes the staging dirs named — one knowledge base's
+// (stagedConfigs), for start's preflight and a stop of its stack, or every
+// one (stagingPattern), for a stop with no knowledge base to go by.
+func removeStaged(dirs []string) {
 	for _, d := range dirs {
 		_ = os.RemoveAll(d)
 	}

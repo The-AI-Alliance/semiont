@@ -1,6 +1,8 @@
 package launcher
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -35,56 +37,68 @@ func TestEveryImageTheLauncherNamesIsPinnedByDigest(t *testing.T) {
 // the derivation produces, name for name and position for position. Delete
 // a literal only together with the behaviour it pins.
 
-// The two sweeps are one list, asserted as a PREDICATE rather than left to a
-// reader diffing two: what start's preflight clears is what stop tears down.
-// The machine's containers, the telemetry, the machine's Ollama and the
-// Browser, are in neither: each has a record of its own, by which start keeps
-// or replaces it and stop stops it.
-func TestStopSweepIsThePreflightSweep(t *testing.T) {
-	if !slices.Equal(stopNames, preflightNames) {
-		t.Errorf("stop sweeps %v, start's preflight %v: a name in one alone survives the other", stopNames, preflightNames)
+// Every container the descriptor set can produce is in a stack's sweep —
+// what start's preflight clears and stop tears down — except the machine's,
+// each named for why: a container a stack runs that its sweep misses survives
+// the teardown, and the port check then reports it as somebody else's
+// process.
+func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
+	machine := map[string]string{
+		"worker":    "the machine's worker: kept or replaced by flowWorker, and stopped after the last stack by stopMachineServices, from its own record, since it serves every KB on its list",
+		"browser":   "not a stack member — kept open across stacks, and stopped after the last stack by stopMachineServices, from its own record",
+		"inference": "the machine's Ollama: kept or replaced in the Ollama section, where a host instance may make the container unnecessary, and stopped after the last stack, from its own record",
+		"collector": "the machine's collector: kept or replaced by flowMachine, and stopped after the last stack, from its own record, since it takes every KB's signals",
+		"metrics":   "the machine's Prometheus: kept or replaced by flowMachine, and stopped after the last stack, from its own record",
+		"traces":    "the machine's Jaeger: kept or replaced by flowMachine, and stopped after the last stack, from its own record",
 	}
-}
-
-// Every container the descriptor set can produce is swept by both lists,
-// except the documented absences. A container that reaches the preflight
-// and never reaches stop survives the teardown.
-func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
-	noPreflight := map[string]string{
-		"worker":    "the machine's worker: kept or replaced by flowWorker, from its own record, since it serves every KB on its list",
-		"browser":   "not a stack member — the preflight must not sweep a viewer kept open across stacks",
-		"inference": "the machine's Ollama: kept or replaced in the Ollama section, from its own record, where a host instance may make the container unnecessary",
-		"collector": "the machine's collector: kept or replaced by flowMachine, from its own record, since it takes every KB's signals",
-		"metrics":   "the machine's Prometheus: kept or replaced by flowMachine, from its own record",
-		"traces":    "the machine's Jaeger: kept or replaced by flowMachine, from its own record",
-	}
-	noStop := map[string]string{
-		"worker":    "the machine's worker: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
-		"browser":   "stopped after the stack by stopMachineServices, from the Browser's own record and under its own runtime",
-		"inference": "the machine's Ollama: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
-		"collector": "the machine's collector: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
-		"metrics":   "the machine's Prometheus: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
-		"traces":    "the machine's Jaeger: stopped after the stack by stopMachineServices, from its own record and under its own runtime",
-	}
+	swept := stackContainers("kb")
 	for _, d := range serviceDescriptors {
-		if d.container == "" {
+		c := d.containerName("kb")
+		if c == "" {
 			continue // this driver launches nothing (oidc, anthropic, voyage, shared Ollama)
 		}
-		if _, exempt := noPreflight[d.role]; !exempt && !contains(preflightNames, d.container) {
-			t.Errorf("%s/%s runs %s, which start's preflight never sweeps — a survivor of the last run holds its port and the start fails on it",
-				d.role, d.driver, d.container)
-		}
-		if reason, exempt := noStop[d.role]; exempt {
-			if contains(stopNames, d.container) {
-				t.Errorf("%s/%s is exempt from the stop sweep (%s), but it is listed", d.role, d.driver, reason)
+		if reason, exempt := machine[d.role]; exempt {
+			if contains(swept, c) {
+				t.Errorf("%s/%s is the machine's (%s), but a stack's sweep lists it", d.role, d.driver, reason)
+			}
+			if !machineRole(d.role) {
+				t.Errorf("%s/%s is exempt as the machine's, but machineRoles does not name it", d.role, d.driver)
 			}
 			continue
 		}
-		if !contains(stopNames, d.container) {
-			t.Errorf("%s/%s runs %s, which `semiont stop` never stops — it survives the teardown, and the port check then reports it as somebody else's process",
-				d.role, d.driver, d.container)
+		if !contains(swept, c) {
+			t.Errorf("%s/%s runs %s, which a stack's sweep never reaches — it survives the teardown",
+				d.role, d.driver, c)
 		}
 	}
+}
+
+// A machine role's container is the machine's one, whatever knowledge base
+// asks; a stack role's is named for its knowledge base, so two knowledge
+// bases' stacks never share a name. Naming a stack's container for no
+// knowledge base is a fault, not a name.
+func TestAStacksContainersAreNamedForItsKnowledgeBase(t *testing.T) {
+	for role, want := range map[string]string{
+		"database":  "semiont-example.org-kb-postgres",
+		"gateway":   "semiont-example.org-kb-gateway",
+		"identity":  "semiont-example.org-kb-keycloak",
+		"worker":    "semiont-worker",
+		"inference": "semiont-ollama",
+		"collector": "semiont-otel-collector",
+	} {
+		if got := roleContainer(role, "example.org-kb"); got != want {
+			t.Errorf("%s runs %s, want %s", role, got, want)
+		}
+	}
+	if a, b := roleContainer("database", "a"), roleContainer("database", "b"); a == b {
+		t.Errorf("two knowledge bases' databases share the name %s", a)
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("a stack's container was named for no knowledge base")
+		}
+	}()
+	roleContainer("database", "")
 }
 
 // The `--service` vocabulary, derived from the start walk: a reader meets
@@ -143,9 +157,9 @@ func TestExternalDriversCarryNoContainer(t *testing.T) {
 		if !ok {
 			t.Fatalf("no descriptor for %s/%s", pair[0], pair[1])
 		}
-		if d.container != "" || d.image != "" || d.mem != "" {
+		if d.name != "" || d.image != "" || d.mem != "" {
 			t.Errorf("%s/%s launches nothing, yet its descriptor claims container=%q image=%q mem=%q",
-				pair[0], pair[1], d.container, d.image, d.mem)
+				pair[0], pair[1], d.name, d.image, d.mem)
 		}
 	}
 }
@@ -156,11 +170,59 @@ func TestExternalDriversCarryNoContainer(t *testing.T) {
 // is the test that says so rather than letting the first row win silently.
 func TestNoRoleHasTwoContainerNames(t *testing.T) {
 	for _, role := range roleOrder {
-		if names := containersForRole(role); len(names) > 1 {
+		if names := containersForRole(role, "kb"); len(names) > 1 {
 			t.Errorf("role %q runs %v — roleContainer() would answer with %q alone; the single-handle sites (status, logs, stop --service) must take a driver",
 				role, names, names[0])
 		}
 	}
+}
+
+// The service catalog tells a reader the names `--service` takes and the
+// containers a stack runs. Each list is held to the descriptors here, so a
+// role or a container the table gains fails until the catalog names it.
+func TestTheServiceCatalogNamesWhatTheDescriptorsRun(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "operator", "services", "OVERVIEW.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, section, ok := strings.Cut(string(b), "## The launcher's names\n")
+	if !ok {
+		t.Fatal("the service catalog has no section on the launcher's names")
+	}
+	section, _, _ = strings.Cut(section, "\n## ")
+	backticked := regexp.MustCompile("`([^`]+)`")
+	named := func(after, upTo string) []string {
+		t.Helper()
+		_, rest, ok := strings.Cut(section, after)
+		if !ok {
+			t.Fatalf("the launcher's names say nothing after %q", after)
+		}
+		clause, _, _ := strings.Cut(rest, upTo)
+		var out []string
+		for _, m := range backticked.FindAllStringSubmatch(clause, -1) {
+			out = append(out, m[1])
+		}
+		slices.Sort(out)
+		return out
+	}
+	var products, machine []string
+	for _, d := range serviceDescriptors {
+		switch c := d.containerName("kb"); {
+		case c == "":
+		case machineRole(d.role):
+			machine = append(machine, c)
+		default:
+			products = append(products, d.name)
+		}
+	}
+	roles := slices.Clone(roleOrder)
+	for _, list := range []*[]string{&roles, &products, &machine} {
+		slices.Sort(*list)
+		*list = slices.Compact(*list)
+	}
+	assertNames(t, "the roles --service takes", named("takes a role name from the tables above: ", ". It takes"), roles)
+	assertNames(t, "a knowledge base's products", named("`<product>` is ", ". `<kb>`"), products)
+	assertNames(t, "the machine's containers", named("are named `semiont-<name>`: ", ".\n"), machine)
 }
 
 func assertNames(t *testing.T, what string, got, want []string) {

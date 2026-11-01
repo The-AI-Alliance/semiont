@@ -26,12 +26,12 @@ Containers run without `--rm`, deliberately: a crashed container stays inspectab
 
 ## Reaching into a container
 
-The launcher has no `exec` verb. Use your container engine; containers are named `semiont-<service>`:
+The launcher has no `exec` verb. Use your container engine. A knowledge base's containers are named `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name; the machine's, such as the worker, are `semiont-<name>` ([the launcher's names](../services/OVERVIEW.md#the-launchers-names)):
 
 ```bash
-container exec -it semiont-gateway sh        # or docker exec / podman exec
+container exec -it semiont-<kb>-gateway sh   # or docker exec / podman exec
 container ps --all | grep semiont
-container inspect semiont-gateway
+container inspect semiont-<kb>-gateway
 ```
 
 ## Common failures
@@ -106,7 +106,7 @@ A worker restarted with `semiont start --service worker` is handed the machine's
 Suspect the broker. If it is down, the gateway keeps serving and **`/api/health` stays 200**, because it does not check the broker. But every emit is refused with 503, and open streams carry no frames.
 
 ```bash
-container ps --all | grep semiont-nats
+container ps --all | grep semiont-<kb>-nats
 semiont logs --service gateway | grep -iE "BROKER-DOWN|BROKER-RECONNECTED"
 ```
 
@@ -117,8 +117,8 @@ If `semiont status` shows the stack green while emits still fail, the served-hea
 ### Database connection failures
 
 ```bash
-container ps --all | grep semiont-postgres
-container exec semiont-postgres pg_isready -U postgres
+container ps --all | grep semiont-<kb>-postgres
+container exec semiont-<kb>-postgres pg_isready -U postgres
 semiont logs --service database
 semiont logs --service identity
 ```
@@ -243,7 +243,7 @@ semiont start --service gateway
 
 ```bash
 semiont status --verbose > status.txt
-container inspect semiont-gateway > gateway-inspect.json
+container inspect semiont-<kb>-gateway > gateway-inspect.json
 semiont logs --service gateway > gateway.log 2>&1     # Ctrl-C when you have enough
 ```
 

@@ -44,8 +44,9 @@ Options:
   --resource <id>       The resource to annotate, or the one a deleted annotation
                         is on (bare)
   --json                Raw JSON reply
-  --repo <owner/name>   Target a codespace stack (default: the local stack)
-  --runtime <rt>        Target the local stack explicitly
+  --repo <owner/name>   Target a codespace stack
+  --root <path>         Target the stack of the knowledge base at path
+  --runtime <rt>        Target a local stack
   --help                Show this help
 
 ` + idsOrder + `
@@ -88,8 +89,9 @@ which it takes):
   --category <name>        tagging: a category of that schema (repeatable)
   --resource <id>          The resource to annotate (bare)
   --json                   Raw JSON completion event
-  --repo <owner/name>      Target a codespace stack (default: the local stack)
-  --runtime <rt>           Target the local stack explicitly
+  --repo <owner/name>      Target a codespace stack
+  --root <path>            Target the stack of the knowledge base at path
+  --runtime <rt>           Target a local stack
 
 ` + idsOrder + `
 
@@ -158,6 +160,7 @@ func Mark(args []string) int {
 	var resourceID, quote, prefix, suffix, bodyText, link, motivation, deleteID, repo string
 	start, end := -1, -1
 	asJSON, wantLocal := false, false
+	rootFlag := ""
 	delegate := false
 	var positional []string
 	// given: what the job flags gave, by the name of the parameter each gives.
@@ -228,6 +231,8 @@ options:
 			start, ok = num()
 		case "--end":
 			end, ok = num()
+		case "--root":
+			rootFlag, ok = val()
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
@@ -284,7 +289,7 @@ options:
 			fmt.Fprintln(os.Stderr, "  semiont mark --delegate --help")
 			return 1
 		}
-		sess, ok := launcher.VerbSession(u, "mark", repo, wantLocal, jobChannels...)
+		sess, ok := launcher.VerbSession(u, "mark", repo, rootFlag, wantLocal, jobChannels...)
 		if !ok {
 			return 1
 		}
@@ -332,7 +337,7 @@ options:
 		}
 	}
 
-	sess, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "mark", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}

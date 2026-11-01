@@ -88,8 +88,8 @@ type rootEntry struct {
 	// that set it.
 	KeycloakPort int `json:"keycloakPort,omitempty"`
 	// PortBlock: the block of ports this KB's stack is published on
-	// (portBlockOf), kept from its first successful start until `semiont
-	// forget` drops the row. Absent until then, and block 0 is a block.
+	// (portBlockOf), kept from its first start until `semiont forget` drops
+	// the row. Absent until then, and block 0 is a block.
 	PortBlock   *int      `json:"portBlock,omitempty"`
 	LastUsed    time.Time `json:"lastUsed"`
 	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
@@ -152,27 +152,26 @@ func registerRootUse(kb kbRoot, fullStart bool, config string) {
 	if rootsPath() == "" {
 		return
 	}
-	reg := loadRoots()
-	e := upsertRoot(&reg, kb)
-	if fullStart {
-		e.LastStarted = e.LastUsed
-	}
-	if config != "" {
-		e.Config = config
-	}
-	saveRoots(reg)
+	_ = changeRoots(func(reg *rootsRegistry) error {
+		e := upsertRoot(reg, kb)
+		if fullStart {
+			e.LastStarted = e.LastUsed
+		}
+		if config != "" {
+			e.Config = config
+		}
+		return nil
+	})
 }
 
 // updateRootEntry changes one root's row, creating it if absent. Unlike
 // registerRootUse it is not best-effort: `semiont settings` records what a
 // person asked for, and a setting that did not save must say so.
 func updateRootEntry(kb kbRoot, change func(*rootEntry)) error {
-	reg, err := readRoots()
-	if err != nil {
-		return err
-	}
-	change(upsertRoot(&reg, kb))
-	return writeRoots(reg)
+	return changeRoots(func(reg *rootsRegistry) error {
+		change(upsertRoot(reg, kb))
+		return nil
+	})
 }
 
 // upsertRoot: kb's row in reg, created if absent, with the identity the
@@ -217,10 +216,24 @@ func upsertRoot(reg *rootsRegistry, kb kbRoot) *rootEntry {
 	return e
 }
 
-// saveRoots writes the registry atomically. Best-effort, like every registry
-// touch: trouble here never fails the command.
-func saveRoots(reg rootsRegistry) {
-	_ = writeRoots(reg)
+// changeRoots reads the registry, applies change, and writes it, under the
+// registry's lock (exclusively), so a change made meanwhile by another
+// knowledge base's command is never written over. A registry that exists but
+// cannot be read is not rewritten as an empty one, and an error from change
+// leaves it as it was.
+func changeRoots(change func(reg *rootsRegistry) error) error {
+	var err error
+	exclusively(rootsPath(), func() {
+		reg, rerr := readRoots()
+		if rerr != nil {
+			err = rerr
+			return
+		}
+		if err = change(&reg); err == nil {
+			err = writeRoots(reg)
+		}
+	})
+	return err
 }
 
 // writeRoots writes the registry atomically, reporting failure.
@@ -251,12 +264,10 @@ func writeRoots(reg rootsRegistry) error {
 // preference it needs no root: `--service browser --runtime docker` is a
 // legitimate rootless start and still expresses the choice.
 func recordRuntimePref(rt string) {
-	reg := loadRoots()
-	if reg.Runtime == rt {
-		return
-	}
-	reg.Runtime = rt
-	saveRoots(reg)
+	_ = changeRoots(func(reg *rootsRegistry) error {
+		reg.Runtime = rt
+		return nil
+	})
 }
 
 // portStride: how far apart two knowledge bases' port blocks place one
@@ -273,9 +284,8 @@ func blockPort(port, block int) int {
 
 // portBlockOf: the block of ports the stack of the knowledge base at root is
 // published on — the one its row keeps, else the lowest no other row keeps,
-// which its first successful start keeps (recordPortBlock). kept says
-// which.
-func portBlockOf(root string) (block int, kept bool) {
+// which its first start keeps (keepPortBlock).
+func portBlockOf(root string) (block int) {
 	if abs, err := filepath.Abs(root); err == nil {
 		root = abs
 	}
@@ -285,30 +295,39 @@ func portBlockOf(root string) (block int, kept bool) {
 			continue
 		}
 		if e.Path == root {
-			return *e.PortBlock, true
+			return *e.PortBlock
 		}
 		held[*e.PortBlock] = true
 	}
 	for held[block] {
 		block++
 	}
-	return block, false
+	return block
 }
 
-// recordPortBlock keeps root's port block on its row — callers pass it only
-// after a start SUCCEEDED on it.
-func recordPortBlock(root string, block int) {
-	if abs, err := filepath.Abs(root); err == nil {
-		root = abs
+// keepPortBlock keeps block, the one this start planned on, on its knowledge
+// base's row — once the start's config held and before anything runs, under
+// the registry's lock, so two first starts cannot keep one block, and a start
+// that fails after its first container still keeps the block that container
+// is published on. It refuses, naming the root, when another root kept the
+// block after this start chose it.
+func keepPortBlock(kb kbRoot, block int) error {
+	if rootsPath() == "" {
+		return nil // no home: no registry, so no other knowledge base to keep a block from
 	}
-	reg := loadRoots()
-	for i := range reg.Roots {
-		if reg.Roots[i].Path == root {
-			reg.Roots[i].PortBlock = &block
-			saveRoots(reg)
-			return
+	path := kb.dir
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	return changeRoots(func(reg *rootsRegistry) error {
+		for _, e := range reg.Roots {
+			if e.PortBlock != nil && *e.PortBlock == block && e.Path != path {
+				return fmt.Errorf("port block %d was kept by %s's start after this start planned on it", block, e.Path)
+			}
 		}
-	}
+		upsertRoot(reg, kb).PortBlock = &block
+		return nil
+	})
 }
 
 // freeGatewayPort: the gateway port `semiont init` writes for the knowledge
@@ -364,7 +383,7 @@ func keycloakPort(u *UI, root string) (port int, source string, fromEnv, ok bool
 			return e.KeycloakPort, keycloakPortRecorded, false, true
 		}
 	}
-	block, _ := portBlockOf(root)
+	block := portBlockOf(root)
 	return blockPort(descriptorFor("identity", "keycloak").defaultPort, block), fmt.Sprintf("port block %d", block), false, true
 }
 
@@ -374,17 +393,14 @@ func recordKeycloakPort(root string, port int) {
 	if abs, err := filepath.Abs(root); err == nil {
 		root = abs
 	}
-	reg := loadRoots()
-	for i := range reg.Roots {
-		if reg.Roots[i].Path == root {
-			if reg.Roots[i].KeycloakPort == port {
-				return
+	_ = changeRoots(func(reg *rootsRegistry) error {
+		for i := range reg.Roots {
+			if reg.Roots[i].Path == root {
+				reg.Roots[i].KeycloakPort = port
 			}
-			reg.Roots[i].KeycloakPort = port
-			saveRoots(reg)
-			return
 		}
-	}
+		return nil
+	})
 }
 
 // configForRealm names the config a realm-administering command must read:
@@ -401,7 +417,7 @@ func configForRealm(root string) string {
 	if abs, err := filepath.Abs(root); err == nil {
 		root = abs
 	}
-	if st := loadLocalState(); st != nil && st.KBRoot == root && st.Config != "" {
+	if st := recordedStackOf(root); st != nil && st.Config != "" {
 		return st.Config
 	}
 	return recordedConfig(root)
@@ -606,13 +622,19 @@ func Forget(args []string) int {
 	if ss.refuseUnreadable(u) {
 		return 1
 	}
-	if st := ss.Stacks["local"]; st != nil && st.KBRoot == e.Path {
-		u.Fail("%s is the running stack's root (per %s).", e.Path, statePath())
-		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
+	if st := localStack(ss, rootKey(e.Did, e.Path)); st != nil && st.KBRoot == e.Path {
+		u.Fail("%s is a running stack's root (per %s).", e.Path, statePath())
+		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop --root "+e.Path)
 		return 1
 	}
-	reg.Roots = append(reg.Roots[:matches[0]], reg.Roots[matches[0]+1:]...)
-	saveRoots(reg)
+	if err := changeRoots(func(r *rootsRegistry) error {
+		r.Roots = slices.DeleteFunc(r.Roots, func(row rootEntry) bool { return row.Path == e.Path })
+		reg = *r
+		return nil
+	}); err != nil {
+		u.Fail("Forgetting %s: %v", e.Path, err)
+		return 1
+	}
 	u.Ok("Forgot %s — registry entry removed. No files were deleted.", e.Path)
 	// Persistent stack state is keyed by identity, not by the registry: say
 	// so when some exists, or the forgotten row's state lives on unnamed.

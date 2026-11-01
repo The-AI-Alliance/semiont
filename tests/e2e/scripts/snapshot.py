@@ -24,9 +24,10 @@ Dumps:
 Defaults:
 
 - ``--seconds 60`` — window size. Bump up for longer interactions.
-- ``--containers semiont-gateway,semiont-worker,semiont-smelter`` —
-  matches the production stack's structured-log containers. Frontend
-  is omitted (its logs are mostly unstructured static-server stdout).
+- ``--containers gateway,worker,smelter`` — the stack's structured-log
+  containers. Frontend is omitted (its logs are mostly unstructured
+  static-server stdout). Each entry is a full container name or a
+  bare product, as ``container_names.py`` resolves it.
 - ``--jaeger-url http://localhost:16686`` — local Jaeger from
   ``semiont start`` (on by default; ``--no-observe`` skips it).
   Override for non-local stacks.
@@ -41,11 +42,13 @@ import subprocess
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
+from container_names import resolve_containers
+
 ap = argparse.ArgumentParser()
 ap.add_argument('--seconds', type=int, default=60)
 ap.add_argument('--errors-only', action='store_true')
 ap.add_argument('--jaeger-url', default='http://localhost:16686')
-ap.add_argument('--containers', default='semiont-gateway,semiont-worker,semiont-smelter')
+ap.add_argument('--containers', default='gateway,worker,smelter')
 ap.add_argument('--max-lines-per-container', type=int, default=40)
 args = ap.parse_args()
 
@@ -67,8 +70,10 @@ def parse_ts(s: str) -> int | None:
     except (ValueError, AttributeError):
         return None
 
-for name in args.containers.split(','):
-    name = name.strip()
+names, skipped = resolve_containers([c.strip() for c in args.containers.split(',') if c.strip()])
+for reason in skipped:
+    print(f'\n--- {reason} ---')
+for name in names:
     print(f'\n--- {name} ---')
     try:
         raw = subprocess.run(['container', 'logs', name], capture_output=True, text=True, check=False)

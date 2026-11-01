@@ -45,8 +45,9 @@ Options:
   --limit <n>           Maximum results (default 20 with --search, 10 with
                         an annotation)
   --json                Raw JSON reply
-  --repo <owner/name>   Target a codespace stack (default: the local stack)
-  --runtime <rt>        Target the local stack explicitly
+  --repo <owner/name>   Target a codespace stack
+  --root <path>         Target the stack of the knowledge base at path
+  --runtime <rt>        Target a local stack
   --help                Show this help
 
 ` + idsOrder + `
@@ -63,6 +64,7 @@ func Match(args []string) int {
 	var search, entityType, resourceID, annotationID, repo string
 	limit := 0
 	searching, noSemantic, asJSON, wantLocal := false, false, false, false
+	rootFlag := ""
 
 options:
 	for i := 0; i < len(args); i++ {
@@ -99,6 +101,8 @@ options:
 			entityType, ok = val()
 		case "--repo":
 			repo, ok = val()
+		case "--root":
+			rootFlag, ok = val()
 		case "--runtime":
 			_, ok = val()
 			wantLocal = true
@@ -159,7 +163,7 @@ options:
 		}
 	}
 
-	sess, ok := launcher.VerbSession(u, "match", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "match", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}

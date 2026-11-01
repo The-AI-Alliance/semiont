@@ -14,8 +14,8 @@ import (
 // services by name. The concrete product behind an infra role (PostgreSQL,
 // Neo4j, …) belongs to its DRIVER, and both live in descriptors.go;
 // container names and config env vars stay at the wire level
-// (semiont-postgres, NEO4J_HOST) — they're shared contracts with every running
-// stack, local or inside a codespace.
+// (semiont-<kb>-postgres, NEO4J_HOST) — they're shared contracts with every
+// running stack, local or inside a codespace.
 
 // isConfigConsumer: is this role staged a resolved document for its start?
 // Exactly Semiont's own stack services — the same list that is pulled and
@@ -72,7 +72,7 @@ func runStartService(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEn
 // Real root for the same reason as renderStartPlan: the state path is
 // plan-time truth; the kb mount keeps its placeholder via val().
 func renderServicePlan(rt, lan string, kb kbRoot, opts startOptions, userEnv []string, st *stack.Stack, plan *launchPlan, browser browserDocument) {
-	x := &planExec{rt: rt, lan: lan}
+	x := &planExec{rt: rt, lan: lan, kb: kb}
 	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
 	x.stateHomeDocumentWrites(browser, plan)

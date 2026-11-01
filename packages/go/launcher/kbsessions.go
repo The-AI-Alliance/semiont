@@ -20,8 +20,8 @@ import (
 
 // KnowledgeBase is a stack this machine records, with a stored sign-in.
 type KnowledgeBase struct {
-	// Key is how tokens.json and stack.json key it: "local", or
-	// "codespace:<owner>/<name>".
+	// Key is how tokens.json and stack.json key it: "local:<key>" by the
+	// knowledge base's state key, or "codespace:<owner>/<name>".
 	Key string
 	// Did is the did:web the launcher recorded for it, when it recorded one.
 	Did string
@@ -68,7 +68,7 @@ func SignedInKnowledgeBases() ([]KnowledgeBase, error) {
 	}
 	var known []KnowledgeBase
 	for _, st := range ss.Stacks {
-		key := stackKey(st)
+		key := StackKey(st)
 		signIn, has := signIns[key]
 		if !has || signIn.Token == "" {
 			continue
@@ -163,7 +163,7 @@ func (h *Sessions) base(key string) (string, error) {
 // stack by that key.
 func reachedAt(ss *StackSet, key string) (string, error) {
 	for _, st := range ss.Stacks {
-		if stackKey(st) != key {
+		if StackKey(st) != key {
 			continue
 		}
 		if st.Codespace != nil {

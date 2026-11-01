@@ -107,6 +107,18 @@ semiont stop
   either is set, and the machine's containers keep theirs. A dry run plans
   on the block a start would take and keeps none. A stop with no record
   verifies every kept block's service and broker ports released.
+- **Several KBs run side by side.** Each KB's containers are named for it,
+  `semiont-<kb>-<product>` (`<kb>` is its did:web domain with each run of
+  characters outside `A-Za-z0-9._-` replaced by one `-`), and its stack is
+  recorded, and its sign-in kept, under `local:<kb>`. A start leaves every
+  other KB's stack running. It refuses a second copy of a KB that another
+  clone is running, and a port another running stack claims: two clones of
+  one template both commit gateway port 4000, so the second needs a port of
+  its own in its `knowledge-base.yaml`. The machine's containers (the worker,
+  Ollama, the Browser, the telemetry) serve every KB; `stop` stops them with
+  the last local stack. Commands act on the KB whose clone you stand in, or
+  the one `--root <path>` names, and a bare one that finds several stacks
+  and stands in none refuses, listing a command for each.
 - **The Browser is not a stack member**: it is the machine-level viewer of
   every KB, local and codespace, discovery-synced. **Its document says how it
   runs**: `stack/browser.yaml` in the state home, kind `Browser`
@@ -272,8 +284,8 @@ semiont stop
   instead.
 - **Many codespace stacks run concurrently — each forwards its KB on its
   own local port.** The record store (`stack.json`, schema 3) is a keyed
-  collection: the machine's one local stack (fixed container names keep it
-  singleton) plus one entry per codespace repo. Each
+  collection: one entry per running local knowledge base (`local:<did-key>`,
+  its containers named for it) plus one per codespace repo. Each
   codespace stack forwards TWO ports. Its KB (remote 4000) goes on local
   4000 when free, else the lowest free port above it (4001, …). Its issuer —
   `http://keycloak.localhost:<N>`, loopback here — goes `<N>:<N>`, the same
@@ -290,13 +302,15 @@ semiont stop
   KBs on allocated ports keep running. With several stacks recorded:
   `status` opens with a STACKS fleet overview (each stack's state and
   `KB localhost:<port>`) and details the lone forwarded stack (`--repo`
-  details any); bare `logs` follows the local stack, else the lone
-  codespace; bare `stop` and `useradd`
-  let the working directory disambiguate — inside the clone whose local
-  stack is running they mean local; inside a clone whose origin names a
-  recorded codespace stack (no local stack) they mean that one — and refuse
-  anywhere less certain: `--repo <owner/name>` targets a codespace stack,
-  `--runtime` the local one.
+  details any); bare `logs`, `stop`, `useradd` and the knowledge verbs
+  let the working directory disambiguate — inside a clone they mean its
+  knowledge base, as `--root` would name it, unless nothing started it and a
+  codespace stack is recorded: then, with no local stack recorded, the lone
+  codespace stack or the one the clone's origin names, and otherwise they
+  refuse and list each. Standing in no clone, a lone recorded stack answers
+  for itself. They refuse anywhere less certain:
+  `--root <path>` targets a local KB's stack, `--repo <owner/name>` a
+  codespace stack, and `--runtime` narrows the choice to local stacks.
 - Codespace preflights fail fast with fixes: `gh` missing/unauthenticated, the
   `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
   VM class. The machine list GitHub returns for a repo is filtered by the
@@ -341,9 +355,9 @@ semiont stop
   not, so a password with spaces or `$` is only a hazard on the codespace
   route). **Nothing auto-creates an account, codespace or local**: a fresh
   stack has no users, so this is how the first admin comes to exist. With
-  several stacks recorded it refuses to guess — `--repo <owner/name>` picks a
-  codespace stack, `--runtime` the local one (the same vocabulary `stop`
-  uses). `start` takes no `--email`/`--password`: a password given to it
+  several stacks recorded it refuses to guess — `--root <path>` picks a
+  local KB's stack, `--repo <owner/name>` a codespace stack (the same
+  vocabulary `stop` uses). `start` takes no `--email`/`--password`: a password given to it
   would ride into a container as an env var, readable via `inspect` for
   the stack's whole lifetime. Here it is piped to `--password-stdin` and is
   never on a command line.
@@ -424,9 +438,11 @@ semiont stop
   after teardown (runtimes release published ports asynchronously), then
   reports any survivor with its PID and process name — never kills it, since
   after the sweeps a holder is provably not a Semiont container. `start`'s
-  preflight likewise name-sweeps `semiont-*` under every installed runtime,
-  so a held port at check time means a genuinely foreign process; the error
-  names it and suggests the `kill` for you to run yourself. (There is
+  preflight likewise name-sweeps its knowledge base's containers
+  (`semiont-<kb>-*`) under every installed runtime, and refuses a port another
+  knowledge base's running stack claims, naming it; so a held port at check
+  time means a genuinely foreign process, and the error names it and suggests
+  the `kill` for you to run yourself. (There is
   deliberately no `--force-kill-ports`-style option: the launcher owns
   everything named `semiont-*` across every runtime it can see, and never
   signals anything else.)
@@ -857,7 +873,7 @@ the other clients' form. What the server does that a verb does not:
 
 - **One session for each KB, held across calls.** The KBs are the recorded
   stacks with a stored sign-in (`stack.json`, `tokens.json`); a tool's `kb`
-  argument names one by its key, `local` or `codespace:<owner>/<name>`, and
+  argument names one by its key, `local:<did-key>` or `codespace:<owner>/<name>`, and
   `kb` goes no further than choosing the client: no request to a gateway
   carries it. A session the SDK reports over ends that call, and the next one
   is refused at once, naming `semiont login`, without asking the issuer again.

@@ -44,19 +44,19 @@ func TestRuntimeFlagSplitsPlatformFromRuntime(t *testing.T) {
 // on a codespace exactly when it has a placement. Two fields could disagree;
 // one cannot.
 func TestPlatformIsDerivedFromThePlacement(t *testing.T) {
-	local := &StackState{Runtime: "container"}
+	local := &StackState{Runtime: "container", KBDid: "did:web:example.org:kb", KBRoot: "/kb"}
 	if local.platform() != platformLocal {
 		t.Errorf("a stack with no placement is %q, want local", local.platform())
 	}
-	if got := stackKey(local); got != "local" {
-		t.Errorf("stackKey = %q, want local", got)
+	if got := StackKey(local); got != "local:example.org-kb" {
+		t.Errorf("StackKey = %q, want local:example.org-kb, the knowledge base's did key", got)
 	}
 	remote := &StackState{Codespace: &codespacePlacement{Name: "cs-1", Repo: "o/n", ForwardPort: 4000}}
 	if remote.platform() != platformCodespace {
 		t.Errorf("a stack with a placement is %q, want codespace", remote.platform())
 	}
-	if got := stackKey(remote); got != "codespace:o/n" {
-		t.Errorf("stackKey = %q, want codespace:o/n", got)
+	if got := StackKey(remote); got != "codespace:o/n" {
+		t.Errorf("StackKey = %q, want codespace:o/n", got)
 	}
 	// A codespace stack names no container runtime: there is none of ours.
 	if remote.Runtime != "" {

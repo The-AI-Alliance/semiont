@@ -29,14 +29,14 @@ config:
   layout: elk
 ---
 graph TB
-    LIB["semiont-librarian<br/>Gatherer · Matcher"]
+    LIB["semiont-&lt;kb&gt;-librarian<br/>Gatherer · Matcher"]
 
     subgraph G2 [" "]
-        SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
-        WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
-        ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
-        QD["semiont-qdrant<br/>Qdrant — vector index"]
-        NEO["semiont-neo4j<br/>Neo4j — graph projection"]
+        SMELT["semiont-&lt;kb&gt;-smelter<br/>Smelter — vector pipeline"]
+        WEAVE["semiont-&lt;kb&gt;-weaver<br/>Weaver — graph pipeline"]
+        ARCH["semiont-&lt;kb&gt;-archivist<br/>Stower · Browser · CloneTokenManager"]
+        QD["semiont-&lt;kb&gt;-qdrant<br/>Qdrant — vector index"]
+        NEO["semiont-&lt;kb&gt;-neo4j<br/>Neo4j — graph projection"]
         ANCH[("anchored-text store")]
         VIEWS[("views<br/>resources/ · projections/")]
         TREE[("KB working tree<br/>content · event log · git state")]
@@ -77,7 +77,7 @@ graph TB
     style G2 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)'s state view, same grammar throughout: the librarian reads in from above, the dashed frame is the record's world — its actors, its projections, its stores — and Ollama serves embeddings and inference below. The deep-blue cylinder is the working tree — the git-tracked system of record; every purple store is derived from it. Actor placement rides the labels (Stower, Browser, and CloneTokenManager in the archivist; Gatherer and Matcher in the librarian); the bus flows that drive these actors are the sections below.
+This is the knowledge-system cut of [CONTAINER-TOPOLOGY.md](../operator/CONTAINER-TOPOLOGY.md)'s state view, same grammar throughout: the librarian reads in from above, the dashed frame is the record's world — its actors, its projections, its stores — and Ollama serves embeddings and inference below. The deep-blue cylinder is the working tree — the git-tracked system of record; every purple store is derived from it. Actor placement rides the labels (Stower, Browser, and CloneTokenManager in the archivist; Gatherer and Matcher in the librarian); the bus flows that drive these actors are the sections below. Each label begins with its container's name, where `<kb>` is the knowledge base's did:web domain made safe for a name ([the launcher's names](../operator/services/OVERVIEW.md#the-launchers-names)).
 
 ## Storage layout
 

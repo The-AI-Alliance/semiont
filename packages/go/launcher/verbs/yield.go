@@ -29,8 +29,9 @@ belongs in the repo (commit it — and the .semiont/events it creates).
 Options:
   --upload <file>      File to upload (repeatable)
   --name <title>       Resource name (single --upload only; default: filename stem)
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 
 Requires a session:  semiont login
@@ -42,6 +43,7 @@ func Yield(args []string) int {
 	var uploads, positional []string
 	var resourceID, annotationID string
 	name, repo, wantLocal := "", "", false
+	rootFlag := ""
 	delegate, asJSON := false, false
 	// given: what the job flags gave, by the name of the parameter each gives.
 	given := map[string]any{}
@@ -73,6 +75,8 @@ options:
 				ok = idValue(u, "annotation", val, &annotationID)
 			case "--repo":
 				repo, ok = val()
+			case "--root":
+				rootFlag, ok = val()
 			case "--runtime":
 				_, ok = val()
 				wantLocal = true
@@ -121,6 +125,13 @@ options:
 			}
 			repo = args[i+1]
 			i++
+		case "--root":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --root")
+				return 1
+			}
+			rootFlag = args[i+1]
+			i++
 		case "--runtime":
 			if i+1 >= len(args) {
 				u.Fail("Missing value for --runtime")
@@ -163,7 +174,7 @@ options:
 				return 1
 			}
 		}
-		sess, ok := launcher.VerbSession(u, "yield", repo, wantLocal, jobChannels...)
+		sess, ok := launcher.VerbSession(u, "yield", repo, rootFlag, wantLocal, jobChannels...)
 		if !ok {
 			return 1
 		}
@@ -179,17 +190,16 @@ options:
 		return 1
 	}
 
-	ss := launcher.LoadStackSet()
-	target, ok := launcher.SelectVerbStack(u, "yield", ss, repo, wantLocal)
+	target, ok := launcher.SelectVerbStack(u, "yield", launcher.LoadStackSet(), repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}
-	base, key, root := "", "", ""
-	if target != nil {
-		if base, ok = launcher.ForwardedBase(u, target, "yield"); !ok {
-			return 1
-		}
-		key = "codespace:" + target.Codespace.Repo
+	base, ok := launcher.StackBase(u, target, "yield")
+	if !ok {
+		return 1
+	}
+	key, root := launcher.StackKey(target), ""
+	if target.Codespace != nil {
 		// Storage URIs are repo-relative; for a codespace target the cwd's
 		// clone is the only tree that can anchor them.
 		var err error
@@ -203,17 +213,7 @@ options:
 			return 1
 		}
 	} else {
-		local := ss.Stacks["local"]
-		if local == nil {
-			u.Fail("yield needs a running stack, and none is recorded.")
-			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
-			return 1
-		}
-		if base, ok = launcher.LocalBase(u, local, "yield"); !ok {
-			return 1
-		}
-		key = "local"
-		root = local.KBRoot
+		root = target.KBRoot
 		if root == "" {
 			var err error
 			if root, err = launcher.CwdKBRoot(); err != nil {
@@ -331,8 +331,9 @@ Options:
   --task <t>           Framing: resource | answer | summary (or free text)
   --structure <s>      Shape: prose | sections | chat (or free text)
   --json               Raw JSON completion event
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
 
 ` + idsOrder + `
 

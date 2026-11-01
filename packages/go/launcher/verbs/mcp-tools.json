@@ -18,7 +18,7 @@
               "required": ["kb", "renews"],
               "additionalProperties": false,
               "properties": {
-                "kb": { "type": "string", "description": "The key a tool's `kb` names it by: `local`, or `codespace:<owner>/<name>`." },
+                "kb": { "type": "string", "description": "The key a tool's `kb` names it by: `local:<did-key>` (the knowledge base's did:web domain, `local:example.org-my-kb` for `did:web:example.org:my-kb`), or `codespace:<owner>/<name>`." },
                 "did": { "type": "string", "description": "The knowledge base's did:web, when the launcher recorded it." },
                 "root": { "type": "string", "description": "A local knowledge base's directory." },
                 "repo": { "type": "string", "description": "A codespace knowledge base's repository." },

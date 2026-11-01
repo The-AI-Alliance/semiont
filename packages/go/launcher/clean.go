@@ -101,9 +101,9 @@ func Clean(args []string) int {
 	if ss.refuseUnreadable(u) {
 		return 1
 	}
-	if st := ss.Stacks["local"]; st != nil && rootKey(st.KBDid, st.KBRoot) == key {
+	if st := localStack(ss, key); st != nil {
 		u.Fail("A recorded local stack is using this state (per %s).", statePath())
-		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
+		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop --root "+st.KBRoot)
 		return 1
 	}
 

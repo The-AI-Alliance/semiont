@@ -373,12 +373,10 @@ func recorded(u *UI, err error) bool {
 }
 
 func setRuntimePref(rt string) error {
-	reg, err := readRoots()
-	if err != nil {
-		return err
-	}
-	reg.Runtime = rt
-	return writeRoots(reg)
+	return changeRoots(func(reg *rootsRegistry) error {
+		reg.Runtime = rt
+		return nil
+	})
 }
 
 func setRuntime(u *UI, kb kbRoot, value string) bool {
@@ -516,12 +514,10 @@ func setNetwork(u *UI, kb kbRoot, value string) bool {
 func unsetNetwork(u *UI, kb kbRoot) bool { return recorded(u, setNetworkPref("")) }
 
 func setNetworkPref(network string) error {
-	reg, err := readRoots()
-	if err != nil {
-		return err
-	}
-	reg.Network = network
-	return writeRoots(reg)
+	return changeRoots(func(reg *rootsRegistry) error {
+		reg.Network = network
+		return nil
+	})
 }
 
 func unsetConfig(u *UI, kb kbRoot) bool {

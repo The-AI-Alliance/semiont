@@ -148,7 +148,7 @@ func (e exposure) containersSideNeed(role string, need portNeed, ctrPort int) []
 // outside a start. The zero exposure, which asks loopback, when no recorded
 // stack runs that root.
 func recordedExposure(key string) exposure {
-	if st := LoadStackSet().Stacks["local"]; st != nil && rootKey(st.KBDid, st.KBRoot) == key {
+	if st := localStack(LoadStackSet(), key); st != nil {
 		return st.exposure()
 	}
 	return exposure{}

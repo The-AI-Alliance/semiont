@@ -69,26 +69,18 @@ func TestTeardownIsTheStartWalkReversed(t *testing.T) {
 	}
 }
 
-// The teardown order, spelled out. It is derived rather than hand-written: a
-// hand-written list can tear the Archivist down ahead of the weaver and
-// smelter that dial it at every request — a dependency ahead of its
-// dependents. Reversing the start walk cannot make that mistake. The worker
-// is the machine's, stopped from its own record (stopMachineServices).
-func TestStopSweepDerivesTheTeardownOrder(t *testing.T) {
-	assertNames(t, "stopNames", stopNames, []string{
-		"semiont-weaver", "semiont-smelter",
-		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
-		"semiont-qdrant", "semiont-neo4j",
-		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",
-	})
-}
-
-func TestPreflightSweepDerivesTheTeardownOrder(t *testing.T) {
-	assertNames(t, "preflightNames", preflightNames, []string{
-		"semiont-weaver", "semiont-smelter",
-		"semiont-dispatcher", "semiont-librarian", "semiont-archivist",
-		"semiont-qdrant", "semiont-neo4j",
-		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres",
+// The teardown order, spelled out, of the one sweep start's preflight and
+// stop share. It is derived rather than hand-written: a hand-written list can
+// tear the Archivist down ahead of the weaver and smelter that dial it at
+// every request — a dependency ahead of its dependents. Reversing the start
+// walk cannot make that mistake. The worker is the machine's, stopped from its
+// own record (stopMachineServices).
+func TestAStacksSweepDerivesTheTeardownOrder(t *testing.T) {
+	assertNames(t, "stackContainers", stackContainers("kb"), []string{
+		"semiont-kb-weaver", "semiont-kb-smelter",
+		"semiont-kb-dispatcher", "semiont-kb-librarian", "semiont-kb-archivist",
+		"semiont-kb-qdrant", "semiont-kb-neo4j",
+		"semiont-kb-gateway", "semiont-kb-keycloak", "semiont-kb-nats", "semiont-kb-postgres",
 	})
 }
 
@@ -105,6 +97,18 @@ func TestPreflightSweepDerivesTheTeardownOrder(t *testing.T) {
 // flow's real sequence is written down. Were the flow to
 // walk the list directly, this test would become a tautology worth deleting.
 func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
+	// The fixture knowledge base's containers, and the machine's, by name.
+	ident, err := readKBIdentity(fixtureRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := rootKey(ident.didWeb(), fixtureRoot)
+	roleOf := map[string]string{}
+	for _, d := range serviceDescriptors {
+		if d.name != "" {
+			roleOf[d.containerName(key)] = d.role
+		}
+	}
 	for _, golden := range []string{
 		"start-dryrun-default.txt",
 		"start-dryrun-local.txt",
@@ -121,7 +125,7 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 				continue
 			}
 			name, _, _ := strings.Cut(rest, " ")
-			role, known := roleByContainer[name]
+			role, known := roleOf[name]
 			if !known {
 				t.Errorf("%s launches %s, which belongs to no role", golden, name)
 				continue

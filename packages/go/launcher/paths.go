@@ -12,6 +12,7 @@ package launcher
 
 import (
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -100,8 +101,36 @@ func userHome() string {
 	return home
 }
 
-// stagingPattern: every staging dir a start made, for the sweep and for what
-// status and a dry run print.
+// stagingPattern: every staging dir a start made, of every knowledge base —
+// what status prints, and what a stop with no knowledge base to go by sweeps.
 func stagingPattern() string {
 	return pathUnder(systemName(), stagingParent(), "semiont-config.*")
+}
+
+// stagingPrefix: what each staging dir a start of the knowledge base keyed key
+// makes is named with; os.MkdirTemp adds its digits.
+func stagingPrefix(key string) string {
+	return "semiont-config." + key + "."
+}
+
+// keyStagingPattern: the staging dirs of the knowledge base keyed key, as a
+// dry run says they are swept.
+func keyStagingPattern(key string) string {
+	return pathUnder(systemName(), stagingParent(), stagingPrefix(key)+"*")
+}
+
+// stagedConfigs: the staging dirs a start of the knowledge base keyed key made.
+// A key may begin another's ("example.org" and "example.org.uk"), so a dir is
+// this key's only when what follows its prefix is MkdirTemp's digits alone:
+// another knowledge base's staged documents are live mounts of its running
+// stack.
+func stagedConfigs(key string) []string {
+	dirs, _ := filepath.Glob(keyStagingPattern(key))
+	var out []string
+	for _, d := range dirs {
+		if rest := strings.TrimPrefix(filepath.Base(d), stagingPrefix(key)); rest != "" && strings.Trim(rest, "0123456789") == "" {
+			out = append(out, d)
+		}
+	}
+	return out
 }

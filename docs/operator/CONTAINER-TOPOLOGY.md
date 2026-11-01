@@ -13,6 +13,8 @@ A stack the launcher runs, on the documents `semiont init` writes, is:
 - **six infrastructure containers**: Keycloak and its PostgreSQL, NATS, Neo4j, Qdrant and Ollama (none for Ollama when one is installed on the machine);
 - **three for telemetry**: the OpenTelemetry Collector, Jaeger and Prometheus. `--no-observe` leaves out the last two; the collector still runs.
 
+A knowledge base's containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. The Browser, the worker, Ollama and the three for telemetry are the machine's: they serve every knowledge base on it and are named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
+
 Semiont's eight are published images that a stack pulls and configures at run time. Nothing about a knowledge base is built into them ([Container Images](administration/IMAGES.md)).
 
 ### Who talks to whom
@@ -29,16 +31,16 @@ graph TB
     end
 
     BROWSERC["semiont-browser<br/>static SPA server"]
-    GW["semiont-gateway<br/>bus hub · token verifier · content proxy"]
-    KC["semiont-keycloak<br/>the issuer this KB trusts"]
+    GW["semiont-&lt;kb&gt;-gateway<br/>bus hub · token verifier · content proxy"]
+    KC["semiont-&lt;kb&gt;-keycloak<br/>the issuer this KB trusts"]
 
     subgraph SERVICES ["services — each its own service account"]
-        LIB["semiont-librarian<br/>Gatherer · Matcher"]
+        LIB["semiont-&lt;kb&gt;-librarian<br/>Gatherer · Matcher"]
         WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
-        SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
-        WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
-        ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
-        DISP["semiont-dispatcher<br/>owns the job queue · answers job:*"]
+        SMELT["semiont-&lt;kb&gt;-smelter<br/>Smelter — vector pipeline"]
+        WEAVE["semiont-&lt;kb&gt;-weaver<br/>Weaver — graph pipeline"]
+        ARCH["semiont-&lt;kb&gt;-archivist<br/>Stower · Browser · CloneTokenManager"]
+        DISP["semiont-&lt;kb&gt;-dispatcher<br/>owns the job queue · answers job:*"]
     end
 
     USER -->|assets| BROWSERC
@@ -102,30 +104,30 @@ config:
 ---
 graph TB
     subgraph G1 ["control plane"]
-        GW["semiont-gateway<br/>bus hub · token verifier · content proxy"]
-        DISP["semiont-dispatcher<br/>owns the job queue · answers job:*"]
-        NATS["semiont-nats<br/>messaging — core subjects · JetStream"]
+        GW["semiont-&lt;kb&gt;-gateway<br/>bus hub · token verifier · content proxy"]
+        DISP["semiont-&lt;kb&gt;-dispatcher<br/>owns the job queue · answers job:*"]
+        NATS["semiont-&lt;kb&gt;-nats<br/>messaging — core subjects · JetStream"]
         JS[("job queue<br/>KV bucket jobs · stream JOBS")]
         SIG[("signal tables<br/>KV ledger_* · streams_held")]
     end
 
     subgraph G4 ["identity"]
-        KC["semiont-keycloak<br/>identity — the issuer this KB trusts"]
-        PG["semiont-postgres<br/>PostgreSQL — Keycloak's realm"]
+        KC["semiont-&lt;kb&gt;-keycloak<br/>identity — the issuer this KB trusts"]
+        PG["semiont-&lt;kb&gt;-postgres<br/>PostgreSQL — Keycloak's realm"]
     end
 
     subgraph G2 ["knowledge system"]
-        ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
+        ARCH["semiont-&lt;kb&gt;-archivist<br/>Stower · Browser · CloneTokenManager"]
         TREE[("KB working tree<br/>content · event log · git state")]
         VIEWS[("views<br/>resources/ · projections/")]
         ANCH[("anchored-text store")]
-        WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
-        SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
-        NEO["semiont-neo4j<br/>Neo4j — graph projection"]
-        QD["semiont-qdrant<br/>Qdrant — vector index"]
+        WEAVE["semiont-&lt;kb&gt;-weaver<br/>Weaver — graph pipeline"]
+        SMELT["semiont-&lt;kb&gt;-smelter<br/>Smelter — vector pipeline"]
+        NEO["semiont-&lt;kb&gt;-neo4j<br/>Neo4j — graph projection"]
+        QD["semiont-&lt;kb&gt;-qdrant<br/>Qdrant — vector index"]
     end
 
-    LIB["semiont-librarian<br/>Gatherer · Matcher"]
+    LIB["semiont-&lt;kb&gt;-librarian<br/>Gatherer · Matcher"]
     OL["semiont-ollama<br/>Ollama — embeddings · local inference"]
 
     subgraph G3 ["worker — any host that reaches the gateway"]
@@ -218,8 +220,8 @@ The second diagram draws the mounts; this table states the rule. Every store is 
 | Container | `/kb` (git tree) | anchored-text | state (views) |
 |---|---|---|---|
 | archivist | **rw — sole owner** | **rw — sole owner**: writes what the smelter stores on its HTTP surface | **rw — sole owner, stamp holder**: writes views |
-| gateway | — | — | — (its signal tables are JetStream on `semiont-nats`, not a mount) |
-| dispatcher | — | — | — (the job queue is JetStream on `semiont-nats`, not a mount) |
+| gateway | — | — | — (its signal tables are JetStream on `semiont-<kb>-nats`, not a mount) |
+| dispatcher | — | — | — (the job queue is JetStream on `semiont-<kb>-nats`, not a mount) |
 | librarian | — | — | — (reads what the record holds on the bus) |
 | smelter | — | — (keeps its entries on the archivist's HTTP surface) | — |
 | worker · weaver · browser | — | — | — |

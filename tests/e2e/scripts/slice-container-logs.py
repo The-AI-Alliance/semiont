@@ -4,10 +4,13 @@ Host-side post-process for e2e container logs.
 
 Walks ``tests/e2e/test-results/<test-dir>/jaeger-summary.json``, reads
 each test's ``startedAtIso`` / ``endedAtIso`` window, dumps logs from
-each configured container (default: semiont-gateway, semiont-worker,
-semiont-smelter) via ``container logs``, filters lines whose JSON
-``timestamp`` falls inside the window, and writes a ``<container>.log``
-slice into the test's output directory.
+each configured container (default: gateway, worker, smelter) via
+``container logs``, filters lines whose JSON ``timestamp`` falls inside
+the window, and writes a ``<container>.log`` slice into the test's
+output directory.
+
+Each ``--containers`` entry is a full container name or a bare product,
+as ``container_names.py`` resolves it.
 
 Why a host-side post-process? Apple Container's CLI is not reachable
 from inside the Playwright container that runs the tests, so per-test
@@ -23,7 +26,7 @@ Usage::
     # Override the test-results root or container list
     python3 tests/e2e/scripts/slice-container-logs.py \\
         --results-dir tests/e2e/test-results \\
-        --containers semiont-gateway,semiont-worker,semiont-smelter
+        --containers semiont-example.org-my-kb-gateway,worker
 
 Limitations
 -----------
@@ -58,6 +61,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from container_names import resolve_containers
+
 
 def parse_args() -> argparse.Namespace:
     here = Path(__file__).resolve().parent
@@ -65,8 +70,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--results-dir', type=Path, default=default_results_dir,
                    help='Playwright test-results root (default: tests/e2e/test-results)')
-    p.add_argument('--containers', default='semiont-gateway,semiont-worker,semiont-smelter',
-                   help='Comma-separated container names to slice (default: gateway, worker, smelter)')
+    p.add_argument('--containers', default='gateway,worker,smelter',
+                   help='Comma-separated containers to slice: full names (semiont-…) or bare products (default: gateway,worker,smelter)')
     p.add_argument('--max-lines', type=int, default=0,
                    help='If >0, pass `-n N` to `container logs` to cap the dump from the tail')
     p.add_argument('--keep-full', action='store_true',
@@ -139,7 +144,9 @@ def parse_iso_to_ms(iso: str | None) -> int | None:
 
 def main() -> int:
     args = parse_args()
-    containers = [c.strip() for c in args.containers.split(',') if c.strip()]
+    containers, skipped = resolve_containers([c.strip() for c in args.containers.split(',') if c.strip()])
+    for reason in skipped:
+        sys.stderr.write(f'[slice-logs] {reason}\n')
 
     test_dirs = list_test_dirs(args.results_dir)
     if not test_dirs:

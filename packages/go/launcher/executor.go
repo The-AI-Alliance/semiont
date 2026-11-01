@@ -29,7 +29,7 @@ type stager interface {
 	stageOne(svc string, fc flowCtx, addr string) (string, bool) // one service's configuration document, written afresh
 	stageRealm(realm string, doc []byte) (string, bool)          // the realm file Keycloak imports; returns its staged path
 	stageNatsConf(doc []byte) (string, bool)                     // the broker's authorization block (no secret in it); returns its staged path
-	sweepStaging()                                               // /tmp/semiont-config.* removal (+ state forget)
+	sweepStaging()                                               // this KB's /tmp/semiont-config.<key>.* removal (+ its record forgotten)
 	machineConfigCurrent(file, want string) bool                 // whether the machine container's config file says want, byte for byte
 	writeMachineConfig(file, content string) (string, bool)      // a machine container's config, outside every stack's staging; returns its path
 }
@@ -323,8 +323,8 @@ func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 }
 
 func (x *liveExec) sweepStaging() {
-	removeStagedConfigs()
-	forgetStack("local") // codespace stacks' records are not ours to erase
+	removeStaged(stagedConfigs(x.kb.key()))
+	forgetStack(localStackKey(x.kb.key())) // other stacks' records are not ours to erase
 }
 
 func (x *liveExec) portChecks(ports []portNeed) bool {
@@ -344,7 +344,7 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 		return
 	}
 	if x.st == nil {
-		x.st = loadLocalState()
+		x.st = localStack(LoadStackSet(), x.kb.key())
 		if x.st == nil {
 			x.st = &StackState{
 				Runtime: x.rt, KBRoot: x.kb.dir, KBDid: x.kb.ident.didWeb(),
@@ -372,7 +372,7 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 // owner and mode, and the containers read them as their own users (Keycloak as
 // uid 1000); a 0600 file would be readable only when the uids happen to match.
 func (x *liveExec) stageDir() (string, bool) {
-	stage, err := os.MkdirTemp(stagingParent(), "semiont-config.")
+	stage, err := os.MkdirTemp(stagingParent(), stagingPrefix(x.kb.key()))
 	if err != nil {
 		x.u.Fail("Cannot create config staging dir: %v", err)
 		return "", false
@@ -543,7 +543,7 @@ func (x *liveExec) waitTCP(label, pollHost, addr string, port, seconds int) (tim
 }
 
 func (x *liveExec) waitPGAccepting(seconds int) bool {
-	return waitPGAccepting(x.u, x.rt, descriptorFor("database", "postgres").container, seconds)
+	return waitPGAccepting(x.u, x.rt, roleContainer("database", x.kb.key()), seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -707,7 +707,7 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 // makes a recovered start look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
-	args := []string{"exec", "-i", descriptorFor("database", "postgres").container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	args := []string{"exec", "-i", roleContainer("database", x.kb.key()), "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
 	x.u.EchoCmd(x.rt, args...)
 	var err error
 	var out string
@@ -739,7 +739,7 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 	}
 	container := ""
 	if provided == providedLauncher {
-		container = descriptorFor(role, driver).container
+		container = descriptorFor(role, driver).containerName(x.kb.key())
 	}
 	x.stack().recordService(role, container, id, image, provided, endpoint, driver, models)
 }
@@ -757,7 +757,7 @@ func (x *liveExec) servedByMachine(role, container, endpoint, driver string) {
 // metadata.
 func (x *liveExec) stack() *StackState {
 	if x.st == nil {
-		x.st = loadLocalState()
+		x.st = localStack(LoadStackSet(), x.kb.key())
 		if x.st == nil {
 			x.st = &StackState{
 				Runtime: x.rt, KBRoot: x.kb.dir, KBDid: x.kb.ident.didWeb(),
@@ -781,7 +781,7 @@ func (x *liveExec) issuerProxy(listen, upstream, realm string) bool {
 	return true
 }
 
-func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u) }
+func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u, x.kb.key()) }
 
 // recorded reads back how an earlier step in THIS run resolved a role.
 // The host-Ollama-vs-container decision is made at runtime, not in the plan,
@@ -836,7 +836,7 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 // Warns rather than refusing: the stack runs without the admin, and only those
 // two commands need it — but they will be refused, and this says why first.
 func (x *liveExec) openAdminToThisMachine(password string) {
-	args := append([]string{"exec", "--env", "KC_CLI_PASSWORD", roleContainer("identity")}, masterRealmOverHTTP()...)
+	args := append([]string{"exec", "--env", "KC_CLI_PASSWORD", roleContainer("identity", x.kb.key())}, masterRealmOverHTTP()...)
 	x.u.EchoCmd(x.rt, args...)
 	out, err := runCapturedWithEnv([]string{"KC_CLI_PASSWORD=" + password}, x.rt, args...)
 	if err != nil {
@@ -1204,6 +1204,7 @@ type planExec struct {
 	rt string
 	// lan: "<lan-addr>" for a `network lan` start, else empty (startNetwork).
 	lan string
+	kb  kbRoot // the KB root and its identity; zero for root-free services
 }
 
 func (x *planExec) p(args ...string)          { fmt.Println(renderCmd(x.rt, args...)) }
@@ -1217,7 +1218,7 @@ func (x *planExec) stopRm(name string) bool { x.p("stop", name); x.p("rm", name)
 // this runtime alone, as stopRm prints it.
 func (x *planExec) stopMachine(name string, _ *ServiceState) bool { return x.stopRm(name) }
 func (x *planExec) settle(...int)                                 {} // plan mode tears nothing down
-func (x *planExec) sweepStaging()                                 { x.c("remove staged configs: %s", stagingPattern()) }
+func (x *planExec) sweepStaging()                                 { x.c("remove staged configs: %s", keyStagingPattern(x.kb.key())) }
 
 func (x *planExec) sweepStray(names []string) bool {
 	for _, rt := range installedRuntimes() {
@@ -1324,7 +1325,7 @@ func (x *planExec) waitHTTP(_, _, url string, seconds int) (time.Duration, bool)
 
 func (x *planExec) waitPGAccepting(seconds int) bool {
 	x.c("wait: %s exec %s pg_isready -h 127.0.0.1 (%ds) — the REAL server; initdb's temporary one answers the socket only",
-		x.rt, descriptorFor("database", "postgres").container, seconds)
+		x.rt, roleContainer("database", x.kb.key()), seconds)
 	return true
 }
 
@@ -1429,7 +1430,7 @@ func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
 }
 
 func (x *planExec) createDatabase(user, name string) bool {
-	x.c("create database %s on PostgreSQL if absent: %s exec -i semiont-postgres psql -U %s (SQL on stdin)", name, x.rt, user)
+	x.c("create database %s on PostgreSQL if absent: %s exec -i %s psql -U %s (SQL on stdin)", name, x.rt, roleContainer("database", x.kb.key()), user)
 	return true
 }
 
@@ -1504,7 +1505,7 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, accounts realm
 
 func (x *planExec) openAdminToThisMachine(string) {
 	x.c("open Keycloak's admin to this machine over HTTP: %s exec --env KC_CLI_PASSWORD %s %s",
-		x.rt, roleContainer("identity"), strings.Join(masterRealmOverHTTP(), " "))
+		x.rt, roleContainer("identity", x.kb.key()), strings.Join(masterRealmOverHTTP(), " "))
 }
 
 // --dry-run reaches for nothing; name the query a real run would make.

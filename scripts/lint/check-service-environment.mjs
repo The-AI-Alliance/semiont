@@ -28,9 +28,9 @@ const SUPERVISOR = 'scripts/container/supervise.sh';
 
 /** Each service the table covers: its crate, its image, and its suite. */
 const SERVICES = [
-  { name: 'gateway', crate: 'images/gateway', container: 'semiont-gateway', dockerfile: 'images/gateway/Dockerfile', cases: 'tests/conformance/gateway' },
-  { name: 'dispatcher', crate: 'images/dispatcher', container: 'semiont-dispatcher', dockerfile: 'images/dispatcher/Dockerfile', cases: 'tests/conformance/dispatcher' },
-  { name: 'archivist', crate: 'images/archivist', container: 'semiont-archivist', dockerfile: 'images/archivist/Dockerfile', cases: 'tests/conformance/archivist' },
+  { name: 'gateway', crate: 'images/gateway', dockerfile: 'images/gateway/Dockerfile', cases: 'tests/conformance/gateway' },
+  { name: 'dispatcher', crate: 'images/dispatcher', dockerfile: 'images/dispatcher/Dockerfile', cases: 'tests/conformance/dispatcher' },
+  { name: 'archivist', crate: 'images/archivist', dockerfile: 'images/archivist/Dockerfile', cases: 'tests/conformance/archivist' },
 ];
 
 const READERS = new Set(['service', 'opentelemetry']);
@@ -148,8 +148,10 @@ for (const service of SERVICES) {
   }
 
   // ── 2. provision ──────────────────────────────────────────────────────────
-  const line = goldenLines.find((l) => l.includes(`--name ${service.container} `));
-  if (!line) fail(`${BOOT_GOLDEN} has no ${service.container} line`);
+  // A knowledge base's container is named semiont-<its did key>-<service>.
+  const named = new RegExp(`--name semiont-\\S+-${service.name} `);
+  const line = goldenLines.find((l) => named.test(l));
+  if (!line) fail(`${BOOT_GOLDEN} has no line running the ${service.name}'s container`);
   // Passed either with its value (`--env NAME=value`) or, for a secret, by name alone: the value
   // crosses through the runtime command's own environment, never the command line, so the
   // golden shows `--env NAME`.

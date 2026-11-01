@@ -86,6 +86,8 @@ Each knowledge base on this Mac has a port block of its own. Its first start tak
 
 Each start says where it publishes each service as it comes up.
 
+Several knowledge bases run at once. Each one's containers are named for it ([the launcher's names](services/OVERVIEW.md#the-launchers-names)), and a start leaves every other knowledge base's stack running. A start refuses a second copy of a knowledge base another clone is running, and a port another running knowledge base's stack holds: two clones of one template both commit gateway port 4000, so give the second a port of its own in its `knowledge-base.yaml`. `semiont stop` in a clone stops that knowledge base's stack, and the machine's containers with the last one; `--root <path>` names a knowledge base from anywhere.
+
 Where each port listens depends on the container runtime:
 
 - **Apple `container`:** what you open listens on `127.0.0.1`. What the containers dial listens on the bridge address, `192.168.64.1`, which answers this Mac and its containers and refuses other machines: the databases, the broker, the vector store, the collector and Jaeger's OTLP port, a containerized Ollama, the services' own ports, and Keycloak, whose address is the bridge address so that you and the containers sign in at the same URL, `http://192.168.64.1:8080`. The gateway and Neo4j's bolt port, which you and the containers both dial, take a second port on the bridge address, 10000 above their own: 14000 and 17687. So does the Browser, at 13000, for a browser that runs in a container, as the end-to-end suite's does.

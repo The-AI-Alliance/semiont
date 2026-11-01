@@ -30,8 +30,9 @@ Options:
   --no-content         Omit resource content (metadata only)
   --summary            Include summaries
   --json               Raw JSON reply instead of a summary
-  --repo <owner/name>  Target a codespace stack (default: the local stack)
-  --runtime <rt>       Target the local stack explicitly
+  --repo <owner/name>  Target a codespace stack
+  --root <path>        Target the stack of the knowledge base at path
+  --runtime <rt>       Target a local stack
   --help               Show this help
 
 ` + idsOrder + `
@@ -57,6 +58,7 @@ func Gather(args []string) int {
 	var resourceID, annotationID, repo string
 	depth, maxResources, contextWindow := gatherDefaultDepth, gatherDefaultMaxResources, 0
 	noContent, summary, asJSON, wantLocal := false, false, false, false
+	rootFlag := ""
 
 options:
 	for i := 0; i < len(args); i++ {
@@ -116,6 +118,13 @@ options:
 			}
 			i++
 			repo = args[i]
+		case "--root":
+			if i+1 >= len(args) {
+				u.Fail("Missing value for --root")
+				return 1
+			}
+			rootFlag = args[i+1]
+			i++
 		case "--runtime":
 			if i+1 >= len(args) {
 				u.Fail("Missing value for --runtime")
@@ -161,7 +170,7 @@ options:
 		}
 	}
 
-	sess, ok := launcher.VerbSession(u, "gather", repo, wantLocal)
+	sess, ok := launcher.VerbSession(u, "gather", repo, rootFlag, wantLocal)
 	if !ok {
 		return 1
 	}
