@@ -19,13 +19,13 @@ import asyncio
 from collections.abc import AsyncGenerator, AsyncIterable, AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from functools import partial
-from typing import final, override
+from typing import TypeAliasType, final, override
 
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
 from semiont import telemetry
-from semiont._lacks import lacks
+from semiont._required import Fault, read_as
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
 from semiont.http._withheld import why_unanswered
@@ -289,7 +289,7 @@ class Exchange:
         """
         return await self._answer(
             declared.model_validate_json,
-            (declared,),
+            declared,
             method,
             path,
             authenticated=authenticated,
@@ -298,16 +298,16 @@ class Exchange:
             at_length=at_length,
         )
 
-    async def answer_one_of[T](self, declared: TypeAdapter[T], shapes: tuple[type[WireModel], ...], method: str, path: str) -> T:
-        """The same, of an operation that declares one of several shapes: `declared` reads the body, and `shapes` are what it may be."""
+    async def answer_one_of[T](self, declared: TypeAdapter[T], named: TypeAliasType, method: str, path: str) -> T:
+        """The same, of an operation that declares one of several shapes: `declared` reads the body, and `named` is the union's name."""
         return await self._answer(
-            declared.validate_json, shapes, method, path, authenticated=True, headers=None, content=None, at_length=False
+            declared.validate_json, named, method, path, authenticated=True, headers=None, content=None, at_length=False
         )
 
     async def _answer[T](
         self,
-        read: Callable[[bytes], T],
-        shapes: tuple[type[WireModel], ...],
+        read: Callable[[str | bytes], T],
+        declared: object,
         method: str,
         path: str,
         *,
@@ -316,7 +316,7 @@ class Exchange:
         content: bytes | Callable[[], AsyncIterable[bytes]] | None,
         at_length: bool,
     ) -> T:
-        """Make a request, and read its answer with `read`. An answer `read` refuses fails, saying what it lacks to be one of `shapes`."""
+        """Make a request, and read its answer with `read` as a `declared`. An answer with a fault fails, naming the fault."""
         response = await self.begin(method, path, authenticated=authenticated, headers=headers, content=content, at_length=at_length)
         try:
             async with asyncio.timeout(None if at_length else self._deadline_ms / 1000):
@@ -328,11 +328,9 @@ class Exchange:
             raise self.failed(TransportError.without_response(said)) from None
         finally:
             await response.aclose()
-        try:
-            return read(body)
-        except ValidationError as error:
-            lacking = lacks(shapes, error, "its declared body")
-        # Raised from nothing: the decoder's failure shows the answer, and what a failure is raised from is printed with it.
-        raise self.failed(
-            TransportError("error", f"{method} {path} answered what is not its declared body: {lacking}", status=response.status_code)
-        )
+        answered = read_as(declared, body, read)
+        if isinstance(answered, Fault):
+            raise self.failed(
+                TransportError("error", f"{method} {path} answered what is not its declared body: {answered}", status=response.status_code)
+            )
+        return answered

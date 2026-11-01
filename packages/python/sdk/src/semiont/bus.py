@@ -40,7 +40,7 @@ from typing import Final, Literal, Self, final, overload
 
 from pydantic import JsonValue, ValidationError
 
-from semiont._lacks import lacks, missing
+from semiont._required import UNDECODED, Fault, fault_of
 from semiont.channel import AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
@@ -170,14 +170,18 @@ class Delivered[P: WireModel]:
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FrameRefusal:
-    """A frame a typed read refused, in its place: its payload is not its channel's."""
+    """A frame a typed read refused, in its place: its payload has a fault as its channel's."""
 
     channel: str
-    lacks: str | None
-    """The way to the member the payload lacks, the names of the members it is within and its own joined by dots.
+    member: str
+    """The way to the member the fault is at: the names of the members it is within and its own, joined by dots.
 
-    None when it was refused for what it holds, or for a member one of
-    several shapes lacks, where the way is not named.
+    Empty for the payload itself.
+    """
+    reason: Literal["lacks", "malformed"]
+    """Why: `lacks`, the payload does not carry the member, or it holds null where it may not.
+
+    `malformed`: the member is of a kind its schema does not allow.
     """
     payload: Mapping[str, JsonValue]
     """The payload as it came, the gateway's stamps and all."""
@@ -200,9 +204,15 @@ def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], 
     )
 
 
-def _refused[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], error: ValidationError) -> str:
-    """What is said of a payload on `channel` that was refused as not that channel's: what it lacks, and none of what it holds."""
-    return f"a payload on {channel.name} is not that channel's: {lacks(channel.members, error, "that channel's payload")}"
+def _heard[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P] | Fault:
+    """`frame`, its payload as `channel` types it; or the first fault of a payload that is not that channel's."""
+    fault = fault_of(channel.payload, dict(frame.payload))
+    if fault is not None:
+        return fault
+    try:
+        return _delivered(channel, frame)
+    except ValidationError:
+        return UNDECODED
 
 
 @final
@@ -241,10 +251,10 @@ class Typed[P: WireModel]:
             if self._resource is not None and frame.scope != self._resource:
                 # A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
                 continue
-            try:
-                return _delivered(self._channel, frame)
-            except ValidationError as error:
-                return FrameRefusal(channel=self._channel.name, lacks=missing(self._channel.members, error), payload=frame.payload)
+            heard = _heard(self._channel, frame)
+            if isinstance(heard, Fault):
+                return FrameRefusal(channel=self._channel.name, member=heard.member, reason=heard.reason, payload=frame.payload)
+            return heard
 
     async def aclose(self) -> None:
         """Stop listening, and let go of the scope it held."""
@@ -319,9 +329,7 @@ async def answer_of[Q: WireModel, R: WireModel, F: WireModel](
     the operation's.
     """
     reply = await _result_of(transport, operation, operation.request.encode(payload), timeout_ms)
-    try:
-        return _delivered(operation.result, reply)
-    except ValidationError as error:
-        said = _refused(operation.result, error)
-    # Raised from nothing: the decoder's failure shows the payload, and what a failure is raised from is printed with it.
-    raise TransportError("error", said)
+    heard = _heard(operation.result, reply)
+    if isinstance(heard, Fault):
+        raise TransportError("error", f"a payload on {operation.result.name} is not that channel's: {heard}")
+    return heard

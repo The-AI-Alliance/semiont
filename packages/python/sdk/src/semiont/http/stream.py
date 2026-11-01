@@ -36,8 +36,8 @@ from pydantic import JsonValue, ValidationError
 
 from semiont import telemetry
 from semiont._bus_log import bus_log, bus_note
-from semiont._lacks import lacks
 from semiont._reading import Reading
+from semiont._required import Fault, read_as
 from semiont.channels import RESOURCE_SCOPED_CHANNELS, TRACE_FIELD
 from semiont.errors import SemiontError, TransportError
 from semiont.events import Broadcast
@@ -522,11 +522,10 @@ class Stream:
             return
         if event_id is not None and not self._seen.remember(event_id):
             return
-        try:
-            carried = _Carried.model_validate_json(data)
-        except ValidationError as error:
+        carried = read_as(BusFrame, data, _Carried.model_validate_json)
+        if isinstance(carried, Fault):
             # What is not a frame is not delivered, and is said so.
-            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, lacks((_Carried,), error, "a frame"))
+            _LOG.warning("the stream carried what is not a frame (id %s): %s", event_id, carried)
             return
         bus_log("RECV", carried.channel, carried.payload, scope=carried.scope, correlation_id=carried.correlation_id)
         if conn in self._superseded:

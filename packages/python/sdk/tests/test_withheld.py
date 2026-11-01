@@ -15,21 +15,23 @@ its channel's is held to the same: its refusal hands the payload to its
 reader, and nothing logs it.
 """
 
+import json
 import logging
 import re
 from collections.abc import Awaitable, Callable
-from typing import Final, get_args
+from typing import Final, Literal, get_args
 
 import httpx
 import pytest
 from aio import run, soon
 from gateway_server import Answer, GatewayServer
 from issuer import CONFIGURATION, ME, TOKEN, account, issuer_of, says, trusting
-from pydantic import JsonValue, ValidationError
+from pydantic import JsonValue
 from shown import CARRIED, parts_of, printed
 from tokens import token
 
-from semiont._lacks import lacks
+from semiont._required import Fault, fault_of
+from semiont._required_table import SCHEMAS
 from semiont.bus import Bus, FrameRefusal
 from semiont.channel import Channel
 from semiont.channels import (
@@ -243,24 +245,24 @@ def test_a_request_whose_token_is_no_header_value_is_said_in_none_of_the_tokens_
 
 
 @pytest.mark.parametrize(
-    ("answer", "lacks"),
+    ("answer", "fault"),
     [
         (says({"tokn": CARRIED}), "it has no `token`"),
         (says({"token": [CARRIED]}), "its `token` is malformed"),
-        (says([{"token": CARRIED}]), "it is not the JSON object its declared body is"),
-        (Answer(body=f"token={CARRIED}".encode()), "it is not the JSON object its declared body is"),
+        (says([{"token": CARRIED}]), "it is malformed"),
+        (Answer(body=f"token={CARRIED}".encode()), "it is malformed"),
     ],
     ids=["no token", "a token that is none", "not an object", "not JSON"],
 )
-def test_an_answer_that_is_not_its_declared_body_is_refused_for_what_it_lacks_and_in_none_of_its_own_words(
-    answer: Answer, lacks: str
+def test_an_answer_that_is_not_its_declared_body_is_refused_for_its_first_fault_and_in_none_of_its_own_words(
+    answer: Answer, fault: str
 ) -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
             refused = await media_token(gateway, answer)
             # A media token is a credential whether or not its answer is the one declared: no part of it is said.
             assert parts_of(CARRIED, printed(refused)) == []
-            assert refused.message == f"POST {MEDIA} answered what is not its declared body: {lacks}"
+            assert refused.message == f"POST {MEDIA} answered what is not its declared body: {fault}"
             assert (refused.code, refused.status) == ("error", 200)
 
     run(scenario())
@@ -269,16 +271,20 @@ def test_an_answer_that_is_not_its_declared_body_is_refused_for_what_it_lacks_an
 def test_what_an_answer_lacks_is_said_by_the_names_its_body_declares_on_the_way_to_it_as_the_wire_gives_them() -> None:
     async def scenario() -> None:
         async with GatewayServer() as gateway:
-            # A member that is there and lacks one of its own, a member that is not there, and one the wire names as Python does not.
+            # A member that is there and lacks one of its own, which the wire names as Python does not.
+            gateway.scripted[("GET", "/api/status")] = [
+                says({"status": "operational", "version": "1.0.0", "message": "ok", "features": {"collaboration": CARRIED}})
+            ]
+            refused = await refused_by(gateway.origin, lambda transport: transport.get_status())
+            assert parts_of(CARRIED, printed(refused)) == []
+            assert refused.message == "GET /api/status answered what is not its declared body: it has no `features.semanticContent`"
+            # Of several faults, the first: a member it lacks, before one that is malformed and one within a member.
             gateway.scripted[("GET", "/api/status")] = [
                 says({"status": "operational", "version": "1.0.0", "features": {"collaboration": CARRIED}, "authenticatedAs": [CARRIED]})
             ]
             refused = await refused_by(gateway.origin, lambda transport: transport.get_status())
             assert parts_of(CARRIED, printed(refused)) == []
-            assert refused.message == (
-                "GET /api/status answered what is not its declared body: "
-                "it has no `features.semanticContent`; it has no `message`; its `authenticatedAs` is malformed"
-            )
+            assert refused.message == "GET /api/status answered what is not its declared body: it has no `message`"
 
     run(scenario())
 
@@ -303,17 +309,22 @@ DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id
 
 
 @pytest.mark.parametrize(
-    ("channel", "payload", "lacks"),
+    ("channel", "payload", "member", "reason"),
     [
-        (YIELD_CLONE_RESOURCE_REQUESTED, {"token": [CARRIED]}, None),
-        (YIELD_CLONE_TOKEN_GENERATED, {"token": CARRIED, "resource": DESCRIBED}, "response"),
-        (YIELD_CLONE_TOKEN_GENERATED, {"response": {"token": [CARRIED], "resource": DESCRIBED}}, "response.expiresAt"),
-        (BECKON_HOVER, {"annotation_id": [CARRIED]}, None),
-        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, None),
-        (JOB_CHECKPOINT, {"jobId": "job-1", "completedUnits": [[CARRIED]], "unitCursors": {CARRIED: {"next": CARRIED}}}, None),
-        (JOB_COMPLETE, {"jobType": "mark", "result": [CARRIED]}, "resourceId"),
-        (JOB_COMPLETE, {"jobType": CARRIED}, None),
-        (JOB_COMPLETE, {"result": {"token": CARRIED}}, None),
+        (YIELD_CLONE_RESOURCE_REQUESTED, {"token": [CARRIED]}, "token", "malformed"),
+        (YIELD_CLONE_TOKEN_GENERATED, {"token": CARRIED, "resource": DESCRIBED}, "response", "lacks"),
+        (YIELD_CLONE_TOKEN_GENERATED, {"response": {"token": [CARRIED], "resource": DESCRIBED}}, "response.expiresAt", "lacks"),
+        (BECKON_HOVER, {"annotation_id": [CARRIED]}, "annotationId", "lacks"),
+        (PANEL_CLOSE, {CARRIED[:12]: CARRIED}, "", "malformed"),
+        (
+            JOB_CHECKPOINT,
+            {"jobId": "job-1", "completedUnits": [[CARRIED]], "unitCursors": {CARRIED: {"next": CARRIED}}},
+            "completedUnits",
+            "malformed",
+        ),
+        (JOB_COMPLETE, {"jobType": "mark", "result": [CARRIED]}, "resourceId", "lacks"),
+        (JOB_COMPLETE, {"jobType": CARRIED}, "resourceId", "lacks"),
+        (JOB_COMPLETE, {"result": {"token": CARRIED}}, "resourceId", "lacks"),
     ],
     ids=[
         "a member that is malformed",
@@ -327,16 +338,20 @@ DESCRIBED: Final[dict[str, JsonValue]] = {"@context": "https://schema.org", "@id
         "one of several shapes, not named",
     ],
 )
-def test_a_payload_that_is_not_its_channel_s_is_refused_to_its_reader_by_the_way_to_what_it_lacks_and_logged_nowhere[P: WireModel](
-    channel: Channel[P], payload: dict[str, JsonValue], lacks: str | None, caplog: pytest.LogCaptureFixture
+def test_a_payload_that_is_not_its_channel_s_is_refused_to_its_reader_by_the_way_to_its_first_fault_and_logged_nowhere[P: WireModel](
+    channel: Channel[P],
+    payload: dict[str, JsonValue],
+    member: str,
+    reason: Literal["lacks", "malformed"],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     async def scenario() -> None:
         bus = EventBus()
         read = bus.frames(channel)
         bus.emit(channel.name, payload)
         bus.destroy()
-        # The payload is its reader's, as it came; the way to what it lacks is named by the shape, never by the payload.
-        assert [heard async for heard in read] == [FrameRefusal(channel=channel.name, lacks=lacks, payload=payload)]
+        # The payload is its reader's, as it came; the way to its fault is named by the shape, never by the payload.
+        assert [heard async for heard in read] == [FrameRefusal(channel=channel.name, member=member, reason=reason, payload=payload)]
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())
@@ -356,7 +371,7 @@ def test_a_result_that_is_not_its_operation_s_is_refused_for_what_it_lacks_and_i
     run(scenario())
 
 
-def test_what_a_stream_carries_that_is_no_frame_is_said_by_what_it_lacks_and_in_none_of_its_own_words(
+def test_what_a_stream_carries_that_is_no_frame_is_said_by_its_first_fault_and_in_none_of_its_own_words(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     async def scenario() -> None:
@@ -378,25 +393,22 @@ def test_what_a_stream_carries_that_is_no_frame_is_said_by_what_it_lacks_and_in_
     assert [record.getMessage() for record in caplog.records] == [
         "the stream carried what is not a frame (id e-1): its `scope` is malformed",
         "the stream carried what is not a frame (id e-2): it has no `channel`",
-        "the stream carried what is not a frame (id e-3): it is not the JSON object a frame is",
+        "the stream carried what is not a frame (id e-3): it is malformed",
     ]
     assert parts_of(CARRIED, said_by_this_package(caplog)) == []
 
 
 def test_every_channel_that_carries_one_of_several_shapes_says_what_a_payload_lacks_of_the_shape_it_names() -> None:
     several = {name: channel for name, channel in CHANNELS.items() if len(channel.members) > 1}
-    # Each tells its shapes apart by `jobType`, and the decoder says which one a payload named before it says where the payload is
-    # wrong. A channel that tells its shapes apart another way fails here until what is said of its payloads has been read.
+    # Each tells its shapes apart by `jobType`, and a payload is held to the shape it names. A channel that tells its shapes apart
+    # another way fails here until what is said of its payloads has been read.
     assert sorted(several) == ["job:complete", "job:create", "job:queued"]
     for channel in several.values():
         for shape in channel.members:
             (named,) = get_args(shape.model_fields["job_type"].annotation)
-            with pytest.raises(ValidationError) as refused:
-                channel.decode({"jobType": named})
-            required = [field.alias or name for name, field in shape.model_fields.items() if field.is_required() and name != "job_type"]
-            assert required != []
-            said = lacks(channel.members, refused.value, "that channel's payload")
-            assert said == "; ".join(f"it has no `{member}`" for member in required)
+            required: list[str] = json.loads(SCHEMAS)[shape.__name__]["required"]
+            first = next(member for member in required if member != "jobType")
+            assert fault_of(channel.payload, {"jobType": named}) == Fault(member=first, reason="lacks")
 
 
 def kinds(of: type[httpx.HTTPError]) -> set[type[httpx.HTTPError]]:

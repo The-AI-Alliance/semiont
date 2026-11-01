@@ -170,13 +170,15 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
             assert isinstance(first, Delivered)
             assert first.payload == BeckonFocusEvent(resource_id=RESOURCE, annotation_id=ANNOTATION)
             assert (first.correlation_id, first.scope, first.user_id) == ("cid-1", RESOURCE, "did:web:example.org:users:alice")
-            # What is not the channel's is told the reader in its place, by the way to what it lacks and with the
+            # What is not the channel's is told the reader in its place, by the way to its first fault and with the
             # payload as it came; the frames after it follow.
             refused = await soon(anext(frames))
-            assert refused == FrameRefusal(channel="beckon:focus", lacks="resourceId", payload=lacking)
+            assert refused == FrameRefusal(channel="beckon:focus", member="resourceId", reason="lacks", payload=lacking)
             assert refused.status == "refused"
-            # One refused for what it holds lacks nothing.
-            assert await soon(anext(frames)) == FrameRefusal(channel="beckon:focus", lacks=None, payload=malformed)
+            # One that holds a member of a kind its schema does not allow is malformed there.
+            assert await soon(anext(frames)) == FrameRefusal(
+                channel="beckon:focus", member="annotationId", reason="malformed", payload=malformed
+            )
             last = await soon(anext(frames))
             assert isinstance(last, Delivered)
             assert (last.status, last.payload.resource_id, last.user_id) == ("delivered", RESOURCE, None)
@@ -217,7 +219,9 @@ def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_
             # One that lacks a member deep inside it is refused by the way to that member.
             unsequenced: dict[str, JsonValue] = {**recorded("mark:archived", RESOURCE), "metadata": {}}
             transport.deliver(Frame(channel="mark:archived", payload=unsequenced, scope=RESOURCE))
-            assert await soon(anext(mine)) == FrameRefusal(channel="mark:archived", lacks="metadata.sequenceNumber", payload=unsequenced)
+            assert await soon(anext(mine)) == FrameRefusal(
+                channel="mark:archived", member="metadata.sequenceNumber", reason="lacks", payload=unsequenced
+            )
         # Let go with the read.
         assert transport.holds(RESOURCE) == 0
 

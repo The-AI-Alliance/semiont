@@ -102,6 +102,7 @@ line-length = 140
 extend-exclude = [
     "src/semiont/_encodings.py",
     "src/semiont/_owner_only_table.py",
+    "src/semiont/_required_table.py",
     "src/semiont/channels.py",
     "src/semiont/error_codes.py",
     "src/semiont/identifiers.py",

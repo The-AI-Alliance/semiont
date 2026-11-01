@@ -411,8 +411,8 @@ def test_a_status_whose_completion_is_not_the_verb_s_is_told_as_what_it_is() -> 
         await pass_time(SILENCE + 0.1, step=0.5)
         with pytest.raises(TransportError) as ended:
             await soon(awaiting)
-        # It is said by what it lacks, and in none of the words of what the job made.
-        assert ended.value.message == "The status of job job-1 is not a completed mark job's: its `result` is malformed"
+        # It is said by its first fault, and in none of the words of what the job made.
+        assert ended.value.message == "The status of job job-1 is not a completed mark job's: it has no `result.found`"
         assert parts_of(CARRIED, printed(ended.value)) == []
         assert ended.value.code == "error"
         await client.close()

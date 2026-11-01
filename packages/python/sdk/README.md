@@ -869,7 +869,7 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
                     case Delivered():
                         print(heard.scope, heard.payload.type)
                     case FrameRefusal():
-                        print(f"a payload on {heard.channel} that has no `{heard.lacks}`")
+                        print(f"a payload on {heard.channel} whose `{heard.member}` {heard.reason}")
 ```
 
 - **The bus is typed by channel.** A channel is a constant that carries its
@@ -882,9 +882,12 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
 - **Frames** are a sequence: each reader is given every one, in order, however
   far behind it falls. Each is a `Heard`: a `Delivered`, its payload its
   channel's, or, in place of a frame whose payload is not, a `FrameRefusal`
-  that names the channel and the way to the member the payload lacks
-  (`lacks`, `None` when it was refused for what it holds), with the payload
-  as it came. The frames after a refusal follow it.
+  that names the channel and the payload's first fault, as every SDK names
+  it: `member`, the way to the member it is at (empty for the payload
+  itself), and `reason`, `"lacks"` for a member the payload does not carry
+  or holds null where it may not, `"malformed"` for one of a kind its schema
+  does not allow. It holds the payload as it came. The frames after a
+  refusal follow it.
 - **A resource's channel is read for the resource.** `mark:added` and the
   other events of the record are delivered on their resource's scope, and
   their constants are `ScopedChannel`s. `bus.frames(MARK_ADDED, resource)`
