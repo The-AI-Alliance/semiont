@@ -26,7 +26,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import neo4j, { type Driver } from 'neo4j-driver';
-import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
 import type { Annotation, components, EventMap, ResourceDescriptor } from '@semiont/core';
 import { ArchivistWorld, sha256, unstamped, type BusClient } from './archivist-world';
 import {
@@ -47,6 +47,7 @@ import { errorsOf, registry, spec } from './spec';
 import type { BusStream } from './stream';
 import { startWeaver, type WeaverLaunch, type WeaverProcess } from './weaver-process';
 import { lastOf } from './weaver-world';
+import { endCase } from './world';
 
 /** The service accounts of the three services, at the issuer. */
 export const LIBRARIAN_CLIENT = 'semiont-librarian';
@@ -680,15 +681,18 @@ export function eachLibrarian(title: string, body: (world: () => LibrarianWorld)
     afterAll(async () => {
       await world?.close();
     }, 120_000);
-    afterEach((context) => {
-      if (context.task.result?.state === 'fail') {
-        console.error(`Librarian output:\n${world?.output.join('\n')}`);
-        console.error(`Weaver output:\n${world?.weaverOutput.slice(-40).join('\n')}`);
-        console.error(`Smelter output:\n${world?.smelterOutput.slice(-40).join('\n')}`);
-        console.error(`Archivist output:\n${world?.kb.archivist.output.slice(-40).join('\n')}`);
-      }
-      expect(world?.drain() ?? []).toEqual([]);
-    });
+    afterEach((context) =>
+      endCase(
+        context,
+        [
+          `Librarian output:\n${world!.output.join('\n')}`,
+          `Weaver output:\n${world!.weaverOutput.slice(-40).join('\n')}`,
+          `Smelter output:\n${world!.smelterOutput.slice(-40).join('\n')}`,
+          `Archivist output:\n${world!.kb.archivist.output.slice(-40).join('\n')}`,
+        ].join('\n'),
+        () => world!.drain(),
+      ),
+    );
     body(() => world!);
   });
 }
