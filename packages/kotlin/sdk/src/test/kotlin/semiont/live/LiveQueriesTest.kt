@@ -1,8 +1,13 @@
+@file:OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+
 package semiont.live
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -30,12 +35,17 @@ import semiont.storage.MemoryStorage
 import semiont.storage.SessionStorage
 import semiont.transport.Frame
 import java.util.concurrent.CountDownLatch
+import kotlin.time.TimeSource
 
-/** A client's live queries: what collecting one holds, and what a read gives its collectors. */
+/**
+ * A client's live queries: what collecting one holds, and what a read gives its
+ * collectors. Each but one runs on a clock only the test moves: when one of its
+ * waits ends, everything due by then has run.
+ */
 class LiveQueriesTest {
     @Test
-    fun collectingAQueryOfAResourceHoldsItsScopeFromBeforeItAsksUntilTheCollectorLeaves() = runBlocking {
-        val world = KbWorld(answered = false)
+    fun collectingAQueryOfAResourceHoldsItsScopeFromBeforeItAsksUntilTheCollectorLeaves() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false)
         val kb = world.kb
         val client = world.client
         val query = client.browse.events(RESOURCE)
@@ -81,8 +91,8 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun aReadGivesWhatTheServiceAnswersNowAndEveryCollectorIsGivenItToo() = runBlocking {
-        val world = KbWorld()
+    fun aReadGivesWhatTheServiceAnswersNowAndEveryCollectorIsGivenItToo() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         val kb = world.kb
         kb.queue("browse:resource-requested", *listOf("first", "second").map { JsonObject(mapOf("resource" to descriptor(RESOURCE, it), "lastSequence" to JsonPrimitive(1))) }.toTypedArray())
         val live = world.watch(world.client.browse.resource(RESOURCE))
@@ -99,8 +109,8 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun invalidatingAQueryAsksAgainAndShowsItsValueMeanwhile() = runBlocking {
-        val world = KbWorld()
+    fun invalidatingAQueryAsksAgainAndShowsItsValueMeanwhile() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         val live = world.watch(world.client.browse.entityTypes())
         assertEquals(listOf("Person"), live.ready().value)
         world.kb.queue("browse:entity-types-requested", kotlinx.serialization.json.Json.parseToJsonElement("""{"entityTypes":["Person","Place"]}"""))
@@ -111,8 +121,8 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun aResourcesAnnotationsAreTheListAndAListOrASearchIsOneQueryPerSetOfFilters() = runBlocking {
-        val world = KbWorld()
+    fun aResourcesAnnotationsAreTheListAndAListOrASearchIsOneQueryPerSetOfFilters() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         val kb = world.kb
         val client = world.client
         assertEquals(listOf(ANNOTATION), withTimeout(5_000) { client.browse.annotations(RESOURCE).fresh() }.map { it.id })
@@ -143,10 +153,10 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun theEnginesAreShownAsTheyAreAnsweredAndEachHoldersLimitsAsItReportsThem() = runBlocking {
+    fun theEnginesAreShownAsTheyAreAnsweredAndEachHoldersLimitsAsItReportsThem() = runTest {
         val gemma = """{"provider":"ollama","model":"gemma2:27b"}"""
         val claude = """{"provider":"anthropic","model":"claude-opus-5-5"}"""
-        val world = KbWorld(answered = false)
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false)
         val kb = world.kb
         fun limitsOf(engines: List<EngineWithLimits>) = engines.map { it.limits?.contextTokens }
 
@@ -200,8 +210,8 @@ class LiveQueriesTest {
     }
 
     @Test
-    fun enginesThatFailAreAFailedStateWhateverTheirHoldersReportAndAReadOfThemThrows() = runBlocking {
-        val world = KbWorld()
+    fun enginesThatFailAreAFailedStateWhateverTheirHoldersReportAndAReadOfThemThrows() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         world.kb.refuse("browse:engines-requested")
         val refused = runCatching { world.client.browse.engines().fresh() }.exceptionOrNull()
         assertEquals("bus.rejected", (refused as BusRequestError).code)
@@ -225,7 +235,8 @@ class LiveQueriesTest {
         val persistence = CachePersistence(late, "kb")
         fun kept(name: String): JsonObject? = storage.get("semiont.cache.kb.$name")?.let { Json.parseToJsonElement(it).jsonObject }
 
-        val world = KbWorld(persistence = persistence)
+        // On threads and in real time: the late write holds the thread that makes it while the client's other work goes on.
+        val world = KbWorld(Dispatchers.Default, TimeSource.Monotonic, persistence = persistence)
         val client = world.client
         assertTrue(client.persistenceSettled)
         withTimeout(5_000) {
@@ -267,14 +278,13 @@ class LiveQueriesTest {
         assertTrue(sameJson(json("""{"annotations":[${annotation(ANNOTATION, RESOURCE)}],"total":1}"""), listed[1]))
 
         // The next client of the same knowledge base, over the same storage: shown at once, with no pending before it, and asked for anew, once.
-        val again = KbWorld(persistence = persistence)
+        val again = KbWorld(Dispatchers.Default, TimeSource.Monotonic, persistence = persistence)
         val live = again.watch(again.client.browse.resource(RESOURCE))
         val types = again.watch(again.client.browse.entityTypes())
         assertEquals("A resource", (live.next() as CacheState.Ready).value.name)
         assertEquals(CacheState.Ready(listOf("Person")), types.next())
-        delay(100)
         // Two collectors, each asking from its own thread: once each, in no order.
-        assertEquals(mapOf("browse:resource-requested" to 1, "browse:entity-types-requested" to 1), again.asked())
+        eventually { again.asked() == mapOf("browse:resource-requested" to 1, "browse:entity-types-requested" to 1) }
         // An annotation that was kept is asked for anew too, by a request that names its resource.
         assertTrue(again.watch(again.client.browse.annotation(RESOURCE, ANNOTATION)).next() is CacheState.Ready)
         eventually { again.kb.emitted.size == 3 }
@@ -282,14 +292,14 @@ class LiveQueriesTest {
         again.close()
 
         // A client of another knowledge base, over the same storage, begins with nothing of this one's.
-        val other = KbWorld(answered = false, persistence = CachePersistence(storage, "another"))
+        val other = KbWorld(Dispatchers.Default, TimeSource.Monotonic, answered = false, persistence = CachePersistence(storage, "another"))
         assertEquals(CacheState.Pending, other.watch(other.client.browse.resource(RESOURCE)).next())
         other.close()
     }
 
     @Test
-    fun aClientThatKeepsNothingIsAlwaysSettled() = runBlocking {
-        val world = KbWorld()
+    fun aClientThatKeepsNothingIsAlwaysSettled() = runTest {
+        val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource)
         val reading = async { world.client.browse.resource(RESOURCE).fresh() }
         assertTrue(world.client.persistenceSettled)
         withTimeout(5_000) { reading.await() }
@@ -300,8 +310,8 @@ class LiveQueriesTest {
     @TestFactory
     fun aClientIsSettledUnlessAQueryItKeepsIsBeingFetchedOrIsOwedToStorage(): List<DynamicTest> = CacheQuery.entries.map { query ->
         DynamicTest.dynamicTest(query.wire) {
-            runBlocking {
-                val world = KbWorld(answered = false, persistence = CachePersistence(MemoryStorage(), "kb"))
+            runTest {
+                val world = KbWorld(StandardTestDispatcher(testScheduler), testScheduler.timeSource, answered = false, persistence = CachePersistence(MemoryStorage(), "kb"))
                 val client = world.client
                 val named = mapOf(
                     CacheQuery.Resource to client.browse.resource(RESOURCE),
