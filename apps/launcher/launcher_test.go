@@ -2303,6 +2303,72 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 		"stop semiont-example.github.io-test-kb-gateway", "stop semiont-example.github.io-other-kb-gateway")
 }
 
+// Status asks a recorded stack's services where its record says, and nowhere
+// else. Beside a first knowledge base, a second's services run on a port
+// block of their own; one stopped alone, which the second's record forgets,
+// is down, though the first's same service answers on the default block. The
+// machine's containers answer on the machine's ports, the same for every
+// knowledge base: a second start that leaves the machine's Jaeger and
+// Prometheus alone (--no-observe) records neither, and both read up.
+func TestStatusAsksARecordedStackOnlyWhereItsRecordSays(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	run := func(label string, want int, args ...string) string {
+		t.Helper()
+		stdout, stderr, code := s.run(t, args...)
+		if code != want {
+			t.Fatalf("%s: exit %d, want %d\nstdout:\n%s\nstderr:\n%s", label, code, want, stdout, stderr)
+		}
+		return stdout
+	}
+	row := func(label, stdout, role string) string {
+		t.Helper()
+		for _, line := range strings.Split(stdout, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), role+" ") {
+				return line
+			}
+		}
+		t.Fatalf("%s has no %s row:\n%s", label, role, stdout)
+		return ""
+	}
+
+	run("the first knowledge base's start", 0, "start")
+	// The second start keeps the machine's containers the first ran.
+	var rec struct {
+		Machine map[string]struct {
+			Image string `json:"image"`
+		} `json:"machine"`
+	}
+	b, err := os.ReadFile(statePathFor(s.home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(b, &rec); err != nil {
+		t.Fatal(err)
+	}
+	for name, m := range rec.Machine {
+		bare := strings.TrimPrefix(name, "semiont-")
+		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+bare+"=running", "FAKERT_IMAGE_"+bare+"="+m.Image)
+	}
+	s.kb = other
+	run("the second knowledge base's start", 0, "start", "--no-observe")
+	stdout := run("the second's status", 0, "status", "--root", other)
+	for _, role := range []string{"traces", "metrics"} {
+		mustContain(t, "the second's "+role+" row", row("the second's status", stdout, role), "✓ running")
+	}
+
+	run("the second's stop of its smelter", 0, "stop", "--service", "smelter")
+	stdout = run("the second's status, its smelter stopped", 1, "status", "--root", other)
+	smelter := row("the second's status, its smelter stopped", stdout, "smelter")
+	mustContain(t, "the second's stopped smelter's row", smelter, "✗ absent")
+	mustNotContain(t, "the second's stopped smelter's row", smelter, ":24101")
+	stdout = run("the first's status", 0, "status", "--root", first)
+	mustContain(t, "the first's smelter's row", row("the first's status", stdout, "smelter"), "✓", ":24101")
+}
+
 // Each knowledge base's stack is published on a port block of its own, taken
 // at its first start and kept: block k places each port the launcher chooses
 // at its block-0 port + 10k, and every document the start stages names the
