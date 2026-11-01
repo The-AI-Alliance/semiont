@@ -189,7 +189,7 @@ if sys.platform == "win32":
     )(("SetNamedSecurityInfoW", _advapi32))
     _LocalFree: Final = ctypes.WINFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p)(("LocalFree", _kernel32))
 
-    def _user() -> str | None:
+    def _user() -> str:
         """The user this process runs as, as a SID."""
         size = wintypes.DWORD()
         _GetTokenInformation(_CURRENT_PROCESS_TOKEN, _TOKEN_USER, None, 0, ctypes.byref(size))
@@ -201,7 +201,7 @@ if sys.platform == "win32":
         if not _ConvertSidToStringSidW(ctypes.c_void_p.from_buffer(user), ctypes.byref(named)):
             raise ctypes.WinError(ctypes.get_last_error())
         try:
-            return named.value
+            return ctypes.wstring_at(named)
         finally:
             _LocalFree(named)
 
