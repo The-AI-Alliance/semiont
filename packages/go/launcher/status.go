@@ -438,8 +438,17 @@ func readRow(v stackView, role string, machine map[string]*ServiceState) statusR
 	handle := roleContainer(role, v.key)
 	// No record: the descriptor's static probe, for the driver a stack
 	// that has not recorded itself would be running. A record's endpoint
-	// is sharper — it names the port that start actually used.
-	endpoint := healthEndpoint(role, probeDriver(role), nil, v.at)
+	// is sharper — it names the port that start actually used. A recorded
+	// stack's own container with no entry (stopped alone, or not reached
+	// by its start) is asked nowhere, and reads down: its port is its
+	// knowledge base's, and the descriptor's is the default block's,
+	// which another knowledge base's stack may hold. The machine's
+	// containers, and a role that runs none, answer where the
+	// descriptor says for every knowledge base.
+	endpoint := ""
+	if v.st == nil || machineRole(role) || !runsContainer(role) {
+		endpoint = healthEndpoint(role, probeDriver(role), nil, v.at)
+	}
 	var rec *ServiceState
 	if v.st != nil {
 		if e, ok := v.st.Services[role]; ok {
@@ -468,7 +477,7 @@ func readRow(v stackView, role string, machine map[string]*ServiceState) statusR
 	// record carries — the queue is a config section, not a launched
 	// role. The dispatcher reports the one it connected to, so the row
 	// names the live driver rather than the configured intent.
-	if role == "dispatcher" {
+	if role == "dispatcher" && endpoint != "" {
 		if q, found := dispatcherQueueDriver(endpoint); found {
 			tech = q
 		}
@@ -505,7 +514,7 @@ func readRow(v stackView, role string, machine map[string]*ServiceState) statusR
 	default:
 		state, r.rt = containerState(v.runtimes, handle)
 	}
-	r.healthy = roleHealthy(role, endpoint)
+	r.healthy = endpoint != "" && roleHealthy(role, endpoint)
 	if role == "inference" && rec == nil && state == "" && r.healthy {
 		r.rt = "host"
 	}
