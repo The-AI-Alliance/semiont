@@ -3,7 +3,7 @@ package launcher
 // groups.go — the groups the launcher's roles fall into: what `status` shows
 // together and what a start or stop of a group acts on.
 
-import "iter"
+import "slices"
 
 // serviceGroup: roles that are part of one thing, in the order status reads
 // them.
@@ -12,10 +12,16 @@ type serviceGroup struct {
 	roles []string
 }
 
+// shared: whether g's services serve every knowledge base, once for all of
+// them — a group the launcher runs a role of for the machine. Each knowledge
+// base runs its own of the others.
+func (g serviceGroup) shared() bool { return slices.ContainsFunc(g.roles, machineRole) }
+
 // serviceGroups: every role, each in one group. A knowledge base is its
-// record and its index, with the issuer whose accounts sign in to it. The
-// knowledge workers are where people and agents work on it. The providers
-// serve every knowledge base its models, and the telemetry watches them all.
+// record and its index, with the issuer whose accounts sign in to it while
+// each runs a Keycloak of its own. The knowledge workers are where people
+// and agents work on it. The providers serve every knowledge base its
+// models, and the telemetry watches them all.
 var serviceGroups = []serviceGroup{
 	{"record", []string{"gateway", "archivist", "dispatcher", "messaging"}},
 	{"index", []string{"librarian", "smelter", "weaver", "graph", "vectors"}},
@@ -23,19 +29,6 @@ var serviceGroups = []serviceGroup{
 	{"knowledge-workers", []string{"browser", "worker"}},
 	{"providers", []string{"inference", "embedding"}},
 	{"telemetry", []string{"collector", "traces", "metrics"}},
-}
-
-// groupedRoles: each group's name and each of its roles, group by group.
-func groupedRoles() iter.Seq2[string, string] {
-	return func(yield func(string, string) bool) {
-		for _, g := range serviceGroups {
-			for _, role := range g.roles {
-				if !yield(g.name, role) {
-					return
-				}
-			}
-		}
-	}
 }
 
 // optionalBackends: the telemetry backends --no-observe leaves out. Status
