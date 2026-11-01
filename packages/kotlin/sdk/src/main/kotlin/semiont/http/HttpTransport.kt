@@ -140,7 +140,11 @@ public class HttpTransport @JvmOverloads constructor(
                 val status = response.statusCode()
                 if (status in 200..299) return accepted(response.body())
                 val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
-                refusal("/bus/emit $status: ${said(response.body()).orEmpty()}", status, response.body(), stated)
+                val message = when (val words = said(response.body())) {
+                    null -> "/bus/emit $status"
+                    else -> "/bus/emit $status: $words"
+                }
+                refusal(message, status, response.body(), stated)
             } catch (_: HttpTimeoutException) {
                 TransportError.withoutResponse("/bus/emit got no answer within ${Timings.EMIT_TIMEOUT_MS}ms")
             } catch (error: IOException) {

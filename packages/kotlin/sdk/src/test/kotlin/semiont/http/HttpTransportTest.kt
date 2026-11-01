@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import semiont.errors.SemiontError
+import semiont.errors.TransportError
 import semiont.identifiers.ResourceId
+import semiont.retry.RetryPolicy
 import semiont.transport.ConnectionState
 import java.io.IOException
 import java.net.InetAddress
@@ -178,6 +180,22 @@ class HttpTransportTest {
         Answering(unavailable("""{"error":"ne""", 100)).use { gateway ->
             val refused = firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10, httpRequestMs = 200))
             assertEquals("SSE connect failed: 503", refused.message)
+        }
+    }
+
+    @Test
+    fun aRefusedEmitWhoseBodySaysNothingIsReportedByItsStatus() = runBlocking {
+        Answering(unavailable("", 0)).use { gateway ->
+            // Carrying nothing, the transport opens no stream: the emit is its only request.
+            HttpTransport(gateway.origin, MutableStateFlow("token"), emptyList(), Timing(emitRetry = RetryPolicy(attempts = 1, initialDelayMs = 1, maxDelayMs = 1))).use { transport ->
+                val refused = try {
+                    transport.emit("beckon:focus", JsonObject(emptyMap()), null, null)
+                    null
+                } catch (error: TransportError) {
+                    error
+                }
+                assertEquals("/bus/emit 503", refused?.message)
+            }
         }
     }
 }
