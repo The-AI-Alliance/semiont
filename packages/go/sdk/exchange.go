@@ -147,17 +147,25 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 	}
 }
 
-// refusalMessage is what a refusal says: its body's error (an
-// ErrorResponse), or its status and its reason, worded as the TypeScript
-// transport words it.
+// refusalMessage is what a refusal says: the gateway's words, or its status
+// and its reason, worded as the TypeScript transport words it.
 func refusalMessage(response *http.Response, said []byte) string {
+	if words, ok := gatewayWords(said); ok {
+		return words
+	}
+	return fmt.Sprintf("HTTP %d: %s", response.StatusCode, http.StatusText(response.StatusCode))
+}
+
+// gatewayWords is what a refusal's body says when it is an ErrorResponse:
+// its error.
+func gatewayWords(said []byte) (string, bool) {
 	var body struct {
 		Error *string `json:"error"`
 	}
-	if json.Unmarshal(said, &body) == nil && body.Error != nil {
-		return *body.Error
+	if json.Unmarshal(said, &body) != nil || body.Error == nil {
+		return "", false
 	}
-	return fmt.Sprintf("HTTP %d: %s", response.StatusCode, http.StatusText(response.StatusCode))
+	return *body.Error, true
 }
 
 // pause waits for wait; false when ctx is done first.

@@ -99,14 +99,14 @@ private fun namesRefusalRate(body: ByteArray): Boolean =
         false
     }
 
-/** The gateway's words for a refusal, when its body states them. */
-internal fun said(body: ByteArray?, otherwise: String): String =
+/** The gateway's words for a refusal, when its body states them; null when it does not. */
+internal fun said(body: ByteArray?): String? =
     try {
-        body?.let { wireJson.decodeFromString(ErrorResponse.serializer(), it.toString(Charsets.UTF_8)).error } ?: otherwise
+        body?.let { wireJson.decodeFromString(ErrorResponse.serializer(), it.toString(Charsets.UTF_8)).error }
     } catch (_: SerializationException) {
-        otherwise
+        null
     } catch (_: IllegalArgumentException) {
-        otherwise
+        null
     }
 
 /**
@@ -193,7 +193,7 @@ internal class Exchange(
             } catch (_: IOException) {
                 null
             }
-            val refused = refusal(said(read, "HTTP $status"), status, read, stated)
+            val refused = refusal(said(read) ?: "HTTP $status", status, read, stated)
             if (refused.reason == TransportErrorCode.Unauthorized) {
                 if (authenticated && !renewed && !closing()) {
                     renewed = true

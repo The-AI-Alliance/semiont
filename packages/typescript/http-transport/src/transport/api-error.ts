@@ -41,6 +41,11 @@ export function refusalBody(text: string): unknown {
   }
 }
 
+/** What a refused response's body says when it is an `ErrorResponse`: its `error`. */
+export function gatewayWords(body: unknown): string | undefined {
+  return isObject(body) && isString(body['error']) ? body['error'] : undefined;
+}
+
 export class APIError extends SemiontError {
   declare code: TransportErrorCode;
   readonly status: number;
@@ -86,8 +91,7 @@ export class APIError extends SemiontError {
    * with the body as it came, and with the wait its `Retry-After` states.
    */
   static refusal(status: number, statusText: string, body: unknown, retryAfter: string | null): APIError {
-    const said = isObject(body) && isString(body['error']) ? body['error'] : undefined;
-    return APIError.fromStatus(said ?? `HTTP ${status}: ${statusText}`, status, statusText, body, retryAfterMs(retryAfter));
+    return APIError.fromStatus(gatewayWords(body) ?? `HTTP ${status}: ${statusText}`, status, statusText, body, retryAfterMs(retryAfter));
   }
 
   /**

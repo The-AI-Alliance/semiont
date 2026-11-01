@@ -328,18 +328,14 @@ impl Shared {
             let status = response.status().as_u16();
             let stated_wait = stated_wait(&response);
             let body = response.json::<Value>().await.ok();
-            let message = body
-                .as_ref()
-                .and_then(|body| ErrorResponse::deserialize(body).ok())
-                .map(|said| said.error)
-                .unwrap_or_else(|| {
-                    // Worded as the TypeScript transport words it.
-                    let reason = reqwest::StatusCode::from_u16(status)
-                        .ok()
-                        .and_then(|code| code.canonical_reason())
-                        .unwrap_or_default();
-                    format!("HTTP {status}: {reason}")
-                });
+            let message = gateway_words(body.as_ref()).unwrap_or_else(|| {
+                // Worded as the TypeScript transport words it.
+                let reason = reqwest::StatusCode::from_u16(status)
+                    .ok()
+                    .and_then(|code| code.canonical_reason())
+                    .unwrap_or_default();
+                format!("HTTP {status}: {reason}")
+            });
             let refused = refusal(message, status, stated_wait, body.as_ref());
             if refused.code == TransportErrorCode::Unauthorized {
                 if !renewed && let Some(fresh) = self.renewal(token.as_deref()).await {
@@ -534,6 +530,12 @@ pub(crate) fn refusal(
     } else {
         TransportError::of_status(message, status, stated_wait)
     }
+}
+
+/// What a refusal's body says when it is an ErrorResponse: its `error`.
+pub(crate) fn gateway_words(body: Option<&Value>) -> Option<String> {
+    body.and_then(|body| ErrorResponse::deserialize(body).ok())
+        .map(|said| said.error)
 }
 
 /// Whether the gateway refused the request's credential: a 401, or a 429

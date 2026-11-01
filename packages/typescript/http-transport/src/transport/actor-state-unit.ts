@@ -8,7 +8,7 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-import { APIError, refusalBody, retryableUnlessRefused } from './api-error';
+import { APIError, gatewayWords, refusalBody, retryableUnlessRefused } from './api-error';
 import { fetchOf } from './fetch-of';
 
 export type { ConnectionState };
@@ -451,11 +451,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       if (!response.ok || !response.body) {
         // The body says which limit refused it: a 429 `refusal-rate` is a
         // refused credential, as a 401 is.
+        const said = response.body === null ? undefined : refusalBody(await response.text());
+        const words = gatewayWords(said);
         throw APIError.fromStatus(
-          `SSE connect failed: ${response.status}`,
+          words === undefined ? `SSE connect failed: ${response.status}` : `SSE connect failed: ${response.status}: ${words}`,
           response.status,
           response.statusText,
-          response.body === null ? undefined : refusalBody(await response.text()),
+          said,
           retryAfterMs(response.headers.get('retry-after')),
         );
       }

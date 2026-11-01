@@ -84,11 +84,21 @@ impl Opened {
     }
 }
 
+/// What the body of a refusal says.
+#[derive(Debug, Clone, Copy)]
+enum Said {
+    /// Nothing at all.
+    Nothing,
+    /// The gateway's words, as an ErrorResponse states them.
+    Words(&'static str),
+}
+
 #[derive(Default)]
 struct Staged {
     opened: Mutex<Vec<Arc<Opened>>>,
-    /// The statuses the next subscribes are refused with.
-    refusals: Mutex<VecDeque<StatusCode>>,
+    /// The statuses the next subscribes are refused with, and what each
+    /// refusal's body says.
+    refusals: Mutex<VecDeque<(StatusCode, Said)>>,
     /// What the next subscribe waits for before it is answered.
     held: Mutex<Option<oneshot::Receiver<()>>>,
     /// How many subscribes have arrived, answered or not.
@@ -105,8 +115,11 @@ async fn subscribe(State(staged): State<Arc<Staged>>, Json(subscription): Json<V
         let _ = held.await;
     }
     let refusal = staged.refusals.lock().unwrap().pop_front();
-    if let Some(status) = refusal {
-        return status.into_response();
+    if let Some((status, said)) = refusal {
+        return match said {
+            Said::Nothing => status.into_response(),
+            Said::Words(words) => (status, Json(json!({ "error": words }))).into_response(),
+        };
     }
     let (events, stream) = mpsc::unbounded_channel();
     staged.opened.lock().unwrap().push(Arc::new(Opened {
@@ -200,6 +213,16 @@ impl Gateway {
 
     fn arrived(&self) -> usize {
         *self.staged.arrived.lock().unwrap()
+    }
+
+    /// Refuse the next subscribe not yet refused with `status`, its body
+    /// saying `said`.
+    fn refuse(&self, status: StatusCode, said: Said) {
+        self.staged
+            .refusals
+            .lock()
+            .unwrap()
+            .push_back((status, said));
     }
 
     /// Write an event to every stream a client still holds.
@@ -432,12 +455,7 @@ async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
     let states = states_of(&transport);
     let mut failures = transport.failures();
 
-    gateway
-        .staged
-        .refusals
-        .lock()
-        .unwrap()
-        .push_back(StatusCode::SERVICE_UNAVAILABLE);
+    gateway.refuse(StatusCode::SERVICE_UNAVAILABLE, Said::Nothing);
     let _hold = transport.subscribe_to_resource(&as_id("res-1"));
     // The refused connect, then the one that opens.
     until("the handoff to open", || {
@@ -462,12 +480,7 @@ async fn a_handoff_that_cannot_open_is_tried_again_and_the_state_stays_open() {
 #[tokio::test]
 async fn a_listener_taken_after_the_first_connect_was_refused_still_hears_the_refusal() {
     let gateway = Gateway::start().await;
-    gateway
-        .staged
-        .refusals
-        .lock()
-        .unwrap()
-        .push_back(StatusCode::SERVICE_UNAVAILABLE);
+    gateway.refuse(StatusCode::SERVICE_UNAVAILABLE, Said::Nothing);
     let transport = gateway.client(Duration::from_secs(5));
     // The first connect is refused and the next opens, all before anything
     // listens to the failures: the refusal is reported while no one listens.
@@ -482,6 +495,27 @@ async fn a_listener_taken_after_the_first_connect_was_refused_still_hears_the_re
         .expect("not lagged");
     assert_eq!(refused.code.as_str(), "unavailable");
     assert_eq!(refused.status, Some(503));
+    transport.close().await;
+}
+
+#[tokio::test]
+async fn a_refused_connect_is_reported_in_the_gateways_words() {
+    let gateway = Gateway::start().await;
+    gateway.refuse(
+        StatusCode::SERVICE_UNAVAILABLE,
+        Said::Words("the gateway is draining"),
+    );
+    let transport = gateway.client(Duration::from_millis(60));
+    let mut failures = transport.failures();
+    let refused = tokio::time::timeout(Duration::from_secs(5), failures.next())
+        .await
+        .expect("the refusal is heard")
+        .expect("a failure")
+        .expect("not lagged");
+    assert_eq!(
+        refused.message,
+        "SSE connect failed: 503: the gateway is draining"
+    );
     transport.close().await;
 }
 

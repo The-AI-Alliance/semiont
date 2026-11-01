@@ -215,6 +215,17 @@ func TestAListenerTakenAfterTheFirstConnectWasRefusedStillHearsTheRefusal(t *tes
 		t.Fatalf("%d subscribes arrived, want 2", gateway.subscribes())
 	}
 
+	refused := firstFailure(t, transport)
+	status, stated := refused.Status()
+	if refused.Code != TransportErrorCodeUnavailable || !stated || status != http.StatusServiceUnavailable {
+		t.Errorf("the refusal is heard as %q, %d (%v)", refused.Code, status, stated)
+	}
+}
+
+// firstFailure is the first failure the transport reports, within five
+// seconds.
+func firstFailure(t *testing.T, transport *HTTPTransport) *TransportError {
+	t.Helper()
 	heard := make(chan *TransportError, 1)
 	go func() {
 		for failure := range transport.Failures() {
@@ -223,13 +234,23 @@ func TestAListenerTakenAfterTheFirstConnectWasRefusedStillHearsTheRefusal(t *tes
 		}
 	}()
 	select {
-	case refused := <-heard:
-		status, stated := refused.Status()
-		if refused.Code != TransportErrorCodeUnavailable || !stated || status != http.StatusServiceUnavailable {
-			t.Errorf("the refusal is heard as %q, %d (%v)", refused.Code, status, stated)
-		}
+	case failure := <-heard:
+		return failure
 	case <-time.After(5 * time.Second):
-		t.Fatal("the refusal reported before anything listened is not heard")
+		t.Fatal("no failure is heard")
+		return nil
+	}
+}
+
+// A refused open is reported in the gateway's own words, when its body
+// states them.
+func TestARefusedOpenIsReportedInTheGatewaysWords(t *testing.T) {
+	gateway := newStubGateway(t)
+	gateway.refusals = []int{http.StatusServiceUnavailable}
+	transport, _ := gateway.client()
+	defer transport.Close()
+	if refused := firstFailure(t, transport); refused.Message != "SSE connect failed: 503: refused" {
+		t.Errorf("the refusal says %q", refused.Message)
 	}
 }
 

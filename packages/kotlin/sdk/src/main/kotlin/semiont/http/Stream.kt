@@ -503,7 +503,11 @@ internal class Stream(
                     null
                 }
                 val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
-                reports.send(Refused(conn, refusal("SSE connect failed: $status: ${said(read, "")}", status, read, stated)))
+                val message = when (val words = said(read)) {
+                    null -> "SSE connect failed: $status"
+                    else -> "SSE connect failed: $status: $words"
+                }
+                reports.send(Refused(conn, refusal(message, status, read, stated)))
                 return
             }
             reports.send(Opened(conn))

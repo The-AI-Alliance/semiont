@@ -261,6 +261,17 @@ def test_a_stream_whose_open_the_gateway_never_answers_has_failed_at_its_deadlin
     assert failures == []
 
 
+def test_a_refused_stream_is_reported_in_the_gateways_words() -> None:
+    async def scenario() -> str:
+        async with GatewayServer() as gateway:
+            gateway.scripted[("POST", "/bus/subscribe")] = [Answer(status=503, body=b'{"error":"the gateway is draining"}')]
+            async with HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=QUICK) as transport:
+                refused = await soon(anext(transport.failures()))
+            return refused.message
+
+    assert run(scenario()) == "SSE connect failed: 503: the gateway is draining"
+
+
 @final
 class OverTheWire(DeliverySubject):
     """The real transport as a delivery subject.

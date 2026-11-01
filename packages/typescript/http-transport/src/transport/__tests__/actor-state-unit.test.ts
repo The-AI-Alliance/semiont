@@ -717,6 +717,30 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
+  it('a refused connect is reported in the gateway\'s words', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: new Headers(),
+      body: {},
+      text: async () => '{"error":"the gateway is draining"}',
+    });
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['beckon:hover'],
+    });
+    const refusals: Array<{ message: string }> = [];
+    stateUnit.errors$.subscribe((e) => refusals.push(e));
+
+    stateUnit.start();
+    await vi.waitFor(() => expect(refusals).toHaveLength(1));
+    expect(refusals[0]!.message).toBe('SSE connect failed: 503: the gateway is draining');
+
+    stateUnit.dispose();
+  });
+
   it('reassembles an event whose bytes span multiple reader.read() chunks', async () => {
     // The SSE parser's currentEvent/currentData/currentId state must
     // outlive one read: declared inside the read loop, a large event
