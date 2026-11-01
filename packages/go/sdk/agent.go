@@ -173,7 +173,7 @@ func (s *ServiceToken) token(ctx context.Context, renewed bool) (string, error) 
 	issuer, clientID := s.credential.account()
 	form, err := s.credential.GrantForm(endpoint)
 	if err != nil {
-		return "", &SignInError{Code: SignInErrorCodeExchange, Message: fmt.Sprintf("Client-credentials grant for %s at %s could not be made: %v", clientID, issuer, err)}
+		return "", signInUnanswered(SignInErrorCodeExchange, fmt.Sprintf("Client-credentials grant for %s at %s could not be made: %v", clientID, issuer, err))
 	}
 	status, answered, err := s.issuer.postForm(ctx, endpoint, form)
 	if err != nil {
