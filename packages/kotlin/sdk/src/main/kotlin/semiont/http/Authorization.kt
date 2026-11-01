@@ -16,6 +16,7 @@ import semiont.types.wireJson
 import java.net.URI
 import java.net.URISyntaxException
 import java.net.URLDecoder
+import java.net.http.HttpClient
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
@@ -69,17 +70,17 @@ private fun queryOf(pairs: List<Pair<String, String>>): String = pairs.joinToStr
 /**
  * Begin the authorization-code grant: find the issuer the target trusts,
  * remember the pending sign-in in `pending`, and give the address to send the
- * person to. Throws `SignInError` (`discovery`) for a target whose host is no
- * host's name, before anything is asked or remembered, and as finding the
- * issuer does.
+ * person to. The target and its issuer are asked with `http`. Throws
+ * `SignInError` (`discovery`) for a target whose host is no host's name,
+ * before anything is asked or remembered, and as finding the issuer does.
  */
-public suspend fun beginAuthorization(options: BeginAuthorizationOptions, pending: SessionStorage): String {
+public suspend fun beginAuthorization(options: BeginAuthorizationOptions, pending: SessionStorage, http: HttpClient = ownHttp): String {
     val baseUrl = try {
         gatewayUrl(options.target)
     } catch (invalid: IllegalArgumentException) {
         throw SignInError(SignInErrorCode.Discovery, invalid.message ?: "Invalid KB hostname")
     }
-    val issuer = discoverIssuer(baseUrl)
+    val issuer = discoverIssuer(baseUrl, http)
     val record = PendingAuthorization(
         state = randomUrlSafe(24),
         verifier = randomUrlSafe(48),
@@ -107,8 +108,9 @@ public suspend fun beginAuthorization(options: BeginAuthorizationOptions, pendin
 }
 
 /** `beginAuthorization`, for Java. */
-public fun beginAuthorizationFuture(options: BeginAuthorizationOptions, pending: SessionStorage): CompletableFuture<String> =
-    CoroutineScope(Dispatchers.Default).futureOf { beginAuthorization(options, pending) }
+@JvmOverloads
+public fun beginAuthorizationFuture(options: BeginAuthorizationOptions, pending: SessionStorage, http: HttpClient = ownHttp): CompletableFuture<String> =
+    CoroutineScope(Dispatchers.Default).futureOf { beginAuthorization(options, pending, http) }
 
 /** The pending sign-in, taken out of `pending` as one step; null when none is there, or what is there is not one. */
 private fun taken(pending: SessionStorage): PendingAuthorization? {
@@ -141,9 +143,9 @@ private fun said(query: String?): Map<String, List<String>> =
  * complete. Throws `SignInError`: `no-pending` when no sign-in is pending
  * here, `denied` when the person refused it, `state` for a response that is
  * not the pending sign-in's, and `exchange` when the issuer refused the code
- * or answered without what was asked for.
+ * or answered without what was asked for. The issuer is asked with `http`.
  */
-public suspend fun completeAuthorization(callbackUrl: String, pending: SessionStorage): Pair<PendingAuthorization, IssuedTokens> {
+public suspend fun completeAuthorization(callbackUrl: String, pending: SessionStorage, http: HttpClient = ownHttp): Pair<PendingAuthorization, IssuedTokens> {
     val record = taken(pending) ?: throw SignInError(SignInErrorCode.NoPending, "No sign-in is pending here")
     val callback = try {
         URI(callbackUrl)
@@ -167,6 +169,7 @@ public suspend fun completeAuthorization(callbackUrl: String, pending: SessionSt
             "client_id" to BROWSER_CLIENT_ID,
             "code_verifier" to record.verifier,
         ),
+        http,
     )
     val access = answer.text("access_token")
     if (answer.status != 200 || access == null) {
@@ -177,5 +180,6 @@ public suspend fun completeAuthorization(callbackUrl: String, pending: SessionSt
 }
 
 /** `completeAuthorization`, for Java. */
-public fun completeAuthorizationFuture(callbackUrl: String, pending: SessionStorage): CompletableFuture<Pair<PendingAuthorization, IssuedTokens>> =
-    CoroutineScope(Dispatchers.Default).futureOf { completeAuthorization(callbackUrl, pending) }
+@JvmOverloads
+public fun completeAuthorizationFuture(callbackUrl: String, pending: SessionStorage, http: HttpClient = ownHttp): CompletableFuture<Pair<PendingAuthorization, IssuedTokens>> =
+    CoroutineScope(Dispatchers.Default).futureOf { completeAuthorization(callbackUrl, pending, http) }

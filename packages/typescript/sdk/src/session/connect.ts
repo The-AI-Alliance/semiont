@@ -31,16 +31,17 @@ export interface ConnectionIdentity {
   description: KbDescription;
 }
 
-export async function describeConnection(target: HttpEndpoint, access: string): Promise<ConnectionIdentity> {
+export async function describeConnection(target: HttpEndpoint, access: string, fetch?: typeof globalThis.fetch): Promise<ConnectionIdentity> {
   // The KB describes itself only to a signed-in caller, so the throwaway
   // client carries the token from birth. It subscribes to this one
-  // operation's replies and nothing else. Everything it opens is torn down on
-  // every exit.
+  // operation's replies and nothing else, and sends with `fetch` when it is
+  // given one. Everything it opens is torn down on every exit.
   const token$ = new BehaviorSubject<AccessToken | null>(accessToken(access));
   const transport = new HttpTransport({
     baseUrl: baseUrl(kbGatewayUrl(target)),
     token$,
     channels: replyChannelsFor(['browse:kb-requested']),
+    ...(fetch ? { fetch } : {}),
   });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
   try {

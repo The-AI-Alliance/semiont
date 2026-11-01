@@ -8,8 +8,9 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Final, Self, final
+from typing import Final, Self, final, override
 
+import httpx
 from pydantic import JsonValue, TypeAdapter
 from spec import JsonObject
 
@@ -70,6 +71,25 @@ NOT_FOUND: Final = Answer(status=404, body=b'{"error":"The gateway has no such t
 
 
 @final
+class Recording(httpx.AsyncBaseTransport):
+    """The transport of an HTTP client an application builds itself: it sends each request as any client does, and records it first."""
+
+    def __init__(self) -> None:
+        self.seen: list[tuple[str, str]] = []
+        """The method and path of every request sent through it, in the order they were sent."""
+        self._sending: Final = httpx.AsyncHTTPTransport()
+
+    @override
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self.seen.append((request.method, request.url.raw_path.decode()))
+        return await self._sending.handle_async_request(request)
+
+    @override
+    async def aclose(self) -> None:
+        await self._sending.aclose()
+
+
+@final
 class GatewayServer:
     """Held with `async with`. `origin` is where a transport is pointed."""
 
@@ -126,6 +146,10 @@ class GatewayServer:
     def of(self, method: str, path: str) -> list[Asked]:
         """The requests of one method and path."""
         return [asked for asked in self.asked if (asked.method, asked.path) == (method, path)]
+
+    def came_through(self, recording: Recording) -> bool:
+        """Whether every request the gateway was asked was sent through the client whose transport is `recording`."""
+        return {(asked.method, asked.path) for asked in self.asked} <= set(recording.seen)
 
     @property
     def subscriptions(self) -> list[JsonObject]:

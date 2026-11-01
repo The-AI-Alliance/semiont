@@ -9,6 +9,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { APIError, refusalBody, retryableUnlessRefused } from './api-error';
+import { fetchOf } from './fetch-of';
 
 export type { ConnectionState };
 
@@ -69,6 +70,8 @@ export interface ActorStateUnitOptions {
    */
   loadLastEventIds?: () => ReadonlyMap<ResourceId, string> | null;
   saveLastEventId?: (scope: ResourceId, id: string) => void;
+  /** What the stream's connects and every emit are sent with: `HttpTransportConfig.fetch`. Absent, the runtime's. */
+  fetch?: typeof fetch;
 }
 
 /** A frame as the stream delivered it, with the trace lifted off its payload. */
@@ -440,7 +443,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // `open`.
       let response: Response;
       try {
-        response = await fetch(url, { method: 'POST', headers, body, signal: AbortSignal.any([controller.signal, opening.signal]) });
+        response = await fetchOf(options.fetch)(url, { method: 'POST', headers, body, signal: AbortSignal.any([controller.signal, opening.signal]) });
       } finally {
         clearTimeout(openDeadline);
       }
@@ -832,7 +835,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         // the caller's loop forever. AbortSignal.timeout rejects with a
         // DOMException named TimeoutError — which the predicate treats as
         // retryable, since a deadline is the definition of "try again".
-        const attempt = await fetch(`${baseUrl}/bus/emit`, {
+        const attempt = await fetchOf(options.fetch)(`${baseUrl}/bus/emit`, {
           method: 'POST',
           headers: { ...headers, Authorization: `Bearer ${token}` },
           body: JSON.stringify(body),

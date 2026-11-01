@@ -9,9 +9,10 @@ an upload does when it is read twice or abandoned.
 import asyncio
 import dataclasses
 
+import httpx
 import pytest
 from aio import run, soon
-from gateway_server import NOT_FOUND, Answer, GatewayServer
+from gateway_server import NOT_FOUND, Answer, GatewayServer, Recording
 from pydantic import JsonValue, TypeAdapter
 
 from semiont.errors import SemiontError, TransportError
@@ -163,6 +164,40 @@ def test_a_transport_closed_under_an_upload_and_a_read_ends_each_as_a_request_th
             return uploaded.value.code, asked.value.code, after.value.code
 
     assert run(scenario()) == ("unavailable", "unavailable", "error")
+
+
+def test_a_transport_over_its_caller_s_client_closed_under_an_upload_a_read_and_a_stream_ends_each_and_leaves_the_client_open() -> None:
+    async def scenario() -> tuple[str, str, str, bool, bool]:
+        recording = Recording()
+        async with GatewayServer() as gateway, httpx.AsyncClient(transport=recording) as http:
+            gateway.scripted[("POST", "/resources")] = [Answer(hold=True)]
+            gateway.scripted[("GET", "/api/health")] = [Answer(hold=True)]
+            gateway.stored[RESOURCE] = ("application/octet-stream", EVERY_BYTE)
+            transport = HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=("beckon:focus",), http=http)
+            async with transport:
+                upload = transport.content.put_binary(PutBinaryRequest(name="n", file=b"abc", format="text/plain", storage_uri="file://n"))
+
+                async def created() -> str:
+                    return (await upload).resource_id
+
+                uploading = asyncio.ensure_future(created())
+                asking = asyncio.ensure_future(transport.health_check())
+                # Begun, and not yet read.
+                stream = await soon(transport.content.get_binary_stream(RESOURCE))
+                await soon(gateway.arrived("POST", "/resources"))
+                await soon(gateway.arrived("GET", "/api/health"))
+            # Closed: nothing of the transport's is left on the wire, and each caller has its answer.
+            with pytest.raises(TransportError) as uploaded:
+                await soon(uploading)
+            with pytest.raises(TransportError) as asked:
+                await soon(asking)
+            async with stream:
+                with pytest.raises(TransportError) as read:
+                    _ = [piece async for piece in stream]
+            return uploaded.value.code, asked.value.code, read.value.code, gateway.came_through(recording), http.is_closed
+
+    # The client is its caller's: the transport ends what it began on it, and does not close it.
+    assert run(scenario()) == ("unavailable", "unavailable", "unavailable", True, False)
 
 
 def test_a_read_gives_the_bytes_unchanged_whole_or_as_they_arrive_and_one_that_is_not_there_fails_as_not_found() -> None:

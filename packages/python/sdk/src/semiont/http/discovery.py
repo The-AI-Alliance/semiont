@@ -6,6 +6,7 @@ JSON, which is what a server that answers every path with its own page gives.
 """
 
 import asyncio
+from contextlib import nullcontext
 from typing import Final, final, override
 
 import httpx
@@ -19,8 +20,9 @@ __all__ = ["http_discovery"]
 
 @final
 class _HttpDiscovery(DiscoveryTransport):
-    def __init__(self, url: str) -> None:
+    def __init__(self, url: str, http: httpx.AsyncClient | None) -> None:
         self._url: Final = url
+        self._http: Final = http
         self._etag: str | None = None
         """The tag of the last document that read as managed; none when that document had none, or none has."""
 
@@ -31,10 +33,10 @@ class _HttpDiscovery(DiscoveryTransport):
             # With a deadline: a read that is never answered would hold the
             # poll that awaits it, and every poll after it, for good.
             async with (
-                httpx.AsyncClient(timeout=None, trust_env=False, follow_redirects=True) as http,
+                httpx.AsyncClient(timeout=None, trust_env=False) if self._http is None else nullcontext(self._http) as http,
                 asyncio.timeout(HTTP_REQUEST_TIMEOUT_MS / 1000),
             ):
-                response = await http.get(self._url, headers=headers)
+                response = await http.get(self._url, headers=headers, follow_redirects=True)
         except TimeoutError:
             return Absent(reason="unreadable", diagnostic=f"the document was not served within {HTTP_REQUEST_TIMEOUT_MS // 1000}s")
         except httpx.HTTPError as error:
@@ -54,10 +56,12 @@ class _HttpDiscovery(DiscoveryTransport):
         return state
 
 
-def http_discovery(url: str) -> DiscoveryTransport:
+def http_discovery(url: str, *, http: httpx.AsyncClient | None = None) -> DiscoveryTransport:
     """A transport that reads the discovery document at `url`, each read within the timing table's request deadline.
 
-    A redirect is followed. Like every client this package makes of HTTP, it
+    A redirect is followed. Each read is made with `http`, which its caller
+    built and closes, when one is given. With none, each is made with a client
+    of the package's own, which, like every client this package makes of HTTP,
     reads no environment variable.
     """
-    return _HttpDiscovery(url)
+    return _HttpDiscovery(url, http)

@@ -13,6 +13,7 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway,
 | A service or a worker | [A service account](#a-service-or-a-worker): the program signs in as its own account, an agent | `startAgentSession` | `AgentToken` | `AgentToken::sign_in` | `SignInAgent` | `AgentToken` |
 | A person, in an application | [A page redirect](#an-application) to the identity provider and back | `SemiontBrowser.beginSignIn`, `completeSignIn` | `begin_sign_in`, `complete_sign_in` | `begin_sign_in`, `complete_sign_in` | `BeginSignIn`, `CompleteSignIn` | `beginSignIn`, `completeSignIn` |
 | A program that already holds tokens | [The tokens themselves](#tokens-you-already-hold) | `SemiontSession.fromIssuedSession`, `SemiontSession.fromHttp` | its README | its README | its README | its README |
+| Every way above | [The HTTP client you give it](#the-http-client): its requests go through that client | `fetch` | `http=` | `http` | `HTTP` | `http` |
 
 Each SDK's README has its own forms in full: [TypeScript](../../packages/typescript/sdk/README.md#connect), [Python](../../packages/python/sdk/README.md#signing-in), [Go](../../packages/go/sdk/README.md#signing-in), [Kotlin](../../packages/kotlin/sdk/README.md#signing-in), and for Rust [`semiont-http-transport`](../../packages/rust/http-transport/README.md).
 
@@ -21,6 +22,20 @@ Each SDK's README has its own forms in full: [TypeScript](../../packages/typescr
 - **An access token is short-lived**: five minutes from the Keycloak a launcher stack runs. A session renews it before it expires and stores what it holds. A bare client with a bare token stops working when the token does.
 - **A person's session ends once, and says why**: `expired` when the identity provider will not renew it, `refused` when the gateway will not accept a token the provider has just issued. Neither is a prompt to retry.
 - **What a program writes is attributed to who signed in**: a person's work to the person, an agent's to the agent.
+
+## The HTTP client
+
+Every way makes its requests, of the gateway and of the identity provider, with an HTTP client the program gives it, and the certificates trusted and the proxy gone through are that client's. No SDK reads a setting of its own for either.
+
+| SDK | What it takes | Where | Given none |
+|---|---|---|---|
+| TypeScript | a `fetch` | `fetch` in the options of `SemiontSession.signInDevice`, `fromIssuedSession` and `fromHttp`, `startAgentSession` and `SemiontBrowser`; the last argument of `createHttpSessionFactory` | the runtime's own |
+| Python | an `httpx.AsyncClient` | `http=` on `sign_in_device`, `session_from_kept`, `ServiceToken`, `AgentToken`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory` | one of its own |
+| Rust | a `reqwest::Client` | `http` in `SignInDevice` and `StoredSignIn`, and the argument `http` of `ServiceToken::new`, `AgentToken::sign_in`, `begin_sign_in`, `complete_sign_in` and `HttpSessionFactory::new` | none: it is required |
+| Go | a `*http.Client` | `HTTP` in the `Issuer` that `SignInWithDevice`, `NewServiceToken`, `BeginSignIn` and `CompleteSignIn` take, and in `AgentConfig`, `SessionFromKeptConfig` and `registry.HttpSessionFactory` | none: it is required |
+| Kotlin | a `java.net.http.HttpClient` | the last argument `http` of `sessionFromKept`, `beginSignIn`, `completeSignIn`, `ServiceToken`, `AgentToken` and `HttpSessionFactory`, and of `signInDevice` before its `onCode` | the JDK's, with its default proxy selector and trust store |
+
+An SDK never closes a client it is given: the program that built it closes it.
 
 ## The device grant
 

@@ -12,9 +12,10 @@ from pathlib import Path
 from typing import Final, final, override
 from urllib.parse import parse_qs
 
+import httpx
 import pytest
 from aio import hurried, pass_time, run, settle, soon
-from gateway_server import NOT_FOUND, Answer, Asked, GatewayServer
+from gateway_server import NOT_FOUND, Answer, Asked, GatewayServer, Recording
 from issuer import (
     CONFIGURATION,
     DEVICE,
@@ -1199,6 +1200,76 @@ def test_signing_out_revokes_the_refresh_token_and_forgets_the_sign_in_whatever_
             assert len(gateway.of("POST", REVOKE)) == asked
 
     run(scenario())
+
+
+# ── A client the application builds ────────────────────────────────────
+
+
+HEALTH: Final[JsonObject] = {"status": "ok", "message": "serving", "version": "0.0.0", "timestamp": "2026-10-06T05:04:06.111Z"}
+
+
+def test_an_issuer_and_an_agent_given_a_client_are_asked_through_it_and_it_is_left_open() -> None:
+    async def scenario() -> tuple[list[tuple[str, str]], bool, bool]:
+        recording = Recording()
+        async with GatewayServer() as gateway, httpx.AsyncClient(transport=recording) as http:
+            trusting(gateway)
+            first = access(1)
+            gateway.scripted[("POST", TOKEN)] = [says({"access_token": access(2)}), says({"access_token": token(3600, 3)})]
+            await soon(discover_issuer(gateway.origin, http=http))
+            await soon(renew_kept(MemorySignIn(held(gateway, first)), first, http=http))
+            gateway.answers[ME] = agent_named("semiont-smelter")
+            async with AgentToken(gateway.origin, service=ServiceToken(account(gateway), http=http), http=http):
+                pass
+            return recording.seen, gateway.came_through(recording), http.is_closed
+
+    seen, came_through, closed = run(scenario())
+    assert seen == [("GET", METADATA), ("GET", CONFIGURATION), ("POST", TOKEN), ("GET", CONFIGURATION), ("POST", TOKEN), ("GET", ME)]
+    assert came_through
+    # The client is its caller's: nothing here closes it.
+    assert not closed
+
+
+def test_a_person_s_sign_in_session_and_sign_out_given_a_client_are_made_through_it_and_it_is_left_open() -> None:
+    async def scenario() -> tuple[list[tuple[str, str]], bool, bool]:
+        recording = Recording()
+        async with GatewayServer() as gateway, httpx.AsyncClient(transport=recording) as http:
+            trusting(gateway)
+            kept = MemorySignIn()
+            first, second = access(1), access(2)
+            gateway.scripted[("POST", DEVICE)] = [minted(interval=1)]
+            gateway.scripted[("POST", TOKEN)] = [
+                PENDING,
+                says({"access_token": first, "refresh_token": "refresh-1"}),
+                says({"access_token": second}),
+            ]
+            gateway.answers["/api/health"] = HEALTH
+            gateway.scripted[("GET", "/api/health")] = [REFUSED]
+            gateway.scripted[("POST", REVOKE)] = [Answer()]
+
+            await hurried(sign_in_device(gateway.target("kb"), kept, lambda _: None, http=http))
+            async with session_from_kept(gateway.target("kb"), kept=kept, channels=(), http=http) as session:
+                # Refused, its token is renewed at the issuer, and the request made again with the new one.
+                await soon(session.client.transport.health_check())
+            await soon(sign_out(kept, http=http))
+            return recording.seen, gateway.came_through(recording), http.is_closed
+
+    seen, came_through, closed = run(scenario())
+    assert [asked for asked in seen if asked != ("POST", "/bus/subscribe")] == [
+        ("GET", METADATA),
+        ("GET", CONFIGURATION),
+        ("POST", DEVICE),
+        ("POST", TOKEN),
+        ("POST", TOKEN),
+        ("GET", ME),
+        ("GET", "/api/health"),
+        ("POST", TOKEN),
+        # The session asks the gateway who the renewed token is before the request is made again with it.
+        ("GET", ME),
+        ("GET", "/api/health"),
+        ("POST", REVOKE),
+    ]
+    assert came_through
+    assert not closed
 
 
 # ── A session whose client keeps what it holds ──────────────────────────

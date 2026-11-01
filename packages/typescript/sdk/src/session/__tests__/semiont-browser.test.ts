@@ -1351,6 +1351,23 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
     return { url, callback: `${REDIRECT}?code=the-code&state=${state}` };
   }
 
+  it('asks the issuer through the fetch it was given, to begin, to complete and to sign out, and nothing through the runtime\'s', async () => {
+    const given = globalThis.fetch;
+    const runtimes = vi.fn(async () => issuerReply({ error: 'not this fetch' }, 400));
+    vi.stubGlobal('fetch', runtimes);
+    const browser = new SemiontBrowser({ storage, sessionFactory: createHttpSessionFactory(given), fetch: given });
+
+    const { callback } = await begin(browser);
+    const outcome = await browser.completeSignIn(callback);
+    await browser.signOut(outcome.kb.id);
+
+    expect(callsTo(`${ISSUER}/.well-known/openid-configuration`)).toHaveLength(1);
+    expect(callsTo(`${ISSUER}/token`)).toHaveLength(1);
+    expect(callsTo(`${ISSUER}/revoke`)).toHaveLength(1);
+    expect(runtimes).not.toHaveBeenCalled();
+    await browser.dispose();
+  });
+
   it("beginSignIn returns the issuer's authorization URL for the host to navigate to", async () => {
     const browser = makeBrowser();
 

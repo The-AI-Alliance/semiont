@@ -190,7 +190,9 @@ The SDK installs nothing and reads no setting of its own but `SEMIONT_BUS_LOG`. 
 
 ## The JVM's settings
 
-The SDK's HTTP client is the JDK's, with the JDK's default proxy selector and trust store, so it honours the system properties an application sets for them:
+Every part that makes requests takes the `java.net.http.HttpClient` it makes them with as `http`: `HttpTransport`, and with it `HttpContentTransport`; `sessionFromKept` and `HttpSessionFactory`; `signInDevice`, `signOut` and `renewKept`; `beginAuthorization`, `completeAuthorization`, `beginSignIn`, `completeSignIn` and `describeConnection`; `ServiceToken` and `AgentToken`; and `httpDiscovery`. An application that needs another trust store, a proxy of its own, or anything else a client is built with builds the client, `HttpClient.newBuilder().sslContext(sslContext).build()`, and passes it, `sessionFromKept(kb, kept, http = http)`: what that client trusts, and the proxy it goes through, are the SDK's requests'.
+
+Given none, a part uses the SDK's own client: the JDK's, with the JDK's default proxy selector and trust store, so it honours the system properties an application sets for them. The discovery reader's own client follows a redirect; a caller's client follows its own policy.
 
 | For | Properties |
 |---|---|

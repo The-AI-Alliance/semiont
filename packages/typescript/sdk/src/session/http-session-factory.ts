@@ -9,6 +9,9 @@
  * Returned as a closure so a single `inFlightRefreshes` map is shared
  * across every session this factory builds — the dedup is meaningful
  * across concurrent session reactivations for the same KB id.
+ *
+ * Every request of every session it builds, of the gateway and of the
+ * issuer, is sent with `fetch`, or the runtime's own.
  */
 
 import { BehaviorSubject } from 'rxjs';
@@ -22,7 +25,7 @@ import { kbGatewayUrl } from './storage';
 import { refreshStoredSession } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
-export function createHttpSessionFactory(): SessionFactory {
+export function createHttpSessionFactory(fetch?: typeof globalThis.fetch): SessionFactory {
   const inFlightRefreshes = new Map<string, Promise<string | null>>();
 
   return (opts: SessionFactoryOptions): SemiontSession => {
@@ -46,7 +49,7 @@ export function createHttpSessionFactory(): SessionFactory {
       const existing = inFlightRefreshes.get(kb.id);
       if (existing) return existing;
 
-      const promise = refreshStoredSession(storage, kb.id);
+      const promise = refreshStoredSession(storage, kb.id, fetch);
 
       inFlightRefreshes.set(kb.id, promise);
       try {
@@ -63,7 +66,7 @@ export function createHttpSessionFactory(): SessionFactory {
      * a bus stream each time it is built, with the token being asked about.
      */
     const performValidate = (token: AccessToken): Promise<UserInfo> =>
-      currentUserOf(baseUrl(kbGatewayUrl(endpoint)), token);
+      currentUserOf(baseUrl(kbGatewayUrl(endpoint)), token, fetch);
 
     // Build transport stack: factory owns token$ and threads it through
     // transport (which reads it on every request) and session (which
@@ -84,6 +87,7 @@ export function createHttpSessionFactory(): SessionFactory {
       tokenRefresher: () => session.refresh().then((t) => t ?? null),
       loadLastEventIds: coupled.loadLastEventIds,
       saveLastEventId: coupled.saveLastEventId,
+      ...(fetch ? { fetch } : {}),
     });
     const content = new HttpContentTransport(transport);
     // B17: the session's client persists its browse caches through the
