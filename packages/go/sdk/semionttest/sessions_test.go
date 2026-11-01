@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -268,7 +269,7 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 		}
 
 		// A renewal nobody scripted is a renewal that failed, and says so: the
-		// session ends as it does when its issuer cannot be reached.
+		// session holds no token, as when its issuer cannot be reached.
 		if token, ok := session.Refresh(context.Background(), session.Token().Value()); ok || token != "" {
 			t.Errorf("an unscripted renewal gives %q, %v", token, ok)
 		}
@@ -282,11 +283,49 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 		if !mentioned {
 			t.Errorf("said: %+v", a.errors())
 		}
-		// The session says it is over through the signals the registry gave.
-		if a.signals.SessionEnded().Value() == nil {
-			t.Error("the session did not say it is over")
+		// Nobody refused it, so the session is not over.
+		if a.signals.SessionEnded().Value() != nil {
+			t.Error("the session said it is over")
 		}
 	})
+}
+
+// A scripted renewal that fails with the issuer's status is the issuer's
+// refusal, as the SDK reads an issuer that answers so, and ends the session;
+// one that fails with a status worth another attempt, or with none, got no
+// answer, and the session goes on.
+func TestScriptedSessionsRenewalsFailAsTheIssuerAnsweredOrDidNot(t *testing.T) {
+	for _, row := range []struct {
+		why     string
+		renewal semionttest.Renewal
+		ends    bool
+	}{
+		{"the issuer refuses", semionttest.Renewal{Why: "invalid_grant", Status: http.StatusBadRequest}, true},
+		{"the issuer says not now", semionttest.Renewal{Why: "temporarily_unavailable", Status: http.StatusServiceUnavailable}, false},
+		{"the issuer does not answer", semionttest.Renewal{Why: "the network is down"}, false},
+	} {
+		t.Run(row.why, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				sessions := semionttest.NewScriptedSessions(nil)
+				sessions.SaysWho(alice())
+				a := newAsked()
+				a.signedIn(t, "kb-a")
+				session := built(t, sessions, a.of("kb-a"))
+				sessions.QueueRenewals(row.renewal)
+
+				if token, ok := session.Refresh(context.Background(), session.Token().Value()); ok || token != "" {
+					t.Errorf("a failed renewal gives %q, %v", token, ok)
+				}
+				said := a.errors()
+				if len(said) != 1 || !strings.Contains(said[0].Message, row.renewal.Why) {
+					t.Errorf("said: %+v", said)
+				}
+				if ended := a.signals.SessionEnded().Value() != nil; ended != row.ends {
+					t.Errorf("the session ended: %v, want %v", ended, row.ends)
+				}
+			})
+		})
+	}
 }
 
 func TestScriptedSessionsCanRefuseToBuildAndKeepWhatWasRevoked(t *testing.T) {

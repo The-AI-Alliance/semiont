@@ -120,7 +120,8 @@ fn built_over_http(options: HttpSession) -> SemiontSession {
     session
 }
 
-type Renewal = Shared<BoxFuture<'static, Result<Option<String>, String>>>;
+type Renewal =
+    Shared<BoxFuture<'static, Result<Option<String>, Arc<dyn std::error::Error + Send + Sync>>>>;
 
 /// The renewals under way, by knowledge base.
 type Renewing = Arc<Mutex<HashMap<String, Renewal>>>;
@@ -146,19 +147,17 @@ fn renewing_stored(
                     http.clone(),
                     renewing.clone(),
                 );
-                let once: BoxFuture<'static, Result<Option<String>, String>> =
-                    Box::pin(async move {
-                        let renewed = refresh_stored_session(
-                            storage.as_ref(),
-                            &kb_id,
-                            holding.as_deref(),
-                            &http,
-                        )
-                        .await
-                        .map_err(|refused| refused.to_string());
-                        locked(&renewing).remove(&kb_id);
-                        renewed
-                    });
+                let once: BoxFuture<
+                    'static,
+                    Result<Option<String>, Arc<dyn std::error::Error + Send + Sync>>,
+                > = Box::pin(async move {
+                    let renewed =
+                        refresh_stored_session(storage.as_ref(), &kb_id, holding.as_deref(), &http)
+                            .await
+                            .map_err(Arc::from);
+                    locked(&renewing).remove(&kb_id);
+                    renewed
+                });
                 once.shared()
             })
             .clone();

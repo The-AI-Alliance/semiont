@@ -726,13 +726,16 @@ Bus-layer and session-layer errors keep their own code namespaces:
 
 **What ends a session.** Two things, each with its own code.
 
-The issuer refusing to renew it: `session.refresh-exhausted`. A refresh that fails because the
-network dropped, the gateway restarted, or the issuer answered `5xx` is retried under a bounded
-budget and the session survives; a refusal — `400 invalid_grant` for a revoked, expired or
-already-rotated refresh token — is terminal on the first answer, because retrying cannot change
-it. When the budget does run out the session ends the same way a refusal ends it, and
-`session.refresh-exhausted` names both the last cause and how many attempts it took, so "tried
-once and refused" reads differently from "tried four times and never got an answer".
+The issuer refusing to renew it: `session.refresh-exhausted`, and `onAuthFailed` is told
+`expired`. A refusal — `400 invalid_grant` for a revoked, expired or already-rotated refresh
+token — is terminal on the first answer, because retrying cannot change it. A refresh that fails
+because the network dropped, the gateway restarted, or the issuer answered `5xx` is retried under
+a bounded budget. When the budget runs out the session is not over: it holds no token, keeps
+what is stored, and says `session.refresh-exhausted` with nothing told to `onAuthFailed`. It
+renews again at the next refusal, and on its own on the reconnect backoff (each wait a jittered
+share of a step that doubles from `RECONNECT_MS` to `MAX_RECONNECT_MS`), until a renewal is made or
+refused; one made while nobody has said who the token is asks the gateway once. The error names both the last cause and how many attempts it took, so
+"tried once and refused" reads differently from "tried four times and never got an answer".
 
 The gateway refusing a token the issuer has just issued: `session.credential-refused`. A token the
 gateway refuses is renewed once, and the gateway is asked who the renewed one is; if it refuses
@@ -771,7 +774,7 @@ try {
     // bus-specific for `BusRequestError`, session-specific for
     // `SemiontSessionError`.
     if (error.code === 'unauthorized') {
-      // renew; a session that cannot be renewed ends, with why
+      // renew; a session whose issuer refuses to renew it ends, with why
     } else if (error.code === 'forbidden') {
       // surface permission-denied
     } else {

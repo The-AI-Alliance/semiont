@@ -1955,6 +1955,16 @@
           }
         },
         {
+          "member": "Renewal",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's testing module has no factory of scripted sessions.",
+            "rust": "Rust's scripted sessions are given what a renewal gives as it is: a token, none, or the SignInError it fails with, which Rust makes with the issuer's status.",
+            "python": "Python's scripted sessions are given what a renewal gives as it is: a token, None, or the SignInError it raises, which Python makes with the issuer's status.",
+            "kotlin": "Kotlin's scripted sessions are given a token (queueRenewals) or the SignInError a renewal fails with (failRenewal), which Kotlin makes with the issuer's status."
+          }
+        },
+        {
           "member": "SharedStorage",
           "kind": "type",
           "absent": {

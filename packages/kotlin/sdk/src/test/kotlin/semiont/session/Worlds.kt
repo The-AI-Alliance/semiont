@@ -9,6 +9,7 @@ import semiont.SemiontClient
 import semiont.errors.SemiontError
 import semiont.errors.SessionError
 import semiont.errors.SignInError
+import semiont.errors.SignInErrorCode
 import semiont.errors.TransportError
 import semiont.signin.HeldSignIn
 import semiont.signin.MemorySignIn
@@ -44,6 +45,10 @@ internal val alice: UserResponse = wireJson.decodeFromString(
 
 internal fun unauthorized() = TransportError.ofStatus("HTTP 401", 401, null)
 
+internal fun refusedByTheIssuer() = SignInError(SignInErrorCode.Exchange, "The issuer refused the token request (invalid_grant: Token is not active)", 400)
+
+internal fun unansweredByTheIssuer() = SignInError(SignInErrorCode.Exchange, "The issuer did not answer: the network is down")
+
 internal val TARGET = KbTarget(id = "kb-alpha", label = "Alpha", endpoint = HttpEndpoint(host = "localhost", port = 4000, protocol = HttpEndpointProtocol.Http))
 
 /**
@@ -58,13 +63,21 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
     val token = MutableStateFlow<String?>(null)
     private val renewalsLeft = ArrayDeque(renewals)
     var renewed = 0
+
+    /** When each renewal was asked for, by the clock given, when one is. */
+    val renewedAt = mutableListOf<Long>()
+    var clock: (() -> Long)? = null
     private val validationsLeft = ArrayDeque(validations)
     val validated = mutableListOf<String>()
+
+    /** Who the gateway last said a token is. */
+    var answered: UserResponse? = null
     val told = mutableListOf<SessionEndReason>()
     val errors = mutableListOf<SessionError>()
 
     suspend fun refresh(): String? {
         renewed += 1
+        clock?.let { renewedAt += it() }
         return when (val answer = renewalsLeft.removeFirstOrNull()) {
             is SignInError -> throw answer
             else -> answer as String?
@@ -75,7 +88,7 @@ internal class SessionWorld(kept: String? = null, renewals: List<Any?> = emptyLi
         validated += asked
         return when (val answer = validationsLeft.removeFirstOrNull() ?: alice) {
             is SemiontError -> throw answer
-            else -> answer as UserResponse
+            else -> (answer as UserResponse).also { answered = it }
         }
     }
 

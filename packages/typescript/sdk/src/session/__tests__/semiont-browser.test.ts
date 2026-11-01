@@ -1269,16 +1269,35 @@ describe('SemiontBrowser — performRefresh (the refresh grant at the issuer)', 
     await browser.dispose();
   });
 
-  it('returns null when the issuer is unreachable, and clears the stored session', async () => {
+  it('keeps the stored session when the issuer is unreachable, and says why', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'bad-refresh');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
     tokenEndpointAnswers(new Error('issuer down'));
 
     const browser = makeBrowser();
+    const said: string[] = [];
+    browser.error$.subscribe((error) => said.push(error.code));
+    const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
+
+    // A renewal that got no answer keeps the stored session, to be renewed
+    // when a request is refused; the session starts with no token.
+    expect(storage.get(storageKey(KB_A.id))).not.toBeNull();
+    expect(session?.token$.getValue()).toBeNull();
+    expect(said).toEqual(['session.auth-failed']);
+
+    await browser.dispose();
+  });
+
+  it('clears the stored session when the issuer refuses to renew it', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'revoked-refresh');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+    tokenEndpointAnswers(issuerReply({ error: 'invalid_grant', error_description: 'Token is not active' }, 400));
+
+    const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
-    // Refresh failure → session-expired path: storage cleared.
     expect(storage.get(storageKey(KB_A.id))).toBeNull();
 
     await browser.dispose();
@@ -1693,12 +1712,12 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await browser.dispose();
   });
 
-  it('fires the session-ended signal via the session onAuthFailed callback on refresh failure', async () => {
-    // Fresh stored token (no initial refresh), but subsequent refresh fails.
+  it('fires the session-ended signal via the session onAuthFailed callback when the issuer refuses a refresh', async () => {
+    // Fresh stored token (no initial refresh), but the issuer refuses the subsequent refresh.
     seedStoredSession(storage, KB_A.id, freshJwt(), 'bad-refresh');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
-    tokenEndpointAnswers(new Error('down'));
+    tokenEndpointAnswers(issuerReply({ error: 'invalid_grant', error_description: 'Token is not active' }, 400));
 
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));

@@ -25,7 +25,7 @@
  *     omit this.
  *
  *   - `onAuthFailed(reason)` — optional. Invoked when the session is
- *     over, with why: `expired`, its token could not be renewed, or
+ *     over, with why: `expired`, its issuer refused to renew its token, or
  *     `refused`, the gateway refused a token the issuer had just issued.
  *     UI hosts typically wire this to `SessionSignals.notifySessionEnded`
  *     so a modal surfaces, in the person's language; headless consumers
@@ -40,6 +40,11 @@ import { BehaviorSubject, type Observable } from 'rxjs';
 import {
   accessToken,
   baseUrl,
+  equalJitter,
+  MAX_RECONNECT_MS,
+  RECONNECT_MS,
+  RETRY_RULES,
+  SignInError,
   type AccessToken,
   type BaseUrl,
 } from '@semiont/core';
@@ -71,6 +76,17 @@ export type UserInfo = components['schemas']['UserResponse'];
 /** Why a renewal gave no token, for whoever reads the error. */
 const notRenewed = (failure: string | undefined): string =>
   failure ? `Token refresh failed: ${failure}` : 'Token refresh failed';
+
+/**
+ * Whether a renewal failed because the issuer refused it: an answer
+ * `RETRY_RULES.refresh` does not try again. No answer, and one it tries again
+ * until the budget is spent, is no refusal.
+ */
+const refusedByTheIssuer = (failure: unknown): boolean =>
+  failure instanceof SignInError
+  && failure.code === 'exchange'
+  && failure.status !== undefined
+  && !RETRY_RULES.refresh.retryable({ status: failure.status });
 
 export interface SemiontSessionConfig {
   kb: KbTarget;
@@ -174,6 +190,9 @@ export class SemiontSession implements StateUnit {
   private readonly onAuthFailed: (reason: SessionEndReason) => void;
   private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The next renewal owed after one that got no answer, and the step of the wait after it. */
+  private unansweredTimer: ReturnType<typeof setTimeout> | null = null;
+  private unansweredWaitMs = RECONNECT_MS;
   /** Whether the session is still doing what it does at its start. */
   private starting = true;
   /** The renewal a refusal is being answered with, shared by the refusals that arrive during it. */
@@ -224,7 +243,10 @@ export class SemiontSession implements StateUnit {
    * Run the initial mount-time validation. If a stored access token is
    * present and unexpired, call the configured `validate` with it to
    * confirm it still works and populate `user$`. If expired, try
-   * refresh first. When validate's token is refused (a 401, or a 429
+   * refresh first: the issuer's refusal forgets the stored session, and a
+   * renewal that got no answer keeps it, says why as `session.auth-failed`,
+   * and leaves it to be renewed when a request is refused. When validate's
+   * token is refused (a 401, or a 429
    * `refusal-rate`), try refresh once, and ask once more; a second refusal
    * ends the session. Surfaces auth-failed when the gateway could not be
    * asked.
@@ -237,12 +259,21 @@ export class SemiontSession implements StateUnit {
     if (!stored) return;
 
     const expired = isJwtExpired(stored.access);
-    const startToken = expired ? (await this.tryRefresh()).token : stored.access;
-    if (!startToken) {
-      if (expired) {
-        clearStoredSession(this.storage, this.kb.id);
+    let startToken = stored.access;
+    if (expired) {
+      const { token, failure, refused } = await this.tryRefresh();
+      if (!token) {
+        if (failure === undefined || refused) {
+          // There was no session to end: the stored session is forgotten, and nothing is said.
+          clearStoredSession(this.storage, this.kb.id);
+        } else {
+          // The issuer did not refuse it: the stored session is kept, and renewed on the reconnect backoff or when a request is refused.
+          this.renewAgainLater();
+          this.onError(new SemiontSessionError('session.auth-failed', notRenewed(failure), this.kb.id));
+        }
+        return;
       }
-      return;
+      startToken = token;
     }
 
     if (startToken !== stored.access) {
@@ -297,10 +328,10 @@ export class SemiontSession implements StateUnit {
           justIssued = true;
           continue;
         }
-        const { token: renewed, failure } = await this.tryRefresh();
+        const { token: renewed, failure, refused } = await this.tryRefresh();
         if (this.disposed) return;
         if (!renewed) {
-          this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
+          this.unrenewed(failure, refused);
           return;
         }
         this.#heldToken$.next(accessToken(renewed));
@@ -318,6 +349,7 @@ export class SemiontSession implements StateUnit {
    */
   private signedOut(told: SessionEndReason, code: SemiontSessionErrorCode, why: string): void {
     this.clearRefreshTimer();
+    this.clearUnanswered();
     this.#heldToken$.next(null);
     clearStoredSession(this.storage, this.kb.id);
     this.onAuthFailed(told);
@@ -325,27 +357,28 @@ export class SemiontSession implements StateUnit {
   }
 
   /**
-   * Call the configured refresh callback, converting a THROW into the same
-   * "no token" answer a null return gives.
+   * Call the configured refresh callback, converting a THROW into a "no
+   * token" answer that says why.
    *
    * The callback makes an HTTP call, so it can reject as easily as it can
-   * resolve null — a network blip, DNS failure, or gateway 5xx — and both
-   * mean the same thing here: this token cannot be renewed. A throw that
+   * resolve null — a network blip, DNS failure, or gateway 5xx. A throw that
    * escaped the renewal would skip every terminal behaviour; through the
    * proactive timer's un-awaited call it would become an unhandled
    * rejection with NO further refresh scheduled, leaving a session holding
    * an expired token forever.
    *
-   * The reason is returned rather than swallowed: a network failure and a
-   * revoked session both end the session, but they are not the same event and
-   * an operator reading the error needs to know which one happened.
+   * The reason is returned rather than swallowed, and whether it is the
+   * issuer's refusal: a network failure and a revoked session are not the
+   * same event. Only the refusal ends the session and forgets what is
+   * stored, and an operator reading the error needs to know which one
+   * happened.
    */
-  private async tryRefresh(): Promise<{ token: string | null; failure?: string }> {
-    if (!this.doRefresh) return { token: null };
+  private async tryRefresh(): Promise<{ token: string | null; failure?: string; refused: boolean }> {
+    if (!this.doRefresh) return { token: null, refused: false };
     try {
-      return { token: await this.doRefresh() };
+      return { token: await this.doRefresh(), refused: false };
     } catch (err) {
-      return { token: null, failure: err instanceof Error ? err.message : String(err) };
+      return { token: null, failure: err instanceof Error ? err.message : String(err), refused: refusedByTheIssuer(err) };
     }
   }
 
@@ -364,7 +397,8 @@ export class SemiontSession implements StateUnit {
    * renews.
    *
    * Refusals that arrive together are answered together: one renewal and
-   * one ask, however many requests were refused at once.
+   * one ask, however many requests were refused at once. Who the gateway
+   * says the renewed token is, is who is signed in.
    */
   refresh(): Promise<AccessToken | null> {
     this.refusal ??= this.renewForRefusal().finally(() => {
@@ -381,7 +415,9 @@ export class SemiontSession implements StateUnit {
     // too would be a second ask about one renewal.
     if (!renewed || !validate || this.starting) return renewed;
     try {
-      await validate(renewed);
+      const user = await validate(renewed);
+      // Who the token the session still holds is, as the gateway said.
+      if (!this.disposed && this.#heldToken$.getValue() === renewed) this.#heldUser$.next(user);
     } catch (err) {
       if (this.disposed) return null;
       const refused = err instanceof APIError && err.code === 'unauthorized';
@@ -402,9 +438,10 @@ export class SemiontSession implements StateUnit {
   private async renew(): Promise<AccessToken | null> {
     if (this.disposed) return null;
     if (!this.doRefresh) return null;
-    const { token: newAccess, failure } = await this.tryRefresh();
+    const { token: newAccess, failure, refused } = await this.tryRefresh();
     if (this.disposed) return null;
     if (newAccess) {
+      this.clearUnanswered();
       const tok = accessToken(newAccess);
       this.#heldToken$.next(tok);
       this.scheduleProactiveRefresh(newAccess);
@@ -420,11 +457,60 @@ export class SemiontSession implements StateUnit {
     // (This also makes the REAL teardown below fire once: it clears the
     // stored session, so any follow-up 401s take this quiet path.)
     if (!getStoredSession(this.storage, this.kb.id)) {
+      this.clearUnanswered();
       this.#heldToken$.next(null);
       return null;
     }
-    this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
+    this.unrenewed(failure, refused);
     return null;
+  }
+
+  /**
+   * A renewal of what is stored gave no token, and the session holds none.
+   * The issuer's refusal, or nothing left to renew with, ends the session; any
+   * other failure keeps what is stored, and says why: the next refusal renews
+   * again, and so does the reconnect backoff.
+   */
+  private unrenewed(failure: string | undefined, refused: boolean): void {
+    if (failure === undefined || refused) {
+      this.signedOut('expired', 'session.refresh-exhausted', notRenewed(failure));
+      return;
+    }
+    this.clearRefreshTimer();
+    this.#heldToken$.next(null);
+    this.renewAgainLater();
+    this.onError(new SemiontSessionError('session.refresh-exhausted', notRenewed(failure), this.kb.id));
+  }
+
+  /**
+   * After a renewal that got no answer, renew again on the reconnect backoff:
+   * each wait is the equal jitter of its step, the step `RECONNECT_MS`
+   * doubling to `MAX_RECONNECT_MS`. It ends when a renewal is made or refused,
+   * when a token arrives some other way, and when the session ends. A renewal
+   * already owed is not owed twice. A renewal made while nobody has said who
+   * the session's token is asks the gateway once, as the start would have.
+   */
+  private renewAgainLater(): void {
+    if (this.disposed || this.unansweredTimer) return;
+    const step = this.unansweredWaitMs;
+    this.unansweredWaitMs = Math.min(2 * step, MAX_RECONNECT_MS);
+    this.unansweredTimer = setTimeout(() => {
+      this.unansweredTimer = null;
+      if (this.disposed) return;
+      if (this.#heldToken$.getValue() !== null) {
+        this.unansweredWaitMs = RECONNECT_MS;
+        return;
+      }
+      void (this.#heldUser$.getValue() === null ? this.refresh() : this.renew());
+    }, equalJitter(step));
+  }
+
+  private clearUnanswered(): void {
+    if (this.unansweredTimer) {
+      clearTimeout(this.unansweredTimer);
+      this.unansweredTimer = null;
+    }
+    this.unansweredWaitMs = RECONNECT_MS;
   }
 
   private scheduleProactiveRefresh(token: string): void {
@@ -486,6 +572,7 @@ export class SemiontSession implements StateUnit {
     this.disposed = true;
 
     this.clearRefreshTimer();
+    this.clearUnanswered();
     if (this.unsubscribeStorage) {
       this.unsubscribeStorage();
       this.unsubscribeStorage = null;
