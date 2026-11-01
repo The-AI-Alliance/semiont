@@ -11135,7 +11135,7 @@ func TestBeckonSaysWhenNobodyIsSubscribed(t *testing.T) {
 // it would leave the whole verb family tested against a double that could agree
 // with a bug.
 func TestFrameAddsEachEntityTypeSeparately(t *testing.T) {
-	s := busScenario(t)
+	s := busScenario(t, `FAKERT_BUS_REPLY_frame_add_entity_type={}`)
 	stdout, stderr, code := s.run(t, "frame", "--entity-type", "Person", "--entity-type", "Organization")
 	if code != 0 {
 		t.Fatalf("frame: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -11154,6 +11154,18 @@ func TestFrameAddsEachEntityTypeSeparately(t *testing.T) {
 	if strings.Contains(all[0], `"_userId"`) {
 		t.Errorf("client set a field the gateway owns:\n%s", all[0])
 	}
+}
+
+// A command no service is there to answer fails as the gateway fails it: the
+// gateway answers a request nothing subscribes to on the operation's failure
+// channel, as peer-unavailable, and the verb says what it said.
+func TestFrameSaysWhenNoServiceAnswers(t *testing.T) {
+	s := busScenario(t)
+	stdout, stderr, code := s.run(t, "frame", "--entity-type", "Person")
+	if code == 0 {
+		t.Fatalf("a command nothing answered succeeded:\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	mustContain(t, "failure", stdout+stderr, "frame was rejected", "No subscriber for frame:add-entity-type: the service that answers it is not connected")
 }
 
 func TestListenRefusesWithoutSession(t *testing.T) {
