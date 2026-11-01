@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventBus, resourceId as makeResourceId, jobId } from '@semiont/core';
+import { EventBus, FrameRefusal, resourceId as makeResourceId, jobId } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { JobNamespace } from '../job';
@@ -183,12 +183,14 @@ describe('job:complete delivered twice', () => {
     const job = new JobNamespace(transport, bus);
 
     const seen: string[] = [];
-    job.complete$.subscribe((e) => seen.push(e.jobId));
+    job.complete$.subscribe((e) => seen.push(e instanceof FrameRefusal ? `refused: no ${e.lacks}` : e.jobId));
 
     bus.emit('job:complete', completePayload);
     bus.emit('job:complete', completePayload);
+    // One whose payload is not the channel's is told in its place.
+    bus.emit('job:complete', new FrameRefusal('job:complete', 'jobId', { resourceId: 'res-1', jobType: 'mark' }));
 
     // Documents the contract: the SDK does NOT dedupe the raw stream.
-    expect(seen).toEqual(['job-1', 'job-1']);
+    expect(seen).toEqual(['job-1', 'job-1', 'refused: no jobId']);
   });
 });

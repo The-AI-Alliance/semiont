@@ -17,7 +17,7 @@ from kb import refusing, silent
 from pydantic import JsonValue
 from spec import JsonObject
 
-from semiont.bus import Bus
+from semiont.bus import Bus, Delivered
 from semiont.channels import JOB_QUEUED
 from semiont.client import ClientTiming, SemiontClient
 from semiont.errors import BusRequestError, SemiontError, TransportError
@@ -135,8 +135,10 @@ def test_a_client_is_its_namespaces_over_one_transport_and_a_bus_of_its_own() ->
                 },
             )
         )
-        assert (await soon(anext(queued))).payload.job_id == "job-1"
-        assert (await soon(anext(heard))).payload.job_type == "yield"
+        announced, read = await soon(anext(queued)), await soon(anext(heard))
+        assert isinstance(announced, Delivered)
+        assert isinstance(read, Delivered)
+        assert (announced.payload.job_id, read.payload.job_type) == ("job-1", "yield")
 
         async with client:
             pass

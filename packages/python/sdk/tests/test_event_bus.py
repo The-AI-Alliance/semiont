@@ -5,6 +5,7 @@ import logging
 import pytest
 from aio import run, soon
 
+from semiont.bus import Delivered, FrameRefusal
 from semiont.channels import BECKON_HOVER, PANEL_CLOSE
 from semiont.event_bus import EventBus
 from semiont.events import Events
@@ -109,7 +110,7 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
         bus.publish(BECKON_HOVER, BeckonHoverEvent(annotation_id=AnnotationId("ann-1")))
         # Nothing is hovered: the field says so, since the channel's payload requires it.
         bus.publish(BECKON_HOVER, BeckonHoverEvent(annotation_id=None))
-        # What is not the channel's payload is nobody's to act on: it is not given, and is said so.
+        # What is not the channel's payload is told the typed reader in its place.
         bus.emit("beckon:hover", {"annotationId": 7})
         bus.publish(BECKON_HOVER, BeckonHoverEvent(annotation_id=AnnotationId("ann-2")))
         bus.emit("panel:close", {})
@@ -121,13 +122,18 @@ def test_by_type_a_frame_is_published_as_its_channel_writes_it_and_read_as_its_c
             {"annotationId": 7},
             {"annotationId": "ann-2"},
         ]
-        assert [delivered.payload.annotation_id async for delivered in typed] == ["ann-1", None, "ann-2"]
+        assert [heard async for heard in typed] == [
+            Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-1"))),
+            Delivered(payload=BeckonHoverEvent(annotation_id=None)),
+            FrameRefusal(channel="beckon:hover", lacks=None, payload={"annotationId": 7}),
+            Delivered(payload=BeckonHoverEvent(annotation_id=AnnotationId("ann-2"))),
+        ]
         assert [dict(frame.payload) async for frame in nothing] == [{}]
         assert PANEL_CLOSE.name == "panel:close"
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())
-    assert ["a payload on beckon:hover is not that channel's" in record.getMessage() for record in caplog.records] == [True]
+    assert caplog.records == []
 
 
 def test_a_transport_delivers_into_the_bus_it_was_bridged_into_every_frame_whatever_its_channel() -> None:

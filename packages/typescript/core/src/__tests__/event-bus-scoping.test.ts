@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { FrameRefusal } from '../bus';
 import { EventBus } from '../event-bus';
 import { resourceId } from '../identifiers';
 
@@ -69,6 +70,7 @@ describe('EventBus scoping', () => {
     // either way — which is what this test is about.
     const events: unknown[] = [];
     resourceScope.on('mark:create-ok').subscribe(e => {
+      if (e instanceof FrameRefusal) throw new Error(`refused: ${e.channel} lacks ${e.lacks}`);
       expect(e.response.annotationId).toBeDefined();
       events.push(e);
     });

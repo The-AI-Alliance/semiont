@@ -1,5 +1,5 @@
 import { Observable } from 'rxjs';
-import { Bus, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
+import { Bus, FrameRefusal, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
 import type { EventBus, EventMap, ITransport, JobErrorCode, components } from '@semiont/core';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
@@ -110,6 +110,8 @@ export class JobFrames {
   of<K extends JobFrameChannel>(channel: K): Observable<EventMap[K]> {
     return new Observable<EventMap[K]>((subscriber) =>
       this.bus.on(channel).subscribe((frame) => {
+        // A frame that is not its channel's names no job it can be told to.
+        if (frame instanceof FrameRefusal) return;
         const deliver = (): void => {
           if (frame.jobId === this.jobId) subscriber.next(frame);
         };

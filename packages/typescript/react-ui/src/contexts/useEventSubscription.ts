@@ -140,9 +140,12 @@ export function useResourceEventSubscriptions(
     // read lives and gives it that resource's frames alone.
     const reads = eventNames.map((eventName) => {
       const channel = eventName as ResourceScopedChannel;
-      return session.client.wire.frames(channel, resourceId).subscribe(({ payload }) => {
+      return session.client.wire.frames(channel, resourceId).subscribe((heard) => {
+        // A handler is given the channel's events; a refusal of one that is
+        // not the channel's has nothing in it for the handler to act on.
+        if (heard.status === 'refused') return;
         const current = handlersRef.current[channel];
-        if (current) (current as (p: EventMap[ResourceScopedChannel]) => void)(payload);
+        if (current) (current as (p: EventMap[ResourceScopedChannel]) => void)(heard.payload);
       });
     });
     return () => { for (const read of reads) read.unsubscribe(); };

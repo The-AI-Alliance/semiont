@@ -15,7 +15,7 @@
 
 import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, it, expect, expectTypeOf, beforeEach, vi } from 'vitest';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, map } from 'rxjs';
 import { ROOT_CONTEXT, context, propagation, trace as otelTrace } from '@opentelemetry/api';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
@@ -23,6 +23,7 @@ import { getActiveTraceparent, withTraceparent } from '@semiont/observability';
 import type { Annotation, BusPrimitive } from '@semiont/core';
 import { BusRequestError, EventBus, type BusEnvelope, type ConnectionState, type EventMap, annotationId, jobId as makeJobId, userId, resourceId } from '@semiont/core';
 import { ClaimsObservable, JOB_CLAIM_CHANNELS, JOB_COMMIT_CHANNELS, willRetryAfter, type ClaimOptions, type ClaimRefusal, type HeldJob, type HeldJobStall, type HeldMarkJob, type HeldYieldJob, type JobFailure } from '../claims';
+import { onTheWire } from './helpers/in-memory-transport';
 
 /** The job a `job:claimed` reply carries: running, under the claimant. */
 type ClaimedJob = EventMap['job:claimed']['response'];
@@ -80,8 +81,8 @@ function fakeBus(initialState: ConnectionState = 'open') {
   const record: { commit: 'acknowledged' | 'refused' | 'unanswered'; question: 'there' | 'not-there' | 'unanswered' } = { commit: 'unanswered', question: 'unanswered' };
 
   const bus: BusPrimitive = {
-    stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
-    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel).pipe(map((frame) => onTheWire(frame).payload)),
+    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel).pipe(map((frame) => onTheWire(frame))),
     isSubscribed: (channel) => !unnamed.has(channel),
     trackReply: () => () => {},
     subscribeToResource: () => () => {},

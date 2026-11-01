@@ -15,7 +15,8 @@
  *   read, and is given that resource's frames and no other's. Read with no
  *   resource, such a channel does not compile, and is refused when called;
  *   so is any other channel read for a resource. A frame whose payload lacks
- *   a member its channel's schema requires is not given (`asDeclared`).
+ *   a member its channel's schema requires is told the reader in its place,
+ *   as a `FrameRefusal` (`asDeclared`), and the frames after it follow.
  * - `request` sends an operation's request and awaits its reply.
  */
 
@@ -119,6 +120,7 @@ export interface BusPrimitive {
  * The same fields Rust's and Python's `Delivered` have.
  */
 export interface Delivered<T> {
+  readonly status: 'delivered';
   readonly payload: T;
   /** Correlates a reply with its request. Absent on an announcement. */
   readonly correlationId?: string;
@@ -129,6 +131,31 @@ export interface Delivered<T> {
   /** The trace it was sent under, when it carried one. */
   readonly trace?: TraceCarrier;
 }
+
+/**
+ * A frame a typed read refused, in its place: its payload lacks a member its
+ * channel's schema requires. A class, so that a reader of payloads
+ * (`EventBus.on`), whatever their shape, tells one apart with `instanceof`; a
+ * reader of frames reads `status`, as it reads `Delivered`'s.
+ */
+export class FrameRefusal {
+  readonly status = 'refused' as const;
+  /** The channel the frame came on. */
+  readonly channel: keyof EventMap;
+  /** The way to the member the payload lacks: the names of the members it is within and its own, joined by dots. */
+  readonly lacks: string;
+  /** The payload as it came, the gateway's stamps and all. */
+  readonly payload: unknown;
+
+  constructor(channel: keyof EventMap, lacks: string, payload: unknown) {
+    this.channel = channel;
+    this.lacks = lacks;
+    this.payload = payload;
+  }
+}
+
+/** What a typed read gives for each frame: the frame, or, in its place, its refusal. */
+export type Heard<T> = Delivered<T> | FrameRefusal;
 
 /** The field the gateway stamps a payload's emitter in. */
 const EMITTED_BY = '_userId';
@@ -152,41 +179,35 @@ const notTheChannels = (channel: string, lacks: string): string => `a payload on
  * stamp the gateway put on it that the channel's payload type does not
  * declare (`CHANNEL_STAMPS`) is the bus's, not the payload's, and is left
  * out. A payload that lacks a member its channel's schema requires is not
- * its channel's, and is nobody's to act on: there is none, and it is said so
- * in a warning, as Python's and Kotlin's typed reads drop it. (Rust's and
- * Go's give it as their stream's error, which an `Observable` cannot give
- * and go on.)
+ * its channel's: its refusal is given in its place, as every SDK's typed
+ * read gives one. A refusal, which a bus a transport bridged into carries
+ * and a relay passes on, is one already.
  */
-export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K]): { readonly payload: EventMap[K] } | undefined {
+export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal): EventMap[K] | FrameRefusal {
+  if (payload instanceof FrameRefusal) return payload;
   const lacks = lackingOf(payloadShape(channel), payload);
-  if (lacks !== undefined) {
-    console.warn(notTheChannels(channel, lacks));
-    return undefined;
-  }
-  if (typeof payload !== 'object' || payload === null) return { payload };
+  if (lacks !== undefined) return new FrameRefusal(channel, lacks, payload);
+  if (typeof payload !== 'object' || payload === null) return payload;
   const declared: readonly string[] = CHANNEL_STAMPS[channel];
-  return {
-    payload: Object.fromEntries(
-      Object.entries(payload).filter(([name]) => !name.startsWith('_') || declared.includes(name)),
-    ) as EventMap[K],
-  };
+  return Object.fromEntries(
+    Object.entries(payload).filter(([name]) => !name.startsWith('_') || declared.includes(name)),
+  ) as EventMap[K];
 }
 
-/** `frame` as a frame of `channel`, or none when its payload is not that channel's. */
-function delivered<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]>): Delivered<EventMap[K]> | undefined {
+/** `frame` as a frame of `channel`, or its refusal when its payload is not that channel's. */
+function heard<K extends keyof EventMap>(channel: K, frame: BusFrame<EventMap[K]>): Heard<EventMap[K]> {
   const declared = asDeclared(channel, frame.payload);
-  if (declared === undefined) return undefined;
+  if (declared instanceof FrameRefusal) return declared;
   const stamped = (frame.payload as Record<string, unknown>)[EMITTED_BY];
   return {
-    payload: declared.payload,
+    status: 'delivered',
+    payload: declared,
     ...(frame.correlationId !== undefined ? { correlationId: frame.correlationId } : {}),
     ...(frame.scope !== undefined ? { scope: frame.scope } : {}),
     ...(typeof stamped === 'string' ? { userId: userId(stamped) } : {}),
     ...(frame.trace !== undefined ? { trace: frame.trace } : {}),
   };
 }
-
-const isDelivered = <T>(frame: Delivered<T> | undefined): frame is Delivered<T> => frame !== undefined;
 
 /** Fails with the signal's reason when its owner abandons the request; says nothing until then. */
 function abandonment(signal: AbortSignal): Observable<never> {
@@ -217,31 +238,31 @@ export class Bus {
     return this.#transport.emit(channel, payload, envelope);
   }
 
-  /** The frames delivered on `channel` from now on. */
-  frames<K extends UnscopedChannel>(channel: K): Observable<Delivered<EventMap[K]>>;
+  /**
+   * The frames delivered on `channel` from now on: each a `Delivered`, or, in
+   * place of one whose payload is not the channel's, a `FrameRefusal`.
+   */
+  frames<K extends UnscopedChannel>(channel: K): Observable<Heard<EventMap[K]>>;
   /**
    * The frames delivered on `channel` for `resourceId` from now on. The read
    * holds that resource's scope until it is unsubscribed, and is given that
    * resource's frames and no other's.
    */
-  frames<K extends ResourceScopedChannel>(channel: K, resourceId: ResourceId): Observable<Delivered<EventMap[K]>>;
-  frames<K extends keyof EventMap>(channel: K, resourceId?: ResourceId): Observable<Delivered<EventMap[K]>> {
+  frames<K extends ResourceScopedChannel>(channel: K, resourceId: ResourceId): Observable<Heard<EventMap[K]>>;
+  frames<K extends keyof EventMap>(channel: K, resourceId?: ResourceId): Observable<Heard<EventMap[K]>> {
     if (resourceId === undefined) {
       if (isResourceScopedChannel(channel)) {
         throw new TypeError(
           `${channel} is delivered on a resource's scope, so a read of it names the resource: frames(channel, resourceId)`,
         );
       }
-      return this.#transport.frames(channel).pipe(
-        map((frame) => delivered(channel, frame)),
-        filter(isDelivered),
-      );
+      return this.#transport.frames(channel).pipe(map((frame) => heard(channel, frame)));
     }
     if (!isResourceScopedChannel(channel)) {
       throw new TypeError(`${channel} is no resource's channel: frames(channel)`);
     }
     const transport = this.#transport;
-    return new Observable<Delivered<EventMap[K]>>((subscriber) => {
+    return new Observable<Heard<EventMap[K]>>((subscriber) => {
       const leave = transport.subscribeToResource(resourceId);
       // A stream carries every scope it holds on the one channel, and another
       // reader may hold another resource's.
@@ -249,8 +270,7 @@ export class Bus {
         .frames(channel)
         .pipe(
           filter((frame) => frame.scope === resourceId),
-          map((frame) => delivered(channel, frame)),
-          filter(isDelivered),
+          map((frame) => heard(channel, frame)),
         )
         .subscribe(subscriber);
       return () => {

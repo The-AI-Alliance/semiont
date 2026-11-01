@@ -287,7 +287,7 @@ Every method returns one of nine shapes, and the table says which:
 | a worker's claims | `Claims` | read with `async for`: each job the worker comes to hold, or a claim it was refused; a held job says its own lifecycle and commits its own annotations, and `complete`, `fail` and `cancel` each settle it once |
 | a signal | `def`, returning nothing | published on the client's own bus, or sent and not awaited |
 | a drive | `async def` giving `int \| None` | how many participants the gateway reached, or nothing when it kept no count |
-| a channel's events | `Typed[P]` | `async for`, each event's payload decoded |
+| a channel's events | `Typed[P]` | `async for`, each a `Heard[P]`: the event, its payload decoded, or a `FrameRefusal` in place of one that is not the channel's |
 
 - **A delegated job** (`mark.delegate`, `yield_.delegate`) is described by
   its parameters, which are the protocol's own shapes: one for each motivation
@@ -842,7 +842,7 @@ transport is held with `async with`. Its stream opens inside, once there is
 a token, and everything it started has ended on the way out.
 
 ```python
-from semiont.bus import Bus
+from semiont.bus import Bus, Delivered, FrameRefusal
 from semiont.channels import MARK_ADDED
 from semiont.errors import BusRequestError
 from semiont.http import HttpTransport
@@ -864,8 +864,12 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
 
         # A resource's channel is read for the resource: the read holds its scope, and lets go on the way out.
         async with bus.frames(MARK_ADDED, resource) as added:
-            async for frame in added:
-                print(frame.scope, frame.payload.type)
+            async for heard in added:
+                match heard:
+                    case Delivered():
+                        print(heard.scope, heard.payload.type)
+                    case FrameRefusal():
+                        print(f"a payload on {heard.channel} that has no `{heard.lacks}`")
 ```
 
 - **The bus is typed by channel.** A channel is a constant that carries its
@@ -876,7 +880,11 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
 - **A request** waits for the stream to be open before it is sent, is answered
   once, and is abandoned by cancelling the task that awaits it.
 - **Frames** are a sequence: each reader is given every one, in order, however
-  far behind it falls.
+  far behind it falls. Each is a `Heard`: a `Delivered`, its payload its
+  channel's, or, in place of a frame whose payload is not, a `FrameRefusal`
+  that names the channel and the way to the member the payload lacks
+  (`lacks`, `None` when it was refused for what it holds), with the payload
+  as it came. The frames after a refusal follow it.
 - **A resource's channel is read for the resource.** `mark:added` and the
   other events of the record are delivered on their resource's scope, and
   their constants are `ScopedChannel`s. `bus.frames(MARK_ADDED, resource)`

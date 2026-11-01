@@ -10,7 +10,7 @@ said.
 from types import TracebackType
 from typing import Final, Self, TypedDict, final, override
 
-from semiont.bus import Typed
+from semiont.bus import Delivered, FrameRefusal, Typed
 from semiont.channels import MATCH_SEARCH_FAILED, MATCH_SEARCH_REQUESTED, MATCH_SEARCH_RESULTS
 from semiont.client import SemiontClient
 from semiont.errors import SemiontError
@@ -51,7 +51,12 @@ class MatchStateUnit(StateUnit):
     async def _listen(self, heard: Typed[MatchSearchRequest]) -> None:
         async with heard:
             async for asked in heard:
-                self._tasks.run(self._search(asked.payload, asked.correlation_id))
+                match asked:
+                    case Delivered():
+                        self._tasks.run(self._search(asked.payload, asked.correlation_id))
+                    case FrameRefusal():
+                        # A request that is not a search's names nothing to search for.
+                        pass
 
     async def _search(self, request: MatchSearchRequest, correlation_id: str | None) -> None:
         try:

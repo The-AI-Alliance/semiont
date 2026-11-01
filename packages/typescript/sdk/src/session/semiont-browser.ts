@@ -22,10 +22,11 @@
  * throws, and changes nothing, there or here.
  */
 
-import { BehaviorSubject, Subject, type Observable } from 'rxjs';
+import { BehaviorSubject, Subject, map, type Observable } from 'rxjs';
 import {
   BusRequestError,
   EventBus,
+  FrameRefusal,
   getPrimaryRepresentation,
   kbDid,
   resourceId,
@@ -66,6 +67,18 @@ import { createSessionSignals, type SessionSignals } from './session-signals';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
 import type { SessionFactory } from './session-factory';
+
+/**
+ * A payload of the app-scoped bus as it was emitted. Nothing bridges into
+ * that bus, so a refusal there is no signal anything sent, and is this
+ * browser's own fault.
+ */
+function signalled<T>(payload: T | FrameRefusal): T {
+  if (payload instanceof FrameRefusal) {
+    throw new Error(`The app-scoped bus holds a refusal on ${payload.channel}, and nothing bridges into it`);
+  }
+  return payload;
+}
 
 /**
  * Tabs are per-KB state: Record<kbId, OpenResource[]>, read from what is
@@ -295,13 +308,13 @@ export class SemiontBrowser {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): () => void {
-    const sub = this.eventBus.on(channel).subscribe(handler);
+    const sub = this.stream(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   /** Read-only observable for an app-scoped channel. */
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.eventBus.on(channel);
+    return this.eventBus.on(channel).pipe(map((payload) => signalled<EventMap[K]>(payload)));
   }
 
   // ── Identity token (external OAuth/identity bridge) ───────────────────

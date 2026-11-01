@@ -29,6 +29,8 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.bus.decoded
+import semiont.bus.Delivered
+import semiont.bus.FrameRefusal
 import semiont.bus.Typed
 import semiont.channels.Channel
 import semiont.channels.Channels
@@ -303,7 +305,10 @@ class SurfaceTest {
                 "observes" -> {
                     val reading = call(client, args) as Typed<*>
                     client.bus.emit(name, sends, null, null)
-                    val delivered = withTimeout(5_000) { reading.first() }
+                    val delivered = when (val heard = withTimeout(5_000) { reading.first() }) {
+                        is Delivered<*> -> heard
+                        is FrameRefusal -> throw AssertionError("a payload on ${heard.channel} was refused: it lacks ${heard.lacks}")
+                    }
                     // What the reader handed over is what the case's payload is as its channel's type.
                     assertEquals(decoded(channelNamed(name), sends), delivered.payload)
                 }

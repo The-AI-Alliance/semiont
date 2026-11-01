@@ -7,7 +7,7 @@ import '@testing-library/jest-dom';
 import { of } from 'rxjs';
 import { CacheObservable, createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
 import { TaggingPanel } from '../TaggingPanel';
-import type { EventBus, EventMap, TagSchema } from '@semiont/core';
+import { FrameRefusal, type EventBus, type EventMap, type TagSchema } from '@semiont/core';
 import type { TagEntry } from '../TagEntry';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 
@@ -28,6 +28,8 @@ function createEventTracker() {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload) => {
+          // Nothing bridges into this test's bus: a refusal on it is the test's own fault.
+          if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
           events.push({ event: eventName, payload });
         });
       });

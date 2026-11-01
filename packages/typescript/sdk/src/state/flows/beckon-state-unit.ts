@@ -1,6 +1,6 @@
 import { BehaviorSubject, type Subscription } from 'rxjs';
 import type { SemiontClient } from '../../client';
-import { watched, type AnnotationId, type ResourceId, type StateUnit, type Watched } from '@semiont/core';
+import { FrameRefusal, watched, type AnnotationId, type ResourceId, type StateUnit, type Watched } from '@semiont/core';
 
 export interface BeckonStateUnit extends StateUnit {
   hoveredAnnotationId$: Watched<AnnotationId | null>;
@@ -12,15 +12,19 @@ export function createBeckonStateUnit(client: SemiontClient, resourceId: Resourc
   const hovered$ = new BehaviorSubject<AnnotationId | null>(null);
   let disposed = false;
 
-  subs.push(client.bus.on('beckon:hover').subscribe(({ annotationId }) => {
+  // A signal whose payload is not its channel's names nothing to hover or focus.
+  subs.push(client.bus.on('beckon:hover').subscribe((hover) => {
+    if (hover instanceof FrameRefusal) return;
+    const { annotationId } = hover;
     hovered$.next(annotationId as AnnotationId | null);
     if (annotationId) {
       client.bus.emit('beckon:sparkle', { annotationId });
     }
   }));
 
-  subs.push(client.bus.on('browse:click').subscribe(({ annotationId }) => {
-    client.bus.emit('beckon:focus', { resourceId, annotationId });
+  subs.push(client.bus.on('browse:click').subscribe((click) => {
+    if (click instanceof FrameRefusal) return;
+    client.bus.emit('beckon:focus', { resourceId, annotationId: click.annotationId });
   }));
 
   return {

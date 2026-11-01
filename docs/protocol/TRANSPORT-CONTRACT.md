@@ -411,11 +411,21 @@ this emit, never provenance.
   left out. A transport's own frames are the wire's, and keep every stamp.
   *Held by `sdk/live/job-failed`, `sdk/live/generation-retried`, `sdk/live/job-created`, `sdk/wire/chunked-stream`.*
 - A payload that lacks a member its channel's schema requires is not its
-  channel's, wherever the member is missing: a typed read does not deliver
-  it, and says so in the words a request's refusal does. Rust and Go give it
-  as the stream's error and go on; TypeScript, Python and Kotlin, whose
-  streams cannot, drop it with a warning.
-  *Held by `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/go/sdk/internal/required/required_test.go`.*
+  channel's, wherever the member is missing. A typed read tells its reader,
+  in place of the frame, and goes on to the frames after it; nothing is
+  dropped and nothing is logged instead. Rust and Go give the refusal as the
+  stream's error; Go's names the way to the member, in the words a request's
+  refusal says it in. TypeScript, Python and Kotlin give a `FrameRefusal`,
+  a value the reader tells apart
+  from a frame by its `status`, `refused` where a frame's is `delivered`. It
+  names the channel and the way to the member the payload lacks (`lacks`:
+  the names of the members it is within and its own, joined by dots), and
+  holds the payload as it came. Python and Kotlin, whose decoders refuse a
+  payload for what it holds too, give such a refusal no `lacks`. A
+  TypeScript transport's bridge publishes the refusal on the client's own
+  bus in place of the payload, where a reader of payloads tells it apart
+  with `instanceof`.
+  *Held by `packages/typescript/core/src/__tests__/bus.test.ts`, `packages/typescript/http-transport/src/transport/__tests__/http-transport.http-paths.test.ts`, `packages/python/sdk/tests/test_bus.py`, `packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusTest.kt`, `packages/rust/sdk/tests/typed.rs`, `packages/go/sdk/internal/required/required_test.go`.*
 
 ## Content and the gateway's own operations
 

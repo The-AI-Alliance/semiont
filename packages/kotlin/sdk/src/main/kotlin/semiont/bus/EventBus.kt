@@ -66,7 +66,7 @@ public class EventBus : FrameSink {
     /** The frames published on `channel` from now on, each with its payload decoded: to everyone, or into `scope`. */
     @JvmExposeBoxed
     public fun <P> frames(channel: Channel<P>, scope: ResourceId?): Typed<P> =
-        Typed(channel.name, { decoded(channel, it) }, framesOn(channel.name, scope), null, null)
+        Typed(channel.name, channel.payload, channel.stamps, framesOn(channel.name, scope), null, null)
 
     /** The frames published to everyone on any of `channels` from now on, in the order they were published. */
     public fun framesAmong(channels: Collection<String>): Events<Frame> {

@@ -45,7 +45,7 @@ import type {
   UploadObservable,
   YieldJobCompletion,
 } from '../awaitable';
-import type { components, EventMap, paths } from '@semiont/core';
+import type { components, EventMap, FrameRefusal, paths } from '@semiont/core';
 import type { ClaimOptions, ClaimsObservable } from '../claims';
 import type {
   ResourceId,
@@ -458,13 +458,13 @@ export interface BeckonNamespace {
  */
 export interface JobNamespace {
   /** Live stream of `job:queued` events from the bus. */
-  readonly queued$: Observable<EventMap['job:queued']>;
+  readonly queued$: Observable<EventMap['job:queued'] | FrameRefusal>;
   /** Live stream of `job:report-progress` events from the bus. */
-  readonly progress$: Observable<EventMap['job:report-progress']>;
+  readonly progress$: Observable<EventMap['job:report-progress'] | FrameRefusal>;
   /** Live stream of `job:complete` events from the bus. */
-  readonly complete$: Observable<EventMap['job:complete']>;
+  readonly complete$: Observable<EventMap['job:complete'] | FrameRefusal>;
   /** Live stream of `job:fail` events from the bus. */
-  readonly fail$: Observable<EventMap['job:fail']>;
+  readonly fail$: Observable<EventMap['job:fail'] | FrameRefusal>;
 
   status(jobId: JobId): Promise<JobStatusResponse>;
   pollUntilComplete(jobId: JobId, options?: { interval?: number; timeout?: number; onProgress?: (status: JobStatusResponse) => void }): Promise<JobStatusResponse>;

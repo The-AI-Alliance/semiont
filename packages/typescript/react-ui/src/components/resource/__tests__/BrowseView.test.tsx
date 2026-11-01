@@ -7,7 +7,13 @@ import type { SemiontClient, SemiontSession } from '@semiont/sdk';
 import { createTestSemiontWrapper, renderInEnglish, englishTranslationManager } from '../../../test-utils';
 
 import type { Annotation, AnnotationId } from '@semiont/core';
-import { annotationId, resourceId } from '@semiont/core';
+import { FrameRefusal, annotationId, resourceId } from '@semiont/core';
+
+/** What the bus said, as its channel's payload: nothing bridges into this test's bus, so a refusal on it is the test's own fault. */
+function told<T>(payload: T | FrameRefusal): T {
+  if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
+  return payload;
+}
 
 // BrowseView takes its `session` + `sparkleAnnotationIds` as props — no
 // ResourceAnnotationsContext / SemiontProvider reach-in. `makeSession` (below)
@@ -99,15 +105,15 @@ function createEventTracker() {
       // One subscription per channel, so each push pairs a channel with its own payload.
       subscriptions.add('beckon:hover');
       eventBus.on('beckon:hover').subscribe((payload) => {
-        events.push({ event: 'beckon:hover', payload });
+        events.push({ event: 'beckon:hover', payload: told(payload) });
       });
       subscriptions.add('browse:click');
       eventBus.on('browse:click').subscribe((payload) => {
-        events.push({ event: 'browse:click', payload });
+        events.push({ event: 'browse:click', payload: told(payload) });
       });
       subscriptions.add('beckon:focus');
       eventBus.on('beckon:focus').subscribe((payload) => {
-        events.push({ event: 'beckon:focus', payload });
+        events.push({ event: 'beckon:focus', payload: told(payload) });
       });
     },
   };
@@ -572,10 +578,10 @@ describe('BrowseView Component', () => {
 
       const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
       eventBus.on('beckon:hover').subscribe((payload) => {
-        eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
+        eventTracker.push({ event: 'beckon:hover', annotationId: told(payload)?.annotationId ?? null });
       });
       eventBus.on('browse:click').subscribe((payload) => {
-        eventTracker.push({ event: 'browse:click', annotationId: payload?.annotationId ?? null });
+        eventTracker.push({ event: 'browse:click', annotationId: told(payload)?.annotationId ?? null });
       });
 
       const { container } = render(

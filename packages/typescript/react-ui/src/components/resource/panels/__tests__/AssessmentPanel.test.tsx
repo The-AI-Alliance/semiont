@@ -5,7 +5,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { AssessmentPanel } from '../AssessmentPanel';
-import type { EventBus, EventMap } from '@semiont/core';
+import { FrameRefusal, type EventBus, type EventMap } from '@semiont/core';
 import type { AssessmentEntry } from '../AssessmentEntry';
 import type { DelegateSection } from '../DelegateSection';
 import { createMarkStateUnit, type MarkStateUnit, type SemiontSession } from '@semiont/sdk';
@@ -28,6 +28,8 @@ function createEventTracker() {
       const panelEvents = ['mark:submit'] as const;
       panelEvents.forEach((eventName) => {
         eventBus.on(eventName).subscribe((payload) => {
+          // Nothing bridges into this test's bus: a refusal on it is the test's own fault.
+          if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
           events.push({ event: eventName, payload });
         });
       });
