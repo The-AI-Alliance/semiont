@@ -21,7 +21,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import neo4j, { type Driver } from 'neo4j-driver';
-import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
 import type { Annotation, ResourceDescriptor } from '@semiont/core';
 import { ArchivistWorld, type Answer, type StoredEvent } from './archivist-world';
 import { isRow, isStrings, readAnnotation, readResource, type Row } from './graph-codec';
@@ -29,6 +29,7 @@ import { eventually } from './net';
 import { SERVICE_ROLE } from './roles';
 import type { BusStream } from './stream';
 import { refusedWeaverBoot, startWeaver, type WeaverEnvironment, type WeaverLaunch, type WeaverProcess, type WeaverService, type WeaverSettings } from './weaver-process';
+import { endCase } from './world';
 
 /** The Weaver's service account at the issuer. */
 export const WEAVER_CLIENT = 'semiont-weaver';
@@ -327,13 +328,13 @@ export function eachWeaver(title: string, body: (world: () => WeaverWorld) => vo
     afterAll(async () => {
       await world?.close();
     });
-    afterEach((context) => {
-      if (context.task.result?.state === 'fail') {
-        console.error(`Weaver output:\n${world?.weaver.output.join('\n')}`);
-        console.error(`Archivist output:\n${world?.kb.archivist.output.slice(-40).join('\n')}`);
-      }
-      expect(world?.drain() ?? []).toEqual([]);
-    });
+    afterEach((context) =>
+      endCase(
+        context,
+        [`Weaver output:\n${world!.weaver.output.join('\n')}`, `Archivist output:\n${world!.kb.archivist.output.slice(-40).join('\n')}`].join('\n'),
+        () => world!.drain(),
+      ),
+    );
     body(() => world!);
   });
 }

@@ -12,7 +12,7 @@
  * carries, and a case fails otherwise, whatever it was about.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe } from 'vitest';
 import type { components } from '@semiont/core';
 import { QUIET_TIMING, startDispatcher, type DispatcherEnvironment, type DispatcherProcess, type DispatcherSettings, type DispatcherTiming } from './dispatcher';
 import { startBroker, type Broker, type BrokerOptions } from './nats';
@@ -20,7 +20,7 @@ import { eventually, freePort } from './net';
 import { SERVICE_ROLE, WORKER_ROLE } from './roles';
 import { errorsOf, operationFor, registry, spec } from './spec';
 import type { BusFrame, BusStream } from './stream';
-import { World } from './world';
+import { endCase, World } from './world';
 
 /** The dispatcher's service account at the issuer. */
 export const DISPATCHER_CLIENT = 'semiont-dispatcher';
@@ -448,11 +448,12 @@ export function withDispatcher(title: string, body: (world: () => DispatcherWorl
     afterAll(async () => {
       await world?.close();
     });
-    afterEach(async (context) => {
-      if (context.task.result?.state === 'fail') console.error(`dispatcher output:\n${world?.dispatcher.output.join('\n')}`);
-      await world?.clearPending();
-      expect(world?.drain() ?? []).toEqual([]);
-    });
+    afterEach((context) =>
+      endCase(context, `dispatcher output:\n${world!.dispatcher.output.join('\n')}`, async () => {
+        await world!.clearPending();
+        return world!.drain();
+      }),
+    );
     body(() => world!);
   });
 }

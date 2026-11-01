@@ -18,7 +18,7 @@
  * each emit, each read of bytes. Nothing reaches inside the process.
  */
 import { generateKeyPairSync, randomBytes, type KeyObject } from 'node:crypto';
-import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
 import type { components } from '@semiont/core';
 import { startAnthropic, type ModelFacts, type StandInAnthropic } from './anthropic';
 import { startClientProxy, type ClientProxy, type ProxiedRequest } from './client-proxy';
@@ -30,7 +30,7 @@ import { SERVICE_ROLE, WORKER_ROLE } from './roles';
 import { errorsOf, kbIdentity, principals, spec, SUITE_KB, type KbIdentity } from './spec';
 import type { BusFrame, BusStream } from './stream';
 import { refusedWorkerBoot, spawnWorkerService, type WorkerEnvironment, type WorkerLaunch, type WorkerProcess, type WorkerSettings } from './worker-service-process';
-import { World } from './world';
+import { endCase, World } from './world';
 
 /** The client the world's own knowledge base's issuer holds the worker's key on: the worker's account there. */
 export const WORKER_CLIENT = 'semiont-worker';
@@ -770,15 +770,7 @@ export function eachWorkerService(title: string, body: (world: () => WorkerServi
     afterAll(async () => {
       await world?.close();
     });
-    afterEach(async (context) => {
-      // A failing case shows what the worker sent and wrote while it ran, and
-      // so does a case whose end finds what no case may let pass. Settling
-      // forgets it, so it is read first.
-      const account = world!.account();
-      const violations = await world!.settle(options.allowRefusedRequests);
-      if (context.task.result?.state === 'fail' || violations.length > 0) console.error(`${context.task.name}\n${account.join('\n')}`);
-      expect(violations).toEqual([]);
-    });
+    afterEach((context) => endCase(context, world!.account().join('\n'), () => world!.settle(options.allowRefusedRequests)));
     body(() => world!);
   });
 }

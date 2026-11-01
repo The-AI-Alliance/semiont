@@ -18,7 +18,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe } from 'vitest';
 import type { components } from '@semiont/core';
 import { startArchivistProcess, type ArchivistEnvironment, type ArchivistProcess, type ArchivistSettings } from './archivist-process';
 import { archivistNonConformance, type CallOptions, type Reply } from './http';
@@ -28,7 +28,7 @@ import { SPEC_SOURCE } from './paths';
 import { SERVICE_ROLE, WORKER_ROLE } from './roles';
 import { errorsOf, operationFor, registry, spec, type Method } from './spec';
 import type { BusStream } from './stream';
-import { PARTICIPANT_CLIENT, World } from './world';
+import { endCase, PARTICIPANT_CLIENT, World } from './world';
 
 /** The Archivist's service account at the issuer. */
 export const ARCHIVIST_CLIENT = 'semiont-archivist';
@@ -585,10 +585,7 @@ export function withArchivist(title: string, body: (world: () => ArchivistWorld)
     afterAll(async () => {
       await world?.close();
     });
-    afterEach((context) => {
-      if (context.task.result?.state === 'fail') console.error(`Archivist output:\n${world?.archivist.output.join('\n')}`);
-      expect(world?.drain() ?? []).toEqual([]);
-    });
+    afterEach((context) => endCase(context, `Archivist output:\n${world!.archivist.output.join('\n')}`, () => world!.drain()));
     body(() => world!);
   });
 }

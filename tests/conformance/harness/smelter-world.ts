@@ -19,7 +19,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, inject } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
 import type { components } from '@semiont/core';
 import { ArchivistWorld, sha256, shardOf, unstamped, type Answer, type BusClient } from './archivist-world';
 import { eventually } from './net';
@@ -38,6 +38,7 @@ import {
 } from './smelter-process';
 import { errorsOf, spec } from './spec';
 import type { BusStream } from './stream';
+import { endCase } from './world';
 
 /** The Smelter's service account at the issuer. */
 export const SMELTER_CLIENT = 'semiont-smelter';
@@ -474,13 +475,13 @@ export function eachSmelter(title: string, body: (world: () => SmelterWorld) => 
     afterAll(async () => {
       await world?.close();
     });
-    afterEach((context) => {
-      if (context.task.result?.state === 'fail') {
-        console.error(`Smelter output:\n${world?.output.join('\n')}`);
-        console.error(`Archivist output:\n${world?.kb.archivist.output.slice(-40).join('\n')}`);
-      }
-      expect(world?.drain() ?? []).toEqual([]);
-    });
+    afterEach((context) =>
+      endCase(
+        context,
+        [`Smelter output:\n${world!.output.join('\n')}`, `Archivist output:\n${world!.kb.archivist.output.slice(-40).join('\n')}`].join('\n'),
+        () => world!.drain(),
+      ),
+    );
     body(() => world!);
   });
 }
