@@ -360,13 +360,13 @@ var roleList = func() string {
 	return strings.Join(roleOrder[:len(roleOrder)-1], ", ") + ", or " + roleOrder[len(roleOrder)-1]
 }()
 
-// roleListWrapped renders roleList across lines no wider than width,
-// continuing each with indent. Help text is read in a terminal: one
-// 200-column line is not help.
-func roleListWrapped(width int, indent string) string {
+// listWrapped renders list across lines no wider than width, continuing each
+// with indent. Help text is read in a terminal: one 200-column line is not
+// help.
+func listWrapped(list string, width int, indent string) string {
 	var b strings.Builder
 	col := len(indent)
-	for i, word := range strings.Split(roleList, " ") {
+	for i, word := range strings.Split(list, " ") {
 		switch {
 		case i == 0:
 		case col+1+len(word) > width:

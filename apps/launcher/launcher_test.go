@@ -6909,6 +6909,7 @@ func TestStartServiceExternalIsNoop(t *testing.T) {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout+stderr", stdout+stderr, "graph is externally provided per", "graph.example.com:7687", "nothing to launch")
+	mustNotContain(t, "stdout", stdout, "is up")
 	if argv := s.argv(t); strings.Contains(argv, "semiont-example.github.io-test-kb-neo4j") {
 		t.Errorf("no-op still touched the container:\n%s", argv)
 	}
@@ -9191,7 +9192,7 @@ func TestStartServiceRejections(t *testing.T) {
 		{[]string{"start", "--service", "bogus"}, "Unknown --service 'bogus'"},
 		{[]string{"start", "--service", "browser", "--config", "anthropic"}, "--config does not apply to --service browser"},
 		{[]string{"start", "--service", "worker", "--no-observe"}, "--no-observe does not apply to --service"},
-		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to --service inference."},
+		{[]string{"start", "--service", "worker", "--ollama-cache", "host"}, "--ollama-cache only applies to a start that runs inference (--service worker does not)."},
 		{[]string{"start", "--service", "worker", "--list-configs"}, "--list-configs cannot be combined with --service."},
 	} {
 		_, stderr, code := s.run(t, tc.args...)
@@ -9402,6 +9403,218 @@ func TestStopGroupRefusalsAndDryRun(t *testing.T) {
 		"# staged configs left in place (--group)")
 }
 
+// argvRuns: the containers a run's runtime calls ran, by name, in order.
+func argvRuns(argv string) []string {
+	var out []string
+	for _, line := range strings.Split(argv, "\n") {
+		if f := strings.Fields(line); len(f) > 4 && f[1] == "run" && f[2] == "-d" && f[3] == "--name" {
+			out = append(out, f[4])
+		}
+	}
+	return out
+}
+
+// A group's start (re)starts the group, and first each service it needs that
+// is not up, and says which and why. With the stack up it is the group alone.
+func TestStartGroupStartsWhatItNeeds(t *testing.T) {
+	kb := func(names ...string) []string {
+		out := make([]string, len(names))
+		for i, n := range names {
+			out[i] = "semiont-" + testKBKey + "-" + n
+		}
+		return out
+	}
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	startGroup := func(want []string, said ...string) string {
+		t.Helper()
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, "start", "--group", "index")
+		if code != 0 {
+			t.Fatalf("start --group index: exit %d\n%s%s", code, stdout, stderr)
+		}
+		if got := argvRuns(strings.TrimPrefix(s.argv(t), before)); !slices.Equal(got, want) {
+			t.Errorf("start --group index ran\n  %q\nwant\n  %q", got, want)
+		}
+		mustContain(t, "start --group index", stdout+stderr, append(said, "🚀 index is up")...)
+		return stdout + stderr
+	}
+	out := startGroup(kb("neo4j", "qdrant", "librarian", "smelter", "weaver"), "Restarting Librarian")
+	mustNotContain(t, "start --group index, the stack up", out, "starts too")
+	// Every image is verified once, before any container is touched.
+	if n := strings.Count(out, "Images verified"); n != 1 {
+		t.Errorf("start --group index verified images %d times, want once:\n%s", n, out)
+	}
+
+	if _, stderr, code := s.run(t, "stop", "--group", "record"); code != 0 {
+		t.Fatalf("stop --group record: exit %d\n%s", code, stderr)
+	}
+	startGroup(kb("nats", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"),
+		"messaging starts too: the gateway needs it",
+		"gateway starts too: the weaver needs it",
+		"archivist starts too: the weaver needs it")
+}
+
+// Beside another knowledge base's stack, a group's start in one with none
+// recorded starts every service of its own the group needs: the default
+// block's ports answer for the other one. So does a start in one whose record
+// a group stop left without them. And each service it starts claims its
+// ports, whichever it starts first.
+func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	s.kb = other
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start", "--group", "index")
+	if code != 0 {
+		t.Fatalf("start --group index in the second: exit %d\n%s%s", code, stdout, stderr)
+	}
+	own := func(names ...string) []string {
+		out := make([]string, len(names))
+		for i, n := range names {
+			out[i] = "semiont-example.github.io-other-kb-" + n
+		}
+		return out
+	}
+	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("postgres", "nats", "keycloak", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
+		t.Errorf("start --group index in the second ran\n  %q\nwant\n  %q", got, want)
+	}
+	mustContain(t, "start --group index in the second", stdout, "identity starts too: the gateway needs it")
+
+	if _, stderr, code := s.run(t, "stop", "--group", "record"); code != 0 {
+		t.Fatalf("stop --group record in the second: exit %d\n%s", code, stderr)
+	}
+	before = s.argv(t)
+	stdout, stderr, code = s.run(t, "start", "--group", "index")
+	if code != 0 {
+		t.Fatalf("start --group index in the second, its record stopped: exit %d\n%s%s", code, stdout, stderr)
+	}
+	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("nats", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
+		t.Errorf("start --group index in the second, its record stopped, ran\n  %q\nwant\n  %q", got, want)
+	}
+	mustContain(t, "start --group index in the second, its record stopped", stdout,
+		"messaging starts too: the gateway needs it",
+		"archivist starts too: the weaver needs it")
+
+	third := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, third, "example.github.io:third-kb")
+	s.kb = third
+	before = s.argv(t)
+	_, stderr, code = s.run(t, "start", "--group", "index")
+	if code != 1 {
+		t.Fatalf("start --group index on a held gateway port: exit %d, want 1\n%s", code, stderr)
+	}
+	mustContain(t, "start --group index on a held gateway port", stderr, first+"'s stack holds port 4000")
+	if got := argvRuns(strings.TrimPrefix(s.argv(t), before)); len(got) != 0 {
+		t.Errorf("a refused start ran %q", got)
+	}
+}
+
+// What a group needs that somebody else runs is no service it starts: a hosted
+// provider's models start nowhere, and the embeddings, which the machine's
+// Ollama serves, start.
+func TestStartGroupStartsNothingSomebodyElseRuns(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start", "--group", "index", "--config", "anthropic", "--dry-run")
+	if code != 0 {
+		t.Fatalf("start --group index --config anthropic --dry-run: exit %d\n%s%s", code, stdout, stderr)
+	}
+	mustContain(t, "dry run", stdout, "# gateway starts too: the weaver needs it", "# embedding starts too: the librarian needs it")
+	mustNotContain(t, "dry run", stdout, "# inference starts too")
+}
+
+// A start of some services joins the stack that runs, on the network it was
+// started on.
+func TestStartSomeServicesKeepTheStacksNetwork(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
+		t.Fatalf("settings network lan: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "start", "--group", "index"); code != 1 {
+		t.Errorf("start --group index on a stack started otherwise: exit %d, want 1\n%s", code, stderr)
+	} else {
+		mustContain(t, "start --group index on a stack started otherwise", stderr, "The network setting is lan, and the running stack was started otherwise.")
+	}
+}
+
+// The Browser answers no network, so a start of it alone reads none: under
+// Docker, which lan is not built for, it starts.
+func TestStartBrowserAloneReadsNoNetwork(t *testing.T) {
+	s := newScenario(t, "docker")
+	if _, stderr, code := s.run(t, "settings", "network", "lan"); code != 0 {
+		t.Fatalf("settings network lan: exit %d\n%s", code, stderr)
+	}
+	if stdout, stderr, code := s.run(t, "start", "--service", "browser"); code != 0 {
+		t.Errorf("start --service browser under lan and Docker: exit %d\n%s%s", code, stdout, stderr)
+	}
+}
+
+// A group every knowledge base shares starts from anywhere when it reads no
+// config, and says it serves every knowledge base.
+func TestStartSharedGroup(t *testing.T) {
+	s := newScenario(t, "container")
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "start", "--group", "telemetry")
+	if code != 0 {
+		t.Fatalf("start --group telemetry outside a KB: exit %d\n%s%s", code, stdout, stderr)
+	}
+	if got, want := argvRuns(s.argv(t)), []string{"semiont-jaeger", "semiont-prometheus", "semiont-otel-collector"}; !slices.Equal(got, want) {
+		t.Errorf("start --group telemetry ran\n  %q\nwant\n  %q", got, want)
+	}
+	mustContain(t, "start --group telemetry", stdout, "🚀 telemetry is up", "it serves every KB here")
+}
+
+// A dry run of a group's start prints its plan, with what starts too and why,
+// and runs nothing; the flags it refuses are refused before anything runs.
+func TestStartGroupDryRunAndRefusals(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop", "--group", "record"); code != 0 {
+		t.Fatalf("stop --group record: exit %d\n%s", code, stderr)
+	}
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start", "--group", "index", "--dry-run")
+	if code != 0 {
+		t.Fatalf("start --group index --dry-run: exit %d\n%s%s", code, stdout, stderr)
+	}
+	if got := argvRuns(strings.TrimPrefix(s.argv(t), before)); len(got) != 0 {
+		t.Errorf("a dry run ran %q", got)
+	}
+	mustContain(t, "dry run", stdout,
+		"# semiont start --group index --dry-run",
+		"# gateway starts too: the weaver needs it",
+		"container run -d --name semiont-"+testKBKey+"-gateway",
+		"container run -d --name semiont-"+testKBKey+"-weaver")
+	mustNotContain(t, "dry run", stdout, "-dispatcher")
+	for _, c := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"start", "--group", "workers"}, "Unknown --group 'workers'"},
+		{[]string{"start", "--group", "index", "--service", "smelter"}, "--group and --service are contradictory"},
+		{[]string{"start", "--runtime", "codespace", "--group", "index"}, "--group does not apply to --runtime codespace"},
+	} {
+		if _, stderr, code := s.run(t, c.args...); code != 1 {
+			t.Errorf("%v: exit %d, want 1", c.args, code)
+		} else {
+			mustContain(t, strings.Join(c.args, " "), stderr, c.want)
+		}
+	}
+}
+
 func TestStopService(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	stage := s.stageOf(t)
@@ -9499,6 +9712,26 @@ func TestStopThenStartStaysLocal(t *testing.T) {
 	if !strings.Contains(fresh, "run -d") {
 		t.Errorf("bare start launched no local containers:\n%s", fresh)
 	}
+}
+
+// Only a bare start resumes the recorded codespace from anywhere: a start of
+// some services runs them here, as it asks.
+func TestCodespaceRecordedGroupStartStaysLocal(t *testing.T) {
+	s := newCodespaceScenario(t)
+	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
+	}
+	s.killServes(t)
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.cwd = t.TempDir()
+	stdout, stderr, code := s.run(t, "start", "--group", "telemetry")
+	if code != 0 {
+		t.Fatalf("start --group telemetry: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustNotContain(t, "start --group telemetry", stdout+stderr, "Using recorded stack's platform")
+	mustContain(t, "argv log", string(s.mustLog(t)), "run -d --name semiont-otel-collector")
 }
 
 func TestBareResumeUsesRecordedRepoNotCwd(t *testing.T) {

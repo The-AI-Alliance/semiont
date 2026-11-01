@@ -466,6 +466,14 @@ semiont stop
   recorded, as with a bare stop. A shared group (`knowledge-workers`,
   `providers`, `telemetry`) serves every knowledge base here, so it stops
   alone, and each knowledge base goes on without it.
+- **`semiont start --group <name>` starts one group of services**, as
+  `--service` starts one: each of the group's own (re)starts, in start
+  order. Each service one of them needs that is not up starts first, and
+  the start says which and why ("gateway starts too: the weaver needs it").
+  So after `semiont stop --group record`, `semiont start --group index`
+  starts the messaging, the gateway and the archivist again before the
+  index; with the stack up, it restarts the index alone. A group that reads no config
+  (`telemetry`) starts from anywhere.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values

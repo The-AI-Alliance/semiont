@@ -14,20 +14,41 @@ import (
 
 const imageRegistry = "ghcr.io/the-ai-alliance"
 
-// configFreeService: services that read no KB config — --service <name>
-// needs neither a config nor a root.
+// configFreeService: services that read no KB config — a start of them
+// alone needs neither a config nor a root.
 func configFreeService(svc string) bool {
 	return svc == "browser" || svc == "traces" || svc == "metrics" || svc == "collector"
 }
 
 // startReadsBrowserDocument: whether a start needs the Browser's document. A
-// full start and the Browser's own run the Browser; the issuer's imports a
+// start that runs the Browser reads it; one that runs the issuer imports a
 // realm that allows sign-in from the Browser's origin.
 func startReadsBrowserDocument(opts startOptions) bool {
 	if opts.listConfigs || opts.cleanOllama {
 		return false
 	}
-	return opts.service == "" || opts.service == "browser" || opts.service == "identity"
+	return opts.includes("browser") || opts.includes("identity")
+}
+
+// includes: whether this start runs role. A start of the whole stack runs
+// each one its documents ask for.
+func (o startOptions) includes(role string) bool {
+	return o.starts == nil || slices.ContainsFunc(o.starts, func(m groupMember) bool { return m.role == role })
+}
+
+// readsConfig: whether this start reads the knowledge base's config — every
+// start but one of config-free services alone.
+func (o startOptions) readsConfig() bool {
+	return o.starts == nil || slices.ContainsFunc(o.starts, func(m groupMember) bool { return !configFreeService(m.role) })
+}
+
+// asked: the flag and name that chose a start of some services, as its
+// messages name them.
+func (o startOptions) asked() string {
+	if o.group.name != "" {
+		return "--group " + o.group.name
+	}
+	return "--service " + o.starts[0].role
 }
 
 type startOptions struct {
@@ -45,13 +66,17 @@ type startOptions struct {
 	quiet        bool
 	dryRun       bool
 	ollamaCache  string // "", "host", or "volume"
-	service      string // start just this one service
-	root         string // --root: KB root by path or registered basename
-	repo         string // --repo: owner/name (codespace placement only)
-	csName       string // --codespace: instance disambiguator (codespace placement only)
-	machine      string // --machine: VM class (codespace placement only)
-	idleTimeout  string // --idle-timeout: create-time only (codespace placement)
-	retention    string // --retention-period: create-time only (codespace placement)
+	// starts: the services a start of some of them runs (--service,
+	// --group), in start order, each with the one it starts for ("" for one
+	// asked for); nil for a start of the whole stack.
+	starts      []groupMember
+	group       serviceGroup // --group: the group asked for
+	root        string       // --root: KB root by path or registered basename
+	repo        string       // --repo: owner/name (codespace placement only)
+	csName      string       // --codespace: instance disambiguator (codespace placement only)
+	machine     string       // --machine: VM class (codespace placement only)
+	idleTimeout string       // --idle-timeout: create-time only (codespace placement)
+	retention   string       // --retention-period: create-time only (codespace placement)
 }
 
 var startUsage = fmt.Sprintf(`Usage: semiont start [options]
@@ -75,6 +100,11 @@ Options:
                         %s.
                         Reads its own credential from this root's state;
                         OTel export is enabled iff the collector is up.
+  --group <name>        Start (restart) one group of services, as semiont
+                        status names them:
+                        %s.
+                        What one of them needs that is not up starts first,
+                        and the start says which
   --clean-ollama        Remove the Ollama model cache volume and exit
   --runtime <name>      Container runtime: container, docker, or podman
                         (default: the machine's recorded preference — the
@@ -148,7 +178,7 @@ Examples:
 
   # See available configs
   semiont start --list-configs
-`, roleListWrapped(78, "                        "), setVarHint(systemName(), "ANTHROPIC_API_KEY", "<your-key>"))
+`, listWrapped(roleList, 78, "                        "), listWrapped(groupList, 78, "                        "), setVarHint(systemName(), "ANTHROPIC_API_KEY", "<your-key>"))
 
 // Start implements `semiont start`.
 func Start(args []string) int {
@@ -212,7 +242,7 @@ func Start(args []string) int {
 			u.Fail("%v", rootErr)
 			return 1
 		}
-		if cs := codespaceStacks(ss); rootErr != nil && len(localStacks(ss)) == 0 && len(cs) > 0 {
+		if cs := codespaceStacks(ss); opts.starts == nil && rootErr != nil && len(localStacks(ss)) == 0 && len(cs) > 0 {
 			if len(cs) > 1 {
 				u.Fail("%d codespace stacks are recorded — say which:", len(cs))
 				for _, c := range cs {
@@ -242,7 +272,7 @@ func Start(args []string) int {
 	// clone at all. Every other target is config-driven: infra roles need
 	// the config to know their OBLIGATION (provided / external /
 	// host-process / absent), so they need the KB root too.
-	configNeeded := opts.service == "" || !configFreeService(opts.service)
+	configNeeded := opts.readsConfig()
 	rootNeeded := configNeeded
 	root := ""
 	var ident *kbIdentity
@@ -267,7 +297,7 @@ func Start(args []string) int {
 		// fails and only a counter records it, so the refusal is made here,
 		// with instructions. It holds for the starts that run the Archivist;
 		// no other service mounts any part of the KB.
-		if opts.service == "" || opts.service == "archivist" {
+		if opts.includes("archivist") {
 			if !requireGitClone(u, root) {
 				return 1
 			}
@@ -280,7 +310,7 @@ func Start(args []string) int {
 		// machine seam and mutates nothing). The sticky config is recorded
 		// separately, only after the start succeeds.
 		if !opts.dryRun {
-			registerRootUse(kbRoot{dir: root, ident: ident}, opts.service == "", "")
+			registerRootUse(kbRoot{dir: root, ident: ident}, opts.starts == nil, "")
 		}
 	}
 	// The root as this start resolved it, with the identity it read then: the
@@ -441,6 +471,13 @@ func Start(args []string) int {
 	} else {
 		u.Log("Container runtime: %s", u.Bold(rt))
 	}
+	if opts.group.name != "" {
+		up, ok := runningFor(u, kb, rt, plan)
+		if !ok {
+			return 1
+		}
+		opts.starts = groupStarts(opts.group, up)
+	}
 	lan, ok := startNetwork(u, rt, kb, opts)
 	if !ok {
 		return 1
@@ -453,8 +490,8 @@ func Start(args []string) int {
 	// variables this knowledge base's own documents name, for the refusal of
 	// one that only another on the list names.
 	var ownVars []string
-	if plan != nil && (opts.service == "" || (opts.service == "worker" && plan.runs("worker"))) {
-		ownVars = secretsRead(placement{st: st, plan: plan}, opts.service)
+	if plan != nil && (opts.starts == nil || (opts.includes("worker") && plan.runs("worker"))) {
+		ownVars = secretsRead(placement{st: st, plan: plan}, opts.includes)
 		gatewayPort := exposure{rt: rt, lan: lan}.containersPort("gateway", plan.GatewayPort, plan.GatewayPort)
 		serving, err := planWorkerServing(ident.domain(), gatewayPort)
 		if err != nil {
@@ -496,7 +533,7 @@ func Start(args []string) int {
 	// provider prompt asks for a secret it never uses.
 	var vars []string
 	if st != nil {
-		vars = secretsRead(placement{st: st, plan: plan}, opts.service)
+		vars = secretsRead(placement{st: st, plan: plan}, opts.includes)
 	}
 	for _, v := range vars {
 		if opts.dryRun {
@@ -542,7 +579,7 @@ func Start(args []string) int {
 	}
 
 	if opts.dryRun {
-		if opts.service != "" {
+		if opts.starts != nil {
 			renderServicePlan(rt, lan, kb, opts, userEnv, st, plan, browser)
 		} else {
 			renderStartPlan(rt, lan, kb, opts, userEnv, st, plan, browser)
@@ -556,8 +593,10 @@ func Start(args []string) int {
 		return 1
 	}
 	var needs []portNeed
-	if opts.service != "" {
-		needs = servicePortNeeds(opts.service, plan, browser, exposure{rt: rt, lan: lan}) // nil-plan-safe (browser, traces)
+	if opts.starts != nil {
+		for _, m := range opts.starts {
+			needs = append(needs, servicePortNeeds(m.role, plan, browser, exposure{rt: rt, lan: lan})...) // nil-plan-safe (browser, traces)
+		}
 	} else {
 		needs = planPortChecks(plan, exposure{rt: rt, lan: lan}) // full start always has a plan
 	}
@@ -582,7 +621,7 @@ func Start(args []string) int {
 	// name or an unlaunchable choice never becomes the default. Implicit
 	// picks (auto-detect, the preferences themselves) record nothing.
 	code := 0
-	if opts.service != "" {
+	if opts.starts != nil {
 		code = runStartService(u, rt, lan, kb, opts, userEnv, st, plan, browser)
 	} else {
 		code = runStart(u, rt, lan, kb, opts, userEnv, st, plan, browser)
@@ -638,18 +677,40 @@ func refuseOtherStacks(u *UI, ss *StackSet, kb kbRoot, st *stack.Stack, plan *la
 	return false
 }
 
+// runningFor: whether a service kb's start needs is up already — its
+// documents have somebody else run it, or nothing, or status reads it healthy.
+// A group's start starts each of its needs that is not. With no stack
+// recorded, none of the knowledge base's own containers is up: the default
+// block's ports status would ask are another knowledge base's to answer on.
+func runningFor(u *UI, kb kbRoot, rt string, plan *launchPlan) (func(role string) bool, bool) {
+	ss := LoadStackSet()
+	v, code := newStackView(u, localStack(ss, kb.key()), kb.key(), rt)
+	if code != 0 {
+		return nil, false
+	}
+	return func(role string) bool {
+		if _, nothing := nothingToLaunch(plan, role); nothing {
+			return true
+		}
+		if v.st == nil && !machineRole(role) && runsContainer(role) {
+			return false
+		}
+		return readRow(v, role, ss.Machine).healthy
+	}, true
+}
+
 // startNetwork: this Mac's address on the network when the start is `network
-// lan`, else empty. A full start reads the address afresh (D3a); a --service
-// start takes the one its running stack was started with, since every
+// lan`, else empty. A full start reads the address afresh (D3a); a start of
+// some services takes the one its running stack was started with, since every
 // document that stack staged names it, and refuses a setting the running
 // stack was not started with. lan is built for Apple container alone. The
-// Browser never answers the network, so its start reads nothing.
+// Browser never answers the network, so a start of it alone reads nothing.
 func startNetwork(u *UI, rt string, kb kbRoot, opts startOptions) (string, bool) {
-	if opts.service == "browser" {
+	if opts.starts != nil && slices.Equal(memberRoles(opts.starts), []string{"browser"}) {
 		return "", true
 	}
 	lan := networkSetting() == networkLAN
-	if rec := localStack(LoadStackSet(), kb.key()); opts.service != "" && rec != nil && !opts.dryRun {
+	if rec := localStack(LoadStackSet(), kb.key()); opts.starts != nil && rec != nil && !opts.dryRun {
 		if (rec.LanAddr != "") != lan {
 			u.Fail("The network setting is %s, and the running stack was started otherwise.", networkSetting())
 			fmt.Fprintln(os.Stderr, "  Start the whole stack to change who reaches it: semiont start")
@@ -1334,7 +1395,7 @@ func describeProcs(pids []string) string {
 // meant for.
 func refuseDaemonCredentialNames(p placement) error {
 	plan := p.plan
-	for _, name := range secretsRead(p, "") {
+	for _, name := range secretsRead(p, startOptions{}.includes) {
 		if daemonCredentialVar(name) {
 			return fmt.Errorf("the knowledge base's documents name the variable %s (fromEnv), which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", name)
 		}

@@ -52,3 +52,28 @@ func TestEachGroupStopsWhatNeedsIt(t *testing.T) {
 		}
 	}
 }
+
+// What a group's start starts, in the start walk's order: its own roles
+// always, and what they need only when it is not up.
+func TestEachGroupStartsWhatItNeeds(t *testing.T) {
+	all := func(v bool) func(string) bool { return func(string) bool { return v } }
+	for _, c := range []struct {
+		group string
+		up    bool
+		want  string
+	}{
+		{"index", true, "graph vectors librarian smelter weaver"},
+		{"index", false, "traces<collector collector<gateway identity-store<identity messaging<gateway identity<gateway gateway<weaver graph vectors inference<librarian embedding<librarian archivist<weaver librarian smelter weaver"},
+		{"record", true, "messaging gateway archivist dispatcher"},
+		{"record", false, "traces<collector collector<gateway identity-store<identity messaging identity<gateway gateway archivist dispatcher"},
+		{"issuer", false, "identity-store identity"},
+		{"knowledge-workers", true, "worker browser"},
+		{"knowledge-workers", false, "traces<collector collector<gateway identity-store<identity messaging<gateway identity<gateway gateway<worker archivist<worker worker browser"},
+		{"providers", false, "inference embedding"},
+		{"telemetry", false, "traces metrics collector"},
+	} {
+		if got := members(groupStarts(mustGroup(t, c.group), all(c.up))); got != c.want {
+			t.Errorf("start --group %s (everything else up: %v) starts\n  %s\nwant\n  %s", c.group, c.up, got, c.want)
+		}
+	}
+}

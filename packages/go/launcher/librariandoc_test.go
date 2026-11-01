@@ -300,7 +300,7 @@ func TestTheLibrarianIsHandedOnlyWhatItsDocumentNames(t *testing.T) {
 	if want := "VOYAGE_API_KEY ANTHROPIC_API_KEY " + daemonPasswords["graph"].env; handed != want {
 		t.Errorf("the Librarian is handed %q, want the variables its document names, %q", handed, want)
 	}
-	if got, want := strings.Join(secretsRead(p, "librarian"), " "), "ANTHROPIC_API_KEY VOYAGE_API_KEY"; got != want {
+	if got, want := strings.Join(secretsRead(p, startOptions{starts: []groupMember{{role: "librarian"}}}.includes), " "), "ANTHROPIC_API_KEY VOYAGE_API_KEY"; got != want {
 		t.Errorf("a start of the Librarian alone demands %q, want %q", got, want)
 	}
 
