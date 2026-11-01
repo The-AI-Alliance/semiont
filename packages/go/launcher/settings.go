@@ -119,7 +119,7 @@ Settings:
                                    the next start that runs a worker runs what
                                    it says. The first command that needs it
                                    writes it.
-  network         machine          Who reaches a local stack: local, the
+  network         machine          Who reaches a stack here: local, the
                                    default, this machine alone; or lan, where
                                    the network reaches its gateway and its
                                    issuer too, over plain HTTP. Apple

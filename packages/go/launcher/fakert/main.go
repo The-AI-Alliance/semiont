@@ -1572,7 +1572,7 @@ func stateVar(name string) string {
 }
 
 // product: what a container the launcher named runs, the last word of its
-// name — semiont-<product> for the machine's (semiont-otel-collector runs a
+// name — semiont-<product> for the shared ones (semiont-otel-collector runs a
 // collector), semiont-<kb key>-<product> for a knowledge base's.
 func product(container string) string {
 	return container[strings.LastIndex(container, "-")+1:]

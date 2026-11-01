@@ -28,8 +28,8 @@ import (
 	"strings"
 )
 
-// localWorkerLabel: the label of this machine's own worker, whose client the
-// realm import and `semiont identity sync` keep at this machine's key.
+// localWorkerLabel: the label of the shared worker, whose client the
+// realm import and `semiont identity sync` keep at the worker key.
 const localWorkerLabel = "local"
 
 // workerClientPrefix: what every worker's client id begins with; the label
@@ -48,7 +48,7 @@ var grantLabel = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
 // undone by the next sync.
 func checkGrantLabel(label string) error {
 	if label == localWorkerLabel {
-		return fmt.Errorf("%q is this machine's own worker, whose key `semiont identity sync` keeps; grant another worker under a label of its own", label)
+		return fmt.Errorf("%q is the shared worker, whose key `semiont identity sync` keeps; grant another worker under a label of its own", label)
 	}
 	if !grantLabel.MatchString(label) {
 		return fmt.Errorf("%q is not a label: one to forty lowercase letters, digits and inner hyphens", label)

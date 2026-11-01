@@ -149,7 +149,7 @@ semiont stop
   installed on the machine), its record lives beside the stacks, as the
   Browser's does, with its runtime, image, the address it is published at
   and the model cache it mounts; its port is never among a stack's claims,
-  and the stack records the role it serves as `provided: machine`, served
+  and the stack records the role it serves as `provided: shared`, served
   outside it. A
   start KEEPS a running one when it runs the image the start would and its
   record says it was started under this start's runtime, at the address
@@ -463,7 +463,7 @@ semiont stop
   stops too: it needs the gateway"). So `--group index` stops the librarian,
   the smelter, the weaver, the graph and the vectors and nothing else, and
   `--group issuer` stops every service behind the gateway. The worker goes
-  with a knowledge base's group only when no other local stack is
+  with a knowledge base's group only when no other knowledge base's stack is
   recorded, as with a bare stop. A shared group (`knowledge-workers`,
   `providers`, `telemetry`) serves every knowledge base here, so it stops
   alone, and each knowledge base goes on without it.

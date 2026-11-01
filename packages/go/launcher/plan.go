@@ -101,7 +101,7 @@ type launchPlan struct {
 	// serve — the ollama engines when the Inference document states no
 	// providers.ollama.baseURL, plus an ollama embedding with no endpoint.
 	// Distinct from the per-role Models (which list what a role uses whoever
-	// serves it): only these are pulled, into the machine's Ollama; an Ollama
+	// serves it): only these are pulled, into the shared Ollama; an Ollama
 	// somebody else runs is theirs to provision.
 	//
 	// Each carries the ROLES that asked for it. One Ollama can serve both
@@ -115,13 +115,13 @@ type launchPlan struct {
 	ServiceVars map[string][]string
 	// Images and Memory: each of Semiont's services this stack runs, with the
 	// image its document names and the ceiling it states. The worker's are
-	// the machine's worker document's (runWorkerAs).
+	// the shared worker document's (runWorkerAs).
 	Images map[string]string
 	Memory map[string]string
-	// Worker: the machine's worker document, for a start that runs the
+	// Worker: the shared worker document, for a start that runs the
 	// worker (runWorkerAs); its log level is the worker's.
 	Worker workerPoolDocument
-	// Serving: what this start does with the machine's worker's list, for a
+	// Serving: what this start does with the shared worker's list, for a
 	// start that reconciles the worker (planWorkerServing).
 	Serving workerServing
 }
@@ -200,7 +200,7 @@ func jobEngines(engines api.ArchivistEngines) []jobEngine {
 	return given
 }
 
-// ollamaModels: the models this stack asks the machine's Ollama to serve —
+// ollamaModels: the models this stack asks the shared Ollama to serve —
 // engines whose provider is ollama, when the Inference document places that
 // Ollama nowhere else, plus an ollama-typed embedding with no endpoint. These
 // are exactly the models a "pull" is defined for.
@@ -384,7 +384,7 @@ func ollamaRunArgs(e exposure, rp rolePlan, extra ...string) []string {
 	// (an all-remote embedding config still runs one Ollama), and it comes
 	// from the descriptor ALONE — a second -m from a caller wins by flag
 	// order and desyncs the memory preflight.
-	a := []string{"run", "-d", "--name", machineContainer("inference"), "--memory", spec.mem} // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", sharedContainer("inference"), "--memory", spec.mem} // no --rm: see providedRunArgs
 	a = append(a, e.publish("-p", "inference", rp.Port, spec.defaultPort)...)
 	a = append(a, extra...)
 	return append(a, rp.Image)
@@ -400,7 +400,7 @@ func (p *launchPlan) runs(role string) bool {
 	return !planned || rp.Presence == presenceLauncher
 }
 
-// workerRuns: whether the machine's worker runs once this start is done —
+// workerRuns: whether the shared worker runs once this start is done —
 // whether the list it leaves serves a knowledge base: its own, when one of
 // its jobs has an engine (runs), or another.
 func (p *launchPlan) workerRuns() bool {
@@ -447,7 +447,7 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 // a config says — the Semiont services behind the gateway. ONE list for the
 // two sites that decide it: a full start requires the ports of the ones it
 // runs free, and a stop holding no record of the stack's claims verifies
-// every one's released. The telemetry's and the worker's are the machine's,
+// every one's released. The telemetry's and the worker's are shared,
 // not a stack's.
 func fiatRoles() []string {
 	return []string{"smelter", "weaver", "archivist", "librarian", "dispatcher"}
@@ -460,7 +460,7 @@ func knownDrivers(role string) string {
 // blockRoles: the roles whose ports a knowledge base's port block places —
 // Semiont's services behind the gateway, and the daemons of its stack whose
 // port is the launcher's to choose. The gateway's is its document's, the
-// Keycloak's this start's (keycloakPort), and the machine's containers' the
+// Keycloak's this start's (keycloakPort), and the shared containers' the
 // machine's.
 var blockRoles = slices.Concat(fiatRoles(), []string{"graph", "vectors", "identity-store", "messaging"})
 
@@ -518,7 +518,7 @@ func parseHostPort(s string) (host string, port int) {
 	return s, 0
 }
 
-// workerPlan: the worker's row of the plan. The machine's worker serves the
+// workerPlan: the worker's row of the plan. The shared worker serves the
 // knowledge base when the engines give a job an engine, and not when they
 // give none. ONE decision, read from the engines the worker's entry and the
 // Archivist's document are written from (jobEngines); everything that
@@ -573,7 +573,7 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 		}
 	}
 	// inferenceOllama: where the Ollama that performs inference is — the
-	// Inference document's to say, and nil for the machine's.
+	// Inference document's to say, and nil for the shared one.
 	inferenceOllama := providers[api.EngineProviderOllama].BaseURL
 
 	// graph
@@ -729,7 +729,7 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 	}
 
 	// embedding — a role the launcher never launches. An ollama embedding
-	// with no endpoint is served by the machine's Ollama (same process, same
+	// with no endpoint is served by the shared Ollama (same process, same
 	// port — which is why embedding has no container of its own and never
 	// contends for a port); one with an endpoint is somebody else's Ollama;
 	// voyage is remote SaaS.
@@ -743,7 +743,7 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 		host, port := "", spec.defaultPort
 		switch {
 		case ownOllama:
-			// The machine's Ollama: the probe runs ON this machine.
+			// The shared Ollama: the probe runs ON this machine.
 			host = "localhost"
 		case e.Type == "ollama":
 			h, p := parseHostPort(*e.Endpoint)
@@ -759,8 +759,8 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 			Driver: e.Type, Address: host, Port: port,
 			Models: []servedModel{{Model: e.Model, Provider: e.Type}},
 		}
-		// WHO runs the machine's Ollama an ollama embedding needs? If inference
-		// runs on the machine's Ollama too, the inference role runs it and the
+		// WHO runs the shared Ollama an ollama embedding needs? If inference
+		// runs on the shared Ollama too, the inference role runs it and the
 		// embedding rides along (SharesOllamaWith names that, so both rows
 		// report the one process the same way). If not — the engines are
 		// remote, or name somebody else's Ollama — EMBEDDING owns the
@@ -814,7 +814,7 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 	}
 
 	// worker — the one of Semiont's own services the documents decide: run
-	// when the engines give a job an engine, as the machine's worker document
+	// when the engines give a job an engine, as the shared worker document
 	// says (runWorkerAs).
 	plan.Roles["worker"] = workerPlan(st)
 

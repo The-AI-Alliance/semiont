@@ -1,14 +1,14 @@
 package launcher
 
-// workerkbs.go — the knowledge bases this machine's one worker serves. A
+// workerkbs.go — the knowledge bases the one shared worker serves. A
 // local knowledge base's start puts its entry on the list when one of its
 // jobs has an engine, as that start places it, and takes it off when none
 // does (flowWorker). A knowledge base someone else runs is added by `semiont
 // worker kb add`, from what its operator printed on granting this machine's
 // key (`semiont identity grant`), and is offered the engines of the local
-// knowledge base it was added from. The list is kept for the machine beside
+// knowledge base it was added from. The list is kept shared, beside
 // the key. Nothing in it is secret: the worker proves itself at each with the
-// machine's key (workerkey.go), and an engine names the variable holding its
+// worker key (workerkey.go), and an engine names the variable holding its
 // provider's key, never the key.
 
 import (
@@ -25,10 +25,10 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
-// workerListFile: where the list is kept, under machineStateDir.
+// workerListFile: where the list is kept, under sharedStateDir.
 const workerListFile = "worker-knowledge-bases.json"
 
-// workerList: the knowledge bases on this machine's worker's list, each kind
+// workerList: the knowledge bases on the shared worker's list, each kind
 // in the order of its domains.
 type workerList struct {
 	// Local: each local knowledge base's entry in the worker's document, as
@@ -38,7 +38,7 @@ type workerList struct {
 	Added []addedKB `json:"added"`
 }
 
-// addedKB: a knowledge base someone else runs, on this machine's worker's
+// addedKB: a knowledge base someone else runs, on the shared worker's
 // list — its entry in the worker's document but for its engines, which are
 // those of the local knowledge base it names (EnginesOf). A record of its
 // own, since the generated entry requires engines;
@@ -60,11 +60,11 @@ func (k addedKB) entry(engines []api.WorkerEngineConfig) api.WorkerKnowledgeBase
 }
 
 // errNowhereToKeepTheList: there is no home, so no list can be kept.
-var errNowhereToKeepTheList = errors.New("no home directory resolvable, so there is nowhere to keep the knowledge bases this machine's worker serves")
+var errNowhereToKeepTheList = errors.New("no home directory resolvable, so there is nowhere to keep the knowledge bases the shared worker serves")
 
 // workerListPath: where the list is kept; "" when homeless.
 func workerListPath() string {
-	d := machineStateDir()
+	d := sharedStateDir()
 	if d == "" {
 		return ""
 	}
@@ -91,13 +91,13 @@ func loadWorkerList() (workerList, error) {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&list); err != nil {
-		return workerList{}, fmt.Errorf("%s does not hold the knowledge bases this machine's worker serves: %v", p, err)
+		return workerList{}, fmt.Errorf("%s does not hold the knowledge bases the shared worker serves: %v", p, err)
 	}
 	return list, nil
 }
 
 // saveWorkerList keeps list, each kind in the order of its domains,
-// atomically and to its owner (writeOwnerOnly), as the machine's worker key
+// atomically and to its owner (writeOwnerOnly), as the shared worker key
 // is kept. An empty list is no file, as before anything was put on it.
 func saveWorkerList(list workerList) error {
 	p := workerListPath()
@@ -189,13 +189,13 @@ func (l workerList) served() (entries []api.WorkerKnowledgeBaseConfig, unserved 
 }
 
 // refuseOwnKB: the refusal of a start of the knowledge base at domain when it
-// is added to this machine's worker as one someone else runs. The worker
+// is added to the shared worker as one someone else runs. The worker
 // refuses a document naming one domain twice, and a start puts its own
 // knowledge base on the list as local.
 func refuseOwnKB(domain string, added []addedKB) error {
 	for _, kb := range added {
 		if kb.Domain == domain {
-			return fmt.Errorf("%s is added to this machine's worker as a knowledge base someone else runs, and it is the knowledge base this start runs: remove it (semiont worker kb remove %s)", domain, domain)
+			return fmt.Errorf("%s is added to the shared worker as a knowledge base someone else runs, and it is the knowledge base this start runs: remove it (semiont worker kb remove %s)", domain, domain)
 		}
 	}
 	return nil

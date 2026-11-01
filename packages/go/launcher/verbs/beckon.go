@@ -31,7 +31,7 @@ Options:
                        (requires --annotation)
   --repo <owner/name>  Target a codespace stack
   --root <path>        Target the stack of the knowledge base at path
-  --runtime <rt>       Target a local stack
+  --runtime <rt>       Target a stack here
   --help               Show this help
 
 ` + idsOrder + `

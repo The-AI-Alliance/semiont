@@ -440,7 +440,7 @@ func (s *scenario) env() []string {
 		// Pinned so the boot goldens are deterministic: an unpinned run
 		// generates a fresh credential per service and every golden would
 		// differ from the last. The worker has none to pin: it proves itself
-		// with the machine's key, whose value never reaches argv.
+		// with the worker key, whose value never reaches argv.
 		//
 		// Tracks `secretClients` in packages/go/launcher, which this external test
 		// package cannot see. Drift is loud rather than silent: a service missing
@@ -1042,7 +1042,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	for _, staged := range []string{"librarian.json", "gateway.json"} {
 		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/semiont")
 	}
-	mustContain(t, "the worker's document", machineFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/semiont")
+	mustContain(t, "the worker's document", sharedFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/semiont")
 	status := func(url string) int {
 		t.Helper()
 		resp, err := http.Get(url)
@@ -1180,7 +1180,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
 			}
 		}
-		if worker := machineFile(t, s, "worker.json"); !strings.Contains(worker, issuer) {
+		if worker := sharedFile(t, s, "worker.json"); !strings.Contains(worker, issuer) {
 			t.Errorf("%s: the worker's document does not state the issuer at port %s:\n%s", step.name, step.want, worker)
 		}
 		if strings.Contains(argv, "KEYCLOAK_PORT=") || strings.Contains(argv, "KEYCLOAK_HOST=") {
@@ -1367,12 +1367,12 @@ func TestStartHostOllamaBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
-// machineRecords: the machine's containers' records, and how the local stack
-// records the roles they serve, read from the PARSED record: a machine record
+// sharedRecords: the shared containers' records, and how the local stack
+// records the roles they serve, read from the PARSED record: a shared record
 // and a stack service could both say "ollama", so a substring cannot say
 // where it appeared.
-type machineRecords struct {
-	Machine map[string]*struct {
+type sharedRecords struct {
+	Shared map[string]*struct {
 		Container string `json:"container"`
 		ID        string `json:"id"`
 		Image     string `json:"image"`
@@ -1380,7 +1380,7 @@ type machineRecords struct {
 		Endpoint  string `json:"endpoint"`
 		Cache     string `json:"cache"`
 		Ports     []int  `json:"ports"`
-	} `json:"machine"`
+	} `json:"shared"`
 	Stacks map[string]struct {
 		Ports    []int `json:"ports"`
 		Services map[string]struct {
@@ -1391,21 +1391,21 @@ type machineRecords struct {
 	} `json:"stacks"`
 }
 
-func readMachineRecords(t *testing.T, s *scenario) machineRecords {
+func readSharedRecords(t *testing.T, s *scenario) sharedRecords {
 	t.Helper()
 	rec, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	var m machineRecords
+	var m sharedRecords
 	if err := json.Unmarshal(rec, &m); err != nil {
 		t.Fatalf("stack.json: %v\n%s", err, rec)
 	}
 	return m
 }
 
-func TestTheMachinesOllamaLifecycle(t *testing.T) {
-	// The machine's Ollama keeps a record of its own, apart from the stack's,
+func TestTheSharedOllamaLifecycle(t *testing.T) {
+	// The shared Ollama keeps a record of its own, apart from the stack's,
 	// as the Browser does. A start keeps a current one; another cache asked
 	// for, a stale image or `start --service inference` restarts it; a stop of
 	// one of the stack's services leaves it; `stop --service inference` stops
@@ -1414,8 +1414,8 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	first := readMachineRecords(t, s)
-	ollama := first.Machine["semiont-ollama"]
+	first := readSharedRecords(t, s)
+	ollama := first.Shared["semiont-ollama"]
 	if ollama == nil || ollama.Container != "semiont-ollama" || ollama.ID == "" || ollama.Runtime != "container" {
 		t.Fatalf("no machine-level Ollama record naming its container, ID and runtime: %+v", ollama)
 	}
@@ -1426,10 +1426,10 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 		t.Errorf("the record's ports are %v: want the 11434 its start required free", ollama.Ports)
 	}
 	inference := first.Stacks[localKey].Services["inference"]
-	if inference.Provided != "machine" || inference.Container != "semiont-ollama" || inference.ID != "" {
-		t.Errorf("the stack records inference as %+v: want provided by the machine's semiont-ollama, with no ID of its own", inference)
+	if inference.Provided != "shared" || inference.Container != "semiont-ollama" || inference.ID != "" {
+		t.Errorf("the stack records inference as %+v: want provided by the shared semiont-ollama, with no ID of its own", inference)
 	}
-	// Ollama's port is the machine's, not among the stack's claims.
+	// Ollama's port is shared, not among the stack's claims.
 	for _, p := range first.Stacks[localKey].Ports {
 		if p == 11434 {
 			t.Errorf("Ollama's port recorded among the stack's claims: %v", first.Stacks[localKey].Ports)
@@ -1447,20 +1447,20 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 		t.Fatalf("keeping start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
-	mustContain(t, "keep message", stdout, "the machine's Ollama already running")
+	mustContain(t, "keep message", stdout, "the shared Ollama already running")
 	if strings.Contains(stdout, "using host Ollama") {
-		t.Errorf("the re-run took the machine's own semiont-ollama for a host install:\n%s", stdout)
+		t.Errorf("the re-run took the shared semiont-ollama for a host install:\n%s", stdout)
 	}
 	for _, churn := range []string{"rm semiont-ollama", "--name semiont-ollama"} {
 		if strings.Contains(fresh, churn) {
 			t.Errorf("a current Ollama was churned (%q):\n%s", churn, fresh)
 		}
 	}
-	if kept := readMachineRecords(t, s).Machine["semiont-ollama"]; kept == nil || kept.ID != ollama.ID {
+	if kept := readSharedRecords(t, s).Shared["semiont-ollama"]; kept == nil || kept.ID != ollama.ID {
 		t.Errorf("the kept Ollama's record changed: %+v, was %+v", kept, ollama)
 	}
 
-	// The stack's inference row is the machine's Ollama: its logs are that
+	// The stack's inference row is the shared Ollama: its logs are that
 	// container's, by the ID its own record names.
 	before = s.mustLog(t)
 	if stdout, stderr, code := s.run(t, "logs", "--service", "inference"); code != 0 {
@@ -1474,10 +1474,10 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 		t.Fatalf("stop --service gateway: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); strings.Contains(fresh, "semiont-ollama") || strings.Contains(fresh, ollama.ID) {
-		t.Errorf("stopping the gateway touched the machine's Ollama:\n%s", fresh)
+		t.Errorf("stopping the gateway touched the shared Ollama:\n%s", fresh)
 	}
-	if readMachineRecords(t, s).Machine["semiont-ollama"] == nil {
-		t.Errorf("stopping the gateway forgot the machine's Ollama")
+	if readSharedRecords(t, s).Shared["semiont-ollama"] == nil {
+		t.Errorf("stopping the gateway forgot the shared Ollama")
 	}
 
 	// Another cache asked for restarts it, on that cache.
@@ -1489,7 +1489,7 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	hostCache := filepath.Join(s.home, ".ollama")
 	mustContain(t, "another cache's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama", "-v "+hostCache+":/root/.ollama")
-	if moved := readMachineRecords(t, s).Machine["semiont-ollama"]; moved == nil || moved.Cache != hostCache {
+	if moved := readSharedRecords(t, s).Shared["semiont-ollama"]; moved == nil || moved.Cache != hostCache {
 		t.Errorf("the restarted Ollama's record does not name the cache asked for: %+v", moved)
 	}
 
@@ -1521,13 +1521,13 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	mustContain(t, "--service inference's argv", fresh, "container rm semiont-ollama", "--name semiont-ollama")
 
 	// Its dry run says so, from the record, and runs nothing.
-	restarted := readMachineRecords(t, s).Machine["semiont-ollama"]
+	restarted := readSharedRecords(t, s).Shared["semiont-ollama"]
 	before = s.mustLog(t)
 	stdout, stderr, code = s.run(t, "stop", "--service", "inference", "--dry-run")
 	if code != 0 {
 		t.Fatalf("stop --service inference --dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stop --service inference --dry-run", stdout, "# stop the machine's Ollama:",
+	mustContain(t, "stop --service inference --dry-run", stdout, "# stop the shared Ollama:",
 		"container stop "+restarted.ID, "container stop semiont-ollama", "container rm semiont-ollama")
 	mustNotContain(t, "stop --service inference --dry-run", stdout, "semiont-example.github.io-test-kb-gateway")
 	if fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before)); fresh != "" {
@@ -1547,7 +1547,7 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	if strings.Contains(fresh, "semiont-example.github.io-test-kb-gateway") {
 		t.Errorf("stop --service inference touched the stack:\n%s", fresh)
 	}
-	if after := readMachineRecords(t, s); after.Machine["semiont-ollama"] != nil || after.Stacks[localKey].Services["gateway"].Provided == "" {
+	if after := readSharedRecords(t, s); after.Shared["semiont-ollama"] != nil || after.Stacks[localKey].Services["gateway"].Provided == "" {
 		t.Errorf("after stop --service inference: want no Ollama record and the stack's standing, got %+v", after)
 	}
 
@@ -1568,8 +1568,8 @@ func TestTheMachinesOllamaLifecycle(t *testing.T) {
 	}
 }
 
-func TestTheMachinesTelemetryLifecycle(t *testing.T) {
-	// The collector, Jaeger and Prometheus run for the machine, as its Ollama
+func TestTheSharedTelemetryLifecycle(t *testing.T) {
+	// The collector, Jaeger and Prometheus run for every knowledge base here, as its Ollama
 	// does: each keeps a record of its own, a start keeps a current one, and
 	// its config lives beside the record, written only as it (re)starts.
 	// --no-observe leaves Jaeger and Prometheus alone, and the collector's
@@ -1578,17 +1578,17 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	first := readMachineRecords(t, s)
+	first := readSharedRecords(t, s)
 	for name, ports := range map[string][]int{
 		"semiont-otel-collector": {4318, 24110}, "semiont-jaeger": {16686, 14318}, "semiont-prometheus": {9090},
 	} {
-		if rec := first.Machine[name]; rec == nil || rec.ID == "" || rec.Runtime != "container" || !slices.Equal(rec.Ports, ports) {
-			t.Errorf("%s's machine record: %+v, want its ID, runtime container and ports %v", name, rec, ports)
+		if rec := first.Shared[name]; rec == nil || rec.ID == "" || rec.Runtime != "container" || !slices.Equal(rec.Ports, ports) {
+			t.Errorf("%s's shared record: %+v, want its ID, runtime container and ports %v", name, rec, ports)
 		}
 	}
 	for role, name := range map[string]string{"collector": "semiont-otel-collector", "traces": "semiont-jaeger", "metrics": "semiont-prometheus"} {
-		if svc := first.Stacks[localKey].Services[role]; svc.Provided != "machine" || svc.Container != name || svc.ID != "" {
-			t.Errorf("the stack records %s as %+v: want provided by the machine's %s, with no ID of its own", role, svc, name)
+		if svc := first.Stacks[localKey].Services[role]; svc.Provided != "shared" || svc.Container != name || svc.ID != "" {
+			t.Errorf("the stack records %s as %+v: want provided by the shared %s, with no ID of its own", role, svc, name)
 		}
 	}
 	for _, p := range first.Stacks[localKey].Ports {
@@ -1598,21 +1598,21 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 	}
 	collectorYAML := func() string {
 		t.Helper()
-		return machineFile(t, s, "collector.yaml")
+		return sharedFile(t, s, "collector.yaml")
 	}
 	mustContain(t, "collector.yaml with Jaeger up", collectorYAML(), "otlphttp/jaeger")
-	if _, err := os.Stat(filepath.Join(stateHomeFor(s.home), "machine", "prometheus.yml")); err != nil {
+	if _, err := os.Stat(filepath.Join(stateHomeFor(s.home), "shared", "prometheus.yml")); err != nil {
 		t.Errorf("Prometheus's config: %v", err)
 	}
 	mustContain(t, "first start's argv", string(s.mustLog(t)),
-		filepath.Join("machine", "collector.yaml")+":/etc/otelcol/config.yaml:ro",
-		filepath.Join("machine", "prometheus.yml")+":/etc/prometheus/prometheus.yml:ro")
+		filepath.Join("shared", "collector.yaml")+":/etc/otelcol/config.yaml:ro",
+		filepath.Join("shared", "prometheus.yml")+":/etc/prometheus/prometheus.yml:ro")
 
 	// A re-run that finds each running as its record says, on the image it
 	// would run, keeps it.
 	for _, svc := range []string{"otel-collector", "jaeger", "prometheus"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running",
-			"FAKERT_IMAGE_"+svc+"="+first.Machine["semiont-"+svc].Image)
+			"FAKERT_IMAGE_"+svc+"="+first.Shared["semiont-"+svc].Image)
 	}
 	churned := func(label, fresh string, names ...string) {
 		t.Helper()
@@ -1631,10 +1631,10 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 	}
 	mustContain(t, "keeping start", stdout, "traces — Jaeger already running", "metrics — Prometheus already running", "collector — OTel already running")
 	churned("a keeping start", strings.TrimPrefix(string(s.mustLog(t)), string(before)), "semiont-otel-collector", "semiont-jaeger", "semiont-prometheus")
-	kept := readMachineRecords(t, s)
+	kept := readSharedRecords(t, s)
 	for _, name := range []string{"semiont-otel-collector", "semiont-jaeger", "semiont-prometheus"} {
-		if k := kept.Machine[name]; k == nil || k.ID != first.Machine[name].ID {
-			t.Errorf("the kept %s's record changed: %+v, was %+v", name, k, first.Machine[name])
+		if k := kept.Shared[name]; k == nil || k.ID != first.Shared[name].ID {
+			t.Errorf("the kept %s's record changed: %+v, was %+v", name, k, first.Shared[name])
 		}
 	}
 
@@ -1656,10 +1656,10 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 	}
 	mustContain(t, "stop --service traces", stdout, "Jaeger stopped")
 	fresh = strings.TrimPrefix(string(s.mustLog(t)), string(before))
-	mustContain(t, "stop --service traces' argv", fresh, "container stop "+first.Machine["semiont-jaeger"].ID, "container rm semiont-jaeger")
+	mustContain(t, "stop --service traces' argv", fresh, "container stop "+first.Shared["semiont-jaeger"].ID, "container rm semiont-jaeger")
 	mustNotContain(t, "stop --service traces' argv", fresh, "semiont-otel-collector", "semiont-prometheus", "semiont-example.github.io-test-kb-gateway")
-	if after := readMachineRecords(t, s); after.Machine["semiont-jaeger"] != nil || after.Machine["semiont-otel-collector"] == nil {
-		t.Errorf("after stop --service traces: want no Jaeger record and the collector's standing, got %+v", after.Machine)
+	if after := readSharedRecords(t, s); after.Shared["semiont-jaeger"] != nil || after.Shared["semiont-otel-collector"] == nil {
+		t.Errorf("after stop --service traces: want no Jaeger record and the collector's standing, got %+v", after.Shared)
 	}
 
 	// With no Jaeger to send them to, the collector is restarted into
@@ -1708,7 +1708,7 @@ func TestTheMachinesTelemetryLifecycle(t *testing.T) {
 }
 
 // localImages: the scenario's documents naming each of Semiont's images at
-// :local, the machine's Browser's and worker's included — a developer's
+// :local, the shared Browser's and worker's included — a developer's
 // checkout.
 func localImages(t *testing.T, s *scenario) {
 	t.Helper()
@@ -1720,8 +1720,8 @@ func localImages(t *testing.T, s *scenario) {
 		"semiont-librarian:latest", "semiont-librarian:local",
 		"semiont-smelter:latest", "semiont-smelter:local",
 		"semiont-weaver:latest", "semiont-weaver:local")
-	editMachineDocument(t, s, "worker", "workers.yaml", "semiont-worker:latest", "semiont-worker:local")
-	editMachineDocument(t, s, "browser", "browser.yaml", "semiont-browser:latest", "semiont-browser:local")
+	editSharedDocument(t, s, "worker", "workers.yaml", "semiont-worker:latest", "semiont-worker:local")
+	editSharedDocument(t, s, "browser", "browser.yaml", "semiont-browser:latest", "semiont-browser:local")
 }
 
 func TestStartLocalImagesBoot(t *testing.T) {
@@ -2030,10 +2030,10 @@ func stateHomeFor(home string) string {
 	return filepath.Join(home, ".local", "state", "semiont")
 }
 
-// workerListFor: where the knowledge bases the machine's worker serves are
+// workerListFor: where the knowledge bases the shared worker serves are
 // kept, beside its key.
 func workerListFor(home string) string {
-	return filepath.Join(dataHomeFor(home), "machine", "worker-knowledge-bases.json")
+	return filepath.Join(dataHomeFor(home), "shared", "worker-knowledge-bases.json")
 }
 
 func dataHomeFor(home string) string {
@@ -2169,7 +2169,7 @@ func recordedStacks(t *testing.T, s *scenario) []string {
 
 // Two knowledge bases run side by side on one machine. Each start runs
 // containers named for its own knowledge base and records a stack of its
-// own, and leaves the other's running; the machine's containers serve both.
+// own, and leaves the other's running; the shared containers serve both.
 // A stop stops the stack of the knowledge base it stands in, and the
 // machine's containers with the last stack. A bare stop that stands in
 // neither refuses and lists both. A second copy of a running knowledge base,
@@ -2193,13 +2193,13 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	}
 
 	run("the first knowledge base's start", 0, "start")
-	// The machine's containers run as their records say. The second start
+	// The shared containers run as their records say. The second start
 	// keeps each, but for the worker: it puts its own knowledge base on the
 	// worker's list, and restarts it.
 	var rec struct {
-		Machine map[string]struct {
+		Shared map[string]struct {
 			Image string `json:"image"`
-		} `json:"machine"`
+		} `json:"shared"`
 	}
 	b, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
@@ -2208,13 +2208,13 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	if err := json.Unmarshal(b, &rec); err != nil {
 		t.Fatal(err)
 	}
-	for name, m := range rec.Machine {
+	for name, m := range rec.Shared {
 		bare := strings.TrimPrefix(name, "semiont-")
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+bare+"=running", "FAKERT_IMAGE_"+bare+"="+m.Image)
 	}
 	s.kb = other
 	second, _, _ := run("the second knowledge base's start", 0, "start")
-	for name := range rec.Machine {
+	for name := range rec.Shared {
 		if name != "semiont-worker" {
 			mustNotContain(t, "the second start", second, "stop "+name, "rm "+name, "stop fid-"+name, "rm fid-"+name)
 		}
@@ -2276,7 +2276,7 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 	argv, stdout, _ := run("the first knowledge base's stop", 0, "stop")
 	mustContain(t, "the first knowledge base's stop", argv, "stop fid-semiont-example.github.io-test-kb-gateway")
 	mustNotContain(t, "the first knowledge base's stop", argv, "other-kb-", "semiont-worker", "semiont-otel-collector")
-	mustContain(t, "the first knowledge base's stop", stdout, "The machine's containers stay up")
+	mustContain(t, "the first knowledge base's stop", stdout, "The shared containers stay up")
 	if got := recordedStacks(t, s); !slices.Equal(got, []string{otherKey}) {
 		t.Errorf("after the first knowledge base's stop, stack.json records %v, want the second's alone", got)
 	}
@@ -2307,8 +2307,8 @@ func TestTwoKnowledgeBasesRunSideBySide(t *testing.T) {
 // else. Beside a first knowledge base, a second's services run on a port
 // block of their own; one stopped alone, which the second's record forgets,
 // is down, though the first's same service answers on the default block. The
-// machine's containers answer on the machine's ports, the same for every
-// knowledge base: a second start that leaves the machine's Jaeger and
+// shared containers answer on ports of their own, the same for every
+// knowledge base: a second start that leaves the shared Jaeger and
 // Prometheus alone (--no-observe) records neither, and both read up.
 func TestStatusAsksARecordedStackOnlyWhereItsRecordSays(t *testing.T) {
 	s := newScenario(t, "container")
@@ -2336,11 +2336,11 @@ func TestStatusAsksARecordedStackOnlyWhereItsRecordSays(t *testing.T) {
 	}
 
 	run("the first knowledge base's start", 0, "start")
-	// The second start keeps the machine's containers the first ran.
+	// The second start keeps the shared containers the first ran.
 	var rec struct {
-		Machine map[string]struct {
+		Shared map[string]struct {
 			Image string `json:"image"`
-		} `json:"machine"`
+		} `json:"shared"`
 	}
 	b, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
@@ -2349,7 +2349,7 @@ func TestStatusAsksARecordedStackOnlyWhereItsRecordSays(t *testing.T) {
 	if err := json.Unmarshal(b, &rec); err != nil {
 		t.Fatal(err)
 	}
-	for name, m := range rec.Machine {
+	for name, m := range rec.Shared {
 		bare := strings.TrimPrefix(name, "semiont-")
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+bare+"=running", "FAKERT_IMAGE_"+bare+"="+m.Image)
 	}
@@ -4418,7 +4418,7 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 		}
 	}
 	if _, handed := s.containerEnv(t, "semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET"); handed {
-		t.Error("the worker was handed a secret; it proves itself with the machine's key")
+		t.Error("the worker was handed a secret; it proves itself with the worker key")
 	}
 }
 
@@ -6268,24 +6268,24 @@ func TestMultiStackCodespaces(t *testing.T) {
 	mustContain(t, "stack.json", string(b), "codespace:"+csRepo)
 }
 
-// machineDocumentFor: where the scenario's state home keeps the machine's
+// sharedDocumentFor: where the scenario's state home keeps the shared
 // document named file: browser.yaml, the Browser's, or workers.yaml, the
 // worker's.
-func machineDocumentFor(home, file string) string {
+func sharedDocumentFor(home, file string) string {
 	return filepath.Join(stateHomeFor(home), "stack", file)
 }
 
-// editMachineDocument: the scenario's machine document named file, which
+// editSharedDocument: the scenario's machine document named file, which
 // `settings <setting> --path` names and writes where there is none, with each
 // old text of edits (old, new, old, new, …) replaced by its new one; an old
 // text the document does not hold fails the test.
-func editMachineDocument(t *testing.T, s *scenario, setting, file string, edits ...string) {
+func editSharedDocument(t *testing.T, s *scenario, setting, file string, edits ...string) {
 	t.Helper()
 	stdout, stderr, code := s.run(t, "settings", setting, "--path")
 	if code != 0 {
 		t.Fatalf("settings %s --path: exit %d\n%s", setting, code, stderr)
 	}
-	path := machineDocumentFor(s.home, file)
+	path := sharedDocumentFor(s.home, file)
 	if stdout != path+"\n" {
 		t.Fatalf("settings %s --path printed %q, want the path alone, %q", setting, stdout, path)
 	}
@@ -6313,27 +6313,27 @@ func recordedBrowser(t *testing.T, s *scenario) (image, endpoint, memory string)
 		t.Fatal(err)
 	}
 	var rec struct {
-		Machine map[string]struct {
+		Shared map[string]struct {
 			Image    string `json:"image"`
 			Endpoint string `json:"endpoint"`
 			Memory   string `json:"memory"`
-		} `json:"machine"`
+		} `json:"shared"`
 	}
 	if err := json.Unmarshal(b, &rec); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	browser := rec.Machine["semiont-browser"]
+	browser := rec.Shared["semiont-browser"]
 	return browser.Image, browser.Endpoint, browser.Memory
 }
 
 // A start that runs a worker and finds no worker document writes the
 // launcher's, says where, and runs what it says; a dry run before it writes
-// nothing, and says what a start would write. The document is the machine's:
+// nothing, and says what a start would write. The document is shared:
 // an edit runs at the next start, its image, its memory and its log level,
 // and no knowledge base's document says otherwise.
-func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
+func TestTheWorkerRunsWhatItsDocumentSays(t *testing.T) {
 	s := newScenario(t, "container")
-	path := machineDocumentFor(s.home, "workers.yaml")
+	path := sharedDocumentFor(s.home, "workers.yaml")
 
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
 	if code != 0 {
@@ -6360,7 +6360,7 @@ func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
 		"memory: 2G")
 	mustContain(t, "argv log", s.argv(t), "run -d --name semiont-worker --memory 2G")
 
-	editMachineDocument(t, s, "worker", "workers.yaml",
+	editSharedDocument(t, s, "worker", "workers.yaml",
 		"semiont-worker:latest", "semiont-worker:local",
 		"memory: 2G", "memory: 3G",
 		"logLevel: info", "logLevel: debug")
@@ -6372,7 +6372,7 @@ func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
 	mustContain(t, "argv log", s.argv(t), "ghcr.io/the-ai-alliance/semiont-worker:local")
 	mustNotContain(t, "argv log", s.argv(t), "pull ghcr.io/the-ai-alliance/semiont-worker:local")
 	var doc api.WorkerConfig
-	if err := json.Unmarshal([]byte(machineFile(t, s, "worker.json")), &doc); err != nil {
+	if err := json.Unmarshal([]byte(sharedFile(t, s, "worker.json")), &doc); err != nil {
 		t.Fatal(err)
 	}
 	if doc.LogLevel != api.LogLevelDebug {
@@ -6385,8 +6385,8 @@ func TestTheWorkerRunsWhatTheMachinesDocumentSays(t *testing.T) {
 // by a start of the worker alone, and by a dry run.
 func TestAWorkerDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
 	s := newScenario(t, "container")
-	editMachineDocument(t, s, "worker", "workers.yaml", "memory: 2G", "memory: 2GB")
-	path := machineDocumentFor(s.home, "workers.yaml")
+	editSharedDocument(t, s, "worker", "workers.yaml", "memory: 2G", "memory: 2GB")
+	path := sharedDocumentFor(s.home, "workers.yaml")
 	for _, args := range [][]string{{"start"}, {"start", "--service", "worker"}, {"start", "--dry-run"}} {
 		before := s.argv(t)
 		stdout, stderr, code := s.run(t, args...)
@@ -6410,7 +6410,7 @@ func TestAWorkerDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
 func TestAStartWithNoBrowserDocumentWritesOne(t *testing.T) {
 	s := newScenario(t, "container")
 	s.noGitRoot = true // the Browser alone needs no clone
-	path := machineDocumentFor(s.home, "browser.yaml")
+	path := sharedDocumentFor(s.home, "browser.yaml")
 
 	stdout, stderr, code := s.run(t, "start", "--service", "browser", "--dry-run")
 	if code != 0 {
@@ -6447,7 +6447,7 @@ func TestAStartWithNoBrowserDocumentWritesOne(t *testing.T) {
 // do not.
 func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
 	s := newScenario(t, "container")
-	editMachineDocument(t, s, "browser", "browser.yaml",
+	editSharedDocument(t, s, "browser", "browser.yaml",
 		"semiont-browser:latest", "semiont-browser:local",
 		"memory: 1G", "memory: 2G",
 		"port: 3000", "port: 3001")
@@ -6484,7 +6484,7 @@ func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
 		{"port: 3001", "port: 3002", "--memory 2G --publish 127.0.0.1:3002:3000"},
 		{"memory: 2G", "memory: 3G", "--memory 3G --publish 127.0.0.1:3002:3000"},
 	} {
-		editMachineDocument(t, s, "browser", "browser.yaml", edit.from, edit.to)
+		editSharedDocument(t, s, "browser", "browser.yaml", edit.from, edit.to)
 		before = s.mustLog(t)
 		stdout, stderr, code = s.run(t, "start")
 		if code != 0 {
@@ -6503,8 +6503,8 @@ func TestTheBrowserRunsWhatItsDocumentSays(t *testing.T) {
 // by a start of the Browser alone, and by a dry run.
 func TestABrowserDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
 	s := newScenario(t, "container")
-	editMachineDocument(t, s, "browser", "browser.yaml", "port: 3000", "port: 70000")
-	path := machineDocumentFor(s.home, "browser.yaml")
+	editSharedDocument(t, s, "browser", "browser.yaml", "port: 3000", "port: 70000")
+	path := sharedDocumentFor(s.home, "browser.yaml")
 	for _, args := range [][]string{{"start"}, {"start", "--service", "browser"}, {"start", "--dry-run"}} {
 		before := s.argv(t)
 		stdout, stderr, code := s.run(t, args...)
@@ -6523,7 +6523,7 @@ func TestABrowserDocumentThatDoesNotHoldStopsNothing(t *testing.T) {
 // Browser's image, and start's --port, are gone.
 func TestSettingsShowsTheBrowserDocument(t *testing.T) {
 	s := newScenario(t, "container")
-	path := machineDocumentFor(s.home, "browser.yaml")
+	path := sharedDocumentFor(s.home, "browser.yaml")
 	stdout, stderr, code := s.run(t, "settings", "browser")
 	if code != 0 {
 		t.Fatalf("settings browser: exit %d\n%s", code, stderr)
@@ -6727,7 +6727,7 @@ func TestStartWithoutAWorkerBoot(t *testing.T) {
 	mustNotContain(t, "start argv", started, "run -d --name semiont-worker", "semiont-worker:", "24100")
 	mustContain(t, "start argv", started, "run -d --name semiont-example.github.io-test-kb-smelter", "run -d --name semiont-example.github.io-test-kb-weaver")
 
-	for _, file := range []string{filepath.Join(stateHomeFor(s.home), "machine", "worker.json"), workerListFor(s.home)} {
+	for _, file := range []string{filepath.Join(stateHomeFor(s.home), "shared", "worker.json"), workerListFor(s.home)} {
 		if _, err := os.Stat(file); !os.IsNotExist(err) {
 			t.Errorf("%s was written for a worker that serves nothing (stat: %v)", file, err)
 		}
@@ -6824,7 +6824,7 @@ func TestStartWithoutAWorkerDryRun(t *testing.T) {
 	plan := s.norm(stdout)
 	mustContain(t, "plan", plan,
 		"# worker: no job has an engine — this knowledge base is not on its list (give one an engine in "+noJobEnginesAt+")",
-		"# remove <data-home>/machine/worker-knowledge-bases.json: the worker's list is empty",
+		"# remove <data-home>/shared/worker-knowledge-bases.json: the worker's list is empty",
 		"run -d --name semiont-example.github.io-test-kb-smelter", "wait: http://<host-addr>:24101/health (30s)")
 	if n := strings.Count(plan, noJobEnginesAt); n != 1 {
 		t.Errorf("the plan names %s %d times, want once:\n%s", noJobEnginesAt, n, plan)
@@ -6890,7 +6890,7 @@ func TestStartNoInferenceBoot(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("stop --group providers: exit %d\n%s", code, stderr)
 	}
-	mustContain(t, "stop --group providers", stdout+stderr, "Nothing in the providers group is the machine's to stop for this knowledge base")
+	mustContain(t, "stop --group providers", stdout+stderr, "Nothing in the providers group is the launcher's to stop for this knowledge base")
 	mustNotContain(t, "stop --group providers", stdout, "providers stopped")
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
@@ -7239,9 +7239,9 @@ func TestStackStateLifecycle(t *testing.T) {
 		Services map[string]recordedService `json:"services"`
 	}
 	var set struct {
-		Schema  int                        `json:"schema"`
-		Stacks  map[string]recordedStack   `json:"stacks"`
-		Machine map[string]recordedService `json:"machine"`
+		Schema int                        `json:"schema"`
+		Stacks map[string]recordedStack   `json:"stacks"`
+		Shared map[string]recordedService `json:"shared"`
 	}
 	if err := json.Unmarshal(b, &set); err != nil {
 		t.Fatalf("stack.json not valid JSON: %v\n%s", err, b)
@@ -7254,12 +7254,12 @@ func TestStackStateLifecycle(t *testing.T) {
 		t.Errorf("schema/runtime: got %d/%q", set.Schema, st.Runtime)
 	}
 	// browser is deliberately ABSENT from the stack's services: the Browser
-	// is machine-level, a viewer of every KB, recorded among the machine's.
+	// is shared, a viewer of every KB, recorded among the shared ones.
 	if _, ok := st.Services["browser"]; ok {
 		t.Error("browser recorded as a stack service — the Browser is machine-level")
 	}
-	if b := set.Machine["semiont-browser"]; b.ID != "fid-semiont-browser" {
-		t.Errorf("browser record missing or wrong: %+v", set.Machine)
+	if b := set.Shared["semiont-browser"]; b.ID != "fid-semiont-browser" {
+		t.Errorf("browser record missing or wrong: %+v", set.Shared)
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
@@ -7297,12 +7297,12 @@ func TestStackStateLifecycle(t *testing.T) {
 		if e.Endpoint == "" {
 			t.Errorf("%s: endpoint not recorded", role)
 		}
-		// A role the machine's container serves names that container; the
+		// A role the shared container serves names that container; the
 		// machine's own record holds what runs.
-		if e.Provided == "machine" {
-			m, ok := set.Machine[e.Container]
+		if e.Provided == "shared" {
+			m, ok := set.Shared[e.Container]
 			if !ok || m.ID != "fid-"+e.Container || m.Image == "" {
-				t.Errorf("%s: served by the machine's %q, whose record is %+v", role, e.Container, m)
+				t.Errorf("%s: served by the shared %q, whose record is %+v", role, e.Container, m)
 			}
 			if e.ID != "" || e.Image != "" {
 				t.Errorf("%s: served by the machine, yet the stack's record carries id %q / image %q", role, e.ID, e.Image)
@@ -8602,10 +8602,10 @@ func findFile(t *testing.T, dir, name string) string {
 
 func TestStartServiceWorker(t *testing.T) {
 	// Gateway already running; Jaeger up on 16686. Restarting the worker must
-	// present the machine's key, auto-enable OTel, stage a fresh private
+	// present the worker key, auto-enable OTel, stage a fresh private
 	// config, and leave the rest of the stack untouched.
 	//
-	// The key is kept for the machine, so a restart reads the same file the
+	// The key is kept shared, so a restart reads the same file the
 	// full start wrote and no container needs inspecting.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
@@ -8641,7 +8641,7 @@ func TestStartServiceWorker(t *testing.T) {
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
 		"--env SEMIONT_OIDC_CLIENT_KEY",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
-		filepath.Join("machine", "worker.json")+":/etc/semiont/worker.json:ro",
+		filepath.Join("shared", "worker.json")+":/etc/semiont/worker.json:ro",
 	)
 	for _, absent := range []string{"run -d --name semiont-example.github.io-test-kb-neo4j", "run -d --name semiont-example.github.io-test-kb-gateway", "semiont-browser"} {
 		if strings.Contains(argv, absent) {
@@ -8688,7 +8688,7 @@ func addToWorker(t *testing.T, s *scenario, domain, gateway string) (stderr stri
 func workerServes(t *testing.T, s *scenario) []api.WorkerKnowledgeBaseConfig {
 	t.Helper()
 	var doc api.WorkerConfig
-	if err := json.Unmarshal([]byte(machineFile(t, s, "worker.json")), &doc); err != nil {
+	if err := json.Unmarshal([]byte(sharedFile(t, s, "worker.json")), &doc); err != nil {
 		t.Fatal(err)
 	}
 	return doc.KnowledgeBases
@@ -8703,7 +8703,7 @@ func domainsOf(entries []api.WorkerKnowledgeBaseConfig) []string {
 	return out
 }
 
-// A knowledge base someone else runs is added to this machine's worker from
+// A knowledge base someone else runs is added to the shared worker from
 // inside a local knowledge base on its list, and is offered that one's
 // engines. Before the local one's start puts it on the list it has none to
 // offer. The worker's document names the local one, then the added one, at the
@@ -8719,7 +8719,7 @@ func TestTheWorkerServesTheKnowledgeBasesAddedToIt(t *testing.T) {
 	if code != 1 {
 		t.Fatalf("worker kb add before any start: exit %d, want 1\n%s", code, stderr)
 	}
-	mustContain(t, "worker kb add before any start", stderr, "example.github.io:test-kb is not on this machine's worker's list, so it has no engines to offer.")
+	mustContain(t, "worker kb add before any start", stderr, "example.github.io:test-kb is not on the shared worker's list, so it has no engines to offer.")
 
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -8740,7 +8740,7 @@ func TestTheWorkerServesTheKnowledgeBasesAddedToIt(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("start --dry-run: exit %d", code)
 	}
-	mustContain(t, "the plan", plan, "# write <data-home>/machine/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local), other.example:kb (added, offered example.github.io:test-kb's engines)")
+	mustContain(t, "the plan", plan, "# write <data-home>/shared/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local), other.example:kb (added, offered example.github.io:test-kb's engines)")
 
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -8751,7 +8751,7 @@ func TestTheWorkerServesTheKnowledgeBasesAddedToIt(t *testing.T) {
 	}
 	own, other := served[0], served[1]
 	if own.Domain != "example.github.io:test-kb" || own.Identity.ClientId != "semiont-worker-local" {
-		t.Errorf("the first knowledge base is %s as %s, want the local one as this machine's worker", own.Domain, own.Identity.ClientId)
+		t.Errorf("the first knowledge base is %s as %s, want the local one as the shared worker", own.Domain, own.Identity.ClientId)
 	}
 	if other.Domain != "other.example:kb" || other.GatewayUrl != gateway ||
 		other.Identity.Issuer != "https://id.other.example/realms/kb" || other.Identity.ClientId != "semiont-worker-alice" {
@@ -8834,9 +8834,9 @@ func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
 
 	// A re-run that finds the worker running as its record says keeps it.
 	var rec struct {
-		Machine map[string]struct {
+		Shared map[string]struct {
 			Image string `json:"image"`
-		} `json:"machine"`
+		} `json:"shared"`
 	}
 	b, err := os.ReadFile(statePathFor(s.home))
 	if err != nil {
@@ -8845,7 +8845,7 @@ func TestTheWorkerServesTheLocalKnowledgeBaseOnEachGatewayPort(t *testing.T) {
 	if err := json.Unmarshal(b, &rec); err != nil {
 		t.Fatal(err)
 	}
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_worker=running", "FAKERT_IMAGE_worker="+rec.Machine["semiont-worker"].Image)
+	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_worker=running", "FAKERT_IMAGE_worker="+rec.Shared["semiont-worker"].Image)
 	before := s.argv(t)
 	mustContain(t, "a re-run", start("a re-run of the second knowledge base's start"), "worker — Worker already running")
 	if again := strings.TrimPrefix(s.argv(t), before); strings.Contains(again, "run -d --name semiont-worker") {
@@ -8905,7 +8905,7 @@ func TestTheWorkerStopsWhenItServesNothing(t *testing.T) {
 	mustContain(t, "a bare stop", stdout, "Worker stopped")
 	mustContain(t, "a bare stop", strings.TrimPrefix(s.argv(t), before), "stop semiont-worker")
 	plan, _, _ := s.run(t, "stop", "--dry-run")
-	mustContain(t, "stop --dry-run", plan, "# stop the machine's Worker:")
+	mustContain(t, "stop --dry-run", plan, "# stop the shared Worker:")
 
 	start()
 	before = s.argv(t)
@@ -8926,7 +8926,7 @@ func onItsOwnGatewayPort(t *testing.T, s *scenario) {
 
 // A knowledge base none of whose jobs has an engine is not on the worker's
 // list, and the worker goes on serving the rest; `stop --service worker` from
-// it still stops the machine's worker.
+// it still stops the shared worker.
 func TestStopServiceWorkerStopsTheWorkerFromAKnowledgeBaseItDoesNotServe(t *testing.T) {
 	s := newScenario(t, "container")
 	first, other := s.kb, otherLocalKB(t)
@@ -8985,7 +8985,7 @@ func TestAStartRefusesAKeyAnotherKnowledgeBaseOnTheListNames(t *testing.T) {
 		t.Fatalf("a start with a key the list names unset: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stderr", stderr,
-		"example.github.io:test-kb, which this machine's worker serves, names the variable ANTHROPIC_API_KEY for an engine's key (fromEnv), and it is not set in the environment.",
+		"example.github.io:test-kb, which the shared worker serves, names the variable ANTHROPIC_API_KEY for an engine's key (fromEnv), and it is not set in the environment.",
 		"semiont worker kb remove example.github.io:test-kb")
 	if ran := strings.Join(strings.Split(s.argv(t), "\n")[before:], "\n"); strings.Contains(ran, " run ") {
 		t.Errorf("the refused start ran containers:\n%s", ran)
@@ -9000,7 +9000,7 @@ func TestAStartRefusesAKeyAnotherKnowledgeBaseOnTheListNames(t *testing.T) {
 	}
 }
 
-// A knowledge base added to this machine's worker as one someone else runs
+// A knowledge base added to the shared worker as one someone else runs
 // refuses its own start before anything runs, saying how to remove it: a
 // start puts its own on the list as local.
 func TestAStartOfAKnowledgeBaseAddedAsAnothersIsRefused(t *testing.T) {
@@ -9169,8 +9169,8 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"# write <data-home>/machine/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local)",
-		"--volume <state-home>/machine/worker.json:/etc/semiont/worker.json:ro",
+		"# write <data-home>/shared/worker-knowledge-bases.json: the worker's list, example.github.io:test-kb (local)",
+		"--volume <state-home>/shared/worker.json:/etc/semiont/worker.json:ro",
 		"wait: http://<host-addr>:24100/health (30s)",
 	)
 	if strings.Contains(stdout, "semiont-example.github.io-test-kb-neo4j") {
@@ -9242,7 +9242,7 @@ func TestStopGroupStopsWhatNeedsIt(t *testing.T) {
 		said, not []string
 		forgot    []string // the roles the stack's record forgets
 		kept      []string // and some it keeps
-		worker    bool     // the machine's worker is still recorded
+		worker    bool     // the shared worker is still recorded
 	}{
 		{"index", false, kb("weaver", "smelter", "librarian", "qdrant", "neo4j"),
 			[]string{"index stopped: weaver, smelter, librarian, vectors, graph"}, []string{"stops too"},
@@ -9253,7 +9253,7 @@ func TestStopGroupStopsWhatNeedsIt(t *testing.T) {
 			[]string{"weaver", "smelter", "dispatcher", "librarian", "archivist", "gateway", "messaging"},
 			[]string{"graph", "vectors", "identity", "identity-store"}, false},
 		{"record", true, kb("weaver", "smelter", "dispatcher", "librarian", "archivist", "gateway", "nats"),
-			[]string{"smelter stops too: it needs the gateway", "The machine's Worker left running: another local stack is recorded."}, []string{"worker stops too"},
+			[]string{"smelter stops too: it needs the gateway", "The shared Worker left running: another knowledge base's stack is recorded."}, []string{"worker stops too"},
 			[]string{"weaver", "smelter", "dispatcher", "librarian", "archivist", "gateway", "messaging"},
 			[]string{"graph", "vectors", "identity", "identity-store"}, true},
 	} {
@@ -9289,7 +9289,7 @@ func TestStopGroupStopsWhatNeedsIt(t *testing.T) {
 					KBRoot   string                     `json:"kbRoot"`
 					Services map[string]json.RawMessage `json:"services"`
 				} `json:"stacks"`
-				Machine map[string]json.RawMessage `json:"machine"`
+				Shared map[string]json.RawMessage `json:"shared"`
 			}
 			b, err := os.ReadFile(statePathFor(s.home))
 			if err != nil {
@@ -9308,8 +9308,8 @@ func TestStopGroupStopsWhatNeedsIt(t *testing.T) {
 					}
 				}
 			}
-			if _, kept := rec.Machine["semiont-worker"]; kept != c.worker {
-				t.Errorf("after stop --group %s the machine's worker is recorded: %v, want %v", c.group, kept, c.worker)
+			if _, kept := rec.Shared["semiont-worker"]; kept != c.worker {
+				t.Errorf("after stop --group %s the shared worker is recorded: %v, want %v", c.group, kept, c.worker)
 			}
 		})
 	}
@@ -9386,7 +9386,7 @@ func TestStopGroupRefusalsAndDryRun(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("stop --group telemetry --dry-run: exit %d\n%s", code, stdout)
 	}
-	mustContain(t, "shared dry run", stdout, "# stop the machine's OTel collector:", "container stop semiont-otel-collector")
+	mustContain(t, "shared dry run", stdout, "# stop the shared OTel collector:", "container stop semiont-otel-collector")
 	mustNotContain(t, "shared dry run", stdout, "telemetry stopped")
 	stdout, _, code = s.run(t, "stop", "--group", "issuer", "--dry-run")
 	if code != 0 {
@@ -9398,7 +9398,7 @@ func TestStopGroupRefusalsAndDryRun(t *testing.T) {
 	mustContain(t, "dry run", stdout,
 		"# gateway stops too: it needs the identity",
 		"# archivist stops too: it needs the gateway",
-		"# stop the machine's Worker:",
+		"# stop the shared Worker:",
 		"container stop fid-semiont-"+testKBKey+"-keycloak",
 		"# staged configs left in place (--group)")
 }
@@ -9519,7 +9519,7 @@ func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
 }
 
 // What a group needs that somebody else runs is no service it starts: a hosted
-// provider's models start nowhere, and the embeddings, which the machine's
+// provider's models start nowhere, and the embeddings, which the shared
 // Ollama serves, start.
 func TestStartGroupStartsNothingSomebodyElseRuns(t *testing.T) {
 	s := newScenario(t, "container")
@@ -9792,19 +9792,19 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 		t.Errorf("re-pulled a model Ollama already had:\n%s", got)
 	}
 
-	// A start that keeps the machine's Ollama still pulls what is missing:
+	// A start that keeps the shared Ollama still pulls what is missing:
 	// another knowledge base's config may ask it for a model it lacks.
 	if err := os.Remove(filepath.Join(s.fakertDir, "ollama-pulls")); err != nil {
 		t.Fatalf("clearing the first start's pulls: %v", err)
 	}
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_ollama=running",
-		"FAKERT_IMAGE_ollama="+readMachineRecords(t, s).Machine["semiont-ollama"].Image)
+		"FAKERT_IMAGE_ollama="+readSharedRecords(t, s).Shared["semiont-ollama"].Image)
 	stdout, stderr, code := s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("keeping start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "keep message", stdout, "the machine's Ollama already running")
+	mustContain(t, "keep message", stdout, "the shared Ollama already running")
 	if got := pulls(s); !strings.Contains(got, "gemma4:e2b") || !strings.Contains(got, "nomic-embed-text") {
 		t.Errorf("a kept Ollama was not asked for the missing models; pulled:\n%s", got)
 	}
@@ -9902,11 +9902,11 @@ func TestRemoteModelsAreNeverCheckedAgainstOllama(t *testing.T) {
 	// The ollama-served embedding still gets a real install state.
 	mustContain(t, "embedding model", stdout, "nomic-embed-text")
 
-	// The stack records embedding as served by the machine's Ollama, so
+	// The stack records embedding as served by the shared Ollama, so
 	// --service embedding is what stops that Ollama alone; --service
 	// inference, which Claude performs, leaves it.
-	if m := readMachineRecords(t, s); m.Machine["semiont-ollama"] == nil || m.Stacks[localKey].Services["embedding"].Provided != "machine" {
-		t.Errorf("want the machine's Ollama recorded and embedding provided by it, got %+v", m)
+	if m := readSharedRecords(t, s); m.Shared["semiont-ollama"] == nil || m.Stacks[localKey].Services["embedding"].Provided != "shared" {
+		t.Errorf("want the shared Ollama recorded and embedding provided by it, got %+v", m)
 	}
 	before := s.mustLog(t)
 	if _, stderr, code := s.run(t, "stop", "--service", "inference"); code != 0 {
@@ -10684,15 +10684,15 @@ func TestBrowserLifecycle(t *testing.T) {
 	// place, or contradict itself.
 	rec, _ := os.ReadFile(statePathFor(s.home))
 	var placement struct {
-		Machine map[string]json.RawMessage `json:"machine"`
-		Stacks  map[string]struct {
+		Shared map[string]json.RawMessage `json:"shared"`
+		Stacks map[string]struct {
 			Services map[string]json.RawMessage `json:"services"`
 		} `json:"stacks"`
 	}
 	if err := json.Unmarshal(rec, &placement); err != nil {
 		t.Fatalf("stack.json: %v", err)
 	}
-	if _, ok := placement.Machine["semiont-browser"]; !ok {
+	if _, ok := placement.Shared["semiont-browser"]; !ok {
 		t.Errorf("no machine-level browser record:\n%s", rec)
 	}
 	if _, wrong := placement.Stacks[localKey].Services["browser"]; wrong {
@@ -10718,12 +10718,12 @@ func TestBrowserLifecycle(t *testing.T) {
 
 	// The first start ran the verified image, by its digest.
 	var ran struct {
-		Machine map[string]struct {
+		Shared map[string]struct {
 			Image string `json:"image"`
-		} `json:"machine"`
+		} `json:"shared"`
 	}
-	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Machine["semiont-browser"].Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
-		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Machine["semiont-browser"].Image, err)
+	if err := json.Unmarshal(rec, &ran); err != nil || !strings.HasPrefix(ran.Shared["semiont-browser"].Image, "ghcr.io/the-ai-alliance/semiont-browser:latest@sha256:") {
+		t.Fatalf("the Browser was recorded as %q (%v): want the verified image, by its digest", ran.Shared["semiont-browser"].Image, err)
 	}
 
 	// Stop: the stack and the Browser both, and both records. Slice the
@@ -10752,7 +10752,7 @@ func TestBrowserLifecycle(t *testing.T) {
 	// ran.
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_browser=running",
-		"FAKERT_IMAGE_browser="+ran.Machine["semiont-browser"].Image)
+		"FAKERT_IMAGE_browser="+ran.Shared["semiont-browser"].Image)
 	before := s.mustLog(t)
 	stdout, stderr, code = s.run(t, "start")
 	if code != 0 {
@@ -10958,7 +10958,7 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 		}
 	}
 	if _, err := os.Stat(filepath.Join(stackDir, "workers.yaml")); !os.IsNotExist(err) {
-		t.Errorf("init wrote a workers.yaml into the knowledge base (%v): the worker's document is the machine's", err)
+		t.Errorf("init wrote a workers.yaml into the knowledge base (%v): the worker's document is shared", err)
 	}
 	stdout, stderr, code := s.run(t, "start", "--config", "anthropic", "--dry-run")
 	if code != 0 {
@@ -12282,13 +12282,13 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 // it does not run ---
 
 // stagedFile reads a file the last start staged for its containers.
-// machineFile: the document the launcher wrote for one of the machine's
+// sharedFile: the document the launcher wrote for one of the shared
 // containers, in <state-home>/machine.
-func machineFile(t *testing.T, s *scenario, name string) string {
+func sharedFile(t *testing.T, s *scenario, name string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(stateHomeFor(s.home), "machine", name))
+	b, err := os.ReadFile(filepath.Join(stateHomeFor(s.home), "shared", name))
 	if err != nil {
-		t.Fatalf("reading the machine's %s: %v", name, err)
+		t.Fatalf("reading the shared %s: %v", name, err)
 	}
 	return string(b)
 }
@@ -12543,7 +12543,7 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 		// the six machine identities, against the CONFIGURED issuer rather
 		// than identityEndpoint's localhost form
 		"client-credentials grant at "+iss+" as semiont-gateway",
-		"client-credentials grant at "+iss+" as semiont-worker-local, by an assertion signed with the machine's worker key",
+		"client-credentials grant at "+iss+" as semiont-worker-local, by an assertion signed with the shared worker key",
 		// and the two clients people sign in through
 		"device authorization at "+iss+" as semiont-cli",
 		"authorization request at "+iss+" as semiont-browser",

@@ -18,7 +18,7 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/bus"
 )
 
-// KnowledgeBase is a stack this machine records, with a stored sign-in.
+// KnowledgeBase is a stack recorded here, with a stored sign-in.
 type KnowledgeBase struct {
 	// Key is how tokens.json and stack.json key it: "local:<key>" by the
 	// knowledge base's state key, or "codespace:<owner>/<name>".

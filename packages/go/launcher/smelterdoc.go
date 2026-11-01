@@ -45,7 +45,7 @@ func embeddingSecrets(p placement) []string {
 // states it. ONE decider, for the Smelter's document and the Librarian's: a
 // vector is compared only with vectors of the model that made it. who names
 // the service in a refusal. An ollama embedding that states no endpoint is
-// the machine's Ollama, at this start's address; a voyage one that states
+// the shared Ollama, at this start's address; a voyage one that states
 // none is asked at Voyage's own.
 func embeddingConfig(p placement, who string) (embedding api.EmbeddingConfig, err error) {
 	e := p.st.KnowledgeIndex.Spec.Embedding

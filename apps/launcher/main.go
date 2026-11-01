@@ -35,7 +35,7 @@ Identity & auth:
   logout    End the stored session (server best-effort, local token forgotten)
   identity  Reconcile a running realm's service-account clients (identity sync);
             admit or remove another's worker by its key (identity grant, revoke)
-  worker    The public key this machine's worker signs in with (worker key);
+  worker    The public key the shared worker signs in with (worker key);
             the knowledge bases it serves (worker kb add, remove, list)
 
 Settings:

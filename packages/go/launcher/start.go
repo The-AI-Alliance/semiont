@@ -129,7 +129,7 @@ Options:
                         largest it can; only applies when creating)
   --no-observe          Start neither observability backend — Jaeger (traces
                         store + UI) nor Prometheus (metrics history) — and
-                        leave running ones alone: they are the machine's.
+                        leave running ones alone: they are shared.
                         The OTel collector always runs: current metric
                         totals stay readable at :24110/metrics; traces go to
                         Jaeger when it answers, and are discarded otherwise
@@ -482,11 +482,11 @@ func Start(args []string) int {
 	if !ok {
 		return 1
 	}
-	// A full start, and a start of the worker, reconcile the machine's worker
+	// A full start, and a start of the worker, reconcile the shared worker
 	// with its list (flowWorker): planned here, before anything runs, so the
 	// keys this start resolves are those its list names (workerSecrets), and
 	// the refusal of this knowledge base among the added ones comes first. The
-	// worker runs as the machine's worker document says. ownVars: the
+	// worker runs as the shared worker document says. ownVars: the
 	// variables this knowledge base's own documents name, for the refusal of
 	// one that only another on the list names.
 	var ownVars []string
@@ -567,7 +567,7 @@ func Start(args []string) int {
 		}
 		if val == "" {
 			if kb, ok := plan.Serving.keyNamer(v); ok && !contains(ownVars, v) {
-				u.Fail("%s, which this machine's worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
+				u.Fail("%s, which the shared worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
 				fmt.Fprintf(os.Stderr, "  Export it, register a secret source once (semiont settings secret set %s), or stop serving it (semiont worker kb remove %s).\n", v, kb)
 				return 1
 			}
@@ -641,7 +641,7 @@ func Start(args []string) int {
 }
 
 // refuseOtherStacks: the refusals a start of the knowledge base kb makes on
-// the other local stacks this machine records. A machine runs one copy of a
+// the other local stacks recorded here. A machine runs one copy of a
 // knowledge base, so a record of its did from another root is that copy. And
 // no port this start claims may be one another knowledge base's stack claims:
 // the launcher gives each its own port block, but the gateway's port is the
@@ -692,10 +692,10 @@ func runningFor(u *UI, kb kbRoot, rt string, plan *launchPlan) (func(role string
 		if _, nothing := nothingToLaunch(plan, role); nothing {
 			return true
 		}
-		if v.st == nil && !machineRole(role) && runsContainer(role) {
+		if v.st == nil && !sharedRole(role) && runsContainer(role) {
 			return false
 		}
-		return readRow(v, role, ss.Machine).healthy
+		return readRow(v, role, ss.Shared).healthy
 	}, true
 }
 
@@ -805,7 +805,7 @@ scrape_configs:
 }
 
 func prometheusArgs(e exposure, configPath string) []string {
-	a := []string{"run", "-d", "--name", machineContainer("metrics"), // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", sharedContainer("metrics"), // no --rm: see providedRunArgs
 		"--memory", descriptorFor("metrics", "prometheus").mem}
 	a = append(a, e.publish("-p", "metrics", 9090, 9090)...)
 	return append(a, "--volume", configPath+":/etc/prometheus/prometheus.yml:ro",
@@ -855,7 +855,7 @@ service:
 }
 
 func collectorArgs(e exposure, configPath string) []string {
-	a := []string{"run", "-d", "--name", machineContainer("collector"), // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", sharedContainer("collector"), // no --rm: see providedRunArgs
 		"--memory", descriptorFor("collector", "otel").mem}
 	a = append(a, e.publish("-p", "collector", 4318, 4318)...)
 	a = append(a, e.publish("-p", "collector", 24110, 24110)...)
@@ -864,7 +864,7 @@ func collectorArgs(e exposure, configPath string) []string {
 }
 
 func tracesArgs(e exposure) []string {
-	a := []string{"run", "-d", "--name", machineContainer("traces"), // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", sharedContainer("traces"), // no --rm: see providedRunArgs
 		"--memory", descriptorFor("traces", "jaeger").mem}
 	a = append(a, e.publish("-p", "traces", 16686, 16686)...)
 	// 14318: the collector owns 4318 and exports traces here.
@@ -1008,7 +1008,7 @@ func dispatcherArgs(key string, stage string, e exposure, port int, clientSecret
 	return append(a, img)
 }
 
-// workerArgs: the machine's worker claims jobs and calls the models. It
+// workerArgs: the shared worker claims jobs and calls the models. It
 // mounts no piece of any knowledge base and no state: each gateway is its
 // route to that knowledge base's bus and to a resource's bytes. It reads a
 // resolved configuration document (workerdoc.go), kept at document with the
@@ -1020,14 +1020,14 @@ func dispatcherArgs(key string, stage string, e exposure, port int, clientSecret
 // entry, because it signs in at a local knowledge base's issuer by name.
 func workerArgs(document string, e exposure, clientKey, img, mem string, userEnv, otel []string) []string {
 	port := semiontDescriptor("worker").ports[0].port
-	a := []string{"run", "-d", "--name", machineContainer("worker"), // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", sharedContainer("worker"), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "worker", port, port)...)
 	a = append(a, "--volume", document+":"+workerDocumentTarget+":ro")
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, identityHostArgs(e.rt, e.addr)...)
-	// The machine's key it signs each sign-in with (workerkey.go), at every
+	// The worker key it signs each sign-in with (workerkey.go), at every
 	// knowledge base it serves: no secret is sent. Which client it signs in
 	// as at each is that knowledge base's entry in its document.
 	a = append(a, "--env", "SEMIONT_OIDC_CLIENT_KEY="+clientKey)
@@ -1093,7 +1093,7 @@ func weaverArgs(key string, stage string, e exposure, port int, clientSecret, im
 // names, and is published on its document's port. Its server listens on the
 // catalog's port inside its container, whichever host port publishes it.
 func browserArgs(e exposure, doc browserDocument, img string) []string {
-	a := []string{"run", "-d", "--name", machineContainer("browser"), // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", sharedContainer("browser"), // no --rm: see providedRunArgs
 		"--memory", doc.spec.Resources.Limits.Memory}
 	a = append(a, e.publish("--publish", "browser", doc.spec.Port, semiontDescriptor("browser").defaultPort)...)
 	// The Browser's KB-discovery view: a read-only DIRECTORY mount (Apple
@@ -1173,13 +1173,13 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 	if store, ok := custodyFor(u, kb.key()); ok {
 		fmt.Printf("  Secrets            %s   %s\n", store.describe(), u.Dim("(semiont settings secret-store)"))
 	}
-	// The machine's, whichever start ran them: --no-observe leaves running
+	// Shared, whichever start ran them: --no-observe leaves running
 	// ones alone.
-	machine := LoadStackSet().Machine
-	if machine[machineContainer("traces")] != nil {
+	shared := LoadStackSet().Shared
+	if shared[sharedContainer("traces")] != nil {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
 	}
-	if machine[machineContainer("metrics")] != nil {
+	if shared[sharedContainer("metrics")] != nil {
 		fmt.Println("  Prometheus         http://localhost:9090")
 	}
 	// The readout is the containers' (Prometheus scrapes it), published

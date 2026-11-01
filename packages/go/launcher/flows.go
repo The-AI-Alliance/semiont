@@ -142,7 +142,7 @@ var depRoleTitles = map[string]string{
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → the machine's traces and metrics (--observe) → its collector → identity-store → messaging →
+// pulls → the shared traces and metrics (--observe) → its collector → identity-store → messaging →
 // identity → gateway → graph → vectors → inference → embedding → archivist →
 // librarian → dispatcher → sidecars → Browser.
 //
@@ -183,10 +183,10 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// prior stack's story, and the stop+rm below deletes it.
 	//
 	// The sweep is this knowledge base's stack alone: another's runs under
-	// names of its own. The machine's containers are not in it — the
-	// telemetry, the worker, the machine's Ollama and the Browser serve every
+	// names of its own. The shared containers are not in it — the
+	// telemetry, the worker, the shared Ollama and the Browser serve every
 	// KB here, and each is kept or replaced from its own record by its own
-	// flow (flowMachine, flowOllama, flowBrowser).
+	// flow (flowShared, flowOllama, flowBrowser).
 	prior := stackContainers(fc.kb.key())
 	x.snapshotLogs(fc.kb, prior)
 	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(prior))))
@@ -254,7 +254,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	// --no-observe skips the backends, Jaeger and Prometheus, and leaves
-	// running ones alone: they are the machine's.
+	// running ones alone: they are shared.
 	if fc.opts.observe {
 		if code := flowTraces(x, fc, addr); code != 0 {
 			return code
@@ -330,7 +330,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
-	// The machine's worker, from its list as this start leaves it: after the
+	// The shared worker, from its list as this start leaves it: after the
 	// dispatcher, whose queue it claims from.
 	if code := flowWorker(x, fc, addr, otel); code != 0 {
 		return code
@@ -380,7 +380,7 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 		desired, doc.endpoint(), doc.spec.Resources.Limits.Memory)
 	x.note("(the Browser is not a stack member: semiont stop --service browser stops it alone)")
 	return x.either(func() bool {
-		return !forceRestart && recordedAs(x.machineRecord(machineContainer("browser")), doc) && x.containerCurrent(machineContainer("browser"), desired)
+		return !forceRestart && recordedAs(x.sharedRecord(sharedContainer("browser")), doc) && x.containerCurrent(sharedContainer("browser"), desired)
 	},
 		func() int {
 			x.say(sayOK, "Browser already running on %s %s", doc.endpoint(),
@@ -392,7 +392,7 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 			// stopped container HOLDS its name — the next run --name fails
 			// with "already exists" on every runtime (the same reason
 			// stop.go always rm's).
-			x.stopRm(machineContainer("browser"))
+			x.stopRm(sharedContainer("browser"))
 			e := x.exposure(addr)
 			browser := portNeed{doc.spec.Port, "Browser"}
 			needs := append([]portNeed{browser}, e.containersSideNeed("browser", browser, semiontDescriptor("browser").defaultPort)...)
@@ -411,13 +411,13 @@ func flowBrowser(x executor, addr string, doc browserDocument, forceRestart bool
 				x.say(sayFail, "Browser failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP("Browser", machineContainer("browser"), doc.endpoint(), 30)
+			d, ok := x.waitHTTP("Browser", sharedContainer("browser"), doc.endpoint(), 30)
 			if !ok {
-				x.dumpLogs(machineContainer("browser"), "browser")
+				x.dumpLogs(sharedContainer("browser"), "browser")
 				return 1
 			}
 			x.say(sayOK, "Browser on %s %s", doc.endpoint(), x.dim("("+took(d)+")"))
-			x.recordMachine(ServiceState{Container: machineContainer("browser"), ID: id, Image: desired,
+			x.recordShared(ServiceState{Container: sharedContainer("browser"), ID: id, Image: desired,
 				Endpoint: doc.endpoint(), Memory: doc.spec.Resources.Limits.Memory, Ports: portNumbers(needs)})
 			return 0
 		})
@@ -430,9 +430,9 @@ func recordedAs(rec *ServiceState, doc browserDocument) bool {
 	return rec != nil && rec.Endpoint == doc.endpoint() && rec.Memory == doc.spec.Resources.Limits.Memory
 }
 
-// machineRun: one of the containers the launcher runs for the machine — the
+// sharedRun: one of the containers the launcher runs for every knowledge base here — the
 // telemetry's and the worker — as this start would run it.
-type machineRun struct {
+type sharedRun struct {
 	role, driver string
 	ready        string // what is said once it answers
 	// image: what it runs. memory: the ceiling it runs with, kept in its
@@ -445,13 +445,13 @@ type machineRun struct {
 	// only as it (re)starts; no file for one that reads none.
 	file, config string
 	args         func(e exposure, configPath string) []string
-	// notThisKB: it runs for the machine, and this start's knowledge base is
+	// notThisKB: it runs for every knowledge base here, and this start's knowledge base is
 	// not among what it serves, so the stack's record of the role is not its.
 	notThisKB bool
 }
 
-// flowMachine: a container the launcher runs for the machine rather than for
-// one stack (each record is the machine's, in StackSet.Machine): the
+// flowShared: a container the launcher runs for every knowledge base here rather than for
+// one stack (each record is shared, in StackSet.Shared): the
 // telemetry — one collector takes every KB's signals, each labelled with the
 // KB that sent it, with Jaeger and Prometheus behind it — and the worker,
 // which serves every KB on its list. A start keeps a running one when its
@@ -460,10 +460,10 @@ type machineRun struct {
 // says what this start would write, and it runs the image this start would;
 // `start --service` restarts it. Otherwise it is stopped wherever its record
 // says it runs, and run afresh. Its caller says what it is (banner).
-func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
+func flowShared(x executor, fc flowCtx, m sharedRun, addr string) int {
 	d := descriptorFor(m.role, m.driver)
-	name := machineContainer(m.role)
-	rec := x.machineRecord(name)
+	name := sharedContainer(m.role)
+	rec := x.sharedRecord(name)
 	e := x.exposure(addr)
 	health := healthEndpoint(m.role, m.driver, fc.plan, e)
 	memoryClause := ""
@@ -478,12 +478,12 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 		m.role, name, health, x.rtName(), memoryClause, configClause, m.image)
 	served := func() {
 		if !m.notThisKB {
-			x.servedByMachine(m.role, name, health, m.driver)
+			x.servedByShared(m.role, name, health, m.driver)
 		}
 	}
 	return x.either(func() bool {
 		return !fc.restart && rec != nil && rec.Runtime == x.rtName() && rec.Endpoint == health && rec.Memory == m.memory &&
-			(m.file == "" || x.machineConfigCurrent(m.file, m.config)) && x.containerCurrent(name, m.image)
+			(m.file == "" || x.sharedConfigCurrent(m.file, m.config)) && x.containerCurrent(name, m.image)
 	},
 		func() int {
 			x.say(sayOK, "%s — %s already running %s", m.role, d.display,
@@ -493,7 +493,7 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 		},
 		func() int {
 			needs := stackPortNeeds(m.role)
-			if x.stopMachine(name, rec) {
+			if x.stopShared(name, rec) {
 				x.settle(portNumbers(needs)...)
 			}
 			if !x.portChecks(needs) {
@@ -505,7 +505,7 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 			path := ""
 			if m.file != "" {
 				var ok bool
-				if path, ok = x.writeMachineConfig(m.file, m.config); !ok {
+				if path, ok = x.writeSharedConfig(m.file, m.config); !ok {
 					return 1
 				}
 			}
@@ -521,7 +521,7 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "%s — %s %s", m.role, m.ready, x.dim("("+took(waited)+")"))
-			x.recordMachine(ServiceState{Container: name, ID: id, Image: m.image, Endpoint: health, Memory: m.memory, Ports: portNumbers(needs)})
+			x.recordShared(ServiceState{Container: name, ID: id, Image: m.image, Endpoint: health, Memory: m.memory, Ports: portNumbers(needs)})
 			served()
 			return 0
 		})
@@ -529,7 +529,7 @@ func flowMachine(x executor, fc flowCtx, m machineRun, addr string) int {
 
 func flowTraces(x executor, fc flowCtx, addr string) int {
 	x.banner(roleBanner(fc, "Traces (Jaeger)"))
-	return flowMachine(x, fc, machineRun{
+	return flowShared(x, fc, sharedRun{
 		role: "traces", driver: "jaeger", image: descriptorFor("traces", "jaeger").image,
 		ready: "Jaeger UI on " + healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)),
 		args:  func(e exposure, _ string) []string { return tracesArgs(e) },
@@ -538,7 +538,7 @@ func flowTraces(x executor, fc flowCtx, addr string) int {
 
 func flowMetrics(x executor, fc flowCtx, addr string) int {
 	x.banner(roleBanner(fc, "Metrics (Prometheus)"))
-	return flowMachine(x, fc, machineRun{
+	return flowShared(x, fc, sharedRun{
 		role: "metrics", driver: "prometheus", image: descriptorFor("metrics", "prometheus").image,
 		ready: "Prometheus on http://localhost:9090",
 		file:  "prometheus.yml", config: prometheusConfig(addr),
@@ -552,7 +552,7 @@ func flowMetrics(x executor, fc flowCtx, addr string) int {
 func flowCollector(x executor, fc flowCtx, addr string) int {
 	x.banner(roleBanner(fc, "Telemetry (OTel Collector)"))
 	traces := x.tracesUp(healthEndpoint("traces", "jaeger", fc.plan, x.exposure(addr)))
-	return flowMachine(x, fc, machineRun{
+	return flowShared(x, fc, sharedRun{
 		role: "collector", driver: "otel", image: descriptorFor("collector", "otel").image,
 		ready: fmt.Sprintf("OTLP on %s:4318, metrics on %s", addr, healthEndpoint("collector", "otel", fc.plan, x.exposure(addr))),
 		file:  "collector.yaml", config: collectorConfig(addr, traces),
@@ -560,15 +560,15 @@ func flowCollector(x executor, fc flowCtx, addr string) int {
 	}, addr)
 }
 
-// flowWorker: the machine's one worker, which serves every knowledge base on
+// flowWorker: the one shared worker, which serves every knowledge base on
 // its list (workerkbs.go). This start's knowledge base goes on the list when
 // one of its jobs has an engine, as this start places it, and off when none
 // does; the local ones whose gateway port this start takes are off it already
 // (planWorkerServing). An added one offered the engines of a knowledge base
 // not on the list goes unserved, and is said. With nothing to serve, the
-// worker is stopped. Else it runs as the list and the machine's worker
-// document say, kept or restarted as every machine container is
-// (flowMachine): so it restarts only when what it serves, or how the
+// worker is stopped. Else it runs as the list and the shared worker
+// document say, kept or restarted as every shared container is
+// (flowShared): so it restarts only when what it serves, or how the
 // machine's document runs it, changes.
 func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
 	x.banner(roleBanner(fc, "Worker"))
@@ -603,13 +603,13 @@ func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
 	if !x.keepWorkerList(list) {
 		return 1
 	}
-	name := machineContainer("worker")
+	name := sharedContainer("worker")
 	if len(entries) == 0 {
 		x.note("worker: serves no knowledge base — stop/rm %s wherever its record says it runs", name)
-		if x.stopMachine(name, x.machineRecord(name)) {
+		if x.stopShared(name, x.sharedRecord(name)) {
 			x.say(sayOK, "worker — serves no knowledge base; stopped")
 		}
-		x.forgetMachine(name)
+		x.forgetShared(name)
 		return 0
 	}
 	doc, err := workerDocument(entries, fc.plan.Worker)
@@ -627,7 +627,7 @@ func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
 	for _, entry := range entries {
 		domains = append(domains, entry.Domain)
 	}
-	return flowMachine(x, fc, machineRun{
+	return flowShared(x, fc, sharedRun{
 		role: "worker", driver: driverSemiont, image: image, memory: memory, pull: true,
 		ready: "serves " + strings.Join(domains, ", "),
 		file:  workerDocumentFile, config: string(doc),
@@ -800,8 +800,8 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		switch shared := x.recorded(rp.SharesOllamaWith); shared.Provided {
 		case "":
 			x.record(role, "", "", providedExternal, externalEndpoint(role, rp), rp.Driver)
-		case providedMachine:
-			x.servedByMachine(role, shared.Container, externalEndpoint(role, rp), rp.Driver)
+		case providedShared:
+			x.servedByShared(role, shared.Container, externalEndpoint(role, rp), rp.Driver)
 		default:
 			x.record(role, "", "", shared.Provided, externalEndpoint(role, rp), rp.Driver)
 		}
@@ -899,8 +899,8 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 	return 0
 }
 
-// flowOllama: the machine's Ollama, which runs outside every stack (its
-// record is the machine's, in StackSet.Machine) and serves every KB whose engines
+// flowOllama: the shared Ollama, which runs outside every stack (its
+// record is shared, in StackSet.Shared) and serves every KB whose engines
 // name Ollama. A start keeps the running one when its record says it is
 // published where this start would publish it, under this start's runtime,
 // with the model cache --ollama-cache asks for (any, when it asks none), and
@@ -916,29 +916,29 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		title = depRoleTitles[role]
 	}
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
-	rec := x.machineRecord(machineContainer("inference"))
+	rec := x.sharedRecord(sharedContainer("inference"))
 	health := healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr))
 	base := fmt.Sprintf("http://%s:%d", x.exposure(addr).probeHost(role, rp.Port), rp.Port)
 	asked := ollamaCacheAsked(fc.opts.ollamaCache)
-	x.note("ollama: keep the machine's Ollama if its record says %s under %s%s and it runs %s; else stop/rm it, then reuse a host Ollama or run the container",
+	x.note("ollama: keep the shared Ollama if its record says %s under %s%s and it runs %s; else stop/rm it, then reuse a host Ollama or run the container",
 		base, x.rtName(), cacheClause(asked), rp.Image)
 	return x.either(func() bool {
-		return !fc.restart && ollamaRecordedAs(rec, x.rtName(), base, asked) && x.containerCurrent(machineContainer("inference"), rp.Image)
+		return !fc.restart && ollamaRecordedAs(rec, x.rtName(), base, asked) && x.containerCurrent(sharedContainer("inference"), rp.Image)
 	},
 		func() int {
-			x.say(sayOK, "%s — the machine's Ollama already running on %s %s", role, base,
+			x.say(sayOK, "%s — the shared Ollama already running on %s %s", role, base,
 				x.dim("(kept: it serves every KB here; semiont stop --service "+role+" stops it)"))
-			x.servedByMachine(role, machineContainer("inference"), health, rp.Driver)
+			x.servedByShared(role, sharedContainer("inference"), health, rp.Driver)
 			x.ensureModels(base, fc.plan.OllamaModels)
 			return 0
 		},
 		func() int {
-			// The machine's own container goes BEFORE the probe: a
+			// The shared container goes BEFORE the probe: a
 			// semiont-ollama left running publishes the same port and answers
 			// the same /api/version, so probing first would take it for a
 			// host install. It goes wherever it runs — its record may name
 			// another runtime — and with no record, by name under this one.
-			if x.stopMachine(machineContainer("inference"), rec) {
+			if x.stopShared(sharedContainer("inference"), rec) {
 				x.settle(rp.Port)
 			}
 			x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
@@ -949,7 +949,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 						return 1
 					}
 					x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
-					x.forgetMachine(machineContainer("inference"))
+					x.forgetShared(sharedContainer("inference"))
 					x.record(role, "", "", providedHost, healthEndpoint(role, rp.Driver, fc.plan, exposure{}), rp.Driver)
 					x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 					return 0
@@ -969,22 +969,22 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 						x.say(sayFail, "Ollama container failed to start.")
 						return 1
 					}
-					d, ok := x.waitHTTP(role+" (Ollama)", machineContainer("inference"), health, 30)
+					d, ok := x.waitHTTP(role+" (Ollama)", sharedContainer("inference"), health, 30)
 					if !ok {
-						x.dumpLogs(machineContainer("inference"), role)
+						x.dumpLogs(sharedContainer("inference"), role)
 						return 1
 					}
 					x.say(sayOK, "%s — Ollama container on %s (24 GB memory) %s", role, base, x.dim("("+took(d)+")"))
-					x.recordMachine(ServiceState{Container: machineContainer("inference"), ID: id, Image: rp.Image,
+					x.recordShared(ServiceState{Container: sharedContainer("inference"), ID: id, Image: rp.Image,
 						Endpoint: base, Cache: volume, Ports: portNumbers([]portNeed{need})})
-					x.servedByMachine(role, machineContainer("inference"), health, rp.Driver)
+					x.servedByShared(role, sharedContainer("inference"), health, rp.Driver)
 					x.ensureModels(base, fc.plan.OllamaModels)
 					return 0
 				})
 		})
 }
 
-// ollamaRecordedAs: whether the machine's Ollama record says it was started
+// ollamaRecordedAs: whether the shared Ollama record says it was started
 // where this start would publish it (base), under its runtime rt, and on the
 // model cache asked for, when one is. No record says nothing, so an Ollama
 // running without one is restarted into one.
@@ -1234,11 +1234,11 @@ func flowService(x executor, fc flowCtx, svc string) int {
 		return 0
 	}
 
-	// The machine's containers are handled entirely by their own flows (their
+	// The shared containers are handled entirely by their own flows (their
 	// own stop, ports and run) — and their ports must NEVER enter the STACK's
-	// recorded claims: stop verifies stack-port release while the machine's
+	// recorded claims: stop verifies stack-port release while the shared
 	// containers deliberately keep running on theirs.
-	if !contains(machineRoles, svc) {
+	if !contains(sharedRoles, svc) {
 		ports := servicePortNeeds(svc, fc.plan, fc.browser, x.exposure(""))
 		if x.stopRm(roleContainer(svc, fc.kb.key())) {
 			x.say(sayLog, "Removed prior %s container", svc)

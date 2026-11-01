@@ -550,8 +550,8 @@ func TestIdentitySyncReconcilesAKindMapperThatSaysOtherwise(t *testing.T) {
 // The worker's client holds the key it checks the worker's assertions with,
 // and sync knows what that key should be: this machine's, whose public half is
 // no secret. A realm holding another — imported on another machine, or before
-// this machine's key was made again — refuses every sign-in of this machine's
-// worker, and sync puts this machine's key on the client, naming both, so a
+// the worker key was made again — refuses every sign-in of this machine's
+// worker, and sync puts the worker key on the client, naming both, so a
 // second machine syncing the same realm visibly takes the client over.
 func TestIdentitySyncBringsTheWorkersClientToThisMachinesKey(t *testing.T) {
 	another, err := rsa.GenerateKey(rand.Reader, workerKeyBits)

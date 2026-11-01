@@ -78,7 +78,7 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 			services = append(services, svc)
 		}
 		sort.Strings(services)
-		// The stack's services' documents, and the machine's worker's, for
+		// The stack's services' documents, and the shared worker's, for
 		// a start whose list holds its own knowledge base alone.
 		writers := map[string]func(placement) ([]byte, error){"worker": aloneWorkerDocument}
 		for svc, document := range serviceDocuments {

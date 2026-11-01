@@ -16,9 +16,9 @@ type serviceGroup struct {
 }
 
 // shared: whether g's services serve every knowledge base, once for all of
-// them — a group the launcher runs a role of for the machine. Each knowledge
+// them — a group the launcher runs a role of for every knowledge base here. Each knowledge
 // base runs its own of the others.
-func (g serviceGroup) shared() bool { return slices.ContainsFunc(g.roles, machineRole) }
+func (g serviceGroup) shared() bool { return slices.ContainsFunc(g.roles, sharedRole) }
 
 // serviceGroups: every role, each in one group. A knowledge base is its
 // record and its index, with the issuer whose accounts sign in to it while
@@ -61,7 +61,7 @@ type groupMember struct{ role, because string }
 // and each role of the knowledge base that needs one of them, transitively.
 // A shared group stops alone: what needs it is in every knowledge base, and
 // goes on without it. A machine's role that needs the group stops only with
-// the last stack (last), as a bare stop stops the machine's containers.
+// the last stack (last), as a bare stop stops the shared containers.
 func groupStops(g serviceGroup, last bool) []groupMember {
 	because := map[string]string{}
 	for _, role := range g.roles {
@@ -71,7 +71,7 @@ func groupStops(g serviceGroup, last bool) []groupMember {
 		// The start walk brings a role up after everything it needs, so one
 		// pass in that order sees each dependency's verdict before its own.
 		for _, role := range startOrder {
-			if _, ok := because[role]; ok || machineRole(role) && !last {
+			if _, ok := because[role]; ok || sharedRole(role) && !last {
 				continue
 			}
 			for _, need := range dependenciesOf(role) {

@@ -27,7 +27,7 @@ func recordBrowserFixture(t *testing.T, b *launcher.ServiceState) {
 		t.Fatal(err)
 	}
 	b.Container = "semiont-browser"
-	ss.Machine = map[string]*launcher.ServiceState{b.Container: b}
+	ss.Shared = map[string]*launcher.ServiceState{b.Container: b}
 	out, _ := json.MarshalIndent(&ss, "", "  ")
 	if err := os.WriteFile(path, out, 0o600); err != nil {
 		t.Fatal(err)

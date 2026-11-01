@@ -27,10 +27,10 @@ const workerUsage = `Usage: semiont worker key [--pem]
        semiont worker kb list
 
 key
-  Print the public half of the key this machine's worker signs its sign-ins
+  Print the public half of the key the shared worker signs its sign-ins
   with — generated on first use and kept under the launcher's data directory,
-  one for the machine, whichever knowledge bases it serves. The private half
-  is never printed.
+  one key, whichever knowledge bases it serves. The private half is never
+  printed.
 
   An issuer the launcher runs holds it already: the realm import registers it,
   and ` + "`semiont identity sync`" + ` brings an older realm to it. For an
@@ -45,9 +45,9 @@ key
   the PEM must be given the key id as well.
 
 kb add
-  Add a knowledge base someone else runs to this machine's worker: its
+  Add a knowledge base someone else runs to the shared worker: its
   did:web domain, where its gateway is, and the client its operator granted
-  this machine's key on. Its operator's ` + "`semiont identity grant`" + ` prints
+  the worker key on. Its operator's ` + "`semiont identity grant`" + ` prints
   this line, ready to run. The gateway names the issuer to sign in at, and add
   asks it now: a gateway that cannot be reached, or names no issuer, adds
   nothing. Adding a domain already added replaces it.
@@ -74,8 +74,8 @@ kb list
 One worker serves every knowledge base on the list. A start of a local
 knowledge base puts it on the list when one of its jobs has an engine, takes
 it off when none does, and takes off a local one whose gateway was on the
-port its own takes. The list is kept for the machine beside the worker's
-key. None of what is kept is secret.
+port its own takes. The list is kept shared, beside the worker's key. None
+of what is kept is secret.
 `
 
 func Worker(args []string) int {
@@ -189,19 +189,19 @@ func workerKBAdd(u *UI, args []string) int {
 	_, _, ident, err := resolveKBRoot()
 	lender := ident.domain()
 	if err != nil || lender == "" {
-		u.Fail("add runs inside a local knowledge base on this machine's worker's list: the one added is offered its engines.")
+		u.Fail("add runs inside a local knowledge base on the shared worker's list: the one added is offered its engines.")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  %v\n", err)
 		}
 		return 1
 	}
 	if _, listed := list.local(lender); !listed {
-		u.Fail("%s is not on this machine's worker's list, so it has no engines to offer.", lender)
+		u.Fail("%s is not on the shared worker's list, so it has no engines to offer.", lender)
 		fmt.Fprintln(os.Stderr, "  A start of it puts it there, when one of its jobs has an engine.")
 		return 1
 	}
 	if _, local := list.local(domain); local {
-		u.Fail("%s is a local knowledge base on this machine's worker's list: its own start puts it there.", domain)
+		u.Fail("%s is a local knowledge base on the shared worker's list: its own start puts it there.", domain)
 		return 1
 	}
 	issuer, err := advertisedIssuer(gateway)
@@ -219,7 +219,7 @@ func workerKBAdd(u *UI, args []string) int {
 		list.Added = append(list.Added, kb)
 	}
 	if err := saveWorkerList(list); err != nil {
-		u.Fail("Keeping the knowledge bases this machine's worker serves: %v", err)
+		u.Fail("Keeping the knowledge bases the shared worker serves: %v", err)
 		return 1
 	}
 	if at >= 0 {
@@ -255,7 +255,7 @@ func workerKBRemove(u *UI, args []string) int {
 		}
 		list.take(domain)
 		if err := saveWorkerList(list); err != nil {
-			u.Fail("Keeping the knowledge bases this machine's worker serves: %v", err)
+			u.Fail("Keeping the knowledge bases the shared worker serves: %v", err)
 			return 1
 		}
 		u.Ok("worker — removed %s", u.Bold(domain))
@@ -264,7 +264,7 @@ func workerKBRemove(u *UI, args []string) int {
 	}
 	at := slices.IndexFunc(list.Added, func(a addedKB) bool { return a.Domain == domain })
 	if at < 0 {
-		u.Fail("%s is not on this machine's worker's list.", domain)
+		u.Fail("%s is not on the shared worker's list.", domain)
 		if domains := listedDomains(list); len(domains) == 0 {
 			fmt.Fprintln(os.Stderr, "  Nothing is.")
 		} else {
@@ -274,7 +274,7 @@ func workerKBRemove(u *UI, args []string) int {
 	}
 	list.Added = slices.Delete(list.Added, at, at+1)
 	if err := saveWorkerList(list); err != nil {
-		u.Fail("Keeping the knowledge bases this machine's worker serves: %v", err)
+		u.Fail("Keeping the knowledge bases the shared worker serves: %v", err)
 		return 1
 	}
 	u.Ok("worker — removed %s", u.Bold(domain))
@@ -305,7 +305,7 @@ func workerKBList(u *UI, args []string) int {
 		return 1
 	}
 	if len(list.Local) == 0 && len(list.Added) == 0 {
-		fmt.Fprintln(os.Stderr, "Nothing is on this machine's worker's list: a start of a local knowledge base puts it there, when one of its jobs has an engine.")
+		fmt.Fprintln(os.Stderr, "Nothing is on the shared worker's list: a start of a local knowledge base puts it there, when one of its jobs has an engine.")
 		return 0
 	}
 	for _, kb := range list.Local {

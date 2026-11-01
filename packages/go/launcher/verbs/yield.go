@@ -31,7 +31,7 @@ Options:
   --name <title>       Resource name (single --upload only; default: filename stem)
   --repo <owner/name>  Target a codespace stack
   --root <path>        Target the stack of the knowledge base at path
-  --runtime <rt>       Target a local stack
+  --runtime <rt>       Target a stack here
   --help               Show this help
 
 Requires a session:  semiont login
@@ -333,7 +333,7 @@ Options:
   --json               Raw JSON completion event
   --repo <owner/name>  Target a codespace stack
   --root <path>        Target the stack of the knowledge base at path
-  --runtime <rt>       Target a local stack
+  --runtime <rt>       Target a stack here
 
 ` + idsOrder + `
 

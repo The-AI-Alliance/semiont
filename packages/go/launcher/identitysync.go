@@ -1,7 +1,7 @@
 package launcher
 
 // identitysync.go — `semiont identity sync`: reconcile a realm's
-// service-account clients against `secretClients` and the machine's worker.
+// service-account clients against `secretClients` and the shared worker.
 //
 // The repair half of the preflight. A realm is imported on its FIRST boot and
 // never again, so a deployment that predates a client simply does not have it,

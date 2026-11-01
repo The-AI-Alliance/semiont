@@ -130,7 +130,7 @@ func (p placement) ollama(stated *string) string {
 }
 
 // placedLines: the addresses this start places, one line for each daemon the
-// launcher runs and each service of the machine's Ollama — for a dry run to
+// launcher runs and each service of the shared Ollama — for a dry run to
 // show what the launcher decided.
 func (p placement) placedLines() []string {
 	var lines []string

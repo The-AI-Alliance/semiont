@@ -1,7 +1,7 @@
 {
   "title": "Browser",
   "type": "object",
-  "description": "The Browser a machine runs: one viewer for every knowledge base the machine reaches. It belongs to no knowledge base, so its document is kept in the launcher's state home, in `stack/browser.yaml`, not in a knowledge base's repository.",
+  "description": "The shared Browser: one viewer for every knowledge base the machine reaches. It belongs to no knowledge base, so its document is kept in the launcher's state home, in `stack/browser.yaml`, not in a knowledge base's repository.",
   "properties": {
     "apiVersion": {
       "$ref": "./ApiVersion.json"

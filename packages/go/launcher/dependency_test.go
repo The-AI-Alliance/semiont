@@ -73,8 +73,8 @@ func TestTeardownIsTheStartWalkReversed(t *testing.T) {
 // stop share. It is derived rather than hand-written: a hand-written list can
 // tear the Archivist down ahead of the weaver and smelter that dial it at
 // every request — a dependency ahead of its dependents. Reversing the start
-// walk cannot make that mistake. The worker is the machine's, stopped from its
-// own record (stopMachineServices).
+// walk cannot make that mistake. The worker is shared, stopped from its
+// own record (stopSharedServices).
 func TestAStacksSweepDerivesTheTeardownOrder(t *testing.T) {
 	assertNames(t, "stackContainers", stackContainers("kb"), []string{
 		"semiont-kb-weaver", "semiont-kb-smelter",
@@ -97,7 +97,7 @@ func TestAStacksSweepDerivesTheTeardownOrder(t *testing.T) {
 // flow's real sequence is written down. Were the flow to
 // walk the list directly, this test would become a tautology worth deleting.
 func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
-	// The fixture knowledge base's containers, and the machine's, by name.
+	// The fixture knowledge base's containers, and the shared ones, by name.
 	ident, err := readKBIdentity(fixtureRoot)
 	if err != nil {
 		t.Fatal(err)
