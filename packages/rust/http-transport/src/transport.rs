@@ -75,7 +75,8 @@ pub struct Timing {
     pub linger: Duration,
     pub emit_retry: RetryPolicy,
     pub seen_event_ids: usize,
-    /// The deadline on one request that is neither the stream nor an emit.
+    /// The deadline on one request that is neither the stream nor an emit,
+    /// and on reading any refusal's body, the stream's too.
     pub http_request: Duration,
     /// The deadline on the gateway's answer to the request that opens the
     /// stream: its status and headers.

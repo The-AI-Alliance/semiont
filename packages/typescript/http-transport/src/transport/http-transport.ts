@@ -50,7 +50,11 @@ export interface HttpTransportConfig {
   baseUrl: BaseUrl;
   /** The token, read and never written here: headers read its current value. */
   token$?: Watched<AccessToken | null>;
-  /** The deadline on one request that is neither the stream nor an emit. Absent, `HTTP_REQUEST_TIMEOUT_MS`. */
+  /**
+   * The deadline on one request that is neither the stream nor an emit, and
+   * on reading any refusal's body, the stream's too. Absent,
+   * `HTTP_REQUEST_TIMEOUT_MS`.
+   */
   timeout?: number;
   logger?: Logger;
   /**

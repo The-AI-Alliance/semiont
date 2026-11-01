@@ -63,7 +63,7 @@ public data class Timing @JvmOverloads constructor(
     public val lingerMs: Long = Timings.LINGER_MS,
     public val emitRetry: RetryPolicy = Timings.EMIT_RETRY,
     public val seenEventIdsCount: Int = Timings.SEEN_EVENT_IDS_COUNT.toInt(),
-    /** The deadline on one request that is neither the stream nor an emit. */
+    /** The deadline on one request that is neither the stream nor an emit, and on reading any refusal's body, the stream's too. */
     public val httpRequestMs: Long = Timings.HTTP_REQUEST_TIMEOUT_MS,
     /** The deadline on the gateway's answer to the request that opens the stream: its status and headers. */
     public val streamOpenMs: Long = Timings.STREAM_OPEN_TIMEOUT_MS,

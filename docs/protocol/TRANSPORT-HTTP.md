@@ -351,6 +351,11 @@ sent.
 - A refused connect is reported on the error stream, with its status and
   code. A connection that failed without an answer is not: it is a state.
   *Held by `sdk/wire/stream-rate-limited`, `sdk/wire/outage`.*
+- A refused connect says the gateway's words, its body's `error`, after its
+  status. Its body is read within `httpRequestTimeoutMs`, as any refusal's
+  is: a body not read by then is the refusal with none of the gateway's
+  words.
+  *Held by `packages/typescript/http-transport/src/transport/__tests__/actor-state-unit.test.ts`, `packages/python/sdk/tests/test_http_transport.py`, `packages/go/sdk/stream_test.go`, `packages/rust/http-transport/tests/stream.rs`, `packages/kotlin/sdk/src/test/kotlin/semiont/http/HttpTransportTest.kt`.*
 - **A refused credential is not retried**: a 401, or a 429 whose `code` is
   `refusal-rate`. The refused token is remembered and never sent again; the
   client is `unauthenticated` and checks, every `reconnectMs` and with no

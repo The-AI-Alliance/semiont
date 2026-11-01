@@ -87,7 +87,7 @@ class Timing:
     emit_retry: RetryPolicy = EMIT_RETRY
     seen_event_ids_count: int = SEEN_EVENT_IDS_COUNT
     http_request_ms: int = HTTP_REQUEST_TIMEOUT_MS
-    """The deadline on one request that is neither the stream nor an emit."""
+    """The deadline on one request that is neither the stream nor an emit, and on reading any refusal's body, the stream's too."""
     stream_open_ms: int = STREAM_OPEN_TIMEOUT_MS
     """The deadline on the gateway's answer to the request that opens the stream: its status and headers."""
 
