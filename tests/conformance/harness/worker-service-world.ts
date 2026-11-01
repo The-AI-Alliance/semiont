@@ -771,9 +771,13 @@ export function eachWorkerService(title: string, body: (world: () => WorkerServi
       await world?.close();
     });
     afterEach(async (context) => {
-      // A failing case shows what the worker sent and wrote while it ran.
-      if (context.task.result?.state === 'fail') console.error(`${context.task.name}\n${world?.account().join('\n')}`);
-      expect((await world?.settle(options.allowRefusedRequests)) ?? []).toEqual([]);
+      // A failing case shows what the worker sent and wrote while it ran, and
+      // so does a case whose end finds what no case may let pass. Settling
+      // forgets it, so it is read first.
+      const account = world!.account();
+      const violations = await world!.settle(options.allowRefusedRequests);
+      if (context.task.result?.state === 'fail' || violations.length > 0) console.error(`${context.task.name}\n${account.join('\n')}`);
+      expect(violations).toEqual([]);
     });
     body(() => world!);
   });
