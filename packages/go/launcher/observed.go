@@ -224,9 +224,8 @@ func printInFlight(u *UI, role, readout, kb string) {
 // role's driver: a driver this launcher has not heard of must show its own
 // name rather than be dropped or, worse, labelled as something else.
 //
-// "JetStream" rather than "NATS JetStream": `dispatcher (JetStream)` is
-// exactly the 22 columns the SERVICE cell allows, and the broker is already
-// named one section down on the messaging row.
+// "JetStream" rather than "NATS JetStream": the broker is already named on
+// the messaging row.
 func queueDriverDisplay(driver string) string {
 	switch driver {
 	case "jetstream":

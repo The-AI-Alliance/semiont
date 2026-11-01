@@ -3564,6 +3564,27 @@ func serveHealth(t *testing.T, ports ...int) {
 	}
 }
 
+// statusRows: the SERVICE table's rows by role, in order, with "" for each
+// blank line between two groups. A row's detail lines (its models, its work in
+// flight) are indented below it and are not rows.
+func statusRows(stdout string) []string {
+	_, table, _ := strings.Cut(stdout, "SERVICE ")
+	table, _, _ = strings.Cut(table, "\nKNOWLEDGE BASES")
+	var rows []string
+	for _, line := range strings.Split(table, "\n")[1:] {
+		switch {
+		case strings.TrimSpace(line) == "":
+			rows = append(rows, "")
+		case !strings.HasPrefix(line, "    "):
+			rows = append(rows, strings.Fields(line)[0])
+		}
+	}
+	for len(rows) > 0 && rows[len(rows)-1] == "" {
+		rows = rows[:len(rows)-1]
+	}
+	return rows
+}
+
 func TestStatusMixed(t *testing.T) {
 	// docker-only runtime; gateway running+healthy, worker running but
 	// unhealthy, smelter exited, everything else absent — except a host
@@ -3604,6 +3625,18 @@ func TestStatusMixed(t *testing.T) {
 	// the descriptor set by (role, driver) rules out. A recorded stack
 	// names its products — every record carries its driver.
 	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
+	// The rows read group by group, with a blank line between two: the
+	// knowledge base's record, its index and its issuer, then the worker, the
+	// providers and the telemetry.
+	wantRows := []string{"gateway", "archivist", "dispatcher", "messaging", "",
+		"librarian", "smelter", "weaver", "graph", "vectors", "",
+		"identity", "identity-store", "",
+		"worker", "",
+		"inference", "embedding", "",
+		"collector", "traces", "metrics"}
+	if got := statusRows(stdout); !slices.Equal(got, wantRows) {
+		t.Errorf("status rows are\n  %q\nwant\n  %q", got, wantRows)
+	}
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
 	if strings.Contains(stdout, "LAUNCHER PATHS") {
 		t.Errorf("default status printed LAUNCHER PATHS without --verbose:\n%s", stdout)
@@ -3648,7 +3681,7 @@ func TestStatusMixed(t *testing.T) {
 
 func TestStatusAllHealthy(t *testing.T) {
 	// Full stack running and healthy (Apple container JSON inspect path);
-	// Jaeger absent is fine — observability is optional, exit stays 0.
+	// Jaeger absent is reported, and reported only.
 	s := newScenario(t, "container")
 	for _, svc := range []string{testKBKey + "-gateway", "worker", testKBKey + "-smelter", testKBKey + "-weaver", "browser",
 		testKBKey + "-neo4j", testKBKey + "-qdrant", testKBKey + "-postgres", "ollama"} {
@@ -3663,6 +3696,32 @@ func TestStatusAllHealthy(t *testing.T) {
 	for _, line := range strings.Split(stdout, "\n") {
 		if strings.Contains(line, "gateway") && strings.Contains(line, "✗") {
 			t.Errorf("gateway reported unhealthy:\n%s", stdout)
+		}
+	}
+}
+
+// Naming one stack makes status's exit its health. A stack started without
+// Jaeger and Prometheus is healthy: status reports the two backends
+// --no-observe leaves out, and does not count them.
+func TestStatusRootCountsNoOptionalBackend(t *testing.T) {
+	s := newScenario(t, "container")
+	if stdout, stderr, code := s.run(t, "start", "--no-observe"); code != 0 {
+		t.Fatalf("start --no-observe: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	stdout, stderr, code := s.run(t, "status", "--root", s.kb)
+	if code != 0 {
+		t.Errorf("status --root: exit %d for a stack short only of Jaeger and Prometheus\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	for _, role := range []string{"traces", "metrics"} {
+		found := false
+		for _, line := range strings.Split(stdout, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), role+" ") {
+				found = true
+				mustContain(t, role+"'s row", line, "✗")
+			}
+		}
+		if !found {
+			t.Errorf("status reports no %s row:\n%s", role, stdout)
 		}
 	}
 }

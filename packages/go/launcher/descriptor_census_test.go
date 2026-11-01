@@ -110,26 +110,42 @@ func TestRoleListDerivesTheStartWalk(t *testing.T) {
 	}
 }
 
-// statusServices names roles; the descriptor set says which roles exist. The
-// Browser is the one role status reports elsewhere (printBrowser opens the
-// report, above every stack it views).
-func TestStatusReportCoversEveryRole(t *testing.T) {
-	reported := map[string]bool{}
-	for _, s := range statusServices {
-		if !knownRole(s.name) {
-			t.Errorf("statusServices names %q, which is not a role", s.name)
+// Every role is in one group, each group's roles are roles, and no two groups
+// share a name. The telemetry group is the telemetry the launcher runs for the
+// machine, and holds the backends --no-observe leaves out.
+func TestEveryRoleHasOneGroup(t *testing.T) {
+	groupOf := map[string]string{}
+	var telemetry []string
+	for group, role := range groupedRoles() {
+		if !knownRole(role) {
+			t.Errorf("the %s group names %q, which is not a role", group, role)
 		}
-		reported[s.name] = true
+		if other, ok := groupOf[role]; ok {
+			t.Errorf("%s is in the %s group and the %s group", role, other, group)
+		}
+		groupOf[role] = group
+		if group == "telemetry" {
+			telemetry = append(telemetry, role)
+		}
 	}
-	for _, r := range roleOrder {
-		if r == "browser" {
-			if reported[r] {
-				t.Errorf("browser is reported by printBrowser, above the stack table; it must not also be a row")
-			}
-			continue
+	for _, role := range roleOrder {
+		if _, ok := groupOf[role]; !ok {
+			t.Errorf("%s is in no group", role)
 		}
-		if !reported[r] {
-			t.Errorf("role %q exists but `semiont status` never reports it", r)
+	}
+	named := map[string]bool{}
+	for _, g := range serviceGroups {
+		if named[g.name] {
+			t.Errorf("two groups are named %s", g.name)
+		}
+		named[g.name] = true
+	}
+	if got, want := slices.Sorted(slices.Values(telemetry)), slices.Sorted(slices.Values(telemetryRoles)); !slices.Equal(got, want) {
+		t.Errorf("the telemetry group is %v; the machine's telemetry is %v", got, want)
+	}
+	for _, role := range optionalBackends {
+		if groupOf[role] != "telemetry" {
+			t.Errorf("--no-observe leaves out %s, which is in the %s group, not telemetry", role, groupOf[role])
 		}
 	}
 }
@@ -241,9 +257,9 @@ func assertNames(t *testing.T, what string, got, want []string) {
 // a driver of it names.
 func TestTheServiceColumnIsAsWideAsItsLongestCell(t *testing.T) {
 	longest := ""
-	for _, row := range statusServices {
-		for _, driver := range driversFor(row.name) {
-			if cell := row.name + " (" + driverDisplay(row.name, driver) + ")"; len(cell) > len(longest) {
+	for _, role := range roleOrder {
+		for _, driver := range driversFor(role) {
+			if cell := role + " (" + driverDisplay(role, driver) + ")"; len(cell) > len(longest) {
 				longest = cell
 			}
 		}
