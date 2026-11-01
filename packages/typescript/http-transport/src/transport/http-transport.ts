@@ -107,6 +107,36 @@ function refusalOf(error: HTTPError): APIError {
 }
 
 /**
+ * A refused response's body as text, read within `deadlineMs`, as ky reads
+ * the refusal it reports: a body not read by then, or not read at all, is
+ * `''`, a refusal that says nothing.
+ */
+async function refusalText(response: Response, deadlineMs: number): Promise<string> {
+  if (response.body === null) return '';
+  const reader = response.body.getReader();
+  let cut = false;
+  const deadline = setTimeout(() => {
+    cut = true;
+    reader.cancel().catch(() => {
+      // The body was given up on: how its cancellation went changes nothing.
+    });
+  }, deadlineMs);
+  try {
+    const decoder = new TextDecoder();
+    let text = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return cut ? '' : text + decoder.decode();
+      text += decoder.decode(value, { stream: true });
+    }
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+/**
  * A request the gateway never answered: the connection failed, or the
  * request's own deadline passed.
  */
@@ -308,12 +338,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                 // attempt `limit` allows, so nothing sends it a third time.
                 async ({ request, response, retryCount }: AfterResponseState) => {
                   if (response.ok || retryCount > 0) return undefined;
-                  let said = '';
-                  try {
-                    said = await response.text();
-                  } catch {
-                    // status alone
-                  }
+                  const said = await refusalText(response, timeout);
                   if (!refusesCredential(response.status, refusalBody(said))) return undefined;
                   const sent = request.headers.get('Authorization');
                   const renewed = await this.renewal(sent === null ? undefined : sent.replace(/^Bearer /, ''));

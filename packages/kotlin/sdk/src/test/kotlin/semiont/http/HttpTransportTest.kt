@@ -198,4 +198,22 @@ class HttpTransportTest {
             }
         }
     }
+
+    @Test
+    fun aRefusedRequestWhoseBodyNeverEndsIsReportedAtTheRequestDeadlineWithNoWords() = runBlocking {
+        Answering(unavailable("""{"error":"ne""", 100)).use { gateway ->
+            HttpTransport(gateway.origin, MutableStateFlow("token"), emptyList(), Timing(httpRequestMs = 200)).use { transport ->
+                val refused = withTimeout(5_000) {
+                    try {
+                        transport.getCurrentUser()
+                        null
+                    } catch (error: TransportError) {
+                        error
+                    }
+                }
+                assertEquals("HTTP 503", refused?.message)
+                assertEquals(503, refused?.status)
+            }
+        }
+    }
 }

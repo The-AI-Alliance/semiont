@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.jdk9.asFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import semiont.Timings
@@ -188,8 +189,9 @@ internal class Exchange(
             val status = response.statusCode()
             if (status in 200..299) return response
             val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
+            // A refusal's body is read within the deadline too: one not read by then says nothing.
             val read = try {
-                readAll(response.body())
+                if (atLength) readAll(response.body()) else withTimeoutOrNull(deadlineMs) { readAll(response.body()) }
             } catch (_: IOException) {
                 null
             }

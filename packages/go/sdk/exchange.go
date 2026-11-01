@@ -121,7 +121,18 @@ func (s *transportShared) exchange(ctx context.Context, spec request) (answered,
 		if response.StatusCode >= 200 && response.StatusCode <= 299 {
 			return answered{response: response, done: func() { response.Body.Close(); cancel() }}, nil
 		}
-		said, _ := io.ReadAll(io.LimitReader(response.Body, 1<<16))
+		// A refusal's body is read within the deadline too: one not read by
+		// then is a refusal that says nothing.
+		if spec.deadline > 0 {
+			timer = time.AfterFunc(spec.deadline, cancel)
+		}
+		said, err := io.ReadAll(io.LimitReader(response.Body, 1<<16))
+		if timer != nil {
+			timer.Stop()
+		}
+		if err != nil {
+			said = nil
+		}
 		response.Body.Close()
 		cancel()
 		wait, hasWait := RetryAfter(response.Header.Get("Retry-After"))

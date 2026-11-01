@@ -327,7 +327,15 @@ impl Shared {
             }
             let status = response.status().as_u16();
             let stated_wait = stated_wait(&response);
-            let body = response.json::<Value>().await.ok();
+            // A refusal's body is read within the deadline too: one not read
+            // by then is a refusal that says nothing.
+            let body = match deadline {
+                Some(deadline) => tokio::time::timeout(deadline, response.json::<Value>())
+                    .await
+                    .ok()
+                    .and_then(Result::ok),
+                None => response.json::<Value>().await.ok(),
+            };
             let message = gateway_words(body.as_ref()).unwrap_or_else(|| {
                 // Worded as the TypeScript transport words it.
                 let reason = reqwest::StatusCode::from_u16(status)
