@@ -24,7 +24,9 @@ import semiont.JobProgressed
 import semiont.Running
 import semiont.bus.Operations
 import semiont.bus.decoded
-import semiont.bus.lacks
+import semiont.bus.Fault
+import semiont.bus.UNDECODED
+import semiont.bus.faultOf
 import semiont.channels.Channels
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -280,11 +282,15 @@ private class Follower<C : JobCompleteCommand>(
         )
         // A job completed without a result is stored with an empty one: an object that holds nothing.
         status.result?.takeUnless { it == JobStoredResult.Empty }?.let { stated["result"] = wireJson.encodeToJsonElement(JobStoredResult.serializer(), it) }
+        fun notCompleted(fault: Fault) =
+            TransportError(TransportErrorCode.Error, "The status of job ${status.jobId.value} is not a completed ${create.delegated} job's: $fault")
+        val payload = JsonObject(stated)
+        val fault = faultOf(JobCompleteCommand.serializer().descriptor, payload)
+        if (fault != null) throw notCompleted(fault)
         val read = try {
-            wireJson.decodeFromJsonElement(JobCompleteCommand.serializer(), JsonObject(stated))
-        } catch (refused: IllegalArgumentException) {
-            val lacking = lacks(refused)?.let { ": it lacks $it" } ?: ""
-            throw TransportError(TransportErrorCode.Error, "The status of job ${status.jobId.value} is not a completed ${create.delegated} job's$lacking")
+            wireJson.decodeFromJsonElement(JobCompleteCommand.serializer(), payload)
+        } catch (_: IllegalArgumentException) {
+            throw notCompleted(UNDECODED)
         }
         if (!completion.isInstance(read)) {
             throw TransportError(TransportErrorCode.Error, "The status of job ${status.jobId.value} is a ${read.verb} job's, and the job delegated is a ${create.delegated} job")

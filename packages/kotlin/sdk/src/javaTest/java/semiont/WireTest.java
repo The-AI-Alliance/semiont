@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import semiont.bus.Bus;
 import semiont.bus.Delivered;
 import semiont.bus.FrameRefusal;
+import semiont.bus.FrameRefusalReason;
 import semiont.bus.Heard;
 import semiont.bus.Operations;
 import semiont.bus.Typed;
@@ -85,7 +86,8 @@ final class WireTest {
                 assertEquals(List.of("refused", "delivered"), read.stream().map(Heard::getStatus).toList());
                 FrameRefusal refused = assertInstanceOf(FrameRefusal.class, read.get(0));
                 assertEquals("beckon:focus", refused.getChannel());
-                assertEquals("resourceId", refused.getLacks());
+                assertEquals("resourceId", refused.getMember());
+                assertEquals(FrameRefusalReason.Lacks, refused.getReason());
                 if (!(read.get(1) instanceof Delivered<BeckonFocusEvent> delivered)) {
                     throw new AssertionError("refused: " + read.get(1));
                 }

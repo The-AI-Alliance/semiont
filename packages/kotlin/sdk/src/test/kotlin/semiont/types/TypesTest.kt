@@ -61,8 +61,8 @@ class TypesTest {
     private fun isOfKind(descriptor: SerialDescriptor, kind: String): Boolean {
         val named = held(descriptor).serialName.removeSuffix("?")
         if (named == "semiont.identifiers.$kind") return true
-        val union = Regex("""JsonContentPolymorphicSerializer<(\w+)>""").find(named)?.groupValues?.get(1) ?: return false
-        return Class.forName("semiont.types.$union").permittedSubclasses.orEmpty().any { it.simpleName == kind }
+        if (!named.startsWith("semiont.types.")) return false
+        return Class.forName(named).permittedSubclasses.orEmpty().any { it.simpleName == kind }
     }
 
     @Test

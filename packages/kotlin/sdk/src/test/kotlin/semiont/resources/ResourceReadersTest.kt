@@ -13,6 +13,9 @@ import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
+import semiont.bus.Fault
+import semiont.bus.FrameRefusalReason
+import semiont.bus.faultOf
 import semiont.sameJson
 import semiont.types.Representation
 import semiont.types.ResourceDescriptor
@@ -40,8 +43,8 @@ class ResourceReadersTest {
         assertTrue(stated.any { it is ResourceDescriptorRepresentations.List && it.value.isEmpty() })
         assertTrue(read.any { it.getValue("entityTypes").jsonArray.isNotEmpty() })
         assertTrue(read.any { it.getValue("entityTypes").jsonArray.isEmpty() })
-        assertTrue(refused.any { "lacks" in it })
-        assertTrue(refused.any { "lacks" !in it })
+        assertTrue(refused.any { it.getValue("reason").jsonPrimitive.content == "lacks" })
+        assertTrue(refused.any { it.getValue("reason").jsonPrimitive.content == "malformed" })
     }
 
     @TestFactory
@@ -55,16 +58,17 @@ class ResourceReadersTest {
             assertTrue(if (stated == null) found == null else found != null && sameJson(stated, found), "the primary representation is $found")
             assertEquals(case["primaryMediaType"]?.jsonPrimitive?.content, primaryMediaType(resource))
             assertEquals(case.getValue("entityTypes").jsonArray.map { it.jsonPrimitive.content }, resourceEntityTypes(resource))
+            assertEquals(null, faultOf(ResourceDescriptor.serializer().descriptor, case.getValue("resource")))
         }
     }
 
     @TestFactory
-    fun aResourceTheSchemaDoesNotAllowIsRefusedWhenItIsDecoded(): List<DynamicTest> = refused.map { case ->
+    fun aResourceTheSchemaDoesNotAllowIsRefusedForTheFaultTheTableStates(): List<DynamicTest> = refused.map { case ->
         DynamicTest.dynamicTest(case.why()) {
-            // `lacks`, where it lacks a member, is the way to it, as Go and TypeScript name it; decoding refuses
-            // it here as it refuses every refused case.
-            assertEquals(setOf("why", "resource", "refused"), case.keys - "lacks")
-            case["lacks"]?.let { lacks -> assertTrue(lacks.jsonPrimitive.content.isNotEmpty()) }
+            // Its first fault, named as every SDK names it; and decoding refuses it here as it refuses every refused case.
+            assertEquals(setOf("why", "resource", "refused", "member", "reason"), case.keys)
+            val reason = FrameRefusalReason.entries.single { it.wire == case.getValue("reason").jsonPrimitive.content }
+            assertEquals(Fault(case.getValue("member").jsonPrimitive.content, reason), faultOf(ResourceDescriptor.serializer().descriptor, case.getValue("resource")))
             assertThrows(SerializationException::class.java) { resource(case) }
         }
     }

@@ -52,6 +52,7 @@ public fun main(args: Array<String>) {
         table("semiont.resources", "Encodings.kt", emptyList(), encodingsFile(readJson(specs.resolve("text/encoding-cases.json")) as? JsonObject ?: refuse("text/encoding-cases.json is no object")))
         table("semiont.cache", "CacheRefresh.kt", emptyList(), cacheRefreshFile(readJson(specs.resolve("client/refresh.json")) as? JsonObject ?: refuse("client/refresh.json is no object"), registry))
         table("semiont.errors", "ErrorCodes.kt", listOf("semiont.Generated"), errorCodesFile(readJson(specs.resolve("errors/codes.json")) as? JsonObject ?: refuse("errors/codes.json is no object")))
+        table("semiont.bus", "RequiredTable.kt", emptyList(), requiredFile(readJson(specs.resolve("client/required.json")) as? JsonObject ?: refuse("client/required.json is no object")))
         println("generated ${generated.types.size} types and ${kinds.size} kinds of id")
     } catch (refused: Refused) {
         System.err.println("the generator refuses: ${refused.message}")

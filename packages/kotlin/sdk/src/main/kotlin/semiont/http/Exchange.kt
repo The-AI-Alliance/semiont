@@ -10,6 +10,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import semiont.Timings
+import semiont.bus.UNDECODED
+import semiont.bus.faultIn
 import semiont.errors.SemiontError
 import semiont.errors.TransportError
 import semiont.errors.TransportErrorCode
@@ -234,12 +236,12 @@ internal class Exchange(
         } catch (error: IOException) {
             throw failed(TransportError.withoutResponse("$method $path ended before its answer did: ${error.message}"))
         }
-        return try {
-            wireJson.decodeFromString(declared, read.toString(Charsets.UTF_8))
-        } catch (error: SerializationException) {
-            throw failed(TransportError(TransportErrorCode.Error, "$method $path answered what is not a ${declared.descriptor.serialName}: ${error.message}"))
-        } catch (error: IllegalArgumentException) {
-            throw failed(TransportError(TransportErrorCode.Error, "$method $path answered what is not a ${declared.descriptor.serialName}: ${error.message}"))
+        val text = read.toString(Charsets.UTF_8)
+        val fault = faultIn(declared.descriptor, text) ?: try {
+            return wireJson.decodeFromString(declared, text)
+        } catch (_: IllegalArgumentException) {
+            UNDECODED
         }
+        throw failed(TransportError(TransportErrorCode.Error, "$method $path answered what is not its declared body: $fault"))
     }
 }

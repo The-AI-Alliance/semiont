@@ -14,8 +14,11 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import semiont.channels.CHANNEL_NAMES
+import semiont.channels.Channel
 import semiont.channels.Channels
 import semiont.channels.Empty
+import semiont.channels.ScopedChannel
 import semiont.channels.TRACE_FIELD
 import semiont.errors.BusRequestError
 import semiont.errors.BusRequestErrorCode
@@ -35,7 +38,9 @@ import semiont.transport.ResourceHold
 import semiont.transport.TraceContext
 import semiont.transport.Transport
 import semiont.transport.Watched
+import semiont.types.AnchoredTextAnswer
 import semiont.types.FrameAddEntityTypeCommand
+import semiont.types.JobCompleteCommand
 import java.util.concurrent.CompletableFuture
 
 private fun json(text: String): JsonObject = Json.parseToJsonElement(text).jsonObject
@@ -150,12 +155,28 @@ class BusTest {
         wire.deliver(Frame("frame:add-entity-type", malformed))
         wire.deliver(Frame("frame:add-entity-type", json("""{"tag":"Person"}""")))
         val (refused, unread, next) = withTimeout(5_000) { frames.take(3).toList() }
-        // The way to what it lacks, and the payload as it came.
-        assertEquals(FrameRefusal("frame:add-entity-type", "tag", lacking), refused)
+        // The way to its first fault, why, and the payload as it came.
+        assertEquals(FrameRefusal("frame:add-entity-type", "tag", FrameRefusalReason.Lacks, lacking), refused)
         assertEquals("refused", refused.status)
-        // One refused for what it holds lacks nothing.
-        assertEquals(FrameRefusal("frame:add-entity-type", null, malformed), unread)
+        // One that holds a member of a kind its schema does not allow is malformed there.
+        assertEquals(FrameRefusal("frame:add-entity-type", "tag", FrameRefusalReason.Malformed, malformed), unread)
         assertEquals("Person", next.delivered().payload.tag)
+    }
+
+    @Test
+    fun everyChannelsPayloadAndEveryUnionIsHeldToTheTableByItsSchemasName() {
+        val payloads = Channels::class.java.fields.mapNotNull { field ->
+            when (val channel = field.get(Channels)) {
+                is Channel<*> -> channel.payload
+                is ScopedChannel<*> -> channel.payload
+                else -> null
+            }
+        }
+        assertEquals(CHANNEL_NAMES.size, payloads.size)
+        // What is held to the table is found there: a type the table does not name is refused.
+        for (payload in payloads) faultOf(payload.descriptor, json("{}"))
+        assertEquals(Fault("", FrameRefusalReason.Malformed), faultOf(AnchoredTextAnswer.serializer().descriptor, Json.parseToJsonElement("[]")))
+        assertEquals(Fault("resourceId", FrameRefusalReason.Lacks), faultOf(JobCompleteCommand.serializer().descriptor, json("""{"jobType":"mark"}""")))
     }
 
     @Test
@@ -166,7 +187,7 @@ class BusTest {
             """{"id":"e-1","type":"job:started","timestamp":"2026-10-29T00:00:00Z","userId":"$ALICE","resourceId":"${ONE.value}","version":1,"payload":{},"metadata":{}}""",
         )
         wire.deliver(Frame("job:started", unsequenced, null, ONE))
-        assertEquals(FrameRefusal("job:started", "metadata.sequenceNumber", unsequenced), withTimeout(5_000) { frames.first() })
+        assertEquals(FrameRefusal("job:started", "metadata.sequenceNumber", FrameRefusalReason.Lacks, unsequenced), withTimeout(5_000) { frames.first() })
     }
 
     @Test

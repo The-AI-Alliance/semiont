@@ -559,6 +559,8 @@ private class Types(private val definitions: JsonObject, private val generation:
             append(variants.toString().trimEnd('\n'))
             append("\n}\n\n")
             append("internal object ${name}Serializer : JsonContentPolymorphicSerializer<$name>($name::class) {\n")
+            // Named as every other type of the package is, by its schema.
+            append("    override val descriptor: SerialDescriptor = SerialDescriptor(${literal("$TYPES_PACKAGE.$name")}, super.descriptor)\n\n")
             append("    override fun selectDeserializer(element: JsonElement): DeserializationStrategy<$name> =\n")
             if (toldApart != null) {
                 val (property, tags) = toldApart

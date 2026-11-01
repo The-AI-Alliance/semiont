@@ -10,14 +10,7 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.jdk9.asPublisher
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
-import kotlinx.serialization.MissingFieldException
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.descriptors.StructureKind
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -76,43 +69,8 @@ private fun <P> decode(serializer: KSerializer<P>, stamps: Set<String>, payload:
 
 private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.encodeToJsonElement(channel.payload, payload).jsonObject
 
-/** What a value refused as not of its shape lacks, and none of what it holds: nothing, when what it lacks is not known. */
-@OptIn(ExperimentalSerializationApi::class)
-internal fun lacks(error: IllegalArgumentException): String? = (error as? MissingFieldException)?.missingFields?.joinToString(", ")
-
-private fun within(way: String, name: String): String = if (way.isEmpty()) name else "$way.$name"
-
-/**
- * The way to the first member `value` lacks to be of `descriptor`: the names
- * of the members it is within and its own, joined by dots, as every SDK names
- * it. A member lacks when it is absent, or holds null where it may not. An
- * object's own members are asked of before what they hold. One of several
- * shapes is not looked into, and an array's positions and a map's keys are
- * not said. Nothing, when it lacks none of what is looked into.
- */
-@OptIn(ExperimentalSerializationApi::class)
-private fun lacking(descriptor: SerialDescriptor, value: JsonElement, way: String = ""): String? = when (descriptor.kind) {
-    StructureKind.CLASS, StructureKind.OBJECT -> (value as? JsonObject)?.let { members ->
-        val elements = (0 until descriptor.elementsCount).asSequence()
-        val absent = elements
-            .filter { at -> !descriptor.isElementOptional(at) }
-            .filter { at -> members[descriptor.getElementName(at)].let { it == null || it is JsonNull && !descriptor.getElementDescriptor(at).isNullable } }
-            .map { at -> within(way, descriptor.getElementName(at)) }
-        val inside = elements.mapNotNull { at ->
-            members[descriptor.getElementName(at)]?.let { held -> lacking(descriptor.getElementDescriptor(at), held, within(way, descriptor.getElementName(at))) }
-        }
-        (absent + inside).firstOrNull()
-    }
-    StructureKind.LIST -> (value as? JsonArray)?.firstNotNullOfOrNull { lacking(descriptor.getElementDescriptor(0), it, way) }
-    StructureKind.MAP -> (value as? JsonObject)?.let { entries -> entries.keys.sorted().firstNotNullOfOrNull { lacking(descriptor.getElementDescriptor(1), entries.getValue(it), way) } }
-    else -> null
-}
-
-/** What is said of a payload on `channel` that was refused as not that channel's: the way to what it lacks, when that is known. */
-private fun refused(channel: String, lacks: String?): String = when (lacks) {
-    null -> "a payload on $channel is not that channel's"
-    else -> "a payload on $channel is not that channel's: it has no `$lacks`"
-}
+/** What is said of a payload on `channel` that has `fault`, in every SDK's words. */
+private fun notTheChannels(channel: String, fault: Fault): String = "a payload on $channel is not that channel's: $fault"
 
 /**
  * Send `payload` as the request of `operation`, and wait up to `timeoutMs`
@@ -195,17 +153,29 @@ public data class Delivered<P>(
     override val status: String get() = "delivered"
 }
 
+/** Why a payload is refused at a member, as every SDK spells it. */
+public enum class FrameRefusalReason(
+    /** The reason as every SDK spells it. */
+    public val wire: String,
+) {
+    /** The payload does not carry the member, or the member holds null where it may not. */
+    Lacks("lacks"),
+
+    /** The member is of a kind its schema does not allow. */
+    Malformed("malformed"),
+}
+
 /**
- * A frame a typed read refused, in its place: its payload is not its
- * channel's. `lacks` is the way to the member the payload lacks, the names of
- * the members it is within and its own joined by dots; null when it was
- * refused for what it holds, or for a member inside one of several shapes,
- * which is not looked into. `payload` is the payload as it came, the
+ * A frame a typed read refused, in its place: its payload has a fault as its
+ * channel's. `member` is the way to the member the fault is at, the names of
+ * the members it is within and its own joined by dots, and empty for the
+ * payload itself; `reason` is why. `payload` is the payload as it came, the
  * gateway's stamps and all.
  */
 public data class FrameRefusal(
     public val channel: String,
-    public val lacks: String?,
+    public val member: String,
+    public val reason: FrameRefusalReason,
     public val payload: JsonObject,
 ) : Heard<Nothing> {
     override val status: String get() = "refused"
@@ -250,11 +220,12 @@ public class Typed<P> internal constructor(
 
     private fun heard(frame: Frame): Heard<P> {
         val declared = declared(stamps, frame.payload)
-        return try {
-            delivered(frame, wireJson.decodeFromJsonElement(payload, declared))
-        } catch (error: IllegalArgumentException) {
-            FrameRefusal(channel, lacking(payload.descriptor, declared), frame.payload)
+        val fault = faultOf(payload.descriptor, declared) ?: try {
+            return delivered(frame, wireJson.decodeFromJsonElement(payload, declared))
+        } catch (_: IllegalArgumentException) {
+            UNDECODED
         }
+        return FrameRefusal(channel, fault.member, fault.reason, frame.payload)
     }
 
     /** The same frames, for Java. */
@@ -311,11 +282,12 @@ public class Bus(private val transport: Transport) {
     public suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): R {
         val reply = resultOf(transport, operation, encoded(operation.request, payload), timeoutMs)
         val declared = declared(operation.result.stamps, reply.payload)
-        return try {
-            wireJson.decodeFromJsonElement(operation.result.payload, declared)
-        } catch (error: IllegalArgumentException) {
-            throw TransportError(TransportErrorCode.Error, refused(operation.result.name, lacking(operation.result.payload.descriptor, declared)))
+        val fault = faultOf(operation.result.payload.descriptor, declared) ?: try {
+            return wireJson.decodeFromJsonElement(operation.result.payload, declared)
+        } catch (_: IllegalArgumentException) {
+            UNDECODED
         }
+        throw TransportError(TransportErrorCode.Error, notTheChannels(operation.result.name, fault))
     }
 
     /** `request`, for Java. */

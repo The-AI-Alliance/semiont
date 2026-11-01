@@ -319,19 +319,30 @@ public final class semiont/bus/EventBus : semiont/transport/FrameSink {
 }
 
 public final class semiont/bus/FrameRefusal : semiont/bus/Heard {
-	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lsemiont/bus/FrameRefusalReason;Lkotlinx/serialization/json/JsonObject;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Ljava/lang/String;
-	public final fun component3 ()Lkotlinx/serialization/json/JsonObject;
-	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;)Lsemiont/bus/FrameRefusal;
-	public static synthetic fun copy$default (Lsemiont/bus/FrameRefusal;Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)Lsemiont/bus/FrameRefusal;
+	public final fun component3 ()Lsemiont/bus/FrameRefusalReason;
+	public final fun component4 ()Lkotlinx/serialization/json/JsonObject;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Lsemiont/bus/FrameRefusalReason;Lkotlinx/serialization/json/JsonObject;)Lsemiont/bus/FrameRefusal;
+	public static synthetic fun copy$default (Lsemiont/bus/FrameRefusal;Ljava/lang/String;Ljava/lang/String;Lsemiont/bus/FrameRefusalReason;Lkotlinx/serialization/json/JsonObject;ILjava/lang/Object;)Lsemiont/bus/FrameRefusal;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getChannel ()Ljava/lang/String;
-	public final fun getLacks ()Ljava/lang/String;
+	public final fun getMember ()Ljava/lang/String;
 	public final fun getPayload ()Lkotlinx/serialization/json/JsonObject;
+	public final fun getReason ()Lsemiont/bus/FrameRefusalReason;
 	public fun getStatus ()Ljava/lang/String;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
+}
+
+public final class semiont/bus/FrameRefusalReason : java/lang/Enum {
+	public static final field Lacks Lsemiont/bus/FrameRefusalReason;
+	public static final field Malformed Lsemiont/bus/FrameRefusalReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public final fun getWire ()Ljava/lang/String;
+	public static fun valueOf (Ljava/lang/String;)Lsemiont/bus/FrameRefusalReason;
+	public static fun values ()[Lsemiont/bus/FrameRefusalReason;
 }
 
 public abstract interface class semiont/bus/Heard {
