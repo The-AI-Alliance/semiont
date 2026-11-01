@@ -248,7 +248,49 @@ func TestTheServiceCatalogNamesWhatTheDescriptorsRun(t *testing.T) {
 	}
 	assertNames(t, "the roles --service takes", named("takes a role name from the tables above: ", ". It takes"), roles)
 	assertNames(t, "a knowledge base's products", named("`<product>` is ", ". `<kb>`"), products)
-	assertNames(t, "the machine's containers", named("are named `semiont-<name>`: ", ".\n"), machine)
+	assertNames(t, "the shared containers", named("are named `semiont-<name>`: ", ".\n"), machine)
+}
+
+// The operator's guide tells a reader the groups `status` reads and `--group`
+// takes, what each holds and whether every knowledge base shares it. Its table
+// is held to serviceGroups here, so a group or a member the launcher gains
+// fails until the guide names it.
+func TestTheOperatorGuideNamesEachGroup(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "docs", "operator", "LOCAL-SEMIONT.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, section, ok := strings.Cut(string(b), "## What runs\n")
+	if !ok {
+		t.Fatal("the operator's guide has no section on what runs")
+	}
+	section, _, _ = strings.Cut(section, "\n## ")
+	backticked := regexp.MustCompile("`([^`]+)`")
+	var rows [][]string
+	for _, line := range strings.Split(section, "\n") {
+		cells := strings.Split(strings.Trim(line, "|"), "|")
+		if len(cells) != 3 || !strings.HasPrefix(strings.TrimSpace(cells[0]), "`") {
+			continue
+		}
+		row := []string{strings.Trim(strings.TrimSpace(cells[0]), "`"), strings.TrimSpace(cells[2])}
+		for _, m := range backticked.FindAllStringSubmatch(cells[1], -1) {
+			row = append(row, m[1])
+		}
+		rows = append(rows, row)
+	}
+	if len(rows) != len(serviceGroups) {
+		t.Fatalf("the guide's table has %d groups, want %d: %v", len(rows), len(serviceGroups), rows)
+	}
+	for i, g := range serviceGroups {
+		whose := "each knowledge base's own"
+		if g.shared() {
+			whose = "shared"
+		}
+		want := append([]string{g.name, whose}, g.roles...)
+		if !slices.Equal(rows[i], want) {
+			t.Errorf("the guide's row %d reads %q, want %q", i+1, rows[i], want)
+		}
+	}
 }
 
 func assertNames(t *testing.T, what string, got, want []string) {

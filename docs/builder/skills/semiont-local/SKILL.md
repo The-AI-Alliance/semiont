@@ -74,7 +74,7 @@ Run each from the knowledge base's directory.
 
 | Address | What answers |
 |---|---|
-| http://localhost:3000 | The Browser, one for every knowledge base on the machine |
+| http://localhost:3000 | The Browser, one for every knowledge base here |
 | http://localhost:4000 | The knowledge base's gateway, which scripts and SDKs connect to |
 
 | Path in the knowledge base | Contents |
@@ -94,4 +94,4 @@ Everything derived from the event log (the database, the graph, the vectors, the
 - **A change of configuration takes a restart**: `semiont stop`, then `semiont start`.
 - **The knowledge base is a git repository.** Its resources, `.semiont/config.yaml`, `.semiont/stack/` and `.semiont/events/` are committed. Secrets never are: a document names the environment variable that holds one.
 - **`semiont` comes from Homebrew or the GitHub Release, never from npm.** If `which semiont` resolves to an npm install, that copy is shadowing the launcher: uninstall it.
-- **Going further.** [Running a local stack](../../../operator/LOCAL-SEMIONT.md) covers ports, the Browser and local-network access; [Configuration](../../../operator/administration/CONFIGURATION.md) covers the documents; [Troubleshooting](../../../operator/administration/TROUBLESHOOTING.md) covers what goes wrong.
+- **Going further.** [Running knowledge bases on your computer](../../../operator/LOCAL-SEMIONT.md) covers ports, the Browser and local-network access; [Configuration](../../../operator/administration/CONFIGURATION.md) covers the documents; [Troubleshooting](../../../operator/administration/TROUBLESHOOTING.md) covers what goes wrong.

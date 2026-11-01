@@ -6,7 +6,7 @@ A Semiont deployment is a handful of Semiont's own container images, the infrast
 
 | Where the stack runs | Who brings it up | Start here |
 |---|---|---|
-| Your own machine | The launcher: `semiont start` | [Running a local stack](../LOCAL-SEMIONT.md) |
+| Your own machine | The launcher: `semiont start` | [Running knowledge bases on your computer](../LOCAL-SEMIONT.md) |
 | A hosted machine, in a GitHub Codespace | The launcher: `semiont start --runtime codespace` | [Knowledge Bases](../../KNOWLEDGE-BASES.md) |
 | Your own platform: Kubernetes, OpenShift, a cloud's container service, machines on premises | You | [Your own platform](#your-own-platform), below |
 

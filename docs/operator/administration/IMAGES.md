@@ -8,7 +8,7 @@ Eight images are published to GitHub Container Registry, as `ghcr.io/the-ai-alli
 
 `semiont-gateway`, `semiont-dispatcher`, `semiont-archivist`, `semiont-librarian`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` and `semiont-browser`.
 
-**Configuration is given at run time, never built in.** No image contains anything about a knowledge base, so one verified image serves every knowledge base, and a knowledge base's repository builds no image of its own. The launcher runs the image a knowledge base's documents name for each service, `ghcr.io/the-ai-alliance/semiont-<service>:latest` as `semiont init` writes them, and mounts each service's configuration into it. The Browser is the machine's: it runs the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest` as the launcher writes it ([Configuration](CONFIGURATION.md#the-browser)).
+**Configuration is given at run time, never built in.** No image contains anything about a knowledge base, so one verified image serves every knowledge base, and a knowledge base's repository builds no image of its own. The launcher runs the image a knowledge base's documents name for each service, `ghcr.io/the-ai-alliance/semiont-<service>:latest` as `semiont init` writes them, and mounts each service's configuration into it. The Browser belongs to no knowledge base: it runs the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest` as the launcher writes it ([Configuration](CONFIGURATION.md#the-browser)).
 
 ---
 

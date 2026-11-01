@@ -170,9 +170,9 @@ sits on `:14318` (the collector owns `:4318` and forwards). A single service sta
 `--service` exports only when the collector is already running. Do not run a
 Jaeger of your own on `:4318`: that port is the collector's.
 
-The three are the machine's, not one knowledge base's: every knowledge base started on
-the machine exports to the one collector, a start keeps them running when they are as it
-would start them, and `semiont stop` stops them with the stack.
+The three are shared, not one knowledge base's: every knowledge base started here
+exports to the one collector, a start keeps them running when they are as it would start
+them, and `semiont stop` stops them with the last knowledge base.
 `semiont stop --service collector|traces|metrics` stops one alone.
 
 ### Verifying spans are flowing
@@ -283,7 +283,7 @@ its own process.
 | `semiont.inference.tokens`   | counter          | `inference.provider`, `inference.model`, `inference.direction` (`input`/`output`) | The Worker service and the Librarian — the tokens a provider reported, where it reports any |
 | `semiont.inference.duration` | histogram        | `inference.provider`, `inference.model`, `inference.outcome` | The Worker service and the Librarian — how long each request of a model took, in ms |
 | `semiont.process.start_time` | gauge            | (none)                                                  | Every service — Unix seconds at which the process started; a change means it restarted |
-| `semiont.process.restarts`   | gauge            | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
+| `semiont.process.restarts`   | gauge            | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (the stacks the launcher runs); absent, not `0`, everywhere else |
 | `semiont.process.abnormal_exit` | counter       | `reason` (`unhandledRejection`/`uncaughtException`)     | Every service — a fatal error, counted just before the process exits |
 | `semiont.runtime.event_loop.lag` | gauge        | `lag.stat` (`mean`/`p99`/`max`)                     | Every service — event-loop delay over the last export interval, in ms: time the process could serve nothing |
 | `semiont.runtime.heap`       | gauge            | `heap.stat` (`used`/`total`/`limit`/`rss`)              | Every service — process memory in bytes |
