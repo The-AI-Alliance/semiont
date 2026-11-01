@@ -455,6 +455,17 @@ semiont stop
   deliberately no `--force-kill-ports`-style option: the launcher owns
   everything named `semiont-*` across every runtime it can see, and never
   signals anything else.)
+- **`semiont stop --group <name>` stops one group of services**, named as
+  `status` reads them. A knowledge base's group (`record`, `index`,
+  `issuer`) takes along each of that knowledge base's services that needs
+  one of its own, last-started first, and says which and why ("smelter
+  stops too: it needs the gateway"). So `--group index` stops the librarian,
+  the smelter, the weaver, the graph and the vectors and nothing else, and
+  `--group issuer` stops every service behind the gateway. The worker goes
+  with a knowledge base's group only when no other local stack is
+  recorded, as with a bare stop. A shared group (`knowledge-workers`,
+  `providers`, `telemetry`) serves every knowledge base here, so it stops
+  alone, and each knowledge base goes on without it.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values
