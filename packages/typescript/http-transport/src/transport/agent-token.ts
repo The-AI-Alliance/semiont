@@ -2,10 +2,10 @@
  * An agent's sign-in at a knowledge base's gateway.
  *
  * An agent is an account, as a person is. It signs in at the knowledge
- * base's issuer with its own service-account credential
- * (`serviceAccountToken`), and the token its issuer grants is its bearer at
- * the gateway. The gateway names it by that account: its DID, which the
- * gateway answers at `GET /api/users/me`, is who its work is attributed to.
+ * base's issuer with its own service-account credential (`ServiceToken`),
+ * and the token its issuer grants is its bearer at the gateway. The gateway
+ * names it by that account: its DID, which the gateway answers at
+ * `GET /api/users/me`, is who its work is attributed to.
  * The engine it runs is no part of it: each write names that itself.
  *
  * The DID is the gateway's, under the knowledge base's own domain, and a
@@ -26,10 +26,9 @@ import {
   jsonOf,
   retryAfterMs,
   retryWithBackoff,
-  serviceAccountToken,
   userId,
   type RetryAttemptInfo,
-  type ServiceAccountCredential,
+  type ServiceToken,
   type UserId,
 } from '@semiont/core';
 import { APIError, retryableUnlessRefused } from './api-error';
@@ -38,11 +37,11 @@ import { fetchOf } from './fetch-of';
 export interface AgentSignIn {
   /** The gateway, e.g. `http://gateway:4000`: where the process dials, and nothing about who it is. */
   baseUrl: string;
-  /** The agent's account at the knowledge base's issuer. */
-  credential: ServiceAccountCredential;
+  /** The token of the agent's account at the knowledge base's issuer, which asks the issuer with the `fetch` it was made with. */
+  service: ServiceToken;
   /** Told before each wait for a gateway or an issuer that could not be reached. */
   onRetry?: (info: RetryAttemptInfo) => void;
-  /** What the issuer's requests and the gateway's are sent with. Absent, the runtime's own `fetch`. */
+  /** What the gateway's request is sent with. Absent, the runtime's own `fetch`. */
   fetch?: typeof fetch;
 }
 
@@ -61,13 +60,13 @@ export interface AgentSignIn {
  * status, the issuer's as a `SignInError`.
  */
 export async function agentToken(opts: AgentSignIn): Promise<{ token: string; did: UserId }> {
-  const { baseUrl, credential, onRetry, fetch } = opts;
+  const { baseUrl, service, onRetry, fetch } = opts;
 
   return retryWithBackoff(
     async () => {
       // Both steps sit inside the retry: the issuer and the gateway come up
       // independently of this process, and of each other.
-      const token = await serviceAccountToken(credential, { renewed: false, ...(fetch ? { fetch } : {}) });
+      const token = await service.token({ renewed: false });
       return { token, did: await named(baseUrl, token, fetch) };
     },
     // A request that got no answer, its deadline passing among the ways it

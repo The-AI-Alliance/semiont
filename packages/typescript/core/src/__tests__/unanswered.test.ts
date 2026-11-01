@@ -16,7 +16,7 @@ import net from 'node:net';
 import util from 'node:util';
 import { describe, it, expect, afterEach } from 'vitest';
 import { isRetryableRequestError } from '../retry';
-import { serviceAccountToken } from '../service-account';
+import { ServiceToken } from '../service-account';
 import { UnansweredError, whyUnanswered } from '../unanswered';
 
 /** A token in an answer that signs nobody in. It is a credential all the same. */
@@ -91,9 +91,8 @@ async function nowhere(): Promise<string> {
   return `http://127.0.0.1:${port}`;
 }
 
-let accounts = 0;
-/** A service account at `origin`, at an issuer of its own: an issuer's token endpoint is remembered for the life of the process. */
-const account = (origin: string) => ({ issuer: `${origin}/realms/kb-${++accounts}`, clientId: 'semiont-worker', clientSecret: 'client-secret' });
+/** A service account at an issuer at `origin`. */
+const account = (origin: string) => ({ issuer: `${origin}/realms/kb`, clientId: 'semiont-worker', clientSecret: 'client-secret' });
 
 /** The failure a sign-in ends in. */
 const failed = (signingIn: Promise<unknown>): Promise<Error> =>
@@ -116,7 +115,7 @@ describe('a service account whose issuer answers what is not HTTP', () => {
   it.each(NOT_HTTP)('to its discovery (%s): the failure says the kind of error, and holds nothing of the answer', async (_framing, raw) => {
     const credential = account(await farEnd(() => raw));
 
-    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
+    const failure = await failed(new ServiceToken(credential).token({ renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toMatch(new RegExp(`^OIDC discovery for ${credential.issuer} got no answer: [A-Za-z][A-Za-z0-9_]*$`));
@@ -127,7 +126,7 @@ describe('a service account whose issuer answers what is not HTTP', () => {
   it.each(NOT_HTTP)('to its grant (%s): the failure says the kind of error, and holds nothing of the answer', async (_framing, raw) => {
     const credential = account(await farEnd((path, origin) => (path.endsWith('/token') ? raw : discovered(origin))));
 
-    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
+    const failure = await failed(new ServiceToken(credential).token({ renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toMatch(
@@ -142,7 +141,7 @@ describe('a service account whose issuer answers what is not JSON', () => {
   it('to its discovery: the document names no token endpoint, and none of it is said', async () => {
     const credential = account(await farEnd(() => answering(`{"token_endpoint": ${CARRIED}}`)));
 
-    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
+    const failure = await failed(new ServiceToken(credential).token({ renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toBe(`OIDC discovery for ${credential.issuer} returned no \`token_endpoint\``);
@@ -153,7 +152,7 @@ describe('a service account whose issuer answers what is not JSON', () => {
   it('to its grant: the answer grants no token, and none of it is said', async () => {
     const credential = account(await farEnd((path, origin) => (path.endsWith('/token') ? answering(`{"access_token": ${CARRIED}}`) : discovered(origin))));
 
-    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
+    const failure = await failed(new ServiceToken(credential).token({ renewed: false }));
 
     expect(partsOf(CARRIED, printed(failure))).toEqual([]);
     expect(failure.message).toBe(`Token endpoint for ${credential.issuer} returned no \`access_token\``);
@@ -165,7 +164,7 @@ describe('a service account whose issuer cannot be reached', () => {
   it('says so by the code the runtime gives the failed connection', async () => {
     const credential = account(await nowhere());
 
-    const failure = await failed(serviceAccountToken(credential, { renewed: false }));
+    const failure = await failed(new ServiceToken(credential).token({ renewed: false }));
 
     // What whoever runs the process needs, in the failure's own line: it is not left on a cause.
     expect(failure.message).toBe(`OIDC discovery for ${credential.issuer} got no answer: ECONNREFUSED`);

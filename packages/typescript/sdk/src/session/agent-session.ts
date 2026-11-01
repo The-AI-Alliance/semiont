@@ -39,7 +39,7 @@
  */
 
 import { BehaviorSubject } from 'rxjs';
-import { accessToken as makeAccessToken, RETRY_RULES, serviceAccountToken, SignInError, watched } from '@semiont/core';
+import { accessToken as makeAccessToken, RETRY_RULES, ServiceToken, SignInError, watched } from '@semiont/core';
 import type { AccessToken, ServiceAccountCredential, UserId, Watched } from '@semiont/core';
 import { agentToken } from '@semiont/http-transport';
 import { parseJwtExpiry, refreshDelayMs } from './storage';
@@ -86,12 +86,13 @@ export interface AgentSession {
  */
 export async function startAgentSession(opts: AgentSessionOptions): Promise<AgentSession> {
   const { baseUrl, credential, logger, fetch } = opts;
+  const service = new ServiceToken(credential, fetch);
 
   logger.info('Authenticating', { baseUrl, as: credential.clientId });
   // A gateway or an issuer that cannot be reached is tried again, and each wait is logged.
   const first = await agentToken({
     baseUrl,
-    credential,
+    service,
     ...(fetch ? { fetch } : {}),
     onRetry: ({ attempt, attempts, delayMs, error }) => {
       logger.warn('Gateway unreachable, retrying authentication', {
@@ -142,7 +143,7 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
   };
 
   const refresh = async (): Promise<string | null> => {
-    const next = await serviceAccountToken(credential, { renewed: true, ...(fetch ? { fetch } : {}) });
+    const next = await service.token({ renewed: true });
     token$.next(makeAccessToken(next));
     rearm(next);
     return next;

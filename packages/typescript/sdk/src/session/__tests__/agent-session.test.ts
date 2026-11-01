@@ -22,9 +22,8 @@
  *
  * Global `fetch` is stubbed. It answers the issuer's discovery itself, and
  * hands the grant to `grant` and the gateway to `gateway`, which each test
- * scripts with real `Response`s. Each test signs in at an issuer of its own:
- * core remembers the token an issuer granted for as long as it lives. Timers
- * are fake, and the clock is pinned so `exp` arithmetic is deterministic.
+ * scripts with real `Response`s. Timers are fake, and the clock is pinned so
+ * `exp` arithmetic is deterministic.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { ServiceAccountCredential } from '@semiont/core';
@@ -43,8 +42,7 @@ const routed: typeof fetch = async (input, init) => {
 
 const NOW = new Date('2026-09-21T12:00:00Z');
 const DID = 'did:web:kb.test:agents:service-account-semiont-dispatcher';
-let issuers = 0;
-let credential: ServiceAccountCredential;
+const credential: ServiceAccountCredential = { issuer: 'https://issuer.test/realms/kb', clientId: 'semiont-dispatcher', clientSecret: 'shh' };
 
 /** A structurally valid JWT whose payload is the only thing `parseJwtExpiry` reads. */
 function jwt(payload: Record<string, unknown>): string {
@@ -55,7 +53,7 @@ function tokenExpiringIn(msFromNow: number, tag: string): string {
   return jwt({ exp: Math.floor((NOW.getTime() + msFromNow) / 1000), tag });
 }
 
-/** The issuer's grant of `token`, which it says lives `lifetimeMs`: as long as core may hold it. */
+/** The issuer's grant of `token`, which it says lives `lifetimeMs`: as long as the session's service token may hold it. */
 function granted(token: string, lifetimeMs: number): Response {
   return Response.json({ access_token: token, expires_in: lifetimeMs / 1000 });
 }
@@ -82,7 +80,6 @@ describe('startAgentSession', () => {
     grant.mockReset();
     gateway.mockReset();
     gateway.mockImplementation(async () => named());
-    credential = { issuer: `https://issuer-${++issuers}.test/realms/kb`, clientId: 'semiont-dispatcher', clientSecret: 'shh' };
     session = null;
   });
 
@@ -202,8 +199,9 @@ describe('startAgentSession', () => {
     // reading when an issuer does not say when it minted.
     //   first:  400 s left at t=0   → margin 200 s → fires at t=200 s
     //   second: 600 s left at t=200 → margin 300 s (the cap) → fires at t=500 s
-    // Each grant says it lives as long as its token, so core would hold the
-    // first until t=370 s: a renewal that is due asks for a new grant all the same.
+    // Each grant says it lives as long as its token, so the session's service
+    // token would hold the first until t=370 s: a renewal that is due asks for
+    // a new grant all the same.
     const first = tokenExpiringIn(400_000, 'first');
     const second = tokenExpiringIn(800_000, 'second');
     const third = tokenExpiringIn(1_400_000, 'third');
