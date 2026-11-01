@@ -678,7 +678,7 @@ class Stream:
                 response = await self._http.send(request, stream=True)
             try:
                 if not response.is_success:
-                    self._reports.put_nowait(_Refused(conn, await _refusal(response)))
+                    self._reports.put_nowait(_Refused(conn, await _refusal(response, self._timing.http_request_ms)))
                     return
                 self._reports.put_nowait(_Opened(conn))
                 parser = SseParser()
@@ -694,13 +694,17 @@ class Stream:
         self._reports.put_nowait(_Ended(conn))
 
 
-async def _refusal(response: httpx.Response) -> TransportError:
-    """The gateway's refusal of a connect: its status, in its own words when its body states them."""
+async def _refusal(response: httpx.Response, deadline_ms: int) -> TransportError:
+    """The gateway's refusal of a connect: its status, in its own words when its body states them.
+
+    The body is read within `deadline_ms`, as any other answer is: one not read by then says nothing.
+    """
     status = response.status_code
     body: bytes | None = None
     try:
-        body = await response.aread()
+        async with asyncio.timeout(deadline_ms / 1000):
+            body = await response.aread()
         said = f": {ErrorResponse.model_validate_json(body).error}"
-    except (ValidationError, httpx.HTTPError):
+    except (ValidationError, httpx.HTTPError, TimeoutError):
         said = ""
     return refusal(f"SSE connect failed: {status}{said}", status, body, retry_after_ms(response.headers.get("retry-after")))

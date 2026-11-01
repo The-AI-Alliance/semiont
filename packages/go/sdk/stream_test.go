@@ -112,6 +112,9 @@ type stubGateway struct {
 	// unanswered is how many of the next subscribes are taken and never
 	// answered, after any refusals.
 	unanswered int
+	// unfinished is how many of the next subscribes, after those, are
+	// refused with a body that is begun and never finished.
+	unfinished int
 	// arrived is how many subscribes have arrived.
 	arrived int
 }
@@ -125,15 +128,27 @@ func newStubGateway(t *testing.T) *stubGateway {
 			g.mu.Lock()
 			g.arrived++
 			var refusal int
-			silent := false
+			silent, unfinished := false, false
 			if len(g.refusals) > 0 {
 				refusal, g.refusals = g.refusals[0], g.refusals[1:]
 			} else if g.unanswered > 0 {
 				g.unanswered--
 				silent = true
+			} else if g.unfinished > 0 {
+				g.unfinished--
+				unfinished = true
 			}
 			g.mu.Unlock()
 			if silent {
+				<-r.Context().Done()
+				return
+			}
+			if unfinished {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Content-Length", "100")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				_, _ = w.Write([]byte(`{"error":"ne`))
+				w.(http.Flusher).Flush()
 				<-r.Context().Done()
 				return
 			}
@@ -252,6 +267,33 @@ func TestARefusedOpenIsReportedInTheGatewaysWords(t *testing.T) {
 	if refused := firstFailure(t, transport); refused.Message != "SSE connect failed: 503: refused" {
 		t.Errorf("the refusal says %q", refused.Message)
 	}
+}
+
+// A refused open whose body is begun and never finished is reported once
+// HttpRequestTimeout has passed, with none of the gateway's words, and the
+// stream is opened again.
+func TestARefusalWhoseBodyNeverEndsIsReportedAtTheRequestDeadline(t *testing.T) {
+	gateway := newStubGateway(t)
+	gateway.unfinished = 1
+	timing := DefaultTiming()
+	timing.Reconnect = 20 * time.Millisecond
+	timing.HttpRequestTimeout = 200 * time.Millisecond
+	transport := NewHTTPTransport(HTTPTransportConfig{
+		BaseURL:  gateway.URL,
+		Token:    NewVariable("a-token"),
+		Channels: []bus.Channel{bus.BeckonFocus.Channel()},
+		HTTP:     &http.Client{Transport: &http.Transport{}},
+		Timing:   timing,
+	})
+	defer transport.Close()
+	refused := firstFailure(t, transport)
+	status, stated := refused.Status()
+	if refused.Message != "SSE connect failed: 503" || !stated || status != http.StatusServiceUnavailable {
+		t.Errorf("the refusal is heard as %q, %d (%v)", refused.Message, status, stated)
+	}
+	until(t, "the stream to open on the subscribe after the refused one", func() bool {
+		return transport.State().Value() == ConnectionStateOpen
+	})
 }
 
 // An open the gateway takes and never answers has failed once

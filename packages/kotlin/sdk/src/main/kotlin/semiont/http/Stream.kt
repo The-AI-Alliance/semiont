@@ -15,6 +15,7 @@ import kotlinx.coroutines.jdk9.asFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -497,8 +498,9 @@ internal class Stream(
             val response = http.exchange(request, HttpResponse.BodyHandlers.ofPublisher())
             val status = response.statusCode()
             if (status !in 200..299) {
+                // A refusal's body is read within the request deadline, as any other answer is: one not read by then says nothing.
                 val read = try {
-                    readAll(response.body())
+                    withTimeoutOrNull(timing.httpRequestMs) { readAll(response.body()) }
                 } catch (_: IOException) {
                     null
                 }

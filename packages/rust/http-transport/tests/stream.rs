@@ -91,6 +91,8 @@ enum Said {
     Nothing,
     /// The gateway's words, as an ErrorResponse states them.
     Words(&'static str),
+    /// A body begun and never finished.
+    Unfinished,
 }
 
 #[derive(Default)]
@@ -119,6 +121,17 @@ async fn subscribe(State(staged): State<Arc<Staged>>, Json(subscription): Json<V
         return match said {
             Said::Nothing => status.into_response(),
             Said::Words(words) => (status, Json(json!({ "error": words }))).into_response(),
+            Said::Unfinished => {
+                let begun = tokio_stream::once(Ok::<Bytes, std::convert::Infallible>(
+                    Bytes::from_static(br#"{"error":"ne"#),
+                ));
+                (
+                    status,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    Body::from_stream(begun.chain(tokio_stream::pending())),
+                )
+                    .into_response()
+            }
         };
     }
     let (events, stream) = mpsc::unbounded_channel();
@@ -516,6 +529,27 @@ async fn a_refused_connect_is_reported_in_the_gateways_words() {
         refused.message,
         "SSE connect failed: 503: the gateway is draining"
     );
+    transport.close().await;
+}
+
+#[tokio::test]
+async fn a_refused_connect_whose_body_never_ends_is_reported_at_the_request_deadline_with_no_words()
+{
+    let gateway = Gateway::start().await;
+    gateway.refuse(StatusCode::SERVICE_UNAVAILABLE, Said::Unfinished);
+    let transport = gateway.client_timed(Timing {
+        http_request: Duration::from_millis(100),
+        ..quick(Duration::from_millis(60))
+    });
+    let mut failures = transport.failures();
+    let refused = tokio::time::timeout(Duration::from_secs(5), failures.next())
+        .await
+        .expect("the refusal is heard")
+        .expect("a failure")
+        .expect("not lagged");
+    assert_eq!(refused.message, "SSE connect failed: 503");
+    assert_eq!(refused.status, Some(503));
+    reaches(&transport, ConnectionState::Open).await;
     transport.close().await;
 }
 

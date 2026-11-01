@@ -378,6 +378,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
         ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
         ...(this.config.streamOpenTimeoutMs !== undefined ? { streamOpenTimeoutMs: this.config.streamOpenTimeoutMs } : {}),
+        ...(this.config.timeout !== undefined ? { httpRequestTimeoutMs: this.config.timeout } : {}),
         ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),

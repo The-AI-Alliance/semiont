@@ -97,9 +97,9 @@ private class Answering(private val answer: String) : AutoCloseable {
     }
 }
 
-/** A refusal with status 503, its body `body`. */
-private fun unavailable(body: String): String =
-    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: ${body.toByteArray().size}\r\nConnection: close\r\n\r\n$body"
+/** A refusal with status 503: `body`, after a head that says the body is `length` bytes. */
+private fun unavailable(body: String, length: Int): String =
+    "HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: $length\r\nConnection: close\r\n\r\n$body"
 
 /** A transport's stream: opened once there is a token and something to carry; and the client it makes every request with. */
 class HttpTransportTest {
@@ -150,9 +150,9 @@ class HttpTransportTest {
         }
     }
 
-    /** What the transport reports of the stream's first refused open, through `gateway`. */
-    private suspend fun firstRefusal(gateway: String): SemiontError =
-        HttpTransport(gateway, MutableStateFlow("token"), emptyList(), Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)).use { transport ->
+    /** What a transport with `timing` reports of the stream's first refused open, through `gateway`. */
+    private suspend fun firstRefusal(gateway: String, timing: Timing): SemiontError =
+        HttpTransport(gateway, MutableStateFlow("token"), emptyList(), timing).use { transport ->
             transport.subscribeToResource(ResourceId("res-1")).use {
                 withTimeout(5_000) { transport.failures().use { it.first() } }
             }
@@ -160,15 +160,24 @@ class HttpTransportTest {
 
     @Test
     fun aRefusedOpenIsReportedInTheGatewaysWords() = runBlocking {
-        Answering(unavailable("""{"error":"the gateway is draining"}""")).use { gateway ->
-            assertEquals("SSE connect failed: 503: the gateway is draining", firstRefusal(gateway.origin).message)
+        val words = """{"error":"the gateway is draining"}"""
+        Answering(unavailable(words, words.length)).use { gateway ->
+            assertEquals("SSE connect failed: 503: the gateway is draining", firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)).message)
         }
     }
 
     @Test
     fun aRefusedOpenWhoseBodySaysNothingIsReportedByItsStatus() = runBlocking {
-        Answering(unavailable("")).use { gateway ->
-            assertEquals("SSE connect failed: 503", firstRefusal(gateway.origin).message)
+        Answering(unavailable("", 0)).use { gateway ->
+            assertEquals("SSE connect failed: 503", firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10)).message)
+        }
+    }
+
+    @Test
+    fun aRefusedOpenWhoseBodyNeverEndsIsReportedAtTheRequestDeadlineWithNoWords() = runBlocking {
+        Answering(unavailable("""{"error":"ne""", 100)).use { gateway ->
+            val refused = firstRefusal(gateway.origin, Timing(reconnectMs = 10, lazyRemoveMs = 10, lingerMs = 10, httpRequestMs = 200))
+            assertEquals("SSE connect failed: 503", refused.message)
         }
     }
 }

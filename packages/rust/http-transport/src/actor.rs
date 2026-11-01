@@ -653,7 +653,12 @@ async fn connection(
                 .get(reqwest::header::RETRY_AFTER)
                 .and_then(|value| value.to_str().ok()),
         );
-        let said = response.json::<Value>().await.ok();
+        // A refusal's body is read within the request deadline, as any other
+        // answer is: one not read by then is a refusal that says nothing.
+        let said = tokio::time::timeout(shared.timing.http_request, response.json::<Value>())
+            .await
+            .ok()
+            .and_then(Result::ok);
         let message = match gateway_words(said.as_ref()) {
             Some(words) => format!("SSE connect failed: {status}: {words}"),
             None => format!("SSE connect failed: {status}"),

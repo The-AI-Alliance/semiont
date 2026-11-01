@@ -1,7 +1,7 @@
 import util from 'node:util';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { EMIT_RETRY, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId } from '@semiont/core';
+import { EMIT_RETRY, HTTP_REQUEST_TIMEOUT_MS, RECONNECT_MS, STREAM_OPEN_TIMEOUT_MS, annotationId, resourceId } from '@semiont/core';
 import { createActorStateUnit, type ActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
@@ -739,6 +739,50 @@ describe('createActorStateUnit', () => {
     expect(refusals[0]!.message).toBe('SSE connect failed: 503: the gateway is draining');
 
     stateUnit.dispose();
+  });
+
+  it('a refused connect whose body never ends is reported at HTTP_REQUEST_TIMEOUT_MS with no words, and the stream is opened again', async () => {
+    // The refusal's head arrives and its body never finishes. Unbounded, the
+    // read is waited on for as long as the process lives: nothing is
+    // reported and the stream never reconnects. The double's body, as
+    // fetch's does, fails with its signal's reason when that signal is
+    // aborted.
+    vi.useFakeTimers();
+    mockFetch.mockImplementationOnce(async (_url: string, opts: { signal: AbortSignal }) => ({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: new Headers(),
+      body: {},
+      text: () => new Promise((_resolve, reject) => {
+        opts.signal.addEventListener('abort', () => reject(opts.signal.reason), { once: true });
+      }),
+    }));
+    const conn = mockConn();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['beckon:hover'],
+    });
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+    const refusals: Array<{ message: string; status: number }> = [];
+    stateUnit.errors$.subscribe((e) => refusals.push(e));
+
+    stateUnit.start();
+    await vi.advanceTimersByTimeAsync(HTTP_REQUEST_TIMEOUT_MS - 1);
+    expect(refusals).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(refusals.map((e) => [e.message, e.status])).toEqual([['SSE connect failed: 503', 503]]);
+    // The backoff's first wait is at most `RECONNECT_MS`.
+    await vi.advanceTimersByTimeAsync(RECONNECT_MS);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(states[states.length - 1]).toBe('open'));
+    expect(conn.aborted).toBe(false);
+
+    stateUnit.dispose();
+    vi.useRealTimers();
   });
 
   it('reassembles an event whose bytes span multiple reader.read() chunks', async () => {

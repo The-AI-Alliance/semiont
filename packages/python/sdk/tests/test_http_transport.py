@@ -272,6 +272,25 @@ def test_a_refused_stream_is_reported_in_the_gateways_words() -> None:
     assert run(scenario()) == "SSE connect failed: 503: the gateway is draining"
 
 
+def test_a_refused_stream_whose_body_never_ends_is_reported_at_the_request_deadline_with_no_words() -> None:
+    async def scenario() -> tuple[float, str, int | None]:
+        hasty = Timing(reconnect_ms=10, http_request_ms=200)
+        async with GatewayServer() as gateway:
+            # The first open is refused with a body begun and never finished; the next is answered with a stream.
+            gateway.scripted[("POST", "/bus/subscribe")] = [Answer(status=503, body=b'{"error":"ne', promise=100, stall=True)]
+            loop = asyncio.get_running_loop()
+            began = loop.time()
+            async with HttpTransport(gateway.origin, token=Variable[str | None]("t"), channels=CHANNELS, timing=hasty) as transport:
+                refused = await soon(anext(transport.failures()))
+                took = loop.time() - began
+                await opened(transport)
+            return took, refused.message, refused.status
+
+    took, message, status = run(scenario())
+    assert took >= 0.2
+    assert (message, status) == ("SSE connect failed: 503", 503)
+
+
 @final
 class OverTheWire(DeliverySubject):
     """The real transport as a delivery subject.
