@@ -2,6 +2,8 @@ package semiont.state
 
 import semiont.SemiontClient
 import semiont.StateUnit
+import semiont.bus.Delivered
+import semiont.bus.FrameRefusal
 import semiont.channels.Channels
 import semiont.errors.SemiontError
 import semiont.namespaces.SEARCH_LIMIT
@@ -23,7 +25,15 @@ public class MatchStateUnit(private val client: SemiontClient) : StateUnit {
     init {
         // Taken now, so that a search asked for from here on is heard.
         val asked = client.bus.frames(Channels.MATCH_SEARCH_REQUESTED, null)
-        tasks.run { asked.collect { tasks.run { search(it.payload, it.correlationId) } } }
+        tasks.run {
+            asked.collect { heard ->
+                when (heard) {
+                    is Delivered -> tasks.run { search(heard.payload, heard.correlationId) }
+                    // A request that is not a search's names nothing to search for.
+                    is FrameRefusal -> Unit
+                }
+            }
+        }
     }
 
     private suspend fun search(request: MatchSearchRequest, correlationId: String?) {

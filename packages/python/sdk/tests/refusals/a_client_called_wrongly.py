@@ -2,6 +2,7 @@
 
 from typing import assert_never
 
+from semiont.bus import Delivered, Heard
 from semiont.channels import BECKON_FOCUS, MARK_ADDED
 from semiont.client import SemiontClient
 from semiont.http import HttpTransport
@@ -10,6 +11,7 @@ from semiont.namespaces.follow import Delegation, JobCompleted, JobEvent, JobPro
 from semiont.operations import MARK_DELETE
 from semiont.types import (
     Annotation,
+    BeckonFocusEvent,
     BeckonHoverEvent,
     GenerationJobParams,
     HighlightingJobParams,
@@ -104,9 +106,18 @@ def a_resource_s_channel_read_for_no_resource(client: Client) -> None:
 
 
 async def a_frame_read_as_another_channel_s(client: Client) -> ResourceDescriptor:
-    async for delivered in client.bus.frames(BECKON_FOCUS):
-        return delivered.payload  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
+    async for heard in client.bus.frames(BECKON_FOCUS):
+        if isinstance(heard, Delivered):
+            return heard.payload  # type: ignore[return-value]  # pyright: ignore[reportReturnType]
     raise LookupError
+
+
+def a_refused_frame_left_unhandled(heard: Heard[BeckonFocusEvent]) -> str:
+    match heard:
+        case Delivered():
+            return "delivered"
+        case _:
+            assert_never(heard)  # type: ignore[arg-type]  # pyright: ignore[reportArgumentType]
 
 
 def a_job_s_event_left_unhandled(event: JobEvent[MarkJobCompleteCommand]) -> str:

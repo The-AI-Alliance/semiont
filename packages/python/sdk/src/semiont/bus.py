@@ -7,9 +7,12 @@ operation's reply:
 
     bus = Bus(transport)
     await bus.emit(BECKON_FOCUS, BeckonFocusEvent(resource_id=resource, annotation_id=annotation))
-    async for frame in bus.frames(BECKON_FOCUS): ...        # frame.payload is that channel's
+    async for heard in bus.frames(BECKON_FOCUS): ...        # a Delivered, its payload that channel's, or a FrameRefusal
     async with bus.frames(MARK_ADDED, resource) as added: ...  # a resource's channel, read for it
     created = await bus.request(MARK_CREATE_REQUEST, command)
+
+A frame whose payload is not its channel's is told its reader, in its place,
+as a `FrameRefusal`, and the frames after it follow.
 
 **By name** (`request`, and the transport's own `emit` and `frames`), a
 channel is the registry's name and a payload a JSON object: for what relays
@@ -29,16 +32,15 @@ reaches nobody. Cancelled while it waits for the stream, it sends nothing.
 """
 
 import asyncio
-import logging
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Final, Self, final, overload
+from typing import Final, Literal, Self, final, overload
 
 from pydantic import JsonValue, ValidationError
 
-from semiont._lacks import lacks
+from semiont._lacks import lacks, missing
 from semiont.channel import AnyOperation, Channel, Operation, ScopedChannel
 from semiont.errors import BusRequestError, TransportError
 from semiont.events import Events
@@ -48,9 +50,7 @@ from semiont.timing import BUS_REQUEST_TIMEOUT_MS
 from semiont.transport import ConnectionState, Frame, ResourceHold, TraceContext, Transport
 from semiont.watched import NeverReached, reached
 
-__all__ = ["Bus", "Delivered", "Typed", "decoded", "reply_channels_for", "request"]
-
-_LOG: Final = logging.getLogger("semiont.bus")
+__all__ = ["Bus", "Delivered", "FrameRefusal", "Heard", "Typed", "decoded", "reply_channels_for", "request"]
 
 # What the gateway stamps on a payload to say who emitted it.
 _EMITTED_BY: Final = "_userId"
@@ -164,6 +164,28 @@ class Delivered[P: WireModel]:
     user_id: UserId | None = None
     """Who emitted it, as the gateway stamped it."""
     trace: TraceContext | None = None
+    status: Literal["delivered"] = field(default="delivered", init=False)
+
+
+@final
+@dataclass(frozen=True, slots=True, kw_only=True)
+class FrameRefusal:
+    """A frame a typed read refused, in its place: its payload is not its channel's."""
+
+    channel: str
+    lacks: str | None
+    """The way to the member the payload lacks, the names of the members it is within and its own joined by dots.
+
+    None when it was refused for what it holds, or for a member one of
+    several shapes lacks, where the way is not named.
+    """
+    payload: Mapping[str, JsonValue]
+    """The payload as it came, the gateway's stamps and all."""
+    status: Literal["refused"] = field(default="refused", init=False)
+
+
+type Heard[P: WireModel] = Delivered[P] | FrameRefusal
+"""What a typed read gives for each frame. A `match` over one names both."""
 
 
 def _delivered[P: WireModel](channel: Channel[P] | ScopedChannel[P, WireModel], frame: Frame) -> Delivered[P]:
@@ -189,7 +211,8 @@ class Typed[P: WireModel]:
 
     Iterated (`async for`), and can be held with `async with`, which stops
     listening on the way out. A frame whose payload is not the channel's is
-    nobody's to act on: it is not given, and is said so in the log.
+    told the reader in its place, as a `FrameRefusal`, and the frames after
+    it follow.
 
     Read for a `resource`, it gives that resource's frames and no other's,
     and `hold`, its hold on that resource's scope, is let go when it stops
@@ -212,7 +235,7 @@ class Typed[P: WireModel]:
     def __aiter__(self) -> Self:
         return self
 
-    async def __anext__(self) -> Delivered[P]:
+    async def __anext__(self) -> Heard[P]:
         while True:
             frame = await anext(self._frames)
             if self._resource is not None and frame.scope != self._resource:
@@ -221,8 +244,7 @@ class Typed[P: WireModel]:
             try:
                 return _delivered(self._channel, frame)
             except ValidationError as error:
-                _LOG.warning("%s", _refused(self._channel, error))
-                continue
+                return FrameRefusal(channel=self._channel.name, lacks=missing(self._channel.members, error), payload=frame.payload)
 
     async def aclose(self) -> None:
         """Stop listening, and let go of the scope it held."""

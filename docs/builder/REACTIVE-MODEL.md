@@ -26,7 +26,7 @@ Every namespace method returns exactly one of these. Which one is the method's r
 | `claims` | A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself. | `ClaimsObservable` | `Claims` | `Claims` | `*Claims` | `Claims` |
 | `signal` | Fire-and-forget. Nothing is returned and nothing is awaited. | a method returning `void` | a plain `fn` | a plain `def` returning `None` | a method with no result | a plain `fun` returning `Unit` |
 | `count` | A drive at the other participants: how many the gateway reached, or no count when it kept none. | `Promise<number \| undefined>` | `async fn … -> Result<Option<u64>, SemiontError>` | `async def … -> int \| None` | `(subscribers int, counted bool, err error)` | `suspend fun … : Long?` |
-| `events` | The events of one channel of the client's own bus, from now on. | a property named `<method>$` | `Typed<C, BusFrames>` | `Typed[P]` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Delivered<P>` |
+| `events` | The events of one channel of the client's own bus, from now on, each told its reader in its place when its payload is not the channel's. | a property named `<method>$`, an `Observable` of each event's payload or its `FrameRefusal` | `Typed<C, BusFrames>`, each `Result<Delivered<C>, StreamError>` | `Typed[P]`, each a `Heard[P]`: `Delivered[P] \| FrameRefusal` | `iter.Seq2[Delivered[P], error]`, given a context | `Typed<P>`, a `Flow` of `Heard<P>`: `Delivered<P>` or `FrameRefusal` |
 
 Three rules hold in every SDK:
 
@@ -273,7 +273,10 @@ This is the right path **when a namespace method exists** for what you want. It 
 #### 2. A channel by name: `client.bus` and `client.wire`
 
 ```ts
+import { FrameRefusal } from '@semiont/sdk';
+
 const created = client.bus.on('yield:created').subscribe((event) => {
+  if (event instanceof FrameRefusal) return; // a payload that is not the channel's
   console.log('Resource created:', event.payload.name);
 });
 await client.wire.emit('beckon:sparkle', { annotationId });
@@ -290,14 +293,17 @@ The channel-by-name path. Reach for it when:
 - You need RxJS operator composition on a channel stream (`.pipe(filter(...), map(...), shareReplay())`).
 - A new operation isn't yet wrapped by a namespace method, and you're prototyping.
 
-It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned.
+It's typed against `EventMap` from `@semiont/core`, so the channel name and payload type stay aligned. A frame the wire delivered whose payload lacks a member its channel's schema requires is not dropped: its reader is given, in its place, a `FrameRefusal` naming the channel, the way to the member it lacks (`lacks`) and the payload as it came. On `client.bus` the refusal stands where the payload would, and a reader tells it apart with `instanceof FrameRefusal`; `client.wire.frames` gives each frame as a `Delivered` or a `FrameRefusal`, told apart by `status`. Every SDK's typed read tells its reader the same way and goes on to the frames after it.
 
 **A channel of a resource's scope is read on the wire, for its resource.** `mark:added` and the other events of the record (`RESOURCE_SCOPED_CHANNELS`) reach only a connection that holds their resource's scope. `client.wire.frames(channel, resourceId)` holds that scope for as long as it is read, and gives that resource's frames and no other's. Read with no resource, such a channel does not compile, and is refused when called; so is any other channel read for a resource.
 
 ```ts
 const added = client.wire
   .frames('mark:added', rId)
-  .subscribe(({ payload: event }) => log(event.payload.annotation));
+  .subscribe((heard) => {
+    if (heard.status === 'delivered') log(heard.payload.payload.annotation);
+    else log(`a frame on ${heard.channel} with no ${heard.lacks}`);
+  });
 // later: added.unsubscribe();
 ```
 

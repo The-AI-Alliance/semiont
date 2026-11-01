@@ -13,6 +13,11 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.MissingFieldException
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -43,8 +48,6 @@ public val PERSISTED_EVENT_TYPES: List<String> = semiont.channels.PERSISTED
 /** What the gateway stamps on a payload to say who emitted it. */
 internal const val EMITTED_BY = "_userId"
 
-private val LOG: System.Logger = System.getLogger("semiont.bus")
-
 /**
  * The result and failure channels of `operations`, each once: what a process
  * that awaits only those operations names as its transport's channels, so it
@@ -65,8 +68,11 @@ public fun <P> decoded(channel: Channel<P>, payload: JsonObject): P = decode(cha
 /** `decoded`, for a channel a resource's scope carries. */
 public fun <P> decoded(channel: ScopedChannel<P>, payload: JsonObject): P = decode(channel.payload, channel.stamps, payload)
 
+/** `payload` without what the gateway stamped on it that `stamps` does not declare. */
+private fun declared(stamps: Set<String>, payload: JsonObject): JsonObject = JsonObject(payload.filterKeys { !it.startsWith("_") || it in stamps })
+
 private fun <P> decode(serializer: KSerializer<P>, stamps: Set<String>, payload: JsonObject): P =
-    wireJson.decodeFromJsonElement(serializer, JsonObject(payload.filterKeys { !it.startsWith("_") || it in stamps }))
+    wireJson.decodeFromJsonElement(serializer, declared(stamps, payload))
 
 private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.encodeToJsonElement(channel.payload, payload).jsonObject
 
@@ -74,9 +80,39 @@ private fun <P> encoded(channel: Channel<P>, payload: P): JsonObject = wireJson.
 @OptIn(ExperimentalSerializationApi::class)
 internal fun lacks(error: IllegalArgumentException): String? = (error as? MissingFieldException)?.missingFields?.joinToString(", ")
 
-/** What is said of a payload on `channel` that was refused as not that channel's. */
-private fun refused(channel: String, error: IllegalArgumentException): String =
-    lacks(error)?.let { "a payload on $channel is not that channel's: it lacks $it" } ?: "a payload on $channel is not that channel's"
+private fun within(way: String, name: String): String = if (way.isEmpty()) name else "$way.$name"
+
+/**
+ * The way to the first member `value` lacks to be of `descriptor`: the names
+ * of the members it is within and its own, joined by dots, as every SDK names
+ * it. A member lacks when it is absent, or holds null where it may not. An
+ * object's own members are asked of before what they hold. One of several
+ * shapes is not looked into, and an array's positions and a map's keys are
+ * not said. Nothing, when it lacks none of what is looked into.
+ */
+@OptIn(ExperimentalSerializationApi::class)
+private fun lacking(descriptor: SerialDescriptor, value: JsonElement, way: String = ""): String? = when (descriptor.kind) {
+    StructureKind.CLASS, StructureKind.OBJECT -> (value as? JsonObject)?.let { members ->
+        val elements = (0 until descriptor.elementsCount).asSequence()
+        val absent = elements
+            .filter { at -> !descriptor.isElementOptional(at) }
+            .filter { at -> members[descriptor.getElementName(at)].let { it == null || it is JsonNull && !descriptor.getElementDescriptor(at).isNullable } }
+            .map { at -> within(way, descriptor.getElementName(at)) }
+        val inside = elements.mapNotNull { at ->
+            members[descriptor.getElementName(at)]?.let { held -> lacking(descriptor.getElementDescriptor(at), held, within(way, descriptor.getElementName(at))) }
+        }
+        (absent + inside).firstOrNull()
+    }
+    StructureKind.LIST -> (value as? JsonArray)?.firstNotNullOfOrNull { lacking(descriptor.getElementDescriptor(0), it, way) }
+    StructureKind.MAP -> (value as? JsonObject)?.let { entries -> entries.keys.sorted().firstNotNullOfOrNull { lacking(descriptor.getElementDescriptor(1), entries.getValue(it), way) } }
+    else -> null
+}
+
+/** What is said of a payload on `channel` that was refused as not that channel's: the way to what it lacks, when that is known. */
+private fun refused(channel: String, lacks: String?): String = when (lacks) {
+    null -> "a payload on $channel is not that channel's"
+    else -> "a payload on $channel is not that channel's: it has no `$lacks`"
+}
 
 /**
  * Send `payload` as the request of `operation`, and wait up to `timeoutMs`
@@ -132,6 +168,16 @@ internal suspend fun resultOf(transport: Transport, operation: Operation<*, *, *
     }
 }
 
+/**
+ * What a typed read gives for each frame: the frame, its payload decoded
+ * (`Delivered`), or, in its place, the refusal of one whose payload is not its
+ * channel's (`FrameRefusal`). Java tells them apart by `status`.
+ */
+public sealed interface Heard<out P> {
+    /** Which it is, as every SDK spells it: `delivered` or `refused`. */
+    public val status: String
+}
+
 /** A frame of one channel, its payload decoded, with what came beside it. */
 public data class Delivered<P>(
     public val payload: P,
@@ -145,7 +191,25 @@ public data class Delivered<P>(
     public val userId: UserId?,
     /** The trace it was sent under. */
     public val trace: TraceContext?,
-)
+) : Heard<P> {
+    override val status: String get() = "delivered"
+}
+
+/**
+ * A frame a typed read refused, in its place: its payload is not its
+ * channel's. `lacks` is the way to the member the payload lacks, the names of
+ * the members it is within and its own joined by dots; null when it was
+ * refused for what it holds, or for a member inside one of several shapes,
+ * which is not looked into. `payload` is the payload as it came, the
+ * gateway's stamps and all.
+ */
+public data class FrameRefusal(
+    public val channel: String,
+    public val lacks: String?,
+    public val payload: JsonObject,
+) : Heard<Nothing> {
+    override val status: String get() = "refused"
+}
 
 private fun <P> delivered(frame: Frame, payload: P): Delivered<P> =
     Delivered(
@@ -158,41 +222,45 @@ private fun <P> delivered(frame: Frame, payload: P): Delivered<P> =
 
 /**
  * One channel's frames from now on, each with its payload decoded: read by
- * one collector, once. A frame whose payload is not the channel's is nobody's
- * to act on: it is not given, and the log says so. Read for a resource, it
- * gives that resource's frames and no other's, and holds that resource's scope
- * until it is closed or its reading ends. Java reads it as a
- * `java.util.concurrent.Flow.Publisher`.
+ * one collector, once. A frame whose payload is not the channel's is told the
+ * reader in its place, as a `FrameRefusal`, and the frames after it follow.
+ * Read for a resource, it gives that resource's frames and no other's, and
+ * holds that resource's scope until it is closed or its reading ends. Java
+ * reads it as a `java.util.concurrent.Flow.Publisher`.
  */
 public class Typed<P> internal constructor(
     private val channel: String,
-    private val decode: (JsonObject) -> P,
+    private val payload: KSerializer<P>,
+    private val stamps: Set<String>,
     private val frames: Events<Frame>,
     private val resource: ResourceId?,
     private val hold: ResourceHold?,
-) : Flow<Delivered<P>>, AutoCloseable {
-    override suspend fun collect(collector: FlowCollector<Delivered<P>>) {
+) : Flow<Heard<P>>, AutoCloseable {
+    override suspend fun collect(collector: FlowCollector<Heard<P>>) {
         try {
             frames.collect { frame ->
                 // A stream carries every scope it holds on the one channel, and another reader may hold another resource's.
                 if (resource != null && frame.scope != resource) return@collect
-                val payload = try {
-                    decode(frame.payload)
-                } catch (error: IllegalArgumentException) {
-                    LOG.log(System.Logger.Level.WARNING, refused(channel, error))
-                    return@collect
-                }
-                collector.emit(delivered(frame, payload))
+                collector.emit(heard(frame))
             }
         } finally {
             close()
         }
     }
 
-    /** The same frames, for Java. */
-    public fun asPublisher(): Publisher<Delivered<P>> = asFlow().asPublisher()
+    private fun heard(frame: Frame): Heard<P> {
+        val declared = declared(stamps, frame.payload)
+        return try {
+            delivered(frame, wireJson.decodeFromJsonElement(payload, declared))
+        } catch (error: IllegalArgumentException) {
+            FrameRefusal(channel, lacking(payload.descriptor, declared), frame.payload)
+        }
+    }
 
-    private fun asFlow(): Flow<Delivered<P>> = this
+    /** The same frames, for Java. */
+    public fun asPublisher(): Publisher<Heard<P>> = asFlow().asPublisher()
+
+    private fun asFlow(): Flow<Heard<P>> = this
 
     /** Stop listening, and let go of the scope it held. */
     override fun close() {
@@ -226,13 +294,13 @@ public class Bus(private val transport: Transport) {
 
     /** The frames delivered on `channel` from now on. Throws `BusRequestError` (`bus.unsubscribed`) for a channel this transport can never deliver. */
     public fun <P> frames(channel: Channel<P>): Typed<P> =
-        Typed(channel.name, { decoded(channel, it) }, transport.frames(channel.name), null, null)
+        Typed(channel.name, channel.payload, channel.stamps, transport.frames(channel.name), null, null)
 
     /** The frames delivered on `channel` for `resource` from now on: the read holds that resource's scope until it is closed or its reading ends. */
     @JvmExposeBoxed
     public fun <P> frames(channel: ScopedChannel<P>, resource: ResourceId): Typed<P> {
         val frames = transport.frames(channel.name)
-        return Typed(channel.name, { decoded(channel, it) }, frames, resource, transport.subscribeToResource(resource))
+        return Typed(channel.name, channel.payload, channel.stamps, frames, resource, transport.subscribeToResource(resource))
     }
 
     /**
@@ -242,10 +310,11 @@ public class Bus(private val transport: Transport) {
      */
     public suspend fun <Q, R, F> request(operation: Operation<Q, R, F>, payload: Q, timeoutMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS): R {
         val reply = resultOf(transport, operation, encoded(operation.request, payload), timeoutMs)
+        val declared = declared(operation.result.stamps, reply.payload)
         return try {
-            decoded(operation.result, reply.payload)
+            wireJson.decodeFromJsonElement(operation.result.payload, declared)
         } catch (error: IllegalArgumentException) {
-            throw TransportError(TransportErrorCode.Error, refused(operation.result.name, error))
+            throw TransportError(TransportErrorCode.Error, refused(operation.result.name, lacking(operation.result.payload.descriptor, declared)))
         }
     }
 

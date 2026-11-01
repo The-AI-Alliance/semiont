@@ -21,6 +21,7 @@ import semiont.annotations.QuotedText;
 import semiont.annotations.ReconciledSpan;
 import semiont.annotations.TextSpan;
 import semiont.bus.Delivered;
+import semiont.bus.Heard;
 import semiont.cache.CacheState;
 import semiont.cache.Cached;
 import semiont.bus.Typed;
@@ -131,6 +132,14 @@ final class ClientTest {
         return first;
     }
 
+    /** What a typed read heard, as the frame it is: a refusal fails the test. */
+    private static <P> Delivered<P> delivered(Heard<P> heard) {
+        if (heard instanceof Delivered<P> frame) {
+            return frame;
+        }
+        throw new AssertionError("refused: " + heard);
+    }
+
     @Test
     void aPromiseIsAFutureAndTheYieldNamespaceIsAQualifiedCall() throws Exception {
         try (Opened opened = new Opened()) {
@@ -148,9 +157,9 @@ final class ClientTest {
             Long reached = opened.client.getBeckon().attentionFuture(new ResourceId("res-1"), new AnnotationId("ann-1")).get(10, SECONDS);
             assertEquals(1L, reached);
             try (Typed<BeckonHoverEvent> hovers = opened.client.getBus().frames(Channels.BECKON_HOVER, null)) {
-                CompletableFuture<Delivered<BeckonHoverEvent>> hovered = first(hovers.asPublisher());
+                CompletableFuture<Heard<BeckonHoverEvent>> hovered = first(hovers.asPublisher());
                 opened.client.getBeckon().hover(new AnnotationId("ann-1"));
-                assertEquals(new AnnotationId("ann-1"), hovered.get(10, SECONDS).getPayload().getAnnotationId());
+                assertEquals(new AnnotationId("ann-1"), delivered(hovered.get(10, SECONDS)).getPayload().getAnnotationId());
             }
         }
     }
@@ -158,9 +167,9 @@ final class ClientTest {
     @Test
     void anEventIsReadThroughItsPublisher() throws Exception {
         try (Opened opened = new Opened(); Typed<JobCompleteCommand> completions = opened.client.getJob().complete()) {
-            CompletableFuture<Delivered<JobCompleteCommand>> completed = first(completions.asPublisher());
+            CompletableFuture<Heard<JobCompleteCommand>> completed = first(completions.asPublisher());
             opened.gateway.send("{\"channel\":\"job:complete\",\"payload\":{\"resourceId\":\"res-1\",\"jobId\":\"job-1\",\"jobType\":\"mark\"}}");
-            assertEquals(new JobId("job-1"), assertInstanceOf(MarkJobCompleteCommand.class, completed.get(10, SECONDS).getPayload()).getJobId());
+            assertEquals(new JobId("job-1"), assertInstanceOf(MarkJobCompleteCommand.class, delivered(completed.get(10, SECONDS)).getPayload()).getJobId());
         }
     }
 

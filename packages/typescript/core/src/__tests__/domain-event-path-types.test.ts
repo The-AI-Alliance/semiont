@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { FrameRefusal } from '../bus';
 import { EventBus } from '../event-bus';
 import type { EventMap } from '../bus-protocol';
 import type { PersistedEventType } from '../persisted-events';
@@ -30,9 +31,9 @@ describe('the domain-event path needs no casts', () => {
 
   it('on() on a persisted type yields that channel, not an erased one', () => {
     // `on` carries the channel's own type through, so a subscriber sees
-    // `EventMap[K]` rather than a widened `StoredEvent`.
+    // `EventMap[K]`, or its refusal, rather than a widened `StoredEvent`.
     const bus = new EventBus();
-    const seen: EventMap['mark:added'][] = [];
+    const seen: (EventMap['mark:added'] | FrameRefusal)[] = [];
     bus.on('mark:added').subscribe((e) => seen.push(e));
     expect(seen).toEqual([]);
   });

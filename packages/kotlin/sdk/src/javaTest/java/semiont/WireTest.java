@@ -3,6 +3,7 @@ package semiont;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,11 +15,14 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Flow;
 import kotlinx.coroutines.flow.StateFlowKt;
 import org.junit.jupiter.api.Test;
 import semiont.bus.Bus;
 import semiont.bus.Delivered;
+import semiont.bus.FrameRefusal;
+import semiont.bus.Heard;
 import semiont.bus.Operations;
 import semiont.bus.Typed;
 import semiont.channels.Channels;
@@ -47,31 +51,45 @@ final class WireTest {
     }
 
     @Test
-    void aStreamIsReadThroughItsPublisher() throws Exception {
+    void aStreamIsReadThroughItsPublisherAndARefusedFrameIsHeardInItsPlace() throws Exception {
         try (Gateway gateway = new Gateway(); HttpTransport transport = new HttpTransport(gateway.origin(), StateFlowKt.MutableStateFlow("token"))) {
-            CompletableFuture<Delivered<BeckonFocusEvent>> first = new CompletableFuture<>();
+            CompletableFuture<List<Heard<BeckonFocusEvent>>> both = new CompletableFuture<>();
+            List<Heard<BeckonFocusEvent>> heard = new CopyOnWriteArrayList<>();
             try (Typed<BeckonFocusEvent> focus = new Bus(transport).frames(Channels.BECKON_FOCUS)) {
                 focus.asPublisher().subscribe(new Flow.Subscriber<>() {
                     @Override
                     public void onSubscribe(Flow.Subscription subscription) {
-                        subscription.request(1);
+                        subscription.request(2);
                     }
 
                     @Override
-                    public void onNext(Delivered<BeckonFocusEvent> delivered) {
-                        first.complete(delivered);
+                    public void onNext(Heard<BeckonFocusEvent> item) {
+                        heard.add(item);
+                        if (heard.size() == 2) {
+                            both.complete(List.copyOf(heard));
+                        }
                     }
 
                     @Override
                     public void onError(Throwable error) {
-                        first.completeExceptionally(error);
+                        both.completeExceptionally(error);
                     }
 
                     @Override
                     public void onComplete() {}
                 });
+                gateway.send("{\"channel\":\"beckon:focus\",\"payload\":{\"annotationId\":\"ann-1\"}}");
                 gateway.send("{\"channel\":\"beckon:focus\",\"payload\":{\"resourceId\":\"res-1\"}}");
-                assertEquals(new ResourceId("res-1"), first.get(10, SECONDS).getPayload().getResourceId());
+                List<Heard<BeckonFocusEvent>> read = both.get(10, SECONDS);
+                // Java tells a refusal from a frame by its status, or by its type.
+                assertEquals(List.of("refused", "delivered"), read.stream().map(Heard::getStatus).toList());
+                FrameRefusal refused = assertInstanceOf(FrameRefusal.class, read.get(0));
+                assertEquals("beckon:focus", refused.getChannel());
+                assertEquals("resourceId", refused.getLacks());
+                if (!(read.get(1) instanceof Delivered<BeckonFocusEvent> delivered)) {
+                    throw new AssertionError("refused: " + read.get(1));
+                }
+                assertEquals(new ResourceId("res-1"), delivered.getPayload().getResourceId());
             }
         }
     }

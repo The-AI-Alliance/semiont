@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject } from 'rxjs';
 import type { EventBus, EventMap, ResourceDescriptor, ResourceId } from '@semiont/core';
-import { jobId, resourceId as makeResourceId } from '@semiont/core';
+import { FrameRefusal, jobId, resourceId as makeResourceId } from '@semiont/core';
 import type { CacheObservable, CacheState, SemiontClient, SemiontSession } from '@semiont/sdk';
 import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
@@ -70,6 +70,8 @@ function createEventTracker() {
     _attach(eventBus: EventBus, client: SemiontClient) {
       // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
       eventBus.on('yield:clone').subscribe((payload) => {
+        // Nothing bridges into this test's bus: a refusal on it is the test's own fault.
+        if (payload instanceof FrameRefusal) throw new Error(`refused: ${payload.channel} lacks ${payload.lacks}`);
         events.push({ event: 'yield:clone', payload });
       });
       // `mark:archive` / `mark:unarchive` are gateway-routed via `actor.emit`;

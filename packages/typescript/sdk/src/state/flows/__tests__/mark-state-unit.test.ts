@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable } from 'rxjs';
-import { resourceId as makeResourceId } from '@semiont/core';
+import { FrameRefusal, resourceId as makeResourceId } from '@semiont/core';
 import { createMarkStateUnit, type MarkStateUnit } from '../mark-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
@@ -32,7 +32,7 @@ describe('createMarkStateUnit', () => {
     tc = withMark();
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const panels: string[] = [];
-    tc.bus.on('panel:open').subscribe(e => panels.push(e.panel));
+    tc.bus.on('panel:open').subscribe(e => panels.push(e instanceof FrameRefusal ? e.channel : e.panel));
 
     tc.bus.emit('mark:requested', { source: RID, selector: { type: 'TextQuoteSelector', exact: 'a passage' }, motivation: 'highlighting' });
     expect(panels).toEqual([]);

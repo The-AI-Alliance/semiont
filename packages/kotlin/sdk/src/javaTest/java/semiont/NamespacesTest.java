@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import semiont.bus.Delivered;
+import semiont.bus.Heard;
 import semiont.bus.Typed;
 import semiont.errors.SemiontError;
 import semiont.channels.Channels;
@@ -103,6 +104,14 @@ final class NamespacesTest {
             public void onComplete() {}
         });
         return first;
+    }
+
+    /** What a typed read heard, as the frame it is: a refusal fails the test. */
+    private static <P> Delivered<P> delivered(Heard<P> heard) {
+        if (heard instanceof Delivered<P> frame) {
+            return frame;
+        }
+        throw new AssertionError("refused: " + heard);
     }
 
     /** Wait for `call` to settle: with a value, or refused with a failure the SDK names. */
@@ -294,16 +303,16 @@ final class NamespacesTest {
         try (Typed<JobQueuedEvent> queued = client.getJob().queued();
                 Typed<JobReportProgressCommand> progress = client.getJob().progress();
                 Typed<JobFailCommand> failed = client.getJob().fail()) {
-            CompletableFuture<Delivered<JobQueuedEvent>> announced = first(queued.asPublisher());
-            CompletableFuture<Delivered<JobReportProgressCommand>> reported = first(progress.asPublisher());
-            CompletableFuture<Delivered<JobFailCommand>> failure = first(failed.asPublisher());
+            CompletableFuture<Heard<JobQueuedEvent>> announced = first(queued.asPublisher());
+            CompletableFuture<Heard<JobReportProgressCommand>> reported = first(progress.asPublisher());
+            CompletableFuture<Heard<JobFailCommand>> failure = first(failed.asPublisher());
             transport.deliver(new Frame("job:queued", json("{\"jobId\":\"job-1\",\"jobType\":\"mark\",\"resourceId\":\"res-1\",\"userId\":\"did:web:kb.example:users:u\","
                     + "\"params\":{\"motivation\":\"highlighting\"}}"), null, (ResourceId) null, null));
             transport.deliver(new Frame("job:report-progress", json("{\"resourceId\":\"res-1\",\"jobId\":\"job-1\",\"jobType\":\"mark\",\"percentage\":50}"), null, (ResourceId) null, null));
             transport.deliver(new Frame("job:fail", json("{\"resourceId\":\"res-1\",\"jobId\":\"job-1\",\"jobType\":\"mark\",\"error\":\"it broke\"}"), null, (ResourceId) null, null));
-            assertEquals(JOB, assertInstanceOf(MarkJobQueuedEvent.class, announced.get(10, SECONDS).getPayload()).getJobId());
-            assertEquals(50.0, reported.get(10, SECONDS).getPayload().getPercentage());
-            assertEquals("it broke", failure.get(10, SECONDS).getPayload().getError());
+            assertEquals(JOB, assertInstanceOf(MarkJobQueuedEvent.class, delivered(announced.get(10, SECONDS)).getPayload()).getJobId());
+            assertEquals(50.0, delivered(reported.get(10, SECONDS)).getPayload().getPercentage());
+            assertEquals("it broke", delivered(failure.get(10, SECONDS)).getPayload().getError());
         }
     }
 }

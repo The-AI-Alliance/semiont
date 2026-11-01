@@ -11,7 +11,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
-import { EventBus, INVALIDATION_WINDOW_MS, resourceId, annotationId } from '@semiont/core';
+import { EventBus, FrameRefusal, INVALIDATION_WINDOW_MS, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
@@ -671,6 +671,25 @@ describe('Cache semantics — behaviors B1–B16, B19 and B20 against BrowseName
       // The one request the observer itself cost, which waited for the stream.
       expect(requests(emitSpy, 'browse:resources-requested')).toBe(1);
       sub.unsubscribe();
+    });
+
+    it('an event that cannot be read asks again for everything held, as after a gap', async () => {
+      const { browse, eventBus, emitSpy, getAnnotations } = createHarness();
+      await firstDefined(browse.resource(RID));
+      await firstDefined(browse.annotations(RID));
+      await firstDefined(browse.resources());
+      await firstDefined(browse.entityTypes());
+      expect(emitSpy).toHaveBeenCalledTimes(3);
+      expect(getAnnotations).toHaveBeenCalledTimes(1);
+
+      // Something changed and nothing says what.
+      eventBus.emit('mark:added', new FrameRefusal('mark:added', 'resourceId', { not: 'a recorded event' }));
+      await flush();
+
+      expect(requests(emitSpy, 'browse:resource-requested')).toBe(2);
+      expect(requests(emitSpy, 'browse:resources-requested')).toBe(2);
+      expect(requests(emitSpy, 'browse:entity-types-requested')).toBe(2);
+      expect(getAnnotations).toHaveBeenCalledTimes(2);
     });
 
     it('`bus:resume-gap` asks again for what is held of that scope, and of nothing else', async () => {

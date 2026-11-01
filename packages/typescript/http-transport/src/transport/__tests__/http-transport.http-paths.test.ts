@@ -611,11 +611,11 @@ describe('HttpTransport — HTTP wire shape', () => {
       bus.destroy();
     });
 
-    test("a payload that lacks a member its channel's schema requires is published to nobody, and said so in a warning", async () => {
-      const { EventBus } = await import('@semiont/core');
+    test("a payload that lacks a member its channel's schema requires is published as a refusal in its place, and said nowhere else", async () => {
+      const { EventBus, FrameRefusal } = await import('@semiont/core');
       const bus = new EventBus();
       transport.bridgeInto(bus);
-      const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warned = vi.spyOn(console, 'warn');
 
       // The wire's own frames are read first, which is what makes the actor the bridge relays from.
       const wire: unknown[] = [];
@@ -629,8 +629,8 @@ describe('HttpTransport — HTTP wire shape', () => {
       actorHarness.pushEvent('job:fail', failed);
 
       expect(wire, "the transport's own frames are the wire's").toEqual([lacking, failed]);
-      expect(bridged).toEqual([failed]);
-      expect(warned).toHaveBeenCalledWith("a payload on job:fail is not that channel's: it has no `jobId`");
+      expect(bridged).toStrictEqual([new FrameRefusal('job:fail', 'jobId', lacking), failed]);
+      expect(warned).not.toHaveBeenCalled();
 
       warned.mockRestore();
       bus.destroy();

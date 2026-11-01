@@ -9,7 +9,7 @@ from aio import run, soon
 from kb import recorded, refusing
 from pydantic import JsonValue, ValidationError
 
-from semiont.bus import Bus, decoded, reply_channels_for
+from semiont.bus import Bus, Delivered, FrameRefusal, decoded, reply_channels_for
 from semiont.channel import Empty
 from semiont.channels import BECKON_FOCUS, BECKON_HOVER, JOB_CREATE, JOB_QUEUED, MARK_ARCHIVED, MARK_DELETE, PANEL_CLOSE
 from semiont.errors import BusRequestError, TransportError
@@ -147,6 +147,9 @@ def test_a_payload_that_is_one_of_several_shapes_is_read_without_the_stamps_none
 
 
 def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog: pytest.LogCaptureFixture) -> None:
+    lacking: dict[str, JsonValue] = {"annotationId": "ann-1", "_userId": "did:web:example.org:users:alice"}
+    malformed: dict[str, JsonValue] = {"resourceId": "res-1", "annotationId": {"not": "an id"}}
+
     async def scenario() -> None:
         transport = FaultyTransport(channels=("beckon:focus",))
         frames = Bus(transport).frames(BECKON_FOCUS)
@@ -158,27 +161,37 @@ def test_frames_by_type_carry_their_payload_decoded_and_who_emitted_them(caplog:
                 scope=RESOURCE,
             )
         )
-        transport.deliver(Frame(channel="beckon:focus", payload={"resourceId": "res-1", "annotationId": {"not": "an id"}}))
+        transport.deliver(Frame(channel="beckon:focus", payload=lacking))
+        transport.deliver(Frame(channel="beckon:focus", payload=malformed))
         transport.deliver(Frame(channel="beckon:focus", payload={"resourceId": "res-1", "_userId": "not a DID"}))
 
         async with frames:
             first = await soon(anext(frames))
+            assert isinstance(first, Delivered)
             assert first.payload == BeckonFocusEvent(resource_id=RESOURCE, annotation_id=ANNOTATION)
             assert (first.correlation_id, first.scope, first.user_id) == ("cid-1", RESOURCE, "did:web:example.org:users:alice")
-            # What is not the channel's is not given, and the one after it is.
-            second = await soon(anext(frames))
-            assert (second.payload.resource_id, second.user_id) == (RESOURCE, None)
+            # What is not the channel's is told the reader in its place, by the way to what it lacks and with the
+            # payload as it came; the frames after it follow.
+            refused = await soon(anext(frames))
+            assert refused == FrameRefusal(channel="beckon:focus", lacks="resourceId", payload=lacking)
+            assert refused.status == "refused"
+            # One refused for what it holds lacks nothing.
+            assert await soon(anext(frames)) == FrameRefusal(channel="beckon:focus", lacks=None, payload=malformed)
+            last = await soon(anext(frames))
+            assert isinstance(last, Delivered)
+            assert (last.status, last.payload.resource_id, last.user_id) == ("delivered", RESOURCE, None)
         # A reader that has left is given no more.
         assert [frame async for frame in frames] == []
 
         # A channel the transport can never deliver is refused at the call.
-        with pytest.raises(BusRequestError) as refused:
+        with pytest.raises(BusRequestError) as unsubscribed:
             Bus(transport).frames(BECKON_HOVER)
-        assert refused.value.code == "bus.unsubscribed"
+        assert unsubscribed.value.code == "bus.unsubscribed"
 
     with caplog.at_level(logging.WARNING, logger="semiont.bus"):
         run(scenario())
-    assert len(caplog.records) == 1
+    # The reader is told, and nothing is logged in its place.
+    assert caplog.records == []
 
 
 def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_and_whose_frames_alone_it_is_given() -> None:
@@ -199,7 +212,12 @@ def test_a_resource_s_channel_is_read_for_a_resource_whose_scope_the_read_holds_
             transport.deliver(archived(other, "evt-theirs"))
             transport.deliver(archived(RESOURCE, "evt-mine"))
             heard = await soon(anext(mine))
+            assert isinstance(heard, Delivered)
             assert (heard.payload.id, heard.scope) == ("evt-mine", RESOURCE)
+            # One that lacks a member deep inside it is refused by the way to that member.
+            unsequenced: dict[str, JsonValue] = {**recorded("mark:archived", RESOURCE), "metadata": {}}
+            transport.deliver(Frame(channel="mark:archived", payload=unsequenced, scope=RESOURCE))
+            assert await soon(anext(mine)) == FrameRefusal(channel="mark:archived", lacks="metadata.sequenceNumber", payload=unsequenced)
         # Let go with the read.
         assert transport.holds(RESOURCE) == 0
 
