@@ -28,72 +28,106 @@ type item struct {
 	Resource api.ResourceDescriptor `json:"resource"`
 }
 
-func lacks(t *testing.T, generated reflect.Type, text, want string) {
+// lacks and malformed are the faults of each reason at member.
+func lacks(member string) Fault     { return Fault{Member: member, Reason: Lacks} }
+func malformed(member string) Fault { return Fault{Member: member, Reason: Malformed} }
+
+// none is no fault.
+var none = Fault{}
+
+func faults(t *testing.T, generated reflect.Type, text string, want Fault) {
 	t.Helper()
-	way, lacking := Lacking([]byte(text), generated)
-	if lacking != (want != "") || way != want {
-		t.Errorf("%s lacks %q (%v), not %q", text, way, lacking, want)
+	fault, faulty := FaultOf([]byte(text), generated)
+	if faulty != (want != none) || fault != want {
+		t.Errorf("%s has the fault %+v (%v), not %+v", text, fault, faulty, want)
 	}
 }
 
-func TestWhatAStructOfNoSchemaRequiresIsWhatItsTagsWriteWithoutOmitempty(t *testing.T) {
+func TestWhatATypeOfNoSchemaRequiresIsReadFromTheType(t *testing.T) {
 	generated := reflect.TypeFor[written]()
-	for text, want := range map[string]string{
-		`{"nickname":null}`:                        "name",
-		`{"name":null,"nickname":"n"}`:             "name",
-		`{"name":"a"}`:                             "nickname",
-		`{"name":"a","nickname":null}`:             "",
-		`{"name":"a","nickname":"n","tags":null}`:  "",
-		`{"name":"a","nickname":null,"within":{}}`: "within.depth",
-		`{"name":"a","nickname":null,"items":[{"resource":{"@context":"c","@id":"r","name":"n"}}]}`:     "items.resource.representations",
-		`{"name":"a","nickname":null,"byKey":{"k":{"resource":{"@context":"c","@id":"r","name":"n"}}}}`: "byKey.resource.representations",
+	for text, want := range map[string]Fault{
+		`{"nickname":null}`:                                   lacks("name"),
+		`{"name":null,"nickname":"n"}`:                        lacks("name"),
+		`{"name":"a"}`:                                        lacks("nickname"),
+		`{"name":"a","nickname":null}`:                        none,
+		`{"name":"a","nickname":"n","tags":null}`:             none,
+		`{"name":"a","nickname":null,"within":{}}`:            lacks("within.depth"),
+		`{"name":7,"nickname":null}`:                          malformed("name"),
+		`{"name":"a","nickname":7}`:                           malformed("nickname"),
+		`{"name":"a","nickname":null,"tags":[1]}`:             malformed("tags"),
+		`{"name":"a","nickname":null,"tags":[null]}`:          malformed("tags"),
+		`{"name":"a","nickname":null,"within":{"depth":1.5}}`: malformed("within.depth"),
+		`{"name":"a","nickname":null,"within":{"depth":2.0}}`: none,
+		`"a"`: malformed(""),
+		`{"name":"a","nickname":null,"items":[{"resource":{"@context":"c","@id":"r","name":"n"}}]}`:     lacks("items.resource.representations"),
+		`{"name":"a","nickname":null,"byKey":{"k":{"resource":{"@context":"c","@id":"r","name":"n"}}}}`: lacks("byKey.resource.representations"),
+		`{"name":"a","nickname":null,"byKey":{"k":null}}`:                                               malformed("byKey"),
 	} {
-		lacks(t, generated, text, want)
+		faults(t, generated, text, want)
 	}
 }
 
 func TestWhatATypeOfASchemaRequiresIsItsSchemas(t *testing.T) {
 	resource := reflect.TypeFor[api.ResourceDescriptor]()
-	for text, want := range map[string]string{
-		`{"@id":"r","name":"n","representations":[]}`:                                                                                "@context",
-		`{"@context":"c","@id":"r","name":"n","representations":[]}`:                                                                 "",
-		`{"@context":"c","@id":"r","name":null,"representations":[]}`:                                                                "name",
-		`{"@context":"c","@id":"r","name":"n","representations":"text"}`:                                                             "",
-		`{"@context":"c","@id":"r","name":"n","representations":{}}`:                                                                 "representations.mediaType",
-		`{"@context":"c","@id":"r","name":"n","representations":[{}]}`:                                                               "representations.mediaType",
-		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":{"@type":"Organization"}}`:                      "wasAttributedTo.name",
-		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":[{"@type":"Person"},{"@type":"Organization"}]}`: "wasAttributedTo.name",
-		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":{"@type":"Person"}}`:                            "",
-		`"a resource"`: "",
+	for text, want := range map[string]Fault{
+		`{"@id":"r","name":"n","representations":[]}`:                                                                                lacks("@context"),
+		`{"@context":"c","@id":"r","name":"n","representations":[]}`:                                                                 none,
+		`{"@context":"c","@id":"r","name":null,"representations":[]}`:                                                                lacks("name"),
+		`{"@context":"c","@id":"r","name":7,"representations":[]}`:                                                                   malformed("name"),
+		`{"@context":"c","@id":"r","name":"n","representations":"text"}`:                                                             malformed("representations"),
+		`{"@context":"c","@id":"r","name":"n","representations":[null]}`:                                                             malformed("representations"),
+		`{"@context":"c","@id":"r","name":"n","representations":{}}`:                                                                 lacks("representations.mediaType"),
+		`{"@context":"c","@id":"r","name":"n","representations":[{}]}`:                                                               lacks("representations.mediaType"),
+		`{"@context":"c","@id":"r","name":"n","representations":[{"mediaType":"text/plain","byteSize":1.5}]}`:                        malformed("representations.byteSize"),
+		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":{"@type":"Organization"}}`:                      lacks("wasAttributedTo.name"),
+		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":[{"@type":"Person"},{"@type":"Organization"}]}`: lacks("wasAttributedTo.name"),
+		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":{"@type":"Person"}}`:                            none,
+		`{"@context":"c","@id":"r","name":"n","representations":[],"wasAttributedTo":"a person"}`:                                    malformed("wasAttributedTo"),
+		`{"@context":1998,"@id":"r","representations":[]}`:                                                                           lacks("name"),
+		`"a resource"`: malformed(""),
 	} {
-		lacks(t, resource, text, want)
+		faults(t, resource, text, want)
 	}
 	// A member that may be null may hold null, and must still be stated.
 	user := reflect.TypeFor[api.UserResponse]()
-	lacks(t, user, `{"did":"did:web:example.org:users:a","domain":"example.org","email":null,"name":null,"image":null}`, "")
-	lacks(t, user, `{"did":"did:web:example.org:users:a","domain":"example.org","email":null,"name":null}`, "image")
+	faults(t, user, `{"did":"did:web:example.org:users:a","domain":"example.org","email":null,"name":null,"image":null}`, none)
+	faults(t, user, `{"did":"did:web:example.org:users:a","domain":"example.org","email":null,"name":null}`, lacks("image"))
+	faults(t, user, `{"did":"did:web:example.org:users:a","domain":"example.org","email":null,"name":null,"image":5}`, malformed("image"))
 	// Each part of a composite requires what it requires.
 	failed := reflect.TypeFor[api.GatherFailed]()
-	lacks(t, failed, `{"message":"no context"}`, "annotationId")
+	faults(t, failed, `{"message":"no context"}`, lacks("annotationId"))
 	// A map's values each carry what theirs requires.
 	profiles := reflect.TypeFor[api.BrowseProfilesResult]()
-	lacks(t, profiles, `{"response":{"profiles":{"did:web:example.org:users:a":{}}}}`, "response.profiles.name")
+	faults(t, profiles, `{"response":{"profiles":{"did:web:example.org:users:a":{}}}}`, lacks("response.profiles.name"))
 }
 
 func TestATypeWrappingOneOfASchemaHoldsItToTheSchema(t *testing.T) {
 	type response[T any] struct {
 		Response T `json:"response"`
 	}
-	lacks(t, reflect.TypeFor[response[api.JobCancelResult]](), `{}`, "response")
-	lacks(t, reflect.TypeFor[response[api.JobCancelResult]](), `{"response":{}}`, "response.cancelled")
-	lacks(t, reflect.TypeFor[response[api.JobCancelResult]](), `{"response":{"cancelled":true}}`, "")
+	faults(t, reflect.TypeFor[response[api.JobCancelResult]](), `{}`, lacks("response"))
+	faults(t, reflect.TypeFor[response[api.JobCancelResult]](), `{"response":{}}`, lacks("response.cancelled"))
+	faults(t, reflect.TypeFor[response[api.JobCancelResult]](), `{"response":{"cancelled":"yes"}}`, malformed("response.cancelled"))
+	faults(t, reflect.TypeFor[response[api.JobCancelResult]](), `{"response":{"cancelled":true}}`, none)
 }
 
-func TestAPayloadIsReadAsATypeOnlyWhenItCarriesWhatTheTypeRequires(t *testing.T) {
+func TestEveryFaultIsSaidAsEverySDKSaysIt(t *testing.T) {
+	for fault, said := range map[Fault]string{
+		lacks("representations.mediaType"): "it has no `representations.mediaType`",
+		malformed("representations"):       "its `representations` is malformed",
+		Undecoded:                          "it is malformed",
+	} {
+		if fault.String() != said {
+			t.Errorf("%+v is said %q, not %q", fault, fault.String(), said)
+		}
+	}
+}
+
+func TestAPayloadIsReadAsATypeOnlyWhenItHasNoFault(t *testing.T) {
 	if read, ok := ReadAs[written]([]byte(`{"name":"a","nickname":null}`)); !ok || read.Name != "a" {
 		t.Errorf("a payload with what written requires reads as %+v, %v", read, ok)
 	}
-	for _, text := range []string{`{"name":"a"}`, `"a"`, `null`, `[]`, `{"name":null,"nickname":null}`} {
+	for _, text := range []string{`{"name":"a"}`, `"a"`, `null`, `[]`, `{"name":null,"nickname":null}`, `{"name":7,"nickname":null}`} {
 		if _, ok := ReadAs[written]([]byte(text)); ok {
 			t.Errorf("%s is read as a written", text)
 		}
@@ -117,7 +151,7 @@ func TestTheTableNamesNothingItLacks(t *testing.T) {
 		held(name, s.Items)
 		held(name, s.Values)
 		for _, one := range s.OneOf {
-			held(name, one.Shape)
+			held(name, one)
 		}
 		if s.Discriminator != nil {
 			for value, at := range s.Discriminator.Mapping {

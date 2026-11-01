@@ -23,6 +23,8 @@
     "generate:stack-go:check": "node packages/codegen/schemas/generate-stack-go.mjs --check",
     "generate:mcp-tools-go": "node packages/codegen/schemas/generate-mcp-tools-go.mjs",
     "generate:mcp-tools-go:check": "node packages/codegen/schemas/generate-mcp-tools-go.mjs --check",
+    "generate:required": "node packages/codegen/schemas/generate-required.mjs",
+    "generate:required:check": "node packages/codegen/schemas/generate-required.mjs --check",
     "generate:encoding-cases": "node packages/codegen/schemas/generate-encoding-cases.mjs",
     "generate:encoding-cases:check": "node packages/codegen/schemas/generate-encoding-cases.mjs --check",
     "generate:model-catalogue": "node packages/python/inference/scripts/generate-model-catalogue.mjs --out packages/python/inference/tests/catalogue",

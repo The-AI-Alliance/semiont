@@ -813,7 +813,8 @@ describe('Bus.request abandoned by its caller', () => {
  * A result that lacks a member its schema requires is refused, wherever the
  * member is missing, as Rust, Python, Kotlin and Go refuse it as they decode
  * it: a `SemiontError` coded `error` that says the payload is not its
- * channel's and names the member, by the members it is within.
+ * channel's and names its first fault: the way to a member it lacks, or to
+ * one of a kind its schema does not allow.
  */
 describe('Bus.request holds a result to what its schema requires', () => {
   const EMIT = 'browse:resource-requested';
@@ -830,28 +831,35 @@ describe('Bus.request holds a result to what its schema requires', () => {
 
   const resource = { '@context': 'https://schema.org/', '@id': 'res-1', name: 'A resource', representations: [{ mediaType: 'text/plain' }] };
 
-  for (const [why, response, lacks] of [
-    ['no resource', { lastSequence: 1 }, 'response.resource'],
-    ['a resource that is null', { resource: null, lastSequence: 1 }, 'response.resource'],
-    ['a resource with no name', { resource: { ...resource, name: undefined }, lastSequence: 1 }, 'response.resource.name'],
-    ['a resource with no representations', { resource: { ...resource, representations: undefined }, lastSequence: 1 }, 'response.resource.representations'],
+  for (const [why, response, said] of [
+    ['no resource', { lastSequence: 1 }, 'it has no `response.resource`'],
+    ['a resource that is null', { resource: null, lastSequence: 1 }, 'it has no `response.resource`'],
+    ['a resource with no name', { resource: { ...resource, name: undefined }, lastSequence: 1 }, 'it has no `response.resource.name`'],
+    ['a resource with no representations', { resource: { ...resource, representations: undefined }, lastSequence: 1 }, 'it has no `response.resource.representations`'],
     [
       'a representation listed with no media type',
       { resource: { ...resource, representations: [{ mediaType: 'text/plain' }, { storageUri: 'file://a.txt' }] }, lastSequence: 1 },
-      'response.resource.representations.mediaType',
+      'it has no `response.resource.representations.mediaType`',
     ],
     [
       'one representation, with no media type',
       { resource: { ...resource, representations: { storageUri: 'file://a.txt' } }, lastSequence: 1 },
-      'response.resource.representations.mediaType',
+      'it has no `response.resource.representations.mediaType`',
     ],
     [
       'an agent of the type the discriminator names, without what that type requires',
       { resource: { ...resource, wasAttributedTo: { '@type': 'Organization' } }, lastSequence: 1 },
-      'response.resource.wasAttributedTo.name',
+      'it has no `response.resource.wasAttributedTo.name`',
     ],
+    [
+      'representations that are neither one representation nor a list of them',
+      { resource: { ...resource, representations: 'text/plain' }, lastSequence: 1 },
+      'its `response.resource.representations` is malformed',
+    ],
+    ['a name that is a number', { resource: { ...resource, name: 1998 }, lastSequence: 1 }, 'its `response.resource.name` is malformed'],
+    ['a sequence that is not a whole number', { resource, lastSequence: 1.5 }, 'its `response.lastSequence` is malformed'],
   ] as const) {
-    it(`refuses ${why}, naming what it lacks`, async () => {
+    it(`refuses ${why}, naming its fault`, async () => {
       // JSON drops a member that is undefined, as the wire does.
       const sent: unknown = JSON.parse(JSON.stringify({ response }));
       const refusal = await answered(sent).then(
@@ -861,7 +869,7 @@ describe('Bus.request holds a result to what its schema requires', () => {
       expect(refusal).toBeInstanceOf(SemiontError);
       expect(refusal).toMatchObject({
         code: 'error',
-        message: `a payload on ${RESULT} is not that channel's: it has no \`${lacks}\``,
+        message: `a payload on ${RESULT} is not that channel's: ${said}`,
       });
     });
   }

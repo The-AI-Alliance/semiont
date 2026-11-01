@@ -962,8 +962,9 @@ export const CHANNEL_STAMPS = {
  * What each channel's payload is, as a reader holds it: the component schema
  * it is (`payload`), a `{ response }` whose response is one (`response`), or
  * nothing a schema states (`{}`). A stored event is its stored form; what it
- * records is the channel's own. A payload read off the wire that lacks a
- * member its schema requires is not its channel's.
+ * records is the channel's own. A payload read off the wire with a fault as
+ * its schema's, a member it lacks or one that is malformed, is not its
+ * channel's.
  */
 export const CHANNEL_PAYLOADS = {
   'yield:created':                    { payload: 'StoredEventResponse' },

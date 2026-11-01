@@ -159,17 +159,20 @@ type Delivered[P any] struct {
 	Trace TraceContext
 }
 
-// delivered is frame with its payload decoded as P. A payload that is not
-// P's, or lacks a member P's schema requires, is a *TransportError saying
-// so; what a gateway stamps on a payload is the bus's, and P does not read
-// it unless P declares it.
+// delivered is frame with its payload decoded as P. A payload with a fault
+// as P's, or that Go's decoding refuses, is a *TransportError naming the
+// fault; what a gateway stamps on a payload is the bus's, and P does not
+// read it unless P declares it.
 func delivered[P any](frame Frame) (Delivered[P], error) {
-	var payload P
-	if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %v", frame.Channel, err), TransportErrorCodeError)
+	notTheChannels := func(fault required.Fault) error {
+		return transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: %s", frame.Channel, fault), TransportErrorCodeError)
 	}
-	if lacks, ok := required.Lacking(frame.Payload, reflect.TypeFor[P]()); ok {
-		return Delivered[P]{}, transportErrorWithoutResponse(fmt.Sprintf("a payload on %s is not that channel's: it has no `%s`", frame.Channel, lacks), TransportErrorCodeError)
+	if fault, faulty := required.FaultOf(frame.Payload, reflect.TypeFor[P]()); faulty {
+		return Delivered[P]{}, notTheChannels(fault)
+	}
+	var payload P
+	if json.Unmarshal(frame.Payload, &payload) != nil {
+		return Delivered[P]{}, notTheChannels(required.Undecoded)
 	}
 	var stamped struct {
 		UserID *string `json:"_userId"`

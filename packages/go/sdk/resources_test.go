@@ -234,39 +234,42 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 	shapes := map[string]bool{}
 	for _, raw := range table.Cases {
 		var stated struct {
-			Why                   string          `json:"why"`
-			Resource              json.RawMessage `json:"resource"`
-			EntityTypes           []string        `json:"entityTypes"`
-			PrimaryRepresentation json.RawMessage `json:"primaryRepresentation"`
-			PrimaryMediaType      *string         `json:"primaryMediaType"`
-			Refused               *bool           `json:"refused"`
-			Lacks                 *string         `json:"lacks"`
+			Why                   string           `json:"why"`
+			Resource              json.RawMessage  `json:"resource"`
+			EntityTypes           []string         `json:"entityTypes"`
+			PrimaryRepresentation json.RawMessage  `json:"primaryRepresentation"`
+			PrimaryMediaType      *string          `json:"primaryMediaType"`
+			Refused               *bool            `json:"refused"`
+			Member                *string          `json:"member"`
+			Reason                *required.Reason `json:"reason"`
 		}
 		strictly(t, raw, &stated)
-		var resource api.ResourceDescriptor
-		if err := json.Unmarshal(stated.Resource, &resource); err != nil {
-			t.Fatalf("%s: the resource does not decode: %v", stated.Why, err)
-		}
-		// What the SDK holds a resource it decodes to, beside Go's decoding.
-		lacks, lacking := required.Lacking(stated.Resource, reflect.TypeFor[api.ResourceDescriptor]())
-		if stated.Refused != nil && *stated.Refused && stated.Lacks != nil {
-			shapes["refused, lacking a member"] = true
-			if !lacking || lacks != *stated.Lacks {
-				t.Errorf("%s: lacks %q (%v), and the table says its decoding refuses it, lacking %q", stated.Why, lacks, lacking, *stated.Lacks)
+		// What the SDK holds a resource to before it decodes it.
+		fault, faulty := required.FaultOf(stated.Resource, reflect.TypeFor[api.ResourceDescriptor]())
+		if stated.Refused != nil && *stated.Refused {
+			shapes["refused, "+string(*stated.Reason)] = true
+			if want := (required.Fault{Member: *stated.Member, Reason: *stated.Reason}); !faulty || fault != want {
+				t.Errorf("%s: has the fault %+v (%v), and the table says it is refused for %+v", stated.Why, fault, faulty, want)
+			}
+			if *stated.Member == "representations" && *stated.Reason == required.Malformed {
+				// A resource no reply brought can reach the readers, which refuse it.
+				var resource api.ResourceDescriptor
+				if err := json.Unmarshal(stated.Resource, &resource); err != nil {
+					t.Fatalf("%s: the resource does not decode: %v", stated.Why, err)
+				}
+				_, _, err := semiont.PrimaryRepresentation(resource)
+				refusedNaming(t, stated.Why+": PrimaryRepresentation", err, "representation")
+				_, _, err = semiont.PrimaryMediaType(resource)
+				refusedNaming(t, stated.Why+": PrimaryMediaType", err, "representation")
 			}
 			continue
 		}
-		if lacking {
-			t.Errorf("%s: lacks %q, and the table says it lacks nothing", stated.Why, lacks)
+		if faulty {
+			t.Errorf("%s: has the fault %+v, and the table says it has none", stated.Why, fault)
 		}
-		if stated.Refused != nil && *stated.Refused {
-			// It lacks no member, which is all Go's decoding refuses, so its readers refuse it.
-			shapes["refused, lacking nothing"] = true
-			_, _, err := semiont.PrimaryRepresentation(resource)
-			refusedNaming(t, stated.Why+": PrimaryRepresentation", err, "representation")
-			_, _, err = semiont.PrimaryMediaType(resource)
-			refusedNaming(t, stated.Why+": PrimaryMediaType", err, "representation")
-			continue
+		var resource api.ResourceDescriptor
+		if err := json.Unmarshal(stated.Resource, &resource); err != nil {
+			t.Fatalf("%s: the resource does not decode: %v", stated.Why, err)
 		}
 		representation, ok, err := semiont.PrimaryRepresentation(resource)
 		if err != nil {
@@ -310,7 +313,7 @@ func TestEveryReaderOfAResourceGivesWhatTheTableSays(t *testing.T) {
 		shapes["entity types"] = shapes["entity types"] || len(stated.EntityTypes) > 0
 		shapes["no entity types"] = shapes["no entity types"] || len(stated.EntityTypes) == 0
 	}
-	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types", "refused, lacking a member", "refused, lacking nothing"} {
+	for _, shape := range []string{"one", "list", "none", "entity types", "no entity types", "refused, lacks", "refused, malformed"} {
 		if !shapes[shape] {
 			t.Errorf("the table lacks a case of a resource: %s", shape)
 		}

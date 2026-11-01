@@ -14,9 +14,9 @@
  *   read for one resource: the read holds that resource's scope while it is
  *   read, and is given that resource's frames and no other's. Read with no
  *   resource, such a channel does not compile, and is refused when called;
- *   so is any other channel read for a resource. A frame whose payload lacks
- *   a member its channel's schema requires is told the reader in its place,
- *   as a `FrameRefusal` (`asDeclared`), and the frames after it follow.
+ *   so is any other channel read for a resource. A frame whose payload has a
+ *   fault as its channel's is told the reader in its place, as a
+ *   `FrameRefusal` (`asDeclared`), and the frames after it follow.
  * - `request` sends an operation's request and awaits its reply.
  */
 
@@ -28,7 +28,7 @@ import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import { BusRequestError, classifyFailureCode, type BusReply } from './bus-request';
 import { SemiontError } from './errors';
-import { lackingOf, type Shape } from './required';
+import { faultOfShape, faultSaid, type Fault, type Shape } from './required';
 import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { isResourceScopedChannel, type ResourceScopedChannel, type UnscopedChannel } from './bridged-channels';
 import { uuidV4 } from './id-generation';
@@ -133,23 +133,27 @@ export interface Delivered<T> {
 }
 
 /**
- * A frame a typed read refused, in its place: its payload lacks a member its
- * channel's schema requires. A class, so that a reader of payloads
- * (`EventBus.on`), whatever their shape, tells one apart with `instanceof`; a
- * reader of frames reads `status`, as it reads `Delivered`'s.
+ * A frame a typed read refused, in its place: its payload has a fault as its
+ * channel's, a member it lacks or one that is malformed. A class, so that a
+ * reader of payloads (`EventBus.on`), whatever their shape, tells one apart
+ * with `instanceof`; a reader of frames reads `status`, as it reads
+ * `Delivered`'s.
  */
 export class FrameRefusal {
   readonly status = 'refused' as const;
   /** The channel the frame came on. */
   readonly channel: keyof EventMap;
-  /** The way to the member the payload lacks: the names of the members it is within and its own, joined by dots. */
-  readonly lacks: string;
+  /** The way to the member the fault is at: the names of the members it is within and its own, joined by dots; empty for the payload itself. */
+  readonly member: string;
+  /** Why: `lacks`, the payload does not carry the member or it holds null where it may not; `malformed`, the member is of a kind its schema does not allow. */
+  readonly reason: Fault['reason'];
   /** The payload as it came, the gateway's stamps and all. */
   readonly payload: unknown;
 
-  constructor(channel: keyof EventMap, lacks: string, payload: unknown) {
+  constructor(channel: keyof EventMap, member: string, reason: Fault['reason'], payload: unknown) {
     this.channel = channel;
-    this.lacks = lacks;
+    this.member = member;
+    this.reason = reason;
     this.payload = payload;
   }
 }
@@ -167,26 +171,26 @@ const EMITTED_BY = '_userId';
 function payloadShape(channel: keyof EventMap): Shape {
   const declared = CHANNEL_PAYLOADS[channel];
   if ('payload' in declared) return { ref: declared.payload };
-  if ('response' in declared) return { required: ['response'], members: { response: { ref: declared.response } } };
+  if ('response' in declared) return { kinds: ['object'], required: ['response'], members: { response: { ref: declared.response } } };
   return {};
 }
 
-/** What is said of a payload on `channel` that lacks the member `lacks` names, in every SDK's words. */
-const notTheChannels = (channel: string, lacks: string): string => `a payload on ${channel} is not that channel's: it has no \`${lacks}\``;
+/** What is said of a payload on `channel` that has `fault`, in every SDK's words. */
+const notTheChannels = (channel: string, fault: Fault): string => `a payload on ${channel} is not that channel's: ${faultSaid(fault)}`;
 
 /**
  * `payload` as `channel` types it: the rule every SDK's typed read keeps. A
  * stamp the gateway put on it that the channel's payload type does not
  * declare (`CHANNEL_STAMPS`) is the bus's, not the payload's, and is left
- * out. A payload that lacks a member its channel's schema requires is not
- * its channel's: its refusal is given in its place, as every SDK's typed
- * read gives one. A refusal, which a bus a transport bridged into carries
- * and a relay passes on, is one already.
+ * out. A payload with a fault as its channel's is not its channel's: its
+ * refusal is given in its place, as every SDK's typed read gives one. A
+ * refusal, which a bus a transport bridged into carries and a relay passes
+ * on, is one already.
  */
 export function asDeclared<K extends keyof EventMap>(channel: K, payload: EventMap[K] | FrameRefusal): EventMap[K] | FrameRefusal {
   if (payload instanceof FrameRefusal) return payload;
-  const lacks = lackingOf(payloadShape(channel), payload);
-  if (lacks !== undefined) return new FrameRefusal(channel, lacks, payload);
+  const fault = faultOfShape(payloadShape(channel), payload);
+  if (fault !== undefined) return new FrameRefusal(channel, fault.member, fault.reason, payload);
   if (typeof payload !== 'object' || payload === null) return payload;
   const declared: readonly string[] = CHANNEL_STAMPS[channel];
   return Object.fromEntries(
@@ -335,18 +339,18 @@ export class Bus {
 
     // Matched on the ENVELOPE. The payload is read only for what it means —
     // the response, or the failure's message and code — never for routing. A
-    // result that lacks a member its schema requires is refused, as every
-    // other SDK refuses it as it decodes it.
+    // result with a fault as its schema's is refused, as every other SDK
+    // refuses it.
     const settled$ = merge(
       bus.frames(resultChannel as keyof EventMap).pipe(
         filter((frame) => frame.correlationId === correlationId),
         map(({ payload: e }) => {
-          const lacks = lackingOf(payloadShape(resultChannel), e);
-          return lacks === undefined
+          const fault = faultOfShape(payloadShape(resultChannel), e);
+          return fault === undefined
             ? { ok: true as const, response: (e as Record<string, unknown>).response as BusReply<Op> }
             : {
                 ok: false as const,
-                error: new SemiontError(notTheChannels(resultChannel, lacks), 'error', {
+                error: new SemiontError(notTheChannels(resultChannel, fault), 'error', {
                   channel: resultChannel,
                   correlationId,
                 }),

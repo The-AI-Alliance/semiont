@@ -1,15 +1,13 @@
 /**
  * An answer's body, read as the schema its operation declares.
  *
- * Rust's, Python's and Go's transports decode an answer as the type of its
- * declared body, and refuse one that lacks a member the schema requires,
- * wherever the member is. This transport holds every answer it reads to what
- * its schema requires, and refuses such an answer as they do: as an `error`
- * that states the answer's status, says the answer is not its declared body
- * and names the member.
+ * Every SDK's transport holds an answer to what the schema of its declared
+ * body requires before it reads it, and refuses one with a fault, wherever
+ * the fault is: as an `error` that states the answer's status, says the
+ * answer is not its declared body and names the fault.
  */
 
-import { memberLacking, type components } from '@semiont/core';
+import { faultOf, faultSaid, type components } from '@semiont/core';
 import { APIError } from './api-error';
 
 type Schemas = components['schemas'];
@@ -23,7 +21,7 @@ interface Answer {
 
 /**
  * The body of `answer`, the answer to `method` `path`, as `schema`: refused
- * when it lacks a member the schema requires. `report`, when given, is told
+ * when it has a fault as the schema's. `report`, when given, is told
  * of the refusal before it is thrown: a transport's error stream.
  */
 export async function declaredBody<K extends keyof Schemas>(
@@ -34,10 +32,10 @@ export async function declaredBody<K extends keyof Schemas>(
   report?: (failure: APIError) => void,
 ): Promise<Schemas[K]> {
   const body = await answer.json();
-  const lacks = memberLacking(schema, body);
-  if (lacks === undefined) return body as Schemas[K];
+  const fault = faultOf(schema, body);
+  if (fault === undefined) return body as Schemas[K];
   const failure = APIError.fromStatus(
-    `${method} ${path} answered what is not its declared body: it has no \`${lacks}\``,
+    `${method} ${path} answered what is not its declared body: ${faultSaid(fault)}`,
     answer.status,
     answer.statusText,
     undefined,

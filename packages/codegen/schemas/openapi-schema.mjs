@@ -9,8 +9,8 @@
 //     through the bundled spec)
 //   - packages/codegen/schemas/generate-mcp-tools-go.mjs, the launcher's MCP tools
 //     (2020-12, each tool's schema self-contained)
-//   - packages/codegen/schemas/required-members.mjs, what each component requires of a
-//     value, which Go's and TypeScript's reply checks are generated from
+//   - packages/codegen/schemas/required-shapes.mjs, what each component requires of a
+//     value, which every SDK's reply checks are generated from
 //
 // `discriminator` is left as it is written: a dispatch hint beside the `oneOf`
 // that decides, which is OpenAPI's own meaning for it, and a keyword a JSON

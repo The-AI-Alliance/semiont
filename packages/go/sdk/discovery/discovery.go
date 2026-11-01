@@ -126,8 +126,8 @@ func ParseDiscoveryDocument(text string) DiscoveryState {
 			),
 		}
 	}
-	if way, lacks := required.Lacking(data, reflect.TypeFor[api.DiscoveryDocument]()); lacks {
-		return invalid(fmt.Sprintf("missing %q", way))
+	if fault, faulty := required.FaultOf(data, reflect.TypeFor[api.DiscoveryDocument]()); faulty {
+		return invalid(fault.String())
 	}
 	var entries []json.RawMessage
 	if err := json.Unmarshal(members["kbs"], &entries); err != nil {
