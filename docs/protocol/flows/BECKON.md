@@ -6,7 +6,7 @@ Beckon directs attention: it points another participant at a passage, or opens a
 
 | SDK method | Returns | On the wire | Does on every other participant's viewer |
 |---|---|---|---|
-| `beckon.attention` | how many clients it reached | `beckon:focus` | Scrolls to an annotation, or, given none, attends to the resource as a whole |
+| `beckon.attention` | how many clients it reached | `beckon:focus` | Scrolls to an annotation, or, given none, brings the resource forward at its top |
 | `beckon.click` | how many clients it reached | `browse:click` | Opens an annotation |
 | `beckon.openResource` | how many clients it reached | `browse:resource-open` | Opens a resource |
 | `beckon.sparkleAll` | how many clients it reached | `beckon:sparkle` | Draws the eye to an annotation |
@@ -23,7 +23,7 @@ Each is a frame sent with no reply awaited. The gateway relays it to every conne
 
 **Focus points; a click opens.** `beckon:focus` scrolls a viewer to an annotation and stops. `browse:click` opens it. A guide chooses between "notice this" and "read this".
 
-**`beckon:focus` always names a resource, as a guard.** A viewer showing a different resource ignores it. It never moves a viewer to another resource: that is `browse:resource-open`. A focus that names no annotation attends to the resource as a whole.
+**`beckon:focus` always names a resource.** A focus on an annotation is guarded by it: a viewer showing a different resource ignores the focus, and is never moved. A focus that names no annotation is on the resource itself: the viewer brings that resource forward, opening it if it is not open, and shows it from its top.
 
 **Presence is the consumer's to build.** Beckon delivers signals. It keeps no record of who is looking at what, and aggregates nothing. An application that wants "three people are here" builds it from these signals and its own state.
 
@@ -32,7 +32,7 @@ Each is a frame sent with no reply awaited. The gateway relays it to every conne
 ```typescript
 const watching = await semiont.beckon.attention(resourceId, annotationId);
 if (watching === 0) console.warn('nobody is watching');
-await semiont.beckon.attention(resourceId); // the resource as a whole
+await semiont.beckon.attention(resourceId); // the resource itself, brought forward
 
 await semiont.beckon.openResource(resourceId);
 await semiont.beckon.sparkleAll(annotationId);

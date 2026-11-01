@@ -670,4 +670,30 @@ describe('BrowseView — beckon:focus is guarded by resourceId', () => {
     client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7'), resourceId: resourceId('res-2') });
     client.bus.emit('beckon:focus', { annotationId: annotationId('ann-7'), resourceId: resourceId('res-1') });
   });
+
+  it('scrolls its content to the top on a focus naming this resource and no annotation, and on no other', () => {
+    const { session, client } = createTestSemiontWrapper();
+    const { container } = render(
+      <BrowseView
+        translationManager={englishTranslationManager}
+        content="hello world"
+        mimeType="text/plain"
+        resourceUri={resourceId("res-1")}
+        annotations={{ highlights: [], references: [], assessments: [], comments: [], tags: [] }}
+        session={session}
+        annotateMode={false}
+      />,
+    );
+    // jsdom lays nothing out and gives an element no scrollTo of its own.
+    const content = container.querySelector<HTMLElement>('.semiont-browse-view__content');
+    if (!content) throw new Error('the view rendered no content to scroll');
+    const scrollTo = vi.fn();
+    content.scrollTo = scrollTo;
+
+    client.bus.emit('beckon:focus', { resourceId: resourceId('res-2') });
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    client.bus.emit('beckon:focus', { resourceId: resourceId('res-1') });
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 0, behavior: 'smooth' });
+  });
 });

@@ -72,19 +72,14 @@ function named(where, entry) {
 /** An argument's name, schema and whether the call must state it. */
 function argument(tool, entry) {
   const where = `${tool}'s argument ${entry.name ?? entry.member}`;
-  only(where, entry, ['name', 'from', 'member', 'schema', 'listOf', 'own', 'required', 'optional', 'why']);
+  only(where, entry, ['name', 'from', 'member', 'schema', 'listOf', 'own', 'required', 'optional']);
   if (entry.from && !entry.listOf) {
     if (entry.name) refuse(where, 'a member of a component is named as the component names it');
+    if (entry.required !== undefined) refuse(where, 'a member of a component is required as the component requires it');
     const { schema, required } = memberOf(where, entry.from, entry.member);
     if (entry.optional !== undefined) {
       if (!required) refuse(where, `\`optional\` where ${entry.from} already leaves ${entry.member} optional`);
       return { name: entry.member, schema, required: false };
-    }
-    if (entry.required !== undefined) {
-      if (required || entry.required !== true || !entry.why) {
-        refuse(where, `\`required\` on a member makes one the component leaves optional required, and says \`why\``);
-      }
-      return { name: entry.member, schema, required: true };
     }
     return { name: entry.member, schema, required };
   }
