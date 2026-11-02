@@ -56,14 +56,19 @@ var generatedTable []byte
 
 // schemas is what each component schema of the spec requires, by its name.
 var schemas = sync.OnceValue(func() map[string]*shape {
+	return readSchemas(generatedTable)
+})
+
+// readSchemas refuses a malformed generated table instead of silently using no schemas.
+func readSchemas(source []byte) map[string]*shape {
 	var table struct {
 		Schemas map[string]*shape `json:"schemas"`
 	}
-	if err := json.Unmarshal(generatedTable, &table); err != nil {
+	if err := json.Unmarshal(source, &table); err != nil {
 		panic("schemas_gen.json is not what packages/codegen/schemas/generate-required-go.mjs writes: " + err.Error())
 	}
 	return table.Schemas
-})
+}
 
 var (
 	apiPackage = reflect.TypeFor[api.ResourceId]().PkgPath()
