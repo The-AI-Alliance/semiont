@@ -94,7 +94,7 @@ func TestAStartKeepsTheBlockItPlannedOnUnlessAnotherRootKeptIt(t *testing.T) {
 // gateway, and the containers' side of a port a person dials too — and
 // leaves the gateway's, the Keycloak's and the shared ones' where they are.
 func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
-	plan, err := derivePlan(fixtureStack(t, "ollama-gemma"), 8090, 1)
+	plan, err := derivePlan(fixtureStack(t, "ollama-gemma"), fixtureKB(t).key(), 8090, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +145,7 @@ func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 func TestABlockLeavesAnExternalDaemonWhereItsDocumentSays(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.Graph.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.example.org:7687"}
-	plan, err := derivePlan(st, 8090, 1)
+	plan, err := derivePlan(st, fixtureKB(t).key(), 8090, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

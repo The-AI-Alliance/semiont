@@ -699,7 +699,7 @@ func TestStartStagesEveryAddressAsALiteral(t *testing.T) {
 	// The gateway and Neo4j's bolt port are a person's too, so the containers
 	// dial their own side of each (containersSide).
 	mustContain(t, "staged librarian.json", librarian,
-		`"gatewayUrl": "http://192.168.64.1:14000"`, "bolt://192.168.64.1:17687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+		`"gatewayUrl": "http://192.168.64.1:14000"`, "bolt://192.168.64.1:17687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/"+testKBKey)
 	if strings.Contains(librarian, "${") {
 		t.Errorf("the staged librarian.json leaves an address to its environment:\n%s", librarian)
 	}
@@ -970,11 +970,11 @@ func TestStartDryRunNetworkLAN(t *testing.T) {
 		"--publish 4000:4000", "--publish <host-addr>:14000:4000",
 		"-p <host-addr>:18080:8080",
 		"KC_HOSTNAME=http://<lan-addr>:8080",
-		"issuer-proxy --listen <lan-addr>:8080 --upstream <host-addr>:18080 --realm semiont",
-		"wait: http://<host-addr>:18080/realms/semiont (90s)",
-		"wait: http://<lan-addr>:8080/realms/semiont (15s)",
+		"issuer-proxy --listen <lan-addr>:8080 --upstream <host-addr>:18080 --realm "+testKBKey,
+		"wait: http://<host-addr>:18080/realms/"+testKBKey+" (90s)",
+		"wait: http://<lan-addr>:8080/realms/"+testKBKey+" (15s)",
 		"network lan: the gateway answers the network at <lan-addr>:4000",
-		"network lan: the issuer answers it at http://<lan-addr>:8080/realms/semiont")
+		"network lan: the issuer answers it at http://<lan-addr>:8080/realms/"+testKBKey)
 	for _, absent := range []string{"127.0.0.1:4000:4000", "<host-addr>:8080:8080"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("a lan start still publishes %s:\n%s", absent, stdout)
@@ -1036,13 +1036,13 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Answering the network at 192.168.2.10",
 		"http://192.168.2.10:4000",
-		"http://192.168.2.10:8080/realms/semiont",
+		"http://192.168.2.10:8080/realms/"+testKBKey,
 		"Plain HTTP")
 	mustContain(t, "argv", s.argv(t), "--publish 4000:4000", "-p 192.168.64.1:18080:8080", "KC_HOSTNAME=http://192.168.2.10:8080")
 	for _, staged := range []string{"librarian.json", "gateway.json"} {
-		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/semiont")
+		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/"+testKBKey)
 	}
-	mustContain(t, "the worker's document", sharedFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/semiont")
+	mustContain(t, "the worker's document", sharedFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/"+testKBKey)
 	status := func(url string) int {
 		t.Helper()
 		resp, err := http.Get(url)
@@ -1052,7 +1052,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 		resp.Body.Close()
 		return resp.StatusCode
 	}
-	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+	if got := status("http://127.0.0.1:8080/realms/" + testKBKey); got != http.StatusOK {
 		t.Errorf("the realm through the issuer proxy answered %d", got)
 	}
 	if got := status("http://127.0.0.1:8080/admin/master/console/"); got != http.StatusNotFound {
@@ -1084,7 +1084,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	}
 	mustContain(t, "status", revival, fmt.Sprintf("The issuer proxy (pid %d) is not running; starting it again.", killed))
 	before = claimProxy()
-	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+	if got := status("http://127.0.0.1:8080/realms/" + testKBKey); got != http.StatusOK {
 		t.Errorf("after status restarted the issuer proxy the realm through it answered %d", got)
 	}
 	// Restarting the issuer replaces its proxy: the old one leaves the
@@ -1095,7 +1095,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	if after := claimProxy(); after == before {
 		t.Errorf("after an issuer restart the record names proxy pid %d, the one before it: want a new one", after)
 	}
-	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+	if got := status("http://127.0.0.1:8080/realms/" + testKBKey); got != http.StatusOK {
 		t.Errorf("after an issuer restart the realm through the proxy answered %d", got)
 	}
 	if _, stderr, code := s.run(t, "stop"); code != 0 {
@@ -1103,7 +1103,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		resp, err := http.Get("http://127.0.0.1:8080/realms/semiont")
+		resp, err := http.Get("http://127.0.0.1:8080/realms/" + testKBKey)
 		if err != nil {
 			break
 		}
@@ -1174,7 +1174,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 		if run := keycloakRun(t, argv); !strings.Contains(run, "-p 192.168.64.1:"+step.want+":8080") {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
-		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
+		issuer := "http://192.168.64.1:" + step.want + "/realms/" + testKBKey
 		for _, staged := range []string{"smelter.json", "weaver.json", "librarian.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
@@ -1237,7 +1237,7 @@ func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
 				// The issuer is named in what each service is staged; the probe's
 				// answer still places every other daemon.
 				librarian := stagedFile(t, s, "librarian.json")
-				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/semiont") {
+				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/"+testKBKey) {
 					t.Errorf("the staged issuer is not the issuer's name:\n%s", librarian)
 				}
 				if !strings.Contains(librarian, "bolt://"+probe.addr+":7687") {
@@ -1289,7 +1289,7 @@ func TestKeycloakRunsInProductionModeAtTheIssuerTheServicesTrust(t *testing.T) {
 			if err := json.Unmarshal([]byte(stagedFile(t, s, "gateway.json")), &gateway); err != nil {
 				t.Fatal(err)
 			}
-			if hostname == "" || gateway.Identity.Issuer != hostname+"/realms/semiont" {
+			if hostname == "" || gateway.Identity.Issuer != hostname+"/realms/"+testKBKey {
 				t.Errorf("Keycloak's hostname is %q and the gateway trusts the issuer %q: its tokens would name another issuer", hostname, gateway.Identity.Issuer)
 			}
 		})
@@ -2450,7 +2450,7 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	// The Neo4j Browser's port is a person's alone, wherever a block places it.
 	mustNotContain(t, "the second knowledge base's start", second, ":5432:5432", ":24103:24103", "17484")
 	mustContain(t, "the second start's librarian.json", stagedFile(t, s, "librarian.json"),
-		"bolt://192.168.64.1:17697", "http://192.168.64.1:8090/realms/semiont", `"port": 24113`)
+		"bolt://192.168.64.1:17697", "http://192.168.64.1:8090/realms/example.github.io-other-kb", `"port": 24113`)
 	mustContain(t, "the second start's dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4232")
 	mustContain(t, "the second start's smelter.json", stagedFile(t, s, "smelter.json"), `"port": 6343`, `"port": 24113`)
 	if got := blockOf(other); got != "1" {
@@ -3311,7 +3311,7 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("login: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "output", stdout+stderr, "realms/semiont", "FAKE-CODE")
+	mustContain(t, "output", stdout+stderr, "realms/fake-kb", "FAKE-CODE")
 	mustContain(t, "stdout", stdout, "Logged in", "admin@example.com")
 	if strings.Contains(stdout+stderr, "Password") {
 		t.Errorf("login asked for a password:\n%s\n%s", stdout, stderr)
@@ -3325,7 +3325,7 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	mustContain(t, "device authorization", string(da), "client_id=semiont-cli", "offline_access")
 	signIn, ok := storedSignIn(t, s.home, localKey)
 	if !ok || tagOf(signIn.Token) != "fake-jwt-token" || signIn.RefreshToken != "fake-refresh-token" ||
-		signIn.Issuer != "http://localhost:4000/realms/semiont" || signIn.TokenEndpoint == "" || signIn.Email != "admin@example.com" {
+		signIn.Issuer != "http://localhost:4000/realms/fake-kb" || signIn.TokenEndpoint == "" || signIn.Email != "admin@example.com" {
 		t.Errorf("tokens.json after login does not hold the issued session: %+v (%v)", signIn, ok)
 	}
 	if open := harness.OpenToOthers(t, tokensPathFor(s.home)); open != "" {

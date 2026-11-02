@@ -177,10 +177,12 @@ head_ "Status"
 if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
 head_ "The realm the launcher staged"
+# The knowledge base's realm is its key, made from the domain init was given.
 # If the import silently produced a different realm, this 404s.
-curl -fsS http://localhost:8080/realms/semiont >/dev/null \
-  && ok "realm 'semiont' answers" || bad "realm 'semiont' does not answer"
-curl -fsS http://localhost:8080/realms/semiont/.well-known/openid-configuration >/dev/null \
+REALM=example.github.io-stack-smoke
+curl -fsS "http://localhost:8080/realms/$REALM" >/dev/null \
+  && ok "realm '$REALM' answers" || bad "realm '$REALM' does not answer"
+curl -fsS "http://localhost:8080/realms/$REALM/.well-known/openid-configuration" >/dev/null \
   && ok "discovery answers" || bad "discovery does not answer"
 
 head_ "The realm allows the Browser's origin"
@@ -192,7 +194,7 @@ HDR=$(curl -s -D- -o /dev/null -X POST \
   -H "Origin: http://localhost:3000" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data "grant_type=authorization_code&client_id=semiont-browser&code=bogus&redirect_uri=http://localhost:3000/en/auth/callback" \
-  http://localhost:8080/realms/semiont/protocol/openid-connect/token \
+  "http://localhost:8080/realms/$REALM/protocol/openid-connect/token" \
   | tr -d '\r' | grep -i '^access-control-allow-origin:')
 case "$HDR" in
   *"http://localhost:3000"*) ok "origin echoed: $HDR" ;;

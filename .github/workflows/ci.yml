@@ -1103,7 +1103,7 @@ jobs:
             '  "kb": { "name": "test-project", "domain": "localhost" },' \
             '  "port": 4000,' \
             '  "publicUrl": "http://localhost:4000",' \
-            '  "identity": { "issuer": "http://localhost:8080/realms/semiont", "subjectClaim": "sub" },' \
+            '  "identity": { "issuer": "http://localhost:8080/realms/localhost", "subjectClaim": "sub" },' \
             '  "archivist": { "host": "localhost", "port": 24103 },' \
             '  "signal": { "type": "in-process" },' \
             '  "logLevel": "info",' \

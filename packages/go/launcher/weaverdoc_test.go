@@ -58,7 +58,7 @@ func TestWeaverDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the address this start places", doc.GatewayUrl)
 	}
-	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/example.github.io-test-kb" {
 		t.Errorf("identity.issuer = %q", doc.Identity.Issuer)
 	}
 	want := api.Neo4jGraphConfig{
