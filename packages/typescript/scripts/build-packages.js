@@ -48,9 +48,8 @@ try {
 // the order is wrong.)
 //
 // Restrict to `publish: true` — non-publishable entries (test-utils,
-// desktop) have build paths that don't fit this iteration.
-// Desktop in particular runs `tauri build`, which has no place in
-// the npm dev/CI loop.
+// desktop) have build paths that don't fit package publication builds.
+// Desktop renderer compilation and installer packaging are handled by its own scripts.
 const versionJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf-8'));
 const everyStep = Object.entries(versionJson.packages).filter(([, pkg]) => pkg.publish);
 const manifestOf = (pkg) => JSON.parse(fs.readFileSync(path.join(ROOT, pkg.dir, 'package.json'), 'utf-8'));
