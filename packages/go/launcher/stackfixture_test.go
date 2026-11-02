@@ -15,6 +15,17 @@ var fixtureRoot = filepath.Join("testdata", "kb")
 // start hands it (kbRoot.served).
 var exampleKB = api.KbIdentity{Name: "Example KB", Domain: "example.github.io:example-kb"}
 
+// fixtureKB: the fixture knowledge base as a start resolves it, with the
+// identity its config states. Its key is the realm its Keycloak keeps it in.
+func fixtureKB(t *testing.T) kbRoot {
+	t.Helper()
+	ident, err := readKBIdentity(fixtureRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return kbRoot{dir: fixtureRoot, ident: ident}
+}
+
 // fixtureStack: the fixture knowledge base's documents, with the Inference
 // document named inference ("anthropic" or "ollama-gemma"), read as a start
 // reads them. Each call is a fresh copy, for a test to change before it plans

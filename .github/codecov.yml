@@ -220,6 +220,10 @@ ignore:
   - "packages/go/launcher/fakert/**"
   - "packages/go/launcher/harness/**"
 
+  # Independent test/documentation infrastructure, formerly under root tests/.
+  - "images/e2e/**"
+  - "docs/checks/doc-snippets/**"
+
   # Build artifacts
   - "**/dist/**"
   - "**/build/**"

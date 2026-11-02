@@ -362,7 +362,7 @@ func Start(args []string) int {
 		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
 			return 1
 		}
-		if plan, err = derivePlan(st, kcPort, block); err != nil {
+		if plan, err = derivePlan(st, kb.key(), kcPort, block); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}

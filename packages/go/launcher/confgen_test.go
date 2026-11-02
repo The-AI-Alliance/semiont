@@ -163,7 +163,7 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a start does not read the documents init wrote: %v", err)
 	}
-	if _, err := derivePlan(st, 8080, 0); err != nil {
+	if _, err := derivePlan(st, fixtureKB(t).key(), 8080, 0); err != nil {
 		t.Fatalf("a start cannot plan the documents init wrote: %v", err)
 	}
 	providers := st.Inference.Spec.Providers

@@ -24,7 +24,7 @@ import (
 // run as the catalog's worker document says.
 func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 	t.Helper()
-	plan, err := derivePlan(st, 8080, 0)
+	plan, err := derivePlan(st, fixtureKB(t).key(), 8080, 0)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
 	}
@@ -39,7 +39,7 @@ func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 // refused BEFORE anything is launched, and saying where is the whole value.
 func mustRefuse(t *testing.T, st *stack.Stack, want ...string) {
 	t.Helper()
-	plan, err := derivePlan(st, 8080, 0)
+	plan, err := derivePlan(st, fixtureKB(t).key(), 8080, 0)
 	if err == nil {
 		t.Fatalf("derivePlan accepted documents the stack cannot run: %+v", plan.Roles)
 	}
@@ -436,7 +436,7 @@ func TestLauncherRunBrokerIsAlwaysAuthenticated(t *testing.T) {
 // Keycloak publishes on, what the port check guards, and what the realm is
 // reached at.
 func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
-	plan, err := derivePlan(fixtureStack(t, "anthropic"), 8081, 0)
+	plan, err := derivePlan(fixtureStack(t, "anthropic"), fixtureKB(t).key(), 8081, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +444,7 @@ func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
 	if rp.Presence != presenceLauncher || rp.Port != 8081 {
 		t.Errorf("identity = %s on %d, want launcher-run on 8081", rp.Presence, rp.Port)
 	}
-	if rp.Issuer != "http://localhost:8081/realms/semiont" {
+	if rp.Issuer != "http://localhost:8081/realms/example.github.io-test-kb" {
 		t.Errorf("issuer %q, want the realm on this launch's port", rp.Issuer)
 	}
 }
@@ -498,7 +498,7 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	} {
 		st := fixtureStack(t, "anthropic")
 		c.engines(&st.Inference.Spec.Engines)
-		plan, err := derivePlan(st, 8080, 0)
+		plan, err := derivePlan(st, fixtureKB(t).key(), 8080, 0)
 		if err != nil {
 			t.Fatalf("%s: %v", c.why, err)
 		}

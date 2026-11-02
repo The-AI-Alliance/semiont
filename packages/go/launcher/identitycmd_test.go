@@ -59,7 +59,7 @@ func identityOutput(t *testing.T, args ...string) (int, string, string) {
 }
 
 func TestIdentitySyncCreatesWhatTheRealmLacks(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", nil)
+	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
 	root := syncFixture(t, admin)
 
 	code, stdout, stderr := identityOutput(t, "sync", "--root", root, "--config", "anthropic")
@@ -69,7 +69,7 @@ func TestIdentitySyncCreatesWhatTheRealmLacks(t *testing.T) {
 	for _, svc := range accountServices() {
 		harness.MustContainAll(t, "stdout", stdout, "created "+serviceClientID(svc))
 	}
-	harness.MustContainAll(t, "stdout", stdout, "Reconciling realm semiont", "created,")
+	harness.MustContainAll(t, "stdout", stdout, "Reconciling realm example.github.io-test-kb", "created,")
 	harness.MustContainAll(t, "stderr", stderr, "Run `semiont start` again")
 	if len(admin.created) != len(accountServices()) {
 		t.Errorf("%d clients created, want one per service (%d)", len(admin.created), len(accountServices()))
@@ -77,7 +77,7 @@ func TestIdentitySyncCreatesWhatTheRealmLacks(t *testing.T) {
 }
 
 func TestIdentitySyncSaysARealmThatMatchesMatches(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", correctRealm())
+	admin := newStubAdmin(t, fixtureKB(t).key(), correctRealm())
 	admin.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 	root := syncFixture(t, admin)
 
@@ -92,7 +92,7 @@ func TestIdentitySyncSaysARealmThatMatchesMatches(t *testing.T) {
 }
 
 func TestIdentitySyncReportsARefusedAdminLogin(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", nil)
+	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
 	admin.badLogin = true
 	root := syncFixture(t, admin)
 
@@ -110,7 +110,7 @@ func TestIdentitySyncReportsARefusedAdminLogin(t *testing.T) {
 // runs: the running stack's, else the one a start last recorded for the root.
 // Neither known, it refuses rather than guess.
 func TestIdentitySyncNeedsAConfigWhenNoneIsKnown(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", nil)
+	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
 	root := syncFixture(t, admin)
 
 	code, _, stderr := identityOutput(t, "sync", "--root", root)
@@ -124,7 +124,7 @@ func TestIdentitySyncNeedsAConfigWhenNoneIsKnown(t *testing.T) {
 }
 
 func TestIdentitySyncUsesTheConfigAStartRecorded(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", nil)
+	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
 	root := syncFixture(t, admin)
 	registerRootUse(kbRoot{dir: root}, false, "anthropic")
 
@@ -153,7 +153,7 @@ func keyFile(t *testing.T, k workerKey) string {
 // is secret. The fixture's gateway is on loopback, which no other machine
 // reaches, and the grant says so.
 func TestIdentityGrantPrintsWhatTheWorkersOwnerNeeds(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", correctRealm())
+	admin := newStubAdmin(t, fixtureKB(t).key(), correctRealm())
 	root := syncFixture(t, admin)
 	st, err := stack.Load(root, "anthropic")
 	if err != nil {
@@ -193,7 +193,7 @@ func TestIdentityGrantPrintsWhatTheWorkersOwnerNeeds(t *testing.T) {
 // that is the shared worker's, a key file holding a private key, or no
 // key at all.
 func TestIdentityGrantRefusesBeforeReachingTheRealm(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", correctRealm())
+	admin := newStubAdmin(t, fixtureKB(t).key(), correctRealm())
 	root := syncFixture(t, admin)
 	private := filepath.Join(t.TempDir(), "private.pem")
 	if err := os.WriteFile(private, []byte(testWorkerKey().private), 0o600); err != nil {
@@ -216,7 +216,7 @@ func TestIdentityGrantRefusesBeforeReachingTheRealm(t *testing.T) {
 }
 
 func TestIdentityRevokeDeletesTheGrant(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", append(correctRealm(), grantedRep("alice", anotherWorkerKey(t))))
+	admin := newStubAdmin(t, fixtureKB(t).key(), append(correctRealm(), grantedRep("alice", anotherWorkerKey(t))))
 	root := syncFixture(t, admin)
 
 	code, stdout, stderr := identityOutput(t, "revoke", "alice", "--root", root, "--config", "anthropic")
@@ -231,7 +231,7 @@ func TestIdentityRevokeDeletesTheGrant(t *testing.T) {
 }
 
 func TestIdentityRevokeOfAnUnknownLabelFails(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", append(correctRealm(), grantedRep("bob", anotherWorkerKey(t))))
+	admin := newStubAdmin(t, fixtureKB(t).key(), append(correctRealm(), grantedRep("bob", anotherWorkerKey(t))))
 	root := syncFixture(t, admin)
 
 	code, _, stderr := identityOutput(t, "revoke", "alice", "--root", root, "--config", "anthropic")
@@ -274,7 +274,7 @@ func replaceIn(t *testing.T, path, old, new string) {
 // At an issuer the launcher does not run, the realm is somebody else's: grant
 // and revoke refuse, and say what to do there instead.
 func TestIdentityGrantAndRevokeSayWhatToDoAtAnIssuerTheLauncherDoesNotRun(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", nil)
+	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
 	root := fixtureCopy(t, syncFixture(t, admin), func(dir string) {
 		replaceIn(t, filepath.Join(dir, "knowledge-base.yaml"), "    ref: issuer\n",
 			"    external: { type: keycloak, url: https://login.example.com/realms/kb }\n")
@@ -313,7 +313,7 @@ func TestIdentityGrantSaysWhatItDid(t *testing.T) {
 		{"another key", []map[string]any{grantedRep("alice", anotherWorkerKey(t))}, "updated semiont-worker-alice: key now " + k.thumbprint},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			admin := newStubAdmin(t, "semiont", append(correctRealm(), c.held...))
+			admin := newStubAdmin(t, fixtureKB(t).key(), append(correctRealm(), c.held...))
 			root := syncFixture(t, admin)
 			code, stdout, stderr := identityOutput(t, "grant", "alice", "--key", keyFile(t, k), "--root", root, "--config", "anthropic")
 			if code != 0 {
@@ -325,7 +325,7 @@ func TestIdentityGrantSaysWhatItDid(t *testing.T) {
 }
 
 func TestIdentityGrantAndRevokeReportARefusedAdminLogin(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", append(correctRealm(), grantedRep("alice", anotherWorkerKey(t))))
+	admin := newStubAdmin(t, fixtureKB(t).key(), append(correctRealm(), grantedRep("alice", anotherWorkerKey(t))))
 	admin.badLogin = true
 	root := syncFixture(t, admin)
 	for _, args := range [][]string{
@@ -345,7 +345,7 @@ func TestIdentityGrantAndRevokeReportARefusedAdminLogin(t *testing.T) {
 
 // What a subcommand does not take is refused, before the realm is reached.
 func TestIdentitySubcommandsRefuseWhatTheyDoNotTake(t *testing.T) {
-	admin := newStubAdmin(t, "semiont", correctRealm())
+	admin := newStubAdmin(t, fixtureKB(t).key(), correctRealm())
 	root := syncFixture(t, admin)
 	for _, c := range []struct {
 		args []string
