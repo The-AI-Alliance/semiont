@@ -2259,7 +2259,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: packages/csharp/sdk/global.json
           cache: true
