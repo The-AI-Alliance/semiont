@@ -30,12 +30,17 @@ func storeIn(t *testing.T) *SignInStore {
 	return NewSignInStore(filepath.Join(t.TempDir(), "semiont", SignInFile))
 }
 
+// signedTokenExpiry is an hour after the tests began. Every signedToken shares
+// it, so a token an issuer gave and the one a test builds to compare are the
+// same token, whichever second each was built in.
+var signedTokenExpiry = time.Now().Add(time.Hour).Unix()
+
 // signedToken is an access token naming who signed in and where, told apart
 // by n.
 func signedToken(n int) string {
 	claims, _ := json.Marshal(map[string]any{
 		"email": "a@example.com", "iss": "http://issuer.example/realms/semiont",
-		"exp": time.Now().Add(time.Hour).Unix(), "n": n,
+		"exp": signedTokenExpiry, "n": n,
 	})
 	return "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString(claims) + ".c2lnbmF0dXJl"
 }
