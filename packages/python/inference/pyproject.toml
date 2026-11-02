@@ -46,7 +46,7 @@ openai = ["openai>=3.28,<4"]
 google = ["google-genai>=2.33,<3"]
 # Together's library, from the version the Together driver was written against:
 # what the driver leans on in it, and switches off in it, is listed in together.py.
-together = ["together>=2.40,<3"]
+together = ["together>=2.40,<4"]
 # vLLM and llama.cpp's server speak OpenAI's Chat Completions: each driver asks
 # its server through OpenAI's library, pointed at the server's address.
 vllm = ["openai>=3.28,<4"]
