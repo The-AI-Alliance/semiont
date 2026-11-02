@@ -44,10 +44,10 @@
 # secrets under a key derived from its domain, and the domain here is the same
 # on every run, so a run's state is the next run's unless it goes. A run cleans
 # that state before it boots (whatever an interrupted run left) and on exit
-# stops the stack, puts back the Browser's document as it found it (the
-# launcher's own, if there was none), cleans the state, forgets the KB in the
-# launcher's registry, and removes the KB directory it made (never one
-# SMOKE_KB names).
+# stops the stack, puts back the Browser's and the worker's documents as it
+# found them (the launcher's own, if there were none), cleans the state,
+# forgets the KB in the launcher's registry, and removes the KB directory it
+# made (never one SMOKE_KB names).
 #
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
@@ -106,12 +106,14 @@ ok()    { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
 bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-BROWSER_DOC=""
-BROWSER_KEPT=""
+# The shared services' documents the run repoints, each beside the copy it
+# puts back.
+SHARED_DOCS=()
+SHARED_KEPT=()
 cleanup() {
   cd / || return
   "$SEMIONT" stop --runtime "$RUNTIME" >/dev/null 2>&1
-  [ -n "$BROWSER_KEPT" ] && mv "$BROWSER_KEPT" "$BROWSER_DOC"
+  for ((i = 0; i < ${#SHARED_DOCS[@]}; i++)); do mv "${SHARED_KEPT[$i]}" "${SHARED_DOCS[$i]}"; done
   "$SEMIONT" clean --root "$KB" >/dev/null 2>&1
   "$SEMIONT" forget "$KB" >/dev/null 2>&1
   [ -z "${SMOKE_KB:-}" ] && rm -rf "$(dirname "$KB")"
@@ -134,10 +136,10 @@ else
   bad "clean refused the state an earlier run left"; exit 1
 fi
 # The images are the documents' to name: init names :latest, and the run names
-# the set it was given, as a person choosing a release would. The Browser is
-# the machine's, so its image is named in its own document, which the
-# launcher keeps and names (`settings browser --path`, which writes it where
-# there is none), and which the run puts back as it found it on exit.
+# the set it was given, as a person choosing a release would. The Browser and
+# the worker are shared, so each names its image in a document of its own,
+# which the launcher keeps and names (`settings <name> --path`, which writes it
+# where there is none), and which the run puts back as it found it on exit.
 for doc in "$KB"/.semiont/stack/*.yaml; do
   sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$IMAGES#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
 done
@@ -146,20 +148,22 @@ if [ "$IMAGES" = latest ] || ! grep -q 'ghcr.io/the-ai-alliance/semiont-[a-z]*:l
 else
   bad "a document still names a :latest image"; exit 1
 fi
-if ! BROWSER_DOC=$("$SEMIONT" settings browser --path); then
-  bad "the launcher named no Browser document"; exit 1
-fi
-KEPT=$(mktemp) || exit 1
-if ! cp "$BROWSER_DOC" "$KEPT"; then
-  rm -f "$KEPT"; bad "could not keep a copy of $BROWSER_DOC to put back"; exit 1
-fi
-BROWSER_KEPT=$KEPT
-sed "s#\(ghcr.io/the-ai-alliance/semiont-browser\):[^[:space:]]*#\1:$IMAGES#" "$BROWSER_DOC" > "$BROWSER_DOC.next" && mv "$BROWSER_DOC.next" "$BROWSER_DOC"
-if grep -q "image: ghcr.io/the-ai-alliance/semiont-browser:$IMAGES\$" "$BROWSER_DOC"; then
-  ok "the Browser's document names :$IMAGES"
-else
-  bad "the Browser's document ($BROWSER_DOC) does not name :$IMAGES"; exit 1
-fi
+for shared in browser worker; do
+  if ! doc=$("$SEMIONT" settings "$shared" --path); then
+    bad "the launcher named no $shared document"; exit 1
+  fi
+  kept=$(mktemp) || exit 1
+  if ! cp "$doc" "$kept"; then
+    rm -f "$kept"; bad "could not keep a copy of $doc to put back"; exit 1
+  fi
+  SHARED_DOCS+=("$doc"); SHARED_KEPT+=("$kept")
+  sed "s#\(ghcr.io/the-ai-alliance/semiont-$shared\):[^[:space:]]*#\1:$IMAGES#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
+  if grep -q "image: ghcr.io/the-ai-alliance/semiont-$shared:$IMAGES\$" "$doc"; then
+    ok "the $shared's document names :$IMAGES"
+  else
+    bad "the $shared's document ($doc) does not name :$IMAGES"; exit 1
+  fi
+done
 
 head_ "Boot from :$IMAGES on $RUNTIME"
 # No --config: a new KB records the config it was made with, and `start` reads
