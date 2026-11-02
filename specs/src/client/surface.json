@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`. How a unit is made is held apart from its members: every unit can be made from outside its SDK, by the type's own public constructor (Rust's `pub fn new` in the type's own `impl`, Python's class), or by the public function that `madeBy` names for that SDK, spelled as that SDK spells it, where the constructor is not what makes it; Go has no constructors, so every Go unit names one. The same lint fails a unit no public way makes, and a `madeBy` that names a function its SDK lacks, or has but not publicly. Public is reachable from outside the SDK: what TypeScript's entry (packages/typescript/sdk/src/index.ts) exports, an item a module Rust's crate root reaches declares or re-exports, a name in the `__all__` of a Python module whose path has no private part, what Kotlin declares `public`, and what Go exports from a package that is not internal. `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `storage` is where a client keeps text under a key: the interface an application implements (a trait in Rust, a protocol in Python), what each SDK names it (`made`), and its members by name. The same lint holds every SDK to it both ways, as for `wire`: a storage an SDK does not declare, a member the list has and an SDK's storage lacks, and a public member an SDK's storage has and the list lacks; a member's `absent` names an SDK whose storage has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`. What implements a storage is not read here. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Swift keeps both names, including its contextual `yield`. Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: docs/protocol/WORKER-CONTRACT.md states it, and the worker conformance suite (tests/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`. How a unit is made is held apart from its members: every unit can be made from outside its SDK, by the type's own public constructor (Rust's `pub fn new` in the type's own `impl`, Python's class), or by the public function that `madeBy` names for that SDK, spelled as that SDK spells it, where the constructor is not what makes it; Go has no constructors, so every Go unit names one. The same lint fails a unit no public way makes, and a `madeBy` that names a function its SDK lacks, or has but not publicly. Public is reachable from outside the SDK, including what Swift declares `public` or `open`: what TypeScript's entry (packages/typescript/sdk/src/index.ts) exports, an item a module Rust's crate root reaches declares or re-exports, a name in the `__all__` of a Python module whose path has no private part, what Kotlin declares `public`, and what Go exports from a package that is not internal. `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `storage` is where a client keeps text under a key: the interface an application implements (a trait in Rust, a protocol in Python), what each SDK names it (`made`), and its members by name. The same lint holds every SDK to it both ways, as for `wire`: a storage an SDK does not declare, a member the list has and an SDK's storage lacks, and a public member an SDK's storage has and the list lacks; a member's `absent` names an SDK whose storage has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`. What implements a storage is not read here. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function, and in Swift, as the table spells it. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
   "shapes": {
     "promise": "Asked once, answered once: the value, or a failure with a code.",
     "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
@@ -39,6 +39,7 @@
     {
       "namespace": "frame",
       "docs": "The knowledge base's vocabulary: what kinds of things exist.",
+      "notYetReached": { "swift": "The Swift SDK's frame: The knowledge base's vocabulary: what kinds of things exist." },
       "methods": [
         {
           "method": "addEntityType",
@@ -76,6 +77,7 @@
     {
       "namespace": "browse",
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
+      "notYetReached": { "swift": "The Swift SDK's browse: Reads: live queries, one-shot reads, and this viewer's own signals." },
       "methods": [
         {
           "method": "resource",
@@ -216,6 +218,7 @@
     {
       "namespace": "mark",
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
+      "notYetReached": { "swift": "The Swift SDK's mark: Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job." },
       "methods": [
         {
           "method": "annotation",
@@ -326,6 +329,7 @@
     {
       "namespace": "bind",
       "docs": "Linking a reference to what it refers to.",
+      "notYetReached": { "swift": "The Swift SDK's bind: Linking a reference to what it refers to." },
       "methods": [
         {
           "method": "body",
@@ -365,6 +369,7 @@
     {
       "namespace": "gather",
       "docs": "Assembling the context a model is given, and what refers to a resource.",
+      "notYetReached": { "swift": "The Swift SDK's gather: Assembling the context a model is given, and what refers to a resource." },
       "methods": [
         {
           "method": "annotation",
@@ -423,6 +428,7 @@
     {
       "namespace": "match",
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
+      "notYetReached": { "swift": "The Swift SDK's match: Searching: for what a reference could refer to, and for resources by text." },
       "methods": [
         {
           "method": "search",
@@ -475,6 +481,7 @@
     {
       "namespace": "yield",
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
+      "notYetReached": { "swift": "The Swift SDK's yield: Creating resources: by upload, by a generation delegated as a job, by cloning." },
       "methods": [
         {
           "method": "resource",
@@ -554,6 +561,7 @@
     {
       "namespace": "beckon",
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
+      "notYetReached": { "swift": "The Swift SDK's beckon: Attention: driving the other participants' viewers, and this viewer's own signals." },
       "methods": [
         {
           "method": "attention",
@@ -602,6 +610,7 @@
     {
       "namespace": "job",
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
+      "notYetReached": { "swift": "The Swift SDK's job: Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them." },
       "methods": [
         {
           "method": "queued",
@@ -673,6 +682,7 @@
     {
       "namespace": "auth",
       "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
+      "notYetReached": { "swift": "The Swift SDK's auth: The gateway's view of who is signed in. Present when the client was given a gateway." },
       "methods": [
         {
           "method": "me",
@@ -697,6 +707,7 @@
     {
       "namespace": "system",
       "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
+      "notYetReached": { "swift": "The Swift SDK's system: What the knowledge base says about itself. Present when the client was given a gateway." },
       "methods": [
         {
           "method": "healthCheck",
@@ -717,6 +728,7 @@
     {
       "handed": "claims",
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
+      "notYetReached": { "swift": "The Swift SDK's claims: What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go." },
       "members": [
         {
           "member": "next",
@@ -750,6 +762,7 @@
     {
       "handed": "heldJob",
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
+      "notYetReached": { "swift": "The Swift SDK's heldJob: A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked." },
       "members": [
         { "member": "jobId" },
         { "member": "jobType" },
@@ -783,6 +796,7 @@
     {
       "unit": "mark",
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
+      "notYetReached": { "swift": "The Swift SDK's mark: The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource." },
       "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit" },
       "madeBy": { "typescript": "createMarkStateUnit", "go": "NewMarkStateUnit" },
       "members": [
@@ -800,6 +814,7 @@
     {
       "unit": "yield",
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
+      "notYetReached": { "swift": "The Swift SDK's yield: A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods." },
       "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit" },
       "madeBy": { "typescript": "createYieldStateUnit", "go": "NewYieldStateUnit" },
       "members": [
@@ -815,6 +830,7 @@
     {
       "unit": "gather",
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
+      "notYetReached": { "swift": "The Swift SDK's gather: The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource." },
       "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit" },
       "madeBy": { "typescript": "createGatherStateUnit", "go": "NewGatherStateUnit" },
       "members": [
@@ -832,6 +848,7 @@
     {
       "unit": "match",
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
+      "notYetReached": { "swift": "The Swift SDK's match: Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said." },
       "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit" },
       "madeBy": { "typescript": "createMatchStateUnit", "go": "NewMatchStateUnit" },
       "members": []
@@ -839,6 +856,7 @@
     {
       "unit": "beckon",
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
+      "notYetReached": { "swift": "The Swift SDK's beckon: Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant." },
       "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit" },
       "madeBy": { "typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit" },
       "members": [
@@ -849,6 +867,7 @@
     {
       "unit": "hoverDwell",
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
+      "notYetReached": { "swift": "The Swift SDK's hoverDwell: A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves." },
       "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell" },
       "madeBy": { "typescript": "createHoverDwell", "go": "NewHoverDwell" },
       "members": [
@@ -859,6 +878,7 @@
     {
       "unit": "search",
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
+      "notYetReached": { "swift": "The Swift SDK's search: A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce." },
       "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline" },
       "madeBy": { "typescript": "createSearchPipeline", "go": "NewSearchPipeline" },
       "members": [
@@ -870,6 +890,7 @@
     {
       "unit": "sessionSignals",
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
+      "notYetReached": { "swift": "The Swift SDK's sessionSignals: What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it." },
       "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
       "madeBy": { "typescript": "createSessionSignals", "go": "NewSessionSignals" },
       "members": [
@@ -887,6 +908,7 @@
     {
       "unit": "cache",
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
+      "notYetReached": { "swift": "The Swift SDK's cache: Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table." },
       "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
       "madeBy": { "typescript": "createCache", "go": "NewCache" },
       "members": [
@@ -905,6 +927,7 @@
     {
       "unit": "session",
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table.",
+      "notYetReached": { "swift": "The Swift SDK's session: A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table." },
       "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
       "madeBy": { "go": "StartSession", "kotlin": "sessionFromKept" },
       "members": [
@@ -932,6 +955,7 @@
   ],
   "wire": {
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
+    "notYetReached": { "swift": "The Swift SDK's wire: The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there." },
     "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
       { "member": "emit" },
@@ -973,6 +997,7 @@
   },
   "storage": {
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
+    "notYetReached": { "swift": "The Swift SDK's storage: Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes." },
     "made": { "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage" },
     "members": [
       { "member": "get" },
@@ -986,6 +1011,7 @@
     {
       "module": "annotations",
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by specs/src/annotations's tables.",
+      "notYetReached": { "swift": "The Swift SDK's annotations: The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by specs/src/annotations's tables." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/web-annotation-utils.ts",
@@ -1202,6 +1228,7 @@
     {
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
+      "notYetReached": { "swift": "The Swift SDK's jobFilter: Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/job-filter.ts"
@@ -1233,6 +1260,7 @@
     {
       "module": "claims",
       "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by specs/src/jobs/retry-cases.json.",
+      "notYetReached": { "swift": "The Swift SDK's claims: What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by specs/src/jobs/retry-cases.json." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/claims.ts"
@@ -1268,6 +1296,7 @@
     {
       "module": "retry",
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
+      "notYetReached": { "swift": "The Swift SDK's retry: Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/retry.ts"
@@ -1295,6 +1324,7 @@
     {
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by specs/src/session/gateway-url-cases.json.",
+      "notYetReached": { "swift": "The Swift SDK's hostName: Whether a host is one a knowledge base's HTTP endpoint may name. Held by specs/src/session/gateway-url-cases.json." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1322,6 +1352,7 @@
     {
       "module": "tokens",
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by specs/src/session/cases.json.",
+      "notYetReached": { "swift": "The Swift SDK's tokens: What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by specs/src/session/cases.json." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1381,6 +1412,7 @@
     {
       "module": "storagePersister",
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
+      "notYetReached": { "swift": "The Swift SDK's storagePersister: Where a client keeps its queries' values: a session storage, under one key, kept within a size." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/cache-persister.ts"
@@ -1411,6 +1443,7 @@
     {
       "module": "bus",
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
+      "notYetReached": { "swift": "The Swift SDK's bus: What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/bus-request.ts",
@@ -1458,6 +1491,7 @@
     {
       "module": "registry",
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
+      "notYetReached": { "swift": "The Swift SDK's registry: What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/semiont-browser.ts",
@@ -1671,6 +1705,7 @@
     {
       "module": "redirectSignIn",
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
+      "notYetReached": { "swift": "The Swift SDK's redirectSignIn: A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/oauth.ts",
@@ -1744,6 +1779,7 @@
     {
       "module": "discovery",
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
+      "notYetReached": { "swift": "The Swift SDK's discovery: The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read." },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/discovery.ts"
@@ -1844,6 +1880,7 @@
     {
       "module": "testing",
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
+      "notYetReached": { "swift": "The Swift SDK's testing: What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/liveness-axioms.ts",

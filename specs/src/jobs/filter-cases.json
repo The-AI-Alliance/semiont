@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/claims_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's jobFilter module, which its worker's claims read."
+  },
   "cases": [
     {
       "why": "a mark filter takes a mark job of its motivation",

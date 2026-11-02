@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/annotations/builders_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationBuildersTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's annotations module: its builders of the annotation a worker commits."
+  },
   "unstated": {
     "cases": ["created"],
     "resources": ["created"]

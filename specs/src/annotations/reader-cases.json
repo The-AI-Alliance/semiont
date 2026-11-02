@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/annotations/readers_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationReadersTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's annotations module: its readers of an annotation."
+  },
   "readers": [
     "bodySource",
     "isBodyResolved",

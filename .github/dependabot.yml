@@ -494,3 +494,15 @@ updates:
     commit-message:
       prefix: "service-docker"
       include: "scope"
+
+  - package-ecosystem: "swift"
+    directory: "/packages/swift/sdk"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "kind:dependencies"
+      - "sdk:swift"
+    groups:
+      sdk-swift:
+        patterns:
+          - "*"

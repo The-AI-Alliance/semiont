@@ -167,6 +167,9 @@ const table = {
     go: ['packages/go/sdk/resources_test.go'],
     kotlin: ['packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt'],
   },
+  notYetReached: {
+    swift: "The Swift SDK's reading of a resource's bytes as its text, label by label and byte by byte.",
+  },
   cases,
 };
 
