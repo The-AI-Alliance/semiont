@@ -165,7 +165,7 @@ if any(a.endswith('package-signatures.py') for a in args):
         self.assertEqual(len(self.calls()), 1)
         self.assertIn("verify", self.calls()[0])
 
-    def test_failed_publication_cleans_its_staging_directory(self):
+    def test_failed_publication_leaves_no_host_staging_directory(self):
         self.engine.write_text(self.engine.read_text() + "\nsys.exit(7)\n")
         self.cache.mkdir()
         source = self.root / "images/scripts/local-build/publication.sh"
@@ -189,6 +189,48 @@ if any(a.endswith('package-signatures.py') for a in args):
         )
         self.assertEqual(result.returncode, 7, result.stderr)
         self.assertEqual(list(self.cache.iterdir()), [])
+
+    def test_root_owned_publication_files_do_not_require_host_cleanup(self):
+        # Model Linux Docker: container-created directories cannot be unlinked by the host.
+        self.engine.write_text(
+            self.engine.read_text()
+            + """
+for argument in args:
+ if argument.endswith(':/publish'):
+  stage=Path(argument[:-len(':/publish')])
+  protected=stage/'container-owned'
+  protected.mkdir()
+  (protected/'artifact').write_text('published artifact')
+  protected.chmod(0o555)
+"""
+        )
+        self.cache.mkdir()
+        source = self.root / "images/scripts/local-build/publication.sh"
+        try:
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-e",
+                    "-c",
+                    (
+                        'RT="$1"; REPO_ROOT="$2"; CACHE_ROOT="$3"; NODE_IMAGE=node; HOST_ADDR=localhost; VERDACCIO_TOKEN=test; '
+                        'source "$4"; publish_local_npm'
+                    ),
+                    "test",
+                    str(self.engine),
+                    str(self.root),
+                    str(self.cache),
+                    str(source),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(list(self.cache.iterdir()), [])
+        finally:
+            for protected in self.cache.glob("local-npm.*/container-owned"):
+                protected.chmod(0o755)
 
     def test_desktop_selects_linux_without_rosetta(self):
         bin_dir = Path(self.temp.name) / "bin"
