@@ -1,7 +1,7 @@
-//! The Rust wire driver for the SDK conformance suite (tests/conformance/sdk).
+//! The Rust wire driver for the SDK conformance suite (packages/conformance/sdk).
 //! The suite starts it, sends it one operation per line on stdin and reads
 //! what it did, and what it saw, one line at a time from stdout;
-//! tests/conformance/sdk/README.md is the protocol.
+//! packages/conformance/sdk/README.md is the protocol.
 //!
 //! It reaches the transport only as an application does, through what
 //! `semiont` and `semiont-http-transport` export, so what the suite observes

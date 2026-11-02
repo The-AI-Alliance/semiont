@@ -63,7 +63,7 @@ release calls it.
 
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
-- npm: the workspaces (one entry at the root), `images/e2e`, `tests/conformance`
+- npm: the workspaces (one entry at the root), `images/e2e`, `packages/conformance`
 - Go modules: `apps/launcher`, `packages/go/sdk`
 - Cargo: the Rust workspace at the root; the Rust toolchain: `rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser and the seven service images
@@ -181,7 +181,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd images/browser && npm run test:security
-   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd tests/conformance && npm run test:gateway)
+   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd packages/conformance && npm run test:gateway)
    ```
 
 2. **Complete the Security section** of the PR template when the change touches the gateway's routes, token handling or the Browser's session code

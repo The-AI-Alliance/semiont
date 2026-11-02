@@ -20,9 +20,9 @@ its own initiative.
 
 **How this document is held.** As in the contract, each rule ends with
 *Held by* and what fails when it is broken: a file of the gateway suite
-([`tests/conformance/gateway`](../../tests/conformance/gateway/README.md)),
+([`packages/conformance/gateway`](../../packages/conformance/gateway/README.md)),
 which checks a running gateway against this document and the spec; a case
-of the SDK suite ([`tests/conformance/sdk`](../../tests/conformance/sdk/README.md)),
+of the SDK suite ([`packages/conformance/sdk`](../../packages/conformance/sdk/README.md)),
 which checks every SDK; or a test of the reference client. "Held by no
 case" marks a rule nothing checks.
 

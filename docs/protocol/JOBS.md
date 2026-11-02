@@ -12,7 +12,7 @@ worker promises is [WORKER-CONTRACT.md](WORKER-CONTRACT.md), and how one is buil
 [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md). Channel payloads
 are named in [the registry](../../specs/src/bus/registry.json); the bus conventions this document
 relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md). The
-[dispatcher conformance suite](../../tests/conformance/dispatcher/README.md) checks a running
+[dispatcher conformance suite](../../packages/conformance/dispatcher/README.md) checks a running
 dispatcher against this document.
 
 ## The dispatcher

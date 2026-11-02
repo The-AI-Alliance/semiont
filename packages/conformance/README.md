@@ -54,7 +54,7 @@ uv sync --locked --no-dev --all-extras --project images/worker
 uv sync --locked --no-dev --all-extras --project images/weaver
 uv sync --locked --no-dev --project images/smelter
 uv sync --locked --no-dev --all-extras --project images/librarian
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm test
 ```

@@ -50,3 +50,9 @@ Apache-2.0
 Their declarative inputs and fixtures stay in `specs/`. Language-wide build and
 release helpers live under each language's `scripts/` directory; tooling for one
 package lives with that package.
+
+## Shared conformance project
+
+[conformance/](conformance/README.md) is an independently installed private test project.
+Its shared harness checks service, SDK, and worker implementations through their protocol
+interfaces. It is not a published language package or a root npm workspace.

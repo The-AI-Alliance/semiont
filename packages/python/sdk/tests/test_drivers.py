@@ -1,4 +1,4 @@
-"""The conformance drivers speak their suites' protocol (`tests/conformance/sdk/README.md`, `tests/conformance/worker/README.md`)."""
+"""The conformance drivers speak their suites' protocol (`packages/conformance/sdk/README.md`, `packages/conformance/worker/README.md`)."""
 
 import subprocess
 import sys

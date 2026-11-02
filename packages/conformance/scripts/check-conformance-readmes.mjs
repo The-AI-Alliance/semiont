@@ -3,17 +3,17 @@
  * lint:conformance-readmes — each conformance suite's README says what every
  * one of its case files checks.
  *
- * For each suite under tests/conformance (a directory with a README.md and
+ * For each suite under packages/conformance (a directory with a README.md and
  * `*.test.ts` files), every case file is named in the README in backticks, and
  * every case file the README names exists: a bare name in the suite, a path
- * from tests/conformance.
+ * from packages/conformance.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const CONFORMANCE = 'tests/conformance';
+const CONFORMANCE = 'packages/conformance';
 const failures = [];
 
 const suites = readdirSync(join(ROOT, CONFORMANCE))

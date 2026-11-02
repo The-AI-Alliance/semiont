@@ -244,7 +244,7 @@ const BROWSER_METHODS = members('packages/typescript/sdk/src/session/semiont-bro
 const SCRIPTS = new Set();
 // The root, every workspace, and the test suites that are npm projects of their own.
 for (const pj of [join(ROOT, 'package.json'), ...workspaceDirectories(ROOT).map((dir) => join(ROOT, dir, 'package.json')),
-  ...['images/e2e', 'tests/conformance'].map((dir) => join(ROOT, dir, 'package.json'))]) {
+  ...['images/e2e', 'packages/conformance'].map((dir) => join(ROOT, dir, 'package.json'))]) {
   if (existsSync(pj)) for (const s of Object.keys(JSON.parse(read(pj)).scripts ?? {})) SCRIPTS.add(s);
 }
 

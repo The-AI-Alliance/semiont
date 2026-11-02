@@ -14,7 +14,7 @@ service that serves HTTP on port 24103, and the launcher starts it with `semiont
 | Command | `/usr/local/bin/semiont-archivist --config /etc/semiont/archivist.json` |
 | Code | Rust, in this directory: [src](./src), and its crates [record](./record) and [staging](./staging) |
 | Specification | [docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md) |
-| Judged by | [tests/conformance/archivist](../../tests/conformance/archivist/README.md) |
+| Judged by | [packages/conformance/archivist](../../packages/conformance/archivist/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -162,7 +162,7 @@ cargo test -p semiont-archivist -p semiont-archivist-record -p semiont-archivist
 ```
 
 runs their tests, which CI's Rust Tests job runs with the rest of the workspace, under
-`cargo llvm-cov`. The [conformance suite](../../tests/conformance/archivist/README.md) holds a
+`cargo llvm-cov`. The [conformance suite](../../packages/conformance/archivist/README.md) holds a
 built Archivist to [ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), and in CI that Archivist is
 built instrumented, so its coverage counts what the suite runs too.
 

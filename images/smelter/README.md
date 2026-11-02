@@ -17,7 +17,7 @@ on the bus, in the index and in the anchored-text store. The launcher starts it 
 | Command | `python -P -m semiont_smelter --config /etc/semiont/smelter.json` |
 | Code | Python, in this directory: [`src/semiont_smelter`](./src/semiont_smelter/) |
 | Specification | [docs/protocol/SMELTER.md](../../docs/protocol/SMELTER.md) |
-| Judged by | [tests/conformance/smelter](../../tests/conformance/smelter/README.md) |
+| Judged by | [packages/conformance/smelter](../../packages/conformance/smelter/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -226,7 +226,7 @@ checks what a built one promises.
 ## Related
 
 - [SMELTER.md](../../docs/protocol/SMELTER.md) — what a Smelter does, rule by rule
-- [smelter conformance suite](../../tests/conformance/smelter/README.md) — holds a Smelter to
+- [smelter conformance suite](../../packages/conformance/smelter/README.md) — holds a Smelter to
   each rule, as a process behind a real gateway, a real Archivist and a real Qdrant, with an
   embedding provider the suite plays
 - [`semiont-vectors`](../../packages/python/vectors/) — the vector stores and the embedding

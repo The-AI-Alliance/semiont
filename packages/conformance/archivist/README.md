@@ -117,7 +117,7 @@ answers appends one, and no case writes one into a log.
 ```bash
 (cd packages/rust && cargo build --release -p semiont-gateway -p semiont-archivist)
 npm run build --workspace=@semiont/core
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:archivist
 ```

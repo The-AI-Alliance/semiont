@@ -154,7 +154,7 @@ It needs a built gateway and Archivist, the Smelter's environment,
 cargo build --release -p semiont-gateway -p semiont-archivist
 uv sync --locked --no-dev --project images/smelter
 npm run build --workspace=@semiont/core
-cd tests/conformance
+cd packages/conformance
 npm ci
 QDRANT_HOST=<address> npm run test:smelter
 ```

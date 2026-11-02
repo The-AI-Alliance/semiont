@@ -17,7 +17,7 @@ launcher starts it with `semiont start`.
 | Command | `python -P -m semiont_librarian --config /etc/semiont/librarian.json` |
 | Code | Python, in this directory: [`src/semiont_librarian`](./src/semiont_librarian/) |
 | Specification | [docs/protocol/LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) |
-| Judged by | [tests/conformance/librarian](../../tests/conformance/librarian/README.md) |
+| Judged by | [packages/conformance/librarian](../../packages/conformance/librarian/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -181,7 +181,7 @@ uv sync --locked
 uv run pytest
 ```
 
-The [librarian conformance suite](../../tests/conformance/librarian/README.md) holds a
+The [librarian conformance suite](../../packages/conformance/librarian/README.md) holds a
 Librarian to [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md), as a process behind a real
 gateway and a real Archivist, reading a Neo4j a real Weaver writes and a Qdrant a real Smelter
 writes.

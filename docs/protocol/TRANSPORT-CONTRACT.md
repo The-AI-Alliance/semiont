@@ -11,9 +11,9 @@ document is wrong and is corrected deliberately. There is no third option.
 
 **How this document is held.** Each rule ends with *Held by* and the cases
 that fail when a client or a gateway breaks it: a case of the SDK
-conformance suite ([`tests/conformance/sdk`](../../tests/conformance/sdk/README.md),
+conformance suite ([`packages/conformance/sdk`](../../packages/conformance/sdk/README.md),
 which every SDK runs), a file of the gateway suite
-([`tests/conformance/gateway`](../../tests/conformance/gateway/README.md)), or
+([`packages/conformance/gateway`](../../packages/conformance/gateway/README.md)), or
 a test of the reference implementation. A rule marked "Held by no case" is
 one nothing checks. `npm run lint:transport-contract` fails when a
 case named here does not exist, and when a wire case of the SDK suite is

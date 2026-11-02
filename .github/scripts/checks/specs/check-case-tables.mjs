@@ -61,7 +61,7 @@ const IMPLEMENTATIONS = {
   'vectors-python': ['packages/python/vectors'],
   'inference-python': ['packages/python/inference'],
   'service-python': ['packages/python/service'],
-  conformance: ['tests/conformance'],
+  conformance: ['packages/conformance'],
 };
 
 /** The SDKs, which are held to one another. */

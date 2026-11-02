@@ -16,7 +16,7 @@ corrected deliberately. There is no third option.
 
 **How this document is held.** Each rule ends with *Held by* and the case of
 the worker-service conformance suite
-([`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md))
+([`packages/conformance/worker-service`](../../packages/conformance/worker-service/README.md))
 that fails when a Worker service breaks it: `worker-service/<case>` is the
 file `<case>.test.ts` there. The suite starts the service as a process and
 meets it only at its boundary, so the same cases judge every implementation. A
@@ -555,7 +555,7 @@ job is one unit for each of its `categories`.
 ## The five kinds of mark job
 
 The prompt each kind sends is kept, as the text sent, beside the suite in
-[`tests/conformance/worker-service/prompts`](../../tests/conformance/worker-service/prompts).
+[`packages/conformance/worker-service/prompts`](../../packages/conformance/worker-service/prompts).
 A job's `sourceLanguage` is said in the prompt by its English name; so is the
 `language` its text is to be written in, unless that is English.
 

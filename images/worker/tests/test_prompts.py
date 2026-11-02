@@ -1,6 +1,6 @@
 """What a detection says to its model, held to the prompts the worker service's suite holds a worker to.
 
-Each file of `tests/conformance/worker-service/prompts` is the exact text of
+Each file of `packages/conformance/worker-service/prompts` is the exact text of
 one prompt, less its one final line end. A prompt built here from what the
 suite's case asked with, around the piece of text the file carries, is that
 file's text. What no file states is held to a file's text with the one thing
@@ -17,7 +17,7 @@ from spec import ROOT
 
 from semiont_worker.detection.prompts import assessment_prompt, comment_prompt, count_prompt, highlight_prompt, mention_prompt, tag_prompt
 
-PROMPTS: Final = ROOT / "tests/conformance/worker-service/prompts"
+PROMPTS: Final = ROOT / "packages/conformance/worker-service/prompts"
 
 # The schema the suite's tagging jobs are handed with.
 CLAIM: Final = TagCategory(name="Claim", description="What the text asserts", examples=["What is being asserted?"])
