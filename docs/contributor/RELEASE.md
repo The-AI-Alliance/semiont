@@ -9,7 +9,7 @@ A release publishes, all at the version in [`version.json`](../../version.json):
 | npm | Every `@semiont/*` package that `version.json` marks `publish`, and the Browser | [`publish-npm-packages.yml`](../../.github/workflows/publish-npm-packages.yml) |
 | GitHub Container Registry | The eight images | [`publish-browser.yml`](../../.github/workflows/publish-browser.yml), [`publish-service-images.yml`](../../.github/workflows/publish-service-images.yml) |
 | GitHub Release and the Homebrew tap | The `semiont` launcher, for macOS, Linux and Windows | [`launcher-release.yml`](../../.github/workflows/launcher-release.yml) |
-| GitHub Release | The desktop apps, for macOS and Linux | [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) |
+| GitHub Release | Semiont Desktop for macOS Apple Silicon and Linux x64 (`.deb`) | [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) |
 | crates.io | The four Rust SDK crates | [`publish-crates.yml`](../../.github/workflows/publish-crates.yml) |
 | PyPI | The Python SDK, `semiont` | [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) |
 | The Go module proxy and pkg.go.dev | The Go SDK, `github.com/The-AI-Alliance/semiont/packages/go/sdk` | [`release.yml`](../../.github/workflows/release.yml), by the tag `packages/go/sdk/v<version>` |
@@ -138,7 +138,7 @@ It pushes to the tap with the `TAP_GITHUB_TOKEN` secret, a token scoped to the t
 
 ### The desktop apps
 
-Built for macOS on Apple Silicon and Intel and for Linux on x64, and attached to the GitHub Release.
+Built for macOS on Apple Silicon and Linux x64 (`.deb`), and attached to the GitHub Release.
 
 ### The Rust crates
 

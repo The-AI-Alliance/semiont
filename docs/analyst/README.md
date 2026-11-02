@@ -20,7 +20,7 @@ container run --publish 3000:3000 -it ghcr.io/the-ai-alliance/semiont-browser:la
 
 The image serves static files and holds no knowledge-base configuration. You connect to knowledge bases from the page.
 
-**As a desktop app.** Semiont ships a native app for macOS and Linux, with no container runtime to install. Download it from the [GitHub releases](https://github.com/The-AI-Alliance/semiont/releases); install notes, including the macOS Gatekeeper step, are in [apps/desktop/README.md](../../apps/desktop/README.md).
+**As a desktop app.** Semiont Desktop is packaged for Apple Silicon Macs and Linux x64 as a Debian package. Download it from the [GitHub releases](https://github.com/The-AI-Alliance/semiont/releases); install notes, including the macOS Gatekeeper step and Linux system requirements, are in [apps/desktop/README.md](../../apps/desktop/README.md).
 
 ## Connect and sign in
 

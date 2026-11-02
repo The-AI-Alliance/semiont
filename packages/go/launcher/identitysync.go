@@ -3,11 +3,11 @@ package launcher
 // identitysync.go — `semiont identity sync`: reconcile a realm's
 // service-account clients against `secretClients` and the shared worker.
 //
-// The repair half of the preflight. A realm is imported on its FIRST boot and
+// The repair half of the preflight. A realm is created by its FIRST start and
 // never again, so a deployment that predates a client simply does not have it,
-// and `preflightIdentity` correctly refuses to start. Re-importing would mean
-// deleting the realm, and the realm holds the accounts; this reconciles it in
-// place, so the refusal names a command, and a new client costs a line in
+// and `preflightIdentity` correctly refuses to start. Creating it afresh would
+// mean deleting the realm, and the realm holds the accounts; this reconciles it
+// in place, so the refusal names a command, and a new client costs a line in
 // `stackServices` rather than a paragraph of console steps.
 //
 // CONFIGURATION ONLY, NEVER ACCOUNTS. It creates what is missing and removes
@@ -16,8 +16,8 @@ package launcher
 // (`TestIdentitySyncTouchesNoAccounts`).
 //
 // The client it creates comes from `serviceAccountClient` or `workerClient` —
-// the same renderers the realm import uses. Restating the shape here would be a mirror of the
-// realm document, and the flat `roles` claim plus the audience mapper are
+// the same renderers the realm's creation uses. Restating the shape here would
+// be a mirror of the realm document, and the flat `roles` claim plus the audience mapper are
 // exactly what a hand-created client gets wrong.
 
 import (
@@ -255,7 +255,7 @@ func reconcileRolesMapper(base, realm, token, svc string, c existingClient) (str
 
 // reconcileKindMapper brings an existing account's client to want, the kind
 // mapper the realm document renders for it (agentKindMapperName): added when
-// the client has none — every client of a realm imported before the claim —
+// the client has none — every client of a realm created before the claim —
 // and brought back to what it renders when it says otherwise. Unlike the roles
 // mapper, an absent one is not a hand-built client's: the launcher made every
 // client of a realm it runs, and only the claim is newer than they are.
@@ -501,7 +501,7 @@ func adminToken(base, user, pass string) (string, error) {
 		if refusal.Error == "invalid_grant" {
 			return "", fmt.Errorf("the bootstrap admin login was refused (%s) — is KC_BOOTSTRAP_ADMIN_PASSWORD the one this realm's database was created with?", refusal.Description)
 		}
-		return "", fmt.Errorf("the bootstrap admin login was refused: HTTP %d %s (%s) — `semiont start` opens Keycloak's admin to this machine; start the stack again with this launcher", resp.StatusCode, refusal.Error, refusal.Description)
+		return "", fmt.Errorf("the bootstrap admin login was refused: HTTP %d %s (%s) — Keycloak's master realm takes plain HTTP only from an address it counts as private; `semiont start` opens it to this machine, and warns when it cannot", resp.StatusCode, refusal.Error, refusal.Description)
 	}
 	var body struct {
 		AccessToken string `json:"access_token"`
