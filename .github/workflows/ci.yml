@@ -118,6 +118,12 @@ jobs:
           npm run lint:path-globs || fail=1
           exit $fail
 
+      # What the local build reads to decide which packages changed: a
+      # generator's change changes every package, and an input that has moved
+      # fails the run. images/scripts is in the area every job runs on.
+      - name: Test the local build's package signatures
+        run: python3 -m unittest discover -s images/scripts -p 'test_*.py' -v
+
   # Which areas this push changed, read by every job's `if:`. A job whose
   # areas are untouched is skipped, and a skipped job passes the gate: GitHub
   # reports it as Success, and so does the merge queue. The nightly schedule,

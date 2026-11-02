@@ -7,7 +7,8 @@ signature is one line capturing everything its build reads:
   Swift and C# images, in that order);
 - every file under its directory;
 - what every package of the repository is built from: version.json, the spec, and the
-  scripts that generate from the spec;
+  generators under packages/codegen/ (a path of these that holds no file fails the run,
+  so a move cannot leave it naming nothing);
 - what its language's packages share: for TypeScript the files beside them and the root's
   package.json and lockfile, for Rust the workspace's manifest, lockfile and toolchain (a
   Kotlin package's lockfile, wrapper and version catalog are its own files);
@@ -32,7 +33,7 @@ from pathlib import Path
 MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin", "Package.swift": "swift"}
 # A .NET solution is named for what it builds.
 SOLUTION = ".slnx"
-EVERY_PACKAGE = ("version.json", "specs/src/", "scripts/spec/", "scripts/bus/")
+EVERY_PACKAGE = ("version.json", "specs/src/", "packages/codegen/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
     "rust": ("packages/rust/Cargo.toml", "packages/rust/Cargo.lock", "packages/rust/rust-toolchain.toml"),
@@ -121,6 +122,9 @@ def dependencies(directory: str) -> set[str]:
     return found
 
 
+for prefix in EVERY_PACKAGE:
+    if not under(prefix):
+        sys.exit(f"package-signatures: {prefix}, which every package is built from, holds no file: name where it is now in EVERY_PACKAGE")
 every_package = digest([f for prefix in EVERY_PACKAGE for f in under(prefix)])
 signatures: dict[str, str] = {}
 
