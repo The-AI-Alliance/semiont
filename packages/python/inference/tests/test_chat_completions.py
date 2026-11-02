@@ -502,18 +502,20 @@ def test_a_model_list_the_server_refuses_is_a_status_error_that_says_what_was_as
 ) -> None:
     async def scenario() -> None:
         async with play(server) as played:
-            played.models = server.refused(status, "what the server said")
+            refusal = server.refused(status, "what the server said")
+            played.models = refusal
             client = driver(server, played)
             with pytest.raises(ProviderStatusError) as refused:
                 await client.limits()
-            # A refused discovery is classed as a refused generation is, by its status, and says what the server said.
+            # A refused discovery is classed as a refused generation is, by its status, and says what the server said:
+            # the whole of its answer, as it wrote it.
             cause = refused.value.__cause__
             assert isinstance(cause, openai.APIStatusError)
             assert cause.status_code == status
             assert str(refused.value) == (
-                f"Failed to discover model limits for '{MODEL}' from the server's model list: refused with status {status}: {cause.message}"
+                f"Failed to discover model limits for '{MODEL}' from the server's model list: refused with status {status}: "
+                f"Error code: {status} - {refusal.body.decode()}"
             )
-            assert "what the server said" in str(refused.value)
             assert refused.value.status == status
             # The library asks again for the statuses it asks again for, as it does for a generation.
             assert len(played.listings) == asked
@@ -966,15 +968,16 @@ def test_a_refused_generation_is_a_provider_status_error_with_the_librarys_failu
 ) -> None:
     async def scenario() -> None:
         async with play(server) as played:
-            played.script(*[server.refused(status, "what the server said")] * asked)
+            refusal = server.refused(status, "what the server said")
+            played.script(*[refusal] * asked)
             with pytest.raises(ProviderStatusError) as failed:
                 await driver(server, played).generate_text("p", 100, 0)
             cause = failed.value.__cause__
             assert isinstance(cause, openai.APIStatusError)
-            # What the library said of it, with the status and the server's own words in it.
-            assert (failed.value.status, str(failed.value)) == (status, cause.message)
-            assert str(status) in str(failed.value)
-            assert "what the server said" in str(failed.value)
+            # The status, and the server's own words: the whole of its answer, as it wrote it, of which the library's
+            # own message keeps only the `message`.
+            assert failed.value.status == status
+            assert str(failed.value) == f"Error code: {status} - {refusal.body.decode()}"
             # The retries are these drivers' choice of two: a refusal the library asks again for is asked three
             # times in all, the same request each time, and any other once.
             assert [alike(server, body) for body in played.generations] == [said_to("p", 100, 0)] * asked
