@@ -129,6 +129,9 @@ JDK_IMAGE="eclipse-temurin:${JDK_VERSION}-jdk"
 SWIFT_VERSION="$("$REPO_ROOT/packages/swift/scripts/swift-version.sh")" || exit 1
 SWIFT_IMAGE="swift:${SWIFT_VERSION}"
 
+# The .NET SDK is pinned by global.json; its image tag drops the prerelease build stamp.
+DOTNET_IMAGE="mcr.microsoft.com/dotnet/sdk:$("$REPO_ROOT/packages/csharp/scripts/dotnet-version.sh" --image-tag)"
+
 # --- What is kept between runs ---
 #
 # In the user's cache directory: macOS deletes files in /tmp that go unread
@@ -140,6 +143,7 @@ GOMODCACHE_DIR="$CACHE_ROOT/local-build-gomodcache"
 UVCACHE_DIR="$CACHE_ROOT/local-build-uv"
 CARGO_REGISTRY_DIR="$CACHE_ROOT/local-build-cargo"
 GRADLE_HOME_DIR="$CACHE_ROOT/local-build-gradle"
+NUGET_CACHE_DIR="$CACHE_ROOT/nuget"
 SWIFTPM_DIR="$CACHE_ROOT/local-build-swiftpm"
 mkdir -p "$SWIFTPM_DIR"
 # What each package and image was last built from, keyed by its directory.
@@ -381,7 +385,7 @@ BUILD_PACKAGES=""
 if [[ "$IMAGES_ONLY" != true ]]; then
   if ! PACKAGE_PLAN=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
       | $RT run --rm -i -v "$REPO_ROOT":/workspace -w /workspace "$PYTHON_IMAGE" \
-          python3 images/scripts/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$SWIFT_IMAGE"); then
+          python3 images/scripts/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$SWIFT_IMAGE" "$DOTNET_IMAGE"); then
     fail "Could not read what the packages are built from (images/scripts/package-signatures.py, above)."
     exit 1
   fi
@@ -1147,6 +1151,23 @@ build_swift() {
   built $packages
 }
 
+build_csharp() {
+  local packages
+  packages=$(packages_of csharp)
+  [[ -z "$packages" ]] && return 0
+  mkdir -p "$NUGET_CACHE_DIR"
+  step "C#: $(shown "$(names_of $packages)") ${DIM}(in ${DOTNET_IMAGE})${RESET}"
+  if ! run_logged "C#: built" \
+      $RT run --rm -v "$REPO_ROOT":/workspace \
+      -v "$NUGET_CACHE_DIR":/root/.nuget/packages -w /workspace \
+      "$DOTNET_IMAGE" \
+      sh -c 'for dir in "$@"; do (cd "$dir" && dotnet build -p:RestoreLockedMode=true) || exit 1; done' sh $packages; then
+    fail "A C# package did not build."
+    exit 1
+  fi
+  built $packages
+}
+
 if [[ "$IMAGES_ONLY" != true ]]; then
   banner "PACKAGES"
   [[ -z "$BUILD_PACKAGES" ]] && ok "Every selected package is unchanged since it was last built here"
@@ -1155,6 +1176,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
   build_python
   build_go
   build_kotlin
+  build_csharp
   build_swift
 fi
 
