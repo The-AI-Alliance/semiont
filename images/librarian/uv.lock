@@ -2142,7 +2142,7 @@ dev = [
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "ruff", specifier = "==0.17.2" },
+    { name = "ruff", specifier = "==0.17.3" },
 ]
 
 [[package]]
@@ -2180,7 +2180,7 @@ dev = [
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "ruff", specifier = "==0.17.2" },
+    { name = "ruff", specifier = "==0.17.3" },
     { name = "semiont-graph", extras = ["janusgraph", "neo4j", "neptune"] },
 ]
 
@@ -2236,7 +2236,7 @@ dev = [
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "ruff", specifier = "==0.17.2" },
+    { name = "ruff", specifier = "==0.17.3" },
     { name = "semiont-inference", extras = ["anthropic", "google", "llamacpp", "openai", "together", "vllm"] },
 ]
 
@@ -2353,7 +2353,7 @@ dev = [
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "ruff", specifier = "==0.17.2" },
+    { name = "ruff", specifier = "==0.17.3" },
 ]
 
 [[package]]
@@ -2378,7 +2378,7 @@ dev = [
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
-    { name = "ruff", specifier = "==0.17.2" },
+    { name = "ruff", specifier = "==0.17.3" },
 ]
 
 [[package]]
