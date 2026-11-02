@@ -66,7 +66,7 @@ every KB rather than a member of one stack: every start ensures it, and
 `semiont stop --service browser` stops it alone. Its Knowledge Bases panel
 discovers launcher-managed stacks automatically.
 
-See [Running a local stack](operator/LOCAL-SEMIONT.md) for the full local guide:
+See [Running knowledge bases on your computer](operator/LOCAL-SEMIONT.md) for the full local guide:
 choosing a config, the ports, and where things are kept.
 
 ## Community

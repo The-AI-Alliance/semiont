@@ -68,42 +68,42 @@ podman rm semiont-example.github.io-test-kb-nats
 podman stop semiont-example.github.io-test-kb-postgres
 podman rm semiont-example.github.io-test-kb-postgres
 # remove staged configs: <home>/tmp/semiont-config.example.github.io-test-kb.*
-# stop the machine's Worker:
+# stop the shared Worker:
 container stop semiont-worker
 container rm semiont-worker
 docker stop semiont-worker
 docker rm semiont-worker
 podman stop semiont-worker
 podman rm semiont-worker
-# stop the machine's OTel collector:
+# stop the shared OTel collector:
 container stop semiont-otel-collector
 container rm semiont-otel-collector
 docker stop semiont-otel-collector
 docker rm semiont-otel-collector
 podman stop semiont-otel-collector
 podman rm semiont-otel-collector
-# stop the machine's Prometheus:
+# stop the shared Prometheus:
 container stop semiont-prometheus
 container rm semiont-prometheus
 docker stop semiont-prometheus
 docker rm semiont-prometheus
 podman stop semiont-prometheus
 podman rm semiont-prometheus
-# stop the machine's Jaeger:
+# stop the shared Jaeger:
 container stop semiont-jaeger
 container rm semiont-jaeger
 docker stop semiont-jaeger
 docker rm semiont-jaeger
 podman stop semiont-jaeger
 podman rm semiont-jaeger
-# stop the machine's Ollama:
+# stop the shared Ollama:
 container stop semiont-ollama
 container rm semiont-ollama
 docker stop semiont-ollama
 docker rm semiont-ollama
 podman stop semiont-ollama
 podman rm semiont-ollama
-# stop the machine's Browser:
+# stop the shared Browser:
 container stop semiont-browser
 container rm semiont-browser
 docker stop semiont-browser

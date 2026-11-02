@@ -1384,7 +1384,7 @@ func dropCollidingForwards(u *UI, needs []portNeed) {
 			port int
 		}{{"KB", &cs.ForwardPID, cs.ForwardPort}, {"issuer", &cs.KeycloakForwardPID, cs.KeycloakPort}} {
 			if forwardProcAlive(*f.pid) && claimed[f.port] {
-				u.Warn("Dropping %s's %s forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
+				u.Warn("Dropping %s's %s forward on port %d — a stack here needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
 					cs.Repo, f.what, f.port, cs.Repo)
 				retireForward(*f.pid)
 				*f.pid = 0

@@ -26,8 +26,8 @@
 //! at the same moment loses nothing. What the file holds that is not a
 //! sign-in as this release knows one is written back as it was. Under the
 //! lock, the file's directory is kept to its owner, as the launcher keeps its
-//! state home: mode `0700`, and on Windows the launcher's access list, which
-//! what is made in it inherits.
+//! state home: the mode, and on Windows the access list, which what is made in
+//! it inherits, that specs/src/sign-in-store/owner-only.json states.
 //!
 //! A file that cannot be read or written is said to `on_failure`, and the
 //! store then behaves as if the file held nothing, or the write was not
@@ -43,22 +43,21 @@ use crate::session::{
 };
 use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
 use serde_json::{Map, Value};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::SystemTime;
 
 include!(concat!(env!("OUT_DIR"), "/sign_in.rs"));
+include!(concat!(env!("OUT_DIR"), "/owner_only.rs"));
 
 /// The file's name in the launcher's state home.
 pub const FILE_NAME: &str = "tokens.json";
 
 /// Keep `directory`, and everything made in it from then on, to its owner,
-/// with the access list the launcher gives its state home: the user this
-/// process runs as, the system and the administrators, each with full
-/// access, handed down to what is made in it, and nothing inherited from
-/// above. A mode keeps nobody out on Windows; the access list is what does. A
+/// with the sign-in store's access list, which the launcher gives its state
+/// home too. A mode keeps nobody out on Windows; the access list is what does. A
 /// directory that has the list already is left as it is: setting a list
 /// hands it down to everything beneath, which in a state home is no small
 /// walk. The two lists are compared as Windows writes each out, which names
@@ -154,10 +153,7 @@ fn owner_only(directory: &Path) -> io::Result<()> {
         if ConvertSidToStringSidW((*user.as_ptr().cast::<TOKEN_USER>()).User.Sid, &mut named) == 0 {
             return Err(io::Error::last_os_error());
         }
-        let sddl = wide(OsStr::new(&format!(
-            "D:PAI(A;OICI;FA;;;{})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)",
-            taken(named)
-        )));
+        let sddl = wide(OsStr::new(&owner_only_access_list(&taken(named))));
         let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
         if ConvertStringSecurityDescriptorToSecurityDescriptorW(
             sddl.as_ptr(),
@@ -212,12 +208,28 @@ fn owner_only(directory: &Path) -> io::Result<()> {
     }
 }
 
-/// Keep `directory` to its owner: mode `0700`, as the launcher keeps its
-/// state home.
+/// Keep `directory` to its owner: the sign-in store's directory mode, as the
+/// launcher keeps its state home.
 #[cfg(unix)]
 fn owner_only(directory: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o700))
+    fs::set_permissions(
+        directory,
+        fs::Permissions::from_mode(OWNER_ONLY_DIRECTORY_MODE),
+    )
+}
+
+/// How a file of the store is made, or opened over what is there: written,
+/// and on a system that has modes made with the store's file mode.
+fn owner_only_file() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(OWNER_ONLY_FILE_MODE);
+    }
+    options
 }
 
 /// The systems the state home differs by, as
@@ -416,7 +428,7 @@ impl SignInStore {
                 _ => Path::new("."),
             };
             fs::create_dir_all(directory)?;
-            let lock = File::create(self.path.with_extension("lock"))?;
+            let lock = owner_only_file().open(self.path.with_extension("lock"))?;
             lock.lock()?;
             // Under the lock: setting the list hands it down to the file, and
             // another writer renaming over the file at that moment would be
@@ -445,14 +457,7 @@ impl SignInStore {
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
         text.push('\n');
         let beside = self.path.with_extension("json.tmp");
-        let mut options = OpenOptions::new();
-        options.write(true).create(true).truncate(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            options.mode(0o600);
-        }
-        let written = options
+        let written = owner_only_file()
             .open(&beside)
             .and_then(|mut file| file.write_all(text.as_bytes()))
             .and_then(|()| fs::rename(&beside, &self.path));

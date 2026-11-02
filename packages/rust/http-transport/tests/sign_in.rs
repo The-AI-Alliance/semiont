@@ -109,9 +109,9 @@ struct Staged {
     /// What it accepts a request for and never answers: `who`, `metadata`,
     /// `issuer`, `token`, `revoke`, `document`, `content`.
     silent: Mutex<HashSet<&'static str>>,
-    /// Whether, asked who a token is, it begins its answer and never
-    /// finishes it.
-    trails_off: Mutex<bool>,
+    /// The status with which, asked who a token is, it begins its answer and
+    /// never finishes it; none when it answers.
+    trails_off: Mutex<Option<StatusCode>>,
     /// How long it takes to answer an upload.
     upload_takes: Mutex<Duration>,
     describes: Mutex<Describes>,
@@ -234,12 +234,14 @@ async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
     let token = bearer(&headers);
     staged.asked_who.lock().unwrap().push(token.clone());
     staged.held("who").await;
-    if *staged.trails_off.lock().unwrap() {
+    let trailing = *staged.trails_off.lock().unwrap();
+    if let Some(status) = trailing {
         let begun = tokio_stream::once(Ok::<Bytes, std::convert::Infallible>(Bytes::from_static(
             b"{\"did\":",
         )))
         .chain(tokio_stream::pending());
         return (
+            status,
             [(header::CONTENT_TYPE, "application/json")],
             Body::from_stream(begun),
         )
@@ -2755,7 +2757,7 @@ async fn a_gateway_operation_that_is_never_answered_fails_at_the_deadline_and_is
 
     // An answer that begins and never ends has the same deadline again.
     world.staged.silent.lock().unwrap().clear();
-    *world.staged.trails_off.lock().unwrap() = true;
+    *world.staged.trails_off.lock().unwrap() = Some(StatusCode::OK);
     let started = tokio::time::Instant::now();
     let unfinished = ends(auth.me()).await.expect_err("it never finished");
     assert!(
@@ -2767,6 +2769,26 @@ async fn a_gateway_operation_that_is_never_answered_fails_at_the_deadline_and_is
         message(unfinished),
         "GET /api/users/me got no answer within 30s"
     );
+    client.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refusal_whose_body_never_ends_is_the_refusal_with_no_words_at_the_deadline() {
+    let world = World::on_a_quick_clock().await;
+    *world.staged.trails_off.lock().unwrap() = Some(StatusCode::NOT_FOUND);
+    let client = world.client("a-token");
+    let started = tokio::time::Instant::now();
+
+    let auth = client.auth.as_ref().expect("a gateway");
+    let refused = ends(auth.me()).await.expect_err("it was refused");
+
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(refused.code(), "not-found");
+    assert_eq!(message(refused), "HTTP 404: Not Found");
     client.close().await;
 }
 
@@ -3067,7 +3089,7 @@ async fn a_script(
     http: reqwest::Client,
 ) -> Result<String, Box<dyn Error>> {
     // <readme:script>
-    // The sign-in `semiont login` made for the local stack. The stack's key
+    // The sign-in `semiont login` made for the knowledge base running here. Its key
     // is the knowledge base's id.
     let store = SignInStore::at(
         state_home.join(FILE_NAME),

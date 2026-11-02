@@ -740,8 +740,19 @@ func (s *stream) read(ctx context.Context, conn uint64, token string, body api.B
 	}
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		wait, hasWait := RetryAfter(response.Header.Get("Retry-After"))
-		said, _ := io.ReadAll(io.LimitReader(response.Body, 1<<16))
-		report(streamEvent{kind: eventRefused, err: refusal(fmt.Sprintf("SSE connect failed: %d", response.StatusCode), response.StatusCode, wait, hasWait, said)})
+		// A refusal's body is read within HttpRequestTimeout, as any other
+		// answer is: one not read by then is a refusal that says nothing.
+		reading := time.AfterFunc(s.shared.timing.HttpRequestTimeout, cancel)
+		said, err := io.ReadAll(io.LimitReader(response.Body, 1<<16))
+		reading.Stop()
+		if err != nil {
+			said = nil
+		}
+		message := fmt.Sprintf("SSE connect failed: %d", response.StatusCode)
+		if words, ok := gatewayWords(said); ok {
+			message += ": " + words
+		}
+		report(streamEvent{kind: eventRefused, err: refusal(message, response.StatusCode, wait, hasWait, said)})
 		return
 	}
 	if !report(streamEvent{kind: eventOpened}) {

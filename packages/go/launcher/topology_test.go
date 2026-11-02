@@ -23,7 +23,7 @@ func externalIssuer(st *stack.Stack) {
 
 // A daemon whose document states no `external` is the launcher's to run and
 // to place: every one at this start's address, on its driver's port (the
-// containers' side of one a person dials too), and the machine's Ollama beside
+// containers' side of one a person dials too), and the shared Ollama beside
 // them.
 func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	placedByLauncher := []string{
@@ -108,7 +108,7 @@ func TestNoAddressTravelsInAnEnvironment(t *testing.T) {
 	const addr = "192.168.64.1"
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
-		"worker":     workerArgs("/state/machine/worker.json", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
+		"worker":     workerArgs("/state/shared/worker.json", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
 		"smelter":    smelterArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("smelter").ports[0].port, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
 		"weaver":     weaverArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("weaver").ports[0].port, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
 		"archivist":  archivistArgs("kb", "/kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("archivist").ports[0].port, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),

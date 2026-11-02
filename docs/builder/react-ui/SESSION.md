@@ -269,7 +269,7 @@ through the client or browser they are given.
 ### `useKBDiscovery` — launcher-published KBs
 
 The Semiont launcher publishes an export view of every KB it manages
-(local stacks and codespace forwards) as a `DiscoveryDocument`, which the
+(knowledge bases running here, and codespace forwards) as a `DiscoveryDocument`, which the
 Browser image serves at `DISCOVERY_URL_PATH` (`@semiont/core`). The sdk
 owns every consumer-side semantic — validation via the core type guards,
 the `version` compatibility gate, the **typed absent-vs-managed

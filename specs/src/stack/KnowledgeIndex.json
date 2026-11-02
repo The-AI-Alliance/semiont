@@ -150,7 +150,7 @@
             "endpoint": {
               "type": "string",
               "minLength": 1,
-              "description": "Where the provider's API is reached. An Ollama the machine runs is stated by no endpoint."
+              "description": "Where the provider's API is reached. The shared Ollama is stated by no endpoint."
             },
             "apiKey": {
               "$ref": "./SecretRef.json"

@@ -16,7 +16,7 @@ under the key of the stack it is for:
 
 | Key | The stack |
 |---|---|
-| `local:<did-key>` | the local stack of the knowledge base whose did:web is `did:web:<domain>`: `<did-key>` is `<domain>` with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-` (`did:web:example.org:my-kb` is `local:example.org-my-kb`) |
+| `local:<did-key>` | the knowledge base whose did:web is `did:web:<domain>`, running on this computer: `<did-key>` is `<domain>` with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-` (`did:web:example.org:my-kb` is `local:example.org-my-kb`) |
 | `codespace:<owner>/<name>` | the codespace stack of that repository |
 
 The keys are the launcher's stack keys, as in its `stack.json`. An SDK
@@ -44,21 +44,21 @@ written by a later release, is written back as it was.
 Windows, and everything else. Each SDK that reads the store runs them, and the
 launcher finds its state home through the Go SDK's.
 
-The file holds bearer credentials. It is created with mode `0600`, and
-written by writing a sibling temporary file and renaming it over the old
-one, so no reader sees half a document and no credential is left in a stray
-file.
+The file holds bearer credentials. It is created with the file mode that
+[`owner-only.json`](owner-only.json) states, as its lock is, and written by
+writing a sibling temporary file and renaming it over the old one, so no
+reader sees half a document and no credential is left in a stray file.
 
 Every writer keeps `<stateDir>` to its owner, as the launcher keeps its state
 home, once it holds the lock (below) and before it reads, so the file and the
 temporary file are its owner's alone from the moment each is made, and the
-lock from then on: mode `0700`, and on Windows, where a mode keeps nobody out,
-an access list. The list allows full access to the user the writer runs as
-(its process token's user), to the system and to the administrators, and to
-nobody else; it is handed down to everything made in the directory, and it is
-protected, so nothing is inherited from above:
-
-    D:PAI(A;OICI;FA;;;<the user's SID>)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)
+lock from then on: with the directory mode, and on Windows, where a mode
+keeps nobody out, the access list, that [`owner-only.json`](owner-only.json)
+states. The list allows full access to the user the writer runs as (its
+process token's user), to the system and to the administrators, and to
+nobody else; it is handed down to everything made in the directory, and it
+is protected, so nothing is inherited from above. Every writer, and the
+launcher, generates the modes and the list from that file.
 
 A directory that has the list already is left as it is: setting a list hands
 it down to everything beneath, and is done under the lock because a file

@@ -45,6 +45,7 @@ public fun main(args: Array<String>) {
         table("semiont", "Timings.kt", listOf("semiont.retry.RetryPolicy"), timingFile(readJson(specs.resolve("client/timing.json")) as? JsonObject ?: refuse("client/timing.json is no object")))
         table("semiont.telemetry", "TelemetryTable.kt", listOf("io.opentelemetry.api.trace.SpanKind"), telemetryFile(readJson(specs.resolve("sdk-telemetry/telemetry.json")) as? JsonObject ?: refuse("sdk-telemetry/telemetry.json is no object")))
         table("semiont.signin", "OAuthClients.kt", listOf("semiont.Generated"), oauthClientsFile(readJson(specs.resolve("session/oauth.json")) as? JsonObject ?: refuse("session/oauth.json is no object")))
+        table("semiont.signin", "OwnerOnlyTable.kt", emptyList(), ownerOnlyFile(readJson(specs.resolve("sign-in-store/owner-only.json")) as? JsonObject ?: refuse("sign-in-store/owner-only.json is no object")))
         val supported = ((definitions["SupportedMediaType"] as? JsonObject)?.get("enum") as? JsonArray ?: refuse("SupportedMediaType states no enum"))
             .map { (it as? JsonPrimitive)?.content ?: refuse("SupportedMediaType states a member that is no text: $it") }
         table("semiont.mediatypes", "MediaTypesTable.kt", emptyList(), mediaTypesFile(readJson(specs.resolve("media-types/registry.json")) as? JsonObject ?: refuse("media-types/registry.json is no object"), supported))

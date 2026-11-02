@@ -1,4 +1,4 @@
-# Running a local stack
+# Running knowledge bases on your computer
 
 The [`semiont` launcher](../../apps/launcher/README.md) runs a stack on your own machine, for the knowledge base in the directory you run it from. If this is your first time, follow the [Quick Start](../builder/QUICK-START.md): it goes from install to a first annotation. This page covers what the Quick Start leaves out.
 
@@ -27,6 +27,21 @@ For a new one, `semiont init` creates a knowledge base in the current directory 
 
 `semiont start` pulls the images, starts the infrastructure and then the services in [order](services/OVERVIEW.md#start-order), waits for each to be healthy, and exits. The stack keeps running. A new stack has no accounts: `semiont useradd` creates the first one, and every one after it, and prompts for the password.
 
+## What runs
+
+`semiont status` reads what runs in the groups the launcher starts and stops, each service by the name `--service` takes:
+
+| Group | Services | Whose |
+|---|---|---|
+| `record` | `gateway`, `archivist`, `dispatcher` and `messaging` (NATS) | each knowledge base's own |
+| `index` | `librarian`, `smelter`, `weaver`, `graph` (Neo4j) and `vectors` (Qdrant) | each knowledge base's own |
+| `issuer` | `identity` (Keycloak) and `identity-store` (its PostgreSQL), where people sign in | each knowledge base's own |
+| `knowledge-workers` | `browser`, where people work, and `worker`, which runs agents' jobs | shared |
+| `providers` | `inference` and `embedding`: Ollama, or a hosted provider's API | shared |
+| `telemetry` | `collector` (OpenTelemetry), `traces` (Jaeger) and `metrics` (Prometheus) | shared |
+
+A knowledge base is everything behind its gateway: its record, its index and its issuer, which it runs for itself. `status` shows each knowledge base with those three, then each shared group once. A shared service serves every knowledge base here, whichever start ran it: a start keeps a running one that is current, and `semiont stop` stops the shared services with the last knowledge base. Where a service runs (a container runtime, a codespace, a host process, somebody else's address) is a column of its row, not a section.
+
 ## Choose a config
 
 A knowledge base can ship several Inference documents under `.semiont/stack/inference/`, usually one per inference provider, and `--config` names the one a start runs:
@@ -37,7 +52,7 @@ semiont start --config anthropic    # start on one of them
 semiont settings config anthropic   # make it this knowledge base's default on this machine
 ```
 
-- **With local models (Ollama)**, no key is needed. The first start downloads the models the document names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not. That Ollama is the machine's, not one knowledge base's: it serves every knowledge base that names it, a start keeps it running, and `semiont stop` stops it with the stack. `semiont stop --service inference` stops it alone.
+- **With local models (Ollama)**, no key is needed. The first start downloads the models the document names, which can take several minutes and several gigabytes. The launcher uses an Ollama already installed on your machine when there is one, and runs one in a container when there is not. That Ollama is shared, not one knowledge base's: it serves every knowledge base that names it, a start keeps it running, and `semiont stop` stops it with the last knowledge base. `semiont stop --service inference` stops it alone.
 - **With Anthropic**, the document names the variable that holds the key: `apiKey: { fromEnv: ANTHROPIC_API_KEY }`. Tell the launcher where the key lives with `semiont settings secret set ANTHROPIC_API_KEY`, or export the variable. See [Secrets](services/SECRETS.md).
 
 What the documents can say is in [Configuration](administration/CONFIGURATION.md).
@@ -45,28 +60,30 @@ What the documents can say is in [Configuration](administration/CONFIGURATION.md
 ## Day to day
 
 ```bash
-semiont status                      # each service's state and health
+semiont status                      # each knowledge base by group, then what they share
 semiont logs                        # follow the Semiont services
 semiont logs --service gateway      # follow one, infrastructure included
 semiont start --service gateway     # restart one service
+semiont start --group index         # restart a group, and first whatever it needs that is down
+semiont stop --group index          # stop a group, and whatever in its knowledge base needs it
 semiont stop                        # take the stack down; its data stays
 semiont clean                       # delete the stack's data; the knowledge base is untouched
 semiont start --dry-run             # print what a start would run, and run nothing
 ```
 
-`--service` takes one of [the launcher's names](services/OVERVIEW.md#the-launchers-names). `semiont stop` keeps every store, so the next start picks up where this one left off; `semiont clean` is the only command that deletes them, and it never touches the knowledge base's own directory.
+`--service` takes one of [the launcher's names](services/OVERVIEW.md#the-launchers-names), and `--group` one of [the groups](#what-runs). A group's start and stop say what else they start or stop, and why; a shared group stops alone, and each knowledge base goes on without it. `semiont stop` keeps every store, so the next start picks up where this one left off; `semiont clean` is the only command that deletes them, and it never touches the knowledge base's own directory.
 
 ## The Browser
 
-Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base on the machine, local or forwarded from a codespace, and lists them under **Found on this machine**. `semiont stop` closes it with the stack, and `semiont stop --service browser` closes it alone.
+Any start also makes sure the Browser is running, at `http://localhost:3000`. It is not part of the stack: one Browser serves every knowledge base here, running on this computer or forwarded from a codespace, and lists them under **Found on this machine**. `semiont stop` closes it with the last knowledge base, and `semiont stop --service browser` closes it alone.
 
-The Browser has a document of its own, as a knowledge base's services do: `stack/browser.yaml` in the launcher's state home, naming its image, its memory and the port it is published on. The first start writes it, and says where; `semiont settings browser` shows it. Edit it, and the next start runs what it says: a port it moves needs `semiont identity sync` too, so the realm allows sign-in from there ([Configuration](administration/CONFIGURATION.md#the-browser)). The worker's image, memory and log level are the machine's the same way, in `stack/workers.yaml` beside it ([Configuration](administration/CONFIGURATION.md#the-worker)).
+The Browser has a document of its own, as a knowledge base's services do: `stack/browser.yaml` in the launcher's state home, naming its image, its memory and the port it is published on. The first start writes it, and says where; `semiont settings browser` shows it. Edit it, and the next start runs what it says: a port it moves needs `semiont identity sync` too, so the realm allows sign-in from there ([Configuration](administration/CONFIGURATION.md#the-browser)). The worker's image, memory and log level belong to no knowledge base the same way, in `stack/workers.yaml` beside it ([Configuration](administration/CONFIGURATION.md#the-worker)).
 
 To use the Browser without running a stack, see [Get the Browser](../analyst/README.md#get-the-browser).
 
 ## Ports
 
-A local stack publishes these for you to open:
+A knowledge base running here, and the services it shares, publish these for you to open:
 
 | Port | What |
 |---|---|
@@ -74,7 +91,7 @@ A local stack publishes these for you to open:
 | 4000 | The gateway: the knowledge base's address, as its `knowledge-base.yaml` commits it |
 | 8080 | Keycloak, where people sign in |
 | 7474, 7687 | Neo4j's console and its bolt port |
-| 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)), the machine's: one each serves every knowledge base here |
+| 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)), shared: one each serves every knowledge base here |
 
 The services' own ports and the infrastructure's are in [the service catalog](services/OVERVIEW.md). `semiont start` checks that every port it needs is free before it starts anything.
 
@@ -82,11 +99,11 @@ Each knowledge base on this Mac has a port block of its own. Its first start tak
 
 - **The gateway's** is the one the knowledge base commits. `semiont init` writes one no other knowledge base this Mac knows commits: 4000, else 4010, 4020, and so on.
 - **Keycloak's** is the one `semiont settings keycloak-port` sets, if it has been set, and otherwise 8080 on the block.
-- **The machine's** containers keep their own ports whichever knowledge base runs: the Browser, the telemetry, Ollama and the worker.
+- **The shared services** keep their own ports whichever knowledge base runs: the Browser, the worker, Ollama and the telemetry.
 
 Each start says where it publishes each service as it comes up.
 
-Several knowledge bases run at once. Each one's containers are named for it ([the launcher's names](services/OVERVIEW.md#the-launchers-names)), and a start leaves every other knowledge base's stack running. A start refuses a second copy of a knowledge base another clone is running, and a port another running knowledge base's stack holds: two clones of one template both commit gateway port 4000, so give the second a port of its own in its `knowledge-base.yaml`. `semiont stop` in a clone stops that knowledge base's stack, and the machine's containers with the last one; `--root <path>` names a knowledge base from anywhere.
+Several knowledge bases run at once. Each one's containers are named for it ([the launcher's names](services/OVERVIEW.md#the-launchers-names)), and a start leaves every other knowledge base's stack running. A start refuses a second copy of a knowledge base another clone is running, and a port another running knowledge base's stack holds: two clones of one template both commit gateway port 4000, so give the second a port of its own in its `knowledge-base.yaml`. `semiont stop` in a clone stops that knowledge base's stack, and the shared services with the last one; `--root <path>` names a knowledge base from anywhere.
 
 Where each port listens depends on the container runtime:
 

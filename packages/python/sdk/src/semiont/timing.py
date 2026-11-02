@@ -75,11 +75,14 @@ EMIT_RETRY: Final = RetryPolicy(attempts=4, initial_delay_ms=1000, max_delay_ms=
 # wait for a resource's bytes to begin arriving, a read of a resource's description or of its
 # anchored text, a request to the issuer (its discovery, a grant, a revocation), and a read of a
 # launcher's discovery document. Unanswered here, the request fails as one that got no answer.
-# Without it, a gateway or an issuer that accepts a connection and never answers holds a
-# session's start, and every renewal after it, for as long as the process lives. An upload has
-# no deadline: how long it takes is how large the resource is. A read of anchored text may be
-# held by the Archivist while the Smelter reads the content, for the time
-# docs/protocol/ARCHIVIST.md states, and this deadline is longer than that wait.
+# It bounds the read of a refusal's body too, of such a request or of the request that opens the
+# stream (`streamOpenTimeoutMs`): a body not read by then is the refusal with none of the
+# gateway's words, refused, renewed or retried as any refusal is. Without it, a gateway or an
+# issuer that accepts a connection and never answers holds a session's start, and every renewal
+# after it, for as long as the process lives. An upload has no deadline: how long it takes is
+# how large the resource is. A read of anchored text may be held by the Archivist while the
+# Smelter reads the content, for the time docs/protocol/ARCHIVIST.md states, and this deadline
+# is longer than that wait.
 HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 
 # The wait before an HTTP request that is neither the stream nor an emit is made a second time.
@@ -97,7 +100,9 @@ REQUEST_RETRY_PAUSE_MS: Final = 300
 # Without it, a gateway that accepts the connection and says nothing is waited on for as long as
 # the process lives, and the stream is never opened again. The gateway answers an open as
 # promptly as one of its own operations, so this is as long as `httpRequestTimeoutMs`. Only the
-# answer is bounded: an open stream that carries nothing for a while has not failed, since a
+# answer is bounded here. An answer that refuses the open has its body read within
+# `httpRequestTimeoutMs`, as any refusal's is: one not read by then is the refusal with none of
+# the gateway's words. An open stream that carries nothing for a while has not failed, since a
 # knowledge base where nothing happens has nothing to send.
 STREAM_OPEN_TIMEOUT_MS: Final = 30000
 

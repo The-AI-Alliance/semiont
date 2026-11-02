@@ -42,7 +42,7 @@ const client = new SemiontClient(transport, new HttpContentTransport(transport),
 
 ## The fetch it sends with
 
-Every request of a transport is sent with the `fetch` its config gives, or with the runtime's own when it gives none: the stream, every emit, the gateway's plain operations, and the content transport's reads and uploads. `currentUserOf` takes one as its last argument, and `agentToken` as `fetch` beside its credential. The certificates a request trusts, and the proxy it goes through, are that fetch's: this package reads no setting of its own for either.
+Every request of a transport is sent with the `fetch` its config gives, or with the runtime's own when it gives none: the stream, every emit, the gateway's plain operations, and the content transport's reads and uploads. `currentUserOf` takes one as its last argument, and `agentToken` one for the gateway as `fetch`, beside the `ServiceToken` it signs in with, which asks the issuer with the one it was made with. The certificates a request trusts, and the proxy it goes through, are that fetch's: this package reads no setting of its own for either.
 
 - **In Node**, the runtime's `fetch` trusts Node's certificate authorities. A gateway whose certificate another authority signed is reached with a `fetch` that trusts that authority: undici's `fetch`, sent through an undici `Agent` whose `connect` options carry its `ca`. The application depends on `undici` for it; this package does not.
 - **In a browser page**, the browser decides what every request trusts, whatever `fetch` is given. An upload that asks for progress or gives a `signal` there goes through `XMLHttpRequest`, the one way a page can count the bytes it sends, and not through the `fetch` given.

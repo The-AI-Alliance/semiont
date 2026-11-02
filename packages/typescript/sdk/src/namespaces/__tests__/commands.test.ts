@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { resourceContextFor, annotationContextFor } from '../../__tests__/fixtures/gathered-context';
 import { mockResource } from '../../__tests__/fixtures/resource';
-import { EventBus, resourceId, annotationId, jobId, userId } from '@semiont/core';
+import { BUS_REQUEST_TIMEOUT_MS, EventBus, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, resourceId, annotationId, jobId, userId } from '@semiont/core';
 import { MarkNamespace } from '../mark';
 import { BindNamespace } from '../bind';
 import { GatherNamespace } from '../gather';
@@ -510,6 +510,72 @@ describe('MarkNamespace', () => {
     expect(failure).toBeInstanceOf(JobFailedError);
     expect((failure as JobFailedError).code).toBe('job.failed');
     expect((failure as JobFailedError).message).toBe('worker gave up');
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('delegate() asks again at the next poll for a status that could not be had', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': (reply) => reply('job:status-failed', { message: 'the queue is not answering' }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let ended = false;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: () => { ended = true; }, complete: () => { ended = true; } });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    // A refused ask is a SemiontError: the job is still followed, and asked about again.
+    expect(mock.emitSpy.mock.calls.filter(([channel]) => channel === 'job:status-requested')).toHaveLength(2);
+    expect(ended).toBe(false);
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('delegate() asks for a status one at a time: a poll that comes round while the last ask is unanswered asks nothing', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      // Never answered: each ask is settled only by its own deadline.
+      'job:status-requested': () => {},
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+    const asked = () => mock.emitSpy.mock.calls.filter(([channel]) => channel === 'job:status-requested');
+
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: () => {} });
+    await vi.advanceTimersByTimeAsync(100);
+    // The silence, then four polls, all inside the first ask's deadline.
+    await vi.advanceTimersByTimeAsync(JOB_SILENCE_MS + 4 * JOB_STATUS_POLL_MS);
+    expect(asked()).toHaveLength(1);
+    // The first ask times out; the poll after that asks again.
+    await vi.advanceTimersByTimeAsync(BUS_REQUEST_TIMEOUT_MS);
+    expect(asked()).toHaveLength(2);
+    bus.destroy();
+    vi.useRealTimers();
+  });
+
+  it('delegate() ends with what a status ask failed with when that is no SemiontError', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const broken = new TypeError('the transport broke');
+    const mock = createMockTransport({
+      'job:create': (reply) => reply('job:created', { response: { jobId: JID } }),
+      'job:status-requested': () => { throw broken; },
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let failure: unknown;
+    m.delegate(RID, { motivation: 'highlighting' }).subscribe({ error: (e) => { failure = e; } });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(failure).toBe(broken);
+    // Asked about once: the follower ended there.
+    expect(mock.emitSpy.mock.calls.filter(([channel]) => channel === 'job:status-requested')).toHaveLength(1);
     bus.destroy();
     vi.useRealTimers();
   });

@@ -27,6 +27,7 @@ const defaultConfigName = "ollama-gemma"
 // refused and names why.
 func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 	opts = startOptions{configName: defaultConfigName, observe: true, platform: platformLocal}
+	service, group := "", ""
 
 	// needVal reports a missing value rather than printing it — the whole
 	// point here is that every refusal is a value a test can read.
@@ -58,7 +59,14 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 			if !ok {
 				return opts, false, missing
 			}
-			opts.service = v
+			service = v
+			i++
+		case "--group":
+			v, ok := needVal(i)
+			if !ok {
+				return opts, false, missing
+			}
+			group = v
 			i++
 		case "--root":
 			v, ok := needVal(i)
@@ -152,8 +160,10 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 	// is silently ignored, per the flag-scoping pattern.
 	if opts.platform == platformCodespace {
 		switch {
-		case opts.service != "":
+		case service != "":
 			return opts, false, "--service does not apply to --runtime codespace (the codespace's own launcher runs its services)."
+		case group != "":
+			return opts, false, "--group does not apply to --runtime codespace (the codespace's own launcher runs its services)."
 		case opts.configSet:
 			return opts, false, "--config does not apply to --runtime codespace (the codespace runs its committed config)."
 		case opts.noObserveSet:
@@ -171,25 +181,44 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 		return opts, false, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace."
 	}
 
-	// --service compatibility: flags that don't apply to the named service are
-	// rejected rather than silently ignored.
-	if opts.service != "" {
-		if !knownRole(opts.service) {
-			return opts, false, fmt.Sprintf("Unknown --service '%s' (expected: %s)", opts.service, roleList)
+	switch {
+	case group != "":
+		g, known := groupNamed(group)
+		switch {
+		case !known:
+			return opts, false, fmt.Sprintf("Unknown --group '%s' (expected: %s)", group, groupList)
+		case service != "":
+			return opts, false, "--group and --service are contradictory: start one group, or one service."
 		}
+		// Every service the group could start, with nothing up: the reach the
+		// flags are checked against. The start narrows it to what is not up
+		// once it knows what runs.
+		opts.group = g
+		opts.starts = groupStarts(g, func(string) bool { return false })
+	case service != "":
+		if !knownRole(service) {
+			return opts, false, fmt.Sprintf("Unknown --service '%s' (expected: %s)", service, roleList)
+		}
+		opts.starts = []groupMember{{role: service}}
+	}
+
+	// Compatibility with --service or --group: flags that don't apply to the
+	// services named are rejected rather than silently ignored.
+	if opts.starts != nil {
+		flag, _, _ := strings.Cut(opts.asked(), " ")
 		switch {
 		case opts.listConfigs:
-			return opts, false, "--list-configs cannot be combined with --service."
+			return opts, false, "--list-configs cannot be combined with " + flag + "."
 		case opts.cleanOllama:
-			return opts, false, "--clean-ollama cannot be combined with --service."
+			return opts, false, "--clean-ollama cannot be combined with " + flag + "."
 		case opts.noObserveSet:
-			return opts, false, "--no-observe does not apply to --service: OTel export is enabled iff the collector is already running."
-		case opts.ollamaCache != "" && opts.service != "inference":
-			return opts, false, "--ollama-cache only applies to --service inference."
-		case opts.configSet && configFreeService(opts.service):
-			return opts, false, fmt.Sprintf("--config does not apply to --service %s (it reads no config).", opts.service)
-		case opts.root != "" && configFreeService(opts.service):
-			return opts, false, fmt.Sprintf("--root only applies to services that read the KB config (--service %s does not).", opts.service)
+			return opts, false, "--no-observe does not apply to " + flag + ": OTel export is enabled iff the collector is up."
+		case opts.ollamaCache != "" && !opts.includes("inference"):
+			return opts, false, fmt.Sprintf("--ollama-cache only applies to a start that runs inference (%s does not).", opts.asked())
+		case opts.configSet && !opts.readsConfig():
+			return opts, false, fmt.Sprintf("--config does not apply to %s (it reads no config).", opts.asked())
+		case opts.root != "" && !opts.readsConfig():
+			return opts, false, fmt.Sprintf("--root only applies to services that read the KB config (%s does not).", opts.asked())
 		}
 	}
 

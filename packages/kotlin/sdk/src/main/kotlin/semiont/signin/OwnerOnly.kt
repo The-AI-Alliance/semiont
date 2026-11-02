@@ -15,11 +15,9 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
 /**
- * The access list the launcher gives its state home, on Windows: the user this
- * process runs as, the system and the administrators, each with full access,
- * handed down to everything made in the directory from then on, and nothing
- * inherited from above. A mode keeps nobody out on Windows; the access list is
- * what does. The JDK's own view of an access list names a principal by its
+ * The sign-in store's access list (`ownerOnlyAccessList`), which the launcher
+ * gives its state home too, on Windows. A mode keeps nobody out on Windows; the
+ * access list is what does. The JDK's own view of an access list names a principal by its
  * account name, which Windows writes in the system's language, and cannot keep
  * a list from inheriting, so the list is set through the JDK's foreign-function
  * API, as the launcher sets it.
@@ -111,7 +109,7 @@ internal object OwnerOnly {
         if (getTokenInformation.invoke(state, currentProcessToken, TOKEN_USER, user, size.get(JAVA_INT, 0L), size) as Int == 0) failed("GetTokenInformation", state)
         val named = arena.allocate(ADDRESS)
         if (convertSidToStringSid.invoke(state, user.get(ADDRESS, 0L), named) as Int == 0) failed("ConvertSidToStringSidW", state)
-        val list = "D:PAI(A;OICI;FA;;;${taken(named.get(ADDRESS, 0L))})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        val list = ownerOnlyAccessList(taken(named.get(ADDRESS, 0L)))
         val made = arena.allocate(ADDRESS)
         if (convertStringSecurityDescriptor.invoke(state, arena.allocateFrom(list, StandardCharsets.UTF_16LE), SDDL_REVISION_1, made, MemorySegment.NULL) as Int == 0) {
             failed("ConvertStringSecurityDescriptorToSecurityDescriptorW", state)

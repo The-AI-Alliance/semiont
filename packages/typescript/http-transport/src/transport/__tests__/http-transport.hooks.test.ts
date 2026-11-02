@@ -376,6 +376,27 @@ describe('HttpTransport afterResponse — a refused credential is renewed once, 
     await expect(run(refusedToken(), 1)).resolves.toBeUndefined();
     expect(refresher).not.toHaveBeenCalled();
   });
+
+  test('a refusal whose body never ends is read for the request deadline and no longer, and then says nothing', async () => {
+    vi.useFakeTimers();
+    const refresher = vi.fn(async () => 'fresh-token');
+    const { run } = build(refresher);
+    const begun = new TextEncoder().encode('{"error":"refused","code":"refusal-ra');
+    const unfinished = new Response(new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(begun); } }), { status: 429 });
+    let settled = false;
+    const renewing = Promise.resolve(run(unfinished)).then((result) => {
+      settled = true;
+      return result;
+    });
+
+    await vi.advanceTimersByTimeAsync(10_000 - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    // Read in part, it names no limit: a 429 that is no refused credential.
+    await expect(renewing).resolves.toBeUndefined();
+    expect(refresher).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
 });
 
 // ── The actor→transport errors$ bridge ──────────────────────────────────

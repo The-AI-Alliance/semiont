@@ -1,4 +1,4 @@
-# stack — the documents that describe a knowledge base's stack, and the machine's Browser and worker
+# stack — the documents that describe a knowledge base's stack, and the Browser and worker every knowledge base shares
 
 A knowledge base's repository commits its stack as documents in Kubernetes'
 resource format (`apiVersion`, `kind`, `metadata`, `spec`), one file for each
@@ -35,7 +35,7 @@ the file is what runs.
 
 | Kind | Schema | File | Holds |
 |---|---|---|---|
-| `Browser` | [`Browser.json`](Browser.json) | `stack/browser.yaml` | the Browser: its image, its memory, and the port it is published on, on the machine's loopback |
+| `Browser` | [`Browser.json`](Browser.json) | `stack/browser.yaml` | the Browser: its image, its memory, and the port it is published on, on this computer's loopback |
 | `WorkerPool` | [`WorkerPool.json`](WorkerPool.json) | `stack/workers.yaml` | the worker: its image, its memory and its log level. A knowledge base's jobs are done when its Inference document gives a job an engine |
 
 ## The project file

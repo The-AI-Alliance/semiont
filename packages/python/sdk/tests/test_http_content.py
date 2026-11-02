@@ -426,3 +426,14 @@ def test_a_request_never_answered_fails_as_unavailable_at_its_deadline_and_is_no
     assert (code, status, asked_once) == ("unavailable", None, 1)
     assert (unanswered, asked_twice) == ("unavailable", 2)
     assert [error.code for error in reported] == ["unavailable", "unavailable"]
+
+
+def test_a_refusal_whose_body_never_ends_is_the_refusal_with_no_words_at_its_deadline() -> None:
+    async def scenario() -> tuple[str, int | None, str]:
+        async with GatewayServer() as gateway, transport_to(gateway) as transport:
+            gateway.scripted[("GET", "/api/users/me")] = [Answer(status=404, body=b'{"error":"ne', promise=100, stall=True)]
+            with pytest.raises(TransportError) as refused:
+                await soon(transport.get_current_user())
+            return refused.value.code, refused.value.status, refused.value.message
+
+    assert run(scenario()) == ("not-found", 404, "HTTP 404: Answered")

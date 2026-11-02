@@ -246,7 +246,7 @@ func TestTheSmelterIsHandedOnlyWhatItsDocumentNames(t *testing.T) {
 	if len(handed) != 1 || handed[0] != "VOYAGE_API_KEY" {
 		t.Errorf("the Smelter is handed %v, want the one variable its document names", handed)
 	}
-	if required := secretsRead(p, "smelter"); len(required) != 1 || required[0] != "VOYAGE_API_KEY" {
+	if required := secretsRead(p, startOptions{starts: []groupMember{{role: "smelter"}}}.includes); len(required) != 1 || required[0] != "VOYAGE_API_KEY" {
 		t.Errorf("a start of the Smelter alone demands %v, want the one variable its document names", required)
 	}
 }

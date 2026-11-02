@@ -1,7 +1,7 @@
 package launcher
 
 // workerpooldoc.go — the worker's document: the image the worker runs, its
-// memory and its log level. They are the machine's, not any knowledge base's,
+// memory and its log level. They are shared, not any knowledge base's,
 // so the document is one of the state home's (statehomedoc.go). A knowledge
 // base's jobs are done when its Inference document gives a job an engine
 // (workerPlan); the worker that does them runs as this document says.

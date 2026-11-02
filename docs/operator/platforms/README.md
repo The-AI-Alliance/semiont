@@ -8,8 +8,8 @@ The [`semiont` launcher](../../../apps/launcher/README.md) runs a stack on these
 
 | System | Container runtime | Notes |
 |---|---|---|
-| macOS | Apple `container`, Docker Desktop or Podman | [Running a local stack](../LOCAL-SEMIONT.md) |
-| Linux | Docker or Podman | [Running a local stack](../LOCAL-SEMIONT.md) |
+| macOS | Apple `container`, Docker Desktop or Podman | [Running knowledge bases on your computer](../LOCAL-SEMIONT.md) |
+| Linux | Docker or Podman | [Running knowledge bases on your computer](../LOCAL-SEMIONT.md) |
 | Windows | Docker Desktop, on its WSL2 backend | [Semiont on Windows](WINDOWS.md): inside WSL2, or as `semiont.exe` |
 | GitHub Codespaces | Docker, inside the codespace | `semiont start --runtime codespace`, from any of the above: [Knowledge Bases](../../KNOWLEDGE-BASES.md) |
 

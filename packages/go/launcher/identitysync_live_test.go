@@ -17,7 +17,7 @@ import (
 // The stub tests pin the launcher's reading; this one pins Keycloak's. What a
 // stub cannot tell us is whether the clients `serviceAccountClient` and
 // `workerClient` render are ones Keycloak actually accepts — the worker's
-// taking an assertion signed with the machine's key — and whether the token
+// taking an assertion signed with the worker key — and whether the token
 // it then mints carries the FLAT `roles` array and the audience the gateway
 // requires — which is the whole reason the client shape matters. A
 // hand-created client that Keycloak accepts but whose token carries
@@ -86,7 +86,7 @@ func TestIdentitySyncLive(t *testing.T) {
 	worker, err := clientCredentialsClaims(tokenEndpoint,
 		semiont.KeyCredential{Issuer: issuer, ClientID: serviceClientID("worker"), PrivateKey: testWorkerKey().signer})
 	if err != nil {
-		t.Fatalf("the worker's grant: %v — the client sync created does not take the machine's key", err)
+		t.Fatalf("the worker's grant: %v — the client sync created does not take the worker key", err)
 	}
 	if f, bad := checkServiceAccountClaims("worker", worker, audience); bad {
 		t.Fatalf("the worker's token: %s", f)

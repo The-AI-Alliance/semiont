@@ -32,7 +32,7 @@ when the issuer says so.
 Options:
   --repo <owner/name>  Target a codespace stack
   --root <path>        Target the stack of the knowledge base at path
-  --runtime <rt>       Target a local stack
+  --runtime <rt>       Target a stack here
   --help               Show this help
 `
 
@@ -143,7 +143,7 @@ func Login(args []string) int {
 // the endpoint, on whatever port the config gave it.
 type NoGatewayRecorded struct{}
 
-func (*NoGatewayRecorded) Error() string { return "the local stack's record names no gateway" }
+func (*NoGatewayRecorded) Error() string { return "the stack's record names no gateway" }
 
 // GatewayBase is the API base URL of the local stack's gateway, from its
 // recorded health endpoint — the record knows the real port even when the

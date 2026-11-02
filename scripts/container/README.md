@@ -32,7 +32,7 @@ Copied into images by their Dockerfiles; the build context is the repository roo
 
 | Script | Purpose | Images |
 |--------|---------|--------|
-| `boot.sh` | The entrypoint, run as PID 1 under tini. With `SEMIONT_SUPERVISE` set — the launcher sets it for local stacks — it runs the image's `CMD` under `supervise.sh`; unset, it execs the `CMD` directly, so a published image behaves like a conventional container. | all seven services and the Browser |
+| `boot.sh` | The entrypoint, run as PID 1 under tini. With `SEMIONT_SUPERVISE` set — the launcher sets it for the stacks it runs — it runs the image's `CMD` under `supervise.sh`; unset, it execs the `CMD` directly, so a published image behaves like a conventional container. | all seven services and the Browser |
 | `supervise.sh` | The in-container supervisor: restarts a crashed child, probes and kills a hung one, fails fast on a deterministic boot refusal instead of looping, and forwards `TERM` from `semiont stop`. | all seven services and the Browser |
 
 ## Checking a built image

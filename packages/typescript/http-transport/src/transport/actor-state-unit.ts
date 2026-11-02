@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusPrimitive, type components, type ConnectionState, type EventMap, type ResourceId, type RetryPolicy, type StateUnit, type TraceCarrier, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, HTTP_REQUEST_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT, STREAM_OPEN_TIMEOUT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -8,7 +8,7 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-import { APIError, refusalBody, retryableUnlessRefused } from './api-error';
+import { APIError, gatewayWords, refusalBody, retryableUnlessRefused } from './api-error';
 import { fetchOf } from './fetch-of';
 
 export type { ConnectionState };
@@ -30,6 +30,12 @@ export interface ActorStateUnitOptions {
    * opened again on the backoff. Default `STREAM_OPEN_TIMEOUT_MS`.
    */
   streamOpenTimeoutMs?: number;
+  /**
+   * How long the body of a refused connect is read for, as any other answer
+   * is (`HttpTransportConfig.timeout`). Not read by then, the refusal is
+   * reported without the gateway's words. Default `HTTP_REQUEST_TIMEOUT_MS`.
+   */
+  httpRequestTimeoutMs?: number;
   /**
    * The SAME hook `HttpTransportConfig.tokenRefresher` renews a refused
    * request's credential with — there is no second refresh mechanism.
@@ -128,7 +134,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, streamOpenTimeoutMs = STREAM_OPEN_TIMEOUT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, seenEventIdsCount = SEEN_EVENT_IDS_COUNT, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, streamOpenTimeoutMs = STREAM_OPEN_TIMEOUT_MS, httpRequestTimeoutMs = HTTP_REQUEST_TIMEOUT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, seenEventIdsCount = SEEN_EVENT_IDS_COUNT, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -450,12 +456,28 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
       if (!response.ok || !response.body) {
         // The body says which limit refused it: a 429 `refusal-rate` is a
-        // refused credential, as a 401 is.
+        // refused credential, as a 401 is. It is read within the deadline any
+        // other answer has, cut through the open's own signal; a body not read
+        // by then, or not read at all, says nothing. A stop or a handoff still
+        // ends the connect.
+        const readDeadline = setTimeout(() => {
+          opening.abort(new DOMException(`/bus/subscribe's refusal was not read within ${httpRequestTimeoutMs}ms`, 'TimeoutError'));
+        }, httpRequestTimeoutMs);
+        let said: unknown;
+        try {
+          said = response.body === null ? undefined : refusalBody(await response.text());
+        } catch (err) {
+          if (controller.signal.aborted) throw err;
+          said = undefined;
+        } finally {
+          clearTimeout(readDeadline);
+        }
+        const words = gatewayWords(said);
         throw APIError.fromStatus(
-          `SSE connect failed: ${response.status}`,
+          words === undefined ? `SSE connect failed: ${response.status}` : `SSE connect failed: ${response.status}: ${words}`,
           response.status,
           response.statusText,
-          response.body === null ? undefined : refusalBody(await response.text()),
+          said,
           retryAfterMs(response.headers.get('retry-after')),
         );
       }

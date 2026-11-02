@@ -17,8 +17,9 @@ renewing another stack at the same moment loses nothing. What the file holds
 that is not a sign-in as this release knows one is written back as it was. A
 reader that only reads takes no lock: the file is replaced whole, so every
 document read is a whole one. Under the lock, the file's directory is kept to
-its owner, as the launcher keeps its state home: mode `0700`, and on Windows the
-launcher's access list, which what is made in it inherits.
+its owner, as the launcher keeps its state home: the mode, and on Windows the
+access list, which what is made in it inherits, that
+`specs/src/sign-in-store/owner-only.json` states.
 
 This module reads no environment. An application reads its own and says what
 it found: `state_dir(this_system(), home=..., xdg_state_home=..., local_app_data=...)`.
@@ -36,6 +37,7 @@ from typing import Final, Literal, final, override
 
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
+from semiont import _owner_only_table
 from semiont.errors import SignInError
 from semiont.oauth_clients import SCRIPT_CLIENT_ID
 from semiont.session import HeldSignIn, SignInKept, text_claim, token_expiry
@@ -187,7 +189,7 @@ if sys.platform == "win32":
     )(("SetNamedSecurityInfoW", _advapi32))
     _LocalFree: Final = ctypes.WINFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p)(("LocalFree", _kernel32))
 
-    def _user() -> str | None:
+    def _user() -> str:
         """The user this process runs as, as a SID."""
         size = wintypes.DWORD()
         _GetTokenInformation(_CURRENT_PROCESS_TOKEN, _TOKEN_USER, None, 0, ctypes.byref(size))
@@ -199,7 +201,7 @@ if sys.platform == "win32":
         if not _ConvertSidToStringSidW(ctypes.c_void_p.from_buffer(user), ctypes.byref(named)):
             raise ctypes.WinError(ctypes.get_last_error())
         try:
-            return named.value
+            return ctypes.wstring_at(named)
         finally:
             _LocalFree(named)
 
@@ -250,7 +252,7 @@ if sys.platform == "win32":
         administrator is `LA`) rather than by their SID, and with their entries
         in any order.
         """
-        listed = f"D:PAI(A;OICI;FA;;;{_user()})(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+        listed = _owner_only_table.access_list(_user())
         descriptor = ctypes.c_void_p()
         if not _ConvertStringSecurityDescriptorToSecurityDescriptorW(listed, _SDDL_REVISION_1, ctypes.byref(descriptor), None):
             raise ctypes.WinError(ctypes.get_last_error())
@@ -275,8 +277,8 @@ else:
         fcntl.flock(descriptor, fcntl.LOCK_EX)
 
     def _owner_only(directory: str) -> None:
-        """Keep `directory` to its owner: mode `0700`, as the launcher keeps its state home."""
-        os.chmod(directory, 0o700)
+        """Keep `directory` to its owner: the sign-in store's mode, as the launcher keeps its state home."""
+        os.chmod(directory, _owner_only_table.DIRECTORY_MODE)
 
 
 @final
@@ -316,7 +318,7 @@ class SignInStore:
         directory = os.path.dirname(self._path) or "."
         os.makedirs(directory, exist_ok=True)
         with self._turn:
-            descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+            descriptor = os.open(self._lock_path, os.O_RDWR | os.O_CREAT, _owner_only_table.FILE_MODE)
             try:
                 _lock(descriptor)
                 _owner_only(directory)
@@ -336,7 +338,7 @@ class SignInStore:
         """Written beside the file and renamed over it: no reader sees half a document, and no credential is left in a stray file."""
         beside = f"{self._path}.tmp"
         try:
-            descriptor = os.open(beside, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            descriptor = os.open(beside, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, _owner_only_table.FILE_MODE)
             with os.fdopen(descriptor, "wb") as file:
                 file.write(_DOCUMENT.dump_json(document, indent=2) + b"\n")
             os.replace(beside, self._path)

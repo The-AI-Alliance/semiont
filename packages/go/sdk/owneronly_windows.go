@@ -27,10 +27,9 @@ const (
 )
 
 // ownerOnlyDir keeps a directory, and everything created in it from then on,
-// to its owner, with the access list the launcher gives one: the user this
-// process runs as, the system and the administrators, each with full access,
-// handed down to what is created in it, and nothing inherited from above. A
-// mode keeps nobody out on Windows; the access list is what does. A directory
+// to its owner, with the sign-in store's access list (ownerOnlyAccessList),
+// which the launcher gives its state home too. A mode keeps nobody out on
+// Windows; the access list is what does. A directory
 // that has the list already is left as it is: setting a list hands it down to
 // everything beneath, which in a state home is no small walk. The two lists
 // are compared as Windows writes each out, which names some users by an
@@ -50,7 +49,7 @@ func ownerOnlyDir(dir string) error {
 	if err != nil {
 		return fmt.Errorf("cannot name the current user: %w", err)
 	}
-	sddl, err := syscall.UTF16PtrFromString(fmt.Sprintf("D:PAI(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", owner))
+	sddl, err := syscall.UTF16PtrFromString(ownerOnlyAccessList(owner))
 	if err != nil {
 		return err
 	}

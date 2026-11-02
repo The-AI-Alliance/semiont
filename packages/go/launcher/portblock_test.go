@@ -92,7 +92,7 @@ func TestAStartKeepsTheBlockItPlannedOnUnlessAnotherRootKeptIt(t *testing.T) {
 // Block 1 places every port the launcher chooses for the stack ten above
 // block 0's — the daemons it runs, Neo4j's Browser, the services behind the
 // gateway, and the containers' side of a port a person dials too — and
-// leaves the gateway's, the Keycloak's and the machine's where they are.
+// leaves the gateway's, the Keycloak's and the shared ones' where they are.
 func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 	plan, err := derivePlan(fixtureStack(t, "ollama-gemma"), 8090, 1)
 	if err != nil {
@@ -136,7 +136,7 @@ func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 		t.Errorf("the graph's health is asked at %s, want Neo4j's Browser on block 1, on loopback", got)
 	}
 	if got := healthEndpoint("collector", "otel", plan, appleContainer); got != "http://"+bridge+":24110/metrics" {
-		t.Errorf("the machine's collector is asked at %s, which no block moves", got)
+		t.Errorf("the shared collector is asked at %s, which no block moves", got)
 	}
 }
 

@@ -290,19 +290,19 @@ func TestScriptedSessionsRenewAsToldInOrderAndRefuseARenewalNobodyScripted(t *te
 	})
 }
 
-// A scripted renewal that fails with the issuer's status is the issuer's
-// refusal, as the SDK reads an issuer that answers so, and ends the session;
-// one that fails with a status worth another attempt, or with none, got no
+// A scripted renewal fails with the sign-in error it was given, as the session
+// reads one from its issuer: one with a status the issuer refuses with ends
+// the session; one with a status worth another attempt, or with none, got no
 // answer, and the session goes on.
-func TestScriptedSessionsRenewalsFailAsTheIssuerAnsweredOrDidNot(t *testing.T) {
+func TestScriptedSessionsRenewalsFailWithTheSignInErrorTheyWereGiven(t *testing.T) {
 	for _, row := range []struct {
 		why     string
 		renewal semionttest.Renewal
 		ends    bool
 	}{
-		{"the issuer refuses", semionttest.Renewal{Why: "invalid_grant", Status: http.StatusBadRequest}, true},
-		{"the issuer says not now", semionttest.Renewal{Why: "temporarily_unavailable", Status: http.StatusServiceUnavailable}, false},
-		{"the issuer does not answer", semionttest.Renewal{Why: "the network is down"}, false},
+		{"the issuer refuses", semionttest.Renewal{Err: semiont.NewSignInError(semiont.SignInErrorCodeExchange, "invalid_grant", http.StatusBadRequest)}, true},
+		{"the issuer says not now", semionttest.Renewal{Err: semiont.NewSignInError(semiont.SignInErrorCodeExchange, "temporarily_unavailable", http.StatusServiceUnavailable)}, false},
+		{"the issuer does not answer", semionttest.Renewal{Err: &semiont.SignInError{Code: semiont.SignInErrorCodeExchange, Message: "the network is down"}}, false},
 	} {
 		t.Run(row.why, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -317,7 +317,7 @@ func TestScriptedSessionsRenewalsFailAsTheIssuerAnsweredOrDidNot(t *testing.T) {
 					t.Errorf("a failed renewal gives %q, %v", token, ok)
 				}
 				said := a.errors()
-				if len(said) != 1 || !strings.Contains(said[0].Message, row.renewal.Why) {
+				if len(said) != 1 || !strings.Contains(said[0].Message, row.renewal.Err.Message) {
 					t.Errorf("said: %+v", said)
 				}
 				if ended := a.signals.SessionEnded().Value() != nil; ended != row.ends {

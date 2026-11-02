@@ -104,7 +104,7 @@ semiont stop
   24101–24105); each container listens where it always does, and every
   document the start stages names the published ports. The gateway's port
   is its document's, Keycloak's is `KEYCLOAK_PORT` or the recorded one when
-  either is set, and the machine's containers keep theirs. A dry run plans
+  either is set, and the shared services keep theirs. A dry run plans
   on the block a start would take and keeps none. A stop with no record
   verifies every kept block's service and broker ports released.
 - **Several KBs run side by side.** Each KB's containers are named for it,
@@ -114,12 +114,12 @@ semiont stop
   other KB's stack running. It refuses a second copy of a KB that another
   clone is running, and a port another running stack claims: two clones of
   one template both commit gateway port 4000, so the second needs a port of
-  its own in its `knowledge-base.yaml`. The machine's containers (the worker,
-  Ollama, the Browser, the telemetry) serve every KB; `stop` stops them with
-  the last local stack. Commands act on the KB whose clone you stand in, or
+  its own in its `knowledge-base.yaml`. The shared services (the Browser and
+  the worker, Ollama, the telemetry) serve every KB; `stop` stops them with
+  the last KB's stack. Commands act on the KB whose clone you stand in, or
   the one `--root <path>` names, and a bare one that finds several stacks
   and stands in none refuses, listing a command for each.
-- **The Browser is not a stack member**: it is the machine-level viewer of
+- **The Browser is not a stack member**: it is the one viewer of
   every KB, local and codespace, discovery-synced. **Its document says how it
   runs**: `stack/browser.yaml` in the state home, kind `Browser`
   (`specs/src/stack/Browser.json`), naming its image, its memory and the port
@@ -135,21 +135,22 @@ semiont stop
   otherwise, and when no record names it. `semiont stop` stops it with the stack, from its own
   record and under its own runtime; `semiont stop --service browser` stops it
   alone, and `semiont stop --repo` leaves it. Its record
-  lives beside the stacks (machine-level, with its runtime and image), its
-  port is never among a stack's claims, and `status` opens with a BROWSER
-  section — first because it sits architecturally above everything it views
-  — showing its image tag so browser-vs-stack version skew is visible.
+  lives beside the stacks (shared, with its runtime and image), its
+  port is never among a stack's claims, and `status` reports it under
+  KNOWLEDGE WORKERS, beside the worker, showing its image tag so
+  browser-vs-stack version skew is visible.
 - `semiont start --service browser` is the explicit refresh: it always
   restarts the Browser, bypassing keep-if-current. Its port moves with an
   edit of its document; the realm's origin for the new port is added by
   `semiont identity sync`, which the preflight names when it is missing.
-- **The machine's Ollama is not a stack member either**: one Ollama serves
-  every KB on the machine whose documents name `ollama` with no address.
+- **The shared Ollama is not a stack member either**: one Ollama serves
+  every KB here whose documents name `ollama` with no address.
   When the launcher runs it as a container (`semiont-ollama`, when none is
   installed on the machine), its record lives beside the stacks, as the
   Browser's does, with its runtime, image, the address it is published at
   and the model cache it mounts; its port is never among a stack's claims,
-  and the stack records the role it serves as provided by the machine. A
+  and the stack records the role it serves as `provided: shared`, served
+  outside it. A
   start KEEPS a running one when it runs the image the start would and its
   record says it was started under this start's runtime, at the address
   this start would publish it on, and on the model cache `--ollama-cache`
@@ -160,7 +161,7 @@ semiont stop
   --service inference` stops it alone (`--service embedding`, where the
   stack runs it for the embeddings alone), and a stop of any other one
   service leaves it.
-- **The telemetry is the machine's too**: one OTel collector takes every
+- **The telemetry is shared too**: one OTel collector takes every
   KB's signals, each labelled with the KB that sent it, with Jaeger and
   Prometheus behind it. Their records live beside the stacks, as the
   Browser's and Ollama's do, and their configs (`collector.yaml`,
@@ -175,13 +176,13 @@ semiont stop
   ones alone. `semiont start --service collector|traces|metrics` always
   restarts that one; `semiont stop` stops them with the stack, and `semiont
   stop --service collector|traces|metrics` stops that one alone.
-- **The worker's settings are the machine's too**: `stack/workers.yaml` in
+- **The worker's settings belong to no KB either**: `stack/workers.yaml` in
   the state home, kind `WorkerPool` (`specs/src/stack/WorkerPool.json`),
   naming its image, its memory and its log level, written and read as the
   Browser's is (`semiont-worker:latest`, 2G, info) by the first start that
   runs a worker. A KB's repository holds none: its Inference document's
   `spec.engines.jobs` says which jobs a worker does, and with which engines.
-- **One worker serves the machine's list of KBs** (`semiont-worker`). A
+- **One worker serves a list of KBs** (`semiont-worker`). A
   KB's start puts it on the list when one of its jobs has an engine, as that
   start places it, and takes it off when none does; `semiont worker kb add`,
   run inside a KB on the list, adds a KB someone else runs, offered that
@@ -205,7 +206,7 @@ semiont stop
   own secrets come from (`secret`), the Browser's document (`browser`: its
   path, image, memory and port, changed by editing it; `semiont settings
   browser --path` prints the path alone, for a script), the worker's
-  (`worker`: its path, image, memory and log level, and `--path` likewise), who reaches a local stack (`network`: `local`, or `lan`, where the network
+  (`worker`: its path, image, memory and log level, and `--path` likewise), who reaches a KB running here (`network`: `local`, or `lan`, where the network
   reaches the gateway and the issuer's realm through the launcher's own
   filtering proxy, `semiont issuer-proxy`, a recorded detached process), and
   the default store for new KBs (`secret-store --default`) on this machine;
@@ -305,12 +306,12 @@ semiont stop
   details any); bare `logs`, `stop`, `useradd` and the knowledge verbs
   let the working directory disambiguate — inside a clone they mean its
   knowledge base, as `--root` would name it, unless nothing started it and a
-  codespace stack is recorded: then, with no local stack recorded, the lone
+  codespace stack is recorded: then, with no stack recorded here, the lone
   codespace stack or the one the clone's origin names, and otherwise they
   refuse and list each. Standing in no clone, a lone recorded stack answers
   for itself. They refuse anywhere less certain:
-  `--root <path>` targets a local KB's stack, `--repo <owner/name>` a
-  codespace stack, and `--runtime` narrows the choice to local stacks.
+  `--root <path>` targets a KB's stack here, `--repo <owner/name>` a
+  codespace stack, and `--runtime` narrows the choice to the stacks here.
 - Codespace preflights fail fast with fixes: `gh` missing/unauthenticated, the
   `codespace` scope, the `ANTHROPIC_API_KEY` Codespaces user secret, and the
   VM class. The machine list GitHub returns for a repo is filtered by the
@@ -370,11 +371,19 @@ semiont stop
   `ANTHROPIC_API_KEY`, and the databases' passwords alike. Hosts, ports, client
   ids and paths stay visible. `inspect` still shows a running container's
   environment; that is what delivering secrets as environment means.
-- **`semiont status` reports in three layers** — LOCAL STACK (the one stack
-  running here, headed by the root it belongs to and its did:web), LOCAL
-  ROOTS, KNOWLEDGE BASES (local file:// clones plus codespace-hosted
-  https:// repos, their state, and each
-  KB's local port). `--verbose` adds LAUNCHER PATHS — the launcher's state
+- **`semiont status` reports by what each service is part of.** KNOWLEDGE
+  BASES has an entry for each knowledge base's stack — the one of the KB you
+  stand in, else each one running — headed by its name and did:web: its
+  clone, where it runs, where its secrets are kept, and a line each for its
+  record, index and issuer, a mark per service and the state of any that is
+  not healthy. Then how many KBs are known, local file:// clones and
+  codespace-hosted https:// repos alike (`semiont roots` lists them). The
+  services every knowledge base shares follow, a table for each group:
+  KNOWLEDGE WORKERS (the Browser and the worker), PROVIDERS (inference and
+  embedding, with the models each KB was started with) and TELEMETRY (the
+  collector, Jaeger and Prometheus). Each service is there once, naming the
+  KBs it serves when the report covers several. `--verbose` adds LAUNCHER
+  PATHS — the launcher's state
   home, log, config staging and model cache; then, for the knowledge base
   the command was run in, its `KB root` and the directory its stores are in
   (`its stores`), with each store's own directory, what it takes on disk and
@@ -383,9 +392,10 @@ semiont stop
   exists) called out alongside the `semiont clean --root <key>` that
   removes each. Sizes are what the files take on disk, not their lengths: a
   vector store's sparse files are long and take little. Roots and KBs are the durable
-  things; a stack is status layered on one of them. Per service it
-  shows the container STATE as the runtime sees it plus a host-side health
-  probe, with the concrete product in the service cell (`identity-store
+  things; a stack is status layered on one of them. A service's row — each
+  shared one's, and any one's under `--service <name>` — shows the container
+  STATE as the runtime sees it plus a host-side health probe and the address
+  it asked, with the concrete product in the service cell (`identity-store
   (PostgreSQL)`). **Who runs a role decides which verbs it has, and a role
   need not run here.** `embedding` is a role like any other, and somebody
   else runs it in both shapes — an `ollama` embedding is served by the same
@@ -446,6 +456,25 @@ semiont stop
   deliberately no `--force-kill-ports`-style option: the launcher owns
   everything named `semiont-*` across every runtime it can see, and never
   signals anything else.)
+- **`semiont stop --group <name>` stops one group of services**, named as
+  `status` reads them. A knowledge base's group (`record`, `index`,
+  `issuer`) takes along each of that knowledge base's services that needs
+  one of its own, last-started first, and says which and why ("smelter
+  stops too: it needs the gateway"). So `--group index` stops the librarian,
+  the smelter, the weaver, the graph and the vectors and nothing else, and
+  `--group issuer` stops every service behind the gateway. The worker goes
+  with a knowledge base's group only when no other knowledge base's stack is
+  recorded, as with a bare stop. A shared group (`knowledge-workers`,
+  `providers`, `telemetry`) serves every knowledge base here, so it stops
+  alone, and each knowledge base goes on without it.
+- **`semiont start --group <name>` starts one group of services**, as
+  `--service` starts one: each of the group's own (re)starts, in start
+  order. Each service one of them needs that is not up starts first, and
+  the start says which and why ("gateway starts too: the weaver needs it").
+  So after `semiont stop --group record`, `semiont start --group index`
+  starts the messaging, the gateway and the archivist again before the
+  index; with the stack up, it restarts the index alone. A group that reads no config
+  (`telemetry`) starts from anywhere.
 - `semiont about` shows what Semiont is, project links, the image registry,
   and which runtimes were detected on PATH.
 - Every invocation is logged (invoke + exit lines, with `--password` values
@@ -465,7 +494,7 @@ semiont stop
   launched, skipped by stop and shown as "external" in status. The issuer is
   the KnowledgeBase's `spec.issuer`: `ref` names the Issuer document of a
   Keycloak the launcher runs, `external` an issuer somebody else runs. An
-  `ollama` provider or embedding that states no address is the machine's
+  `ollama` provider or embedding that states no address is the shared
   Ollama (host-process reuse, container fallback); a remote provider
   (Anthropic, Voyage) is somebody else's by its type.
   **Deployment topology is the launcher's to know, never the documents' to
@@ -612,7 +641,7 @@ semiont stop
 - **The images are the documents'**: each service runs the `image` its
   document names, and `semiont init` names `:latest`. An image tagged
   `:local`, built on this machine by `scripts/ci/local-build.sh`, is never
-  pulled; a KB runs one by naming it. The Browser, being the machine's, runs
+  pulled; a KB runs one by naming it. The Browser, which no KB owns, runs
   the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest`
   as the launcher writes it.
 
@@ -993,7 +1022,7 @@ XDG directories on Linux, and each other system's own equivalent:
 
 | What | macOS | Linux | Windows |
 |---|---|---|---|
-| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the machine's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's and the worker's documents (`stack/browser.yaml`, `stack/workers.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
+| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the launcher's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's and the worker's documents (`stack/browser.yaml`, `stack/workers.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
 | **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
 | **Log**: `launcher.log` | `~/Library/Logs/semiont` | the state home | `logs\` in the state home |
 | **Staging**: the configs a running stack mounts | `/tmp/semiont-config.*` | `/tmp/semiont-config.*` | `%TEMP%\semiont-config.*` |
@@ -1054,7 +1083,7 @@ using the state — stop first. `stop` itself never touches state; stopping
 and restarting is exactly the round trip persistence exists for.
 
 **Two homes, not one.** Per-root stores live under the launcher's *data* home.
-The machine-level view — the discovery document the Browser mounts — lives
+The view every KB shares — the discovery document the Browser mounts — lives
 under its *state* home instead. On macOS and Windows the two are one directory,
 so `roots/` and `discovery/` sit side by side and the distinction is invisible.
 On Linux they are deliberately different trees. `semiont clean` scopes to a

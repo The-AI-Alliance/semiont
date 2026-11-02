@@ -166,7 +166,7 @@ func (i Issuer) Discover(ctx context.Context, baseURL string) (IssuerEndpoints, 
 			if status, ok := refused.Status(); ok && status == http.StatusNotFound {
 				return IssuerEndpoints{}, noIssuer()
 			} else if ok {
-				return IssuerEndpoints{}, signInRefused(SignInErrorCodeDiscovery, "The knowledge base did not answer its resource metadata: "+refused.Message, status)
+				return IssuerEndpoints{}, NewSignInError(SignInErrorCodeDiscovery, "The knowledge base did not answer its resource metadata: "+refused.Message, status)
 			}
 		}
 		return IssuerEndpoints{}, signInUnanswered(SignInErrorCodeDiscovery, "The knowledge base did not answer its resource metadata: "+err.Error())
@@ -180,13 +180,13 @@ func (i Issuer) Discover(ctx context.Context, baseURL string) (IssuerEndpoints, 
 		return IssuerEndpoints{}, signInUnanswered(SignInErrorCodeDiscovery, fmt.Sprintf("Issuer %s: discovery was not answered: %v", issuer, err))
 	}
 	if status < 200 || status > 299 {
-		return IssuerEndpoints{}, signInRefused(SignInErrorCodeDiscovery, fmt.Sprintf("Issuer %s: discovery answered HTTP %d", issuer, status), status)
+		return IssuerEndpoints{}, NewSignInError(SignInErrorCodeDiscovery, fmt.Sprintf("Issuer %s: discovery answered HTTP %d", issuer, status), status)
 	}
 	named, _ := document.text("issuer")
 	authorization, hasAuthorization := document.text("authorization_endpoint")
 	token, hasToken := document.text("token_endpoint")
 	if named != issuer || !hasAuthorization || !hasToken {
-		return IssuerEndpoints{}, signInRefused(SignInErrorCodeDiscovery, fmt.Sprintf("Issuer %s: its discovery document is not an OpenID configuration for it", issuer), status)
+		return IssuerEndpoints{}, NewSignInError(SignInErrorCodeDiscovery, fmt.Sprintf("Issuer %s: its discovery document is not an OpenID configuration for it", issuer), status)
 	}
 	device, _ := document.text("device_authorization_endpoint")
 	revocation, _ := document.text("revocation_endpoint")
@@ -204,7 +204,7 @@ func (i Issuer) Refresh(ctx context.Context, tokenEndpoint, clientID, refreshTok
 	}
 	access, ok := answered.text("access_token")
 	if status != http.StatusOK || !ok {
-		return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
+		return IssuedTokens{}, NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
 	}
 	rotated, ok := answered.text("refresh_token")
 	if !ok {
@@ -223,7 +223,7 @@ func (i Issuer) Revoke(ctx context.Context, revocationEndpoint, clientID, refres
 		return signInUnanswered(SignInErrorCodeExchange, "The issuer did not answer: "+err.Error())
 	}
 	if status != http.StatusOK {
-		return signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the revocation (HTTP %d)", status), status)
+		return NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the revocation (HTTP %d)", status), status)
 	}
 	return nil
 }
@@ -262,7 +262,7 @@ func (i Issuer) RenewKept(ctx context.Context, kept SignInKept, holding string) 
 		}
 		message := fmt.Sprintf("The session could not be renewed after %d attempts: %s", attempts, failed.Message)
 		if status, ok := failed.Status(); ok {
-			return "", signInRefused(SignInErrorCodeExchange, message, status)
+			return "", NewSignInError(SignInErrorCodeExchange, message, status)
 		}
 		return "", signInUnanswered(SignInErrorCodeExchange, message)
 	}
@@ -295,7 +295,7 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 	verificationURI, hasVerificationURI := body.text("verification_uri")
 	expiresIn, hasExpiresIn := body.seconds("expires_in")
 	if status != http.StatusOK || !hasDeviceCode || !hasUserCode || !hasVerificationURI || !hasExpiresIn {
-		return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the device authorization request (%s)", body.refusal(status)), status)
+		return IssuedTokens{}, NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the device authorization request (%s)", body.refusal(status)), status)
 	}
 	complete, _ := body.text("verification_uri_complete")
 	onCode(DeviceCode{UserCode: userCode, VerificationURI: verificationURI, VerificationURIComplete: complete, ExpiresIn: expiresIn})
@@ -325,7 +325,7 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 		if access, ok := answered.text("access_token"); status == http.StatusOK && ok {
 			refresh, ok := answered.text("refresh_token")
 			if !ok {
-				return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, "The issuer returned no refresh token: the session could not outlive its first access token", status)
+				return IssuedTokens{}, NewSignInError(SignInErrorCodeExchange, "The issuer returned no refresh token: the session could not outlive its first access token", status)
 			}
 			return IssuedTokens{Access: access, Refresh: refresh}, nil
 		}
@@ -334,11 +334,11 @@ func (i Issuer) SignInWithDeviceGrant(ctx context.Context, issuer IssuerEndpoint
 		case "slow_down":
 			interval += i.Timing.DeviceSlowDown
 		case "access_denied":
-			return IssuedTokens{}, signInRefused(SignInErrorCodeDenied, "The sign-in was denied at the issuer", status)
+			return IssuedTokens{}, NewSignInError(SignInErrorCodeDenied, "The sign-in was denied at the issuer", status)
 		case "expired_token":
 			return IssuedTokens{}, codeExpired()
 		default:
-			return IssuedTokens{}, signInRefused(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
+			return IssuedTokens{}, NewSignInError(SignInErrorCodeExchange, fmt.Sprintf("The issuer refused the token request (%s)", answered.refusal(status)), status)
 		}
 	}
 }

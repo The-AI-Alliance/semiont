@@ -4,23 +4,19 @@
  * Three requests make one sign-in: the issuer's discovery, the
  * client-credentials grant, and the gateway's answer to who the account is,
  * at `GET /api/users/me`. `fetch` is stubbed and answers each by its URL, so
- * the issuer half is the real `serviceAccountToken`. Each test signs in at an
- * issuer of its own: core remembers an issuer's token endpoint, and the
- * token it granted, for the life of the process.
+ * the issuer half is the real `ServiceToken`.
  */
 import util from 'node:util';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { HTTP_REQUEST_TIMEOUT_MS, STARTUP_FETCH_RETRY, SignInError } from '@semiont/core';
+import { HTTP_REQUEST_TIMEOUT_MS, STARTUP_FETCH_RETRY, ServiceToken, SignInError } from '@semiont/core';
 import { agentToken } from '../agent-token';
 import { APIError } from '../api-error';
 
 const GATEWAY = 'http://192.168.64.1:4000';
 const DID = 'did:web:kb.example:agents:service-account-semiont-worker';
 
-let issuers = 0;
-function credential() {
-  return { issuer: `https://issuer-${++issuers}.test/realms/kb`, clientId: 'semiont-worker', clientSecret: 'client-secret' };
-}
+const ACCOUNT = { issuer: 'https://issuer.test/realms/kb', clientId: 'semiont-worker', clientSecret: 'client-secret' };
+const service = () => new ServiceToken(ACCOUNT);
 
 interface Asked {
   url: string;
@@ -70,7 +66,7 @@ describe('agentToken', () => {
   it('signs in as the account: the issuer\'s token is the bearer, and the gateway names who it is', async () => {
     const wire = stubFetch(named);
 
-    const signedIn = await agentToken({ baseUrl: GATEWAY, credential: credential() });
+    const signedIn = await agentToken({ baseUrl: GATEWAY, service: service() });
 
     // The DID is the gateway's, verbatim: the knowledge base's own domain, and not the host dialled.
     expect(signedIn).toEqual({ token: 'service-account-token', did: DID });
@@ -84,8 +80,24 @@ describe('agentToken', () => {
 
   it('a gateway named with a trailing slash is asked at the same path', async () => {
     const wire = stubFetch(named);
-    await agentToken({ baseUrl: `${GATEWAY}/`, credential: credential() });
+    await agentToken({ baseUrl: `${GATEWAY}/`, service: service() });
     expect(wire.gateway()[0]!.url).toBe(`${GATEWAY}/api/users/me`);
+  });
+
+  it('asks the issuer through the fetch its service token was made with, and the gateway through the one it is given', async () => {
+    // The runtime's fetch is refused as a far end refuses a request it cannot read: not retried.
+    const runtimes = vi.fn(async () => new Response(null, { status: 400 }));
+    vi.stubGlobal('fetch', runtimes);
+    const urlOf = (input: string | URL | Request) => String(input instanceof Request ? input.url : input);
+    const issuer = vi.fn<typeof fetch>(async (input) =>
+      urlOf(input).endsWith('/token') ? Response.json({ access_token: 'service-account-token' }) : Response.json({ token_endpoint: 'https://issuer.test/token' }));
+    const gateway = vi.fn<typeof fetch>(async () => named());
+
+    await agentToken({ baseUrl: GATEWAY, service: new ServiceToken(ACCOUNT, issuer), fetch: gateway });
+
+    expect(issuer.mock.calls.map(([input]) => urlOf(input))).toEqual([`${ACCOUNT.issuer}/.well-known/openid-configuration`, 'https://issuer.test/token']);
+    expect(gateway.mock.calls.map(([input]) => urlOf(input))).toEqual([`${GATEWAY}/api/users/me`]);
+    expect(runtimes).not.toHaveBeenCalled();
   });
 
   it('every request of the sign-in carries the request deadline', async () => {
@@ -95,7 +107,7 @@ describe('agentToken', () => {
     const deadline = vi.spyOn(AbortSignal, 'timeout');
     const wire = stubFetch(named);
 
-    await agentToken({ baseUrl: GATEWAY, credential: credential() });
+    await agentToken({ baseUrl: GATEWAY, service: service() });
 
     expect(wire.asked).toHaveLength(3);
     for (const { url, init } of wire.asked) expect(init?.signal, url).toBeInstanceOf(AbortSignal);
@@ -105,7 +117,7 @@ describe('agentToken', () => {
   it('a refusal is the gateway\'s answer: it carries the status, says what the gateway said, and is not asked again', async () => {
     const wire = stubFetch(() => Response.json({ error: 'Invalid issuer token' }, { status: 401, statusText: 'Unauthorized' }));
 
-    const refused = await agentToken({ baseUrl: GATEWAY, credential: credential() }).catch((e: unknown) => e);
+    const refused = await agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
 
     expect(refused).toBeInstanceOf(APIError);
     expect(refused).toMatchObject({ status: 401, code: 'unauthorized' });
@@ -121,7 +133,7 @@ describe('agentToken', () => {
       { status: 429, statusText: 'Too Many Requests', headers: { 'retry-after': '1' } },
     ));
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: credential() }).catch((e: unknown) => e);
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
     await vi.runAllTimersAsync();
     const refused = await signing;
 
@@ -138,7 +150,7 @@ describe('agentToken', () => {
       return named();
     });
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: credential() });
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() });
     await vi.runAllTimersAsync();
 
     await expect(signing).resolves.toEqual({ token: 'service-account-token', did: DID });
@@ -147,22 +159,21 @@ describe('agentToken', () => {
 
   it('a refused service account is the issuer\'s answer, with its status, and the gateway is never asked', async () => {
     const wire = stubFetch(named, { grant: () => new Response('{}', { status: 401 }) });
-    const account = credential();
 
-    const refused = await agentToken({ baseUrl: GATEWAY, credential: account }).catch((e: unknown) => e);
+    const refused = await agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
 
     expect(refused).toBeInstanceOf(SignInError);
     expect(refused).toMatchObject({
       code: 'exchange',
       status: 401,
-      message: `Client-credentials grant for semiont-worker at ${account.issuer} failed (HTTP 401)`,
+      message: `Client-credentials grant for semiont-worker at ${ACCOUNT.issuer} failed (HTTP 401)`,
     });
     expect(wire.gateway()).toHaveLength(0);
   });
 
   it('an answer that names no DID is refused here', async () => {
     stubFetch(() => Response.json({ email: null, name: null, image: null, domain: 'kb.example' }));
-    await expect(agentToken({ baseUrl: GATEWAY, credential: credential() }))
+    await expect(agentToken({ baseUrl: GATEWAY, service: service() }))
       .rejects.toThrow(`${GATEWAY}/api/users/me did not answer a DID`);
   });
 
@@ -176,7 +187,7 @@ describe('agentToken', () => {
     const waits: number[] = [];
 
     const signing = agentToken({
-      baseUrl: GATEWAY, credential: credential(),
+      baseUrl: GATEWAY, service: service(),
       onRetry: ({ attempt }) => waits.push(attempt),
     });
     await vi.runAllTimersAsync();
@@ -198,7 +209,7 @@ describe('agentToken', () => {
       return named();
     });
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: credential() });
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() });
     await vi.runAllTimersAsync();
 
     await expect(signing).resolves.toEqual({ token: 'service-account-token', did: DID });
@@ -208,7 +219,7 @@ describe('agentToken', () => {
   it('gives up when the gateway never comes up, with the failure it last saw', async () => {
     const wire = stubFetch(() => { throw new TypeError('fetch failed'); });
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: credential() }).catch((e: unknown) => e);
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
     await vi.runAllTimersAsync();
 
     // Nothing answered, and it is said as that: under the code of every request that got no answer, and with no status.
@@ -221,7 +232,7 @@ describe('agentToken', () => {
   it('a gateway answer the runtime could not read is asked again, and its failure holds nothing of the answer', async () => {
     const wire = stubFetch(() => { throw unread(); });
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: credential() }).catch((e: unknown) => e);
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
     await vi.runAllTimersAsync();
 
     const failure = await signing;
@@ -233,7 +244,7 @@ describe('agentToken', () => {
   it('a gateway answer that stops coming got no answer, and is asked again', async () => {
     const wire = stubFetch(() => new Response(new ReadableStream<Uint8Array>({ start: (body) => body.error(unread()) })));
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: credential() }).catch((e: unknown) => e);
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
     await vi.runAllTimersAsync();
 
     const failure = await signing;
@@ -245,16 +256,15 @@ describe('agentToken', () => {
   it('a grant the runtime could not read is asked again too, and its failure holds nothing of the answer', async () => {
     let grants = 0;
     const wire = stubFetch(named, { grant: () => { grants += 1; throw unread(); } });
-    const account = credential();
 
-    const signing = agentToken({ baseUrl: GATEWAY, credential: account }).catch((e: unknown) => e);
+    const signing = agentToken({ baseUrl: GATEWAY, service: service() }).catch((e: unknown) => e);
     await vi.runAllTimersAsync();
 
     const failure = await signing;
     expect(util.inspect(failure, { depth: 6 })).not.toContain(UNREAD);
     expect(failure).toMatchObject({
       code: 'unavailable',
-      message: `Client-credentials grant for semiont-worker at ${account.issuer} got no answer: HTTPParserError`,
+      message: `Client-credentials grant for semiont-worker at ${ACCOUNT.issuer} got no answer: HTTPParserError`,
     });
     // The issuer may be starting when this process does: the whole sign-in is made again.
     expect(grants).toBe(STARTUP_FETCH_RETRY.attempts);

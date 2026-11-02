@@ -55,6 +55,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -1572,7 +1573,7 @@ func stateVar(name string) string {
 }
 
 // product: what a container the launcher named runs, the last word of its
-// name — semiont-<product> for the machine's (semiont-otel-collector runs a
+// name — semiont-<product> for the shared ones (semiont-otel-collector runs a
 // collector), semiont-<kb key>-<product> for a knowledge base's.
 func product(container string) string {
 	return container[strings.LastIndex(container, "-")+1:]
@@ -1933,69 +1934,61 @@ func busPublish(channel, corrID, clientID string, payload map[string]any) {
 	}
 }
 
-// busReplyFor maps a request channel to its scripted reply. The channel PAIR
-// comes from the generated operations registry, so the fake can never invent a
-// pair the real bus does not have — a fake that agrees with the code under
-// test about a wrong channel is how a verb passes while broken. A result that
-// names what it answers for beside its response (the resource a context was
-// gathered for, the reference a search was for) names what asked did, as the
-// gateway's does.
-func busReplyFor(request string, asked map[string]any) (string, map[string]any) {
-	if !busScripted[request] {
-		return "", nil
-	}
+// busReplyFor is the reply to a request on the channel request, which asked
+// for what asked says: the channel it goes out on and its payload, or "" for a
+// request nothing replies to. The channel PAIR comes from the generated
+// operations registry, so the fake can never invent a pair the real bus does
+// not have — a fake that agrees with the code under test about a wrong channel
+// is how a verb passes while broken.
+//
+// An operation is answered with the response its FAKERT_BUS_REPLY_ variable
+// states. A result that names what it answers for beside its response (the
+// resource a context was gathered for, the reference a search was for) names
+// what asked did, as the gateway's does. job:create and the key holders'
+// limits are answered by fakert itself when no test states theirs. Any other
+// operation nobody scripted is answered as the gateway answers a request
+// nothing subscribes to: on its failure channel, with the request's fields,
+// code peer-unavailable and a message; correlated is whether the request asks
+// for a reply at all, as only one that does is answered so. A stated response
+// that is not JSON is an error, which the emit is refused with.
+func busReplyFor(request string, asked map[string]any, correlated bool) (string, map[string]any, error) {
 	op, ok := bus.Operations[bus.Channel(request)]
 	if !ok {
-		return "", nil
+		return "", nil, nil
 	}
 	if msg := os.Getenv("FAKERT_BUS_FAIL"); msg != "" {
-		return string(op.Failure), map[string]any{"message": msg}
+		return string(op.Failure), map[string]any{"message": msg}, nil
 	}
 	env := "FAKERT_BUS_REPLY_" + strings.NewReplacer(":", "_", "-", "_").Replace(request)
 	raw := os.Getenv(env)
-	if raw == "" {
-		raw = "{}"
-		if request == "job:create" {
-			raw = `{"jobId":"fake-job-1"}`
-		}
-		// A key holder nobody scripted reports no engine.
-		for _, holder := range bus.LimitsOperations {
-			if string(holder.Request().Channel()) == request {
-				raw = `{"limits":[]}`
-			}
+	if raw == "" && request == "job:create" {
+		raw = `{"jobId":"fake-job-1"}`
+	}
+	// A key holder nobody scripted reports no engine.
+	for _, holder := range bus.LimitsOperations {
+		if raw == "" && string(holder.Request().Channel()) == request {
+			raw = `{"limits":[]}`
 		}
 	}
+	if raw == "" {
+		if !correlated {
+			return "", nil, nil
+		}
+		unanswerable := map[string]any{}
+		maps.Copy(unanswerable, asked)
+		unanswerable["code"] = "peer-unavailable"
+		unanswerable["message"] = fmt.Sprintf("No subscriber for %s: the service that answers it is not connected. fakert answers it with the response %s states.", request, env)
+		return string(op.Failure), unanswerable, nil
+	}
 	var response any
-	if json.Unmarshal([]byte(raw), &response) != nil {
-		response = map[string]any{}
+	if err := json.Unmarshal([]byte(raw), &response); err != nil {
+		return "", nil, fmt.Errorf("fakert: %s is not JSON: %v", env, err)
 	}
 	result := map[string]any{"response": response}
 	for _, named := range op.ReplyNames {
 		result[named] = asked[named]
 	}
-	return string(op.Result), result
-}
-
-// The handful of operations the launcher's verbs use — an ALLOWLIST of request
-// channels, not a channel-pair table (the pair is derived above). Kept minimal
-// on purpose: an unscripted request produces no reply, so a verb wired to the
-// wrong channel times out loudly in tests instead of passing by accident.
-var busScripted = map[string]bool{
-	"browse:resources-requested":    true,
-	"browse:resource-requested":     true,
-	"browse:entity-types-requested": true,
-	"frame:add-entity-type":         true,
-	"gather:resource-requested":     true,
-	"gather:requested":              true,
-	"mark:create-request":           true,
-	"mark:delete":                   true,
-	"bind:update-body":              true,
-	"match:search-requested":        true,
-	"match:resources-requested":     true,
-	"job:create":                    true,
-	"job:limits-requested":          true,
-	"gather:limits-requested":       true,
-	"match:limits-requested":        true,
+	return string(op.Result), result, nil
 }
 
 // existingContainers is every semiont-* container that exists here, from BOTH
@@ -2644,7 +2637,9 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				// gateway keeps, so the launcher's subscribe-before-emit
 				// ordering is exercised for real.
 				// FAKERT_BUS_REPLY_<channel-with-colons-as-underscores>:
-				// JSON `response` object for that operation's result.
+				// JSON `response` object for that operation's result; an
+				// operation nobody scripted is answered as nobody heard it
+				// (busReplyFor).
 				// FAKERT_BUS_FAIL=<message>: reply on the failure channel.
 				if r.URL.Path == "/bus/emit" && r.Method == http.MethodPost {
 					// Bearer-gated like the real route: the session refresh
@@ -2674,7 +2669,14 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 						}
 					}
 					cid := body.CorrelationID
-					if ch, payload := busReplyFor(body.Channel, body.Payload); ch != "" {
+					ch, payload, err := busReplyFor(body.Channel, body.Payload, cid != "")
+					if err != nil {
+						// What a test scripted cannot be sent: the emit is
+						// refused with why, which the verb reports.
+						http.Error(w, err.Error(), http.StatusInternalServerError)
+						return
+					}
+					if ch != "" {
 						busPublish(ch, cid, body.ClientID, payload)
 						// A created job then runs: progress, then a terminal
 						// event, both keyed by jobId — never the correlationId

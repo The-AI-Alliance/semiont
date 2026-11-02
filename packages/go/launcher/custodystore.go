@@ -69,10 +69,10 @@ func custodyFor(u *UI, key string) (custodyStore, bool) {
 	return s, ok
 }
 
-// machineCustody: the store of what the launcher keeps for this machine
+// sharedCustody: the store of what the launcher keeps for this machine
 // rather than for one root — the worker's key (workerkey.go). The file store,
 // beside the roots': a store setting is a root's, and the machine has none.
-func machineCustody() custodyStore { return custodyStore{fileBackend{machineStateDir()}} }
+func sharedCustody() custodyStore { return custodyStore{fileBackend{sharedStateDir()}} }
 
 // configuredCustody: the store a root's setting names, adopting
 // nothing — for a caller that clears or moves values (clean, the
@@ -178,13 +178,13 @@ func showCustodyOp(u *UI, op, where string) {
 	fmt.Fprintf(os.Stderr, "%s secrets: %s %s\n", u.Wrap(AnsiCyan, "▸"), op, u.Dim("("+where+")"))
 }
 
-// fileBackend: one 0600 file per value under the root's state dir. The
+// fileBackend: one owner-only file per value under the root's state dir. The
 // default store, and the only one for a root that configures none. It is not
 // secure (fileStoreCaveat), and says so wherever it is named.
 type fileBackend struct{ dir string }
 
 // fileStoreCaveat: said wherever the file store is named. Its values are plain
-// text: mode 0600 keeps other accounts out, but anything running as this user
+// text: their mode keeps other accounts out, but anything running as this user
 // can read them, and every backup of the home directory copies them.
 const fileStoreCaveat = "plain files, not secure: for development only"
 
@@ -219,15 +219,15 @@ func (f fileBackend) put(u *UI, name, value string) bool {
 }
 
 // writeOwnerOnly writes b to path atomically, a temporary file renamed over
-// it, and keeps the file to its owner: mode 0600, and on Windows its access
-// list (ownerOnlyFile). What the launcher keeps this way no reader ever sees
+// it, and keeps the file to its owner: ownerOnlyFileMode, and on Windows its
+// access list (ownerOnlyFile). What the launcher keeps this way no reader ever sees
 // half of.
 func writeOwnerOnly(path string, b []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+	if err := os.WriteFile(tmp, b, ownerOnlyFileMode); err != nil {
 		return err
 	}
 	if err := os.Rename(tmp, path); err != nil {

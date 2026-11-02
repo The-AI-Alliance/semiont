@@ -1,6 +1,6 @@
 package launcher
 
-// The knowledge bases on this machine's worker's list: what a start and
+// The knowledge bases on the shared worker's list: what a start and
 // `semiont worker kb` keep, where, and to whom; what the worker's document
 // makes of them; what a start takes off it; and the start a knowledge base
 // added to it refuses.
@@ -92,7 +92,7 @@ func workerOutput(t *testing.T, args ...string) (int, string, string) {
 	return code, stdout, stderr
 }
 
-// keptList: the list kept for the machine, read as a start reads it.
+// keptList: the list kept shared, read as a start reads it.
 func keptList(t *testing.T) workerList {
 	t.Helper()
 	list, err := loadWorkerList()
@@ -274,7 +274,7 @@ func TestTheWorkerIsHandedEveryKeyItsListNames(t *testing.T) {
 
 // `add`, run inside a local knowledge base on the list, asks the gateway which
 // issuer it trusts and keeps that, with the local knowledge base whose
-// engines it is offered, to its owner, for the machine: what a start reads.
+// engines it is offered, to its owner, shared: what a start reads.
 func TestWorkerKBAddKeepsWhatTheGatewayNames(t *testing.T) {
 	harness.Home(t)
 	lender := insideLocalKB(t)
@@ -290,7 +290,7 @@ func TestWorkerKBAddKeepsWhatTheGatewayNames(t *testing.T) {
 	}
 	kept := workerListPath()
 	if fi, err := os.Stat(kept); err != nil {
-		t.Fatalf("nothing is kept for the machine: %v", err)
+		t.Fatalf("nothing is kept shared: %v", err)
 	} else if fi.Mode().Perm()&0o077 != 0 {
 		t.Errorf("the worker's list is readable beyond its owner: %v", fi.Mode().Perm())
 	}
@@ -346,7 +346,7 @@ func TestWorkerKBAddThatFailsKeepsNothing(t *testing.T) {
 		{[]string{"kb", "add", "other.example:kb", "--gateway", named}, "add needs --gateway <url> and --client-id <id>"},
 		{[]string{"kb", "add", "--gateway", named, "--client-id", "semiont-worker-alice"}, "add takes one domain"},
 		{[]string{"kb", "add", "other.example:kb", "--gateway", named, "--client-id", "semiont-worker-alice", "--issuer", "x"}, "Unknown flag: --issuer"},
-		{[]string{"kb", "add", lender, "--gateway", named, "--client-id", "semiont-worker-alice"}, lender + " is a local knowledge base on this machine's worker's list"},
+		{[]string{"kb", "add", lender, "--gateway", named, "--client-id", "semiont-worker-alice"}, lender + " is a local knowledge base on the shared worker's list"},
 	} {
 		code, _, stderr := workerOutput(t, c.args...)
 		if code != 1 {
@@ -375,14 +375,14 @@ func TestWorkerKBAddRunsInsideALocalKnowledgeBaseOnTheList(t *testing.T) {
 	if code != 1 {
 		t.Errorf("inside a knowledge base not on the list: exit %d, want 1", code)
 	}
-	harness.MustContainAll(t, "stderr", stderr, lender+" is not on this machine's worker's list", "A start of it puts it there")
+	harness.MustContainAll(t, "stderr", stderr, lender+" is not on the shared worker's list", "A start of it puts it there")
 
 	t.Chdir(t.TempDir())
 	code, _, stderr = workerOutput(t, add...)
 	if code != 1 {
 		t.Errorf("outside a knowledge base: exit %d, want 1", code)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "add runs inside a local knowledge base on this machine's worker's list")
+	harness.MustContainAll(t, "stderr", stderr, "add runs inside a local knowledge base on the shared worker's list")
 	if _, err := os.Stat(workerListPath()); !os.IsNotExist(err) {
 		t.Errorf("a refused add kept a list: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestWorkerKBRemoveTakesOffThatOneAlone(t *testing.T) {
 	if code != 1 {
 		t.Errorf("remove of a knowledge base not on the list: exit %d, want 1", code)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "c.example:kb is not on this machine's worker's list", "On it: a.example:local, b.example:local, x.example:kb")
+	harness.MustContainAll(t, "stderr", stderr, "c.example:kb is not on the shared worker's list", "On it: a.example:local, b.example:local, x.example:kb")
 
 	code, _, stderr = workerOutput(t, "kb", "remove", "b.example:local")
 	if code != 1 {
@@ -445,7 +445,7 @@ func TestWorkerKBListPrintsWhatIsKept(t *testing.T) {
 	if code != 0 || stdout != "" {
 		t.Errorf("with nothing on the list: exit %d, stdout %q", code, stdout)
 	}
-	harness.MustContainAll(t, "stderr", stderr, "Nothing is on this machine's worker's list")
+	harness.MustContainAll(t, "stderr", stderr, "Nothing is on the shared worker's list")
 
 	if err := saveWorkerList(workerList{
 		Local: []api.WorkerKnowledgeBaseConfig{localEntryOf("b.example:local", "http://192.168.64.1:14000", "")},
@@ -488,7 +488,7 @@ func TestAnUnreadableKeptFileIsRefused(t *testing.T) {
 		if code != 1 {
 			t.Errorf("%v: exit %d, want 1", args, code)
 		}
-		harness.MustContainAll(t, "stderr", stderr, kept, "does not hold the knowledge bases this machine's worker serves")
+		harness.MustContainAll(t, "stderr", stderr, kept, "does not hold the knowledge bases the shared worker serves")
 	}
 	if _, err := planWorkerServing(exampleKB.Domain, 14000); err == nil || !strings.Contains(err.Error(), kept) {
 		t.Errorf("a start read an unreadable list as %v, want its refusal naming %s", err, kept)

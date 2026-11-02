@@ -16,7 +16,7 @@ var logsUsage = fmt.Sprintf(`Usage: semiont logs [--service <name>] [--root <pat
 A bare invocation follows the stack of the knowledge base you stand in, else
 the lone forwarded codespace stack, else the knowledge base you stand in by
 its containers' names, started or not. Standing in none, it follows the one
-local stack, else the lone recorded codespace; with several, say which.
+stack here, else the lone recorded codespace; with several, say which.
 --root targets a knowledge base's stack, --repo a codespace stack; --runtime
 targets a local runtime.
 
@@ -30,7 +30,7 @@ By default follows Semiont's own services (%s). With
 The runtime and container identities come from the recorded stack state when
 present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
-`, strings.Join(logServices, ", "), roleListWrapped(78, ""))
+`, strings.Join(logServices, ", "), listWrapped(roleList, 78, ""))
 
 // logServices: the default follow set — Semiont's own services, the ones
 // whose logs are ours to read. Derived, so a new Semiont service is followed
@@ -207,10 +207,10 @@ func Logs(args []string) int {
 				case providedNone:
 					u.Fail("%s is not referenced by the running stack's config — nothing to follow.", svc)
 					return "", false
-				case providedMachine:
-					// The machine's container the stack's record names, by
+				case providedShared:
+					// The shared container the stack's record names, by
 					// the handle its own record names.
-					return machineHandles(rt, e.Container, LoadStackSet().Machine[e.Container])[0], true
+					return sharedHandles(rt, e.Container, LoadStackSet().Shared[e.Container])[0], true
 				}
 				if e.ID != "" {
 					return e.ID, true

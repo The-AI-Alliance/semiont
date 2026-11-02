@@ -52,12 +52,12 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | `graph` | Neo4j | 7687 (Bolt), 7474 (HTTP) | Librarian, weaver |
 | `vectors` | Qdrant | 6333 | Librarian, smelter |
 | `inference` | Ollama, or nothing when a remote API such as Anthropic does the inference | 11434 | Librarian, worker |
-| `embedding` | The machine's Ollama (the one inference uses, when inference is on it), or nothing when Voyage does the embedding | 11434 | Librarian, smelter |
+| `embedding` | The shared Ollama (the one inference uses, when inference is on it), or nothing when Voyage does the embedding | 11434 | Librarian, smelter |
 | `collector` | OpenTelemetry Collector | 4318 (OTLP), 24110 (its own metrics) | Every service exports traces and metrics to it |
 | `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
 | `metrics` | Prometheus | 9090 | Scrapes the collector |
 
-The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are the machine's, at their own ports.
+The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are shared, at their own ports.
 
 `embedding` never has a container of its own: an Ollama embedding is served by the Ollama that `inference` runs, and Voyage is a remote API. `semiont start --no-observe` leaves out `traces` and `metrics`; the collector still runs.
 
@@ -100,7 +100,7 @@ These answer liveness: the process is up and serving. The gateway's `/api/health
 
 `--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `identity-store`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack. Each of these commands acts on the knowledge base whose clone you stand in, or the one `--root <path>` names: `semiont logs --service gateway` follows that knowledge base's gateway.
 
-Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `keycloak`, `postgres`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The machine's containers serve every knowledge base on it and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
+Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `keycloak`, `postgres`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The shared services serve every knowledge base here and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
 
 ## Related
 

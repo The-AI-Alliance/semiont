@@ -4,17 +4,16 @@
  *
  * What an issuer does with the assertion is done here by hand: its signature
  * is checked with the key's public half, and its claims read. `fetch` is
- * stubbed, and each test names an issuer of its own, because the token
- * endpoint an issuer publishes is remembered for the life of the process. The
- * shape the table states is `client-assertion-cases.test.ts`'s; the form a
- * grant posts is read from the same table, specs/src/session/client-assertion-cases.json.
+ * stubbed. The shape the table states is `client-assertion-cases.test.ts`'s;
+ * the form a grant posts is read from the same table,
+ * specs/src/session/client-assertion-cases.json.
  */
 import { generateKeyPairSync, verify, type KeyObject } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import util from 'node:util';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { JWT_BEARER, LIFETIME_SECONDS, privateKeyFromPem, thumbprint } from '../client-assertion';
-import { serviceAccountToken, type KeyCredential } from '../service-account';
+import { ServiceToken, type KeyCredential } from '../service-account';
 import { SignInError } from '../sign-in-error';
 import { isObject } from '../type-guards';
 
@@ -24,8 +23,7 @@ const table: { form: string[]; grantType: string } = JSON.parse(
 
 const CLIENT = 'semiont-worker-alice-laptop';
 
-let issuers = 0;
-const issuer = () => `https://issuer-${++issuers}.test/realms/kb`;
+const ISSUER = 'https://issuer.test/realms/kb';
 
 function rsaKey(): { pem: string; publicKey: KeyObject } {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -96,10 +94,12 @@ describe('a key credential', () => {
     let granted = 0;
     const grants = stubFetch(() => Response.json({ access_token: `service-account-token-${++granted}`, expires_in: 300 }));
     const { pem, publicKey } = rsaKey();
-    const account: KeyCredential = { issuer: issuer(), clientId: CLIENT, privateKey: await privateKeyFromPem(pem) };
+    const account: KeyCredential = { issuer: ISSUER, clientId: CLIENT, privateKey: await privateKeyFromPem(pem) };
 
-    await expect(serviceAccountToken(account, { renewed: false })).resolves.toBe('service-account-token-1');
-    await expect(serviceAccountToken(account, { renewed: true })).resolves.toBe('service-account-token-2');
+    const service = new ServiceToken(account);
+
+    await expect(service.token({ renewed: false })).resolves.toBe('service-account-token-1');
+    await expect(service.token({ renewed: true })).resolves.toBe('service-account-token-2');
 
     expect(grants).toHaveLength(2);
     const jtis: unknown[] = [];
@@ -124,7 +124,7 @@ describe('a key credential', () => {
     const grants = stubFetch(() => Response.json({ access_token: 'service-account-token' }));
     const { pem } = rsaKey();
 
-    await serviceAccountToken({ issuer: issuer(), clientId: CLIENT, privateKey: await privateKeyFromPem(pem) }, { renewed: false });
+    await new ServiceToken({ issuer: ISSUER, clientId: CLIENT, privateKey: await privateKeyFromPem(pem) }).token({ renewed: false });
 
     const [form] = grants;
     expect(() => checked(field(form!, 'client_assertion'), rsaKey().publicKey)).toThrow('the signature is not the key\'s');
@@ -133,7 +133,7 @@ describe('a key credential', () => {
   it('never shows its key, and a refused grant never shows its assertion', async () => {
     const grants = stubFetch((form) => Response.json({ error: 'invalid_client', echoed: form.toString() }, { status: 401 }));
     const { pem } = rsaKey();
-    const account: KeyCredential = { issuer: issuer(), clientId: CLIENT, privateKey: await privateKeyFromPem(pem) };
+    const account: KeyCredential = { issuer: ISSUER, clientId: CLIENT, privateKey: await privateKeyFromPem(pem) };
     const { d } = await crypto.subtle.exportKey('jwk', account.privateKey);
     if (d === undefined) throw new Error('an RSA private key has `d`');
 
@@ -143,7 +143,7 @@ describe('a key credential', () => {
     }
 
     // An error body can echo what it was sent: the status is said, never the body.
-    const refused = await serviceAccountToken(account, { renewed: false }).catch((error: unknown) => error);
+    const refused = await new ServiceToken(account).token({ renewed: false }).catch((error: unknown) => error);
     expect(refused).toBeInstanceOf(SignInError);
     expect(refused).toMatchObject({ code: 'exchange', status: 401 });
     expect(String(refused)).toContain(`Client-credentials grant for ${CLIENT} at ${account.issuer} failed (HTTP 401)`);
@@ -159,7 +159,7 @@ describe('a key credential', () => {
       ['sign', 'verify'],
     );
 
-    await expect(serviceAccountToken({ issuer: issuer(), clientId: CLIENT, privateKey }, { renewed: false })).rejects.toThrow(
+    await expect(new ServiceToken({ issuer: ISSUER, clientId: CLIENT, privateKey }).token({ renewed: false })).rejects.toThrow(
       'The key does not sign RS256',
     );
     expect(grants).toEqual([]);

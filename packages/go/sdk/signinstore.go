@@ -140,12 +140,12 @@ func (s *SignInStore) change(change func(document map[string]json.RawMessage) (c
 	s.turn.Lock()
 	defer s.turn.Unlock()
 	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, ownerOnlyDirMode); err != nil {
 		return err
 	}
 	// Opened only to be locked: nothing is ever written to it, so it is opened
 	// read-only, which both flock and LockFileEx accept.
-	lock, err := os.OpenFile(filepath.Join(dir, signInLock), os.O_RDONLY|os.O_CREATE, 0o600)
+	lock, err := os.OpenFile(filepath.Join(dir, signInLock), os.O_RDONLY|os.O_CREATE, ownerOnlyFileMode)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (s *SignInStore) change(change func(document map[string]json.RawMessage) (c
 		return err
 	}
 	beside := s.path + ".tmp"
-	if err := os.WriteFile(beside, written, 0o600); err != nil {
+	if err := os.WriteFile(beside, written, ownerOnlyFileMode); err != nil {
 		_ = os.Remove(beside)
 		return err
 	}

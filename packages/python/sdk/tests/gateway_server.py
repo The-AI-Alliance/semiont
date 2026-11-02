@@ -63,6 +63,8 @@ class Answer:
     """Close the connection without a word."""
     promise: int | None = None
     """State this length for the body, send the body there is, and close: the bytes stop coming."""
+    stall: bool = False
+    """With `promise`: keep the connection after the body there is, and say nothing more, as `hold` does."""
     raw: bytes | None = None
     """Write these bytes as they are, and close: what is said need not be HTTP."""
 
@@ -208,6 +210,17 @@ class GatewayServer:
             return Answer(body=_OBJECT.dump_json(self.answers[path]))
         return NOT_FOUND
 
+    async def _held(self, reader: asyncio.StreamReader) -> None:
+        """Say nothing more. It ends when the client closes the connection, or the gateway is left."""
+        closed = asyncio.ensure_future(reader.read())
+        leaving = asyncio.ensure_future(self._leaving.wait())
+        await asyncio.wait({closed, leaving}, return_when=asyncio.FIRST_COMPLETED)
+        if closed.done():
+            self.closed_by_client.set()
+        for waiting in (closed, leaving):
+            waiting.cancel()
+        await asyncio.gather(closed, leaving, return_exceptions=True)
+
     async def _connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._connections.add(writer)
         try:
@@ -233,15 +246,7 @@ class GatewayServer:
                 if answer.hang_up:
                     return
                 if answer.hold:
-                    # Nothing is said. It ends when the client closes the connection, or the gateway is left.
-                    closed = asyncio.ensure_future(reader.read())
-                    leaving = asyncio.ensure_future(self._leaving.wait())
-                    await asyncio.wait({closed, leaving}, return_when=asyncio.FIRST_COMPLETED)
-                    if closed.done():
-                        self.closed_by_client.set()
-                    for waiting in (closed, leaving):
-                        waiting.cancel()
-                    await asyncio.gather(closed, leaving, return_exceptions=True)
+                    await self._held(reader)
                     return
                 if answer.raw is not None:
                     writer.write(answer.raw)
@@ -255,6 +260,8 @@ class GatewayServer:
                 writer.write(head.encode() + b"\r\n" + answer.body)
                 await writer.drain()
                 if answer.promise is not None:
+                    if answer.stall:
+                        await self._held(reader)
                     return
                 if (method, path) == ("POST", "/bus/emit") and answer.status < 300 and self.on_emit is not None:
                     self.on_emit(asked.json())

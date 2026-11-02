@@ -214,21 +214,26 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 }
 
 // A daemon whose document states `external` is somebody else's: verified at
-// the address it states, never launched, and given no image or memory.
+// the address it states, never launched, and given no image or memory. A
+// message names that document.
 func TestDerivePlanExternalDaemons(t *testing.T) {
 	for _, c := range []struct {
 		role string
 		want rolePlan
+		doc  func(stack.Files) string
 	}{
-		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}},
-		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}},
-		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}},
-		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}},
+		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}, func(f stack.Files) string { return f.KnowledgeIndex }},
+		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}, func(f stack.Files) string { return f.KnowledgeIndex }},
+		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}, func(f stack.Files) string { return f.Issuer }},
+		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}, func(f stack.Files) string { return f.KnowledgeBase }},
 	} {
 		t.Run(c.role, func(t *testing.T) {
 			st := fixtureStack(t, "anthropic")
 			asSomebodyElses(st, c.role)
 			checkRole(t, mustPlan(t, st), c.role, c.want)
+			if got, want := roleDocument(st, c.role), c.doc(st.Files); got != want {
+				t.Errorf("a message names %s as stated by %q, want %q", c.role, got, want)
+			}
 		})
 	}
 }
@@ -288,7 +293,7 @@ func TestThePlanRunsEachServiceAsItsDocumentSays(t *testing.T) {
 		want := append(slices.Clone(stackServices), "worker")
 		sort.Strings(want)
 		if !slices.Equal(got, want) {
-			t.Errorf("the plan gives %s to %v, want each service the stack runs, and the machine's worker: %v", what, got, want)
+			t.Errorf("the plan gives %s to %v, want each service the stack runs, and the shared worker: %v", what, got, want)
 		}
 	}
 
@@ -458,12 +463,12 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 			continue
 		}
 		for _, need := range stackPortNeeds(role) {
-			// The machine's containers are no stack's: each one's flow
+			// The shared containers are no stack's: each one's flow
 			// checks its ports as it (re)starts it, and a start that keeps
 			// a running one must not find them taken.
-			if contains(machineRoles, role) {
+			if contains(sharedRoles, role) {
 				if slices.Contains(checked, need.port) {
-					t.Errorf("%s is the machine's, but a full start requires its %d (%s) free", role, need.port, need.label)
+					t.Errorf("%s is shared, but a full start requires its %d (%s) free", role, need.port, need.label)
 				}
 				continue
 			}
@@ -477,7 +482,7 @@ func TestPlanPortChecksCoverEveryStackPortClaim(t *testing.T) {
 // The worker is a role of the plan like any other the documents decide: run
 // by the launcher when the engines give a job an engine, absent when they
 // give none. An actor's engine is no job's. No knowledge base's document
-// gives it an image or memory: the machine's worker document does
+// gives it an image or memory: the shared worker document does
 // (runWorkerAs).
 func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	claude := &api.Engine{Provider: api.EngineProviderAnthropic, Model: "claude-sonnet-4-5-20250929"}
@@ -516,8 +521,8 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 }
 
 // A stack claims no port of the worker's, with a worker or without: the
-// worker is the machine's, and its port is checked as it (re)starts
-// (flowMachine), never held by a stack.
+// worker is shared, and its port is checked as it (re)starts
+// (flowShared), never held by a stack.
 func TestAStackClaimsNoPortOfTheWorkers(t *testing.T) {
 	withWorker := mustPlan(t, fixtureStack(t, "anthropic"))
 	st := fixtureStack(t, "anthropic")
@@ -563,7 +568,7 @@ func TestServicePortNeedsOfTheBrowserAreItsDocuments(t *testing.T) {
 // block each knowledge base it swept keeps: one it misses is a survivor
 // nobody reports, and the next start fails on it. A block it did not sweep is
 // another knowledge base's, whose running stack holds its ports, and the
-// machine's ports are its to verify only when it swept the machine's
+// machine's ports are its to verify only when it swept the shared
 // containers.
 func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 	harness.Home(t)
@@ -596,15 +601,15 @@ func TestStopFallbackVerifiesEveryFiatPortClaim(t *testing.T) {
 	}
 	worker := semiontDescriptor("worker").ports[0].port
 	if slices.Contains(fiatPorts(swept, false), worker) {
-		t.Errorf("a stop that left the machine's containers verifies the worker's %d", worker)
+		t.Errorf("a stop that left the shared containers verifies the worker's %d", worker)
 	}
 }
 
 // Each document says where its own Ollama is: the KnowledgeIndex's
 // embedding.endpoint the embedding's, the Inference document's
-// providers.ollama.baseURL inference's. The two share the machine's Ollama only
+// providers.ollama.baseURL inference's. The two share the shared Ollama only
 // when neither states one, and the plan, the worker's document, the dry run's
-// placed lines and the models the machine's Ollama pulls agree on where each is.
+// placed lines and the models the shared Ollama pulls agree on where each is.
 func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 	somewhere := "http://ollama.example.org:11500"
 	ollama := api.EngineProviderOllama
@@ -614,20 +619,20 @@ func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 		st.KnowledgeIndex.Spec.Embedding.Endpoint = &somewhere
 		p := placed(t, st)
 		if rp := p.plan.Roles["inference"]; rp.Presence != presenceHostPreferred || rp.Address != "" {
-			t.Errorf("inference is not on the machine's Ollama: %+v", rp)
+			t.Errorf("inference is not on the shared Ollama: %+v", rp)
 		}
 		if rp := p.plan.Roles["embedding"]; rp.Presence != presenceExternal || rp.Address != "ollama.example.org" || rp.Port != 11500 || rp.SharesOllamaWith != "" {
 			t.Errorf("the embedding is not somebody else's at its endpoint: %+v", rp)
 		}
 		if at, err := providerAddress(p, ollama, "the worker"); err != nil || at != p.ollama(nil) {
-			t.Errorf("the worker reaches its models at %q (%v), and the plan runs them on the machine's Ollama, %s", at, err, p.ollama(nil))
+			t.Errorf("the worker reaches its models at %q (%v), and the plan runs them on the shared Ollama, %s", at, err, p.ollama(nil))
 		}
 		lines := p.placedLines()
 		if !slices.Contains(lines, "inference: "+p.ollama(nil)) || slices.ContainsFunc(lines, func(l string) bool { return strings.HasPrefix(l, "embedding:") }) {
 			t.Errorf("the placed lines are %q", lines)
 		}
 		if got := modelNames(p.plan.OllamaModels); !slices.Equal(got, []string{"gemma4:26b", "gemma4:e2b"}) {
-			t.Errorf("the machine's Ollama pulls %v: the engines' models, and not the embedding's, which somebody else's Ollama serves", got)
+			t.Errorf("the shared Ollama pulls %v: the engines' models, and not the embedding's, which somebody else's Ollama serves", got)
 		}
 	})
 
@@ -641,7 +646,7 @@ func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 			t.Errorf("inference is not somebody else's at its baseURL: %+v", rp)
 		}
 		if rp := p.plan.Roles["embedding"]; rp.Presence != presenceHostPreferred || rp.SharesOllamaWith != "" || rp.Image == "" {
-			t.Errorf("the embedding does not run the machine's Ollama itself: %+v", rp)
+			t.Errorf("the embedding does not run the shared Ollama itself: %+v", rp)
 		}
 		if at, err := providerAddress(p, ollama, "the worker"); err != nil || at != somewhere {
 			t.Errorf("the worker reaches its models at %q (%v), not at the stated %s", at, err, somewhere)
@@ -651,7 +656,7 @@ func TestEachOllamaIsWhereItsOwnDocumentSays(t *testing.T) {
 			t.Errorf("the placed lines are %q", lines)
 		}
 		if got := modelNames(p.plan.OllamaModels); !slices.Equal(got, []string{"nomic-embed-text"}) {
-			t.Errorf("the machine's Ollama pulls %v: the embedding's model, and none of the engines', which somebody else's Ollama serves", got)
+			t.Errorf("the shared Ollama pulls %v: the embedding's model, and none of the engines', which somebody else's Ollama serves", got)
 		}
 	})
 }

@@ -117,12 +117,12 @@ A start with no `--config` runs the choice recorded for the knowledge base: the 
 
 Each job and each actor has its engine stated by itself, keyed as a job is described ([`ArchivistEngines`](../../../specs/src/components/schemas/ArchivistEngines.json)): a `mark` job by its motivation, under `spec.engines.jobs.mark`, a `yield` job at `spec.engines.jobs.yield`, and the librarian's two actors that call a model, the `gatherer` and the `matcher`, under `spec.engines.actors`. Nothing stands in for an engine the document leaves out: a job with none is done by no software worker, and the librarian does not start without both actors' engines. An engine is how software does a job; a person who holds the worker role claims jobs from the same queue and uses none. `semiont init` gives every job and actor the one model chosen; anything finer is your edit, and providers can be mixed: a stronger model for the jobs that reason, a lighter or local one for the high-volume ones.
 
-The machine's worker serves a knowledge base only when one of its jobs has an engine ([The worker](#the-worker)). With no job's engine stated, a start takes the knowledge base off the worker's list and says so.
+The shared worker serves a knowledge base only when one of its jobs has an engine ([The worker](#the-worker)). With no job's engine stated, a start takes the knowledge base off the worker's list and says so.
 
 An engine's `provider` is one of seven, and each one an engine names needs its entry in `spec.providers`, which says how it is reached ([`Provider`](../../../specs/src/stack/Provider.json)):
 
 - **`anthropic`** is Anthropic's API, reached at its own address unless the entry states a `baseURL`. Its `apiKey` names the variable holding your key.
-- **`ollama`** with no `baseURL` is the machine's Ollama: the launcher uses an Ollama installed on the machine when there is one, runs one in a container when there is not, and pulls the models its engines name. With a `baseURL`, it is an Ollama somebody else runs.
+- **`ollama`** with no `baseURL` is the shared Ollama: the launcher uses an Ollama installed on the computer when there is one, runs one in a container when there is not, and pulls the models its engines name. With a `baseURL`, it is an Ollama somebody else runs.
 - **`openai`**, **`google`** and **`together`** are those companies' APIs, and **`vllm`** and **`llamacpp`** are servers you run or reach. Each states a `baseURL`, the address the provider's own documentation gives for its API, and the `apiKey` it takes; the launcher keeps no address for any of them, and refuses an entry with none, naming it. `semiont init` writes `anthropic` or `ollama`; these five are added by hand.
 
 OpenAI's, Google's and Together's APIs do not say what a model can take: its window, whether it holds a reply to a schema, how its reasoning is set. A model of one of them is asked with what a model catalogue says of it. The worker's image and the Librarian's each carry the catalogue, a copy of [models.dev](https://models.dev) made when the release was cut, and a service whose model the catalogue does not list refuses to start and names the model. A model newer than the release is one it does not list.
@@ -131,7 +131,7 @@ OpenAI's, Google's and Together's APIs do not say what a model can take: its win
 
 ### Embedding
 
-The KnowledgeIndex's `spec.embedding` is the model that turns text into vectors, and it is required: semantic search is always available. Its `type` is `ollama`, served by the machine's Ollama unless it states an `endpoint`, or `voyage`, with an `apiKey`. The machine's Ollama is one process whoever asks for it: it serves inference too when the Inference document's `ollama` entry states no `baseURL`, and runs for the embeddings alone when inference is remote or somebody else's.
+The KnowledgeIndex's `spec.embedding` is the model that turns text into vectors, and it is required: semantic search is always available. Its `type` is `ollama`, served by the shared Ollama unless it states an `endpoint`, or `voyage`, with an `apiKey`. The shared Ollama is one process whoever asks for it: it serves inference too when the Inference document's `ollama` entry states no `baseURL`, and runs for the embeddings alone when inference is remote or somebody else's.
 
 The embedding's `type` and `model` and the two chunking numbers are what the vector index is made by, and the index states them. Change any of the four and the smelter, when it next starts, clears the index and indexes every resource and every annotation again: its log says so, as a warning. That embeds every chunk of the knowledge base again, which with a remote provider is a cost, and derives the text of every PDF that has none stored, a few PDFs at a time ([Memory](#memory)): a knowledge base of large scanned documents takes a while, and its log says each one as it is done, with how much memory the smelter then holds (`residentBytes`). Where the model is served (`endpoint`) is no part of it.
 
@@ -160,7 +160,7 @@ What an issuer of your own must provide is in [Authentication](AUTHENTICATION.md
 
 ## The Browser
 
-The Browser serves every knowledge base on the machine and belongs to none, so its document is kept in the launcher's state home, not in a knowledge base's repository: `stack/browser.yaml`, held to [`Browser`](../../../specs/src/stack/Browser.json) and read as strictly as the documents above.
+The Browser serves every knowledge base here and belongs to none, so its document is kept in the launcher's state home, not in a knowledge base's repository: `stack/browser.yaml`, held to [`Browser`](../../../specs/src/stack/Browser.json) and read as strictly as the documents above.
 
 ```yaml
 apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
@@ -185,7 +185,7 @@ A start keeps a running Browser that runs what its document says, and restarts o
 
 ## The worker
 
-The worker does the jobs of the knowledge bases on the machine, and its image, memory and log level are the machine's, not any knowledge base's. So its document is kept in the launcher's state home beside the Browser's, not in a knowledge base's repository: `stack/workers.yaml`, held to [`WorkerPool`](../../../specs/src/stack/WorkerPool.json) and read as strictly as the documents above.
+The worker does the jobs of the knowledge bases here, and its image, memory and log level belong to no knowledge base. So its document is kept in the launcher's state home beside the Browser's, not in a knowledge base's repository: `stack/workers.yaml`, held to [`WorkerPool`](../../../specs/src/stack/WorkerPool.json) and read as strictly as the documents above.
 
 ```yaml
 apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
@@ -209,7 +209,7 @@ The first command that needs it (a start that runs a worker, `semiont settings w
 
 Which jobs it does, and with which engines, is each knowledge base's: its Inference document's `spec.engines.jobs`.
 
-One worker serves every knowledge base on the machine's list. A start puts its own knowledge base on the list when one of its jobs has an engine, and takes it off when none does. A knowledge base someone else runs is added from inside one on the list, `semiont worker kb add`, and is offered that one's engines ([What the worker's owner does with it](AUTHENTICATION.md#what-the-workers-owner-does-with-it)). `semiont worker kb list` shows the list. Until each local knowledge base has a gateway port of its own, a start takes off the list any other local knowledge base whose gateway was on its port, and says so.
+One worker serves every knowledge base on its list. A start puts its own knowledge base on the list when one of its jobs has an engine, and takes it off when none does. A knowledge base someone else runs is added from inside one on the list, `semiont worker kb add`, and is offered that one's engines ([What the worker's owner does with it](AUTHENTICATION.md#what-the-workers-owner-does-with-it)). `semiont worker kb list` shows the list. Until each local knowledge base has a gateway port of its own, a start takes off the list any other local knowledge base whose gateway was on its port, and says so.
 
 A start resolves every provider key the list's engines name, not its own knowledge base's alone, and refuses when one is missing, naming the knowledge base that names it. It writes the worker's configuration document to `machine/worker.json` in the state home, and keeps a running worker when that document, its image and its memory are what the start would run; it restarts the worker otherwise, and stops it when the list is empty.
 

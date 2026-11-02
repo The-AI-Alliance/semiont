@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.jdk9.asFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import semiont.Timings
@@ -99,14 +100,14 @@ private fun namesRefusalRate(body: ByteArray): Boolean =
         false
     }
 
-/** The gateway's words for a refusal, when its body states them. */
-internal fun said(body: ByteArray?, otherwise: String): String =
+/** The gateway's words for a refusal, when its body states them; null when it does not. */
+internal fun said(body: ByteArray?): String? =
     try {
-        body?.let { wireJson.decodeFromString(ErrorResponse.serializer(), it.toString(Charsets.UTF_8)).error } ?: otherwise
+        body?.let { wireJson.decodeFromString(ErrorResponse.serializer(), it.toString(Charsets.UTF_8)).error }
     } catch (_: SerializationException) {
-        otherwise
+        null
     } catch (_: IllegalArgumentException) {
-        otherwise
+        null
     }
 
 /**
@@ -188,12 +189,13 @@ internal class Exchange(
             val status = response.statusCode()
             if (status in 200..299) return response
             val stated = retryAfterMs(response.headers().firstValue("retry-after").orElse(null))
+            // A refusal's body is read within the deadline too: one not read by then says nothing.
             val read = try {
-                readAll(response.body())
+                if (atLength) readAll(response.body()) else withTimeoutOrNull(deadlineMs) { readAll(response.body()) }
             } catch (_: IOException) {
                 null
             }
-            val refused = refusal(said(read, "HTTP $status"), status, read, stated)
+            val refused = refusal(said(read) ?: "HTTP $status", status, read, stated)
             if (refused.reason == TransportErrorCode.Unauthorized) {
                 if (authenticated && !renewed && !closing()) {
                     renewed = true

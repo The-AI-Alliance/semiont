@@ -1,8 +1,8 @@
 package launcher
 
-// workerkey.go — the key the worker this machine runs proves itself with.
+// workerkey.go — the key the shared worker proves itself with.
 //
-// One RSA key for the machine, not for a root: the worker serves every
+// One RSA key, shared, not one per root: the worker serves every
 // knowledge base the launcher runs here, and each one's realm registers the
 // key's public half on one client, serviceClientID("worker"). The private half never
 // leaves the machine: it reaches the worker's container as
@@ -21,21 +21,21 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
-// custodyWorkerKey: the custody name of the machine's worker key, an RSA
+// custodyWorkerKey: the custody name of the shared worker key, an RSA
 // private key, PKCS#8 PEM.
 const custodyWorkerKey = "worker-key"
 
 // workerKeyBits: the worker key's size. RS256 signs with it.
 const workerKeyBits = 2048
 
-// machineStateDir: what the launcher keeps for this machine rather than for
+// sharedStateDir: what the launcher keeps for this machine rather than for
 // one root, beside the roots' state (stateRootDir). "" when homeless.
-func machineStateDir() string {
+func sharedStateDir() string {
 	d := dataDir()
 	if d == "" {
 		return ""
 	}
-	return filepath.Join(d, "machine")
+	return filepath.Join(d, "shared")
 }
 
 // registeredKey: what a realm holds of a worker's key — its public half, and
@@ -54,7 +54,7 @@ func registeredKeyOf(pub *rsa.PublicKey) (registeredKey, error) {
 	return registeredKey{public: base64.StdEncoding.EncodeToString(der), thumbprint: semiont.JWKThumbprint(pub)}, nil
 }
 
-// workerKey: the machine's worker key as the launcher hands it on — what the
+// workerKey: the shared worker key as the launcher hands it on — what the
 // realm's client holds of it, its private half for the worker's container, and
 // the key itself for the preflight to sign with. A plan holds placeholders and
 // no key.
@@ -81,14 +81,14 @@ func workerKeyOf(key *rsa.PrivateKey) (workerKey, error) {
 	}, nil
 }
 
-// loadOrCreateWorkerKey: the machine's worker key, from the machine's store
-// (machineCustody), generated and kept there on its first use.
+// loadOrCreateWorkerKey: the shared worker key, from the shared store
+// (sharedCustody), generated and kept there on its first use.
 func loadOrCreateWorkerKey(u *UI) (workerKey, bool) {
-	if machineStateDir() == "" {
+	if sharedStateDir() == "" {
 		u.Fail("No home directory resolvable, so there is nowhere to keep the worker's key.")
 		return workerKey{}, false
 	}
-	store := machineCustody()
+	store := sharedCustody()
 	kept, ok := store.get(u, custodyWorkerKey)
 	if !ok {
 		return workerKey{}, false

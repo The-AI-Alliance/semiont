@@ -14,7 +14,7 @@ package launcher
 // A WARNING, never a refusal: macOS degrades under pressure rather than
 // breaking, and the launcher cannot know what else the host runs.
 //
-// Known boundary: the machine's Ollama is never in the sum. A host-run one
+// Known boundary: the shared Ollama is never in the sum. A host-run one
 // (preferred, so models get Metal) uses host RAM this sum cannot see.
 
 import (
@@ -55,7 +55,7 @@ func memCeilingGB(m string) float64 {
 // the ceilings their documents state (launchPlan.Memory), the worker at its
 // document's when its list serves a knowledge base, the Browser at its
 // document's, and the collector; the daemons the launcher runs at the
-// ceilings theirs state; traces and metrics ride --observe. The machine's
+// ceilings theirs state; traces and metrics ride --observe. The shared
 // Ollama is not counted: it is the host's when the host has one, and only a
 // fallback container when it does not.
 func startCeilingsGB(plan *launchPlan, browser browserDocument, opts startOptions) float64 {

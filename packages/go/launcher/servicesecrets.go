@@ -14,11 +14,12 @@ func serviceSecrets(p placement) map[string][]string {
 	}
 }
 
-// secretsRead: the variables a start of svc reads ("" is the whole stack) —
-// each one a service it starts is handed, and each one the launcher reads
-// itself: the password of the PostgreSQL somebody else runs for the Keycloak
-// it runs, and a remote provider's key for the remote-model check. Sorted.
-func secretsRead(p placement, svc string) []string {
+// secretsRead: the variables a start that runs the services runs says yes to
+// reads — each one a service it starts is handed, and each one the launcher
+// reads itself: the password of the PostgreSQL somebody else runs for the
+// Keycloak it runs, and a remote provider's key for the remote-model check.
+// Sorted.
+func secretsRead(p placement, runs func(role string) bool) []string {
 	var names []string
 	add := func(found ...string) {
 		for _, name := range found {
@@ -28,14 +29,14 @@ func secretsRead(p placement, svc string) []string {
 		}
 	}
 	for service, secrets := range serviceSecrets(p) {
-		if svc == "" || svc == service {
+		if runs(service) {
 			add(secrets...)
 		}
 	}
-	if svc == "" || svc == "identity" {
+	if runs("identity") {
 		add(p.plan.Roles["identity"].ExternalDBPassword)
 	}
-	if svc == "" || svc == "inference" {
+	if runs("inference") {
 		add(p.plan.Roles["inference"].APIKey)
 	}
 	sort.Strings(names)

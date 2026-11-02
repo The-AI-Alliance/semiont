@@ -16,7 +16,7 @@ semiont logs                       # Follow the Semiont services
 semiont logs --service gateway     # Follow one
 ```
 
-`semiont status` reports each service's container state (running, exited or absent, across every installed runtime) and the result of [its health probe](../services/OVERVIEW.md#health). To use it as a gate in a script, name what you mean with `--root`, `--repo` or `--service`: those forms exit 0 only when what they name is healthy. The plain report covers every stack on the machine and exits 0 whenever it ran.
+`semiont status` reports each service's container state (running, exited or absent, across every installed runtime) and the result of [its health probe](../services/OVERVIEW.md#health). To use it as a gate in a script, name what you mean with `--root`, `--repo` or `--service`: those forms exit 0 only when what they name is healthy. The plain report covers every knowledge base here, and the services they share, and exits 0 whenever it ran.
 
 `semiont status --verbose` adds the launcher's own paths on this machine (its state, its log, the staged configs, the model cache), and each knowledge base's stores with what each takes on disk. Orphaned state is called out with the `clean` command that removes it.
 
@@ -26,7 +26,7 @@ Containers run without `--rm`, deliberately: a crashed container stays inspectab
 
 ## Reaching into a container
 
-The launcher has no `exec` verb. Use your container engine. A knowledge base's containers are named `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name; the machine's, such as the worker, are `semiont-<name>` ([the launcher's names](../services/OVERVIEW.md#the-launchers-names)):
+The launcher has no `exec` verb. Use your container engine. A knowledge base's containers are named `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name; the shared ones, such as the worker, are `semiont-<name>` ([the launcher's names](../services/OVERVIEW.md#the-launchers-names)):
 
 ```bash
 container exec -it semiont-<kb>-gateway sh   # or docker exec / podman exec
@@ -99,7 +99,7 @@ A worker is a special case: its token must also carry the `semiont-worker` role,
 
 `semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client — and [the repair](#semiont-start-refuses-at-the-identity-preflight) — up front.
 
-A worker restarted with `semiont start --service worker` is handed the machine's key again and the same document, so it rejoins with nothing to recover. One started by hand must be given that key as `SEMIONT_OIDC_CLIENT_KEY`; its document names the client it signs in as at each knowledge base.
+A worker restarted with `semiont start --service worker` is handed its key again and the same document, so it rejoins with nothing to recover. One started by hand must be given that key as `SEMIONT_OIDC_CLIENT_KEY`; its document names the client it signs in as at each knowledge base.
 
 ### Commands fail, or real-time updates stop
 

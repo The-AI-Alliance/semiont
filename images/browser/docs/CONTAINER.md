@@ -112,7 +112,7 @@ account are the gateway's ([Secrets](../../../docs/operator/services/SECRETS.md)
 ## Troubleshooting
 
 **A knowledge base cannot be added: a network error.** Its gateway must be reachable from the
-person's web browser, not from this container. For a local stack that is `localhost:4000`, the
+person's web browser, not from this container. For a knowledge base running on this computer that is `localhost:4000`, the
 port published to the host. A container's name on the container network, such as
 `semiont-example.org-my-kb-gateway`, does not resolve in a web browser.
 

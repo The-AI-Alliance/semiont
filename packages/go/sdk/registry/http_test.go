@@ -397,8 +397,21 @@ func TestARegistrysSignInRegistersTheKnowledgeBaseUnderWhatItSaysItIs(t *testing
 	if outcome.Expected == nil || outcome.Expected.Did != "did:web:example.org:another" {
 		t.Errorf("expected: %+v", outcome.Expected)
 	}
-	if !same(t, browser.KnowledgeBases().Value(), []api.KnowledgeBase{outcome.Kb}) {
-		t.Errorf("the registered knowledge bases are %+v", browser.KnowledgeBases().Value())
+	// The session's arrival asks the knowledge base who it is again, and
+	// records that read on the entry moments after the sign-in's own: the
+	// entry is the outcome's, its last read the same or later.
+	registered := browser.KnowledgeBases().Value()
+	if len(registered) != 1 || registered[0].LastRead == nil || outcome.Kb.LastRead == nil {
+		t.Fatalf("the registered knowledge bases are %+v, and the outcome's is %+v", registered, outcome.Kb)
+	}
+	kept, read := registered[0], *registered[0].LastRead
+	if read.At < outcome.Kb.LastRead.At {
+		t.Errorf("the entry's last read, at %s, is before the sign-in's, at %s", read.At, outcome.Kb.LastRead.At)
+	}
+	read.At = outcome.Kb.LastRead.At
+	kept.LastRead = &read
+	if !same(t, kept, outcome.Kb) {
+		t.Errorf("the registered knowledge base is %+v, and the outcome's is %+v", kept, outcome.Kb)
 	}
 	if stored, _ := registry.StoredSessionOf(storage, outcome.Kb.Id); stored != s.stored(access, "a-refresh-token") {
 		t.Errorf("stored: %+v", stored)

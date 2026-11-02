@@ -1,6 +1,6 @@
 package launcher
 
-// The machine's worker key: kept once for the machine, registered on the
+// The shared worker key: kept once, registered on the
 // worker's realm client by its thumbprint, handed to the worker off the
 // command line, and printed — its public half only — for an issuer the
 // launcher does not run.
@@ -25,8 +25,8 @@ import (
 
 // A second start, of this knowledge base or another, gets the FIRST key: every
 // realm this launcher runs registers it, and a fresh one would be refused by
-// all of them. Kept for the machine, not under a root, and to its owner.
-func TestTheWorkerKeyIsKeptForTheMachine(t *testing.T) {
+// all of them. Kept once, shared, not under a root, and to its owner.
+func TestTheWorkerKeyIsKeptForEveryKnowledgeBase(t *testing.T) {
 	harness.Home(t)
 	u := NewUI(true)
 
@@ -39,9 +39,9 @@ func TestTheWorkerKeyIsKeptForTheMachine(t *testing.T) {
 		t.Fatalf("a second use made another key (%s → %s): every realm holds the first", first.thumbprint, second.thumbprint)
 	}
 
-	kept := filepath.Join(machineStateDir(), custodyWorkerKey)
-	if filepath.Dir(kept) != filepath.Join(dataDir(), "machine") {
-		t.Errorf("the worker key is kept at %s, not for the machine", kept)
+	kept := filepath.Join(sharedStateDir(), custodyWorkerKey)
+	if filepath.Dir(kept) != filepath.Join(dataDir(), "shared") {
+		t.Errorf("the worker key is kept at %s, not shared", kept)
 	}
 	if fi, err := os.Stat(kept); err != nil {
 		t.Fatalf("the worker key is not kept: %v", err)
@@ -80,7 +80,7 @@ func TestAKeptWorkerKeyThatIsNotRSAIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	u := NewUI(true)
-	if !machineCustody().put(u, custodyWorkerKey, string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))) {
+	if !sharedCustody().put(u, custodyWorkerKey, string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))) {
 		t.Fatal("keeping the EC key")
 	}
 	var ok bool
@@ -179,7 +179,7 @@ func TestTheWorkerKeySetNamesTheKeyByItsThumbprint(t *testing.T) {
 // launcher's own environment.
 func TestTheWorkerIsHandedItsKeyOffTheCommandLine(t *testing.T) {
 	k := testWorkerKey()
-	argv, env := offCommandLine(workerArgs("/state/machine/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, k.private, "v", semiontDescriptor("worker").mem, nil, nil))
+	argv, env := offCommandLine(workerArgs("/state/shared/worker.json", exposure{rt: "container", addr: "1.2.3.4"}, k.private, "v", semiontDescriptor("worker").mem, nil, nil))
 	if line := strings.Join(argv, " "); strings.Contains(line, "PRIVATE KEY") || !strings.Contains(line, "--env SEMIONT_OIDC_CLIENT_KEY ") {
 		t.Errorf("the key's value rides the command line, or its name is missing:\n%s", line)
 	}
@@ -188,12 +188,12 @@ func TestTheWorkerIsHandedItsKeyOffTheCommandLine(t *testing.T) {
 	}
 }
 
-// `semiont worker key` prints the machine's key — the one the realm holds — as
+// `semiont worker key` prints the worker key — the one the realm holds — as
 // a key set, or with --pem as a PEM with its key id beside it, and never the
 // private half.
 func TestTheWorkerVerbPrintsThePublicKey(t *testing.T) {
 	harness.Home(t)
-	if !machineCustody().put(NewUI(true), custodyWorkerKey, testWorkerKey().private) {
+	if !sharedCustody().put(NewUI(true), custodyWorkerKey, testWorkerKey().private) {
 		t.Fatal("keeping the test worker key")
 	}
 	var code int
@@ -202,7 +202,7 @@ func TestTheWorkerVerbPrintsThePublicKey(t *testing.T) {
 		t.Fatalf("exit %d\n%s", code, stderr)
 	}
 	if strings.TrimSpace(stdout) != workerKeySet(testWorkerKey()) {
-		t.Errorf("printed another key set than the machine's:\n%s", stdout)
+		t.Errorf("printed another key set than the worker's:\n%s", stdout)
 	}
 
 	stdout, stderr = harness.CaptureOutput(t, func() { code = Worker([]string{"key", "--pem"}) })

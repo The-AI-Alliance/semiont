@@ -18,8 +18,8 @@ through that lifecycle.
 A knowledge base's containers are named `semiont-<kb>-<product>`, where
 `<kb>` is its did:web domain made safe for a name: `did:web:example.org:my-kb`
 runs its gateway as `semiont-example.org-my-kb-gateway`. The Browser, the
-worker, Ollama and Jaeger are the machine's, shared by every knowledge
-base, and keep `semiont-<name>`. See
+worker, Ollama and Jaeger are shared by every knowledge base, and keep
+`semiont-<name>`. See
 [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names).
 
 **Key fact:** `scripts/ci/local-build.sh` (in this repo) publishes the

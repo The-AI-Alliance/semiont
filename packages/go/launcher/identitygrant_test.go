@@ -110,7 +110,7 @@ func TestAGrantOfANewKeyReplacesTheOldOnTheSameClient(t *testing.T) {
 }
 
 // A revoke deletes the client granted under that label, and no other: not
-// another grant, not this machine's worker, not a service's.
+// another grant, not the shared worker, not a service's.
 func TestARevokeDeletesThatClientAndNoOther(t *testing.T) {
 	s := newStubAdmin(t, "semiont", append(allServiceClientReps(),
 		grantedRep("alice", anotherWorkerKey(t)), grantedRep("bob", anotherWorkerKey(t))))
@@ -128,7 +128,7 @@ func TestARevokeDeletesThatClientAndNoOther(t *testing.T) {
 }
 
 // Revoking a label nothing was granted under deletes nothing, and answers the
-// labels that are granted — this machine's own worker not among them — so a
+// labels that are granted — the shared worker not among them — so a
 // mistyped label says so rather than passing for a revocation.
 func TestARevokeOfNoGrantDeletesNothing(t *testing.T) {
 	s := newStubAdmin(t, "semiont", append(allServiceClientReps(), grantedRep("bob", anotherWorkerKey(t))))
