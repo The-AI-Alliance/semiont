@@ -17,10 +17,10 @@ jobs:
         run: brew install container
 
       - name: Build and package Semiont Desktop
-        run: apps/desktop/build.sh
+        run: make desktop-macos
 
       - name: Build Linux x64 package
-        run: apps/desktop/build.sh --linux
+        run: make desktop-linux
 
       - name: Upload macOS installer
         uses: actions/upload-artifact@v7

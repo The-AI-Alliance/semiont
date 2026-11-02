@@ -142,7 +142,7 @@ should_build() {
 # --- Install + OpenAPI (always) ---
 
 banner "INSTALL DEPENDENCIES"
-npm install --include=optional
+npm ci --include=optional
 
 banner "BUNDLE OPENAPI SPEC"
 npm run openapi:bundle

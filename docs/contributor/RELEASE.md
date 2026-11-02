@@ -170,7 +170,7 @@ The Python SDK (`packages/python/sdk`) is published to PyPI as one project, `sem
 
 [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
 
-1. Builds the source distribution, and the wheel from it, with [`packages/python/sdk/scripts/build-python-sdk.sh`](../../packages/python/sdk/scripts/build-python-sdk.sh), which CI runs on every change and `local-build.sh` on every full run.
+1. Builds the source distribution, and the wheel from it, with [`packages/python/sdk/scripts/build-python-sdk.sh`](../../packages/python/sdk/scripts/build-python-sdk.sh), which CI runs on every change and `make local-build` on every full run.
 2. Refuses distributions not named for the version, that hold more than the package, or that do not carry the repository's `LICENSE` and name it in their metadata (`License-File: LICENSE`). The script copies the root's `LICENSE` beside `pyproject.toml` before it builds, where hatchling takes it as the licence file: the source distribution carries it at its root, and the wheel in its `.dist-info` at `licenses/LICENSE`. The copy is ignored by git.
 3. Installs the wheel in an environment of its own and imports every module of it, so a module that needs what the package does not declare fails before anything is uploaded.
 4. Skips a version already on PyPI, so a run can be made again.
@@ -212,7 +212,7 @@ A program in this repository requires the SDK by a `replace` directive on its pa
 }
 ```
 
-The order of `packages` is the build order, so each package is listed after its dependencies. Every script that walks the packages reads this list: the build, the publish, `local-build.sh` and the version scripts. An app that publishes from a staging directory adds a `stage` field.
+The order of `packages` is the build order, so each package is listed after its dependencies. Every script that walks the packages reads this list: the build, the publish, `make local-build` and the version scripts. An app that publishes from a staging directory adds a `stage` field.
 
 ```bash
 npm run version:show    # the version, across every package

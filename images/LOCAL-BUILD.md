@@ -1,107 +1,139 @@
 # Local builds
 
-Portable scripts that run identically in GitHub Actions and in local containers.
-No npm is required on the host for local builds.
+The root [Makefile](../Makefile) is the public build interface. Run one operation per
+invocation; `make -j packages launcher` is refused because sessions share caches and a registry.
+GNU Make 3.81 is supported. The host needs Bash, Git, Python 3, curl and a container runtime.
+Language compilers and package managers run in containers; Make does not replace them.
 
-## Build tooling
-
-| Script | Purpose |
-|--------|---------|
-| `packages/typescript/scripts/build.sh` | Install deps + build packages and apps |
-| `packages/typescript/scripts/publish.sh` | Version stamp + stage + publish to a registry, each package with the repository's `LICENSE` copied into the directory it publishes from |
-| `packages/typescript/scripts/publish-npm-apps.mjs` | Stage the Browser into `.npm-stage/` for publishing |
-| `packages/python/sdk/scripts/build-python-sdk.sh` | Build the Python SDK's source distribution and wheel at `version.json`'s version, and check them: named for the version, holding the package and no more, each carrying the repository's `LICENSE` (copied beside `pyproject.toml` for the build) and naming it in its metadata, and every module importable from the installed wheel alone. CI and `local-build.sh` run it; `publish-pypi.yml` uploads what it leaves |
-| `images/scripts/image-tags.sh` | The image a service publishes to and its tags (version, `sha-<commit>`, optionally `latest`), for every job of `publish-service-images.yml` that names one |
-| `images/local-build.sh` | Host-side wrapper: build every package, each in its language's container, and every `:local` image, fanned out to every container engine on the machine, skipping what is unchanged; publish the npm packages to a Verdaccio it starts when an image installs from one; then the launcher |
-| `images/scripts/package-signatures.py` | The packages `local-build.sh` builds, `packages/<language>/<name>`, and the signature of what each is built from, its dependencies' among it, by which it skips one that is unchanged |
-| `packages/go/scripts/go-toolchain.sh` | Print the Go toolchain `apps/launcher/go.mod` pins. The one reader of that line, for everything that names a Go image: `local-build.sh` and the `go:generate` lines of `packages/go/sdk` and `apps/launcher` |
-| `packages/swift/scripts/swift-version.sh` | Print the Swift version pinned by `packages/swift/sdk/.swift-version` for local builds and CI. |
-| `packages/kotlin/scripts/jdk-version.sh` | Print the JDK the Kotlin SDK is built on, what `packages/kotlin/sdk/.java-version` holds. The one script that reads that file, for everything that names a JDK image: `local-build.sh` and the Kotlin SDK's job of `ci.yml` (setup-java and the SDK's Gradle build read it themselves) |
-| `packages/go/launcher/scripts/neo4j-image.sh` | Print the neo4j image the launcher starts for the graph role, from its row of `packages/go/launcher/descriptors.go`. The one reader of that row for a test: the "Python Graph Stores (neo4j)", "Weaver Conformance" and "Librarian Conformance" jobs of `ci.yml`, and a developer starting a container for any of those suites |
-| `packages/go/launcher/scripts/keycloak-image.sh` | Print the Keycloak image the launcher starts for the identity role, from its row of `packages/go/launcher/descriptors.go`. The one reader of that row for a test: the "Launcher Tests (Go, Keycloak)" job of `ci.yml`, and a developer starting a container for the launcher's live tests |
-| `packages/go/launcher/scripts/qdrant-image.sh` | Print the Qdrant image the launcher starts for the vectors role, from its row of `packages/go/launcher/descriptors.go`. The one reader of that row for a test: the "Python Vector Stores (Qdrant)", "Smelter Conformance" and "Librarian Conformance" jobs of `ci.yml`, and a developer starting a container for any of those suites |
-| `packages/typescript/scripts/node-version.sh` | Print the Node that builds and tests the repository, what `.node-version` holds. The one reader of that file for the scripts: `local-build.sh`, `apps/desktop/build.sh` and `.github/release/version-bump.sh` |
-| `packages/python/scripts/python-floor.sh` | Print the oldest Python the SDK supports, the `requires-python` of `packages/python/sdk/pyproject.toml`. The one reader of that line: `local-build.sh`, `publish-service-images.yml` (the four Python images run on it), the SDK's model generator and `lint:python-version` ask it |
-| `packages/rust/scripts/rust-toolchain.sh` | Print the Rust toolchain `rust-toolchain.toml` names. The one reader of its `channel`, for everything that builds a Rust image: `local-build.sh`, `apps/desktop/build.sh`, `publish-service-images.yml` and `images/scripts/build-images.js` |
-| `packages/rust/scripts/instrument-coverage.sh` | cargo's `RUSTC_WORKSPACE_WRAPPER` for the Rust binaries CI builds for the conformance suites: the workspace's own crates instrumented for coverage, their dependencies not |
-| `images/scripts/verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
-
-## GitHub Actions
-
-The `publish-npm-packages.yml` workflow calls `build.sh` and `publish.sh`:
-
-```yaml
-- run: ./packages/typescript/scripts/build.sh
-- run: ./packages/typescript/scripts/publish.sh --version $VERSION --tag latest
+```sh
+make help
+make local-build
+make plan PACKAGE_NAMES=rust IMAGE_NAMES=worker
 ```
 
-## Local Development (no npm on host)
+`make local-build` checks generated code and lockfiles, builds changed packages, publishes
+npm packages to fresh local Verdaccio when an image needs them, builds and verifies images,
+copies them to other responsive runtimes, and builds the host launcher. It does not start a KB.
+Images are tagged `ghcr.io/the-ai-alliance/semiont-<name>:local` and are never pushed.
 
-Build and publish to a local Verdaccio registry, build the container images
-against it, then run them from a KB. KBs don't build anything — they consume
-images (the same production Dockerfiles the publish workflows use), tagged
-`ghcr.io/the-ai-alliance/semiont-<svc>:local` (local-only, never pushed).
-Built images are loaded into every responsive container engine on the machine
-(container/docker/podman), so the KB's `--runtime` choice is independent of
-who built — `CONTAINER_RUNTIME` picks the *build* engine only, and
-`--no-fanout` leaves them in that engine's store alone:
+## Select work
 
-```bash
-# 1. Build all packages, publish to local Verdaccio, build every image
-./images/local-build.sh
-
-# 2. Run the full stack from your KB against the :local images: name them in
-#    .semiont/stack/*.yaml (e.g. ghcr.io/the-ai-alliance/semiont-gateway:local),
-#    and the Browser's and the worker's in their own documents
-cd /path/to/your-kb
-perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(/path/to/semiont/apps/launcher/dist/semiont settings browser --path)"
-perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(/path/to/semiont/apps/launcher/dist/semiont settings worker --path)"
-/path/to/semiont/apps/launcher/dist/semiont start
-/path/to/semiont/apps/launcher/dist/semiont useradd --email admin@example.com
-
-# 3. Iterate — edit code and run it again: what is unchanged is skipped, or
-#    name what to build:
-./images/local-build.sh --package typescript/core,typescript/react-ui --image browser
-# Verdaccio restarts fresh each run; the publish step always publishes all
-# npm packages, and --image narrows which images are rebuilt.
-
-# 4. Done for the day
-container rm -f semiont-verdaccio
+```sh
+make local-build PACKAGE_NAMES=typescript IMAGE_NAMES=browser
+make packages PACKAGE_NAMES=rust
+make packages PACKAGE_NAMES=typescript
+make packages PACKAGE_NAMES=typescript/sdk
+make images-only IMAGE_NAMES=worker
+make launcher
 ```
 
-## local-build.sh Options
+`PACKAGE_NAMES` accepts comma-separated `language/name` values or a whole language. Package
+names and signatures come from manifests; npm ordering comes from `version.json`. Explicit
+selections force their builds. They do not automatically expand a package dependency closure:
+build the full language first when a selected TypeScript package's dependency output is missing.
+A whole-language TypeScript package operation also builds publishable app artifacts (the Browser).
+`packages` builds no images or launcher and starts no registry.
 
-`./images/local-build.sh --help` lists them.
+`IMAGE_NAMES` accepts comma-separated image names discovered from Dockerfiles. A selected
+image forces rebuilding. `images-only` skips packages, drift/lockfile gates and the launcher;
+for the Browser it requires a populated registry left by an earlier local build/publication.
+Other images build from source without a registry. It is not a prerequisite-aware image command.
 
-`--package` takes `<language>/<name>`, or a language for all of its packages;
-the npm packages build in the order `version.json` lists them. An unknown name
-is refused with the list.
+Use `FORCE=1` to rebuild every selected package/image, `FANOUT=0` to leave images only in the
+building engine, and `CONTAINER_RUNTIME=container|docker|podman` to choose that engine.
+`LAYER_CACHE=directory` enables the Docker Rust layer cache used by Stack Smoke. `make plan`
+reads package signatures and selection without building, publishing or updating build state;
+image content/store decisions are made during the build, as its output states.
 
-The publish step always publishes all packages regardless of `--package`.
+## Publish built npm packages locally
 
-## build.sh Options
-
+```sh
+make packages PACKAGE_NAMES=typescript
+make npm-publish-local
 ```
-Usage:
-  build.sh [options]
 
-Options:
-  --package <list>   Comma-separated packages to build (default: all)
+The publication operation verifies every publishable entry in `version.json`, including the
+Browser's built app assets, before starting fresh local Verdaccio at `http://localhost:4873`.
+It publishes all entries at the repository version under the local `latest` tag and leaves
+Verdaccio running. Missing artifacts fail with a build instruction; presence is not a freshness
+proof. It compiles nothing and builds no images or launcher.
+
+Publication runs the existing npm publisher against an isolated copy of its inputs. Version
+stamping, dependency pinning and app staging do not edit source manifests or the root lockfile.
+The local target always supplies its local registry and temporary authentication; release
+publication remains a separate workflow. An unrelated occupant of port 4873 is refused.
+
+Stop the registry when finished, using the runtime that started it:
+
+```sh
+container stop semiont-verdaccio
 ```
 
-Dependencies are always installed and the OpenAPI spec is always bundled.
+## Generate from specifications
 
-## publish.sh Options
-
+```sh
+make generate
+make check-generated
+make generate-python
+make check-generated-python
+make generate-go
+make generate-typescript
+make generate-bus
 ```
-Usage:
-  publish.sh [options]
 
-Options:
-  --registry <url>   Target registry (default: https://registry.npmjs.org)
-  --tag <tag>        Dist tag: latest or dev (default: latest)
-  --version <ver>    Override publish version (default: from version.json)
-  --clean            Unpublish existing versions before publishing (for local Verdaccio)
-  --npmrc <path>     Path to .npmrc for registry auth
-  --dry-run          Stage but do not publish
+`generate` intentionally updates generated files. `check-generated` fails on stale committed
+output without repairing it. Checks may install locked tooling, prepare ignored spec bundles
+and generate temporary comparison output. They do not compile the application packages.
+
+Focused pairs use `generate-GROUP` and `check-generated-GROUP`, where GROUP is `bus`,
+`typescript`, `python`, `go`, `stack-go`, `mcp-tools-go`, `discovery-go`, `encoding-cases` or
+`model-catalogue`. The last two derive fixtures from pinned external data rather than OpenAPI.
+Python includes both spec tables and OpenAPI models. Go includes shared bus generation and
+the OpenAPI client. The aggregate deduplicates shared operations. Existing npm command lists,
+Go directives/configuration and toolchain readers own the generator inventory and versions.
+
+TypeScript package builds retain their automatic generation chain. Rust's Cargo build scripts
+generate their spec-derived types into build output: `make packages PACKAGE_NAMES=rust` runs
+that generation through Cargo. Ordinary local builds check committed drift and never invoke
+`make generate` to repair it automatically.
+
+## Launcher and desktop
+
+```sh
+make launcher
+make desktop
+make desktop-macos
+make desktop-linux
 ```
+
+`launcher` builds `apps/launcher/dist/semiont` for the host OS/architecture using the derived
+Go container. It runs no unrelated package or image work.
+
+`desktop` selects by caller OS: macOS builds an arm64 DMG, Linux builds an x64 Debian package.
+The explicit targets select the installer platform; macOS packaging requires macOS's `hdiutil`.
+Linux packaging works from Linux or macOS; macOS cross-packaging with Apple Container uses
+Rosetta on Apple Silicon. An ARM Linux host needs its runtime to support amd64 emulation.
+The desktop helper uses the selected available runtime, builds its
+workspace dependencies, and writes installers to `apps/desktop/release/`. The macOS packaging
+step uses a downloaded, checksum-verified temporary Node runtime. Unsupported host OSes fail.
+Desktop is not part of `local-build`.
+
+## Verification and implementation
+
+`make smoke SMOKE_TAG=local` runs [the real-stack smoke](tests/stack/smoke-stack.sh) and its
+e2e tier. This boots services and requires the selected images and the checkout's launcher.
+Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a
+Docker layer cache. Existing native CI build and release publication commands remain direct.
+
+The Makefile forwards arguments to [the session](scripts/build-session.sh). Owner stages under
+`scripts/local-build/` retain drift gates, seven language builds, registry lifecycle, the
+three-image batch, exclusive timed image checks, launcher build and cache maintenance.
+[Codegen](../packages/codegen/run.py) and [desktop](../apps/desktop/build.sh) retain their owners.
+
+Unchanged packages use content signatures, including transitive dependencies and codegen.
+Image reuse also checks the selected runtime's store. The existing build state is shared under
+`${XDG_CACHE_HOME:-$HOME/.cache}/semiont`; concurrent sessions remain unsupported. The image
+batch remains capped at three builds, independent of Make's job count. Timed Rust checks wait
+for competing builds; secondary-runtime copy failures warn without discarding the primary image.
+The cache maintenance loop bounds npm, Go, uv, Cargo and Gradle caches; SwiftPM/NuGet are not
+bounded by that loop. Failed image builds retain logs and do not record successful signatures.

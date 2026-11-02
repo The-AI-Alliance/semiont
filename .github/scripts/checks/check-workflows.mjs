@@ -414,6 +414,16 @@ function changedAreas(jobs) {
   // E2e is an independent project whose PR consumer is Stack Smoke, not ci.yml.
   const smokeWorkflow = yaml.load(readFileSync(join(ROOT, SMOKE), 'utf8'));
   const smokePaths = smokeWorkflow.on?.pull_request?.paths ?? [];
+  const buildRun = (smokeWorkflow.jobs?.boot?.steps ?? []).map((step) => step.run ?? '')
+    .find((run) => /\bmake local-build\b/.test(run));
+  if (!buildRun || !buildRun.includes('PACKAGE_NAMES=typescript') || !buildRun.includes('FANOUT=0') || !buildRun.includes('LAYER_CACHE=')) {
+    failures.push(`${SMOKE}: local images must use make local-build with TypeScript selection, fan-out disabled and the Rust layer cache`);
+  }
+  for (const input of ['Makefile', 'images/scripts/**', 'packages/codegen/**']) {
+    if (!smokePaths.includes(input)) failures.push(`${SMOKE}: Make's local build input ${input} is absent from pull_request paths`);
+  }
+  if (!(filters.all ?? []).includes('Makefile')) failures.push(`${CI}: the root Makefile must select the all area`);
+
   for (const dir of new Set(packages)) {
     if (dir === 'images/e2e') {
       if (!smokePaths.includes(`${dir}/**`)) failures.push(`${SMOKE}: independent e2e project ${dir} is not selected by its pull_request paths`);

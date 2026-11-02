@@ -195,7 +195,7 @@ docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh)
   --file images/weaver/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-weaver:local .
 ```
 
-[`images/local-build.sh`](../local-build.sh) builds it the same way, with the
+[`make local-build`](../../Makefile) builds it the same way, with the
 other images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 

@@ -10,9 +10,9 @@ through that lifecycle.
 
 | Container | What's inside | Where it comes from |
 |---|---|---|
-| `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `images/local-build.sh` |
-| `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `images/local-build.sh` |
-| `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `images/local-build.sh` |
+| `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `make local-build` |
+| `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `make local-build` |
+| `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `make local-build` |
 | plus: `semiont-<kb>-neo4j`, `semiont-<kb>-qdrant`, `semiont-ollama`, `semiont-<kb>-postgres`, `semiont-<kb>-nats`, `semiont-<kb>-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
 
 A knowledge base's containers are named `semiont-<kb>-<product>`, where
@@ -22,7 +22,7 @@ worker, Ollama and Jaeger are shared by every knowledge base, and keep
 `semiont-<name>`. See
 [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names).
 
-**Key fact:** `images/local-build.sh` (in this repo) publishes the
+**Key fact:** `make local-build` (in this repo) publishes the
 `@semiont/*` packages to a throwaway local Verdaccio and builds **every**
 Semiont image from them as a local-only `:local` tag (plus the
 launcher binary). KB repos build nothing — the stack runs the `:local`
@@ -36,10 +36,10 @@ So the "full rebuild" flow depends on what changed:
 
 | Change in | Rebuild | Restart |
 |---|---|---|
-| `packages/typescript/react-ui`, `packages/typescript/http-transport`, `packages/typescript/core` | `local-build.sh` | browser |
-| `images/browser` only | `local-build.sh` | browser |
-| `images/librarian`, `images/worker`, `images/weaver`, `images/smelter`, or a Python package one of them runs on | `local-build.sh` (rebuilds the `:local` images) | the stack: `semiont start` |
-| `images/gateway` | `local-build.sh` | the stack: `semiont start` |
+| `packages/typescript/react-ui`, `packages/typescript/http-transport`, `packages/typescript/core` | `make local-build` | browser |
+| `images/browser` only | `make local-build` | browser |
+| `images/librarian`, `images/worker`, `images/weaver`, `images/smelter`, or a Python package one of them runs on | `make local-build` (rebuilds the `:local` images) | the stack: `semiont start` |
+| `images/gateway` | `make local-build` | the stack: `semiont start` |
 
 ## Apple container CLI primer
 
@@ -83,9 +83,9 @@ container ls | grep -E 'semiont-(browser|.+-gateway)'    # inspection only
 ## Building the `:local` images
 
 ```sh
-./images/local-build.sh                 # everything
-./images/local-build.sh --package <list>  # narrow the package set (<language>/<name>, or a language)
-./images/local-build.sh --image <list>    # narrow the image set
+make local-build                 # everything
+make local-build PACKAGE_NAMES=<list>  # narrow the package set (<language>/<name>, or a language)
+make local-build IMAGE_NAMES=<list>    # narrow the image set
 ```
 
 `--help` lists the full package set. The script:

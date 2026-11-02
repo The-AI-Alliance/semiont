@@ -13,7 +13,7 @@
 #      images/gateway/Dockerfile declares, read from there rather than restated,
 #      so this check cannot probe an address the healthcheck does not.
 #
-# Run by local-build.sh once every image is built, so nothing else builds
+# Run by the local-build session once every image is built, so nothing else builds
 # while it times the start, and by the image publish workflow before it
 # pushes, in a job that builds this image alone.
 set -eu

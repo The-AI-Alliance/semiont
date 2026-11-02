@@ -99,7 +99,7 @@ docker build \
 | `NPM_REGISTRY` | `https://registry.npmjs.org` | The registry to install it from |
 
 To run a change that is not published, build every image from your working tree with
-[`images/local-build.sh`](../../local-build.sh)
+[`make local-build`](../../../Makefile)
 ([Local Development](../../../docs/contributor/LOCAL-DEVELOPMENT.md)). Published images come
 from the `publish-browser.yml` workflow: scanned, with an SBOM and build provenance attested.
 

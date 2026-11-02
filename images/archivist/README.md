@@ -176,7 +176,7 @@ docker build --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.s
   --file images/archivist/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-archivist:local .
 ```
 
-[`images/local-build.sh`](../local-build.sh) and the publish workflow pass
+[`make local-build`](../../Makefile) and the publish workflow pass
 the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the gateway's and
 the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to

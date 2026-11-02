@@ -122,7 +122,10 @@ jobs:
       # generator's change changes every package, and an input that has moved
       # fails the run. images/scripts is in the area every job runs on.
       - name: Test the local build's package signatures
-        run: python3 -m unittest discover -s images/scripts -p 'test_*.py' -v
+        run: |
+          python3 -m unittest discover -s images/scripts -p 'test_*.py' -v
+          python3 -m unittest discover -s packages/codegen -p 'test_*.py' -v
+          node --test packages/typescript/scripts/test-local-publish.mjs
 
   # Which areas this push changed, read by every job's `if:`. A job whose
   # areas are untouched is skipped, and a skipped job passes the gate: GitHub
@@ -188,7 +191,7 @@ jobs:
               - 'packages/kotlin/scripts/**'
               - 'packages/swift/scripts/**'
               - 'images/scripts/**'
-              - 'images/local-build.sh'
+              - 'Makefile'
               - '.github/scripts/**'
               - 'specs/src/**'
               - 'specs/redocly.yaml'
@@ -2280,7 +2283,7 @@ jobs:
   # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
   # it as a Java program does, its ABI against the committed dump, its census
   # and the programs that must not compile. It runs in the JDK image
-  # .java-version names, as images/local-build.sh builds it, as this
+  # .java-version names, as images/scripts/build-session.sh builds it, as this
   # runner's user, so what it leaves in the checkout and in Gradle's home is
   # the runner's to cache.
   test-sdk-swift:
@@ -2387,6 +2390,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
+
+      - name: Check the public Make interface on macOS
+        if: runner.os == 'macOS'
+        working-directory: .
+        run: |
+          /usr/bin/make --version | head -1 | grep 'GNU Make 3.81'
+          /usr/bin/make help
+          /usr/bin/make -n local-build
 
       - name: Setup Java
         uses: actions/setup-java@v6.1.0
@@ -3195,7 +3206,7 @@ jobs:
 
   # Generated code is committed (so consumers and CI never need the
   # generators), which means it can go stale the moment its authority changes.
-  # images/local-build.sh has these gates too, but in CI that script runs
+  # images/scripts/build-session.sh has these gates too, but in CI that script runs
   # only in Stack Smoke, which few PRs trigger — without this job, nothing
   # checks generated artifacts on a PR.
   generated-artifacts:
@@ -3224,7 +3235,7 @@ jobs:
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime. Each language's generators are listed once,
       # in package.json's generate:<list>:check; this step and the two below
-      # run those lists, as images/local-build.sh does.
+      # run those lists, as images/scripts/build-session.sh does.
       - name: Bus registry vs generated code
         run: npm run generate:bus:check
 

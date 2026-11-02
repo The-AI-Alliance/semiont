@@ -1,28 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build Semiont Desktop packages. All npm commands run inside Apple Container.
+# Build Semiont Desktop installers with containerized npm and OS-specific packaging.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-TARGET="mac"
-if [[ "${1:-}" == "--linux" ]]; then TARGET="linux"; fi
-if [[ "${1:-}" == "--mac" ]]; then TARGET="mac"; fi
-if [[ $# -gt 1 || ( $# -eq 1 && "${1}" != "--linux" && "${1}" != "--mac" ) ]]; then
-  echo "Usage: $0 [--mac|--linux]" >&2
-  exit 2
-fi
-
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  echo "Apple Container is required; run this build script on macOS." >&2
+HOST_OS=$(uname -s)
+case "${1:-desktop}" in
+  desktop)
+    case "$HOST_OS" in
+      Darwin) TARGET=mac ;;
+      Linux) TARGET=linux ;;
+      *) echo "Unsupported desktop host OS: $HOST_OS" >&2; exit 1 ;;
+    esac ;;
+  desktop-macos) TARGET=mac ;;
+  desktop-linux) TARGET=linux ;;
+  *) echo "Usage: $0 [desktop|desktop-macos|desktop-linux]" >&2; exit 2 ;;
+esac
+[[ $# -le 1 ]] || { echo "Specify one desktop target" >&2; exit 2; }
+if [[ "$TARGET" == mac && "$HOST_OS" != Darwin ]]; then
+  echo "macOS installer packaging requires a macOS host (hdiutil)." >&2
   exit 1
 fi
-
-if ! command -v container >/dev/null 2>&1; then
-  echo "Apple's 'container' runtime is required to install and build the npm workspace." >&2
-  exit 1
+RT="${CONTAINER_RUNTIME:-}"
+if [[ -z "$RT" ]]; then
+  for candidate in container docker podman; do
+    if command -v "$candidate" >/dev/null 2>&1; then RT="$candidate"; break; fi
+  done
 fi
+[[ -n "$RT" ]] || { echo "A container runtime is required" >&2; exit 1; }
 
 NODE_MAJOR="$("$REPO_ROOT/packages/typescript/scripts/node-version.sh")"
 
@@ -33,10 +40,14 @@ if [[ "$TARGET" == "linux" ]]; then
   # Build an amd64 Debian package in a matching glibc environment. Rosetta
   # translates the container on Apple Silicon; the resulting .deb targets x64.
   NODE_IMAGE="node:${NODE_MAJOR}-bookworm"
-  CONTAINER_ARCH=(--arch amd64)
-  if [[ "$(uname -m)" == "arm64" ]]; then CONTAINER_ARCH+=(--rosetta); fi
+  if [[ "$RT" == container ]]; then
+    CONTAINER_ARCH=(--arch amd64)
+    if [[ "$HOST_OS" == Darwin && "$(uname -m)" == arm64 ]]; then CONTAINER_ARCH+=(--rosetta); fi
+  else
+    CONTAINER_ARCH=(--platform linux/amd64)
+  fi
   echo "Building Semiont Desktop Linux x64 .deb in $NODE_IMAGE..."
-  container run --rm "${CONTAINER_ARCH[@]}" \
+  "$RT" run --rm "${CONTAINER_ARCH[@]}" \
     -v "$REPO_ROOT":/workspace \
     -w /workspace \
     -m 8g \
@@ -51,7 +62,7 @@ fi
 
 NODE_IMAGE="node:${NODE_MAJOR}-alpine"
 echo "Building Semiont Desktop sources in $NODE_IMAGE..."
-container run --rm \
+"$RT" run --rm \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \
   -m 8g \

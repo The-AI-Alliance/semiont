@@ -14,7 +14,7 @@ set -euo pipefail
 
 REGISTRY="${1:-http://localhost:4873}"
 
-# Colour only when stdout is a terminal. This runs inside local-build.sh, whose
+# Colour only when stdout is a terminal. This runs inside the local-build session, whose
 # output is routinely captured to a log; escape codes there are noise.
 if [[ -t 1 ]]; then
   GREEN='\033[0;32m'

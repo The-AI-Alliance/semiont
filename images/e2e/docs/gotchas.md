@@ -72,7 +72,7 @@ does not change. See [containers.md § IP refresh](containers.md#ip-refresh).
 
 ## Naming the `:local` images is load-bearing
 
-`local-build.sh` builds every Semiont image as a local-only `:local`
+`make local-build` builds every Semiont image as a local-only `:local`
 tag — but the KB stack runs them only when its documents name them:
 `ghcr.io/the-ai-alliance/semiont-<service>:local` for each `image` in
 `.semiont/stack/*.yaml`, and the Browser's and the worker's in their own
