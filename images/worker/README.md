@@ -15,12 +15,12 @@ serves every knowledge base on its list at once, each apart from the others.
 | Command | `python -P -m semiont_worker --config /etc/semiont/worker.json` |
 | Code | Python, in this directory: [`src/semiont_worker`](./src/semiont_worker/) |
 | Specification | [docs/protocol/WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md) |
-| Judged by | [tests/conformance/worker-service](../../tests/conformance/worker-service/README.md) |
+| Judged by | [packages/conformance/worker-service](../../packages/conformance/worker-service/README.md) |
 | Published | to no package index: the image only |
 
 What the worker does is written rule by rule in
 [WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md), and the
-[worker-service conformance suite](../../tests/conformance/worker-service/README.md) holds an
+[worker-service conformance suite](../../packages/conformance/worker-service/README.md) holds an
 implementation to each rule. This page is the image, and how it is run.
 
 ## What it does

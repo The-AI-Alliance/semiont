@@ -41,14 +41,14 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
  * the token a rule names one by, and what a failure calls it.
  */
 const SERVICE_SUITES = [
-  { doc: 'docs/protocol/WORKER-SERVICE.md', dir: 'tests/conformance/worker-service', token: 'worker-service', service: 'a Worker service', counted: 'worker-service' },
-  { doc: 'docs/protocol/WEAVER.md', dir: 'tests/conformance/weaver', token: 'weaver', service: 'a Weaver', counted: 'weaver' },
-  { doc: 'docs/protocol/SMELTER.md', dir: 'tests/conformance/smelter', token: 'smelter', service: 'a Smelter', counted: 'smelter' },
-  { doc: 'docs/protocol/LIBRARIAN.md', dir: 'tests/conformance/librarian', token: 'librarian', service: 'a Librarian', counted: 'librarian' },
+  { doc: 'docs/protocol/WORKER-SERVICE.md', dir: 'packages/conformance/worker-service', token: 'worker-service', service: 'a Worker service', counted: 'worker-service' },
+  { doc: 'docs/protocol/WEAVER.md', dir: 'packages/conformance/weaver', token: 'weaver', service: 'a Weaver', counted: 'weaver' },
+  { doc: 'docs/protocol/SMELTER.md', dir: 'packages/conformance/smelter', token: 'smelter', service: 'a Smelter', counted: 'smelter' },
+  { doc: 'docs/protocol/LIBRARIAN.md', dir: 'packages/conformance/librarian', token: 'librarian', service: 'a Librarian', counted: 'librarian' },
 ];
 const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md', 'docs/protocol/WORKER-CONTRACT.md', ...SERVICE_SUITES.map((suite) => suite.doc), 'docs/protocol/W3C-SELECTORS.md'];
-const SDK = 'tests/conformance/sdk';
-const WORKER = 'tests/conformance/worker/cases';
+const SDK = 'packages/conformance/sdk';
+const WORKER = 'packages/conformance/worker/cases';
 const failures = [];
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
 const jsonIn = (dir) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -'.json'.length));
@@ -99,7 +99,7 @@ for (const doc of DOCS) {
         : suite === 'sdk' && layer === 'live' ? live.includes(name) || built.includes(name)
         : suite === 'worker' && name === undefined ? worker.includes(layer)
         : serviceCases.has(suite) && name === undefined ? serviceCases.get(suite).includes(layer)
-        : suite === 'gateway' || suite === 'dispatcher' ? existsSync(join(ROOT, 'tests/conformance', token))
+        : suite === 'gateway' || suite === 'dispatcher' ? existsSync(join(ROOT, 'packages/conformance', token))
         : existsSync(join(ROOT, token));
       if (!exists) failures.push(`${doc}: a rule is held by \`${token}\`, which does not exist`);
     }

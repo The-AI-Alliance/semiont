@@ -12,12 +12,12 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 
 | | Step | Where | What fails when it is left out |
 |---|---|---|---|
-| 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `tests/conformance/worker-service/telemetry.test.ts` |
+| 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `packages/conformance/worker-service/telemetry.test.ts` |
 | 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/typescript/core`, `packages/go/sdk`, `packages/python/sdk` | CI's `generated-artifacts` job |
-| 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `tests/conformance/dispatcher/create.test.ts` |
+| 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `packages/conformance/dispatcher/create.test.ts` |
 | 4 | [Do it](#4-do-it-the-worker) | `images/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `images/worker` |
 | 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
-| 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `tests/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
+| 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `packages/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
 | 7 | [Write the rule](#7-write-the-rule) | `docs/protocol/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
 | 8 | [Give it an engine](#8-give-it-an-engine) | a knowledge base's Inference document; nothing in the launcher | `TestEveryEngineJobHasAFilter`, in `packages/go/launcher` |
 | 9 | [Word it in each client](#9-word-it-in-each-client) | `packages/go/launcher/verbs/mark.go`, `packages/typescript/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
@@ -67,7 +67,7 @@ In the TypeScript, the Rust, the Python and the Kotlin SDK, `mark.delegate` take
 
 The retry budget is set there too, by the verb: one retry for a `mark` job, which reads the same text again and takes up where its checkpoint left it, and none for a `yield` job, of which a second run would be another document.
 
-[JOBS.md § `job:create`](../protocol/JOBS.md#jobcreate) states each check and its refusal, and the dispatcher's suite holds a dispatcher to them (`tests/conformance/dispatcher/create.test.ts`).
+[JOBS.md § `job:create`](../protocol/JOBS.md#jobcreate) states each check and its refusal, and the dispatcher's suite holds a dispatcher to them (`packages/conformance/dispatcher/create.test.ts`).
 
 ## 4. Do it: the worker
 
@@ -113,7 +113,7 @@ The tables beside it hold what every kind shares, and a new kind adds to one onl
 
 ## 6. Hold a Worker service to it
 
-The [worker-service suite](../../tests/conformance/worker-service/README.md) starts the service as a process and meets it only at its boundary, so its cases judge an implementation in any language. A kind of job has a file there, as [`tagging.test.ts`](../../tests/conformance/worker-service/tagging.test.ts) is: a job queued as the dispatcher would hand it over, the stand-in provider's answers scripted, and then every request to the provider, every batch committed, every checkpoint, every progress report and the completion, each held whole.
+The [worker-service suite](../../packages/conformance/worker-service/README.md) starts the service as a process and meets it only at its boundary, so its cases judge an implementation in any language. A kind of job has a file there, as [`tagging.test.ts`](../../packages/conformance/worker-service/tagging.test.ts) is: a job queued as the dispatcher would hand it over, the stand-in provider's answers scripted, and then every request to the provider, every batch committed, every checkpoint, every progress report and the completion, each held whole.
 
 - Each prompt the case holds is a file of `prompts/`, the exact text sent. `images/worker/tests/test_prompts.py` fails until the worker's own tests build every such file word for word.
 - The suite's README lists the file, with the rules it holds. `npm run lint:conformance-readmes` fails on a file the README does not name.

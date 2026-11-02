@@ -3,7 +3,7 @@ name = "semiont-conformance-drivers"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "The Rust drivers for the SDK and worker conformance suites (tests/conformance/sdk, tests/conformance/worker): the suites' operations as calls on the public API of semiont-http-transport (the wire driver) and of semiont's client over it (the live driver and the worker driver)."
+description = "The Rust drivers for the SDK and worker conformance suites (packages/conformance/sdk, packages/conformance/worker): the suites' operations as calls on the public API of semiont-http-transport (the wire driver) and of semiont's client over it (the live driver and the worker driver)."
 
 [dependencies]
 base64.workspace = true

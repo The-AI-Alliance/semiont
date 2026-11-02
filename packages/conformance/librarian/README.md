@@ -173,7 +173,7 @@ npm run build --workspace=@semiont/core
 uv sync --locked --no-dev --all-extras --project images/weaver
 uv sync --locked --no-dev --project images/smelter
 uv sync --locked --no-dev --all-extras --project images/librarian
-cd tests/conformance
+cd packages/conformance
 npm ci
 NEO4J_HOST=<address> NEO4J_PASSWORD=<password> QDRANT_HOST=<address> npm run test:librarian
 ```

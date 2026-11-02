@@ -1,7 +1,7 @@
 """The HTTP transport, for what the conformance corpus cannot script.
 
 The corpus holds it to the protocol against a real gateway
-(`tests/conformance/sdk/wire`). Here are the parts with no wire to show them
+(`packages/conformance/sdk/wire`). Here are the parts with no wire to show them
 on: the arithmetic of its backoff, the window of ids it remembers, what a
 closed transport leaves behind, what it does with a stream that carries
 something other than a frame, and each event delivered once wherever a handoff

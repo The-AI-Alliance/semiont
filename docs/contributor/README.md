@@ -61,6 +61,7 @@ semiont/
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
 │   ├── codegen/            # Shared bus and schema generators; specs/ holds their inputs
+│   ├── conformance/        # Independent shared black-box service and SDK suites
 │   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
 │   │   ├── core/           # Generated types, typed ids, the bus protocol
 │   │   ├── sdk/            # The TypeScript SDK
@@ -78,8 +79,6 @@ semiont/
 │   ├── python/graph/       # The graph databases a Python service writes and reads (package `semiont_graph`)
 │   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
 │   └── python/service/     # What every Python service does to be one (package `semiont_service`)
-├── tests/
-│   └── conformance/        # Shared black-box service and SDK suites
 ├── docs/                   # By persona: analyst/, builder/, operator/, contributor/;
 │                           #   and for every reader: architecture/, protocol/
 │   └── checks/doc-snippets/ # Typechecks documentation examples

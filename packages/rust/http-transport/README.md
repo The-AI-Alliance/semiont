@@ -488,8 +488,8 @@ stand-in gateway and issuer. The Rust block of the
 is held to the same regions. [tests/stream.rs](tests/stream.rs) holds the
 stream's behaviour against a gateway that misbehaves on cue.
 [conformance/](conformance) holds the two drivers the
-[SDK conformance suite](../../../tests/conformance/sdk/README.md) runs, and the
-one the [worker conformance suite](../../../tests/conformance/worker/README.md)
+[SDK conformance suite](../../conformance/sdk/README.md) runs, and the
+one the [worker conformance suite](../../conformance/worker/README.md)
 runs.
 
 ## License

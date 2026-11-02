@@ -89,7 +89,7 @@ It needs a built gateway and `nats-server` (2.10 or later) on `PATH`:
 ```bash
 cargo build --release -p semiont-gateway
 npm run build:packages
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:gateway
 ```

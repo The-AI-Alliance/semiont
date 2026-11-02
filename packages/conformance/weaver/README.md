@@ -107,7 +107,7 @@ It needs a built gateway and Archivist, the Weaver's Python environment,
 cargo build --release -p semiont-gateway -p semiont-archivist
 uv sync --locked --no-dev --all-extras --project images/weaver
 npm run build --workspace=@semiont/core
-cd tests/conformance
+cd packages/conformance
 npm ci
 NEO4J_HOST=<address> NEO4J_PASSWORD=<password> npm run test:weaver
 ```

@@ -8,7 +8,7 @@ How this repository's dependencies are kept current, how a vulnerable one is fix
 
 | Ecosystem | Where |
 |---|---|
-| npm | the repository root (which covers every workspace, including `apps/desktop`), `images/e2e`, `tests/conformance` |
+| npm | the repository root (which covers every workspace, including `apps/desktop`), `images/e2e`, `packages/conformance` |
 | Go modules | `apps/launcher`, `packages/go/sdk` |
 | Cargo | the Rust workspace at the root |
 | The Rust toolchain | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml), which also names the builder stage of the Rust services |
@@ -66,7 +66,7 @@ container run --rm -v "$PWD":/work -w /work "node:$(packages/typescript/scripts/
 
 - A lockfile records each workspace's version in several linked places, and only npm rewrites them consistently.
 - `--include=optional` keeps the per-platform native binaries (`@rolldown/binding-*`, `lightningcss-*`) in the lock.
-- `images/e2e` and `tests/conformance` have lockfiles of their own, regenerated the same way from their own directories.
+- `images/e2e` and `packages/conformance` have lockfiles of their own, regenerated the same way from their own directories.
 
 The version bump regenerates the root lockfile itself ([Release](RELEASE.md#5-bump-the-version)). The npm publish is the one place that installs with `npm install` rather than `npm ci`: it rewrites internal dependencies to exact versions first, so its tree deliberately does not match the committed lock.
 

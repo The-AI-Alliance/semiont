@@ -2,7 +2,7 @@
  * `job.claim` — a worker's claims and the jobs it comes to hold.
  *
  * The rules are docs/protocol/WORKER-CONTRACT.md's, and the worker
- * conformance suite (tests/conformance/worker) holds them on the wire. These
+ * conformance suite (packages/conformance/worker) holds them on the wire. These
  * are the same rules against a bus the test answers by hand, where a moment
  * between two frames can be chosen and a transport can be made to fail.
  *

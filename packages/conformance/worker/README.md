@@ -185,15 +185,15 @@ report a handover.
 
 Write a worker driver over the SDK's worker surface, add it as `worker` to
 the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
-[packages/typescript/sdk/conformance/worker-driver.ts](../../../packages/typescript/sdk/conformance/worker-driver.ts),
+[packages/typescript/sdk/conformance/worker-driver.ts](../../typescript/sdk/conformance/worker-driver.ts),
 Rust's is
-[semiont-worker-driver.rs](../../../packages/rust/http-transport/conformance/src/bin/semiont-worker-driver.rs),
+[semiont-worker-driver.rs](../../rust/http-transport/conformance/src/bin/semiont-worker-driver.rs),
 Python's is
-[conformance/worker.py](../../../packages/python/sdk/conformance/worker.py),
+[conformance/worker.py](../../python/sdk/conformance/worker.py),
 Go's is
-[semiont-go-worker-driver](../../../packages/go/sdk/conformance/cmd/semiont-go-worker-driver/main.go),
+[semiont-go-worker-driver](../../go/sdk/conformance/cmd/semiont-go-worker-driver/main.go),
 and Kotlin's, written in Java over the SDK's Java surface, is
-[WorkerDriver.java](../../../packages/kotlin/sdk/src/conformance/java/semiont/conformance/WorkerDriver.java).
+[WorkerDriver.java](../../kotlin/sdk/src/conformance/java/semiont/conformance/WorkerDriver.java).
 
 ## Running it
 
@@ -207,7 +207,7 @@ cargo build --release -p semiont-gateway -p semiont-conformance-drivers
 (cd packages/go/sdk/conformance && CGO_ENABLED=0 go build -o bin/ ./cmd/...)
 (cd packages/kotlin/sdk && ./gradlew installConformance)
 npm run build:packages
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:worker
 ```

@@ -14,7 +14,7 @@ the gateway's [bus](../../docs/protocol/EVENT-BUS.md). The launcher (`semiont st
 | Command | `/usr/local/bin/semiont-dispatcher --config /etc/semiont/dispatcher.json` |
 | Code | Rust, in this directory: [src](./src), and its crates [handlers](./handlers) and [jetstream](./jetstream) |
 | Specification | [docs/protocol/JOBS.md](../../docs/protocol/JOBS.md) |
-| Judged by | [tests/conformance/dispatcher](../../tests/conformance/dispatcher/README.md) |
+| Judged by | [packages/conformance/dispatcher](../../packages/conformance/dispatcher/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -123,7 +123,7 @@ installs or fetches nothing at start.
 ## Working on it
 
 The judge of all three crates is the black-box suite in
-[`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/), which drives the binary as
+[`packages/conformance/dispatcher`](../../packages/conformance/dispatcher), which drives the binary as
 a process on the wire.
 
 The suite reaches the dispatcher through a gateway, which refuses a payload that is not its

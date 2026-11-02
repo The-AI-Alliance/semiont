@@ -16,7 +16,7 @@ corrected deliberately. There is no third option.
 **How this document is held.** Each rule ends with *Held by* and what fails
 when a Weaver breaks it. `weaver/<case>` is the file `<case>.test.ts` of the
 weaver conformance suite
-([`tests/conformance/weaver`](../../tests/conformance/weaver/README.md)),
+([`packages/conformance/weaver`](../../packages/conformance/weaver/README.md)),
 which starts a Weaver as a process behind a real gateway and a real Archivist,
 records through the Archivist, and reads the graph back from a real database:
 the same cases judge every implementation. A path names a runner of one of the

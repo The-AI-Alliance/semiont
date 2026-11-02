@@ -19,7 +19,7 @@ corrected deliberately. There is no third option.
 **How this document is held.** Each rule ends with *Held by* and what fails
 when a Librarian breaks it. `librarian/<case>` is the file `<case>.test.ts` of
 the librarian conformance suite
-([`tests/conformance/librarian`](../../tests/conformance/librarian/README.md)),
+([`packages/conformance/librarian`](../../packages/conformance/librarian/README.md)),
 which starts a Librarian as a process behind a real gateway and a real
 Archivist, beside a Weaver and a Smelter that write the graph and the index it
 reads, and plays its models and its embedding provider: the same cases judge

@@ -10,7 +10,7 @@ The gateway makes one authorization decision for every request: the caller's tok
 - **There are no human roles.** The principal the gateway builds from a person's token carries no role, flag or group that any route reads.
 - **Admission is the issuer's.** Who may sign in is decided where tokens are minted. The gateway admits every subject whose token verifies, and keeps no list of its own.
 
-Four operations are public: `GET /`, `GET /api/health`, `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. The spec is the authority: an operation declaring `security: []` is public, and the [gateway conformance suite](../../tests/conformance/gateway/README.md) fails if any other answers an unauthenticated caller with anything but 401.
+Four operations are public: `GET /`, `GET /api/health`, `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. The spec is the authority: an operation declaring `security: []` is public, and the [gateway conformance suite](../../packages/conformance/gateway/README.md) fails if any other answers an unauthenticated caller with anything but 401.
 
 ## Two roles, both for services
 

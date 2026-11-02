@@ -19,7 +19,7 @@ tell them apart.
 It has the same namespaces, methods and behaviour as the
 [TypeScript SDK](../../typescript/sdk/README.md), the [Python SDK](../../python/sdk/README.md)
 the [Go SDK](../../go/sdk/README.md) and the [Kotlin SDK](../../kotlin/sdk/README.md), and the five are held to the same
-[conformance suite](../../../tests/conformance/sdk/README.md). New to Semiont?
+[conformance suite](../../conformance/sdk/README.md). New to Semiont?
 The [Introduction](../../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas
 are this crate's too.
@@ -360,7 +360,7 @@ builders to the same answers.
 
 What a worker promises the dispatcher is the
 [worker contract](../../../docs/protocol/WORKER-CONTRACT.md), and
-[its conformance suite](../../../tests/conformance/worker/README.md) holds this
+[its conformance suite](../../conformance/worker/README.md) holds this
 crate to it.
 
 ## What a method returns

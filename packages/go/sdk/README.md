@@ -1147,9 +1147,9 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [transport-contract]: ../../../docs/protocol/TRANSPORT-CONTRACT.md
 [transport-http]: ../../../docs/protocol/TRANSPORT-HTTP.md
 [cache-semantics]: ../../../docs/protocol/CACHE-SEMANTICS.md
-[conformance]: ../../../tests/conformance/sdk/README.md
+[conformance]: ../../conformance/sdk/README.md
 [worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
-[worker-conformance]: ../../../tests/conformance/worker/README.md
+[worker-conformance]: ../../conformance/worker/README.md
 [sdk-typescript]: ../../typescript/sdk/README.md
 [sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md

@@ -76,7 +76,7 @@ Behaviour JOBS.md lists as a known defect is not pinned by any case.
 ```bash
 (cd packages/rust && cargo build --release -p semiont-gateway -p semiont-dispatcher)
 npm run build --workspace=@semiont/core
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:dispatcher
 ```

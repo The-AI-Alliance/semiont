@@ -103,7 +103,7 @@ The gateway, the services behind it, and the administrator who runs them and com
 - `GET /.well-known/oauth-protected-resource` — names the issuer this deployment trusts (RFC 9728)
 - `GET /api/openapi.json` — the OpenAPI document itself
 
-That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`tests/conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
+That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`packages/conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
 
 There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
 

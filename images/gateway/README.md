@@ -16,7 +16,7 @@ knowledge base's did:web domain made safe for a name
 | Command | `/usr/local/bin/semiont-gateway --config /etc/semiont/gateway.json` |
 | Code | Rust, in this directory: [src](./src) |
 | Specification | the OpenAPI spec, [specs/src/openapi.json](../../specs/src/openapi.json) |
-| Judged by | [tests/conformance/gateway](../../tests/conformance/gateway/README.md) |
+| Judged by | [packages/conformance/gateway](../../packages/conformance/gateway/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -187,7 +187,7 @@ cargo build --release -p semiont-gateway   # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../tests/conformance/gateway/README.md), run against the built binary
+[conformance suite](../../packages/conformance/gateway/README.md), run against the built binary
 on both signal planes; see [TESTING.md](docs/TESTING.md). To run one by hand, write a
 `GatewayConfig` to a file, pass its path to `--config`, and set the three variables under
 [Configuration](#configuration).

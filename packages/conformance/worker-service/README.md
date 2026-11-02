@@ -215,7 +215,7 @@ or later on `PATH`:
 cargo build --release -p semiont-gateway
 npm run build --workspace=@semiont/core
 uv sync --locked --no-dev --all-extras --project images/worker
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:worker-service
 ```
