@@ -102,6 +102,7 @@ jobs:
           npm run lint:rust-toolchain || fail=1
           npm run lint:go-toolchain || fail=1
           npm run lint:kotlin-toolchain || fail=1
+          npm run lint:dotnet-toolchain || fail=1
           npm run lint:python-version || fail=1
           npm run lint:node-version || fail=1
           npm run lint:nats-version || fail=1
@@ -139,6 +140,7 @@ jobs:
       conformance: ${{ steps.areas.outputs.conformance }}
       go: ${{ steps.areas.outputs.go }}
       kotlin: ${{ steps.areas.outputs.kotlin }}
+      csharp: ${{ steps.areas.outputs.csharp }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
       python-inference: ${{ steps.areas.outputs.python-inference }}
       python-graph: ${{ steps.areas.outputs.python-graph }}
@@ -226,6 +228,8 @@ jobs:
             # read by scripts/ci/jdk-version.sh, which is all's.
             kotlin:
               - 'packages/kotlin/**'
+            csharp:
+              - 'packages/csharp/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -2189,6 +2193,68 @@ jobs:
         if: matrix.python-version == '3.12'
         run: ../../../scripts/ci/build-python-sdk.sh
 
+  # The C# SDK and its compiler/analyzer gates, on Linux and Windows.
+  test-sdk-csharp:
+    name: C# SDK
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.csharp == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Cache NuGet packages
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('packages/csharp/sdk/global.json', 'packages/csharp/sdk/**/packages.lock.json') }}
+      - name: Build, test and check
+        working-directory: packages/csharp/sdk
+        run: |
+          mkdir -p "$HOME/.nuget/packages"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$HOME/.nuget/packages":/root/.nuget/packages \
+            -w /workspace/packages/csharp/sdk \
+            "mcr.microsoft.com/dotnet/sdk:$(../../../scripts/ci/dotnet-version.sh --image-tag)" \
+            sh -c 'test "$(dotnet --version)" = "$(../../../scripts/ci/dotnet-version.sh)" &&
+              dotnet build -p:RestoreLockedMode=true &&
+              dotnet test --no-build --settings test.runsettings --collect:"XPlat Code Coverage" &&
+              dotnet format --no-restore --verify-no-changes'
+      - name: The coverage report was written
+        run: test -n "$(find packages/csharp/sdk/tests -name coverage.cobertura.xml -size +0c -print -quit)"
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/csharp/sdk/tests/Semiont.Tests/TestResults/**/coverage.cobertura.xml
+          flags: csharp-sdk
+          name: csharp-sdk
+          verbose: true
+        continue-on-error: true
+
+  test-sdk-csharp-windows:
+    name: C# SDK (Windows)
+    runs-on: windows-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.csharp == 'true'
+    defaults:
+      run:
+        working-directory: packages/csharp/sdk
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: packages/csharp/sdk/global.json
+          cache: true
+          cache-dependency-path: packages/csharp/sdk/**/packages.lock.json
+      - name: Build
+        run: dotnet build -p:RestoreLockedMode=true
+      - name: Test
+        run: dotnet test --no-build --settings test.runsettings
+      - name: Format
+        run: dotnet format --no-restore --verify-no-changes
+
   # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
   # it as a Java program does, its ABI against the committed dump, its census
   # and the programs that must not compile. It runs in the JDK image
@@ -3600,6 +3666,8 @@ jobs:
       - test-sdk-go-windows
       - test-sdk-rust-windows
       - test-sdk-kotlin
+      - test-sdk-csharp
+      - test-sdk-csharp-windows
       - test-sdk-kotlin-store
       - test-inference-python
       - test-service-python

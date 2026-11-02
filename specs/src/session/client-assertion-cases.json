@@ -1,5 +1,8 @@
 {
   "$comment": "How a service account proves itself with a key instead of a secret: OpenID Connect's private_key_jwt, the client assertion of RFC 7523 §2.2. The account holds an RSA private key; its issuer holds the public half, registered on the account's client. For each client-credentials grant the account signs a fresh JWT with RS256: its header names the key by its JWK thumbprint (RFC 7638: the SHA-256 of the key's required members `e`, `kty` and `n`, in that order, with no whitespace, base64url without padding), and its claims are `iss` and `sub` the client id, `aud` the issuer's token endpoint, `jti` a value never sent twice, `iat` when it is made and `exp` `lifetimeSeconds` after. The grant posts the form's fields and no others: the client id is the assertion's `sub`, and no secret is sent. A JSON object here is compared as JSON, member order aside. Every implementation that signs such an assertion runs every case.",
+  "notYetReached": {
+    "csharp": "C# is still to implement and run the shared session/client-assertion-cases.json cases."
+  },
   "runBy": {
     "python": ["packages/python/sdk/tests/test_client_assertion_cases.py"],
     "typescript": [

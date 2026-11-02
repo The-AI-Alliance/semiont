@@ -494,3 +494,35 @@ updates:
     commit-message:
       prefix: "service-docker"
       include: "scope"
+
+  # The C# solution and the SDK version its global.json pins.
+  - package-ecosystem: "nuget"
+    directory: "/packages/csharp/sdk"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "sdk:csharp"
+    commit-message:
+      prefix: "sdk-csharp"
+      include: "scope"
+  - package-ecosystem: "dotnet-sdk"
+    directory: "/packages/csharp/sdk"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "sdk:csharp"
+    commit-message:
+      prefix: "sdk-csharp"
+      include: "scope"

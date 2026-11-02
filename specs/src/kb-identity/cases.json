@@ -1,5 +1,8 @@
 {
   "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config.yaml, the project file ProjectConfig.json holds. Every reader of the file runs every case against the name, domain, DID and resource it reads, and fails on any difference; every SDK runs each case that has a domain against its derivation of the DID and of the resource from it, the resource being the audience the gateway's tokens must carry. `config` null means the file is absent; `refused` true means the file does not hold to ProjectConfig.json, and every reader of it refuses it; `name` null means a refused file names nothing; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing any reader.",
+  "notYetReached": {
+    "csharp": "C# is still to implement and run the shared kb-identity/cases.json cases."
+  },
   "runBy": {
     "typescript": ["packages/typescript/core/src/__tests__/kb-identity-agreement.test.ts"],
     "rust": ["packages/rust/sdk/tests/tables.rs"],

@@ -124,6 +124,10 @@ component_management:
       name: "packages/go/launcher"
       paths:
         - packages/go/launcher/**
+    - component_id: csharp-sdk
+      name: "packages/csharp/sdk"
+      paths:
+        - packages/csharp/sdk/**
     - component_id: kotlin-sdk
       name: "packages/kotlin/sdk"
       paths:
@@ -144,6 +148,10 @@ component_management:
       name: "packages/go"
       paths:
         - packages/go/**
+    - component_id: csharp
+      name: "packages/csharp"
+      paths:
+        - packages/csharp/**
     - component_id: kotlin
       name: "packages/kotlin"
       paths:
@@ -323,6 +331,11 @@ flags:
   go-launcher:
     paths:
       - packages/go/launcher/**
+    carryforward: true
+
+  csharp-sdk:
+    paths:
+      - packages/csharp/sdk/**
     carryforward: true
 
   kotlin-sdk:

@@ -41,6 +41,17 @@
  * a `Flow`, and every such type has one. A twin without its member, or a
  * member without its twin, fails, in every section that reads Kotlin.
  *
+ * C#'s are the `public` members of each `public sealed class <Name>Namespace`
+ * of packages/csharp/sdk/src/Semiont/Namespaces, each in `<Name>Namespace.cs`.
+ * The build requires every declaration to state its accessibility, an
+ * interface's members too (`dotnet_style_require_accessibility_modifiers =
+ * always`, an error), so a member is a declaration that says `public`. A C#
+ * name is the table's with its first letter a capital, and a method that
+ * returns a `Task` or a `ValueTask` ends in `Async` (`GetAsync` for `get`):
+ * .NET's spellings, held both ways in every section that reads C#. A name
+ * the table gives C# (`named`) is held with its `Async` off, as the table's
+ * own are.
+ *
  * WHICH SDKS. Each section below holds the SDKs it has a reader for, and
  * those alone: its roster is its readers' keys. An `absent`, `made`,
  * `named` or `notYetReached` that names an SDK outside a section's roster
@@ -89,8 +100,12 @@
  * with those of the struct each embeds, of `type Claims struct`, and the
  * exported methods of `type HeldJob interface` for a job of either verb, in
  * the files of packages/go/sdk; what a member takes is its parameters less
- * its context, a type of the spec's named as the spec names it. A
- * declaration this cannot read is a failure, never a member passed over.
+ * its context, a type of the spec's named as the spec names it. C#'s are the
+ * public members of `class Claims`, `class HeldMarkJob`, `class HeldYieldJob`
+ * and `interface IHeldJob` for a job of either verb, anywhere in
+ * packages/csharp/sdk/src/Semiont, what a member takes being its parameters
+ * less its `CancellationToken`. A declaration this cannot read is a failure,
+ * never a member passed over.
  *
  * THE STATE UNITS. The table's `stateUnits` section lists each state unit,
  * what each SDK makes it as (`made`), and its members by name. Each SDK is
@@ -111,7 +126,9 @@
  * is public: a TypeScript class's, unless it is private or protected; Rust's
  * `pub fn new` in the type's own `impl`; a Python class's; a Kotlin class's
  * primary or secondary constructor, or the one a class with none declared
- * has. Go has no constructors, so every Go unit names its maker. Public is
+ * has; a C# class's, record's or struct's public or primary constructor, or
+ * the one a type with none declared has, a C# maker being a public static
+ * method. Go has no constructors, so every Go unit names its maker. Public is
  * reachable from outside the SDK: what packages/typescript/sdk/src/index.ts
  * exports, following its `export *` and `export { … } from` through the
  * SDK's files; an item a module that packages/rust/sdk/src/lib.rs reaches
@@ -142,7 +159,10 @@
  * exported fields and methods, with those of each struct it embeds, each as
  * the table spells it (its first letter small), and a unit is one declared
  * as one (`_ StateUnit = (*<name>)(nil)`). Go spells `dispose` `Close`, and
- * it is no member either. A `StateUnit` that no row makes is looked for in
+ * it is no member either. C#'s is a type of packages/csharp/sdk/src/Semiont,
+ * its `Testing` folder left out, its members its public instance methods,
+ * properties, fields and events and a record's positional properties, a unit
+ * being one whose base list names `IStateUnit`; its `Dispose` is `dispose`. A `StateUnit` that no row makes is looked for in
  * the same places.
  *
  * THE BUS OVER THE WIRE. The table's `wire` entry is the typed bus over a
@@ -163,7 +183,9 @@
  * Go's the exported methods of its struct in the root package,
  * packages/go/sdk, with the package's exported functions that take it: a Go
  * method takes no type parameters, so a member generic in its channel is a
- * function of the package (`Emit(ctx, w, bus.MarkSubmit, payload)`).
+ * function of the package (`Emit(ctx, w, bus.MarkSubmit, payload)`). C#'s
+ * is a type of packages/csharp/sdk/src/Semiont, read as a unit's is, which
+ * its client hands out as `public <made> Wire { get; }` in SemiontClient.cs.
  *
  * THE STORAGE. The table's `storage` entry is where a client keeps text
  * under a key, the interface an application implements: what each SDK makes
@@ -177,8 +199,8 @@
  *
  * TypeScript's storage is an interface of packages/typescript/sdk/src,
  * Python's a class of packages/python/sdk/src/semiont (a `Protocol`) and
- * Kotlin's an interface of packages/kotlin/sdk/src/main/kotlin/semiont, each
- * read as a unit's is; Go's is the exported methods of its interface in the
+ * Kotlin's an interface of packages/kotlin/sdk/src/main/kotlin/semiont and
+ * C#'s one of packages/csharp/sdk/src/Semiont, each read as a unit's is; Go's is the exported methods of its interface in the
  * root package, packages/go/sdk, and Rust's the functions of its trait in
  * packages/rust/sdk/src. What implements a storage is not read.
  *
@@ -208,9 +230,11 @@ const GO_SDK = 'packages/go/sdk';
 const GO_CLAIMS = 'packages/go/sdk/claims.go';
 const KOTLIN_SDK = 'packages/kotlin/sdk/src/main/kotlin/semiont';
 const KOTLIN_NAMESPACES = `${KOTLIN_SDK}/namespaces`;
+const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
+const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
 const SCHEMAS = 'specs/src/components/schemas';
 /** Each SDK as a message names it. */
-const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin' };
+const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', csharp: 'C#' };
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -1107,6 +1131,543 @@ function kotlinExports(directories) {
   });
 }
 
+// ── C# ──────────────────────────────────────────────────────────────────
+
+/**
+ * C# `source` with its comments and its preprocessor lines gone, and its
+ * strings and characters emptied, an interpolation's expressions with them:
+ * every bracket left is the code's own. A verbatim string (`@"…"`) escapes a
+ * quote by doubling it; a raw string (`"""…"""`) has no escapes and ends at as
+ * many quotes as opened it; an interpolated one (`$"…"`, `$$"""…"""`) opens an
+ * expression at as many braces as it has `$`, and a shorter run of braces is
+ * its text.
+ */
+function csharpCode(source) {
+  let out = '';
+  let i = 0;
+  // What is open, innermost last: a string, or a brace of an interpolation's expression.
+  const open = [];
+  // Whether only white space has come since the last line began, outside every string.
+  let lineStart = true;
+  const run = (character, from) => {
+    let end = from;
+    while (source[end] === character) end++;
+    return end - from;
+  };
+  while (i < source.length) {
+    const top = open[open.length - 1];
+    if (top && top.kind === 'string') {
+      const c = source[i];
+      if (top.raw) {
+        const quotes = run('"', i);
+        if (quotes >= top.quotes) {
+          open.pop();
+          i += quotes;
+          if (open.length === 0) out += '""';
+          continue;
+        }
+      } else if (top.verbatim) {
+        if (source.startsWith('""', i)) {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          open.pop();
+          i++;
+          if (open.length === 0) out += '""';
+          continue;
+        }
+      } else {
+        if (c === '\\') {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          open.pop();
+          i++;
+          if (open.length === 0) out += '""';
+          continue;
+        }
+      }
+      if (top.dollars > 0 && c === '{') {
+        const braces = run('{', i);
+        if (braces >= top.dollars && !(top.dollars === 1 && braces % 2 === 0)) {
+          i += braces;
+          open.push({ kind: 'hole', dollars: top.dollars, depth: 0 });
+          continue;
+        }
+        i += braces;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    // Code: the file's own, or an interpolation's expression.
+    const c = source[i];
+    if (source.startsWith('//', i)) {
+      while (i < source.length && source[i] !== '\n') i++;
+      continue;
+    }
+    if (source.startsWith('/*', i)) {
+      const end = source.indexOf('*/', i + 2);
+      i = end === -1 ? source.length : end + 2;
+      if (open.length === 0) out += ' ';
+      continue;
+    }
+    if (c === '#' && lineStart && open.length === 0) {
+      while (i < source.length && source[i] !== '\n') i++;
+      continue;
+    }
+    const string = /^(\$*)(@?)(\$*)("+)/.exec(source.slice(i, i + 64));
+    if (string && (c === '"' || c === '$' || (c === '@' && /["$]/.test(source[i + 1])))) {
+      const dollars = string[1].length + string[3].length;
+      const quotes = string[4].length;
+      const raw = quotes >= 3 && string[2] === '';
+      i += string[0].length - (raw ? 0 : quotes - 1);
+      // `""` with no `@` and no `$` is an empty string, closed at once.
+      if (!raw && quotes >= 2) {
+        if (open.length === 0) out += '""';
+        i += 1;
+        lineStart = false;
+        continue;
+      }
+      open.push({ kind: 'string', raw, verbatim: string[2] === '@', quotes, dollars });
+      lineStart = false;
+      continue;
+    }
+    if (c === "'") {
+      // A character: one, or an escape of one or more.
+      i += source[i + 1] === '\\' ? 3 : 2;
+      while (i < source.length && source[i] !== "'") i++;
+      i++;
+      if (open.length === 0) out += "''";
+      lineStart = false;
+      continue;
+    }
+    if (top && top.kind === 'hole') {
+      if (c === '{') top.depth++;
+      else if (c === '}') {
+        if (top.depth === 0) {
+          open.pop();
+          i += Math.max(1, Math.min(run('}', i), top.dollars));
+          continue;
+        }
+        top.depth--;
+      }
+      i++;
+      continue;
+    }
+    if (c === '\n') lineStart = true;
+    else if (!/\s/.test(c)) lineStart = false;
+    out += source[i++];
+  }
+  return out;
+}
+
+/**
+ * The index of the first of `stops` in `text` from `from`, outside every
+ * bracket, `<…>` among them; the text's length when there is none. `=>` is
+ * no bracket, and is stopped at when `=` is a stop.
+ */
+function csharpUntil(text, from, stops) {
+  let depth = 0;
+  for (let i = from; i < text.length; i++) {
+    const c = text[i];
+    if (depth === 0 && stops.includes(c)) return i;
+    if (c === '=' && text[i + 1] === '>') {
+      i++;
+      continue;
+    }
+    if ('(<[{'.includes(c)) depth++;
+    else if (')>]}'.includes(c)) depth--;
+  }
+  return text.length;
+}
+
+const CSHARP_MODIFIERS = new Set(['public', 'static', 'sealed', 'abstract', 'virtual', 'override', 'async', 'readonly', 'partial', 'new', 'extern', 'unsafe', 'required', 'closed', 'file', 'const', 'volatile', 'ref', 'scoped', 'implicit', 'explicit', 'internal', 'protected', 'private']);
+const CSHARP_TYPE_KEYWORD = /^(record\s+class|record\s+struct|class|struct|interface|enum|record|delegate)\b/;
+
+/** The index just past the type that begins at `i` in `text` (`Task<int?>`, `(int A, string B)`, `string[]`); -1 when none does. */
+function csharpTypeEnd(text, i) {
+  while (/\s/.test(text[i] ?? '')) i++;
+  if (text[i] === '(') i = closing(text, i);
+  else {
+    for (;;) {
+      const name = /^(?:global::)?@?[A-Za-z_]\w*/.exec(text.slice(i));
+      if (!name) return -1;
+      i += name[0].length;
+      if (text[i] === '<') i = closing(text, i);
+      if (text[i] === '.' && /[A-Za-z_@]/.test(text[i + 1] ?? '')) {
+        i++;
+        continue;
+      }
+      break;
+    }
+  }
+  for (;;) {
+    if (text[i] === '?' || text[i] === '*') i++;
+    else if (text[i] === '[') i = closing(text, i);
+    else break;
+  }
+  return i;
+}
+
+/** A C# parameter list's parameters: each one's name and the type it states, a default and `this`, `ref`, `in`, `out`, `params` and `scoped` left out. */
+function csharpParameters(list) {
+  return splitOutside(list, ',').flatMap((parameter) => {
+    const stated = squeezed(splitOutside(parameter.replace(/^(?:\[[^\]]*\]\s*)+/, ''), '=')[0]).replace(/^(?:(?:this|ref|in|out|params|scoped|readonly)\s+)+/, '');
+    const name = /\s@?(\w+)$/.exec(stated);
+    return name ? [{ name: name[1], type: squeezed(stated.slice(0, name.index)) }] : [];
+  });
+}
+
+/**
+ * The `public` declarations at the top of a C# body (a file's, a namespace's,
+ * or a type's between its braces), in order. Each is its keyword, its
+ * modifiers, the name it declares, and, for a method, a property, a field or
+ * an event, what it takes and the type it states. A type's declaration says
+ * where its name ends (`after`), for its header to be read from. The build
+ * requires every declaration to state its accessibility
+ * (`dotnet_style_require_accessibility_modifiers = always`, an error), an
+ * interface's members too, so a declaration that is public is one this finds.
+ */
+function csharpDeclarations(body, where, cannot) {
+  const depths = [];
+  let depth = 0;
+  for (let i = 0; i < body.length; i++) {
+    depths.push(depth);
+    if ('({['.includes(body[i])) depth++;
+    else if (')}]'.includes(body[i])) depth--;
+  }
+  const declarations = [];
+  for (const match of body.matchAll(/\bpublic\b/g)) {
+    if (depths[match.index] !== 0) continue;
+    let at = match.index;
+    const modifiers = [];
+    for (;;) {
+      const word = /^\s*(\w+)\b/.exec(body.slice(at));
+      if (!word || !CSHARP_MODIFIERS.has(word[1])) break;
+      modifiers.push(word[1]);
+      at += word[0].length;
+    }
+    while (/\s/.test(body[at] ?? '')) at++;
+    const rest = body.slice(at);
+    const declaration = { modifiers, isStatic: modifiers.includes('static') || modifiers.includes('const'), isOverride: modifiers.includes('override') };
+    const kind = CSHARP_TYPE_KEYWORD.exec(rest);
+    if (kind) {
+      const keyword = squeezed(kind[1]);
+      let from = kind[0].length;
+      if (keyword === 'delegate') {
+        const end = csharpTypeEnd(rest, from);
+        if (end === -1) {
+          cannot(`${where} has a \`public delegate\` this lint cannot read: ${squeezed(rest.slice(0, 80))}`);
+          continue;
+        }
+        from = end;
+      }
+      const named = /^\s*@?(\w+)/.exec(rest.slice(from));
+      if (!named) {
+        cannot(`${where} has a \`public ${keyword}\` this lint cannot read: ${squeezed(rest.slice(0, 80))}`);
+        continue;
+      }
+      declarations.push({ ...declaration, keyword, name: named[1], after: at + from + named[0].length });
+      continue;
+    }
+    if (/^event\b/.test(rest)) {
+      const end = csharpTypeEnd(rest, 'event'.length);
+      const named = end === -1 ? null : /^\s*@?(\w+)/.exec(rest.slice(end));
+      if (!named) {
+        cannot(`${where} has a \`public event\` this lint cannot read: ${squeezed(rest.slice(0, 80))}`);
+        continue;
+      }
+      declarations.push({ ...declaration, keyword: 'event', name: named[1], takes: [], returns: squeezed(rest.slice('event'.length, end)) });
+      continue;
+    }
+    if (/^operator\b/.test(rest)) {
+      declarations.push({ ...declaration, keyword: 'operator' });
+      continue;
+    }
+    const typeEnd = csharpTypeEnd(rest, 0);
+    if (typeEnd === -1) {
+      cannot(`${where} has a \`public\` declaration this lint cannot read: ${squeezed(rest.slice(0, 80))}`);
+      continue;
+    }
+    let i = typeEnd;
+    while (/\s/.test(rest[i] ?? '')) i++;
+    if (rest[i] === '(') {
+      declarations.push({ ...declaration, keyword: 'constructor', name: squeezed(rest.slice(0, typeEnd)), takes: csharpParameters(parenthesised(rest, i)) });
+      continue;
+    }
+    if (/^operator\b/.test(rest.slice(i))) {
+      declarations.push({ ...declaration, keyword: 'operator' });
+      continue;
+    }
+    if (/^this\s*\[/.test(rest.slice(i))) {
+      declarations.push({ ...declaration, keyword: 'indexer', name: 'this' });
+      continue;
+    }
+    const named = /^@?(\w+)\s*/.exec(rest.slice(i));
+    if (!named) {
+      cannot(`${where} has a \`public\` declaration this lint cannot read: ${squeezed(rest.slice(0, 80))}`);
+      continue;
+    }
+    const returns = squeezed(rest.slice(0, typeEnd));
+    i += named[0].length;
+    if (rest[i] === '<') {
+      i = closing(rest, i);
+      while (/\s/.test(rest[i] ?? '')) i++;
+    }
+    if (rest[i] === '(') {
+      declarations.push({ ...declaration, keyword: 'method', name: named[1], takes: csharpParameters(parenthesised(rest, i)), returns });
+    } else if (rest[i] === '{' || rest.startsWith('=>', i)) {
+      declarations.push({ ...declaration, keyword: 'property', name: named[1], takes: [], returns });
+    } else if (rest[i] === '=' || rest[i] === ';' || rest[i] === ',') {
+      declarations.push({ ...declaration, keyword: 'field', name: named[1], takes: [], returns });
+    } else {
+      cannot(`${where} has a \`public\` declaration this lint cannot read: ${squeezed(rest.slice(0, 80))}`);
+    }
+  }
+  return declarations;
+}
+
+/** The bodies of a C# file's code whose declarations are its own top level: the file's, and each `namespace` block's, inner ones too. */
+function csharpTopBodies(code) {
+  const bodies = [code];
+  for (const match of code.matchAll(/\bnamespace\s+[\w.]+\s*\{/g)) {
+    bodies.push(...csharpTopBodies(braced(code, match.index + match[0].length - 1)));
+  }
+  return bodies;
+}
+
+/**
+ * The `.cs` files under `directory` with their code, its tests and its test
+ * doubles left out: the `Testing` folder holds the `Semiont.Testing`
+ * namespace, as Kotlin's `testing` package holds its doubles.
+ */
+const csharpSources = (directory) => sources(directory, '.cs').filter((file) => !file.slice(directory.length + 1).split('/').includes('Testing')).map((file) => ({ file, code: csharpCode(read(file)) }));
+
+/**
+ * The classes, records, structs, interfaces, enums and delegates declared at
+ * the top of C# files: each one's name, its keyword, its file, its modifiers,
+ * the types it is made from (its base list, each by its name alone, a
+ * namespace and type arguments left off), its primary constructor's
+ * parameters (`null` when it declares none), and its body.
+ */
+function csharpTypes(files) {
+  const types = [];
+  for (const { file, code } of files) {
+    for (const top of csharpTopBodies(code)) {
+      for (const declared of csharpDeclarations(top, file, () => {})) {
+        if (!CSHARP_TYPE_KEYWORD.test(declared.keyword) || !declared.name) continue;
+        let i = declared.after;
+        const skip = () => {
+          while (/\s/.test(top[i] ?? '')) i++;
+        };
+        skip();
+        if (top[i] === '<') i = closing(top, i);
+        skip();
+        let parameterList = null;
+        if (top[i] === '(') {
+          parameterList = parenthesised(top, i);
+          i = closing(top, i);
+        }
+        skip();
+        let supertypes = [];
+        if (top[i] === ':') {
+          const end = csharpUntil(top, i + 1, '{;');
+          supertypes = splitOutside(top.slice(i + 1, end).split(/\bwhere\b/)[0], ',')
+            .map((base) => /(\w+)\s*(?:<|\(|$)/.exec(squeezed(base).split('(')[0].replace(/<.*$/, ''))?.[1])
+            .filter(Boolean);
+          i = end;
+        } else {
+          i = csharpUntil(top, i, '{;');
+        }
+        const body = top[i] === '{' ? braced(top, i) : '';
+        types.push({ name: declared.name, keyword: declared.keyword, modifiers: declared.modifiers, file, supertypes, parameterList, body });
+      }
+    }
+  }
+  return types;
+}
+
+/** Whether a C# type is one a method awaits: a `Task` or a `ValueTask`, of a value or of none. */
+const isCsharpTask = (returns) => /^(?:System\.Threading\.Tasks\.)?(?:Task|ValueTask)(?:<|$)/.test(returns ?? '');
+
+/**
+ * A C# member's name as the table spells it: its first letter small, and its
+ * `Async` off when it is a method that returns a `Task`. A method that returns
+ * a `Task` and whose name does not end in `Async` fails, and so does one whose
+ * name ends in `Async` and that returns none, as does a name that does not
+ * begin with a capital: these are .NET's spellings of the table's names. A
+ * property is never named `Async`, whatever it holds (`Completion`).
+ */
+function csharpTableName(member, where) {
+  let name = member.name;
+  if (!/^[A-Z]/.test(name)) fail(`${where} has ${name}, whose name does not begin with a capital, as .NET spells a public member's`);
+  if (member.keyword === 'method' && isCsharpTask(member.returns)) {
+    if (name.endsWith('Async') && name !== 'Async') name = name.slice(0, -'Async'.length);
+    else fail(`${where} has ${name}, which returns a ${member.returns}, and whose name does not end in Async, as .NET names what a caller awaits`);
+  } else if (name.endsWith('Async')) {
+    fail(`${where} has ${name}, whose name ends in Async, and which is ${member.keyword === 'method' ? `a method returning ${member.returns}, no Task` : `a ${member.keyword}`}: .NET names only a method a caller awaits so`);
+  }
+  return name[0].toLowerCase() + name.slice(1);
+}
+
+/**
+ * The members of one C# type the SDK declares, as the table spells them
+ * (`csharpTableName`): the public instance declarations of its body, and the
+ * properties a record's positional parameters are, with those of each type it
+ * is made from that the SDK declares too. A declaration that overrides one
+ * (`ToString`) is its base's, and no member. How it is made (a constructor, a
+ * static factory) is no member either, nor what is static, nor an operator.
+ */
+function csharpMembers(type, types, cannot) {
+  const members = new Map();
+  const visit = (declared, seen) => {
+    if (seen.includes(declared.name)) return;
+    for (const supertype of declared.supertypes) {
+      const made = types.find((other) => other.name === supertype);
+      if (made) visit(made, [...seen, declared.name]);
+    }
+    const where = `${declared.file}: ${declared.keyword} ${declared.name}`;
+    if (declared.keyword.startsWith('record') && declared.parameterList !== null) {
+      for (const parameter of csharpParameters(declared.parameterList)) {
+        const property = { name: parameter.name, keyword: 'property', takes: [], returns: parameter.type };
+        members.set(csharpTableName(property, where), property);
+      }
+    }
+    for (const member of csharpDeclarations(declared.body, where, cannot)) {
+      if (['constructor', 'operator'].includes(member.keyword) || member.isStatic || member.isOverride) continue;
+      if (!['method', 'property', 'field', 'event'].includes(member.keyword)) {
+        cannot(`${declared.keyword} ${declared.name} declares a public ${member.keyword} ${member.name ?? ''} inside it, which is no member this lint reads`);
+        continue;
+      }
+      members.set(csharpTableName(member, where), member);
+    }
+  };
+  visit(type, []);
+  return members;
+}
+
+function csharpShape({ returns }) {
+  if (returns === 'Task<int?>') return 'count';
+  if (isCsharpTask(returns)) return 'promise';
+  if (returns === 'void') return 'signal';
+  if (returns.startsWith('Cached<')) return 'cache';
+  if (returns.startsWith('Running<')) return 'stream';
+  if (returns.startsWith('Delegation<')) return 'delegation';
+  if (returns === 'Upload') return 'upload';
+  if (returns === 'Claims') return 'claims';
+  return undefined;
+}
+
+/** namespace → method → { shape, returns }. An SDK with no namespaces has none. */
+function csharpSurface() {
+  const surface = new Map();
+  const types = csharpTypes(csharpSources(CSHARP_NAMESPACES));
+  const cannot = (what) => fail(`${CSHARP_NAMESPACES}: ${what}`);
+  for (const type of types) {
+    const named = /^(\w+)Namespace$/.exec(type.name);
+    if (!named) continue;
+    const namespace = named[1][0].toLowerCase() + named[1].slice(1);
+    if (type.file !== `${CSHARP_NAMESPACES}/${type.name}.cs`) fail(`${type.file} declares ${type.name}, which belongs in ${CSHARP_NAMESPACES}/${type.name}.cs`);
+    const methods = new Map();
+    surface.set(namespace, methods);
+    for (const [name, member] of csharpMembers(type, types, cannot)) {
+      methods.set(name, { shape: csharpShape(member), returns: member.returns });
+    }
+  }
+  return surface;
+}
+
+function csharpWorker() {
+  const types = csharpTypes(csharpSources(CSHARP_SDK));
+  const { said, cannot } = unreadable(CSHARP_SDK);
+  /** A type's members, each with what it takes, a `CancellationToken` left out; none when the SDK declares no such type. */
+  const declares = (name) => {
+    const type = types.find((declared) => declared.name === name);
+    return new Map(
+      [...(type ? csharpMembers(type, types, cannot) : [])].map(([member, { takes }]) => [member, { takes: takes.filter((parameter) => parameter.type !== 'CancellationToken') }]),
+    );
+  };
+  const jobs = Object.fromEntries(
+    VERBS.map((verb) => {
+      const name = `Held${verb[0].toUpperCase()}${verb.slice(1)}Job`;
+      return [verb, { of: `class ${name}`, members: declares(name) }];
+    }),
+  );
+  const worker = {
+    where: CSHARP_SDK,
+    claims: { of: 'class Claims', members: declares('Claims') },
+    jobs,
+    either: { of: 'interface IHeldJob', members: declares('IHeldJob') },
+    spelled: (name) => {
+      const bare = name.endsWith('Async') ? name.slice(0, -'Async'.length) : name;
+      return bare[0].toLowerCase() + bare.slice(1);
+    },
+  };
+  return said.any ? undefined : worker;
+}
+
+/** What C# makes a unit as, read as every reader of a unit reads it. */
+function csharpUnit(made, directory) {
+  const types = csharpTypes(csharpSources(directory));
+  const found = types.filter((type) => type.name === made);
+  if (found.length === 0) return undefined;
+  if (found.length > 1) fail(`${found.map(({ file }) => file).join(', ')}: \`${made}\` is declared ${found.length} times, and this reads the one`);
+  const [type] = found;
+  const members = new Set(csharpMembers(type, types, (what) => fail(`${type.file}: ${what}`)).keys());
+  return { where: `${type.keyword} ${made} in ${type.file}`, isUnit: type.supertypes.includes('IStateUnit'), members };
+}
+
+/** Every unit C# declares, by name, each with the file it is declared in. */
+function csharpUnits() {
+  return csharpTypes(csharpSources(CSHARP_SDK))
+    .filter((type) => type.supertypes.includes('IStateUnit'))
+    .map((type) => ({ name: type.name, file: type.file }));
+}
+
+/**
+ * The public names of C# namespaces, each given by its directory: every
+ * public type declared at the top of its files, but a static class, whose
+ * public members are the names instead (C# has no free function or constant
+ * but a static class's), each as `csharpTableName` holds it and with its
+ * first letter a capital, as .NET spells it.
+ */
+function csharpExports(directories) {
+  return directories.flatMap((directory) =>
+    filesIn(directory, '.cs').flatMap((name) => {
+      const file = `${directory}/${name}`;
+      const types = csharpTypes([{ file, code: csharpCode(read(file)) }]);
+      return types.flatMap((type) => {
+        if (!type.modifiers.includes('static')) return [type.name];
+        return csharpDeclarations(type.body, `${file}: static class ${type.name}`, (what) => fail(what))
+          .filter((member) => member.name && member.keyword !== 'constructor')
+          .map((member) => (CSHARP_TYPE_KEYWORD.test(member.keyword) ? member.name : capitalized(csharpTableName(member, `${file}: static class ${type.name}`))));
+      });
+    }),
+  );
+}
+
+function csharpMakeable(made, declared, maker) {
+  const files = csharpSources(CSHARP_SDK);
+  const types = csharpTypes(files);
+  if (maker !== undefined) {
+    const declaring = types.flatMap((type) => csharpDeclarations(type.body, type.file, () => {}));
+    if (declaring.some((member) => member.keyword === 'method' && member.isStatic && member.name === maker)) return undefined;
+    const has = files.some(({ code }) => new RegExp(`\\b${maker}\\s*(?:<[^>]*>\\s*)?\\(`).test(code));
+    return has ? 'which is not public and static' : 'which C# does not declare';
+  }
+  const type = types.find((found) => found.name === made);
+  if (!['class', 'record', 'record class', 'record struct', 'struct'].includes(type.keyword)) return `${declared.where} is an ${type.keyword}, which no constructor makes: name in the row's \`madeBy\` the static method that makes it`;
+  if (type.modifiers.includes('abstract') || type.modifiers.includes('static')) return `${declared.where} is ${type.modifiers.includes('abstract') ? 'abstract' : 'static'}: name in the row's \`madeBy\` the static method that makes it`;
+  if (type.parameterList !== null) return undefined;
+  if (csharpDeclarations(type.body, type.file, () => {}).some((inside) => inside.keyword === 'constructor')) return undefined;
+  // With no constructor declared, the type has one of its own, which is public. Every declaration states its accessibility.
+  if (!new RegExp(`\\b(?:private|protected|internal)\\s+(?:(?:private|protected|internal)\\s+)?${made}\\s*\\(`).test(type.body)) return undefined;
+  return `${declared.where} has no constructor that is public: make it public, or name in the row's \`madeBy\` the static method that makes it`;
+}
+
 // ── Each SDK against the table ──────────────────────────────────────────
 
 /** Whether a row's `notYetReached` names `sdk`. */
@@ -1167,6 +1728,7 @@ const NAMESPACES = {
   python: { where: PYTHON_NAMESPACES, surface: pythonSurface },
   go: { where: GO_SDK, surface: goSurface },
   kotlin: { where: KOTLIN_NAMESPACES, surface: kotlinSurface },
+  csharp: { where: CSHARP_NAMESPACES, surface: csharpSurface },
 };
 const NAMESPACE_SDKS = Object.keys(NAMESPACES);
 
@@ -1191,7 +1753,7 @@ const VERBS = JSON.parse(read(`${SCHEMAS}/JobType.json`)).enum;
 const HANDED = ['claims', 'heldJob'];
 
 /** Each SDK whose worker's surface this reads, and its reader. */
-const WORKERS = { typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker };
+const WORKERS = { typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, csharp: csharpWorker };
 const WORKER_SDKS = Object.keys(WORKERS);
 
 /** handed → member → row */
@@ -1641,6 +2203,7 @@ const UNITS = {
   python: { read: pythonUnit, sources: PYTHON_SDK, declared: pythonUnits, dispose: 'dispose', makeable: pythonMakeable },
   go: { read: goUnit, sources: GO_SDK, declared: goUnits, dispose: 'close', makeable: goMakeable },
   kotlin: { read: kotlinUnit, sources: KOTLIN_SDK, declared: kotlinUnits, dispose: 'close', makeable: kotlinMakeable },
+  csharp: { read: csharpUnit, sources: CSHARP_SDK, declared: csharpUnits, dispose: 'dispose', makeable: csharpMakeable },
 };
 const UNIT_SDKS = Object.keys(UNITS);
 
@@ -2190,6 +2753,11 @@ const WIRES = {
     sources: KOTLIN_SDK,
     handedOut: { file: `${KOTLIN_SDK}/SemiontClient.kt`, says: (made) => new RegExp(`^\\s+public val wire: ${made}$`, 'm') },
   },
+  csharp: {
+    read: csharpUnit,
+    sources: CSHARP_SDK,
+    handedOut: { file: `${CSHARP_SDK}/SemiontClient.cs`, says: (made) => new RegExp(`^\\s+public ${made} Wire \\{ get; \\}$`, 'm') },
+  },
 };
 const WIRE_SDKS = Object.keys(WIRES);
 
@@ -2239,6 +2807,7 @@ const STORAGES = {
   python: { read: pythonUnit, sources: PYTHON_SDK },
   go: { read: goInterface, sources: GO_SDK },
   kotlin: { read: kotlinUnit, sources: KOTLIN_SDK },
+  csharp: { read: csharpUnit, sources: CSHARP_SDK },
 };
 const STORAGE_SDKS = Object.keys(STORAGES);
 
@@ -2275,15 +2844,18 @@ else {
  * says each language spells it:
  *
  *   - `function`: TypeScript and Kotlin as the table spells it, Rust and
- *     Python in snake_case, Go with its first letter a capital;
+ *     Python in snake_case, Go and C# with its first letter a capital (C#'s a
+ *     public static method of a static class, its `Async` held as a
+ *     namespace's is);
  *   - `reader`: as a function, but TypeScript's is `get` and the name with
  *     its first letter a capital;
  *   - `type`: as the table spells it, in every SDK;
  *   - `constant`: TypeScript, Rust, Python and Kotlin in capitals with
- *     underscores, Go as a function.
+ *     underscores, Go and C# as a function.
  *
- * Go's and Kotlin's `where` is a package's directory; the other SDKs' are
- * files.
+ * Go's, Kotlin's and C#'s `where` is a package's or a namespace's directory;
+ * the other SDKs' are files. A C# static class holds a module's functions and
+ * constants, and is no member of it.
  *
  * `named` gives an SDK's own name for a member, where the rule does not.
  * `absent` says why an SDK has none, and is stale once it has one.
@@ -2292,9 +2864,9 @@ else {
  * `whole` lists an SDK is that SDK's files and nothing else: every public
  * member of them is listed.
  */
-const MODULE_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin'];
+const MODULE_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'csharp'];
 /** The SDKs whose module is a package, given by its directory. */
-const BY_DIRECTORY = ['go', 'kotlin'];
+const BY_DIRECTORY = ['go', 'kotlin', 'csharp'];
 const MODULE_KINDS = ['function', 'reader', 'type', 'constant'];
 const capitalized = (name) => name[0].toUpperCase() + name.slice(1);
 const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
@@ -2302,6 +2874,7 @@ const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerC
 /** A member's name as `sdk` spells a member of `kind`. */
 function spelledAs(sdk, kind, name) {
   if (kind === 'type') return name;
+  if (sdk === 'csharp') return capitalized(name);
   if (kind === 'constant') return sdk === 'go' ? capitalized(name) : snakeCase(name).toUpperCase();
   if (sdk === 'go') return capitalized(name);
   if (sdk === 'rust' || sdk === 'python') return snakeCase(name);
@@ -2370,7 +2943,7 @@ function goExports(directories) {
   });
 }
 
-const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports };
+const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, csharp: csharpExports };
 
 /** module → row */
 const modules = new Map();

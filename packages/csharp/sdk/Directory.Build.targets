@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="CheckRefusals" AfterTargets="Build" Condition="'$(MSBuildProjectName)' == 'Semiont' and '$(DesignTimeBuild)' != 'true'">
+    <WriteLinesToFile File="$(IntermediateOutputPath)refusal-references.rsp" Lines="@(ReferencePath->'-r:&quot;%(FullPath)&quot;')" Overwrite="true" />
+    <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)tools/RefusalRunner/bin/$(Configuration)/$(TargetFramework)/RefusalRunner.dll&quot; &quot;$(MSBuildToolsPath)/Roslyn/bincore/csc.dll&quot; &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)refusal-references.rsp&quot; &quot;$(MSBuildThisFileDirectory)analyzers/Semiont.Analyzers/bin/$(Configuration)/netstandard2.0/Semiont.Analyzers.dll&quot; &quot;$(MSBuildThisFileDirectory)refusals&quot; &quot;$(MSBuildProjectDirectory)/$(IntermediateOutputPath)refusals&quot;" />
+  </Target>
+</Project>
