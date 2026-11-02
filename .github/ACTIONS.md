@@ -63,7 +63,7 @@ release calls it.
 
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
-- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
+- npm: the workspaces (one entry at the root), `images/e2e`, `tests/conformance`
 - Go modules: `apps/launcher`, `packages/go/sdk`
 - Cargo: the Rust workspace at the root; the Rust toolchain: `rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser and the seven service images

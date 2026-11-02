@@ -81,6 +81,8 @@ relative_files = true
 # No target-version: ruff takes it from requires-python.
 [tool.ruff]
 line-length = 140
+# Standalone asset generators retain their previous tooling scope after relocation.
+extend-exclude = ["tools/fixtures"]
 
 [tool.ruff.lint]
 select = ["ANN", "ASYNC", "B", "C4", "E", "F", "I", "PGH", "PT", "RUF", "SIM", "TID", "UP", "W"]

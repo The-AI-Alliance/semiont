@@ -26,7 +26,7 @@ stays caught.
 
 ## Setup
 
-Two scripts under [`tests/e2e/scripts/`](../scripts/) plus the live
+Two scripts under [`images/e2e/scripts/`](../scripts) plus the live
 Jaeger query API. Both scripts are pure stdlib Python 3.9+ — no
 dependencies on the host beyond Python (which macOS ships with).
 
@@ -39,13 +39,13 @@ its did:web domain made safe for a name; the worker is shared
 
 ```sh
 container logs --follow semiont-<kb>-gateway 2>&1 \
-  | python3 tests/e2e/scripts/log-filter.py --source gateway &
+  | python3 images/e2e/scripts/log-filter.py --source gateway &
 
 container logs --follow semiont-worker 2>&1 \
-  | python3 tests/e2e/scripts/log-filter.py --source worker &
+  | python3 images/e2e/scripts/log-filter.py --source worker &
 
 container logs --follow semiont-<kb>-smelter 2>&1 \
-  | python3 tests/e2e/scripts/log-filter.py --source smelter &
+  | python3 images/e2e/scripts/log-filter.py --source smelter &
 ```
 
 Each tail surfaces only:
@@ -69,15 +69,15 @@ When something visibly went wrong and you want to rewind:
 
 ```sh
 # Last 60s of activity, errors only
-python3 tests/e2e/scripts/snapshot.py --seconds 60 --errors-only
+python3 images/e2e/scripts/snapshot.py --seconds 60 --errors-only
 
 # Last 5 minutes, full firehose
-python3 tests/e2e/scripts/snapshot.py --seconds 300
+python3 images/e2e/scripts/snapshot.py --seconds 300
 
 # Override Jaeger / containers if your stack isn't local-default. A bare
 # product (gateway, worker, smelter) is this machine's one container of it;
 # with several knowledge bases running, name each container in full.
-python3 tests/e2e/scripts/snapshot.py --jaeger-url http://other:16686 \
+python3 images/e2e/scripts/snapshot.py --jaeger-url http://other:16686 \
   --containers semiont-<kb>-gateway,worker,semiont-<kb>-smelter
 ```
 
@@ -125,7 +125,7 @@ got console errors." Steps:
 1. **Snapshot** the window covering their interaction:
 
    ```sh
-   python3 tests/e2e/scripts/snapshot.py --seconds 120
+   python3 images/e2e/scripts/snapshot.py --seconds 120
    ```
 
 2. **Spot the smoking gun** in the worker's slice:

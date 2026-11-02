@@ -19,7 +19,7 @@ class SmokeDocumentsTest(unittest.TestCase):
 
     def run_smoke(self, root: Path, tag: str, start_status: int) -> None:
         source = Path(__file__).with_name("smoke-stack.sh")
-        script = root / "tests/stack/smoke-stack.sh"
+        script = root / "images/tests/stack/smoke-stack.sh"
         script.parent.mkdir(parents=True)
         shutil.copyfile(source, script)
         for directory in ("apps/launcher/dist", "packages/go/launcher", "packages/go/sdk", "bin", "state home"):

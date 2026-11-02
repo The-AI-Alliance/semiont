@@ -343,7 +343,7 @@ Update docs when you:
 
 How one app or package is built inside stays with it: `apps/<app>/docs/`, `images/<image>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
 
-Code in the docs is typechecked by CI, so an example has to compile ([`tests/doc-snippets`](tests/doc-snippets/)).
+Code in the docs is typechecked by CI, so an example has to compile ([`docs/checks/doc-snippets`](docs/checks/doc-snippets/)).
 
 ### Documentation Style
 

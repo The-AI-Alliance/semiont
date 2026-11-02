@@ -25,7 +25,7 @@
  *      app:    the directories under apps/, whose libraries are
  *              packages/<language>/<app>/
  *      image:  the directories under images/
- *      tests:  the directories under tests/
+ *      tests:  the logical suites at their owner-local paths
  *      spec:   the parts of the spec, by who honours them (SPEC_PARTS); every
  *              directory under specs/src/, and every file directly in it, is
  *              in exactly one
@@ -183,7 +183,7 @@ function heldBothWays(dimension, owned, owner) {
 }
 heldBothWays('app', givenIn('app'), 'apps/');
 heldBothWays('image', givenIn('image'), 'images/');
-heldBothWays('tests', givenIn('tests'), 'tests/');
+heldBothWays('tests', givenIn('tests'), 'the test suite paths');
 
 /** What specs/src holds: its directories, and the files directly in it. */
 const specEntries = new Set(files.filter((file) => file.startsWith('specs/src/')).map((file) => file.split('/')[2]));

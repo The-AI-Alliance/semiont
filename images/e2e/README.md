@@ -15,7 +15,7 @@ PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")
 
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
-  -w /workspace/tests/e2e \
+  -w /workspace/images/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
   -e E2E_BROWSER_URL=http://localhost:3000 \
@@ -46,7 +46,7 @@ container run --rm \
 
 > Use `npm test`, not `npx playwright test`: the `pretest` hook typechecks
 > the specs first (`tsc --noEmit`) and aborts before launching a browser.
-> `tests/e2e` is not a root workspace, so this gate is the ONLY thing that
+> `images/e2e` is not a root workspace, so this gate is the ONLY thing that
 > typechecks these files — bypassing it means an SDK signature change
 > surfaces as a runtime `TypeError` minutes in, instead of a file:line.
 
@@ -65,7 +65,7 @@ Dependabot bumps `package.json` and `package-lock.json` together, but
 nothing installs them here, so the declared and installed versions diverge
 silently until someone runs `npm ci`; a hard-coded tag would make a third.
 
-**Nothing else catches this on a laptop.** `tests/e2e` is not a root
+**Nothing else catches this on a laptop.** `images/e2e` is not a root
 workspace, so its dependencies are installed only by a person deciding to, or
 by [Stack Smoke](#how-ci-runs-the-suite), which runs `npm ci` before every
 run. After a Dependabot bump, sync before running:
@@ -99,7 +99,7 @@ reaches it: `:3000`→`:13000`, `:4000`→`:14000`, and `:8080` (Keycloak) and
 needs, and the knowledge base it registers is the origin the launcher
 advertises. The launcher's tests hold the bridge's ports to the launcher's own.
 
-Under Docker, `tests/stack/smoke-stack.sh --e2e` runs the suite with
+Under Docker, `images/tests/stack/smoke-stack.sh --e2e` runs the suite with
 `--network host`, where `localhost` is the host, and starts no bridge.
 
 > **No CORS origin to configure.** The gateway serves open CORS
@@ -111,7 +111,7 @@ Run the suite with the bridge in front of it:
 ```sh
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
-  -w /workspace/tests/e2e \
+  -w /workspace/images/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
   -e E2E_BROWSER_URL=http://localhost:3000 \
@@ -186,7 +186,7 @@ nor `gemma3:1b` answered them correctly within their timeouts.
 ## How CI runs the suite
 
 [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) runs
-[`tests/stack/smoke-stack.sh <images> --e2e`](../stack/smoke-stack.sh),
+[`images/tests/stack/smoke-stack.sh <images> --e2e`](../tests/stack/smoke-stack.sh),
 nightly on `main`, on dispatch, and on a pull request that changes the
 workflow or its script. The script boots a new knowledge base's stack on
 docker, with the inference and embedding models `semiont init` names, and,
@@ -204,7 +204,7 @@ A failing suite fails the job, prints the stack's container logs, and still
 stops the stack. Whatever the result, `playwright-report/` and
 `test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
 table of the specs with the tier's wall time is written to the run's summary.
-On a laptop with docker, `tests/stack/smoke-stack.sh local --e2e` does the
+On a laptop with docker, `images/tests/stack/smoke-stack.sh local --e2e` does the
 same; Apple's `container` has no `--network host`, so there it refuses, and
 the [Quick start](#quick-start) is the way.
 

@@ -13,7 +13,7 @@ function requireEnv(name: string): string {
       `\n[e2e] Missing required env var: ${name}\n` +
       `      Export it before running, e.g.:\n` +
       `        export ${name}=...\n` +
-      `      See tests/e2e/README.md for the full list.\n`,
+      `      See images/e2e/README.md for the full list.\n`,
     );
     process.exit(1);
   }

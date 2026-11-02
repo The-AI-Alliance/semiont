@@ -7,7 +7,7 @@
  * and red-text `console.error` lines.
  *
  * Why a separate fixture? Bug-hunting in the wild (the live-monitoring
- * workflow at `tests/e2e/docs/live-monitoring.md`) has surfaced
+ * workflow at `images/e2e/docs/live-monitoring.md`) has surfaced
  * frontend bugs that the e2e suite didn't catch — including a
  * `RangeError: Maximum call stack size exceeded` in an RxJS Subject's
  * `.next()` triggered by a failed token refresh. The suite was blind

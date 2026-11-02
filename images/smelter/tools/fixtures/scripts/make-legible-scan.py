@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the LEGIBLE_SCAN_PDF_FIXTURE_BASE64 constant in tests/e2e/scripts/seed.ts.
+"""Regenerate the LEGIBLE_SCAN_PDF_FIXTURE_BASE64 constant in images/e2e/scripts/seed.ts.
 
 Emits a single-page PDF whose only content is a grayscale RASTER of real text
 drawn from a real typeface — no text operators at all, so `getTextContent()` is
@@ -14,12 +14,12 @@ opposite jobs.
 The same file is kept as specs/src/smelter/fixtures/legible-scan.pdf, which the
 Python Smelter's tests read: it is written there by giving that path.
 
-Run it in a container that has Pillow and DejaVu (the host has neither):
+From the repository root, run it in a container with Pillow and DejaVu:
 
-    container run --rm -v "$PWD":/out -w /out "python:$(../ci/python-floor.sh)-slim" sh -c \
+    container run --rm -v "$PWD":/out -w /out "python:$(packages/python/scripts/python-floor.sh)-slim" sh -c \
       'pip install --quiet pillow && apt-get update -qq && \
        apt-get install -y -qq fonts-dejavu-core && \
-       python make-legible-scan.py /out/legible-scan.pdf'
+       python images/smelter/tools/fixtures/scripts/make-legible-scan.py /out/legible-scan.pdf'
 
 Then base64 the result into seed.ts. Measured against the live Smelter: 95.8%
 mean OCR confidence, 0 low-confidence words, text "RECOVERED FROM\nTHE PIXELS".

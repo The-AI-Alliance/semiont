@@ -2,7 +2,7 @@
 """
 Host-side post-process for e2e container logs.
 
-Walks ``tests/e2e/test-results/<test-dir>/jaeger-summary.json``, reads
+Walks ``images/e2e/test-results/<test-dir>/jaeger-summary.json``, reads
 each test's ``startedAtIso`` / ``endedAtIso`` window, dumps logs from
 each configured container (default: gateway, worker, smelter) via
 ``container logs``, filters lines whose JSON ``timestamp`` falls inside
@@ -21,11 +21,11 @@ per-container log slices alongside its other artifacts.
 Usage::
 
     # After `npx playwright test`
-    python3 tests/e2e/scripts/slice-container-logs.py
+    python3 images/e2e/scripts/slice-container-logs.py
 
     # Override the test-results root or container list
-    python3 tests/e2e/scripts/slice-container-logs.py \\
-        --results-dir tests/e2e/test-results \\
+    python3 images/e2e/scripts/slice-container-logs.py \\
+        --results-dir images/e2e/test-results \\
         --containers semiont-example.org-my-kb-gateway,worker
 
 Limitations
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     default_results_dir = here.parent / 'test-results'
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--results-dir', type=Path, default=default_results_dir,
-                   help='Playwright test-results root (default: tests/e2e/test-results)')
+                   help='Playwright test-results root (default: images/e2e/test-results)')
     p.add_argument('--containers', default='gateway,worker,smelter',
                    help='Comma-separated containers to slice: full names (semiont-…) or bare products (default: gateway,worker,smelter)')
     p.add_argument('--max-lines', type=int, default=0,

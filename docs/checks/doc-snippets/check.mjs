@@ -69,7 +69,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
-const REPO_ROOT = resolve(__dirname, '../..');
+const REPO_ROOT = resolve(__dirname, '../../..');
 
 const markdownIn = (dir) => readdirSync(join(REPO_ROOT, dir))
   .filter((f) => f.endsWith('.md'))
@@ -128,8 +128,8 @@ const SUITES = {
     preludes: [
       'prelude-ui.ts',
       'prelude-ui-assets.ts',
-      '../../packages/typescript/react-ui/src/types/jest-axe.d.ts',
-      '../../packages/typescript/react-ui/src/types/vitest-matchers.d.ts',
+      '../../../packages/typescript/react-ui/src/types/jest-axe.d.ts',
+      '../../../packages/typescript/react-ui/src/types/vitest-matchers.d.ts',
     ],
     options: {
       module: ts.ModuleKind.ESNext,

@@ -54,7 +54,7 @@ echo ""
 # SDK doc snippets compile against dist (post-build — FAILS if dist is
 # missing, since a gate that silently skips proves nothing; run build:packages first)
 echo "📚 Checking sdk doc snippets..."
-bash "$REPO_ROOT/tests/doc-snippets/audit-doc-snippets.sh"
+bash "$REPO_ROOT/docs/checks/doc-snippets/audit-doc-snippets.sh"
 echo ""
 
 # The source and test audits below decide by exit status; hold them to it first

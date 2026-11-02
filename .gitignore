@@ -1,7 +1,7 @@
 # What any project, tool or editor leaves anywhere in the tree. What one
 # project's build makes is in that project's own .gitignore.
 
-# npm installs: the workspace root's, and each npm project's under tests/
+# npm installs: the workspace root's, and each independent npm project's
 node_modules
 
 # Build output and coverage, as every language here writes them

@@ -6,7 +6,7 @@ If you only want to *use* the protocol from a script, you don't need this doc �
 
 - Building a transport
 - Adding a new actor or worker that subscribes to channels directly via `eventBus.on(channel)`
-- Debugging a bus-mediated round-trip with the [bus log](../../tests/e2e/docs/bus-logging.md)
+- Debugging a bus-mediated round-trip with the [bus log](../../images/e2e/docs/bus-logging.md)
 - Adding a new channel to the EventMap
 
 The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go and Rust equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
@@ -285,7 +285,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 | `PUT` | `HttpContentTransport.putBinary()`. The gateway writes none for an upload |
 | `GET` | `HttpContentTransport.getBinary()`, `getBinaryStream()`, `getResourceGraph()` and `getAnchoredText()`; and, for a read of bytes, the matching gateway route |
 
-The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.
+The full capture API and per-test fixture are in **[../../images/e2e/docs/bus-logging.md](../../images/e2e/docs/bus-logging.md)**.
 
 A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no gateway `EMIT` means the request never reached the server (auth, CORS, network); no gateway `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
 
@@ -455,7 +455,7 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`.
 - **`packages/go/sdk/bus/`** — GENERATED Go channels, each a value typed by its payload, the operations with their replies, and the bridged and scoped lists; `typed.go` holds the types they are values of.
 - **[`packages/typescript/core/src/event-bus.ts`](../../packages/typescript/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
-- **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
+- **[../../images/e2e/docs/bus-logging.md](../../images/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)** — how a frame's trace correlates with OpenTelemetry spans and the `busLog` grep timeline.
 - **[flows/README.md](flows/README.md)** — the eight verbs that organize the channel namespace.

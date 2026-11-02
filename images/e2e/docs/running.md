@@ -57,7 +57,7 @@ PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")
 
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
-  -w /workspace/tests/e2e \
+  -w /workspace/images/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
   -e E2E_BROWSER_URL=http://localhost:3000 \
@@ -68,7 +68,7 @@ container run --rm \
 ```
 
 > **`npm test`, not `npx playwright test`.** The `pretest` hook runs
-> `tsc --noEmit` first. `tests/e2e` is not a root workspace, so that is the
+> `tsc --noEmit` first. `images/e2e` is not a root workspace, so that is the
 > ONLY thing typechecking these specs — skip it and an SDK signature change
 > surfaces as a runtime `TypeError` minutes into a browser run instead of a
 > file:line in seconds. `npm test` also excludes `@slow`; see below.
@@ -97,13 +97,13 @@ but fails elsewhere, or before claiming a flake is fixed.
 … npm test -- specs/02-open-resource.spec.ts --repeat-each 5
 ```
 
-**Install deps into `tests/e2e/node_modules`** (one-time, inside the
+**Install deps into `images/e2e/node_modules`** (one-time, inside the
 container so its glibc matches what Playwright was built against):
 
 ```sh
 container run --rm \
   -v "$(git rev-parse --show-toplevel):/workspace" \
-  -w /workspace/tests/e2e \
+  -w /workspace/images/e2e \
   "mcr.microsoft.com/playwright:v$PW-noble" \
   npm install
 ```
@@ -113,7 +113,7 @@ container run --rm \
 If you have Node + Playwright installed locally:
 
 ```sh
-cd tests/e2e
+cd images/e2e
 npm install
 npx playwright install chromium    # one-time browser download
 

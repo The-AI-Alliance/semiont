@@ -32,7 +32,7 @@
 - [ ] Go SDK (`packages/go/sdk`)
 - [ ] Kotlin SDK (`packages/kotlin/sdk`)
 - [ ] Conformance suites (`tests/conformance`)
-- [ ] End-to-end suite (`tests/e2e`)
+- [ ] End-to-end suite (`images/e2e`)
 - [ ] Build, generation, or release tooling (beside its owner)
 - [ ] GitHub Actions (`.github/workflows/`)
 - [ ] Documentation (`docs/`, `website/`)
@@ -57,7 +57,7 @@ Check what you ran. CI runs every suite here except the end-to-end one; `docs/co
 - [ ] Weaver conformance: `cd tests/conformance && npm run test:weaver`
 - [ ] Smelter conformance: `cd tests/conformance && npm run test:smelter`
 - [ ] Librarian conformance: `cd tests/conformance && npm run test:librarian`
-- [ ] End-to-end, against a stack built from this branch: `cd tests/e2e && npm test`
+- [ ] End-to-end, against a stack built from this branch: `cd images/e2e && npm test`
 - [ ] `specs/` changed: the generated code committed to the tree is regenerated (the `generated-artifacts` job in `.github/workflows/ci.yml` names a stale file and the command that rewrites it)
 
 ## Security
@@ -81,4 +81,4 @@ Complete this section if the change touches the gateway's routes, how any part m
 
 - [ ] `docs/` is updated for the readers this affects (`analyst/`, `builder/`, `operator/`, `contributor/`, `architecture/`, `protocol/`)
 - [ ] The README and `docs/` of each app or package changed are updated
-- [ ] TypeScript examples in the docs typecheck: `npm run build:packages && ./tests/doc-snippets/audit-doc-snippets.sh`
+- [ ] TypeScript examples in the docs typecheck: `npm run build:packages && ./docs/checks/doc-snippets/audit-doc-snippets.sh`

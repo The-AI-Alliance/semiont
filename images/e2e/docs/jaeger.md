@@ -87,7 +87,7 @@ and writes a `<container>.log` slice into the test's output directory.
 
 ```sh
 # After `npx playwright test`
-python3 tests/e2e/scripts/slice-container-logs.py
+python3 images/e2e/scripts/slice-container-logs.py
 ```
 
 That writes `semiont-<kb>-gateway.log`, `semiont-worker.log`, and

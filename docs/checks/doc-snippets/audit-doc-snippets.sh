@@ -20,10 +20,10 @@ set -euo pipefail
 #     shapes); the run prints the exemption census — hold it flat or shrink it.
 #
 # POST-BUILD gate: requires the dist of every package a suite's documents import from, and an
-# installed workspace tree (the fixture at tests/doc-snippets).
+# installed workspace tree (the fixture at docs/checks/doc-snippets).
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-FIXTURE="$REPO_ROOT/tests/doc-snippets"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+FIXTURE="$REPO_ROOT/docs/checks/doc-snippets"
 
 for pkg in core http-transport sdk react-ui observability; do
   if [ ! -f "$REPO_ROOT/packages/typescript/$pkg/dist/index.d.ts" ]; then

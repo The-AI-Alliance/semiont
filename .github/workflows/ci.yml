@@ -234,7 +234,7 @@ jobs:
               - '.github/workflows/**'
               - 'images/*/Dockerfile'
               - 'images/shared/supervise.sh'
-              - 'tests/e2e/e2e-localhost-bridge.mjs'
+              - 'images/e2e/e2e-localhost-bridge.mjs'
             # The Kotlin SDK. The JDK its builds run on is its .java-version,
             # read by packages/kotlin/scripts/jdk-version.sh, which is all's.
             swift:
@@ -273,7 +273,7 @@ jobs:
               - 'packages/typescript/react-ui/scripts/audit-*.sh'
               - 'images/scripts/audit-supervision.sh'
               - 'docs/**'
-              - 'tests/doc-snippets/**'
+              - 'docs/checks/doc-snippets/**'
               - 'images/*/Dockerfile'
 
       - name: Which areas run
@@ -638,7 +638,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Doc Snippets Audit (sdk docs' code fences compile against dist through the exports map)"
-          ./tests/doc-snippets/audit-doc-snippets.sh
+          ./docs/checks/doc-snippets/audit-doc-snippets.sh
           echo "::endgroup::"
 
       - name: Run React Hooks Ordering Audit

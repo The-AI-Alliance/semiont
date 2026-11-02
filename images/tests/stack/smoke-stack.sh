@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Boot a real stack and assert what the launcher's hermetic suite cannot.
 #
-#   tests/stack/smoke-stack.sh latest          # the published :latest images
-#   tests/stack/smoke-stack.sh 0.6.5           # one release's images
-#   tests/stack/smoke-stack.sh local           # images from images/local-build.sh
-#   tests/stack/smoke-stack.sh local --e2e     # and run tests/e2e's default tier
+#   images/tests/stack/smoke-stack.sh latest          # the published :latest images
+#   images/tests/stack/smoke-stack.sh 0.6.5           # one release's images
+#   images/tests/stack/smoke-stack.sh local           # images from images/local-build.sh
+#   images/tests/stack/smoke-stack.sh local --e2e     # and run images/e2e's default tier
 #
 # TWO AXES, and naming them separately is the point. The LAUNCHER is the one
 # built from this checkout, apps/launcher/dist/semiont (images/local-build.sh
@@ -19,18 +19,18 @@
 # real service at a real route, that the realm the start CREATES through
 # Keycloak's admin API answers, that the realm allows the Browser's origin, and that `stop` releases
 # every claimed port. It does NOT assert that inference works — what a model
-# does is tests/e2e's question, which assumes a stack is already up and drives
+# does is images/e2e's question, which assumes a stack is already up and drives
 # the product through a browser.
 #
 # WITH --e2e it asks that question too, of the stack it booted, before it stops
-# it: it makes a user in the realm with `useradd`, then runs tests/e2e's
+# it: it makes a user in the realm with `useradd`, then runs images/e2e's
 # default tier less its @model tests (`npm run test:ci`, which typechecks the
 # specs and leaves out @slow and @model) in the Playwright image whose tag is
-# the version tests/e2e/package.json pins. A
+# the version images/e2e/package.json pins. A
 # failing suite is a failed check like any other, so the container logs print
 # and the stack stops. The image reaches the stack at localhost through
 # `--network host`, which docker and podman have and Apple's `container` does
-# not, so --e2e refuses that runtime (tests/e2e/README.md runs the suite there
+# not, so --e2e refuses that runtime (images/e2e/README.md runs the suite there
 # by hand, through the host bridge). The suite's packages, @semiont/core and
 # @semiont/sdk, link to this checkout's packages/, which must be built:
 # images/local-build.sh builds them, as `npm run build:packages` does.
@@ -72,17 +72,17 @@ case "${2:-}" in
   *) usage ;;
 esac
 RUNTIME="${SMOKE_RUNTIME:-docker}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 if [ "$E2E" = true ]; then
   if [ "$RUNTIME" = container ]; then
-    echo "--e2e runs the suite with --network host, which Apple's container has not; run it as tests/e2e/README.md says." >&2
+    echo "--e2e runs the suite with --network host, which Apple's container has not; run it as images/e2e/README.md says." >&2
     exit 2
   fi
   # Playwright refuses to run when the image and the library disagree, so the
   # tag is the version the suite pins, read here and never typed.
-  PLAYWRIGHT=$(sed -n 's/^ *"@playwright\/test": "\(.*\)",\{0,1\}$/\1/p' "$REPO_ROOT/tests/e2e/package.json")
+  PLAYWRIGHT=$(sed -n 's/^ *"@playwright\/test": "\(.*\)",\{0,1\}$/\1/p' "$REPO_ROOT/images/e2e/package.json")
   if ! printf '%s' "$PLAYWRIGHT" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'; then
-    echo "tests/e2e/package.json pins no exact @playwright/test version (read '$PLAYWRIGHT'), so no Playwright image can be named." >&2
+    echo "images/e2e/package.json pins no exact @playwright/test version (read '$PLAYWRIGHT'), so no Playwright image can be named." >&2
     exit 2
   fi
 fi
@@ -231,13 +231,13 @@ if [ "$E2E" = true ]; then
   export E2E_EMAIL E2E_PASSWORD
   if printf '%s\n' "$E2E_PASSWORD" | "$SEMIONT" useradd --email "$E2E_EMAIL" --runtime "$RUNTIME" >/dev/null; then
     ok "useradd made $E2E_EMAIL in the realm"
-    # tests/e2e is not a root workspace, so its dependencies are its own. The
+    # images/e2e is not a root workspace, so its dependencies are its own. The
     # JSON report beside the list and HTML ones is for whoever summarises the
     # run: PLAYWRIGHT_JSON_OUTPUT_NAME is Playwright's, and test-results/ is
     # the suite's output directory, emptied when a run begins.
     STARTED=$SECONDS
     if "$RUNTIME" run --rm --network host --ipc host \
-      -v "$REPO_ROOT":/workspace -w /workspace/tests/e2e \
+      -v "$REPO_ROOT":/workspace -w /workspace/images/e2e \
       -e E2E_EMAIL -e E2E_PASSWORD \
       -e E2E_BROWSER_URL=http://localhost:3000 \
       -e E2E_GATEWAY_URL=http://localhost:4000 \
@@ -247,7 +247,7 @@ if [ "$E2E" = true ]; then
       sh -c 'npm ci && npm run test:ci -- --reporter=list,html,json'; then
       ok "the default tier passed ($((SECONDS - STARTED))s)"
     else
-      bad "the default tier failed ($((SECONDS - STARTED))s): tests/e2e/playwright-report holds the report"
+      bad "the default tier failed ($((SECONDS - STARTED))s): images/e2e/playwright-report holds the report"
     fi
   else
     bad "useradd refused $E2E_EMAIL, so the suite has no one to sign in as"

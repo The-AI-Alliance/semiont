@@ -1,6 +1,6 @@
 # Stack smoke: boot a real stack and assert the things the hermetic suite
-# cannot, then run tests/e2e's default tier against that same stack before it
-# stops. The check itself is tests/stack/smoke-stack.sh, which this
+# cannot, then run images/e2e's default tier against that same stack before it
+# stops. The check itself is images/tests/stack/smoke-stack.sh, which this
 # workflow runs with --e2e and a laptop runs the same way; what it asserts is
 # said there, once. The stack serves inference and embedding from the models a
 # new knowledge base names. The suite runs without its @model tests, which
@@ -40,7 +40,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/stack-smoke.yml
-      - tests/stack/**
+      - images/tests/stack/**
+      - images/e2e/**
       - images/local-build.sh
       - .dockerignore
   # Nightly, on main: the periodic verification above, at 08:17 UTC (4:17 in
@@ -81,7 +82,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
 
       - name: Check smoke image selection and cleanup
-        run: python3 -m unittest discover -s tests/stack -p 'test_*.py' -v
+        run: python3 -m unittest discover -s images/tests/stack -p 'test_*.py' -v
 
       # The Rust images' builder stage is one cold release build of the
       # workspace for Alpine, twelve minutes of this job's nineteen, and the
@@ -130,7 +131,7 @@ jobs:
           node-version-file: .node-version
 
       - name: Build the packages the e2e suite links to
-        # tests/e2e's @semiont/core and @semiont/sdk are this checkout's
+        # images/e2e's @semiont/core and @semiont/sdk are this checkout's
         # packages/, built; local-build.sh above builds them for a run of
         # :local images.
         if: env.IMAGES != 'local'
@@ -144,12 +145,12 @@ jobs:
         # 1.8 GB of image plus two models. That is the supported path,
         # and it exercises the host-probe → container-fallback branch and
         # ensureModels along with everything else.
-        run: tests/stack/smoke-stack.sh "$IMAGES" --e2e
+        run: images/tests/stack/smoke-stack.sh "$IMAGES" --e2e
 
       - name: Summarise the e2e default tier
         if: always()
         run: |
-          REPORT=tests/e2e/test-results/report.json
+          REPORT=images/e2e/test-results/report.json
           {
             echo "## e2e default tier"
             echo
@@ -179,6 +180,6 @@ jobs:
         with:
           name: e2e-report
           path: |
-            tests/e2e/playwright-report
-            tests/e2e/test-results
+            images/e2e/playwright-report
+            images/e2e/test-results
           retention-days: 30

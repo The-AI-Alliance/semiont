@@ -30,7 +30,7 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back with a reader of its own, and exporting telemetry the suite receives, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project images/weaver`); `@semiont/core` built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
 | Smelter conformance | [`tests/conformance/smelter`](../../tests/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, and exporting telemetry the suite receives, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; `@semiont/core` built; the Smelter's Python environment (`uv sync --locked --no-dev --project images/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
 | Librarian conformance | [`tests/conformance/librarian`](../../tests/conformance/librarian/README.md) | The Librarian as a running process, black-box, behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, with an embedding provider and two models the suite plays, and exporting telemetry the suite receives, against [LIBRARIAN.md](../protocol/LIBRARIAN.md) | Everything the Weaver's and the Smelter's suites need, since it starts both: a built gateway and Archivist; `@semiont/core` built; the Librarian's, the Weaver's and the Smelter's Python environments and the `tesseract` program; `git`; `nats-server`; a neo4j and a Qdrant of its own, named in `NEO4J_HOST`, `NEO4J_PASSWORD` and `QDRANT_HOST` |
-| End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
+| End-to-end | [`images/e2e`](../../images/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
 The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
 
@@ -102,7 +102,7 @@ Tests run through each workspace's npm scripts, `cargo`, `go` and `uv`. The `sem
 npm test --workspace=@semiont/sdk
 ```
 
-`tests/conformance` and `tests/e2e` are not root workspaces. Each has its own `package.json` and lockfile and runs from its own directory.
+`tests/conformance` and `images/e2e` are not root workspaces. Each has its own `package.json` and lockfile and runs from its own directory.
 
 ### The npm workspaces
 
@@ -260,7 +260,7 @@ This stays invisible until the mock is given a throwing implementation. Then the
 
 ## End-to-end tests
 
-The suite at [`tests/e2e/`](../../tests/e2e/) runs Playwright against a real stack. It exists for what no in-process test can see: timing on the event stream, races between a page's lifecycle and the bus, tear-down on navigation, a session rebuilt across sign-out and sign-in, and annotations that persist across a reload.
+The suite at [`images/e2e/`](../../images/e2e) runs Playwright against a real stack. It exists for what no in-process test can see: timing on the event stream, races between a page's lifecycle and the bus, tear-down on navigation, a session rebuilt across sign-out and sign-in, and annotations that persist across a reload.
 
 It is deliberately small. A spec earns its place by guarding a path that has broken before and that a unit or integration test cannot catch.
 
@@ -274,28 +274,28 @@ It is deliberately small. A spec earns its place by guarding a path that has bro
 It reads four variables: `E2E_EMAIL` and `E2E_PASSWORD`, which are required and have no default, and `E2E_BROWSER_URL` and `E2E_GATEWAY_URL`, which default to `http://localhost:3000` and `http://localhost:4000`.
 
 ```bash
-cd tests/e2e
+cd images/e2e
 npm ci
 npx playwright install chromium
 npm test                                   # typechecks the specs, then runs them
 npm test -- specs/02-open-resource.spec.ts # one spec
 ```
 
-Use `npm test` rather than `npx playwright test`: its `pretest` typechecks the specs, and nothing else does, because `tests/e2e` is not a root workspace.
+Use `npm test` rather than `npx playwright test`: its `pretest` typechecks the specs, and nothing else does, because `images/e2e` is not a root workspace.
 
 Everything else is in the suite's own docs:
 
 | Doc | What it covers |
 |---|---|
-| [README](../../tests/e2e/README.md) | Running from a container, reaching the stack from inside one, and the full flow against a freshly built stack |
-| [running.md](../../tests/e2e/docs/running.md) | Invocation: one spec, headed, `--repeat-each` |
-| [writing.md](../../tests/e2e/docs/writing.md) | The spec template, fixture ordering, selectors |
-| [bus-logging.md](../../tests/e2e/docs/bus-logging.md) | The bus log, the `bus` capture fixture and its helpers |
-| [debugging.md](../../tests/e2e/docs/debugging.md) | Traces, pulling an error out of one, diagnostic specs |
-| [containers.md](../../tests/e2e/docs/containers.md) | Rebuilding the stack after a code change |
-| [jaeger.md](../../tests/e2e/docs/jaeger.md), [page-errors.md](../../tests/e2e/docs/page-errors.md) | The fixtures that attach traces and uncaught page errors to a report |
-| [live-monitoring.md](../../tests/e2e/docs/live-monitoring.md) | Hunting a bug on a running stack without Playwright |
-| [gotchas.md](../../tests/e2e/docs/gotchas.md) | The sharp edges |
+| [README](../../images/e2e/README.md) | Running from a container, reaching the stack from inside one, and the full flow against a freshly built stack |
+| [running.md](../../images/e2e/docs/running.md) | Invocation: one spec, headed, `--repeat-each` |
+| [writing.md](../../images/e2e/docs/writing.md) | The spec template, fixture ordering, selectors |
+| [bus-logging.md](../../images/e2e/docs/bus-logging.md) | The bus log, the `bus` capture fixture and its helpers |
+| [debugging.md](../../images/e2e/docs/debugging.md) | Traces, pulling an error out of one, diagnostic specs |
+| [containers.md](../../images/e2e/docs/containers.md) | Rebuilding the stack after a code change |
+| [jaeger.md](../../images/e2e/docs/jaeger.md), [page-errors.md](../../images/e2e/docs/page-errors.md) | The fixtures that attach traces and uncaught page errors to a report |
+| [live-monitoring.md](../../images/e2e/docs/live-monitoring.md) | Hunting a bug on a running stack without Playwright |
+| [gotchas.md](../../images/e2e/docs/gotchas.md) | The sharp edges |
 
 ## Coverage
 
@@ -374,7 +374,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 
 [`codeql-analysis.yml`](../../.github/workflows/codeql-analysis.yml) runs CodeQL over the TypeScript, Go, Rust, Python and Kotlin nightly at 08:17 UTC and when a release calls it, not on pull requests. GitHub's default-setup Code Quality analysis, which no file here configures, runs on pull requests.
 
-[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on pull requests; it gates releases. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`tests/stack/smoke-stack.sh`](../../tests/stack/smoke-stack.sh) with `--e2e`, which boots a real stack, says what it checks, and runs [`tests/e2e`](../../tests/e2e/README.md)'s default tier against it with the models a new knowledge base names, less the tests the suite tags `@model` (`npm run test:ci`), which those models on a runner with no GPU do not answer in time. The run's summary has a table of the suite's specs, and its Playwright report is kept for 30 days. A release calls it on the commit it is about to tag. It also runs nightly on `main`, and on a pull request that changes the workflow, that script, `local-build.sh` or `.dockerignore`. The three Rust images share one builder stage, a release build of the workspace for Alpine that takes twelve minutes cold; the workflow keeps its layers between runs under a key that hashes everything the stage copies, so a run whose Rust is unchanged restores the stage and compiles nothing. The nightly run writes `main`'s copy, which a pull request's run can read; GitHub evicts a copy unread for a week. `local-build.sh --layer-cache <dir>` is how, and `npm run lint:workflows` holds every file the Dockerfiles copy to a pattern of the key.
+[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on pull requests; it gates releases. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`images/tests/stack/smoke-stack.sh`](../../images/images/tests/stack/smoke-stack.sh) with `--e2e`, which boots a real stack, says what it checks, and runs [`images/e2e`](../../images/e2e/README.md)'s default tier against it with the models a new knowledge base names, less the tests the suite tags `@model` (`npm run test:ci`), which those models on a runner with no GPU do not answer in time. The run's summary has a table of the suite's specs, and its Playwright report is kept for 30 days. A release calls it on the commit it is about to tag. It also runs nightly on `main`, and on a pull request that changes the workflow, that script, `local-build.sh` or `.dockerignore`. The three Rust images share one builder stage, a release build of the workspace for Alpine that takes twelve minutes cold; the workflow keeps its layers between runs under a key that hashes everything the stage copies, so a run whose Rust is unchanged restores the stage and compiles nothing. The nightly run writes `main`'s copy, which a pull request's run can read; GitHub evicts a copy unread for a week. `local-build.sh --layer-cache <dir>` is how, and `npm run lint:workflows` holds every file the Dockerfiles copy to a pattern of the key.
 
 Locally, run the suite for the code you changed. CI runs the whole matrix.
 

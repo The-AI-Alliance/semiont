@@ -197,7 +197,7 @@ export async function attachJaegerEvidence(
     test: testInfo.title,
     status: testInfo.status,
     // Absolute ISO timestamps so a host-side post-process (e.g.
-    // `tests/e2e/scripts/slice-container-logs.mjs`) can slice container
+    // `images/e2e/scripts/slice-container-logs.mjs`) can slice container
     // logs to the precise test window without re-deriving from the
     // Playwright report.
     startedAtIso: new Date(jaeger.startedAtMs).toISOString(),

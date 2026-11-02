@@ -7,7 +7,7 @@ only someone working on react-ui itself needs.
 ## The wire log in e2e tests
 
 **Enable in e2e tests:** automatic via the `bus` fixture — see
-[tests/e2e/docs/bus-logging.md](../../../../tests/e2e/docs/bus-logging.md).
+[images/e2e/docs/bus-logging.md](../../../../images/e2e/docs/bus-logging.md).
 
 The wire log covers the Browser-to-gateway edge. An equivalent
 instrumentation on the gateway's own bus — gated behind the same

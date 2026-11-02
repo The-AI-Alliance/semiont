@@ -94,7 +94,7 @@ semiont logs --service worker      # follow one service
 semiont start --service worker     # restart one after rebuilding its image
 ```
 
-In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for every bus event that page sends and receives, which is often the fastest way to see what a change did: see [Bus logging](../../tests/e2e/docs/bus-logging.md). Every service's traces are at `http://localhost:16686` ([Observability](../operator/administration/OBSERVABILITY.md)).
+In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for every bus event that page sends and receives, which is often the fastest way to see what a change did: see [Bus logging](../../images/e2e/docs/bus-logging.md). Every service's traces are at `http://localhost:16686` ([Observability](../operator/administration/OBSERVABILITY.md)).
 
 ## Related
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the PDF fixtures of the Smelter's extraction cases into specs/src/smelter/fixtures/.
 
-    python3 tests/fixtures/scripts/make-pdf-fixtures.py
+    python3 images/smelter/tools/fixtures/scripts/make-pdf-fixtures.py
 
 Each fixture is written object by object with the standard library alone, and is the same bytes on every run and on
 every machine: no date, no random identifier, and no compression but the deflate written here, so that no build of
@@ -23,7 +23,7 @@ Helvetica, a standard font that needs no font file, and every page is US Letter 
     encrypted.pdf       a page of text behind the standard security handler (RC4, 40 bits): it asks for a password
 
 legible-scan.pdf, in the same directory, is not made here: its pixels are words, and words need a typeface.
-tests/fixtures/scripts/make-legible-scan.py makes it.
+images/smelter/tools/fixtures/scripts/make-legible-scan.py makes it.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from typing import Final
 
 __all__ = ["fixtures"]
 
-_DIRECTORY: Final = Path(__file__).resolve().parents[3] / "specs" / "src" / "smelter" / "fixtures"
+_DIRECTORY: Final = Path(__file__).resolve().parents[5] / "specs" / "src" / "smelter" / "fixtures"
 
 # ── A document ───────────────────────────────────────────────────────────────
 

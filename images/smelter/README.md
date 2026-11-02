@@ -207,7 +207,7 @@ uv run pytest        # needs the `tesseract` program, with its English data
 ```
 
 The tests read the PDFs in [`specs/src/smelter/fixtures`](../../specs/src/smelter/fixtures/),
-which [`make-pdf-fixtures.py`](../../tests/fixtures/scripts/make-pdf-fixtures.py) writes.
+which [`make-pdf-fixtures.py`](./tools/fixtures/scripts/make-pdf-fixtures.py) writes.
 
 ## Building it
 
