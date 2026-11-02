@@ -85,11 +85,11 @@
     "@vitest/coverage-v8": "^5.0.5",
     "fast-check": "^4.10.0",
     "openapi-typescript": "^7.10.1",
-    "rollup": "^4.64.12",
+    "rollup": "^4.66.0",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^9.0.0",
     "typescript": "^6.0.2",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.5"
   },
   "dependencies": {
     "ajv": "^8.20.0",

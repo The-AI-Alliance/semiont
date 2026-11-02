@@ -71,7 +71,7 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 		return realmAdmin{}, false
 	}
 	block := portBlockOf(root)
-	plan, err := derivePlan(st, kcPort, block)
+	plan, err := derivePlan(st, rootKey(did, root), kcPort, block)
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false

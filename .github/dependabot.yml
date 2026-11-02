@@ -501,6 +501,10 @@ updates:
     labels:
       - "kind:dependencies"
       - "sdk:csharp"
+    groups:
+      sdk-csharp:
+        patterns:
+          - "*"
     commit-message:
       prefix: "sdk-csharp"
       include: "scope"

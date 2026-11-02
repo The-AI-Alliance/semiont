@@ -31,7 +31,7 @@ func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 		"vectors: 192.168.64.1:6333",
 		"identity-store: 192.168.64.1:5432",
 		"messaging: 192.168.64.1:4222",
-		"identity: http://192.168.64.1:8080/realms/semiont",
+		"identity: http://192.168.64.1:8080/realms/example.github.io-test-kb",
 		"embedding: http://192.168.64.1:11434",
 	}
 	for inference, want := range map[string][]string{
