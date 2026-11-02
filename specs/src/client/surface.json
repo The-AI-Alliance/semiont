@@ -38,6 +38,7 @@
   "namespaces": [
     {
       "namespace": "frame",
+      "notYetReached": { "csharp": "C# is still to implement the frame namespace." },
       "docs": "The knowledge base's vocabulary: what kinds of things exist.",
       "methods": [
         {
@@ -75,6 +76,7 @@
     },
     {
       "namespace": "browse",
+      "notYetReached": { "csharp": "C# is still to implement the browse namespace." },
       "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
       "methods": [
         {
@@ -215,6 +217,7 @@
     },
     {
       "namespace": "mark",
+      "notYetReached": { "csharp": "C# is still to implement the mark namespace." },
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
       "methods": [
         {
@@ -325,6 +328,7 @@
     },
     {
       "namespace": "bind",
+      "notYetReached": { "csharp": "C# is still to implement the bind namespace." },
       "docs": "Linking a reference to what it refers to.",
       "methods": [
         {
@@ -364,6 +368,7 @@
     },
     {
       "namespace": "gather",
+      "notYetReached": { "csharp": "C# is still to implement the gather namespace." },
       "docs": "Assembling the context a model is given, and what refers to a resource.",
       "methods": [
         {
@@ -422,6 +427,7 @@
     },
     {
       "namespace": "match",
+      "notYetReached": { "csharp": "C# is still to implement the match namespace." },
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
       "methods": [
         {
@@ -474,6 +480,7 @@
     },
     {
       "namespace": "yield",
+      "notYetReached": { "csharp": "C# is still to implement the yield namespace." },
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
       "methods": [
         {
@@ -553,6 +560,7 @@
     },
     {
       "namespace": "beckon",
+      "notYetReached": { "csharp": "C# is still to implement the beckon namespace." },
       "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
       "methods": [
         {
@@ -601,6 +609,7 @@
     },
     {
       "namespace": "job",
+      "notYetReached": { "csharp": "C# is still to implement the job namespace." },
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
       "methods": [
         {
@@ -672,6 +681,7 @@
     },
     {
       "namespace": "auth",
+      "notYetReached": { "csharp": "C# is still to implement the auth namespace." },
       "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
       "methods": [
         {
@@ -696,6 +706,7 @@
     },
     {
       "namespace": "system",
+      "notYetReached": { "csharp": "C# is still to implement the system namespace." },
       "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
       "methods": [
         {
@@ -716,6 +727,7 @@
   "worker": [
     {
       "handed": "claims",
+      "notYetReached": { "csharp": "C# is still to implement the claims worker surface." },
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
       "members": [
         {
@@ -749,6 +761,7 @@
     },
     {
       "handed": "heldJob",
+      "notYetReached": { "csharp": "C# is still to implement the heldJob worker surface." },
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
       "members": [
         { "member": "jobId" },
@@ -782,6 +795,7 @@
   "stateUnits": [
     {
       "unit": "mark",
+      "notYetReached": { "csharp": "C# is still to implement the mark state unit." },
       "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
       "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit" },
       "madeBy": { "typescript": "createMarkStateUnit", "go": "NewMarkStateUnit" },
@@ -799,6 +813,7 @@
     },
     {
       "unit": "yield",
+      "notYetReached": { "csharp": "C# is still to implement the yield state unit." },
       "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
       "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit" },
       "madeBy": { "typescript": "createYieldStateUnit", "go": "NewYieldStateUnit" },
@@ -814,6 +829,7 @@
     },
     {
       "unit": "gather",
+      "notYetReached": { "csharp": "C# is still to implement the gather state unit." },
       "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
       "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit" },
       "madeBy": { "typescript": "createGatherStateUnit", "go": "NewGatherStateUnit" },
@@ -831,6 +847,7 @@
     },
     {
       "unit": "match",
+      "notYetReached": { "csharp": "C# is still to implement the match state unit." },
       "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
       "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit" },
       "madeBy": { "typescript": "createMatchStateUnit", "go": "NewMatchStateUnit" },
@@ -838,6 +855,7 @@
     },
     {
       "unit": "beckon",
+      "notYetReached": { "csharp": "C# is still to implement the beckon state unit." },
       "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
       "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit" },
       "madeBy": { "typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit" },
@@ -848,6 +866,7 @@
     },
     {
       "unit": "hoverDwell",
+      "notYetReached": { "csharp": "C# is still to implement the hoverDwell state unit." },
       "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
       "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell" },
       "madeBy": { "typescript": "createHoverDwell", "go": "NewHoverDwell" },
@@ -858,6 +877,7 @@
     },
     {
       "unit": "search",
+      "notYetReached": { "csharp": "C# is still to implement the search state unit." },
       "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
       "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline" },
       "madeBy": { "typescript": "createSearchPipeline", "go": "NewSearchPipeline" },
@@ -869,6 +889,7 @@
     },
     {
       "unit": "sessionSignals",
+      "notYetReached": { "csharp": "C# is still to implement the sessionSignals state unit." },
       "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
       "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
       "madeBy": { "typescript": "createSessionSignals", "go": "NewSessionSignals" },
@@ -886,6 +907,7 @@
     },
     {
       "unit": "cache",
+      "notYetReached": { "csharp": "C# is still to implement the cache state unit." },
       "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
       "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
       "madeBy": { "typescript": "createCache", "go": "NewCache" },
@@ -904,6 +926,7 @@
     },
     {
       "unit": "session",
+      "notYetReached": { "csharp": "C# is still to implement the session state unit." },
       "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (specs/src/session/cases.json), not by the behaviour table.",
       "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
       "madeBy": { "go": "StartSession", "kotlin": "sessionFromKept" },
@@ -931,6 +954,7 @@
     }
   ],
   "wire": {
+    "notYetReached": { "csharp": "C# is still to implement the wire contract." },
     "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
     "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
     "members": [
@@ -972,6 +996,7 @@
     ]
   },
   "storage": {
+    "notYetReached": { "csharp": "C# is still to implement the storage contract." },
     "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
     "made": { "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage" },
     "members": [
@@ -985,6 +1010,7 @@
   "modules": [
     {
       "module": "annotations",
+      "notYetReached": { "csharp": "C# is still to implement the annotations module." },
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by specs/src/annotations's tables.",
       "where": {
         "typescript": [
@@ -1201,6 +1227,7 @@
     },
     {
       "module": "jobFilter",
+      "notYetReached": { "csharp": "C# is still to implement the jobFilter module." },
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by specs/src/jobs/filter-cases.json.",
       "where": {
         "typescript": [
@@ -1232,6 +1259,7 @@
     },
     {
       "module": "claims",
+      "notYetReached": { "csharp": "C# is still to implement the claims module." },
       "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by specs/src/jobs/retry-cases.json.",
       "where": {
         "typescript": [
@@ -1267,6 +1295,7 @@
     },
     {
       "module": "retry",
+      "notYetReached": { "csharp": "C# is still to implement the retry module." },
       "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
       "where": {
         "typescript": [
@@ -1294,6 +1323,7 @@
     },
     {
       "module": "hostName",
+      "notYetReached": { "csharp": "C# is still to implement the hostName module." },
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by specs/src/session/gateway-url-cases.json.",
       "where": {
         "typescript": [
@@ -1321,6 +1351,7 @@
     },
     {
       "module": "tokens",
+      "notYetReached": { "csharp": "C# is still to implement the tokens module." },
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by specs/src/session/cases.json.",
       "where": {
         "typescript": [
@@ -1380,6 +1411,7 @@
     },
     {
       "module": "storagePersister",
+      "notYetReached": { "csharp": "C# is still to implement the storagePersister module." },
       "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
       "where": {
         "typescript": [
@@ -1410,6 +1442,7 @@
     },
     {
       "module": "bus",
+      "notYetReached": { "csharp": "C# is still to implement the bus module." },
       "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
       "where": {
         "typescript": [
@@ -1457,6 +1490,7 @@
     },
     {
       "module": "registry",
+      "notYetReached": { "csharp": "C# is still to implement the registry module." },
       "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
       "where": {
         "typescript": [
@@ -1670,6 +1704,7 @@
     },
     {
       "module": "redirectSignIn",
+      "notYetReached": { "csharp": "C# is still to implement the redirectSignIn module." },
       "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
       "where": {
         "typescript": [
@@ -1743,6 +1778,7 @@
     },
     {
       "module": "serviceToken",
+      "notYetReached": { "csharp": "C# is still to implement the service-token module." },
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
       "where": {
         "typescript": [
@@ -1770,6 +1806,7 @@
     },
     {
       "module": "discovery",
+      "notYetReached": { "csharp": "C# is still to implement the discovery module." },
       "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
       "where": {
         "typescript": [
@@ -1870,6 +1907,7 @@
     },
     {
       "module": "testing",
+      "notYetReached": { "csharp": "C# is still to implement the testing module." },
       "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
       "where": {
         "typescript": [

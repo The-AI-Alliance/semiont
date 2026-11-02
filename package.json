@@ -59,6 +59,7 @@
     "lint:rust-toolchain": "node scripts/lint/check-rust-toolchain.mjs",
     "lint:go-toolchain": "node scripts/lint/check-go-toolchain.mjs",
     "lint:kotlin-toolchain": "node scripts/lint/check-kotlin-toolchain.mjs",
+    "lint:dotnet-toolchain": "node scripts/lint/check-dotnet-toolchain.mjs",
     "lint:python-version": "node scripts/lint/check-python-version.mjs",
     "lint:node-version": "node scripts/lint/check-node-version.mjs",
     "lint:nats-version": "node scripts/lint/check-nats-version.mjs",

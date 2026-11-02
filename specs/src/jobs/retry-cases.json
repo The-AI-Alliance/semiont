@@ -1,5 +1,8 @@
 {
   "$comment": "Whether a failed attempt is retried, as every implementation of the retry predicate must answer it: the dispatcher's queue acts on the answer, and a worker reports it on job:fail as willRetry, so the two must never disagree. A retry is allowed exactly when failureClass is neither \"deterministic\" nor \"withheld\" and retryCount < maxRetries, on the record before the failure is applied (docs/protocol/JOBS.md, Retries). Every SDK's `willRetryAfter`, spelled in its own convention, runs every case and fails on any difference; the dispatcher decides with an SDK's, and has none of its own. `failureClass` absent means the failure was not classified. Add a case here before changing an implementation.",
+  "notYetReached": {
+    "csharp": "C# is still to implement and run the shared jobs/retry-cases.json cases."
+  },
   "runBy": {
     "typescript": ["packages/typescript/sdk/src/__tests__/job-claims.test.ts"],
     "rust": ["packages/rust/sdk/tests/job_retry_cases.rs"],

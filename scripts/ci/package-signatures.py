@@ -3,8 +3,8 @@
 A package is a directory packages/<language>/<name> holding its language's manifest. Its
 signature is one line capturing everything its build reads:
 
-- the toolchain image that builds it (argv: the TypeScript, Rust, Python, Go and Kotlin
-  images, in that order);
+- the toolchain image that builds it (argv: the TypeScript, Rust, Python, Go, Kotlin and
+  C# images, in that order);
 - every file under its directory;
 - what every package of the repository is built from: version.json, the spec, and the
   scripts that generate from the spec;
@@ -30,6 +30,8 @@ import tomllib
 from pathlib import Path
 
 MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin"}
+# A .NET solution is named for what it builds.
+SOLUTION = ".slnx"
 EVERY_PACKAGE = ("version.json", "specs/src/", "scripts/spec/", "scripts/bus/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
@@ -37,9 +39,10 @@ SHARED = {
     "python": (),
     "go": (),
     "kotlin": (),
+    "csharp": (),
 }
 
-toolchains = dict(zip(("typescript", "rust", "python", "go", "kotlin"), sys.argv[1:6], strict=True))
+toolchains = dict(zip(("typescript", "rust", "python", "go", "kotlin", "csharp"), sys.argv[1:7], strict=True))
 files = sorted(f for f in sys.stdin.buffer.read().decode().split("\0") if f)
 
 
@@ -68,7 +71,7 @@ def under(prefix: str) -> list[str]:
 packages: dict[str, dict[str, str]] = {}
 for f in files:
     m = re.fullmatch(r"packages/([^/]+)/([^/]+)/([^/]+)", f)
-    if m and MANIFESTS.get(m[3]) == m[1]:
+    if m and (MANIFESTS.get(m[3]) == m[1] or (m[1] == "csharp" and m[3].endswith(SOLUTION))):
         packages[f"packages/{m[1]}/{m[2]}"] = {"language": m[1], "manifest": f}
 if not packages:
     sys.exit("package-signatures: found no package under packages/<language>/<name>")

@@ -49,6 +49,8 @@ const ROOT = process.cwd();
 const CODECOV = '.github/codecov.yml';
 const WORKFLOW = '.github/workflows/ci.yml';
 const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts'];
+/** A .NET solution is named for what it builds. */
+const isManifest = (name) => MANIFESTS.includes(name) || name.endsWith('.slnx');
 const yaml = createRequire(join(ROOT, 'package.json'))('js-yaml');
 
 const read = (file) => {
@@ -69,7 +71,7 @@ const packages = [
   ...new Map(
     files
       .map((file) => /^packages\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(file))
-      .filter((m) => m !== null && MANIFESTS.includes(m[3]))
+      .filter((m) => m !== null && isManifest(m[3]))
       .map(([, language, name]) => [`${language}/${name}`, { language, name, dir: `packages/${language}/${name}`, flag: `${language}-${name}` }]),
   ).values(),
 ];

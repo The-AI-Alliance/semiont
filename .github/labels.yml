@@ -123,7 +123,7 @@
   description: "A Swift SDK, not yet written"
 - name: "sdk:csharp"
   color: "bfd4f2"
-  description: "A C# SDK, not yet written"
+  description: "The C# SDK (packages/csharp/sdk)"
 - name: "sdk:haskell"
   color: "bfd4f2"
   description: "A Haskell SDK, not yet written"

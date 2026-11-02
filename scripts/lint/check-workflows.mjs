@@ -57,7 +57,8 @@
  *    which no filter defines.
  *
  * 5. Every directory under apps/, images/ or packages/ that holds a manifest
- *    (package.json, Cargo.toml, pyproject.toml, go.mod), at any depth, is
+ *    (package.json, Cargo.toml, pyproject.toml, go.mod, build.gradle.kts, or
+ *    a .NET solution, `<name>.slnx`), at any depth, is
  *    under a pattern `<dir>/**` of some filter of the map: the directory's
  *    own, or one above it (packages/<language>/** holds each package of the
  *    language). A package nobody mapped would be tested by no job on a pull
@@ -404,9 +405,11 @@ function changedAreas(jobs) {
 
   // Rule 5: every package of the repository is under some filter.
   const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts'];
+  // A .NET solution is named for what it builds.
+  const isManifest = (name) => MANIFESTS.includes(name) || name.endsWith('.slnx');
   const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
-    .filter((file) => /^(apps|images|packages)\//.test(file) && MANIFESTS.includes(basename(file)) && !file.split('/').includes('testdata'))
+    .filter((file) => /^(apps|images|packages)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
   for (const dir of new Set(packages)) {
     if (!trees.some((tree) => dir === tree || dir.startsWith(`${tree}/`))) {

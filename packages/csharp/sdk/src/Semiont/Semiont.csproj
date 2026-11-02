@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>The Semiont SDK for .NET.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../tools/RefusalRunner/RefusalRunner.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>
