@@ -9,7 +9,7 @@ The Semiont SDK for the JVM: one artifact, written in Kotlin, which Java program
 The SDK is not published yet. Build its jar from source, in a container whose JDK is the one `.java-version` names (Kotlin 2.4, JDK 25), and put it on your program's classpath with its dependencies:
 
 ```bash
-container run --rm -v "$PWD":/w -w /w/packages/kotlin/sdk eclipse-temurin:"$(scripts/ci/jdk-version.sh)"-jdk ./gradlew --no-daemon jar
+container run --rm -v "$PWD":/w -w /w/packages/kotlin/sdk eclipse-temurin:"$(packages/kotlin/scripts/jdk-version.sh)"-jdk ./gradlew --no-daemon jar
 ```
 
 ## The verbs
@@ -212,7 +212,7 @@ Untested. The SDK is a JVM library, and nothing in it was built or run on Androi
 Nothing but a container runtime is needed. In the JDK image `.java-version` names:
 
 ```bash
-container run --rm -v "$PWD":/w -w /w/packages/kotlin/sdk eclipse-temurin:"$(scripts/ci/jdk-version.sh)"-jdk ./gradlew --no-daemon check
+container run --rm -v "$PWD":/w -w /w/packages/kotlin/sdk eclipse-temurin:"$(packages/kotlin/scripts/jdk-version.sh)"-jdk ./gradlew --no-daemon check
 ```
 
 `check` runs, beside the build and the tests:

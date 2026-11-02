@@ -1,5 +1,5 @@
 # Generated from specs/src/client/refresh.json; do not edit.
-# Regenerate: node scripts/spec/generate-cache-refresh-python.mjs
+# Regenerate: node packages/codegen/schemas/generate-cache-refresh-python.mjs
 
 """What a Semiont client asks again for, and when.
 

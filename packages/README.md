@@ -10,6 +10,7 @@ The libraries Semiont is built from, in five languages. The services are in [ima
 | [Rust](./rust/README.md) | The SDK and its transport, and what the gateway, the dispatcher and the Archivist share | crates.io: the SDK, its transport, and the codegen and telemetry crates they are built on |
 | [Python](./python/README.md) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI: the SDK alone |
 | [Go](./go/README.md) | The SDK, and the launcher's libraries | The Go module proxy, by a tag at each release: the SDK alone |
+| [C#](./csharp/README.md) | The .NET SDK, under construction | Not published |
 | [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs | Not published |
 | [Swift](./swift/README.md) | The SDK for Apple apps and Linux services | Not published |
 
@@ -27,6 +28,7 @@ A program that builds on a knowledge base installs one SDK. [Building with the S
 | Rust | `cargo add semiont`, and `cargo add semiont-http-transport --features sign-in` | [rust/sdk](./rust/sdk/README.md), [rust/http-transport](./rust/http-transport/README.md) |
 | Python | `pip install semiont` | [python/sdk](./python/sdk/README.md) |
 | Go | `go get github.com/The-AI-Alliance/semiont/packages/go/sdk` | [go/sdk](./go/sdk/README.md) |
+| C# / .NET | Not published: project reference when implemented | [csharp/sdk](./csharp/sdk/README.md) |
 | Kotlin or Java | Not published: [build its jar](./kotlin/sdk/README.md#installing) | [kotlin/sdk](./kotlin/sdk/README.md) |
 | A React interface | `npm install @semiont/react-ui`, beside the SDK | [typescript/react-ui](./typescript/react-ui/README.md) |
 
@@ -41,3 +43,10 @@ The rest is what those are built on, and what Semiont's own services are built o
 ## License
 
 Apache-2.0
+
+## Generation tooling
+
+[codegen/](codegen/README.md) holds shared bus and schema generators across languages.
+Their declarative inputs and fixtures stay in `specs/`. Language-wide build and
+release helpers live under each language's `scripts/` directory; tooling for one
+package lives with that package.

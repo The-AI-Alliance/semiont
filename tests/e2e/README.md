@@ -99,7 +99,7 @@ reaches it: `:3000`→`:13000`, `:4000`→`:14000`, and `:8080` (Keycloak) and
 needs, and the knowledge base it registers is the origin the launcher
 advertises. The launcher's tests hold the bridge's ports to the launcher's own.
 
-Under Docker, `scripts/release/smoke-stack.sh --e2e` runs the suite with
+Under Docker, `tests/stack/smoke-stack.sh --e2e` runs the suite with
 `--network host`, where `localhost` is the host, and starts no bridge.
 
 > **No CORS origin to configure.** The gateway serves open CORS
@@ -186,7 +186,7 @@ nor `gemma3:1b` answered them correctly within their timeouts.
 ## How CI runs the suite
 
 [`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) runs
-[`scripts/release/smoke-stack.sh <images> --e2e`](../../scripts/release/smoke-stack.sh),
+[`tests/stack/smoke-stack.sh <images> --e2e`](../stack/smoke-stack.sh),
 nightly on `main`, on dispatch, and on a pull request that changes the
 workflow or its script. The script boots a new knowledge base's stack on
 docker, with the inference and embedding models `semiont init` names, and,
@@ -204,7 +204,7 @@ A failing suite fails the job, prints the stack's container logs, and still
 stops the stack. Whatever the result, `playwright-report/` and
 `test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
 table of the specs with the tier's wall time is written to the run's summary.
-On a laptop with docker, `scripts/release/smoke-stack.sh local --e2e` does the
+On a laptop with docker, `tests/stack/smoke-stack.sh local --e2e` does the
 same; Apple's `container` has no `--network host`, so there it refuses, and
 the [Quick start](#quick-start) is the way.
 
@@ -216,7 +216,7 @@ that exactly matches the current branch's source:
 ```sh
 # 1. Build all @semiont/* packages, publish to local Verdaccio,
 #    build the semiont-browser image.
-./scripts/ci/local-build.sh
+./images/local-build.sh
 
 # 2. From the KB project (typically ../semiont-template-kb), bring up
 #    the full stack from the :local images just built: name them in
@@ -252,7 +252,7 @@ for inspecting cross-service traces while debugging an e2e failure
   `launchctl setenv OLLAMA_HOST 0.0.0.0` (and quit/relaunch), or use
   `semiont start --config anthropic` to skip Ollama entirely.
 - **Code changes require rebuilding the `:local` images.** Rerun
-  `./scripts/ci/local-build.sh`, then restart the stack with
+  `./images/local-build.sh`, then restart the stack with
   `semiont start`, its documents naming the `:local` images. Without the
   rebuild + restart, you'll run yesterday's images with today's source.
 - **SPA tracing is not wired.** Gateway / worker / smelter

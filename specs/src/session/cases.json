@@ -9,6 +9,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/session/SessionCasesTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared session/cases.json cases.",
     "swift": "The Swift SDK's session: when it renews a token, a token's expiry, its bounded startup and its answer to a refusal."
   },
   "refreshSchedule": [

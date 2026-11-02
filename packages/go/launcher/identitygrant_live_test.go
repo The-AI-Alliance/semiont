@@ -23,7 +23,7 @@ import (
 // refuses the next sign-in.
 //
 // Run as TestIdentitySyncLive is: by CI's "Launcher Tests (Go, Keycloak)" job
-// against the Keycloak the launcher starts (scripts/ci/keycloak-image.sh), and
+// against the Keycloak the launcher starts (packages/go/launcher/scripts/keycloak-image.sh), and
 // skipped elsewhere unless SEMIONT_LIVE_KEYCLOAK names one.
 //
 // It creates its own realm and deletes it, so no knowledge base's realm is

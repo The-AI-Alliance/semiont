@@ -1095,7 +1095,7 @@ Commit the result. CI runs the same generator and fails while the committed
 client differs from what the spec generates.
 
 What the generator is told is in [`oapi-codegen.yaml`](oapi-codegen.yaml), the
-one file `go generate`, CI and `scripts/ci/local-build.sh` all give it. Each
+one file `go generate`, CI and `images/local-build.sh` all give it. Each
 of the three adds only the spec's path and the path it writes to.
 
 Generation covers the whole spec on purpose: a Go type for every schema and a
@@ -1103,7 +1103,7 @@ complete typed call for every operation. The file sets `skip-prune`, because
 oapi-codegen otherwise drops every schema no HTTP path reaches, which is the
 whole of the bus's payload vocabulary. The drift check compares the generator
 with itself and cannot see that kind of gap, so a second check in CI
-(`scripts/ci/check-go-schema-coverage.mjs`) holds the count of generated types
+(`packages/go/sdk/scripts/check-go-schema-coverage.mjs`) holds the count of generated types
 to the count of schemas in the spec.
 
 The file also sets `always-prefix-enum-values`: every enum constant is named

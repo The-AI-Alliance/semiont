@@ -12,7 +12,7 @@ mkdir -p "$REPORT_DIR"
 REPORT_FILE="$REPORT_DIR/REACT-UI-TESTS-COMPLIANCE.md"
 
 # Shared compliance script
-AUDIT_TESTS="$REPO_ROOT/scripts/compliance/batch-audit-tests.ts"
+AUDIT_TESTS="$REPO_ROOT/packages/typescript/scripts/compliance/batch-audit-tests.ts"
 
 echo "🧪 Auditing test files in $SRC_DIR..."
 # The audit exits non-zero when a test file fails. Its status is kept, so the

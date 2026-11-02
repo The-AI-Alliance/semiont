@@ -5,6 +5,7 @@
     "archivist": ["images/archivist/record/src/agents.rs"]
   },
   "absent": {
+    "csharp": "The C# SDK builds principal DIDs and does not read a principal kind from a DID.",
     "typescript": "No TypeScript code reads a DID's kind: the record, in Rust, attributes every write, and the Browser reads the agents the record gives it.",
     "python": "No Python code reads a DID's kind: the Librarian names principals from the record's profiles, and the worker states its own generator.",
     "go": "No Go code reads a DID's kind: the launcher and the Go SDK name the knowledge base and its people, and read no principal's DID.",

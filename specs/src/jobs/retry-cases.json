@@ -8,6 +8,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/jobs/JobTablesTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared jobs/retry-cases.json cases.",
     "swift": "The Swift SDK's worker surface: whether a failed job is retried, as a held job reports it on job:fail."
   },
   "cases": [

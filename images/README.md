@@ -41,11 +41,11 @@ question?"*, the distinction the professions themselves draw.
 ## This directory is the set of images
 
 Every directory here with a `Dockerfile` is an image, and the tooling takes the set from this
-directory, not from a list: `scripts/ci/local-build.sh` builds what is here, and the supervision
+directory, not from a list: `images/local-build.sh` builds what is here, and the supervision
 gate, the NOTICE and Rust-builder lints, the Python licence check and `lint:coverage-roster` all
 read it. Two lists are still written by hand, and each is held to this directory: the matrix in
 [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml), by
-`scripts/release/verify-release.sh`, and the path filters in
+`.github/release/verify-release.sh`, and the path filters in
 [`ci.yml`](../.github/workflows/ci.yml), by `lint:workflows`.
 
 So an image added here needs:
@@ -58,3 +58,10 @@ So an image added here needs:
    README and its row here, which `lint:coverage-roster` names when one is missing;
 4. a role in the launcher's [`descriptors.go`](../packages/go/launcher/descriptors.go), which
    is what starts it.
+
+## Local builds and shared tooling
+
+Run `./images/local-build.sh` from the repository root to build the local stack,
+including its packages and launcher. [Local builds](LOCAL-BUILD.md) covers the options.
+`shared/` holds the boot entrypoint and supervisor copied into service images;
+`scripts/` holds image build, management, verification, and local-registry helpers.

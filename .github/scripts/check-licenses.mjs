@@ -6,7 +6,7 @@
 // Scope is the packages an image installs from npm (a `pkg:npm/` purl) and from
 // PyPI (`pkg:pypi/`) — OS/apk packages (e.g. git) are out of scope here and
 // covered by the per-image NOTICE, and the crates a Rust binary links are held
-// by scripts/lint/check-image-crates.mjs, since a binary states no license.
+// by images/scripts/check-image-crates.mjs, since a binary states no license.
 //
 // Usage: node check-licenses.mjs <sbom.spdx.json> <allowlist.txt> [exceptions.txt]
 //
