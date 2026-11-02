@@ -49,7 +49,7 @@ from semiont.types import EngineProvider
 
 from semiont_inference._log import LOG
 from semiont_inference._once import refused_discovery
-from semiont_inference._openai_library import open_library, request_headers
+from semiont_inference._openai_library import open_library, refusal_words, request_headers
 from semiont_inference._schema import array_schema
 from semiont_inference._telemetry import record
 from semiont_inference._tokens import Counts, as_usage, read_counts
@@ -137,7 +137,7 @@ class ChatCompletions:
                 headers = request_headers(library, api_key=self._api_key, with_a_body=False)
                 listed = await library.get("/models", cast_to=str, options={"headers": headers, "timeout": _LIST_TIMEOUT})
         except APIStatusError as refused:
-            raise refused_discovery(learning, refused.status_code, refused.message) from refused
+            raise refused_discovery(learning, refused.status_code, refusal_words(refused)) from refused
         except Exception as unlearned:
             raise RuntimeError(learning) from unlearned
         try:
@@ -249,7 +249,7 @@ class ChatCompletions:
             return await self._request(prompt, max_tokens, temperature, held_to)
         except APIStatusError as refused:
             self._record(started, "error", (None, None))
-            raise ProviderStatusError(refused.message, refused.status_code) from refused
+            raise ProviderStatusError(refusal_words(refused), refused.status_code) from refused
         except BaseException:
             # An answer that could not be read at all, a failure of the library's with no status (a
             # connection that ended), which is passed on as it came, and a caller that cancelled. The
