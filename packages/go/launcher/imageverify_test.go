@@ -46,14 +46,14 @@ var (
 	stepImageOutput = regexp.MustCompile(`^\$\{\{ steps\.([A-Za-z0-9_-]+)\.outputs\.image \}\}$`)
 	// imageTagsPerService: a step that asks image-tags.sh for the image of
 	// the job's matrix service.
-	imageTagsPerService = regexp.MustCompile(`scripts/ci/image-tags\.sh "\$\{\{ matrix\.service \}\}"`)
+	imageTagsPerService = regexp.MustCompile(`images/scripts/image-tags\.sh "\$\{\{ matrix\.service \}\}"`)
 )
 
 // imageTagsImage: the image image-tags.sh names for a service, $SERVICE
 // standing for the service.
 func imageTagsImage(t *testing.T) string {
 	t.Helper()
-	script, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "ci", "image-tags.sh"))
+	script, err := os.ReadFile(filepath.Join("..", "..", "..", "images", "scripts", "image-tags.sh"))
 	if err != nil {
 		t.Fatal(err)
 	}

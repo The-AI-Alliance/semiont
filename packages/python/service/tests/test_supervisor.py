@@ -1,4 +1,4 @@
-"""The container supervisor, `scripts/container/supervise.sh`, run as an image runs it, over a child that dies on cue.
+"""The container supervisor, `images/shared/supervise.sh`, run as an image runs it, over a child that dies on cue.
 
 Every image runs its service under that one script when the launcher asks it
 to. It is tested here because this package reads what the script writes (the
@@ -21,7 +21,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Final
 
-SUPERVISOR: Final = Path(__file__).resolve().parents[4] / "scripts" / "container" / "supervise.sh"
+SUPERVISOR: Final = Path(__file__).resolve().parents[4] / "images" / "shared" / "supervise.sh"
 
 _LONGEST_WAIT: Final = 90.0
 """How long a test waits for a line it expects, in seconds: a crash-looping life here is eleven of them."""

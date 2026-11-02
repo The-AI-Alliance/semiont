@@ -26,7 +26,7 @@ command line.
 There is one service account for each stack service: the gateway, archivist, dispatcher,
 librarian, smelter, weaver and worker. Each proves itself with its secret but the worker, which
 proves itself with a key: one RSA key for the machine, kept in the file store under the
-launcher's data directory (`machine/worker-key`) whichever store a knowledge base names, and
+launcher's data directory (`shared/worker-key`) whichever store a knowledge base names, and
 never sent anywhere — the worker signs each sign-in with it, and a realm holds only its public
 half. `semiont worker key` prints that public half. A daemon's password exists only when the
 launcher runs that daemon.

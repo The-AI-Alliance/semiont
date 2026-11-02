@@ -772,7 +772,7 @@ func TestStartDefaultBoot(t *testing.T) {
 
 // The launcher half of the split supervision gate: local runs pass the
 // SEMIONT_SUPERVISE opt-in (the image half, that every image can be
-// supervised, is scripts/compliance/audit-supervision.sh). Published images
+// supervised, is images/scripts/audit-supervision.sh). Published images
 // run their CMD directly — supervision is a per-run opt-in, and LOCAL
 // placement is the one place with no orchestrator restart policy, so the
 // launcher must grant it to every service it starts. A service missing the

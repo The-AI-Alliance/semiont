@@ -1,5 +1,5 @@
 # Generated from specs/src/client/timing.json; do not edit.
-# Regenerate: node scripts/spec/generate-client-timing-python.mjs
+# Regenerate: node packages/codegen/schemas/generate-client-timing-python.mjs
 
 """The timing a Semiont client keeps: its deadlines, its retry budgets, the
 cadence of its stream, and what it keeps count of.

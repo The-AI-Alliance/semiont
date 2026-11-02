@@ -54,7 +54,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 - Git
 - A container runtime: Apple Container, Docker or Podman
 
-That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/), and for the Kotlin SDK the JDK its [`.java-version`](packages/kotlin/sdk/.java-version) names (its wrapper, `./gradlew`, fetches Gradle).
+That is enough: [`images/local-build.sh`](images/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/), and for the Kotlin SDK the JDK its [`.java-version`](packages/kotlin/sdk/.java-version) names (its wrapper, `./gradlew`, fetches Gradle).
 
 ### Initial Setup
 
@@ -72,7 +72,7 @@ That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds 
    `.semiont/stack/*.yaml` (`ghcr.io/the-ai-alliance/semiont-gateway:local`, and so on for each
    service), and the Browser's and the worker's in their own documents:
    ```bash
-   ./scripts/ci/local-build.sh
+   ./images/local-build.sh
    cd ../semiont-template-kb
    perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings browser --path)"
    perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings worker --path)"

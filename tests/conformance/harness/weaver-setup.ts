@@ -7,7 +7,7 @@
  * starts none: the database is a server, and a run inside a container cannot
  * start another. A run without them fails here and says so. It is not skipped.
  * The suite CLEARS the database it is given, so it is given one of its own
- * (`scripts/ci/neo4j-image.sh` prints the image to start).
+ * (`packages/go/launcher/scripts/neo4j-image.sh` prints the image to start).
  */
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
@@ -45,7 +45,7 @@ export default function setup(project: TestProject): void {
     const missing = [...(host ? [] : ['NEO4J_HOST']), ...(password ? [] : ['NEO4J_PASSWORD'])];
     throw new Error(
       `The weaver suite runs against a real neo4j, which it clears, and ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set. ` +
-        'Start one for it alone (`scripts/ci/neo4j-image.sh` prints the image; NEO4J_AUTH=neo4j/<password>) ' +
+        'Start one for it alone (`packages/go/launcher/scripts/neo4j-image.sh` prints the image; NEO4J_AUTH=neo4j/<password>) ' +
         'and set NEO4J_HOST to its address and NEO4J_PASSWORD to that password.',
     );
   }

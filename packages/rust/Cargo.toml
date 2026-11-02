@@ -22,7 +22,7 @@ members = [
 ]
 
 # What the crates published to crates.io share. `version` is version.json's:
-# scripts/release/cargo-version.sh writes it here, beside the three paths
+# packages/rust/scripts/cargo-version.sh writes it here, beside the three paths
 # below that name it, and in Cargo.lock, and CI fails a crate that carries
 # another.
 [workspace.package]
