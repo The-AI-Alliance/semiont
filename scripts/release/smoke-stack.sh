@@ -16,8 +16,8 @@
 # publishing nothing.
 #
 # WHAT IT ASSERTS, and nothing more: that every health gate opens against a
-# real service at a real route, that the realm the launcher STAGES imports and
-# answers, that the realm allows the Browser's origin, and that `stop` releases
+# real service at a real route, that the realm the start CREATES through
+# Keycloak's admin API answers, that the realm allows the Browser's origin, and that `stop` releases
 # every claimed port. It does NOT assert that inference works — what a model
 # does is tests/e2e's question, which assumes a stack is already up and drives
 # the product through a browser.
@@ -176,8 +176,9 @@ head_ "Status"
 # is unhealthy, so the exit status IS the assertion.
 if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
-head_ "The realm the launcher staged"
-# If the import silently produced a different realm, this 404s.
+head_ "The realm the start created"
+# A new KB's Keycloak holds no realm until the start creates it: if it created
+# another, or none, this 404s.
 curl -fsS http://localhost:8080/realms/semiont >/dev/null \
   && ok "realm 'semiont' answers" || bad "realm 'semiont' does not answer"
 curl -fsS http://localhost:8080/realms/semiont/.well-known/openid-configuration >/dev/null \
@@ -196,7 +197,7 @@ HDR=$(curl -s -D- -o /dev/null -X POST \
   | tr -d '\r' | grep -i '^access-control-allow-origin:')
 case "$HDR" in
   *"http://localhost:3000"*) ok "origin echoed: $HDR" ;;
-  *) bad "the realm did not allow http://localhost:3000 — a freshly imported realm cannot complete sign-in" ;;
+  *) bad "the realm did not allow http://localhost:3000 — a freshly created realm cannot complete sign-in" ;;
 esac
 
 if [ "$E2E" = true ]; then

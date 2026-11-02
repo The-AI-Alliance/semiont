@@ -971,10 +971,15 @@ func TestStartDryRunNetworkLAN(t *testing.T) {
 		"-p <host-addr>:18080:8080",
 		"KC_HOSTNAME=http://<lan-addr>:8080",
 		"issuer-proxy --listen <lan-addr>:8080 --upstream <host-addr>:18080 --realm semiont",
-		"wait: http://<host-addr>:18080/realms/semiont (90s)",
+		"wait: http://<host-addr>:18080/realms/master (90s)",
+		"ask http://<host-addr>:18080/realms/semiont, and where Keycloak does not hold it, create realm \"semiont\": POST http://<host-addr>:18080/admin/realms",
 		"wait: http://<lan-addr>:8080/realms/semiont (15s)",
 		"network lan: the gateway answers the network at <lan-addr>:4000",
 		"network lan: the issuer answers it at http://<lan-addr>:8080/realms/semiont")
+	// The proxy answers for the realm, so the realm comes first.
+	if strings.Index(stdout, "create realm") > strings.Index(stdout, "issuer-proxy --listen") {
+		t.Errorf("a lan start runs the issuer proxy before it creates the realm the proxy answers for:\n%s", stdout)
+	}
 	for _, absent := range []string{"127.0.0.1:4000:4000", "<host-addr>:8080:8080"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("a lan start still publishes %s:\n%s", absent, stdout)
@@ -2106,7 +2111,7 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	}
 	realm, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-semiont-example.github.io-other-kb-keycloak.json"))
 	if err != nil {
-		t.Fatalf("the realm the second start's issuer imported: %v", err)
+		t.Fatalf("the realm the second start created: %v", err)
 	}
 	mustContain(t, "the second start's realm", string(realm), semiont.KbResource("example.github.io:other-kb"))
 	if strings.Contains(string(realm), semiont.KbResource("example.github.io:test-kb")) {
@@ -2120,6 +2125,44 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	}
 	roots, _, _ := s.run(t, "roots")
 	mustContain(t, "roots", roots, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
+}
+
+// A start creates the knowledge base's realm when its Keycloak holds none, and
+// a later start finds it held and leaves it as it is: one create across both,
+// as a realm outlives Keycloak in its database.
+func TestAStartCreatesTheRealmOnceAndLeavesItThereafter(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("the first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	doc, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+".json"))
+	if err != nil {
+		t.Fatalf("the realm the first start created: %v", err)
+	}
+	var created struct {
+		Realm string `json:"realm"`
+	}
+	if err := json.Unmarshal(doc, &created); err != nil || created.Realm == "" {
+		t.Fatalf("the realm the first start created names no realm (%v):\n%s", err, doc)
+	}
+	mustContain(t, "the first start", stdout+stderr, "Realm "+created.Realm+": created")
+
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("the second start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the second start", stdout+stderr, "Realm "+created.Realm+": held by Keycloak, left as it is")
+	log, err := os.ReadFile(filepath.Join(s.fakertDir, "admin-"+containerOf("keycloak")+".log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(log), "POST /admin/realms "); got != 1 {
+		t.Fatalf("the two starts created the realm %d times, want once:\n%s", got, log)
+	}
 }
 
 // withGatewayPort makes root's KnowledgeBase document commit port as its
@@ -12465,8 +12508,8 @@ func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 
 // A KnowledgeBase whose issuer is the Issuer document the launcher runs — the
 // fixture's — boots Keycloak after PostgreSQL and before the gateway: its
-// database created on that PostgreSQL if absent, the realm file staged and
-// imported, the bootstrap admin password per root, and every service's
+// database created on that PostgreSQL if absent, the realm created through
+// its admin API, the bootstrap admin password per root, and every service's
 // staged document states the issuer.
 
 // The identity path in PLAN mode: a golden for everything the
@@ -12536,7 +12579,7 @@ func externalIssuer(t *testing.T, s *scenario) {
 }
 
 // An issuer someone else runs gets the SAME preflight as one the launcher
-// starts — and needs it more. A launcher-run realm is imported from the
+// starts — and needs it more. A launcher-run realm is created from the
 // launcher's own document and is correct by construction; an external one had
 // its clients created by hand.
 //
