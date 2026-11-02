@@ -58,7 +58,7 @@ conformance = [
 dev = [
     "datamodel-code-generator==0.87.0",
     "hypothesis>=6.130,<7",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
     "pyright==1.1.414",
     "pytest>=9.1,<10",
     "pytest-cov==7.1.0",
