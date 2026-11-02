@@ -9,6 +9,42 @@ namespace Semiont.Tests;
 
 public sealed class CensusTests
 {
+    public static IEnumerable<object[]> Refusals()
+    {
+        foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "refusals"), "*.cs").Order())
+        {
+            var source = File.ReadAllText(file);
+            var firstLine = source.Split('\n')[0];
+            Assert.StartsWith("// expect: ", firstLine);
+            yield return new object[] { source, firstLine["// expect: ".Length..].Trim() };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Refusals))]
+    public async Task RefusalFixturesReportTheirExpectedDiagnostic(string source, string expected)
+    {
+        var tree = CSharpSyntaxTree.ParseText(source);
+        var references = new[]
+        {
+            MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Runtime.CompilerServices.DynamicAttribute).Assembly.Location),
+            MetadataReference.CreateFromFile(System.Reflection.Assembly.Load("System.Runtime").Location),
+        };
+        var compilation = CSharpCompilation.Create("Example", [tree], references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable));
+        var compilerDiagnostics = compilation.GetDiagnostics();
+        if (expected.StartsWith("SEM", StringComparison.Ordinal))
+        {
+            Assert.DoesNotContain(compilerDiagnostics, diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        }
+        var analyzerDiagnostics = await compilation.WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new CensusAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+        Assert.Contains(compilerDiagnostics.Concat(analyzerDiagnostics), diagnostic => diagnostic.Id == expected);
+        Assert.DoesNotContain(analyzerDiagnostics, diagnostic => diagnostic.Id == "AD0001");
+    }
+
     [Fact]
     public async Task SkippedTestIsRefused()
     {
