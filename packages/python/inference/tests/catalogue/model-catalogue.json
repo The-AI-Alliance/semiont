@@ -1,7 +1,7 @@
 {
   "package": "@opencode-ai/models",
-  "version": "0.0.116",
-  "generatedAt": "2026-10-26T05:35:33.224Z",
+  "version": "0.0.119",
+  "generatedAt": "2026-10-29T05:26:25.333Z",
   "license": "MIT",
   "providers": {
     "google": {
@@ -10,14 +10,12 @@
         "deep-research-preview-04-2026": {"limit":{"context":131072,"input":null,"output":65536},"reasoning":true,"reasoning_options":[],"status":null,"structured_output":null,"temperature":true},
         "gemini-2.5-computer-use-preview-10-2025": {"limit":{"context":128000,"input":null,"output":64000},"reasoning":true,"reasoning_options":[],"status":null,"structured_output":null,"temperature":true},
         "gemini-2.5-flash": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"toggle"},{"type":"budget_tokens","min":0,"max":24576}],"status":null,"structured_output":true,"temperature":true},
-        "gemini-2.5-flash-image": {"limit":{"context":32768,"input":null,"output":32768},"reasoning":false,"reasoning_options":null,"status":null,"structured_output":null,"temperature":true},
+        "gemini-2.5-flash-image": {"limit":{"context":32768,"input":null,"output":32768},"reasoning":false,"reasoning_options":null,"status":"deprecated","structured_output":null,"temperature":true},
         "gemini-2.5-flash-lite": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"toggle"},{"type":"budget_tokens","min":512,"max":24576}],"status":null,"structured_output":true,"temperature":true},
         "gemini-2.5-pro": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"budget_tokens","min":128,"max":32768}],"status":null,"structured_output":true,"temperature":true},
         "gemini-3-flash-preview": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
         "gemini-3-pro-image": {"limit":{"context":65536,"input":null,"output":32768},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","high"]}],"status":null,"structured_output":null,"temperature":true},
-        "gemini-3-pro-image-preview": {"limit":{"context":131072,"input":null,"output":32768},"reasoning":true,"reasoning_options":[],"status":null,"structured_output":null,"temperature":true},
         "gemini-3.1-flash-image": {"limit":{"context":131072,"input":null,"output":32768},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","high"]}],"status":null,"structured_output":null,"temperature":true},
-        "gemini-3.1-flash-image-preview": {"limit":{"context":65536,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","high"]}],"status":null,"structured_output":null,"temperature":true},
         "gemini-3.1-flash-lite": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","low","medium","high"]}],"status":null,"structured_output":true,"temperature":true},
         "gemini-3.1-flash-lite-image": {"limit":{"context":65536,"input":null,"output":4096},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","high"]}],"status":null,"structured_output":false,"temperature":true},
         "gemini-3.1-flash-lite-preview": {"limit":{"context":1048576,"input":null,"output":65536},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","low","medium","high"]}],"status":"deprecated","structured_output":true,"temperature":true},
@@ -78,6 +76,7 @@
         "gpt-6-luna": {"limit":{"context":1050000,"input":922000,"output":128000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["none","low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":false},
         "gpt-6-sol": {"limit":{"context":1050000,"input":922000,"output":128000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["none","low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":false},
         "gpt-6.1-sol": {"limit":{"context":1050000,"input":922000,"output":128000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":false},
+        "gpt-6.1-terra": {"limit":{"context":1050000,"input":922000,"output":128000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["none","low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":false},
         "gpt-daybreak-blue-latest": {"limit":{"context":1050000,"input":922000,"output":128000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["none","low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":false},
         "gpt-daybreak-red-latest": {"limit":{"context":400000,"input":272000,"output":128000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["none","low","medium","high","xhigh","max"]}],"status":null,"structured_output":true,"temperature":false},
         "gpt-realtime-2.1": {"limit":{"context":128000,"input":96000,"output":32000},"reasoning":true,"reasoning_options":[{"type":"effort","values":["minimal","low","medium","high","xhigh"]}],"status":null,"structured_output":false,"temperature":false},

@@ -83,7 +83,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^5.0.5",
-    "autoprefixer": "^10.6.1",
+    "autoprefixer": "^10.6.2",
     "axe-core": "^4.14.0",
     "cssnano": "^9.9.0",
     "fast-check": "^4.10.0",
