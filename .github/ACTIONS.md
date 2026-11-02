@@ -65,8 +65,8 @@ release calls it.
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
 - npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
 - Go modules: `apps/launcher`, `packages/go/sdk`
-- Cargo: the Rust workspace at the root, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `rust-toolchain.toml`
-- GitHub Actions, and the Docker base images of the Browser and the seven service images; the desktop builder's is a Rust image, which the toolchain entry moves
+- Cargo: the Rust workspace at the root; the Rust toolchain: `rust-toolchain.toml`
+- GitHub Actions, and the Docker base images of the Browser and the seven service images
 - A cooldown before a new release is adopted; security updates are not held by it
 - `npm run lint:dependabot` (the Census job of `ci.yml`) fails when a tracked manifest has no entry, or an entry names a directory with none
 - `npm run lint:rust-toolchain` (the Census job of `ci.yml`) fails when the Rust version is written anywhere but `rust-toolchain.toml`
