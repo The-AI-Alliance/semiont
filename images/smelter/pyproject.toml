@@ -52,7 +52,7 @@ semiont-vectors = { path = "../../packages/python/vectors", editable = true }
 dev = [
     # What makes the histories of tests/test_properties.py.
     "hypothesis>=6.130,<7",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
     "pyright==1.1.414",
     "pytest>=9.1,<10",
     "pytest-cov==7.1.0",
