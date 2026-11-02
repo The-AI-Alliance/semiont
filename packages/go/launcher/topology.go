@@ -23,9 +23,6 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
-// keycloakRealmName: the realm of the Keycloak the launcher runs.
-const keycloakRealmName = "semiont"
-
 // placement: a start's documents and plan, and where it runs: what each
 // address in a service's document is decided from.
 type placement struct {
@@ -61,15 +58,15 @@ func (p placement) exposure() exposure {
 	return exposure{rt: p.rt, addr: p.addr, lan: p.lan}
 }
 
-// issuer: the issuer a container signs in at — the Keycloak the launcher runs
-// at the host a container reaches it by, or the issuer somebody else runs as
-// its document states it.
+// issuer: the issuer a container signs in at — the knowledge base's realm at
+// the Keycloak the launcher runs, at the host a container reaches it by, or
+// the issuer somebody else runs as its document states it.
 func (p placement) issuer() string {
 	rp := p.plan.Roles["identity"]
 	if rp.Presence != presenceLauncher {
 		return rp.Issuer
 	}
-	return p.keycloakHostname() + "/realms/" + keycloakRealmName
+	return p.keycloakHostname() + issuerPath(rp.Issuer)
 }
 
 // keycloakHostname: the origin of the issuer the launcher's Keycloak serves.

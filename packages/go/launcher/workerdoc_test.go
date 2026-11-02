@@ -172,7 +172,7 @@ func TestWorkerDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if kb.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", kb.GatewayUrl)
 	}
-	if kb.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+	if kb.Identity.Issuer != "http://192.168.64.1:8080/realms/example.github.io-test-kb" {
 		t.Errorf("issuer = %q", kb.Identity.Issuer)
 	}
 	if kb.Identity.ClientId != serviceClientID("worker") {

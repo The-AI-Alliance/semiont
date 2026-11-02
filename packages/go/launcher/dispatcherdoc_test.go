@@ -46,7 +46,7 @@ func TestDispatcherDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.GatewayUrl != "http://192.168.64.1:14100" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address on its port", doc.GatewayUrl)
 	}
-	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/example.github.io-test-kb" {
 		t.Errorf("issuer = %q", doc.Identity.Issuer)
 	}
 	if doc.Queue.Servers != "192.168.64.1:4222" {

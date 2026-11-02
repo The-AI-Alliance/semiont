@@ -539,7 +539,7 @@ func ghCodespace(args []string, joined string) {
 		// tunnel's own origin, which is where the local fake serves its realm.
 		issuer := os.Getenv("FAKERT_GH_CS_ISSUER")
 		if issuer == "" {
-			issuer = "http://keycloak.localhost:" + codespaceKeycloakPort(codespaceArg(args)) + "/realms/semiont"
+			issuer = "http://keycloak.localhost:" + codespaceKeycloakPort(codespaceArg(args)) + "/realms/" + fakeRealm
 		}
 		os.Setenv("FAKERT_ADVERTISED_ISSUER", issuer)
 		serve("semiont-gateway", ports)
@@ -709,11 +709,6 @@ func writeRemoteKB(w io.Writer, withGit bool) error {
 	return gz.Close()
 }
 
-// recordContainerEnv writes FAKERT_DIR/env-<name>: the environment the
-// container starts with, one NAME=value per line — what `inspect` would show.
-// A bare `--env NAME` is copied from this process's own environment, as both
-// real runtimes do, and absent when that is unset: the argv log alone cannot
-// show a value that crossed through the runtime's environment.
 // recordRealm keeps the realm document a Keycloak container imports at boot
 // (`-v <file>:/opt/keycloak/data/import/<realm>.json`), by the container's
 // name, as the realm it then serves. A Keycloak imports it once and answers
@@ -782,6 +777,11 @@ func realmAudiences(container, client string) ([]string, bool, error) {
 	return nil, false, nil
 }
 
+// recordContainerEnv writes FAKERT_DIR/env-<name>: the environment the
+// container starts with, one NAME=value per line — what `inspect` would show.
+// A bare `--env NAME` is copied from this process's own environment, as both
+// real runtimes do, and absent when that is unset: the argv log alone cannot
+// show a value that crossed through the runtime's environment.
 func recordContainerEnv(name string, args []string) {
 	dir := os.Getenv("FAKERT_DIR")
 	if dir == "" || name == "" {
@@ -2145,6 +2145,26 @@ func grantingClient(form url.Values) string {
 	return form.Get("client_id")
 }
 
+// fakeRealm: the realm a fake gateway advertises its knowledge base's issuer
+// under. The launcher learns an issuer from the resource metadata and never
+// assumes its realm, so the fake's own name serves.
+const fakeRealm = "fake-kb"
+
+// realmPath splits a path under /realms/<realm> into the realm and the rest of
+// the path, as Keycloak serves every realm it holds. ok is false for any other
+// path, and for the master realm, which is the admin's.
+func realmPath(p string) (realm, rest string, ok bool) {
+	tail, under := strings.CutPrefix(p, "/realms/")
+	if !under {
+		return "", "", false
+	}
+	realm, rest, _ = strings.Cut(tail, "/")
+	if realm == "" || realm == "master" {
+		return "", "", false
+	}
+	return realm, "/" + rest, true
+}
+
 // fixedHostname: the origin a Keycloak container was started with as its
 // fixed hostname (KC_HOSTNAME), as its run recorded its environment; empty for
 // a container started without one.
@@ -2362,7 +2382,8 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					return
 				}
 				// The knowledge base's issuer, served on the same port under
-				// /realms/semiont: the resource metadata names it, discovery
+				// /realms/<realm>, for every realm, as Keycloak serves every realm
+				// it holds: the resource metadata names fakeRealm's, discovery
 				// names its endpoints, and the device + token endpoints run
 				// the grant — every JSON-bodied, Content-Type explicit (the
 				// generated Go client parses JSON200 only when the header
@@ -2374,8 +2395,9 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				//   FAKERT_PIN_REDIRECT_PORT=1 the realm pins loopback redirects to :3000,
 				//                             refusing the any-port loopback of RFC 8252 §7.3
 				origin := "http://" + r.Host
-				issuer := origin + "/realms/semiont"
-				advertised := issuer
+				realm, at, inRealm := realmPath(r.URL.Path)
+				issuer := origin + "/realms/" + realm
+				advertised := origin + "/realms/" + fakeRealm
 				if a := os.Getenv("FAKERT_ADVERTISED_ISSUER"); a != "" {
 					advertised = a
 				}
@@ -2393,7 +2415,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					})
 					return
 				}
-				if r.URL.Path == "/realms/semiont/.well-known/openid-configuration" {
+				if inRealm && at == "/.well-known/openid-configuration" {
 					jsonOut(200, map[string]any{
 						"issuer":                        issuer,
 						"authorization_endpoint":        issuer + "/protocol/openid-connect/auth",
@@ -2408,7 +2430,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				// redirect URI is registered. Keycloak renders an HTML error for
 				// either failure, which is why existence is decided at the device
 				// endpoint instead.
-				if r.URL.Path == "/realms/semiont/protocol/openid-connect/auth" {
+				if inRealm && at == "/protocol/openid-connect/auth" {
 					q := r.URL.Query()
 					if m := os.Getenv("FAKERT_MISSING_CLIENT"); m != "" && q.Get("client_id") == m {
 						http.Error(w, "Client not found.", 400)
@@ -2439,7 +2461,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					_, _ = w.Write([]byte("<html><body>Sign in to semiont</body></html>"))
 					return
 				}
-				if r.URL.Path == "/realms/semiont/protocol/openid-connect/auth/device" {
+				if inRealm && at == "/protocol/openid-connect/auth/device" {
 					_ = r.ParseForm()
 					// Only a real device-authorization request is recorded. The
 					// identity preflight also probes this endpoint, sending
@@ -2467,7 +2489,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					})
 					return
 				}
-				if r.URL.Path == "/realms/semiont/protocol/openid-connect/token" {
+				if inRealm && at == "/protocol/openid-connect/token" {
 					_ = r.ParseForm()
 					// A realm whose browser client names the Browser's real
 					// origin echoes it back; Keycloak matches web origins
@@ -2530,7 +2552,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 									[]byte(aud+"\n"), 0o644)
 							}
 							if origin := fixedHostname(container); origin != "" {
-								realmAt := origin + "/realms/semiont"
+								realmAt := origin + "/realms/" + realm
 								if aud != realmAt && aud != realmAt+"/protocol/openid-connect/token" {
 									jsonOut(400, map[string]any{"error": "invalid_client", "error_description": "Invalid token audience"})
 									return
@@ -2580,7 +2602,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					}
 					return
 				}
-				if r.URL.Path == "/realms/semiont/protocol/openid-connect/revoke" {
+				if inRealm && at == "/protocol/openid-connect/revoke" {
 					_ = r.ParseForm()
 					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 						_ = os.WriteFile(filepath.Join(dir, "revoked.txt"), []byte(r.PostForm.Encode()+"\n"), 0o644)
