@@ -1482,7 +1482,7 @@ conformance = [
 dev = [
     { name = "datamodel-code-generator", specifier = "==0.87.0" },
     { name = "hypothesis", specifier = ">=6.130,<7" },
-    { name = "mypy", specifier = "==2.4.0" },
+    { name = "mypy", specifier = "==2.4.1" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
@@ -1536,7 +1536,7 @@ provides-extras = ["anthropic", "google", "llamacpp", "openai", "together", "vll
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = "==2.4.0" },
+    { name = "mypy", specifier = "==2.4.1" },
     { name = "opentelemetry-sdk", specifier = ">=1.30,<2" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
@@ -1569,7 +1569,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "mypy", specifier = "==2.4.0" },
+    { name = "mypy", specifier = "==2.4.1" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = ">=9.1,<10" },
     { name = "pytest-cov", specifier = "==7.1.0" },
