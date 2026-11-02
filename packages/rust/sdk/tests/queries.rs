@@ -4,7 +4,7 @@
 //! watching holds; and what a returning client is shown
 //! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B16–B20). The same
 //! behaviour, against a real gateway, is the live layer of
-//! tests/conformance/sdk.
+//! packages/conformance/sdk.
 
 use semiont::cache::CacheState;
 use semiont::cached::Observed;

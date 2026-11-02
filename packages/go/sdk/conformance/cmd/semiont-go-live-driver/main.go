@@ -1,6 +1,6 @@
 // Command semiont-go-live-driver is the Go SDK's live driver: the program the
 // SDK conformance suite talks to in the Go SDK's place for its live layer
-// (tests/conformance/sdk/README.md, § The live driver). It holds a client, its
+// (packages/conformance/sdk/README.md, § The live driver). It holds a client, its
 // live queries and their cache, and reaches them only as an application does,
 // through what the SDK exports, so what the suite observes is what a caller of
 // the SDK gets.

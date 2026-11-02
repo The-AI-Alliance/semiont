@@ -16,13 +16,13 @@ other services (`semiont start`).
 | Command | `python -P -m semiont_weaver --config /etc/semiont/weaver.json` |
 | Code | Python, in this directory: [`src/semiont_weaver`](./src/semiont_weaver/) |
 | Specification | [docs/protocol/WEAVER.md](../../docs/protocol/WEAVER.md) |
-| Judged by | [tests/conformance/weaver](../../tests/conformance/weaver/README.md) |
+| Judged by | [packages/conformance/weaver](../../packages/conformance/weaver/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
 
 [WEAVER.md](../../docs/protocol/WEAVER.md) states what a Weaver does, rule by rule; the
-[weaver conformance suite](../../tests/conformance/weaver/README.md) holds a Weaver to each rule,
+[weaver conformance suite](../../packages/conformance/weaver/README.md) holds a Weaver to each rule,
 as a process behind a real gateway, a real Archivist and a real Neo4j.
 
 It follows the record as every follower of it does

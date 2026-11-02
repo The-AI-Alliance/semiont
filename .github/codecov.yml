@@ -220,6 +220,11 @@ ignore:
   - "packages/go/launcher/fakert/**"
   - "packages/go/launcher/harness/**"
 
+  # Independent test infrastructure, formerly under root tests/.
+  - "images/e2e/**"
+  - "docs/checks/doc-snippets/**"
+  - "packages/conformance/**"
+
   # Build artifacts
   - "**/dist/**"
   - "**/build/**"
@@ -237,8 +242,8 @@ ignore:
   - "**/scripts/**"
   - "packages/codegen/**"
   - "images/local-build.sh"
-  - "tests/fixtures/**"
-  - "tests/stack/**"
+  - "images/smelter/tools/fixtures/**"
+  - "images/tests/stack/**"
   - ".github/release/**"
 
 # Comment configuration

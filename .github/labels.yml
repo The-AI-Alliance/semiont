@@ -189,17 +189,17 @@
 # tests: one for each directory under tests/.
 - name: "tests:conformance"
   color: "f9d0c4"
-  description: "The conformance suites (tests/conformance)"
+  description: "The conformance suites (packages/conformance)"
 - name: "tests:doc-snippets"
   color: "f9d0c4"
-  description: "The documentation's TypeScript examples, typechecked (tests/doc-snippets)"
+  description: "The documentation's TypeScript examples, typechecked (docs/checks/doc-snippets)"
 - name: "tests:e2e"
   color: "f9d0c4"
-  description: "The end-to-end suite (tests/e2e)"
+  description: "The end-to-end suite (images/e2e)"
 
 - name: "tests:stack"
   color: "f9d0c4"
-  description: "The real-stack smoke test (tests/stack)"
+  description: "The real-stack smoke test (images/tests/stack)"
 
 # Of no dimension.
 - name: "good first issue"

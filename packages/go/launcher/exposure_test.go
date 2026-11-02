@@ -245,18 +245,18 @@ func TestTheContainersDialTheirSideOfAPortAPersonDialsToo(t *testing.T) {
 }
 
 // The end-to-end suite runs in a container, and under Apple container its
-// bridge (tests/e2e/e2e-localhost-bridge.mjs) forwards the suite's localhost
+// bridge (images/e2e/e2e-localhost-bridge.mjs) forwards the suite's localhost
 // ports to the bridge address. Each must go where a container dials it: the
 // containers' side of a port a person dials too, on a role a container can
 // reach at all.
 func TestTheE2EBridgeForwardsWhereTheContainersDial(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("..", "..", "..", "tests", "e2e", "e2e-localhost-bridge.mjs"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "..", "images", "e2e", "e2e-localhost-bridge.mjs"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	stated := regexp.MustCompile(`const PORTS = \{([^}]*)\};`).FindSubmatch(src)
 	if stated == nil {
-		t.Fatal("tests/e2e/e2e-localhost-bridge.mjs states no `const PORTS = { … };`")
+		t.Fatal("images/e2e/e2e-localhost-bridge.mjs states no `const PORTS = { … };`")
 	}
 	got := map[int]int{}
 	for _, pair := range regexp.MustCompile(`(\d+)\s*:\s*(\d+)`).FindAllSubmatch(stated[1], -1) {

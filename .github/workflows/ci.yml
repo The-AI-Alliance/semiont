@@ -221,7 +221,7 @@ jobs:
               - 'images/browser/**'
               - 'apps/desktop/**'
             conformance:
-              - 'tests/conformance/**'
+              - 'packages/conformance/**'
             # The Go modules, and what their tests read beyond them: every
             # workflow (imageverify_test.go), each image's Dockerfile and the
             # supervisor its entrypoint runs (imagepaths_test.go,
@@ -234,7 +234,7 @@ jobs:
               - '.github/workflows/**'
               - 'images/*/Dockerfile'
               - 'images/shared/supervise.sh'
-              - 'tests/e2e/e2e-localhost-bridge.mjs'
+              - 'images/e2e/e2e-localhost-bridge.mjs'
             # The Kotlin SDK. The JDK its builds run on is its .java-version,
             # read by packages/kotlin/scripts/jdk-version.sh, which is all's.
             swift:
@@ -273,7 +273,7 @@ jobs:
               - 'packages/typescript/react-ui/scripts/audit-*.sh'
               - 'images/scripts/audit-supervision.sh'
               - 'docs/**'
-              - 'tests/doc-snippets/**'
+              - 'docs/checks/doc-snippets/**'
               - 'images/*/Dockerfile'
 
       - name: Which areas run
@@ -638,7 +638,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Doc Snippets Audit (sdk docs' code fences compile against dist through the exports map)"
-          ./tests/doc-snippets/audit-doc-snippets.sh
+          ./docs/checks/doc-snippets/audit-doc-snippets.sh
           echo "::endgroup::"
 
       - name: Run React Hooks Ordering Audit
@@ -995,7 +995,7 @@ jobs:
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
   # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
-  # (tests/conformance/harness/paths.ts). Each suite built its own: nine
+  # (packages/conformance/harness/paths.ts). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
   # suites fetch them and build nothing. It runs whenever any suite does: its
@@ -1247,7 +1247,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer, and the job stream's
       # subjects — and bundles the spec with the root's redocly. Core is the one
@@ -1265,7 +1265,7 @@ jobs:
       # Black-box: it starts gateway processes and checks them against specs/.
       - name: Run the gateway conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:gateway
         env:
@@ -1312,7 +1312,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -1329,7 +1329,7 @@ jobs:
       # them only on the bus and their health port.
       - name: Run the dispatcher conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:dispatcher
         env:
@@ -1376,7 +1376,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -1393,7 +1393,7 @@ jobs:
       # them on the bus, at their HTTP surface and in the files they keep.
       - name: Run the Archivist conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:archivist
         env:
@@ -1440,7 +1440,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The TypeScript drivers run the built SDK, as an application would, and
       # the packages it is built on.
@@ -1493,7 +1493,7 @@ jobs:
       # agent, which their start scripts take from JAVA_OPTS.
       - name: Run the SDK conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:sdk
         env:
@@ -1561,7 +1561,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The TypeScript worker driver runs the built SDK over the built
       # transport, as a worker's author would.
@@ -1613,7 +1613,7 @@ jobs:
       # environment before it starts.
       - name: Run the worker conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:worker
         env:
@@ -1667,7 +1667,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1714,7 +1714,7 @@ jobs:
       # Archivist, records through the Archivist, and reads the graph.
       - name: Run the Weaver conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:weaver
         env:
@@ -1767,7 +1767,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1821,7 +1821,7 @@ jobs:
       # Archivist, records through the Archivist, and reads the index.
       - name: Run the Smelter conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:smelter
         env:
@@ -1878,7 +1878,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1958,7 +1958,7 @@ jobs:
       # the Librarian on the bus, and receives the telemetry it exports.
       - name: Run the Librarian conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:librarian
         env:
@@ -2008,7 +2008,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -2038,7 +2038,7 @@ jobs:
 
       - name: Run the worker-service conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:worker-service
         env:

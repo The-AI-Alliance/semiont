@@ -1,4 +1,4 @@
-"""The wire driver: this SDK's transport, as `tests/conformance/sdk/wire` drives it.
+"""The wire driver: this SDK's transport, as `packages/conformance/sdk/wire` drives it.
 
 It reaches the transport only as an application does, through what `semiont`
 exports, so what the suite observes is what a caller of the SDK gets.

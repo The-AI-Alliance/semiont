@@ -65,3 +65,7 @@ Run `./images/local-build.sh` from the repository root to build the local stack,
 including its packages and launcher. [Local builds](LOCAL-BUILD.md) covers the options.
 `shared/` holds the boot entrypoint and supervisor copied into service images;
 `scripts/` holds image build, management, verification, and local-registry helpers.
+
+The independent [e2e project](e2e/README.md) and [stack smoke tests](./tests/stack/README.md)
+exercise the assembled product. They have no Dockerfiles and are not shipped images.
+Smelter fixture generators live under `smelter/tools/fixtures/`.

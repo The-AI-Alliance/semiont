@@ -411,7 +411,16 @@ function changedAreas(jobs) {
   const packages = repository
     .filter((file) => /^(apps|images|packages)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
+  // E2e is an independent project whose PR consumer is Stack Smoke, not ci.yml.
+  const smokeWorkflow = yaml.load(readFileSync(join(ROOT, SMOKE), 'utf8'));
+  const smokePaths = smokeWorkflow.on?.pull_request?.paths ?? [];
   for (const dir of new Set(packages)) {
+    if (dir === 'images/e2e') {
+      if (!smokePaths.includes(`${dir}/**`)) failures.push(`${SMOKE}: independent e2e project ${dir} is not selected by its pull_request paths`);
+      const runs = Object.values(smokeWorkflow.jobs ?? {}).flatMap((job) => job.steps ?? []).map((step) => step.run ?? '').join('\n');
+      if (!runs.includes('images/tests/stack/smoke-stack.sh') || !runs.includes('--e2e')) failures.push(`${SMOKE}: the e2e consumer must run the stack smoke helper with --e2e`);
+      continue;
+    }
     if (!trees.some((tree) => dir === tree || dir.startsWith(`${tree}/`))) {
       failures.push(`${CI}: ${dir} has a manifest and no filter of the changes job names ${dir}/** or a directory above it: a change to it alone would run no job`);
     }

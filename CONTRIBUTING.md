@@ -167,13 +167,13 @@ npm test -w semiont-browser
 
 # The gateway (Rust): its own checks, then the conformance suite
 (cd packages/rust && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway)
-(cd tests/conformance && npm run test:gateway)
+(cd packages/conformance && npm run test:gateway)
 
 # The dispatcher, black-box, behind that gateway (needs cargo build --release -p semiont-dispatcher)
-(cd tests/conformance && npm run test:dispatcher)
+(cd packages/conformance && npm run test:dispatcher)
 
 # The SDKs, black-box, as clients of that gateway (needs cargo build --release -p semiont-conformance-drivers and npm run build:packages)
-(cd tests/conformance && npm run test:sdk)
+(cd packages/conformance && npm run test:sdk)
 
 # Type check
 npm run typecheck
@@ -304,9 +304,9 @@ npm test
 **Run service-specific tests:**
 ```bash
 cd images/browser && npm test                 # Browser suite
-cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` in packages/rust, and nats-server)
-cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
-cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
+cd packages/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` in packages/rust, and nats-server)
+cd packages/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
+cd packages/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
 ```
 
 ### Test Requirements for PRs
@@ -343,7 +343,7 @@ Update docs when you:
 
 How one app or package is built inside stays with it: `apps/<app>/docs/`, `images/<image>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
 
-Code in the docs is typechecked by CI, so an example has to compile ([`tests/doc-snippets`](tests/doc-snippets/)).
+Code in the docs is typechecked by CI, so an example has to compile ([`docs/checks/doc-snippets`](docs/checks/doc-snippets/)).
 
 ### Documentation Style
 

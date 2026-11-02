@@ -28,7 +28,7 @@ To run tools directly on your machine instead, the versions are:
 
 The repository holds code in seven languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
-- **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
+- **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `docs/checks/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/go/sdk`).
 - **A .NET solution**: the C# SDK (`packages/csharp/sdk`), with compiler and analyzer gates.
@@ -53,12 +53,15 @@ semiont/
 │   ├── worker/             # Python: claims jobs and runs them against a model
 │   ├── weaver/             # Python: keeps the graph in step with the record
 │   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
-│   └── browser/            # The Semiont Browser: a Vite + React single-page app
+│   ├── browser/            # The Semiont Browser: a Vite + React single-page app
+│   ├── e2e/                # Independent Playwright suite, against a live stack
+│   └── tests/stack/        # Real-stack smoke tests
 ├── apps/
 │   ├── desktop/            # Native chat client (Electron)
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
 │   ├── codegen/            # Shared bus and schema generators; specs/ holds their inputs
+│   ├── conformance/        # Independent shared black-box service and SDK suites
 │   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
 │   │   ├── core/           # Generated types, typed ids, the bus protocol
 │   │   ├── sdk/            # The TypeScript SDK
@@ -76,14 +79,9 @@ semiont/
 │   ├── python/graph/       # The graph databases a Python service writes and reads (package `semiont_graph`)
 │   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
 │   └── python/service/     # What every Python service does to be one (package `semiont_service`)
-├── tests/
-│   ├── stack/              # Real-stack smoke test
-│   ├── fixtures/           # Shared fixture generators
-│   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
-│   ├── e2e/                # Playwright, against a live stack
-│   └── doc-snippets/       # Typechecks the code in the docs
 ├── docs/                   # By persona: analyst/, builder/, operator/, contributor/;
 │                           #   and for every reader: architecture/, protocol/
+│   └── checks/doc-snippets/ # Typechecks documentation examples
 └── website/                # The project site
 ```
 
@@ -111,7 +109,7 @@ Each app, image and package has a README, and most have a `docs/` directory abou
 [`docs/builder`](../builder/README.md) is what someone building on the SDK reads. Three rules keep it one coherent set:
 
 - **Each kind of content has one home.** A concept a newcomer needs before any code goes in the [Introduction](../builder/INTRODUCTION.md) and nowhere else, so the mental model is taught in one place. A new recipe goes in the [Developer Guide](../builder/DEVELOPER-GUIDE.md), a new method in [Usage](../builder/Usage.md), a new design rationale in [Reactive model](../builder/REACTIVE-MODEL.md) or [State units](../builder/STATE-UNITS.md). A new cache behavior gets a B-number in [Cache semantics](../protocol/CACHE-SEMANTICS.md) and a test that cites it. A change that fits no one home is probably two changes.
-- **Code fences are compile-checked.** Every `ts`, `tsx` and `typescript` fence in the builder docs, the skills included, is extracted and type-checked against the built packages by `tests/doc-snippets/audit-doc-snippets.sh`, with a pass that catches an `await` on something that is not awaitable. Names a snippet does not define come from the prelude at [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts) (the skills have their own, `prelude-skills.ts`): extend the prelude rather than adding boilerplate to a snippet. Mark a fence `ts sketch` only for pseudocode or a display-only shape. Exemptions are counted, and the count should hold or shrink.
+- **Code fences are compile-checked.** Every `ts`, `tsx` and `typescript` fence in the builder docs, the skills included, is extracted and type-checked against the built packages by `docs/checks/doc-snippets/audit-doc-snippets.sh`, with a pass that catches an `await` on something that is not awaitable. Names a snippet does not define come from the prelude at [`docs/checks/doc-snippets/prelude.ts`](../checks/doc-snippets/prelude.ts) (the skills have their own, `prelude-skills.ts`): extend the prelude rather than adding boilerplate to a snippet. Mark a fence `ts sketch` only for pseudocode or a display-only shape. Exemptions are counted, and the count should hold or shrink.
 - **Wire-level truth lives in [`docs/protocol/`](../protocol/README.md).** [TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) is what every transport honors, [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) the wire over a gateway, and [EVENT-BUS.md](../protocol/EVENT-BUS.md) and [CHANNELS.md](../protocol/CHANNELS.md) the bus and its channels. The builder docs link there and do not restate wire format.
 
 Before changing an SDK itself, read [Reactive model](../builder/REACTIVE-MODEL.md) and [State units](../builder/STATE-UNITS.md) for the constraints a change has to fit, [Cache semantics](../protocol/CACHE-SEMANTICS.md) before touching anything the cache backs, and the protocol docs before touching anything on the wire. The axiom and liveness harnesses in `@semiont/core/testing/axioms` are the executable half of those docs. The test doubles are at `@semiont/core/testing`, which needs no `fast-check`.

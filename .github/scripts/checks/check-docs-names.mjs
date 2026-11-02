@@ -244,7 +244,7 @@ const BROWSER_METHODS = members('packages/typescript/sdk/src/session/semiont-bro
 const SCRIPTS = new Set();
 // The root, every workspace, and the test suites that are npm projects of their own.
 for (const pj of [join(ROOT, 'package.json'), ...workspaceDirectories(ROOT).map((dir) => join(ROOT, dir, 'package.json')),
-  ...readdirSync(join(ROOT, 'tests')).map((name) => join(ROOT, 'tests', name, 'package.json'))]) {
+  ...['images/e2e', 'packages/conformance'].map((dir) => join(ROOT, dir, 'package.json'))]) {
   if (existsSync(pj)) for (const s of Object.keys(JSON.parse(read(pj)).scripts ?? {})) SCRIPTS.add(s);
 }
 
@@ -263,7 +263,8 @@ const DOCS = [
   ...NPM_PACKAGES.flatMap((dir) => ownDocs(dir)),
   'apps/README.md',
   'images/README.md',
-  ...[...TREE].filter((f) => /^(?:apps|images)\/[^/]+\/README\.md$/.test(f)).flatMap((f) => ownDocs(dirname(f))),
+  // Only shipped images have product-surface docs; independent test projects do not.
+  ...[...TREE].filter((f) => /^apps\/[^/]+\/README\.md$/.test(f) || (/^images\/[^/]+\/README\.md$/.test(f) && TREE.has(`${dirname(f)}/Dockerfile`))).flatMap((f) => ownDocs(dirname(f))),
   ...markdownIn('docs/protocol'),
   ...markdownIn('docs/protocol/flows'),
 ];

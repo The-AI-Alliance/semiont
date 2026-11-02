@@ -47,7 +47,7 @@ set -euo pipefail
 #   - **/test-utils.tsx                 — test helpers
 #   - **/.generated/**                  — build output, not source. The doc-snippets gate
 #                                          extracts every doc code fence into
-#                                          tests/doc-snippets/.generated/*.ts
+#                                          docs/checks/doc-snippets/.generated/*.ts
 #                                          to type-check it; REACTIVE-MODEL.md documents
 #                                          `client.bus.on(...)` and
 #                                          `client.wire.emit(...)` as the *sanctioned*

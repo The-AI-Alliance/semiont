@@ -1,0 +1,59 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * Read required env vars early and fail fast with a clear message.
+ * Tests don't run without these: test-user creation is not automated, so
+ * the test runner expects the user to bring up a gateway with a known user.
+ */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `\n[e2e] Missing required env var: ${name}\n` +
+      `      Export it before running, e.g.:\n` +
+      `        export ${name}=...\n` +
+      `      See images/e2e/README.md for the full list.\n`,
+    );
+    process.exit(1);
+  }
+  return value;
+}
+
+// The Browser the tests drive. Default matches the local container exposure.
+export const BROWSER_URL = process.env.E2E_BROWSER_URL ?? 'http://localhost:3000';
+
+// Gateway the Browser points at. Separate from BROWSER_URL because the
+// sign-in form asks for host/port/protocol explicitly.
+export const GATEWAY_URL = process.env.E2E_GATEWAY_URL ?? 'http://localhost:4000';
+
+// Credentials for the sign-in flow. Required — no defaults so tests can't
+// accidentally hit a shared account.
+export const E2E_EMAIL = requireEnv('E2E_EMAIL');
+export const E2E_PASSWORD = requireEnv('E2E_PASSWORD');
+
+export default defineConfig({
+  testDir: './specs',
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
+  fullyParallel: false,  // Single worker until tests + fixtures are isolated.
+  workers: 1,
+  retries: 0,            // Flakes should be diagnosed, not retried away.
+  reporter: [['list'], ['html', { open: 'never' }]],
+  // Seed the KB with the minimum fixtures the suite assumes (≥2
+  // resources). Idempotent — re-runs against an already-seeded KB
+  // skip cleanly. Goes through `@semiont/sdk` like every other
+  // production caller. See `scripts/seed.ts`.
+  globalSetup: require.resolve('./scripts/seed.ts'),
+  use: {
+    baseURL: BROWSER_URL,
+    trace: 'retain-on-failure',
+    video: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+  ],
+});

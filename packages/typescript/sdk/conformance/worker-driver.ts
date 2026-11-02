@@ -1,8 +1,8 @@
 /**
  * The TypeScript worker driver for the worker conformance suite
- * (tests/conformance/worker). The suite starts it, sends it one operation per
+ * (packages/conformance/worker). The suite starts it, sends it one operation per
  * line on stdin and reads what it did, and what it saw, one line at a time
- * from stdout; tests/conformance/worker/README.md is the protocol.
+ * from stdout; packages/conformance/worker/README.md is the protocol.
  *
  * It reaches the worker's surface only as a worker's author does, through
  * what `@semiont/sdk` and `@semiont/core` export: `job.claim`, the claims it

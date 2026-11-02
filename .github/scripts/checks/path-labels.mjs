@@ -32,6 +32,9 @@ const APPS = new Set(
  * trailing slash: it is in what everything below it is in.
  */
 export function pathLabel(path) {
+  path = path.replace(/^\/+/, '');
+  const suites = { 'images/e2e/': 'e2e', 'images/tests/stack/': 'stack', 'docs/checks/doc-snippets/': 'doc-snippets', 'packages/conformance/': 'conformance' };
+  for (const [prefix, suite] of Object.entries(suites)) if (path.startsWith(prefix)) return `tests:${suite}`;
   const [top, owner, ...below] = path.replace(/^\/+/, '').split('/');
   if (top === 'specs' && owner === 'src') {
     const part = Object.keys(SPEC_PARTS).find((name) => SPEC_PARTS[name].includes(below[0]));
@@ -39,8 +42,7 @@ export function pathLabel(path) {
   }
   if (owner === undefined || owner === '' || below.length === 0) return null;
   if (top === 'apps') return `app:${owner}`;
-  if (top === 'images') return ['scripts', 'shared'].includes(owner) ? null : `image:${owner}`;
-  if (top === 'tests') return owner === 'fixtures' ? null : `tests:${owner}`;
+  if (top === 'images') return ['scripts', 'shared', 'e2e', 'tests'].includes(owner) ? null : `image:${owner}`;
   if (top === 'packages' && below.length > 1) {
     if (below[0] === 'sdk') return `sdk:${owner}`;
     if (APPS.has(below[0])) return `app:${below[0]}`;

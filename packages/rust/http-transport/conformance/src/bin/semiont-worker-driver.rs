@@ -1,5 +1,5 @@
 //! The Rust worker driver for the worker conformance suite
-//! (tests/conformance/worker; its README.md is the protocol): a worker's
+//! (packages/conformance/worker; its README.md is the protocol): a worker's
 //! claims and the jobs it holds, driven one operation per line on stdin,
 //! reporting what the worker claimed, was refused, and was told on stdout.
 //!

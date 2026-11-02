@@ -120,7 +120,7 @@ def factory_hits(lines, sf):
                 break
 
 hits = []
-for base in ("packages", "apps", "images", "tests"):
+for base in ("packages", "apps", "images", "docs/checks"):
     for f in pathlib.Path(base).rglob("*.ts*"):
         sf = str(f)
         if any(x in sf for x in ("/node_modules/", "/dist/", "/coverage/")):

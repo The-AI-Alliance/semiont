@@ -141,7 +141,7 @@ react-ui's [Styles](../../../docs/builder/react-ui/STYLES.md).
 
 - **See the bus.** In the page's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for
   every bus event the page sends and receives. It is usually the fastest way to see what a
-  change did ([bus logging](../../../tests/e2e/docs/bus-logging.md)).
+  change did ([bus logging](../../e2e/docs/bus-logging.md)).
 - **Who am I signed in as?** `GET /api/users/me` on the gateway, with the session's token,
   answers the DID every event is attributed to.
 - **Sign-in fails.** Look at the identity provider's logs, not the gateway's: a sign-in that

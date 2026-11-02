@@ -27,6 +27,8 @@ echo "🔍 Auditing the spec validator (A6)..."
 
 # ---------------------------------------------------------------------------
 # A6a: only the generator constructs Ajv.
+# The independent conformance harness validates its own case documents and
+# protocol observations; it was outside this production-code audit under tests/.
 # ---------------------------------------------------------------------------
 offenders=""
 while IFS= read -r hit; do
@@ -34,9 +36,10 @@ while IFS= read -r hit; do
   offenders+="$hit"$'\n'
 done < <(grep -rn "new Ajv(" \
       --include="*.ts" --include="*.tsx" --include="*.mjs" --include="*.js" \
-      "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/scripts" 2>/dev/null \
+      "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/.github" 2>/dev/null \
       | grep -v "/node_modules/" \
       | grep -v "/dist/" \
+      | grep -v "$REPO_ROOT/packages/conformance/" \
       | grep -v "$GENERATOR" || true)
 
 if [ -n "$offenders" ]; then
@@ -57,9 +60,10 @@ fi
 # ---------------------------------------------------------------------------
 if converters=$(grep -rn "nullable === true\|convertNullable" \
       --include="*.ts" --include="*.tsx" --include="*.mjs" --include="*.js" \
-      "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/scripts" 2>/dev/null \
+      "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/.github" 2>/dev/null \
       | grep -v "/node_modules/" \
       | grep -v "/dist/" \
+      | grep -v "$REPO_ROOT/packages/conformance/" \
       | grep -v "$CONVERTER" \
       | grep -v "$GENERATOR:[0-9]*:import { convertNullable } from './openapi-schema.mjs';" \
       | grep -v "$GENERATOR:[0-9]*:  convertNullable(converted);"); then
