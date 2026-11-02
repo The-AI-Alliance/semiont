@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/endpoint_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/GatewayUrlTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's gateway origin, made from a knowledge base's HTTP endpoint."
+  },
   "cases": [
     {
       "why": "this machine, over HTTP",

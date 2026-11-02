@@ -8,6 +8,9 @@
     "worker": ["images/worker/tests/test_retry_job_rule.py"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/retry/RetryCasesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's retry module: whether a failed request is worth another attempt."
+  },
   "rules": [
     {
       "why": "429 is the server saying not now",

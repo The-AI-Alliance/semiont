@@ -20,6 +20,9 @@
   "absent": {
     "typescript": "No TypeScript code names a principal: the gateway, in Rust, mints every DID it acts for."
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's names of the principals the gateway acts for."
+  },
   "person": "did:web:{domain}:users:{subject}",
   "people": [
     {

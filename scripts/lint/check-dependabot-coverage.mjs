@@ -13,6 +13,8 @@
  *   npm             package-lock.json: one entry per install root (the root's
  *                   covers its workspaces)
  *   gomod           go.mod
+ *   gradle          settings.gradle.kts: one entry per Gradle build
+ *   swift           Package.swift
  *   cargo           Cargo.toml; a workspace member's is covered by the entry
  *                   for its workspace, whose one lockfile Dependabot updates
  *   rust-toolchain  rust-toolchain.toml, rust-toolchain
@@ -54,6 +56,7 @@ const MANIFESTS = {
   npm: (file) => basename(file) === 'package-lock.json',
   gomod: (file) => basename(file) === 'go.mod',
   gradle: (file) => basename(file) === 'settings.gradle.kts',
+  swift: (file) => basename(file) === 'Package.swift',
   cargo: (file) => basename(file) === 'Cargo.toml',
   'rust-toolchain': (file) => ['rust-toolchain.toml', 'rust-toolchain'].includes(basename(file)),
   docker: (file) => /dockerfile/i.test(basename(file)) && writesAnImageTag(file),

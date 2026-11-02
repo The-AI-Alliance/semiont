@@ -48,7 +48,7 @@ import { workspaceDirectories } from './workspaces.mjs';
 const ROOT = process.cwd();
 const CODECOV = '.github/codecov.yml';
 const WORKFLOW = '.github/workflows/ci.yml';
-const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts'];
+const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts', 'Package.swift'];
 const yaml = createRequire(join(ROOT, 'package.json'))('js-yaml');
 
 const read = (file) => {
