@@ -250,7 +250,7 @@ button:disabled {
 }
 
 .app__powered-mark {
-  font-family: 'Orbitron', system-ui, sans-serif;
+  font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
   font-size: 0.92rem;
   text-transform: uppercase;
@@ -264,6 +264,7 @@ button:disabled {
 
 .app__body {
   display: grid;
+
   /* sidebar | resizer | chat — the first column width is driven by inline style. */
   grid-template-columns: 17rem 1px 1fr;
   flex: 1;
@@ -617,6 +618,7 @@ body.resizing {
   flex-direction: column;
   gap: 1px;
 }
+
 /* Rendered as an <a> (external Browser) or a <button> (in-app); the resets keep both identical. */
 .kb__doc {
   display: block;
@@ -639,6 +641,7 @@ body.resizing {
   background: var(--field);
   color: var(--accent);
 }
+
 /* The open document — purple, like an active chat session. */
 .kb__doc--active,
 .kb__doc--active:hover {
@@ -800,12 +803,14 @@ body.resizing {
   flex: 1;
   overflow-y: auto;
   padding: 1.5rem 1.75rem;
+
   /* ChatPane owns the scroll position (stick-to-bottom + resize re-pin). Browser scroll
      anchoring fights that during late bubble growth — its adjustments fire scroll events
      that read as "the user scrolled up" and break the stick. */
   overflow-anchor: none;
   display: flex;
   flex-direction: column;
+
   /* The icon row under each bubble is in-flow now — it provides part of the visual
      separation, so the gap stays modest. */
   gap: 1rem;
@@ -861,6 +866,7 @@ body.resizing {
   padding: 0.4rem 1rem 0.5rem;
   border-bottom: 1px solid var(--border-soft);
 }
+
 /* A tag update the server rejected (vocabulary gate) — inline under the strip. */
 .rview__tagerr {
   margin: 0;
@@ -919,6 +925,7 @@ body.resizing {
   min-width: 0;
   min-height: 0;
 }
+
 /* The pane body: one grid — a single column normally, `chat | divider | doc` when the
    split is on (columns set inline from the measured width + persisted doc width). */
 .mainbody {
@@ -935,6 +942,7 @@ body.resizing {
   gap: 1rem;
   padding: 0 1.5rem 0.7rem;
 }
+
 /* Under the doc view the scrolling body needs a visual edge (chat's compose bar brings
    its own border-top). */
 .rview + .appfooter {
@@ -1024,6 +1032,7 @@ body.resizing {
   color: var(--faint);
   pointer-events: none;
 }
+
 /* Compose-time mention chip: react-ui's `annotation-reference` class supplies the reference
    look (identical to a rendered reference span); this only spaces it as an inline atom. */
 .cchip {
@@ -1482,7 +1491,7 @@ body.resizing {
   align-self: flex-end;
   max-width: 80%;
   padding: 0.35rem 0.6rem;
-  border-radius: 14px 14px 4px 14px;
+  border-radius: 14px 14px 4px;
   background: var(--accent-soft);
   border: 1px solid var(--accent-ring);
   color: var(--text);
@@ -1731,6 +1740,7 @@ body.resizing {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
 /* The resource behind this bubble failed to load (typically: history from a different KB
    than the one now behind this URI) — the held text is all there is, so dim it. */
 .msg--stale {
@@ -1757,6 +1767,7 @@ body.resizing {
   pointer-events: none;
   transition: opacity 120ms ease;
 }
+
 /* The hover surface is the full-width STRIPE at the message's vertical position (the
    wrapper spans the pane; the bubble column keeps its own width/alignment inside it) —
    short bubbles shouldn't demand pixel-hunting. */
@@ -1786,6 +1797,7 @@ body.resizing {
   background: var(--accent);
   border-color: var(--accent);
 }
+
 /* Viewer bubbles: the card chrome lives on .msg__card INSIDE the wrapper, so the icon
    row below it sits outside the border in normal flow. (The plain non-viewer variants
    keep their chrome on the base classes.) */
@@ -1804,7 +1816,7 @@ body.resizing {
 }
 .turn__q--viewer .msg__card {
   padding: 0.35rem 0.6rem;
-  border-radius: 14px 14px 4px 14px;
+  border-radius: 14px 14px 4px;
   background: var(--accent-soft);
   border: 1px solid var(--accent-ring);
 }
@@ -1893,6 +1905,7 @@ body.resizing {
   color: var(--text);
   font-weight: 500;
 }
+
 /* Annotate-mode comment/tag body input (AnnotationCreator's TextBodyForm). */
 .annform {
   display: flex;
