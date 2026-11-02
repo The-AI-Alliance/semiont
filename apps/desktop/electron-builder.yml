@@ -1,0 +1,37 @@
+appId: org.theaialliance.semiont
+productName: Semiont Desktop
+directories:
+  output: release
+  buildResources: assets
+files:
+  - out/**
+  - package.json
+  - '!node_modules/**'
+npmRebuild: false
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  category: public.app-category.productivity
+  icon: assets/icon.icns
+dmg:
+  title: Semiont Desktop
+linux:
+  syncDesktopName: true
+  category: Utility
+  icon: assets/icon.png
+  target:
+    - target: deb
+      arch: x64
+deb:
+  maintainer: The AI Alliance
+  depends:
+    - libgtk-3-0
+    - libnss3
+    - libatk1.0-0
+    - libatk-bridge2.0-0
+    - libx11-xcb1
+    - libxcb-dri3-0
+    - libdrm2
+    - libgbm1
+    - libasound2

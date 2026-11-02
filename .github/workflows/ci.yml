@@ -2294,8 +2294,9 @@ jobs:
             -v "$GITHUB_WORKSPACE":/workspace \
             -w /workspace/packages/swift/sdk \
             "swift:$(../../../packages/swift/scripts/swift-version.sh)" \
-            sh -c 'mkdir -p "$HOME" && swift build && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
-      # Tests and their coverage arrive in P2.
+            sh -c 'mkdir -p "$HOME" && swift test --enable-code-coverage && Scripts/coverage.sh && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
+      - name: The coverage report was written
+        run: test -s .build/coverage.lcov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:
