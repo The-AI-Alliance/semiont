@@ -169,18 +169,18 @@ built instrumented, so its coverage counts what the suite runs too.
 ## Building it
 
 From the repository root, with the toolchain
-[`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh) prints:
+[`packages/rust/scripts/rust-toolchain.sh`](../../packages/rust/scripts/rust-toolchain.sh) prints:
 
 ```bash
-docker build --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh) \
+docker build --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.sh) \
   --file images/archivist/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-archivist:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and the publish workflow pass
+[`images/local-build.sh`](../local-build.sh) and the publish workflow pass
 the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the gateway's and
 the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to
-[`scripts/container/check-document-image.sh`](../../scripts/container/check-document-image.sh):
+[`images/scripts/check-document-image.sh`](../scripts/check-document-image.sh):
 no source and no Node in it, and, with no configuration document mounted, a prompt refusal
 that names the document it cannot read.
 

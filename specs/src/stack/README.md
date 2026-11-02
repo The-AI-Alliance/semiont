@@ -55,7 +55,7 @@ keep, and no document names them.
 ## What holds a document to its schema
 
 - **The cases.** [`cases.json`](cases.json) states, for a document, whether it
-  is accepted, or refused where and why. `scripts/spec/check-stack.mjs`
+  is accepted, or refused where and why. `.github/scripts/checks/specs/check-stack.mjs`
   (`lint:spec-stack`) runs every case with Ajv, and so does the launcher
   (`packages/go/launcher/stack/read_test.go`), with the schemas it carries.
   The lint also validates every document of the launcher's fixture knowledge
@@ -63,5 +63,5 @@ keep, and no document names them.
 - **The launcher's reader.** `packages/go/launcher/stack` validates a
   document against its schema, naming the line of each refusal, and only then
   decodes it into its type. The types and the schema text are generated:
-  `node scripts/spec/generate-stack-go.mjs`, checked for drift in CI, and
+  `node packages/codegen/schemas/generate-stack-go.mjs`, checked for drift in CI, and
   `lint:spec-stack` holds every property of a schema to a field of the types.

@@ -136,8 +136,8 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 		t.Fatalf("reading the archivist Dockerfile: %v", err)
 	}
 	for what, want := range map[string]string{
-		"the shared supervisor":              "scripts/container/supervise.sh",
-		"the boot entrypoint that arms it":   "scripts/container/boot.sh",
+		"the shared supervisor":              "images/shared/supervise.sh",
+		"the boot entrypoint that arms it":   "images/shared/boot.sh",
 		"the entry point, stated once (CMD)": "/usr/local/bin/semiont-archivist",
 		"the supervisor's probe target":      "SUPERVISE_PROBE=http://localhost:24103/health",
 	} {
@@ -145,7 +145,7 @@ func TestArchivistRunsUnderTheSupervisor(t *testing.T) {
 			t.Errorf("the archivist Dockerfile is missing %s (expected to find %q) — a crashed or hung Archivist stays down, and its absence looks like a frontend hang", what, want)
 		}
 	}
-	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "scripts", "container", "supervise.sh"))
+	sup, err := os.ReadFile(filepath.Join("..", "..", "..", "images", "shared", "supervise.sh"))
 	if err != nil {
 		t.Fatalf("reading supervise.sh: %v", err)
 	}

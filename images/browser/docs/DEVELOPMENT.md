@@ -42,7 +42,7 @@ container. Under Vite, add the knowledge base by hand.
 ## Run it as the shipped container
 
 When a change needs to be exercised as the image, or it touches a package a service runs,
-rebuild with [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and name the
+rebuild with [`images/local-build.sh`](../../local-build.sh) and name the
 `:local` image: `ghcr.io/the-ai-alliance/semiont-browser:local` as `spec.image` in the
 Browser's document (`semiont settings browser --path` prints where it is), and `:local` in the
 knowledge base's `.semiont/stack/` documents for the services. An image still named `:latest` is the published one, and your change is not in it.

@@ -51,7 +51,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       # The package takes its version from version.json when it is built, so a
       # development release is built from a version.json that says so. Only
@@ -78,7 +78,7 @@ jobs:
       # built, named for the version, and the wheel is installed on its own
       # and every module of it imported.
       - name: Build the distributions and check them
-        run: scripts/ci/build-python-sdk.sh
+        run: packages/python/sdk/scripts/build-python-sdk.sh
 
       # A published version is permanent: its files can be yanked, never
       # replaced. One already on PyPI is skipped and said so, so a run can be

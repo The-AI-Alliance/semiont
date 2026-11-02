@@ -165,7 +165,7 @@ semiont stop
   KB's signals, each labelled with the KB that sent it, with Jaeger and
   Prometheus behind it. Their records live beside the stacks, as the
   Browser's and Ollama's do, and their configs (`collector.yaml`,
-  `prometheus.yml`) in `machine/` in the state home, written only as
+  `prometheus.yml`) in `shared/` in the state home, written only as
   their container (re)starts; their ports are never among a stack's claims.
   A start KEEPS a running one when it runs the image the start would, its
   record says this start's runtime and address, and its config is what this
@@ -186,9 +186,9 @@ semiont stop
   KB's start puts it on the list when one of its jobs has an engine, as that
   start places it, and takes it off when none does; `semiont worker kb add`,
   run inside a KB on the list, adds a KB someone else runs, offered that
-  one's engines. The list is kept in `machine/worker-knowledge-bases.json`
+  one's engines. The list is kept in `shared/worker-knowledge-bases.json`
   in the data home, beside the worker's key, and the worker's document,
-  naming every KB on it, in `machine/worker.json` in the state home. Until
+  naming every KB on it, in `shared/worker.json` in the state home. Until
   each local KB has a gateway port of its own, a start takes off the list
   any other local KB whose gateway was on its port, and says so; a KB added
   from one taken off goes unserved, and is said, until that one's next
@@ -640,7 +640,7 @@ semiont stop
   0/1 on that service alone.
 - **The images are the documents'**: each service runs the `image` its
   document names, and `semiont init` names `:latest`. An image tagged
-  `:local`, built on this machine by `scripts/ci/local-build.sh`, is never
+  `:local`, built on this machine by `images/local-build.sh`, is never
   pulled; a KB runs one by naming it. The Browser, which no KB owns, runs
   the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest`
   as the launcher writes it.
@@ -910,7 +910,7 @@ the other clients' form. What the server does that a verb does not:
   `packages/go/launcher/verbs/mcp-tools.json`, which names the SDK methods each tool calls
   and gives a reason for every method of the client surface no tool calls.
   Each tool's input and output schema is the spec's, made self-contained by
-  `scripts/spec/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
+  `packages/codegen/schemas/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
   fails when either drifts. `TestMCPToolsCensus` holds the table to
   `specs/src/client/surface.json` both ways.
 - **A call is checked before anything is sent**, and a refusal names every
@@ -1099,7 +1099,7 @@ drive it. Everything else it runs on is its libraries,
 Build and test both (hermetically — no Go on the host required):
 
 ```sh
-container run --rm -v "$(pwd)":/work -w /work "golang:$(scripts/ci/go-toolchain.sh)" \
+container run --rm -v "$(pwd)":/work -w /work "golang:$(packages/go/scripts/go-toolchain.sh)" \
   sh -c "cd apps/launcher && go vet ./... && go test ./... && cd ../../packages/go/launcher && go vet ./... && go test ./..."
 ```
 

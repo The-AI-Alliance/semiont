@@ -8,7 +8,7 @@
  * and a run inside a container cannot start another. A run without the three
  * fails here and names the ones that are missing. It is not skipped. The
  * suite CLEARS the graph database and the index it is given, so it is given
- * ones of its own (`scripts/ci/neo4j-image.sh` and `scripts/ci/qdrant-image.sh`
+ * ones of its own (`packages/go/launcher/scripts/neo4j-image.sh` and `packages/go/launcher/scripts/qdrant-image.sh`
  * print the images to start).
  */
 import { existsSync } from 'node:fs';
@@ -49,8 +49,8 @@ export default async function setup(project: TestProject): Promise<void> {
     const missing = [...(graphHost ? [] : ['NEO4J_HOST']), ...(graphPassword ? [] : ['NEO4J_PASSWORD']), ...(vectorHost ? [] : ['QDRANT_HOST'])];
     throw new Error(
       `The librarian suite runs against a real neo4j and a real Qdrant, both of which it clears, and ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set. ` +
-        'Start a neo4j for it alone (`scripts/ci/neo4j-image.sh` prints the image; NEO4J_AUTH=neo4j/<password>) and set NEO4J_HOST to its address and NEO4J_PASSWORD to that password. ' +
-        `Start a Qdrant for it alone (\`scripts/ci/qdrant-image.sh\` prints the image; its REST port is ${QDRANT_PORT}) and set QDRANT_HOST to its address.`,
+        'Start a neo4j for it alone (`packages/go/launcher/scripts/neo4j-image.sh` prints the image; NEO4J_AUTH=neo4j/<password>) and set NEO4J_HOST to its address and NEO4J_PASSWORD to that password. ' +
+        `Start a Qdrant for it alone (\`packages/go/launcher/scripts/qdrant-image.sh\` prints the image; its REST port is ${QDRANT_PORT}) and set QDRANT_HOST to its address.`,
     );
   }
   // Asked once here, so a vector database that is not there reads as that.

@@ -26,7 +26,8 @@ import (
 //
 // CI's "Launcher Tests (Go, Keycloak)" job runs it, with TestWorkerGrantLive
 // and TestStartCreatesTheRealmLive, against the Keycloak the launcher starts
-// (scripts/ci/keycloak-image.sh), and fails if any of them skips. Elsewhere it is skipped unless SEMIONT_LIVE_KEYCLOAK
+// (packages/go/launcher/scripts/keycloak-image.sh), and fails if any of them
+// skips. Elsewhere it is skipped unless SEMIONT_LIVE_KEYCLOAK
 // names a base URL. Run it with the admin password this root persisted:
 //
 //	SEMIONT_LIVE_KEYCLOAK=http://localhost:8080 \

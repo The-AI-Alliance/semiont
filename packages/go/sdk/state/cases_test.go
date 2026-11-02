@@ -7,7 +7,7 @@ package state_test
 // the case says they hold and said. A unit that the names table
 // (specs/src/client/surface.json, `stateUnits`) says this SDK lacks has its
 // cases left unrun. What the table may say is held by
-// scripts/lint/check-state-unit-cases.mjs; what a case cannot say, the axioms,
+// .github/scripts/checks/check-state-unit-cases.mjs; what a case cannot say, the axioms,
 // each unit's own test holds.
 //
 // Each case runs in a testing/synctest bubble of its own: a settle is

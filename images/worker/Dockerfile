@@ -8,7 +8,7 @@
 # packages support, which packages/python/sdk/pyproject.toml states
 # (requires-python), the one place it is written:
 #
-#   --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh)
+#   --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh)
 #
 # There is no default: without it a FROM names no image and the build stops,
 # rather than building on a Python nothing pinned.
@@ -89,13 +89,13 @@ COPY LICENSE images/worker/NOTICE /home/semiont/
 # Together can take, which those providers' own APIs do not say. A model of one
 # of them is asked with these facts, and the service's document names this
 # path (modelCatalogue). It is the repository's one generated copy, made by
-# scripts/inference/generate-model-catalogue.mjs from the npm package
+# packages/python/inference/scripts/generate-model-catalogue.mjs from the npm package
 # package.json pins, and held to that pin by CI's drift job. Nothing is fetched
 # to build it here. Its licence notice goes with it.
 COPY packages/python/inference/tests/catalogue/model-catalogue.json /usr/share/semiont/model-catalogue.json
 COPY packages/python/inference/tests/catalogue/model-catalogue.LICENSE /usr/share/semiont/model-catalogue.LICENSE
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+COPY images/shared/supervise.sh /usr/local/bin/supervise.sh
+COPY images/shared/boot.sh /usr/local/bin/boot.sh
 
 WORKDIR /kb
 RUN chown semiont:semiont /kb
