@@ -215,14 +215,18 @@ def _bars_image(document: _Document) -> int:
 
 # The smallest baseline JPEG: one block of 8 by 8 grey pixels, all of one grey, with Huffman tables of one code each.
 _JPEG: Final = bytes(
-    [0xFF, 0xD8]  # start of image
-    + [0xFF, 0xDB, 0x00, 0x43, 0x00, *[0x10] * 64]  # quantization table 0, flat
-    + [0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x08, 0x00, 0x08, 0x01, 0x01, 0x11, 0x00]  # baseline frame: 8 by 8, one component
-    + [0xFF, 0xC4, 0x00, 0x14, 0x00, 0x01, *[0x00] * 15, 0x00]  # DC table 0: one code of one bit, for the value 0
-    + [0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, *[0x00] * 15, 0x00]  # AC table 0: one code of one bit, for the end of a block
-    + [0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00]  # scan: one component, coefficients 0 to 63
-    + [0x3F]  # the block: DC 0, end of block, padding
-    + [0xFF, 0xD9]  # end of image
+    [
+        0xFF,
+        0xD8,  # start of image
+        *[0xFF, 0xDB, 0x00, 0x43, 0x00, *[0x10] * 64],  # quantization table 0, flat
+        *[0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x08, 0x00, 0x08, 0x01, 0x01, 0x11, 0x00],  # baseline frame: 8 by 8, one component
+        *[0xFF, 0xC4, 0x00, 0x14, 0x00, 0x01, *[0x00] * 15, 0x00],  # DC table 0: one code of one bit, for the value 0
+        *[0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, *[0x00] * 15, 0x00],  # AC table 0: one code of one bit, for the end of a block
+        *[0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00],  # scan: one component, coefficients 0 to 63
+        0x3F,  # the block: DC 0, end of block, padding
+        0xFF,
+        0xD9,  # end of image
+    ]
 )
 
 
@@ -297,7 +301,7 @@ def _multi_column() -> bytes:
 def _table() -> bytes:
     rows = (("Treatment", "Responders", "p-value"), ("Drug A", "12%", "0.03"), ("Drug B", "9%", "0.21"), ("Placebo", "4%", "0.88"))
     columns = (72, 250, 420)
-    cells = [_text([cell], x, 720 - 24 * at) for at, row in enumerate(rows) for x, cell in zip(columns, row)]
+    cells = [_text([cell], x, 720 - 24 * at) for at, row in enumerate(rows) for x, cell in zip(columns, row, strict=True)]
     document = _Document()
     document.text_page("\n".join(cells))
     return document.written()

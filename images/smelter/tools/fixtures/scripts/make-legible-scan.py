@@ -61,10 +61,7 @@ def load_font() -> ImageFont.FreeTypeFont:
             # font is tolerated here, which is why this catches OSError rather
             # than everything — a corrupt Pillow install should still raise.
             continue
-    raise SystemExit(
-        "no DejaVu truetype face found; install fonts-dejavu-core "
-        "(see the module docstring)"
-    )
+    raise SystemExit("no DejaVu truetype face found; install fonts-dejavu-core (see the module docstring)")
 
 
 def render_raster() -> bytes:
@@ -89,10 +86,14 @@ def build_pdf(raster: bytes) -> bytes:
     compressed = zlib.compress(raster, 9)
 
     image_obj = (
-        f"<< /Type /XObject /Subtype /Image /BitsPerComponent 8 "
-        f"/Width {RASTER_W} /Height {RASTER_H} /ColorSpace /DeviceGray "
-        f"/Filter /FlateDecode /Length {len(compressed)} >>\nstream\n"
-    ).encode("latin-1") + compressed + b"\nendstream"
+        (
+            f"<< /Type /XObject /Subtype /Image /BitsPerComponent 8 "
+            f"/Width {RASTER_W} /Height {RASTER_H} /ColorSpace /DeviceGray "
+            f"/Filter /FlateDecode /Length {len(compressed)} >>\nstream\n"
+        ).encode("latin-1")
+        + compressed
+        + b"\nendstream"
+    )
 
     content = f"q {IMG_W} 0 0 {IMG_H} {IMG_X} {IMG_Y} cm /Im0 Do Q".encode("latin-1")
 
@@ -100,15 +101,10 @@ def build_pdf(raster: bytes) -> bytes:
         1: b"<< /Type /Catalog /Pages 2 0 R >>",
         2: b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         3: (
-            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W} {PAGE_H}] "
-            f"/Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W} {PAGE_H}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"
         ).encode("latin-1"),
         4: image_obj,
-        5: (
-            f"<< /Length {len(content)} >>\nstream\n".encode("latin-1")
-            + content
-            + b"\nendstream"
-        ),
+        5: (f"<< /Length {len(content)} >>\nstream\n".encode("latin-1") + content + b"\nendstream"),
     }
 
     out = bytearray(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
@@ -121,9 +117,7 @@ def build_pdf(raster: bytes) -> bytes:
     out += b"xref\n0 6\n0000000000 65535 f \n"
     for num in sorted(bodies):
         out += f"{offsets[num]:010d} 00000 n \n".encode("latin-1")
-    out += (
-        f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n"
-    ).encode("latin-1")
+    out += (f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").encode("latin-1")
     return bytes(out)
 
 
