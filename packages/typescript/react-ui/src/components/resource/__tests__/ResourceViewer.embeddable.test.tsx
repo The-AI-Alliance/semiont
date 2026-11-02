@@ -1,7 +1,7 @@
 /**
  * The embeddable resource viewer — keystone acceptance spec.
  *
- * The consumer's (my-chat) actual requirement: render + interact with a resource
+ * The chat client's actual requirement: render + interact with a resource
  * fed ONLY a `SemiontSession` and a language, with NO provider of any kind
  * mounted. react-ui assumes no language, so the language is a required prop: a
  * locale, or the host's own translation manager. The viewer mounts its own

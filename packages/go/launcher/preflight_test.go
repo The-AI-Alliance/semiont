@@ -730,7 +730,7 @@ func TestFlagProbesSendNoCredential(t *testing.T) {
 
 // --- the realm's ACTUAL revocation window ------------------------------------
 //
-// A realm imports on first boot and never again, so a knowledge base can
+// A realm is created by its first start and never again, so a knowledge base can
 // configure a lifespan its realm has never heard of. `exp - iat` on a
 // service-account token is what the realm really stamps, and the only reading
 // available without administrator credentials.

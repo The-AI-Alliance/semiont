@@ -1,0 +1,19 @@
+# Per-user RUNTIME config — the Semiont knowledge bases the app connects to. You
+# normally don't touch this file: the app MANAGES it for you (add/edit KBs in the left
+# nav), storing it at:
+#
+#   desktop (Electron):  ~/.config/semiont-desktop/config.toml   (or $XDG_CONFIG_HOME/…)
+#   web:                 localStorage
+#
+# This example only documents the shape. It holds no credentials: signing in happens at
+# the knowledge base's issuer, in your browser, and the desktop app keeps the session
+# beside this file (sessions/, chmod 600). (The app title lives in the committed app.toml.
+# Which KBs are connected, your chat sessions, and the colour theme are stored separately
+# as app state.)
+
+# One [[kb]] per knowledge base, listed by its uri; the name + branch shown below the chat
+# bar are what the knowledge base says of itself, not from here. The alias is an optional,
+# purely local label.
+[[kb]]
+uri = "http://localhost:4000"
+# alias = "Family History"   # optional local label

@@ -268,10 +268,10 @@ func serviceClientSecretEnv(svc string) string {
 
 // loadOrCreateServiceClientSecret: the persisted per-root credential for one
 // sidecar's Keycloak service account, generating and persisting one on first
-// use. The same value reaches two places — the realm document Keycloak imports
-// and the container that has to present it — so both read it from here rather
-// than passing it between them. Persisted because the realm that honours it is
-// written once, on Keycloak's first boot.
+// use. The same value reaches two places — the realm document a start creates
+// the realm from, and the container that has to present it — so both read it
+// from here rather than passing it between them. Persisted because the realm
+// that honours it is created once, by the first start.
 func loadOrCreateServiceClientSecret(u *UI, key, svc string) (string, bool) {
 	// An explicit value wins, the same precedence $KC_BOOTSTRAP_ADMIN_PASSWORD
 	// has. Per service rather than one for all:

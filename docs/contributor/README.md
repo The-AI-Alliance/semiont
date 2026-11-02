@@ -55,7 +55,7 @@ semiont/
 │   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
 │   └── browser/            # The Semiont Browser: a Vite + React single-page app
 ├── apps/
-│   ├── desktop/            # The Browser as a desktop app (Tauri)
+│   ├── desktop/            # Native chat client (Electron)
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
 │   ├── codegen/            # Shared bus and schema generators; specs/ holds their inputs

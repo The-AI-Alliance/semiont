@@ -2259,7 +2259,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: packages/csharp/sdk/global.json
           cache: true
@@ -2294,8 +2294,9 @@ jobs:
             -v "$GITHUB_WORKSPACE":/workspace \
             -w /workspace/packages/swift/sdk \
             "swift:$(../../../packages/swift/scripts/swift-version.sh)" \
-            sh -c 'mkdir -p "$HOME" && swift build && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
-      # Tests and their coverage arrive in P2.
+            sh -c 'mkdir -p "$HOME" && swift test --enable-code-coverage && Scripts/coverage.sh && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
+      - name: The coverage report was written
+        run: test -s .build/coverage.lcov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
         with:
@@ -3616,7 +3617,7 @@ jobs:
             echo "::error::a live test skipped, so it was not run against Keycloak"
             exit 1
           fi
-          for test in TestIdentitySyncLive TestWorkerGrantLive; do
+          for test in TestIdentitySyncLive TestWorkerGrantLive TestStartCreatesTheRealmLive; do
             if ! grep -q -- "--- PASS: $test " live.out; then
               echo "::error::$test did not run and pass"
               exit 1

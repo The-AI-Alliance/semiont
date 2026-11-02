@@ -1,17 +1,50 @@
 {
   "name": "semiont-desktop",
+  "productName": "Semiont Desktop",
+  "desktopName": "Semiont Desktop",
   "version": "0.7.1",
+  "description": "Semiont Desktop",
+  "author": "The AI Alliance",
+  "homepage": "https://github.com/The-AI-Alliance/semiont",
   "engines": {
     "node": ">=24.15.0"
   },
   "private": true,
+  "type": "module",
+  "main": "out/main/index.cjs",
   "scripts": {
-    "tauri": "tauri",
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "build:container": "./build.sh"
+    "dev": "vite",
+    "build": "npm run typecheck && vite build --base ./ --outDir out/renderer --emptyOutDir && npm run electron:main",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "electron:main": "node scripts/build-electron.mjs",
+    "electron:dev": "npm run electron:main && ELECTRON_RENDERER_URL=http://localhost:5173 electron .",
+    "electron:package": "electron-builder --mac dmg --arm64",
+    "dist:mac": "npm run build && npm run electron:package"
+  },
+  "dependencies": {
+    "@semiont/core": "*",
+    "@semiont/react-ui": "*",
+    "@semiont/sdk": "*",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "smol-toml": "^1.7.0",
+    "styled-components": "^6.4.2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.4"
-  }
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "electron": "43.0.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
+    "jsdom": "^30.1.3",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
+  },
+  "keywords": [],
+  "license": "ISC"
 }

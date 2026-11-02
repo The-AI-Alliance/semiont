@@ -364,8 +364,7 @@ updates:
 
   # The repository's Rust toolchain (rust-toolchain.toml), which every Rust
   # build uses. Its channel is also the tag of every Rust image: the service
-  # images' builder stage (rust:<channel>-alpine) and the desktop builder
-  # (rust:<channel>-bookworm). local-build.sh, apps/desktop/build.sh,
+  # images' builder stage (rust:<channel>-alpine). local-build.sh,
   # publish-service-images.yml and build-images.js ask
   # packages/rust/scripts/rust-toolchain.sh for it, so one bump moves the compiler
   # everywhere; the cooldown gives the official images time to be published.
@@ -382,28 +381,6 @@ updates:
       - "kind:dependencies"
     commit-message:
       prefix: "gateway"
-      include: "scope"
-
-  # The desktop app's crates (apps/desktop/src-tauri, Tauri). One grouped PR,
-  # as for the gateway: Tauri's crates move together.
-  - package-ecosystem: "cargo"
-    directory: "/apps/desktop/src-tauri"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "app:desktop"
-    groups:
-      desktop-crates:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "desktop"
       include: "scope"
 
   # GitHub Actions dependencies
@@ -448,9 +425,6 @@ updates:
     commit-message:
       prefix: "browser-docker"
       include: "scope"
-
-  # The desktop builder (apps/desktop/Dockerfile.builder) has no entry: its one
-  # base image is rust:<channel>-bookworm, which the rust-toolchain entry moves.
 
   # Service image base images (images/<svc>/Dockerfile). Grouped into one PR:
   # the gateway's, the dispatcher's and the archivist's runtime base is one
