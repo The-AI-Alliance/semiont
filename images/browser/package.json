@@ -59,7 +59,7 @@
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.9",
     "react-markdown": "^10.1.0",
-    "react-router": "^8.5.0",
+    "react-router": "^8.5.1",
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
@@ -76,9 +76,9 @@
     "@vitest/coverage-v8": "^5.0.5",
     "@vitest/ui": "^5.0.3",
     "jsdom": "^30.1.3",
-    "postcss": "^8.5.31",
+    "postcss": "^8.5.32",
     "tailwindcss": "^4.2.1",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.2"
   }

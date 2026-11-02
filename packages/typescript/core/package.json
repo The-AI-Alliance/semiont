@@ -88,13 +88,13 @@
     "rollup": "^4.64.12",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^9.0.0",
-    "typescript": "^6.0.2",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   },
   "dependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "jose": "^6.2.13",
+    "jose": "^6.2.14",
     "rxjs": "^7.8.1"
   },
   "peerDependencies": {
