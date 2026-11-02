@@ -8,7 +8,8 @@
     "typescript": "No TypeScript code reads a DID's kind: the record, in Rust, attributes every write, and the Browser reads the agents the record gives it.",
     "python": "No Python code reads a DID's kind: the Librarian names principals from the record's profiles, and the worker states its own generator.",
     "go": "No Go code reads a DID's kind: the launcher and the Go SDK name the knowledge base and its people, and read no principal's DID.",
-    "kotlin": "No Kotlin code reads a DID's kind: the Kotlin SDK builds the DIDs of a knowledge base's people and agents, and reads no principal's kind."
+    "kotlin": "No Kotlin code reads a DID's kind: the Kotlin SDK builds the DIDs of a knowledge base's people and agents, and reads no principal's kind.",
+    "swift": "No Swift code reads a DID's kind: the Swift SDK builds the DIDs of a knowledge base's people and agents, and reads no principal's kind."
   },
   "cases": [
     {

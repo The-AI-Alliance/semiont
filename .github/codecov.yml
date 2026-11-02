@@ -124,6 +124,14 @@ component_management:
       name: "packages/go/launcher"
       paths:
         - packages/go/launcher/**
+    - component_id: swift-sdk
+      name: "packages/swift/sdk"
+      paths:
+        - packages/swift/sdk/**
+    - component_id: swift
+      name: "packages/swift"
+      paths:
+        - packages/swift/**
     - component_id: kotlin-sdk
       name: "packages/kotlin/sdk"
       paths:
@@ -218,7 +226,12 @@ ignore:
   - "**/*_gen.go"
 
   # Scripts
-  - "scripts/**"
+  - "**/scripts/**"
+  - "packages/codegen/**"
+  - "images/local-build.sh"
+  - "tests/fixtures/**"
+  - "tests/stack/**"
+  - ".github/release/**"
 
 # Comment configuration
 comment:
@@ -325,6 +338,10 @@ flags:
       - packages/go/launcher/**
     carryforward: true
 
+  swift-sdk:
+    paths:
+      - packages/swift/sdk/**
+    carryforward: true
   kotlin-sdk:
     paths:
       - packages/kotlin/sdk/**

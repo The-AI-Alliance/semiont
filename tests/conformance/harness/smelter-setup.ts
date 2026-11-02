@@ -7,7 +7,7 @@
  * database is a server, and a run inside a container cannot start another. A
  * run without the variable fails here and says so. It is not skipped. The
  * suite CLEARS the index of the database it is given, so it is given one of
- * its own (`scripts/ci/qdrant-image.sh` prints the image to start).
+ * its own (`packages/go/launcher/scripts/qdrant-image.sh` prints the image to start).
  */
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
@@ -44,7 +44,7 @@ export default async function setup(project: TestProject): Promise<void> {
   if (!host) {
     throw new Error(
       'The smelter suite runs against a real Qdrant, whose index it clears, and QDRANT_HOST is not set. ' +
-        `Start one for it alone (\`scripts/ci/qdrant-image.sh\` prints the image; its REST port is ${QDRANT_PORT}) ` +
+        `Start one for it alone (\`packages/go/launcher/scripts/qdrant-image.sh\` prints the image; its REST port is ${QDRANT_PORT}) ` +
         'and set QDRANT_HOST to its address.',
     );
   }

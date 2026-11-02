@@ -10,6 +10,9 @@
     "go": ["packages/go/sdk/clientassertion_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/ClientAssertionCasesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's client assertion: how a service account proves itself with a key instead of a secret."
+  },
   "form": ["grant_type", "client_assertion_type", "client_assertion"],
   "grantType": "client_credentials",
   "assertionType": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",

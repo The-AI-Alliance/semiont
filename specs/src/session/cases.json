@@ -8,6 +8,9 @@
     "launcher": ["packages/go/launcher/verbs/session_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/session/SessionCasesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's session: when it renews a token, a token's expiry, its bounded startup and its answer to a refusal."
+  },
   "refreshSchedule": [
     {
       "why": "an hour-long token just issued is renewed 300 seconds before it expires: the margin's ceiling",

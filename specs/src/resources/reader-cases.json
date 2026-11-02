@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/resources_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/resources/ResourceReadersTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's readers of a resource's description."
+  },
   "cases": [
     {
       "why": "representations given as a list: the first is the primary one, and it is given whole",

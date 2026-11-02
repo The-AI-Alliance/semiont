@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/buslog_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusLogTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's bus log, the line it writes for each frame when SEMIONT_BUS_LOG is set."
+  },
   "names": [
     "token",
     "cloneToken",

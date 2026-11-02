@@ -69,11 +69,11 @@ Smelter is, and every decision it carries is held to its schema.
 **The run is told where its Qdrant is,** in `QDRANT_HOST` (its REST port,
 6333), and starts none. Without it the run fails, and says so; it is not
 skipped. **It clears the index of the database it is given,** so it is given
-one of its own. `scripts/ci/qdrant-image.sh` prints the image the launcher
+one of its own. `packages/go/launcher/scripts/qdrant-image.sh` prints the image the launcher
 starts for an operator, which is the one to run:
 
 ```bash
-docker run -d --name smelter-suite-qdrant -p 6333:6333 "$(scripts/ci/qdrant-image.sh)"
+docker run -d --name smelter-suite-qdrant -p 6333:6333 "$(packages/go/launcher/scripts/qdrant-image.sh)"
 QDRANT_HOST=localhost npm run test:smelter
 ```
 

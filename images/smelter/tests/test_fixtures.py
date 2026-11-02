@@ -1,11 +1,11 @@
 """The PDFs the tests read, held to the program that writes them.
 
 `specs/src/smelter/fixtures/` is kept in the repository, so that every reader
-of a fixture reads the same bytes. `scripts/fixtures/make-pdf-fixtures.py`
+of a fixture reads the same bytes. `tests/fixtures/scripts/make-pdf-fixtures.py`
 writes all of them but one, the same bytes on every run: a fixture changed by
 hand, or a program changed without its files written again, fails here.
 `legible-scan.pdf` needs a typeface and is another program's
-(`scripts/fixtures/make-legible-scan.py`), which nothing here can run.
+(`tests/fixtures/scripts/make-legible-scan.py`), which nothing here can run.
 """
 
 import importlib.util
@@ -15,7 +15,7 @@ from typing import Final, Protocol
 from spec import ROOT, SPEC, read, text
 
 FIXTURES: Final = SPEC / "smelter/fixtures"
-PROGRAM: Final = ROOT / "scripts/fixtures/make-pdf-fixtures.py"
+PROGRAM: Final = ROOT / "tests/fixtures/scripts/make-pdf-fixtures.py"
 DRAWN_ELSEWHERE: Final = "legible-scan.pdf"
 
 

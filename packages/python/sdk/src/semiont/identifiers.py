@@ -1,5 +1,5 @@
 # Generated from specs/src/identifiers/kinds.json and each kind's schema; do not edit.
-# Regenerate: node scripts/spec/generate-identifiers-python.mjs
+# Regenerate: node packages/codegen/schemas/generate-identifiers-python.mjs
 
 """The kinds of id.
 

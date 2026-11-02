@@ -139,7 +139,7 @@ A stack's containers reach each other through your machine's own address, so the
 
 ## Images built from source
 
-The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh), name the `:local` images in the documents, and the Browser's and the worker's in their own documents (`semiont settings browser --path` and `semiont settings worker --path` say where they are). See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
+The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`images/local-build.sh`](../../images/local-build.sh), name the `:local` images in the documents, and the Browser's and the worker's in their own documents (`semiont settings browser --path` and `semiont settings worker --path` say where they are). See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
 
 ## Related
 

@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/annotations/offsets_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/OffsetCasesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's text offsets, counted in code points."
+  },
   "cases": [
     {
       "why": "a text of the basic plane: every count agrees, and the offset is the position",

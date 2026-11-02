@@ -62,7 +62,7 @@ dev = [
     "pyright==1.1.414",
     "pytest>=9.1,<10",
     "pytest-cov==7.1.0",
-    "ruff==0.17.2",
+    "ruff==0.17.3",
 ]
 
 # The version is the repository's, stated once, in version.json.

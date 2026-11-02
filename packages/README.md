@@ -11,6 +11,7 @@ The libraries Semiont is built from, in five languages. The services are in [ima
 | [Python](./python/README.md) | The SDK, and what the Librarian, the Smelter, the Weaver and the Worker share | PyPI: the SDK alone |
 | [Go](./go/README.md) | The SDK, and the launcher's libraries | The Go module proxy, by a tag at each release: the SDK alone |
 | [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs | Not published |
+| [Swift](./swift/README.md) | The SDK for Apple apps and Linux services | Not published |
 
 Each language's README lists its packages, with what each is and its coverage, and says how the language's packages are built and measured.
 
@@ -40,3 +41,10 @@ The rest is what those are built on, and what Semiont's own services are built o
 ## License
 
 Apache-2.0
+
+## Generation tooling
+
+[codegen/](codegen/README.md) holds shared bus and schema generators across languages.
+Their declarative inputs and fixtures stay in `specs/`. Language-wide build and
+release helpers live under each language's `scripts/` directory; tooling for one
+package lives with that package.

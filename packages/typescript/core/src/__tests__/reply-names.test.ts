@@ -36,7 +36,7 @@ interface Registry {
 type ReplyNames = (registry: Registry, schemaOf: (name: string) => Schema) => Map<string, string[]>;
 
 const { replyNames }: { replyNames: ReplyNames } = await import(
-  fileURLToPath(new URL('../../../../../scripts/bus/reply-names.mjs', import.meta.url))
+  fileURLToPath(new URL('../../../../codegen/bus/reply-names.mjs', import.meta.url))
 );
 
 /** One operation, whose reply states the `demoId` its request stated. */

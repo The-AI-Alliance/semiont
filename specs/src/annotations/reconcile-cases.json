@@ -8,6 +8,9 @@
     "conformance": ["tests/conformance/worker-service/anchoring.test.ts"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/ReconcileCasesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's annotations module: where a quoted span is in a text."
+  },
   "cases": [
     {
       "why": "words the text has once are the span, and the context is the text's: all of it on either side when there are fewer than 64 characters",

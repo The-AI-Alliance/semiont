@@ -7,6 +7,9 @@
     "go": ["packages/go/sdk/mediatypes/mediatypes_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/mediatypes/MediaTypesTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's media types, generated from media-types/registry.json."
+  },
   "cloneFormat": [
     {
       "why": "an authorable source keeps its type",

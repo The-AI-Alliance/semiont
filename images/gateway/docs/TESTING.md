@@ -25,9 +25,9 @@ on the plane.
 | `cargo test --workspace` | The tests of the crates the gateway is built from. The gateway crate has none of its own. What it relies on are the runners for the shared case tables ([packages/rust/sdk/tests/tables.rs](../../../packages/rust/sdk/tests/tables.rs)), against the SDK it names its principals with: the principals and the knowledge base's resource identifier, as core and the launcher compute them |
 | `npm run lint:broker-boundary` | The broker is reached only through its interface: `async_nats` only in `signal/nats.rs`, the dispatcher's JetStream queue and `semiont-core`'s broker helpers; that plane chosen only in `app.rs`; no NATS client in any TypeScript |
 | `npm run lint:service-environment`, `lint:service-role` | The environment it reads is exactly [variables.json](../../../specs/src/service-environment/variables.json)'s; its role names are the launcher's and core's |
-| `scripts/lint/check-image-crates.mjs` | Every crate it links is under a permitted licence, and credited in the image's NOTICE; every crate that compiles native code in says what, and a library under a licence of its own is credited too |
+| `images/scripts/check-image-crates.mjs` | Every crate it links is under a permitted licence, and credited in the image's NOTICE; every crate that compiles native code in says what, and a library under a licence of its own is credited too |
 | `cargo deny` ([deny.toml](../../../packages/rust/deny.toml); the Rust Crate Advisories workflow, on every change to what it links and daily) | No crate it links has a RustSec advisory, except those ignored with a reason, and an ignore that stops matching fails; no crate is yanked; every crate comes from crates.io, named by a version, not a wildcard |
-| `scripts/container/check-gateway-image.sh` | The built image carries no source and serves `/api/health` within its start bound |
+| `images/scripts/check-gateway-image.sh` | The built image carries no source and serves `/api/health` within its start bound |
 
 ## Running it
 
