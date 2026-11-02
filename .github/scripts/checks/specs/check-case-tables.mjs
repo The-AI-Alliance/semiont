@@ -49,6 +49,7 @@ const IMPLEMENTATIONS = {
   python: ['packages/python/sdk'],
   go: ['packages/go/sdk'],
   kotlin: ['packages/kotlin/sdk'],
+  csharp: ['packages/csharp/sdk'],
   swift: ['packages/swift/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
@@ -64,7 +65,7 @@ const IMPLEMENTATIONS = {
 };
 
 /** The SDKs, which are held to one another. */
-const SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift'];
+const SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
 
 /** The tables whose rule counts or states an offset. */
 const COUNTS_CODE_POINTS = new Set([
@@ -90,7 +91,7 @@ function filesUnder(directory) {
   const out = [];
   const walk = (at) => {
     for (const name of readdirSync(resolve(REPO, at))) {
-      if (name === 'node_modules' || name === 'target' || name === 'build' || name.startsWith('.')) continue;
+      if (name === 'node_modules' || name === 'target' || name === 'build' || name === 'bin' || name === 'obj' || name.startsWith('.')) continue;
       const path = join(at, name);
       if (statSync(resolve(REPO, path)).isDirectory()) walk(path);
       else out.push(path);

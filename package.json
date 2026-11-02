@@ -59,6 +59,7 @@
     "lint:rust-toolchain": "node .github/scripts/checks/check-rust-toolchain.mjs",
     "lint:go-toolchain": "node .github/scripts/checks/check-go-toolchain.mjs",
     "lint:swift-toolchain": "node .github/scripts/checks/check-swift-toolchain.mjs",
+    "lint:dotnet-toolchain": "node .github/scripts/checks/check-dotnet-toolchain.mjs",
     "lint:kotlin-toolchain": "node .github/scripts/checks/check-kotlin-toolchain.mjs",
     "lint:python-version": "node .github/scripts/checks/check-python-version.mjs",
     "lint:node-version": "node .github/scripts/checks/check-node-version.mjs",

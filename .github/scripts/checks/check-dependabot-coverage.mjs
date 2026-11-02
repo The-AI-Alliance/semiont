@@ -14,6 +14,9 @@
  *                   covers its workspaces)
  *   gomod           go.mod
  *   gradle          settings.gradle.kts: one entry per Gradle build
+ *   nuget           a .NET solution, <name>.slnx: one entry per solution,
+ *                   which names its projects
+ *   dotnet-sdk      global.json, which pins the .NET SDK
  *   swift           Package.swift
  *   cargo           Cargo.toml; a workspace member's is covered by the entry
  *                   for its workspace, whose one lockfile Dependabot updates
@@ -56,6 +59,8 @@ const MANIFESTS = {
   npm: (file) => basename(file) === 'package-lock.json',
   gomod: (file) => basename(file) === 'go.mod',
   gradle: (file) => basename(file) === 'settings.gradle.kts',
+  nuget: (file) => basename(file).endsWith('.slnx'),
+  'dotnet-sdk': (file) => basename(file) === 'global.json',
   swift: (file) => basename(file) === 'Package.swift',
   cargo: (file) => basename(file) === 'Cargo.toml',
   'rust-toolchain': (file) => ['rust-toolchain.toml', 'rust-toolchain'].includes(basename(file)),

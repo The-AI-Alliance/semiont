@@ -7,6 +7,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/signin/SignInStoreTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared sign-in-store/cases.json cases.",
     "swift": "The Swift SDK's sign-in store: the launcher's state home, and the renewals it keeps."
   },
   "absent": {"typescript": "The TypeScript SDK reads no sign-in store: a TypeScript program signs in by the device grant, and in a browser there is no file to keep one in."},
