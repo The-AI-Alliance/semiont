@@ -2,25 +2,22 @@ package launcher
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
-// The staged realm carries every service's client secret. What keeps it from
-// other users is the directory it is staged in, not the file's own mode (see
-// stageDir).
-func TestStagedRealmIsReachableOnlyByItsOwner(t *testing.T) {
+// What keeps a stack's staged documents from other users is the directory
+// they are staged in, not the files' own mode (see stageDir).
+func TestTheStagingDirIsReachableOnlyByItsOwner(t *testing.T) {
 	x := &liveExec{u: NewUI(true)}
-	p, ok := x.stageRealm("probe", []byte(`{"clients":[{"secret":"probe"}]}`))
+	dir, ok := x.stageDir()
 	if !ok {
-		t.Fatal("stageRealm failed")
+		t.Fatal("stageDir failed")
 	}
-	dir := filepath.Dir(p)
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	if open := harness.OpenToOthers(t, dir); open != "" {
-		t.Fatalf("the realm is staged in %s, which %s: other users can reach the client secrets in it", dir, open)
+		t.Fatalf("documents are staged in %s, which %s: other users can reach them", dir, open)
 	}
 }
 

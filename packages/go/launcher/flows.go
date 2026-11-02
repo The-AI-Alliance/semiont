@@ -694,13 +694,22 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		}
 		switch role {
 		case "identity":
-			// Keycloak answers on the realm only once the import is done —
-			// the wait is the realm gate as well as the liveness gate. It asks
-			// Keycloak itself, which under `network lan` is behind the proxy.
+			// Keycloak itself, which under `network lan` is behind the proxy:
+			// its master realm answers once the server is up, and the
+			// knowledge base's realm only once it holds it.
 			e := x.exposure(addr)
-			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity", fc.kb.key()), keycloakEndpoint(rp, e), 90)
+			base := keycloakBase(e, rp.Port)
+			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity", fc.kb.key()), base+"/realms/master", 90)
 			if !ok {
 				x.dumpLogs(roleContainer("identity", fc.kb.key()), "identity")
+				return 1
+			}
+			// Before the realm: where the runtime delivers this machine's
+			// connections from an address Keycloak does not count as private,
+			// creating it needs the admin opened first.
+			x.openAdminToThisMachine(adminPassword)
+			realm := keycloakRealm(issuerPath(rp.Issuer))
+			if !x.createRealm(base, realm, adminPassword, keycloakRealmJSON(realm, fc.kb.ident.resource(), fc.browser.spec.Port, rp.AccessTokenLifespan, accounts)) {
 				return 1
 			}
 			if e.behindProxy(role) {
@@ -715,8 +724,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				}
 			}
 			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp, e), x.dim("("+took(d)+")"))
-			x.openAdminToThisMachine(adminPassword)
-			// The realm is up and imported; prove it honours the credentials
+			// The realm is held; prove it honours the credentials
 			// this start is about to inject, BEFORE the first process that
 			// holds one, at the issuer those processes sign in at — see
 			// verifyServiceAccounts on why not where the launcher reaches it.
@@ -781,7 +789,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		// An issuer someone ELSE runs gets the same preflight as one the
-		// launcher starts, and needs it more: a launcher-run realm is imported
+		// launcher starts, and needs it more: a launcher-run realm is created
 		// from the launcher's own document and is correct by construction,
 		// while an external one had its clients created by hand. Reachability
 		// alone says nothing about whether the six service accounts grant a

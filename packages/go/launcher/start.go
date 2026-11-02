@@ -21,7 +21,7 @@ func configFreeService(svc string) bool {
 }
 
 // startReadsBrowserDocument: whether a start needs the Browser's document. A
-// start that runs the Browser reads it; one that runs the issuer imports a
+// start that runs the Browser reads it; one that runs the issuer creates a
 // realm that allows sign-in from the Browser's origin.
 func startReadsBrowserDocument(opts startOptions) bool {
 	if opts.listConfigs || opts.cleanOllama {

@@ -1,8 +1,8 @@
 package launcher
 
 // identity.go — the launched Keycloak's shape beyond its plan row: the issuer
-// URL's parts, the realm it imports, and the run-time extras (realm file,
-// database, admin password) a `run -d` needs that derivePlan cannot know.
+// URL's parts, the realm a start creates in it, and the run-time extras
+// (database, admin password) a `run -d` needs that derivePlan cannot know.
 
 import (
 	"encoding/json"
@@ -102,16 +102,10 @@ func identityEndpoint(rp rolePlan, e exposure) string {
 	return fmt.Sprintf("http://%s:%d%s", e.probeHost("identity", descriptorFor("identity", rp.Driver).defaultPort), rp.Port, issuerPath(rp.Issuer))
 }
 
-// keycloakEndpoint: the realm at the Keycloak the launcher runs, where the
-// launcher itself reaches it for its waits and its administration — the
-// issuer's own address, or Keycloak behind the issuer proxy under `network
-// lan` (exposure.keycloakAt).
-func keycloakEndpoint(rp rolePlan, e exposure) string {
-	return keycloakBase(e, rp.Port) + issuerPath(rp.Issuer)
-}
-
 // keycloakBase: the origin of the Keycloak the launcher runs on port, where
-// the launcher reaches it: the base its admin API is called at.
+// the launcher reaches it for its waits and its administration — the issuer's
+// own address, or Keycloak behind the issuer proxy under `network lan`
+// (exposure.keycloakAt).
 func keycloakBase(e exposure, port int) string {
 	host, p := e.keycloakAt(port)
 	return fmt.Sprintf("http://%s:%d", host, p)
@@ -305,7 +299,7 @@ func natsConfString(text string) string {
 }
 
 // browserClient / cliClient: the two PUBLIC registrations, rendered once so
-// the realm import and `semiont identity sync` cannot disagree about them: a
+// the realm's creation and `semiont identity sync` cannot disagree about them: a
 // second copy for sync would be a mirror of the realm document, and the
 // loopback rule below is exactly the kind of detail a second copy loses.
 //
@@ -341,7 +335,7 @@ func browserClient(audience string, browserPort int) map[string]any {
 // issuer, so that POST is rejected and sign-in dies as `error=Verification`.
 //
 // The port is the one the Browser's document names, so editing it moves the
-// origin. A realm imports once and pins the port it was created with; `semiont
+// origin. A realm is created once and pins the port it was created with; `semiont
 // identity sync` adds the document's when absent, which is what makes a move
 // repairable. It removes nothing: an origin somebody added is theirs.
 func loopbackWebOrigins(browserPort int) []string {
@@ -378,14 +372,14 @@ func cliClient(audience string) map[string]any {
 	return c
 }
 
-// keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
-// realm itself, two public clients — the Browser's (authorization code
-// with PKCE) and the launcher's (the device grant) — and a service account
-// for each of secretClients and for the shared worker, every one with an
-// audience mapper that stamps audience, the KB's resource identifier, into
-// every access token: the value the gateway's verifier checks.
+// keycloakRealmJSON renders the realm a start creates when Keycloak does not
+// hold it (ensureRealm): the realm itself, two public clients — the Browser's
+// (authorization code with PKCE) and the launcher's (the device grant) — and a
+// service account for each of secretClients and for the shared worker, every
+// one with an audience mapper that stamps audience, the KB's resource
+// identifier, into every access token: the value the gateway's verifier checks.
 //
-// Import SKIPS a realm that already exists, so a second start changes nothing —
+// A realm Keycloak holds is left as it is, so a second start changes nothing —
 // including the values here. A deployment whose realm predates a change to this
 // function keeps the settings it was created with; `semiont identity sync`
 // reconciles clients, roles, redirect URIs, web origins and lifetime, and the
@@ -531,8 +525,8 @@ type realmAccounts struct {
 }
 
 // realmAccountsOf: every service account's credential. Resolved once per
-// start — the realm import needs them, and so does the preflight that checks
-// the realm honoured them.
+// start — the realm's creation needs them, and so does the preflight that
+// checks the realm honoured them.
 func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 	secrets := map[string]string{}
 	for _, svc := range secretClients {
@@ -551,8 +545,8 @@ func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
 // the database the Issuer document names, on the PostgreSQL it describes
-// (created there when the launcher runs that PostgreSQL), the realm file to
-// import, and the bootstrap admin password. The password is per root and
+// (created there when the launcher runs that PostgreSQL), and the bootstrap
+// admin password. The password is per root and
 // persisted: Keycloak creates the admin on its FIRST boot only, so a
 // regenerated value would lock the console out of a realm that already
 // exists.
@@ -573,17 +567,12 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAcco
 		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, dbName)
 		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, dbName)
 	}
-	realm := keycloakRealm(issuerPath(rp.Issuer))
 	// Resolved here and kept (per root, and the worker's key shared), so
 	// the container that must PRESENT each credential reads the same value out
 	// of the same file rather than having it threaded through the start flow.
-	// Returned as well, because the preflight checks these same values against
-	// the realm that imports them.
+	// Returned as well, because the realm is created with these same values
+	// and the preflight checks them against it.
 	accounts, ok := realmAccountsOf(x, fc.kb)
-	if !ok {
-		return nil, realmAccounts{}, "", false
-	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, fc.kb.ident.resource(), fc.browser.spec.Port, rp.AccessTokenLifespan, accounts))
 	if !ok {
 		return nil, realmAccounts{}, "", false
 	}
@@ -592,7 +581,6 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAcco
 		return nil, realmAccounts{}, "", false
 	}
 	return []string{
-		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
 		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
 		"-e", "KC_HOSTNAME=" + placementOf(fc, x.exposure(addr)).keycloakHostname(),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,

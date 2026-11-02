@@ -210,14 +210,15 @@ var serviceDescriptors = []serviceDescriptor{
 	// with the stamped /data store — because both use that store: the job
 	// queue's stream, and the signal driver's KV tables, where the gateway's
 	// ledger keeps its claims.
-	{role: "messaging", driver: "jetstream", name: "nats", image: "nats:2.15.1-alpine@sha256:7ae34c25dfd6fe2e01c6483eabef20d796690fdcac6c4d94ca780a6cf9877fde", mem: "512M",
+	{role: "messaging", driver: "jetstream", name: "nats", image: "nats:2.15.2-alpine@sha256:823e7f1d6d8ffe3b30dbd73d4a06bbb939acf94929f7fdf224404da7a05bafb5", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 
 	// The OIDC issuer the gateway trusts, stated in config and never
 	// inferred. "keycloak" is an upstream pin like postgres — the production
-	// server over plain HTTP, importing the realm the launcher stages, on its own database
-	// of the PostgreSQL the Issuer document describes. Its hostname is fixed at
+	// server over plain HTTP, holding the realm a start creates through its
+	// admin API (ensureRealm), on its own database of the PostgreSQL the Issuer
+	// document describes. Its hostname is fixed at
 	// the issuer's origin (KC_HOSTNAME, identityRunExtras), the endpoints behind
 	// it follow the address asked (backchannel-dynamic), and it is one node, so
 	// its cache is local. A JVM like graph, but its image caps the
@@ -227,7 +228,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// container.
 	{role: "identity", driver: "keycloak", name: "keycloak", image: "quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
-		cmd:   []string{"start", "--import-realm", "--http-enabled=true", "--hostname-backchannel-dynamic=true", "--cache=local"},
+		cmd:   []string{"start", "--http-enabled=true", "--hostname-backchannel-dynamic=true", "--cache=local"},
 		needs: []string{"identity-store"},
 		// The master realm always exists, so it answers for a server whose
 		// own realm this launcher has not been told about. A configured
