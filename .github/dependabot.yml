@@ -35,6 +35,11 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 20
+    # TypeScript 7 is held, here and in the two test suites' entries below.
+    # Remove all three to take it.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     labels:
       - "kind:dependencies"
     commit-message:
@@ -90,6 +95,10 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # TypeScript 7 is held, as in the root entry.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     labels:
       - "kind:dependencies"
       - "tests:e2e"
@@ -116,6 +125,10 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # TypeScript 7 is held, as in the root entry.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     labels:
       - "kind:dependencies"
       - "tests:conformance"
@@ -301,6 +314,12 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # together 3 is held: it drops /v1 from the client's base URL and moves chat
+    # completions to another host, and the Together driver's model discovery
+    # fails under it. The inference package's extra caps it too (<3).
+    ignore:
+      - dependency-name: "together"
+        versions: [">=3"]
     groups:
       mypy:
         patterns: ["mypy"]
