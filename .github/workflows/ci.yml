@@ -2212,11 +2212,11 @@ jobs:
         uses: actions/checkout@v7.0.1
       - name: Build and check
         run: |
-          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/ \
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp/swift-home \
             -v "$GITHUB_WORKSPACE":/workspace \
             -w /workspace/packages/swift/sdk \
             "swift:$(../../../scripts/ci/swift-version.sh)" \
-            sh -c 'swift build && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
+            sh -c 'mkdir -p "$HOME" && swift build && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
       # Tests and their coverage arrive in P2.
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7.1.1
