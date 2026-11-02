@@ -19,16 +19,18 @@ To run tools directly on your machine instead, the versions are:
 | Rust | the pinned channel | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml) |
 | Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod), [`packages/go/launcher`](../../packages/go/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
 | JDK | the major version | [`.java-version`](../../packages/kotlin/sdk/.java-version) of the Kotlin SDK |
+| Swift | the Swift toolchain | [`.swift-version`](../../packages/swift/sdk/.swift-version) of the Swift SDK |
 | Gradle | the distribution its wrapper names; `./gradlew` fetches it | [`gradle-wrapper.properties`](../../packages/kotlin/sdk/gradle/wrapper/gradle-wrapper.properties) of the Kotlin SDK |
 | Kotlin | `kotlin` in its version catalog | [`libs.versions.toml`](../../packages/kotlin/sdk/gradle/libs.versions.toml) of the Kotlin SDK |
 
-## Five toolchains, one spec
+## Six toolchains, one spec
 
-The repository holds code in five languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
+The repository holds code in six languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
 
 - **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `tests/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
 - **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/go/sdk`).
+- **A SwiftPM package**: the Swift SDK (`packages/swift/sdk`).
 - **A Gradle build**: the Kotlin SDK (`packages/kotlin/sdk`).
 - **Nine Python projects**: the Python SDK (`packages/python/sdk`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
 

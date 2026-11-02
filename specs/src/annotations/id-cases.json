@@ -8,6 +8,9 @@
     "go": ["packages/go/sdk/annotations/id_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationIdsTest.kt"]
   },
+  "notYetReached": {
+    "swift": "The Swift SDK's annotations module: the id its builders derive for an annotation."
+  },
   "cases": [
     {
       "why": "an annotation with no body, a highlight: three members go into its id",

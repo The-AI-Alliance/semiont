@@ -126,6 +126,8 @@ if ! JDK_VERSION="$("$REPO_ROOT/packages/kotlin/scripts/jdk-version.sh")"; then
   exit 1
 fi
 JDK_IMAGE="eclipse-temurin:${JDK_VERSION}-jdk"
+SWIFT_VERSION="$("$REPO_ROOT/packages/swift/scripts/swift-version.sh")" || exit 1
+SWIFT_IMAGE="swift:${SWIFT_VERSION}"
 
 # --- What is kept between runs ---
 #
@@ -138,6 +140,8 @@ GOMODCACHE_DIR="$CACHE_ROOT/local-build-gomodcache"
 UVCACHE_DIR="$CACHE_ROOT/local-build-uv"
 CARGO_REGISTRY_DIR="$CACHE_ROOT/local-build-cargo"
 GRADLE_HOME_DIR="$CACHE_ROOT/local-build-gradle"
+SWIFTPM_DIR="$CACHE_ROOT/local-build-swiftpm"
+mkdir -p "$SWIFTPM_DIR"
 # What each package and image was last built from, keyed by its directory.
 STATE="$CACHE_ROOT/local-build-state.json"
 state_get() { python3 -c 'import json,sys
@@ -377,7 +381,7 @@ BUILD_PACKAGES=""
 if [[ "$IMAGES_ONLY" != true ]]; then
   if ! PACKAGE_PLAN=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
       | $RT run --rm -i -v "$REPO_ROOT":/workspace -w /workspace "$PYTHON_IMAGE" \
-          python3 images/scripts/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE"); then
+          python3 images/scripts/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$SWIFT_IMAGE"); then
     fail "Could not read what the packages are built from (images/scripts/package-signatures.py, above)."
     exit 1
   fi
@@ -1128,6 +1132,21 @@ build_kotlin() {
   built $packages
 }
 
+build_swift() {
+  local packages
+  packages=$(packages_of swift)
+  [[ -z "$packages" ]] && return 0
+  step "Swift: $(shown "$(names_of $packages)")"
+  if ! run_logged "Swift: built" $RT run --rm --memory 8g \
+    -v "$REPO_ROOT":/workspace -v "$SWIFTPM_DIR":/root/.cache \
+    -w /workspace "$SWIFT_IMAGE" \
+    sh -c 'for dir in "$@"; do (cd "$dir" && swift build) || exit 1; done' sh $packages; then
+    fail "A Swift package did not build."
+    exit 1
+  fi
+  built $packages
+}
+
 if [[ "$IMAGES_ONLY" != true ]]; then
   banner "PACKAGES"
   [[ -z "$BUILD_PACKAGES" ]] && ok "Every selected package is unchanged since it was last built here"
@@ -1136,6 +1155,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
   build_python
   build_go
   build_kotlin
+  build_swift
 fi
 
 [[ -n "$REGISTRY_IMAGES" ]] && "$SCRIPT_DIR/scripts/verdaccio-ls.sh" "$REGISTRY"

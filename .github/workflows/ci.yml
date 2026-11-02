@@ -102,6 +102,7 @@ jobs:
           npm run lint:rust-toolchain || fail=1
           npm run lint:go-toolchain || fail=1
           npm run lint:kotlin-toolchain || fail=1
+          npm run lint:swift-toolchain || fail=1
           npm run lint:python-version || fail=1
           npm run lint:node-version || fail=1
           npm run lint:nats-version || fail=1
@@ -139,6 +140,7 @@ jobs:
       conformance: ${{ steps.areas.outputs.conformance }}
       go: ${{ steps.areas.outputs.go }}
       kotlin: ${{ steps.areas.outputs.kotlin }}
+      swift: ${{ steps.areas.outputs.swift }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
       python-inference: ${{ steps.areas.outputs.python-inference }}
       python-graph: ${{ steps.areas.outputs.python-graph }}
@@ -176,6 +178,7 @@ jobs:
               - 'packages/go/launcher/scripts/**'
               - 'packages/python/scripts/**'
               - 'packages/kotlin/scripts/**'
+              - 'packages/swift/scripts/**'
               - 'images/scripts/**'
               - 'images/local-build.sh'
               - '.github/scripts/**'
@@ -232,6 +235,8 @@ jobs:
               - 'tests/e2e/e2e-localhost-bridge.mjs'
             # The Kotlin SDK. The JDK its builds run on is its .java-version,
             # read by packages/kotlin/scripts/jdk-version.sh, which is all's.
+            swift:
+              - 'packages/swift/**'
             kotlin:
               - 'packages/kotlin/**'
             # Each Python project; a job lists its own and the ones its
@@ -2206,6 +2211,34 @@ jobs:
   # .java-version names, as images/local-build.sh builds it, as this
   # runner's user, so what it leaves in the checkout and in Gradle's home is
   # the runner's to cache.
+  test-sdk-swift:
+    name: Swift SDK
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.swift == 'true'
+    defaults:
+      run:
+        working-directory: packages/swift/sdk
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Build and check
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp/swift-home \
+            -v "$GITHUB_WORKSPACE":/workspace \
+            -w /workspace/packages/swift/sdk \
+            "swift:$(../../../packages/swift/scripts/swift-version.sh)" \
+            sh -c 'mkdir -p "$HOME" && swift build && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
+      # Tests and their coverage arrive in P2.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/swift/sdk/.build/coverage.lcov
+          flags: swift-sdk
+          name: swift-sdk
+        continue-on-error: true
+
   test-sdk-kotlin:
     name: Kotlin SDK
     runs-on: ubuntu-latest
@@ -3611,6 +3644,7 @@ jobs:
       - test-sdk-go-windows
       - test-sdk-rust-windows
       - test-sdk-kotlin
+      - test-sdk-swift
       - test-sdk-kotlin-store
       - test-inference-python
       - test-service-python

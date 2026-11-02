@@ -120,7 +120,7 @@
   description: "The Kotlin SDK (packages/kotlin/sdk)"
 - name: "sdk:swift"
   color: "bfd4f2"
-  description: "A Swift SDK, not yet written"
+  description: "The Swift SDK (packages/swift/sdk)"
 - name: "sdk:csharp"
   color: "bfd4f2"
   description: "A C# SDK, not yet written"

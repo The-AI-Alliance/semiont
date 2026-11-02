@@ -3,8 +3,8 @@
 A package is a directory packages/<language>/<name> holding its language's manifest. Its
 signature is one line capturing everything its build reads:
 
-- the toolchain image that builds it (argv: the TypeScript, Rust, Python, Go and Kotlin
-  images, in that order);
+- the toolchain image that builds it (argv: the TypeScript, Rust, Python, Go, Kotlin and
+  Swift images, in that order);
 - every file under its directory;
 - what every package of the repository is built from: version.json, the spec, and the
   scripts that generate from the spec;
@@ -29,17 +29,18 @@ import sys
 import tomllib
 from pathlib import Path
 
-MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin"}
-EVERY_PACKAGE = ("version.json", "specs/src/", "packages/codegen/")
+MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin", "Package.swift": "swift"}
+EVERY_PACKAGE = ("version.json", "specs/src/", "scripts/spec/", "scripts/bus/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
     "rust": ("packages/rust/Cargo.toml", "packages/rust/Cargo.lock", "packages/rust/rust-toolchain.toml"),
     "python": (),
     "go": (),
     "kotlin": (),
+    "swift": (),
 }
 
-toolchains = dict(zip(("typescript", "rust", "python", "go", "kotlin"), sys.argv[1:6], strict=True))
+toolchains = dict(zip(("typescript", "rust", "python", "go", "kotlin", "swift"), sys.argv[1:7], strict=True))
 files = sorted(f for f in sys.stdin.buffer.read().decode().split("\0") if f)
 
 
