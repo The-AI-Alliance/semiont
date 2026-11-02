@@ -43,7 +43,7 @@ jobs:
       # that file names, then the platform's target for it.
       - name: Install the pinned Rust toolchain
         run: |
-          rustup default "$(scripts/ci/rust-toolchain.sh)"
+          rustup default "$(packages/rust/scripts/rust-toolchain.sh)"
           rustup target add ${{ matrix.target }}
 
       - name: Install Linux dependencies
@@ -59,7 +59,7 @@ jobs:
             xdg-utils
 
       - name: Build all packages
-        run: ./scripts/ci/build.sh
+        run: ./packages/typescript/scripts/build.sh
 
       - name: Build desktop app
         uses: tauri-apps/tauri-action@v1

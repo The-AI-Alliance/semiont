@@ -9,7 +9,7 @@ description = "The Python SDK for Semiont, an open platform for building trusted
 readme = "README.md"
 requires-python = ">=3.12"
 # The licence's text is the repository's LICENSE, which
-# scripts/ci/build-python-sdk.sh copies beside this file before it builds:
+# packages/python/sdk/scripts/build-python-sdk.sh copies beside this file before it builds:
 # hatchling takes a file of that name as the distributions' licence file.
 license = "Apache-2.0"
 keywords = ["semiont", "knowledge-base", "annotation", "agents", "sdk"]

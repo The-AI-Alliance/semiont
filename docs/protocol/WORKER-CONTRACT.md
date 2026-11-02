@@ -144,7 +144,7 @@ matches one of them, or with `none-pending`.
   verb's: a `mark` job's counts or a decline, a `yield` job's resource or a
   decline. The gateway refuses any other, and the record passes over a
   completion of another verb than the job's.
-  *Held by `worker/lifecycle`, `dispatcher/conclude.test.ts`, `tests/conformance/archivist/jobs.test.ts`, `scripts/spec/check-jobs.mjs`.*
+  *Held by `worker/lifecycle`, `dispatcher/conclude.test.ts`, `tests/conformance/archivist/jobs.test.ts`, `.github/scripts/checks/specs/check-jobs.mjs`.*
 - **L8.** A worker that stops while it holds a job fails the job first:
   `job:fail`, with an error saying that the worker stopped, no failure class,
   and `willRetry` as [L4](#the-lifecycle) states it. The queue then retries

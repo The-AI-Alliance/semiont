@@ -1,6 +1,6 @@
 // Code generated from specs/src/sdk-telemetry/telemetry.json — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-sdk-telemetry-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-sdk-telemetry-go.mjs
 // The Python table is generated from the same table.
 
 package semiont
