@@ -29,7 +29,7 @@ on the next write.
 ## Build and support
 
 `apps/desktop/build.sh` is the local build entry. It produces an unsigned Apple Silicon
-DMG; `apps/desktop/build.sh --linux` produces a Linux x64 Debian package. Both outputs are
+DMG; `make desktop-linux` produces a Linux x64 Debian package. Both outputs are
 written under `apps/desktop/release/`, with npm commands run inside Apple Container.
 `electron-builder.yml` carries the Semiont Desktop product name and the existing Semiont
 bundle identifier. The `.deb` dependency metadata and package build have been exercised;

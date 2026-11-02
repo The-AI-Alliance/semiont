@@ -236,7 +236,7 @@ docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh)
   --file images/worker/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-worker:local .
 ```
 
-[`images/local-build.sh`](../local-build.sh) builds it so with the other
+[`make local-build`](../../Makefile) builds it so with the other
 images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 

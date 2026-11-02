@@ -12,7 +12,7 @@
 #      Prompt is START_BOUND_MS, from spawning its command to its exit,
 #      measured inside the container.
 #
-# Run by local-build.sh once every image is built, so nothing else builds
+# Run by the local-build session once every image is built, so nothing else builds
 # while it times the refusal, and by the image publish workflow before it
 # pushes.
 set -eu

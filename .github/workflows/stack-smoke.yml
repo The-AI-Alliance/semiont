@@ -11,7 +11,7 @@
 # The LAUNCHER always comes from the commit this workflow runs on. The IMAGES
 # come from one of two places:
 #
-#   - the same commit, by default: images/local-build.sh builds the npm
+#   - the same commit, by default: images/scripts/build-session.sh builds the npm
 #     packages, publishes them to a Verdaccio it starts on the runner, builds
 #     every image against it into the runner's docker store as `:local`, and
 #     builds the launcher. The other languages' packages are CI's own jobs'. Nothing is pushed anywhere. A change that moves the
@@ -42,7 +42,16 @@ on:
       - .github/workflows/stack-smoke.yml
       - images/tests/stack/**
       - images/e2e/**
-      - images/local-build.sh
+      - Makefile
+      - images/scripts/**
+      - packages/codegen/**
+      - packages/typescript/scripts/**
+      - packages/go/scripts/**
+      - packages/python/scripts/**
+      - packages/rust/scripts/**
+      - packages/kotlin/scripts/**
+      - packages/swift/scripts/**
+      - packages/csharp/scripts/**
       - .dockerignore
   # Nightly, on main: the periodic verification above, at 08:17 UTC (4:17 in
   # the morning Eastern under daylight time, 3:17 under standard; off the hour,
@@ -110,7 +119,7 @@ jobs:
         # they are not copied into the runner's podman as well. The npm
         # packages are the ones an image installs; the other languages'
         # packages are built and tested by ci.yml's jobs.
-        run: images/local-build.sh --package typescript --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
+        run: make local-build PACKAGE_NAMES=typescript FANOUT=0 LAYER_CACHE="$RUNNER_TEMP/rust-image-layers"
 
       - uses: actions/setup-go@v7.0.0
         if: env.IMAGES != 'local'

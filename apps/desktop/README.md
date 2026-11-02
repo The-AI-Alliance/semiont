@@ -55,11 +55,11 @@ The command installs dependencies and builds the workspace packages in Apple Con
 Run these from the monorepo root on a Mac with Apple Container installed:
 
 ```sh
-apps/desktop/build.sh           # unsigned macOS Apple Silicon DMG
-apps/desktop/build.sh --linux   # Linux x64 Debian package
+make desktop-macos            # unsigned macOS Apple Silicon DMG
+make desktop-linux   # Linux x64 Debian package
 ```
 
-Both builds install dependencies and run npm inside Apple Container. The macOS build uses a
+Both builds install dependencies and run npm inside the selected container runtime; Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
 temporary checksum-verified Node runtime on the host for Electron Builder's DMG step; the
 Linux build uses an amd64 Debian container (Rosetta on Apple Silicon). Installers are
 written to `apps/desktop/release/`. Linux host installation and launch have not yet been

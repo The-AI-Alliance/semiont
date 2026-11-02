@@ -41,7 +41,7 @@ question?"*, the distinction the professions themselves draw.
 ## This directory is the set of images
 
 Every directory here with a `Dockerfile` is an image, and the tooling takes the set from this
-directory, not from a list: `images/local-build.sh` builds what is here, and the supervision
+directory, not from a list: `make local-build` builds what is here, and the supervision
 gate, the NOTICE and Rust-builder lints, the Python licence check and `lint:coverage-roster` all
 read it. Two lists are still written by hand, and each is held to this directory: the matrix in
 [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml), by
@@ -61,7 +61,7 @@ So an image added here needs:
 
 ## Local builds and shared tooling
 
-Run `./images/local-build.sh` from the repository root to build the local stack,
+Run `make local-build` from the repository root to build the local stack,
 including its packages and launcher. [Local builds](LOCAL-BUILD.md) covers the options.
 `shared/` holds the boot entrypoint and supervisor copied into service images;
 `scripts/` holds image build, management, verification, and local-registry helpers.

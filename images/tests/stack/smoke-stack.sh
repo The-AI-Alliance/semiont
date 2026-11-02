@@ -3,11 +3,11 @@
 #
 #   images/tests/stack/smoke-stack.sh latest          # the published :latest images
 #   images/tests/stack/smoke-stack.sh 0.6.5           # one release's images
-#   images/tests/stack/smoke-stack.sh local           # images from images/local-build.sh
+#   images/tests/stack/smoke-stack.sh local           # images from images/scripts/build-session.sh
 #   images/tests/stack/smoke-stack.sh local --e2e     # and run images/e2e's default tier
 #
 # TWO AXES, and naming them separately is the point. The LAUNCHER is the one
-# built from this checkout, apps/launcher/dist/semiont (images/local-build.sh
+# built from this checkout, apps/launcher/dist/semiont (images/scripts/build-session.sh
 # builds it beside the :local images), never whatever `semiont` is on PATH,
 # which is usually a release; the script refuses when the binary is missing or
 # older than the source it builds from. The IMAGES are the tag given here,
@@ -33,7 +33,7 @@
 # not, so --e2e refuses that runtime (images/e2e/README.md runs the suite there
 # by hand, through the host bridge). The suite's packages, @semiont/core and
 # @semiont/sdk, link to this checkout's packages/, which must be built:
-# images/local-build.sh builds them, as `npm run build:packages` does.
+# images/scripts/build-session.sh builds them, as `npm run build:packages` does.
 #
 # THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
 # did:web domain, then `start` with no --config, so the documents init writes
@@ -52,7 +52,7 @@
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it. stack-smoke.yml runs it after images/local-build.sh, or,
+# debugging it. stack-smoke.yml runs it after images/scripts/build-session.sh, or,
 # given a published tag, after building only the launcher.
 #
 # Requires: docker (or another runtime via SMOKE_RUNTIME), git, curl, nc.
@@ -88,7 +88,7 @@ if [ "$E2E" = true ]; then
 fi
 SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
 if [ ! -x "$SEMIONT" ]; then
-  echo "No launcher built from this checkout at $SEMIONT. Build it with images/local-build.sh." >&2
+  echo "No launcher built from this checkout at $SEMIONT. Build it with make launcher." >&2
   exit 2
 fi
 # The launcher compiles apps/launcher, packages/go/launcher and packages/go/sdk; a source file newer
@@ -96,7 +96,7 @@ fi
 NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/go/launcher" "$REPO_ROOT/packages/go/sdk" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
   \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
 if [ -n "$NEWER" ]; then
-  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with images/local-build.sh." >&2
+  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with make launcher." >&2
   exit 2
 fi
 KB="${SMOKE_KB:-$(mktemp -d)/kb}"

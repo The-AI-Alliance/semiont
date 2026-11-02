@@ -1095,7 +1095,7 @@ Commit the result. CI runs the same generator and fails while the committed
 client differs from what the spec generates.
 
 What the generator is told is in [`oapi-codegen.yaml`](oapi-codegen.yaml), the
-one file `go generate`, CI and `images/local-build.sh` all give it. Each
+one file `go generate`, CI and `make local-build` all give it. Each
 of the three adds only the spec's path and the path it writes to.
 
 Generation covers the whole spec on purpose: a Go type for every schema and a

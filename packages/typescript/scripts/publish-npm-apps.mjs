@@ -22,6 +22,7 @@ import { stampInternalDeps } from './stamp-internal-deps.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(__dirname, '../../..');
 const DRY_RUN = process.argv.includes('--dry-run');
+const VERIFY = process.argv.includes('--verify');
 const STAGE_DIR = resolve(rootDir, '.npm-stage');
 
 function getVersion() {
@@ -49,13 +50,18 @@ function stageBrowser(version) {
   // Verify built artifacts exist
   const distIndex = resolve(browserDir, 'dist/index.html');
   if (!existsSync(distIndex)) {
-    throw new Error(`Browser not built: ${distIndex} not found. Run 'npm run build' in images/browser first.`);
+    throw new Error(`Browser not built: ${distIndex} not found. Build the Browser's npm artifacts first (make packages PACKAGE_NAMES=typescript includes them).`);
   }
 
   const serverJs = resolve(browserDir, 'server.js');
   if (!existsSync(serverJs)) {
     throw new Error(`Browser server.js not found at ${serverJs}`);
   }
+
+  for (const input of ['README.npm.md', 'package.publish.json']) {
+    if (!existsSync(resolve(browserDir, input))) throw new Error(`Browser publication input missing: ${input}`);
+  }
+  if (VERIFY) return stageDir;
 
   // Clean and create staging directory
   if (existsSync(stageDir)) rmSync(stageDir, { recursive: true });
@@ -90,6 +96,8 @@ if (DRY_RUN) log('(dry run)\n');
 
 const browserStage = stageBrowser(version);
 
-log('\n=== Staging complete ===\n');
-log('To publish:');
-log(`  cd ${browserStage} && npm publish --access public`);
+if (!VERIFY) {
+  log('\n=== Staging complete ===\n');
+  log('To publish:');
+  log(`  cd ${browserStage} && npm publish --access public`);
+}

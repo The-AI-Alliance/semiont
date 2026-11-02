@@ -421,7 +421,7 @@ of which SSE subscription carries a wire event to a client. Related, not the
 same axis.
 
 Nothing regenerates automatically. The `Generated Artifacts (drift)` CI job
-and `images/local-build.sh` both fail if the committed output disagrees
+and `make local-build` both fail if the committed output disagrees
 with the registry, naming the command to run.
 
 ## Adding a new channel

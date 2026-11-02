@@ -26,7 +26,7 @@
 #      engine is the program. A Smelter loads the one and runs the other
 #      once it has read its document, which no check above gives it.
 #
-# Run by local-build.sh after it builds such an image, and by the image
+# Run by the local-build session after it builds such an image, and by the image
 # publish workflow before it pushes.
 set -eu
 
