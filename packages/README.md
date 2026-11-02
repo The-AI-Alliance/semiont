@@ -12,6 +12,7 @@ The libraries Semiont is built from, in five languages. The services are in [ima
 | [Go](./go/README.md) | The SDK, and the launcher's libraries | The Go module proxy, by a tag at each release: the SDK alone |
 | [C#](./csharp/README.md) | The .NET SDK, under construction | Not published |
 | [Kotlin](./kotlin/README.md) | The SDK, for Kotlin and Java programs | Not published |
+| [Swift](./swift/README.md) | The SDK for Apple apps and Linux services | Not published |
 
 Each language's README lists its packages, with what each is and its coverage, and says how the language's packages are built and measured.
 

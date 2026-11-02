@@ -126,6 +126,8 @@ if ! JDK_VERSION="$("$REPO_ROOT/scripts/ci/jdk-version.sh")"; then
   exit 1
 fi
 JDK_IMAGE="eclipse-temurin:${JDK_VERSION}-jdk"
+SWIFT_VERSION="$("$REPO_ROOT/scripts/ci/swift-version.sh")" || exit 1
+SWIFT_IMAGE="swift:${SWIFT_VERSION}"
 
 # The .NET SDK is pinned by global.json; its image tag drops the prerelease build stamp.
 DOTNET_IMAGE="mcr.microsoft.com/dotnet/sdk:$("$REPO_ROOT/scripts/ci/dotnet-version.sh" --image-tag)"
@@ -142,6 +144,8 @@ UVCACHE_DIR="$CACHE_ROOT/local-build-uv"
 CARGO_REGISTRY_DIR="$CACHE_ROOT/local-build-cargo"
 GRADLE_HOME_DIR="$CACHE_ROOT/local-build-gradle"
 NUGET_CACHE_DIR="$CACHE_ROOT/nuget"
+SWIFTPM_DIR="$CACHE_ROOT/local-build-swiftpm"
+mkdir -p "$SWIFTPM_DIR"
 # What each package and image was last built from, keyed by its directory.
 STATE="$CACHE_ROOT/local-build-state.json"
 state_get() { python3 -c 'import json,sys
@@ -381,7 +385,7 @@ BUILD_PACKAGES=""
 if [[ "$IMAGES_ONLY" != true ]]; then
   if ! PACKAGE_PLAN=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
       | $RT run --rm -i -v "$REPO_ROOT":/workspace -w /workspace "$PYTHON_IMAGE" \
-          python3 scripts/ci/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$DOTNET_IMAGE"); then
+          python3 scripts/ci/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$SWIFT_IMAGE" "$DOTNET_IMAGE"); then
     fail "Could not read what the packages are built from (scripts/ci/package-signatures.py, above)."
     exit 1
   fi
@@ -1132,6 +1136,21 @@ build_kotlin() {
   built $packages
 }
 
+build_swift() {
+  local packages
+  packages=$(packages_of swift)
+  [[ -z "$packages" ]] && return 0
+  step "Swift: $(shown "$(names_of $packages)")"
+  if ! run_logged "Swift: built" $RT run --rm --memory 8g \
+    -v "$REPO_ROOT":/workspace -v "$SWIFTPM_DIR":/root/.cache \
+    -w /workspace "$SWIFT_IMAGE" \
+    sh -c 'for dir in "$@"; do (cd "$dir" && swift build) || exit 1; done' sh $packages; then
+    fail "A Swift package did not build."
+    exit 1
+  fi
+  built $packages
+}
+
 build_csharp() {
   local packages
   packages=$(packages_of csharp)
@@ -1158,6 +1177,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
   build_go
   build_kotlin
   build_csharp
+  build_swift
 fi
 
 [[ -n "$REGISTRY_IMAGES" ]] && "$SCRIPT_DIR/verdaccio-ls.sh" "$REGISTRY"

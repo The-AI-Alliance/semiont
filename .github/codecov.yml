@@ -128,6 +128,14 @@ component_management:
       name: "packages/csharp/sdk"
       paths:
         - packages/csharp/sdk/**
+    - component_id: swift-sdk
+      name: "packages/swift/sdk"
+      paths:
+        - packages/swift/sdk/**
+    - component_id: swift
+      name: "packages/swift"
+      paths:
+        - packages/swift/**
     - component_id: kotlin-sdk
       name: "packages/kotlin/sdk"
       paths:
@@ -338,6 +346,10 @@ flags:
       - packages/csharp/sdk/**
     carryforward: true
 
+  swift-sdk:
+    paths:
+      - packages/swift/sdk/**
+    carryforward: true
   kotlin-sdk:
     paths:
       - packages/kotlin/sdk/**

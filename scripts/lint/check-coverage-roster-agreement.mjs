@@ -48,7 +48,7 @@ import { workspaceDirectories } from './workspaces.mjs';
 const ROOT = process.cwd();
 const CODECOV = '.github/codecov.yml';
 const WORKFLOW = '.github/workflows/ci.yml';
-const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts'];
+const MANIFESTS = ['package.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'build.gradle.kts', 'Package.swift'];
 /** A .NET solution is named for what it builds. */
 const isManifest = (name) => MANIFESTS.includes(name) || name.endsWith('.slnx');
 const yaml = createRequire(join(ROOT, 'package.json'))('js-yaml');

@@ -50,6 +50,7 @@ const IMPLEMENTATIONS = {
   go: ['packages/go/sdk'],
   kotlin: ['packages/kotlin/sdk'],
   csharp: ['packages/csharp/sdk'],
+  swift: ['packages/swift/sdk'],
   launcher: ['apps/launcher', 'packages/go/launcher'],
   archivist: ['images/archivist'],
   librarian: ['images/librarian'],
@@ -64,7 +65,7 @@ const IMPLEMENTATIONS = {
 };
 
 /** The SDKs, which are held to one another. */
-const SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'csharp'];
+const SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
 
 /** The tables whose rule counts or states an offset. */
 const COUNTS_CODE_POINTS = new Set([
@@ -106,7 +107,7 @@ function names(text, table) {
   return text.includes(table) || text.includes(`"${directory}", "${name}"`);
 }
 
-const isTest = (path) => /(_test\.go|\.test\.tsx?|\/test_[^/]*\.py|_test\.py)$|\/tests?\/|\/javaTest\/|__tests__\//.test(path);
+const isTest = (path) => /(_test\.go|\.test\.tsx?|\/test_[^/]*\.py|_test\.py)$|\/tests?\/|\/Tests\/|\/javaTest\/|__tests__\//.test(path);
 
 const tables = filesUnder(SPECS)
   .filter((path) => path.endsWith('cases.json'))

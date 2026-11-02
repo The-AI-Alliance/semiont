@@ -234,7 +234,7 @@ const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
 const SCHEMAS = 'specs/src/components/schemas';
 /** Each SDK as a message names it. */
-const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', csharp: 'C#' };
+const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#' };
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -1667,6 +1667,158 @@ function csharpMakeable(made, declared, maker) {
   if (!new RegExp(`\\b(?:private|protected|internal)\\s+(?:(?:private|protected|internal)\\s+)?${made}\\s*\\(`).test(type.body)) return undefined;
   return `${declared.where} has no constructor that is public: make it public, or name in the row's \`madeBy\` the static method that makes it`;
 }
+// Swift strings and nested comments cannot contribute declarations.
+function swiftCode(text) {
+  let out = '', i = 0;
+  const stringAt = (at) => /^(#*)("""|")/.exec(text.slice(at));
+  const skipString = (start, quote) => {
+    let cursor = start + quote[0].length;
+    const end = quote[2] + quote[1], escape = '\\' + quote[1];
+    while (cursor < text.length) {
+      if (text.startsWith(end, cursor)) return cursor + end.length;
+      if (text.startsWith(escape + '(', cursor)) {
+        cursor += escape.length + 1; let depth = 1;
+        while (cursor < text.length && depth) {
+          const nested = stringAt(cursor);
+          if (nested) { cursor = skipString(cursor, nested); continue; }
+          if (text[cursor] === '(') depth++;
+          if (text[cursor] === ')') depth--;
+          cursor++;
+        }
+      } else if (text.startsWith(escape, cursor)) cursor += escape.length + 1;
+      else cursor++;
+    }
+    return cursor;
+  };
+  while (i < text.length) {
+    const start = i;
+    if (text.startsWith('//', i)) {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (text.startsWith('/*', i)) {
+      i += 2; let depth = 1;
+      while (i < text.length && depth) {
+        if (text.startsWith('/*', i)) { depth++; i += 2; }
+        else if (text.startsWith('*/', i)) { depth--; i += 2; }
+        else i++;
+      }
+    } else {
+      const quote = stringAt(i);
+      if (!quote) { out += text[i++]; continue; }
+      i = skipString(i, quote);
+    }
+    out += text.slice(start, i).replace(/[^\n]/g, ' ');
+  }
+  return out;
+}
+const SWIFT_SDK = 'packages/swift/sdk/Sources/Semiont';
+const SWIFT_NAMESPACES = `${SWIFT_SDK}/Namespaces`;
+function swiftSources(directory = SWIFT_SDK) {
+  return REPOSITORY.filter((file) => file.startsWith(`${directory}/`) && file.endsWith('.swift')).map((file) => ({ file, code: swiftCode(read(file)) }));
+}
+function swiftBlock(code, open) {
+  let depth = 1, i = open + 1;
+  for (; i < code.length && depth; i++) {
+    if (code[i] === '{') depth++;
+    if (code[i] === '}') depth--;
+  }
+  if (depth) fail('Swift: unclosed declaration body');
+  return { body: code.slice(open + 1, i - 1), end: i };
+}
+function swiftDeclarations(code) {
+  const found = [];
+  const pattern = /\b(?:(public|open|package|internal|private|fileprivate)\s+)?(?:(?:final|static|class|nonisolated|override|mutating|required|convenience)\s+)*(func|var|let|subscript|init|deinit|struct|actor|class|enum|protocol|extension|typealias|associatedtype)\s*(`?\w+`?|==)?/g;
+  let match;
+  while ((match = pattern.exec(code))) {
+    const start = pattern.lastIndex;
+    let end = start, paren = 0, bracket = 0;
+    while (end < code.length) {
+      const c = code[end];
+      if (c === '(') paren++;
+      if (c === ')') paren--;
+      if (c === '[') bracket++;
+      if (c === ']') bracket--;
+      if (!paren && !bracket && (c === '{' || c === '\n' || c === ';')) break;
+      end++;
+    }
+    const block = code[end] === '{' ? swiftBlock(code, end) : { body: '', end };
+    found.push({ access: match[1], kind: match[2], name: match[2] === 'subscript' ? 'subscript' : match[3]?.replaceAll('`', ''), header: code.slice(start, end), body: block.body });
+    pattern.lastIndex = Math.max(block.end, end + 1);
+  }
+  return found;
+}
+function swiftTypes(directory = SWIFT_SDK) {
+  const declarations = swiftSources(directory).flatMap(({ file, code }) => swiftDeclarations(code).map((d) => ({ ...d, file })));
+  const types = declarations.filter((d) => ['class', 'struct', 'actor', 'enum', 'protocol'].includes(d.kind));
+  for (const type of types) type.extensions = declarations.filter((d) => d.kind === 'extension' && d.name === type.name);
+  return types;
+}
+function swiftMembers(type, types, seen = new Set()) {
+  if (seen.has(type.name)) return new Map();
+  seen.add(type.name);
+  const members = new Map();
+  for (const block of [type, ...type.extensions]) {
+    for (const member of swiftDeclarations(block.body)) {
+      if (['init', 'deinit'].includes(member.kind)) continue;
+      if (!(member.access === 'public' || member.access === 'open' || (!member.access && (block.kind === 'protocol' || block.kind === 'extension' && block.access === 'public')))) continue;
+      let signature = member.header;
+      if (member.kind === 'func' || member.kind === 'subscript') {
+        const open = signature.indexOf('('); let depth = 1, i = open + 1;
+        for (; i < signature.length && depth; i++) { if (signature[i] === '(') depth++; if (signature[i] === ')') depth--; }
+        signature = signature.slice(i);
+      }
+      const returns = /->\s*(.*)/s.exec(signature)?.[1].trim() ?? (/^\s*:\s*(.*)/s.exec(member.header)?.[1].trim() ?? 'Void');
+      const takes = [];
+      const parameters = /^\s*(?:<[^>]*>)?\s*\((.*)\)/s.exec(member.header)?.[1];
+      if (parameters) for (const parameter of splitOutside(parameters, ',')) {
+        const colon = parameter.indexOf(':');
+        if (colon >= 0) takes.push(parameter.slice(colon + 1).replace(/\b(?:inout)\b|@(?:escaping|Sendable)\b/g, '').trim());
+      }
+      const shape = /\basync\b/.test(member.header) ? (/^Int\?$/.test(returns) ? 'count' : 'promise') : /\bCached\s*</.test(returns) ? 'cache' : /\bRunning\s*</.test(returns) ? 'stream' : /\bDelegation\s*</.test(returns) ? 'delegation' : /^Upload\b/.test(returns) ? 'upload' : /^Claims\b/.test(returns) ? 'claims' : /\bTyped\s*</.test(returns) ? 'events' : returns === 'Void' || returns === '()' ? 'signal' : undefined;
+      members.set(member.name, { returns, takes, shape });
+    }
+    const supers = /^\s*(?:<[^>]*>)?\s*:\s*([^\n{]+)/.exec(block.header)?.[1];
+    if (supers) for (const entry of supers.split(',')) {
+      const name = entry.trim().split(/[<\s]/)[0];
+      const parent = types.find((t) => t.name === name);
+      if (parent) { for (const [name, member] of swiftMembers(parent, types, seen)) if (!members.has(name)) members.set(name, member); }
+      else if (!['StateUnit', 'Sendable', 'Codable', 'Encodable', 'Decodable', 'Error', 'AsyncSequence', 'AsyncIteratorProtocol', 'Equatable', 'Hashable', 'CustomStringConvertible', 'Identifiable'].includes(name)) fail(`${block.file}: cannot read Swift protocol ${name}`);
+    }
+  }
+  const standard = {
+    AsyncSequence: ['makeAsyncIterator', 'Element', 'AsyncIterator', 'Failure'],
+    AsyncIteratorProtocol: ['next', 'Element', 'Failure'],
+    Equatable: ['=='], Hashable: ['==', 'hash', 'hashValue'],
+    CustomStringConvertible: ['description'], Identifiable: ['id', 'ID'],
+  };
+  for (const block of [type, ...type.extensions]) for (const [protocol, names] of Object.entries(standard)) {
+    if (new RegExp(`\\b${protocol}\\b`).test(block.header)) for (const name of names) members.delete(name);
+  }
+  return members;
+}
+function swiftSurface() {
+  const types = swiftTypes();
+  return new Map(types.filter((t) => /Namespace$/.test(t.name) && ['public', 'open'].includes(t.access)).map((t) => {
+    if (t.file !== `${SWIFT_NAMESPACES}/${t.name}.swift`) fail(`${t.file}: namespace belongs in ${SWIFT_NAMESPACES}/${t.name}.swift`);
+    const name = t.name.slice(0, -9); return [name[0].toLowerCase() + name.slice(1), swiftMembers(t, types)];
+  }));
+}
+function swiftWorker() {
+  const types = swiftTypes();
+  const declared = (name) => { const type = types.find((t) => t.name === name); return { of: name, members: type ? swiftMembers(type, types) : new Map() }; };
+  return { where: SWIFT_SDK, claims: declared('Claims'), either: declared('HeldJob'), jobs: Object.fromEntries(VERBS.map((v) => [v, declared(`Held${v[0].toUpperCase()}${v.slice(1)}Job`)])), spelled: (name) => name };
+}
+function swiftUnit(made, directory) {
+  const types = swiftTypes(directory), type = types.find((t) => t.name === made);
+  if (!type) return undefined;
+  return { where: `${made} in ${type.file}`, isUnit: [type, ...type.extensions].some((t) => /\bStateUnit\b/.test(t.header)), members: new Set(swiftMembers(type, types).keys()) };
+}
+function swiftUnits() { return swiftTypes().filter((t) => [t, ...t.extensions].some((d) => /\bStateUnit\b/.test(d.header))).map((t) => ({ name: t.name, file: t.file })); }
+function swiftMakeable(made, declared, maker) {
+  if (maker !== undefined) return swiftSources().some(({ code }) => swiftDeclarations(code).some((d) => d.name === maker && d.kind === 'func' && ['public', 'open'].includes(d.access))) ? undefined : 'Swift declares no public maker';
+  const type = swiftTypes().find((t) => t.name === made);
+  return type && [type, ...type.extensions].some((t) => swiftDeclarations(t.body).some((d) => d.kind === 'init' && d.access === 'public')) ? undefined : 'Swift declares no public initializer';
+}
+function swiftExports(files) { return files.flatMap((file) => swiftDeclarations(swiftCode(read(file))).filter((d) => ['public', 'open'].includes(d.access)).map((d) => d.name)); }
 
 // ── Each SDK against the table ──────────────────────────────────────────
 
@@ -1729,6 +1881,7 @@ const NAMESPACES = {
   go: { where: GO_SDK, surface: goSurface },
   kotlin: { where: KOTLIN_NAMESPACES, surface: kotlinSurface },
   csharp: { where: CSHARP_NAMESPACES, surface: csharpSurface },
+  swift: { where: SWIFT_NAMESPACES, surface: swiftSurface },
 };
 const NAMESPACE_SDKS = Object.keys(NAMESPACES);
 
@@ -1753,7 +1906,7 @@ const VERBS = JSON.parse(read(`${SCHEMAS}/JobType.json`)).enum;
 const HANDED = ['claims', 'heldJob'];
 
 /** Each SDK whose worker's surface this reads, and its reader. */
-const WORKERS = { typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, csharp: csharpWorker };
+const WORKERS = { typescript: typescriptWorker, rust: rustWorker, python: pythonWorker, go: goWorker, kotlin: kotlinWorker, swift: swiftWorker, csharp: csharpWorker };
 const WORKER_SDKS = Object.keys(WORKERS);
 
 /** handed → member → row */
@@ -2204,6 +2357,7 @@ const UNITS = {
   go: { read: goUnit, sources: GO_SDK, declared: goUnits, dispose: 'close', makeable: goMakeable },
   kotlin: { read: kotlinUnit, sources: KOTLIN_SDK, declared: kotlinUnits, dispose: 'close', makeable: kotlinMakeable },
   csharp: { read: csharpUnit, sources: CSHARP_SDK, declared: csharpUnits, dispose: 'dispose', makeable: csharpMakeable },
+  swift: { read: swiftUnit, sources: SWIFT_SDK, declared: swiftUnits, dispose: 'dispose', makeable: swiftMakeable },
 };
 const UNIT_SDKS = Object.keys(UNITS);
 
@@ -2759,6 +2913,7 @@ const WIRES = {
     handedOut: { file: `${CSHARP_SDK}/SemiontClient.cs`, says: (made) => new RegExp(`^\\s+public ${made} Wire \\{ get; \\}$`, 'm') },
   },
 };
+WIRES.swift = { read: swiftUnit, sources: SWIFT_SDK, handedOut: { file: `${SWIFT_SDK}/SemiontClient.swift`, says: (made) => new RegExp(`public\\s+let\\s+wire:\\s*${made}\\b`) } };
 const WIRE_SDKS = Object.keys(WIRES);
 
 /** member → row */
@@ -2808,6 +2963,7 @@ const STORAGES = {
   go: { read: goInterface, sources: GO_SDK },
   kotlin: { read: kotlinUnit, sources: KOTLIN_SDK },
   csharp: { read: csharpUnit, sources: CSHARP_SDK },
+  swift: { read: swiftUnit, sources: SWIFT_SDK },
 };
 const STORAGE_SDKS = Object.keys(STORAGES);
 
@@ -2864,7 +3020,7 @@ else {
  * `whole` lists an SDK is that SDK's files and nothing else: every public
  * member of them is listed.
  */
-const MODULE_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'csharp'];
+const MODULE_SDKS = ['typescript', 'rust', 'python', 'go', 'kotlin', 'swift', 'csharp'];
 /** The SDKs whose module is a package, given by its directory. */
 const BY_DIRECTORY = ['go', 'kotlin', 'csharp'];
 const MODULE_KINDS = ['function', 'reader', 'type', 'constant'];
@@ -2873,7 +3029,7 @@ const snakeCase = (name) => name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerC
 
 /** A member's name as `sdk` spells a member of `kind`. */
 function spelledAs(sdk, kind, name) {
-  if (kind === 'type') return name;
+  if (sdk === 'swift' || kind === 'type') return name;
   if (sdk === 'csharp') return capitalized(name);
   if (kind === 'constant') return sdk === 'go' ? capitalized(name) : snakeCase(name).toUpperCase();
   if (sdk === 'go') return capitalized(name);
@@ -2943,7 +3099,7 @@ function goExports(directories) {
   });
 }
 
-const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, csharp: csharpExports };
+const EXPORTS = { typescript: typescriptExports, rust: rustExports, python: pythonExports, go: goExports, kotlin: kotlinExports, swift: swiftExports, csharp: csharpExports };
 
 /** module → row */
 const modules = new Map();
