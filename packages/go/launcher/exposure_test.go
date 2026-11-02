@@ -165,7 +165,7 @@ func TestNetworkLANPlacesTheIssuerAtTheNetworkAddress(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	plan := mustPlan(t, st)
 	p := placement{st: st, plan: plan, rt: "container", addr: bridge, lan: lanAddr}
-	if got := p.issuer(); got != "http://"+lanAddr+":8080/realms/semiont" {
+	if got := p.issuer(); got != "http://"+lanAddr+":8080/realms/example.github.io-test-kb" {
 		t.Errorf("under lan every document names the issuer %s, want it at the network address", got)
 	}
 	if got := p.gatewayURL(); got != "http://"+bridge+":14000" {
@@ -207,7 +207,7 @@ func TestTheLaunchersProbesGoWhereTheDialersAre(t *testing.T) {
 		{"identity-store", "postgres", "tcp:" + bridge + ":5432"},
 		{"messaging", "jetstream", "tcp:" + bridge + ":4222"},
 		{"collector", "otel", "http://" + bridge + ":24110/metrics"},
-		{"identity", "keycloak", "http://" + bridge + ":8080/realms/semiont"},
+		{"identity", "keycloak", "http://" + bridge + ":8080/realms/example.github.io-test-kb"},
 		{"archivist", driverSemiont, "http://" + bridge + ":24103/health"},
 		{"worker", driverSemiont, "http://" + bridge + ":24100/health"},
 	} {

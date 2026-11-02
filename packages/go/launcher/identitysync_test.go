@@ -319,7 +319,7 @@ func TestIdentitySyncCreatesTheClientTheImportWOULDHave(t *testing.T) {
 		got, _ := json.Marshal(s.created[i])
 		want, _ := json.Marshal(want)
 		if string(got) != string(want) {
-			t.Fatalf("created client differs from what the realm import renders:\n got: %s\nwant: %s", got, want)
+			t.Fatalf("created client differs from what the realm document renders:\n got: %s\nwant: %s", got, want)
 		}
 	}
 }

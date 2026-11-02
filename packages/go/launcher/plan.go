@@ -538,10 +538,12 @@ func planErr(file, field, format string, a ...any) error {
 }
 
 // derivePlan maps a knowledge base's documents to each role's presence.
+// realm is the realm the Keycloak the launcher runs keeps the knowledge base
+// in: its key (rootKey), so each knowledge base has a realm of its own.
 // keycloakPort is the port this launch gives the Keycloak it runs
 // (keycloakPort in root.go), and block the knowledge base's port block
 // (portBlockOf).
-func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
+func derivePlan(st *stack.Stack, realm string, keycloakPort, block int) (*launchPlan, error) {
 	kb, index, files := st.KnowledgeBase.Spec, st.KnowledgeIndex.Spec, st.Files
 	plan := &launchPlan{
 		Roles:        map[string]rolePlan{},
@@ -695,7 +697,7 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 		}
 		rp := rolePlan{
 			Role: "identity", Driver: "keycloak", Port: keycloakPort, Presence: presenceLauncher,
-			Issuer:              fmt.Sprintf("http://localhost:%d/realms/%s", keycloakPort, keycloakRealmName),
+			Issuer:              fmt.Sprintf("http://localhost:%d/realms/%s", keycloakPort, realm),
 			AccessTokenLifespan: is.AccessTokenLifespan,
 			Image:               is.Image, Memory: is.Resources.Limits.Memory,
 			Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=" + is.Database.User,

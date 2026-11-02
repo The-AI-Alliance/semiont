@@ -196,8 +196,8 @@ func writeVettedStack(u *UI, root string, files map[string][]byte) bool {
 	for _, name := range names {
 		st, err := stack.Load(vet, name)
 		if err == nil {
-			// Vetting only: any port and block prove the issuer is planned.
-			_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort, 0)
+			// Vetting only: any realm, port and block prove the issuer is planned.
+			_, err = derivePlan(st, "vet", descriptorFor("identity", "keycloak").defaultPort, 0)
 		}
 		if err != nil {
 			u.Fail("The documents did not pass the launcher's own reading — refusing to write them: %v", err)

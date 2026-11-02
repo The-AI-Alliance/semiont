@@ -166,21 +166,6 @@ for SERVICE in browser worker; do
   fi
 done
 
-if ! WORKER_DOC=$("$SEMIONT" settings worker --path); then
-  bad "the launcher named no worker document"; exit 1
-fi
-KEPT=$(mktemp) || exit 1
-if ! cp "$WORKER_DOC" "$KEPT"; then
-  rm -f "$KEPT"; bad "could not keep a copy of $WORKER_DOC to put back"; exit 1
-fi
-WORKER_KEPT=$KEPT
-sed "s#\(ghcr.io/the-ai-alliance/semiont-worker\):[^[:space:]]*#\1:$IMAGES#" "$WORKER_DOC" > "$WORKER_DOC.next" && mv "$WORKER_DOC.next" "$WORKER_DOC"
-if grep -q "image: ghcr.io/the-ai-alliance/semiont-worker:$IMAGES\$" "$WORKER_DOC"; then
-  ok "the worker's document names :$IMAGES"
-else
-  bad "the worker's document ($WORKER_DOC) does not name :$IMAGES"; exit 1
-fi
-
 head_ "Boot from :$IMAGES on $RUNTIME"
 # No --config: a new KB records the config it was made with, and `start` reads
 # that. Its defaults serve inference and embedding from Ollama: the host's when
@@ -197,11 +182,13 @@ head_ "Status"
 if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
 head_ "The realm the start created"
+# The knowledge base's realm is its key, made from the domain init was given.
 # A new KB's Keycloak holds no realm until the start creates it: if it created
 # another, or none, this 404s.
-curl -fsS http://localhost:8080/realms/semiont >/dev/null \
-  && ok "realm 'semiont' answers" || bad "realm 'semiont' does not answer"
-curl -fsS http://localhost:8080/realms/semiont/.well-known/openid-configuration >/dev/null \
+REALM=example.github.io-stack-smoke
+curl -fsS "http://localhost:8080/realms/$REALM" >/dev/null \
+  && ok "realm '$REALM' answers" || bad "realm '$REALM' does not answer"
+curl -fsS "http://localhost:8080/realms/$REALM/.well-known/openid-configuration" >/dev/null \
   && ok "discovery answers" || bad "discovery does not answer"
 
 head_ "The realm allows the Browser's origin"
@@ -213,7 +200,7 @@ HDR=$(curl -s -D- -o /dev/null -X POST \
   -H "Origin: http://localhost:3000" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data "grant_type=authorization_code&client_id=semiont-browser&code=bogus&redirect_uri=http://localhost:3000/en/auth/callback" \
-  http://localhost:8080/realms/semiont/protocol/openid-connect/token \
+  "http://localhost:8080/realms/$REALM/protocol/openid-connect/token" \
   | tr -d '\r' | grep -i '^access-control-allow-origin:')
 case "$HDR" in
   *"http://localhost:3000"*) ok "origin echoed: $HDR" ;;

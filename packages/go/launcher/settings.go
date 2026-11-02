@@ -388,16 +388,16 @@ func setRuntime(u *UI, kb kbRoot, value string) bool {
 
 func unsetRuntime(u *UI, kb kbRoot) bool { return recorded(u, setRuntimePref("")) }
 
-// loadRootStack loads root's documents with its Inference document named
+// loadRootStack loads kb's documents with its Inference document named
 // name, refusing as a start would.
-func loadRootStack(u *UI, root, name string) (*stack.Stack, bool) {
-	if _, err := os.Stat(filepath.Join(root, stack.InferencePath(name))); err != nil {
+func loadRootStack(u *UI, kb kbRoot, name string) (*stack.Stack, bool) {
+	if _, err := os.Stat(filepath.Join(kb.dir, stack.InferencePath(name))); err != nil {
 		u.Fail("Config not found: %s", stack.InferencePath(name))
 		return nil, false
 	}
-	st, err := stack.Load(root, name)
+	st, err := stack.Load(kb.dir, name)
 	if err == nil {
-		_, err = derivePlan(st, descriptorFor("identity", "keycloak").defaultPort, 0)
+		_, err = derivePlan(st, kb.key(), descriptorFor("identity", "keycloak").defaultPort, 0)
 	}
 	if err != nil {
 		u.Fail("%v", err)
@@ -407,7 +407,7 @@ func loadRootStack(u *UI, root, name string) (*stack.Stack, bool) {
 }
 
 func setConfig(u *UI, kb kbRoot, value string) bool {
-	if _, ok := loadRootStack(u, kb.dir, value); !ok {
+	if _, ok := loadRootStack(u, kb, value); !ok {
 		return false
 	}
 	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.Config = value }))
@@ -536,7 +536,7 @@ func setKeycloakPort(u *UI, kb kbRoot, value string) bool {
 	if name == "" {
 		name = defaultConfigName
 	}
-	st, ok := loadRootStack(u, kb.dir, name)
+	st, ok := loadRootStack(u, kb, name)
 	if !ok {
 		return false
 	}
