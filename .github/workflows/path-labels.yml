@@ -1,7 +1,7 @@
 name: Path Labels
 
 # Adds to every pull request the labels of the files it changes: the app, test
-# suite, SDK or part of the spec each is in (scripts/lint/path-labels.mjs, the
+# suite, SDK or part of the spec each is in (.github/scripts/checks/path-labels.mjs, the
 # rule lint:labels holds .github/labels.yml to). It only adds; the other
 # labels are the author's to choose.
 #

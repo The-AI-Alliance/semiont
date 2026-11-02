@@ -7,14 +7,14 @@ implemented. Nothing is published to NuGet. Consumers will use a project referen
 publishing is enabled separately.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
-disabled. [dotnet-version.sh](../../../scripts/ci/dotnet-version.sh) derives the container
+disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container
 tag from that version. No .NET installation on the host is required.
 
 From the repository root, build and check inside Apple `container`:
 
 ```sh
 container run --rm -v "$PWD":/work -w /work/packages/csharp/sdk \
-  "mcr.microsoft.com/dotnet/sdk:$(scripts/ci/dotnet-version.sh --image-tag)" \
+  "mcr.microsoft.com/dotnet/sdk:$(packages/csharp/scripts/dotnet-version.sh --image-tag)" \
   sh -c 'dotnet build -p:RestoreLockedMode=true && dotnet test --no-build --settings test.runsettings && dotnet format --no-restore --verify-no-changes'
 ```
 

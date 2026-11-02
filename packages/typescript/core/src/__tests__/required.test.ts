@@ -1,6 +1,6 @@
 /**
  * What a value lacks to be one of the spec's schemas, as every SDK names it:
- * the table generated from the spec (scripts/spec/required-members.mjs), read
+ * the table generated from the spec (packages/codegen/schemas/required-members.mjs), read
  * as Go's is (packages/go/sdk/internal/required/required_test.go).
  */
 

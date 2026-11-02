@@ -238,7 +238,7 @@ Three layers, deliberately, because each catches what the others structurally ca
 
 | Layer | Where | Catches |
 |---|---|---|
-| **Source** | [validate-registry.mjs](../../scripts/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel also given an `audience` (the double-delivery shape) — reported against the registry line you typed |
+| **Source** | [validate-registry.mjs](../../packages/codegen/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel also given an `audience` (the double-delivery shape) — reported against the registry line you typed |
 | **Compile time** | `satisfies` clauses in the generated TypeScript | an unknown channel, a missing payload binding, a schema name that isn't in the OpenAPI types |
 | **Test time** | [bus-invariants.test.ts](../../packages/typescript/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/go/sdk/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
 
@@ -315,10 +315,10 @@ Two generators read it:
 
 | Output | Generator |
 |---|---|
-| `packages/typescript/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
-| `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
+| `packages/typescript/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node packages/codegen/bus/generate-ts.mjs` |
+| `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node packages/codegen/bus/generate-go.mjs` |
 | The Rust SDK's channel and operation tables | its build script, [`packages/rust/sdk/build.rs`](../../packages/rust/sdk/build.rs), on every build |
-| `packages/python/sdk/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
+| `packages/python/sdk/src/semiont/channels.py`, `operations.py` | `node packages/codegen/bus/generate-python.mjs` |
 
 ```sh
 npm run generate:bus          # regenerate TypeScript and Go
@@ -421,7 +421,7 @@ of which SSE subscription carries a wire event to a client. Related, not the
 same axis.
 
 Nothing regenerates automatically. The `Generated Artifacts (drift)` CI job
-and `scripts/ci/local-build.sh` both fail if the committed output disagrees
+and `images/local-build.sh` both fail if the committed output disagrees
 with the registry, naming the command to run.
 
 ## Adding a new channel

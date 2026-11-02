@@ -93,7 +93,7 @@ Every container the launcher runs from a document runs the `image` that document
 
 An image of Semiont's runs only when a release built it: `semiont start` verifies its build provenance first, and runs it by its digest ([What `semiont start` checks](IMAGES.md#what-semiont-start-checks)).
 
-An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
+An image tagged `:local` is never pulled: it is one [`images/local-build.sh`](../../../images/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
 
 The Browser's image is named by its own document ([The Browser](#the-browser)). The images of Ollama and the telemetry containers are the launcher's own.
 
@@ -211,7 +211,7 @@ Which jobs it does, and with which engines, is each knowledge base's: its Infere
 
 One worker serves every knowledge base on its list. A start puts its own knowledge base on the list when one of its jobs has an engine, and takes it off when none does. A knowledge base someone else runs is added from inside one on the list, `semiont worker kb add`, and is offered that one's engines ([What the worker's owner does with it](AUTHENTICATION.md#what-the-workers-owner-does-with-it)). `semiont worker kb list` shows the list. Until each local knowledge base has a gateway port of its own, a start takes off the list any other local knowledge base whose gateway was on its port, and says so.
 
-A start resolves every provider key the list's engines name, not its own knowledge base's alone, and refuses when one is missing, naming the knowledge base that names it. It writes the worker's configuration document to `machine/worker.json` in the state home, and keeps a running worker when that document, its image and its memory are what the start would run; it restarts the worker otherwise, and stops it when the list is empty.
+A start resolves every provider key the list's engines name, not its own knowledge base's alone, and refuses when one is missing, naming the knowledge base that names it. It writes the worker's configuration document to `shared/worker.json` in the state home, and keeps a running worker when that document, its image and its memory are what the start would run; it restarts the worker otherwise, and stops it when the list is empty.
 
 ## A deployment of its own
 

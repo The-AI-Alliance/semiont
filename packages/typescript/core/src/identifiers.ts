@@ -5,7 +5,7 @@
  * is made by one constructor that holds text to the kind's rule. Its guard
  * (`isResourceId`) asks the same of text without throwing. Types and
  * constructors are generated from the spec (specs/src/identifiers/kinds.json
- * and each kind's schema, by scripts/spec/generate-identifiers.mjs): the
+ * and each kind's schema, by packages/codegen/schemas/generate-identifiers.mjs): the
  * rule is stated there, once, for every SDK and for the gateway.
  *
  * A constructor stands where text enters: a URL, a DOM attribute, a script's

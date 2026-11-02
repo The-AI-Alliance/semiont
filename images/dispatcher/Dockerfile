@@ -6,7 +6,7 @@
 # Built from the repository root, with the toolchain
 # rust-toolchain.toml names — the one place it is written:
 #
-#   --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh)
+#   --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.sh)
 #
 # There is no default: without it the first FROM names no image and the build
 # stops, rather than building with a toolchain nothing pinned.
@@ -77,8 +77,8 @@ RUN addgroup --system --gid 1001 semiont && \
 
 COPY --from=builder /semiont-dispatcher /usr/local/bin/semiont-dispatcher
 COPY LICENSE images/dispatcher/NOTICE /home/semiont/
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+COPY images/shared/supervise.sh /usr/local/bin/supervise.sh
+COPY images/shared/boot.sh /usr/local/bin/boot.sh
 
 USER semiont
 

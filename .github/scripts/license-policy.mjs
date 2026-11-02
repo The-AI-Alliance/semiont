@@ -16,7 +16,7 @@
 // judged against the allowlist like any other license.
 //
 // Read by check-licenses.mjs (npm packages in an image's SBOM) and by
-// scripts/lint/check-image-crates.mjs (the crates each Rust service binary links).
+// images/scripts/check-image-crates.mjs (the crates each Rust service binary links).
 
 import { readFileSync } from 'node:fs';
 

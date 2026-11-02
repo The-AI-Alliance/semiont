@@ -195,18 +195,18 @@ on both signal planes; see [TESTING.md](docs/TESTING.md). To run one by hand, wr
 ## Building it
 
 From the repository root, with the toolchain
-[`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh) prints:
+[`packages/rust/scripts/rust-toolchain.sh`](../../packages/rust/scripts/rust-toolchain.sh) prints:
 
 ```bash
-docker build --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh) \
+docker build --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.sh) \
   --file images/gateway/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-gateway:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and the publish workflow pass
+[`images/local-build.sh`](../local-build.sh) and the publish workflow pass
 the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the Archivist's
 and the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to
-[`scripts/container/check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh):
+[`images/scripts/check-gateway-image.sh`](../scripts/check-gateway-image.sh):
 no source in it, and `/api/health` served within its start bound.
 
 ## Related

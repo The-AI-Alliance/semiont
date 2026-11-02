@@ -60,9 +60,9 @@ jobs:
           fi
           # verify-release.sh and cargo-version.sh read published-crates.sh;
           # the two answers must be one.
-          named=$(../../scripts/release/published-crates.sh | sort)
+          named=$(../../packages/rust/scripts/published-crates.sh | sort)
           if [ "$published" != "$named" ]; then
-            echo "::error::cargo publishes [${published//$'\n'/ }] and scripts/release/published-crates.sh names [${named//$'\n'/ }]"
+            echo "::error::cargo publishes [${published//$'\n'/ }] and packages/rust/scripts/published-crates.sh names [${named//$'\n'/ }]"
             exit 1
           fi
 

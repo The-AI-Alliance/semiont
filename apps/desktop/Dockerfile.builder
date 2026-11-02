@@ -4,7 +4,7 @@
 # Its Rust is the toolchain rust-toolchain.toml names — the one place it is
 # written. build.sh passes it:
 #
-#   --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh)
+#   --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.sh)
 #
 # There is no default: without it the FROM names no image and the build
 # stops, rather than building with a toolchain nothing pinned.
