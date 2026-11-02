@@ -168,6 +168,7 @@ const table = {
     kotlin: ['packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt'],
   },
   notYetReached: {
+    csharp: 'C# is still to implement and run the shared text/encoding-cases.json cases.',
     swift: "The Swift SDK's reading of a resource's bytes as its text, label by label and byte by byte.",
   },
   cases,

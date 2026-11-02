@@ -8,6 +8,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/http/GatewayUrlTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared session/gateway-url-cases.json cases.",
     "swift": "The Swift SDK's gateway origin, made from a knowledge base's HTTP endpoint."
   },
   "cases": [

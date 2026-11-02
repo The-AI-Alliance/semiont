@@ -9,6 +9,8 @@ queries:
     uses: security-and-quality
 
 paths:
+  - packages/csharp/sdk/src
+  - packages/csharp/sdk/analyzers
   - images/browser/src
   # The Rust workspace: its services and the crates they share
   - images/gateway/src
@@ -54,6 +56,8 @@ paths:
   - images/librarian/src
 
 paths-ignore:
+  - "**/bin"
+  - "**/obj"
   - packages/go/launcher/testdata
   - images/browser/node_modules
   - "**/node_modules"

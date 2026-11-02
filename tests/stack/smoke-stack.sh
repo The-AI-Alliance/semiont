@@ -44,8 +44,8 @@
 # secrets under a key derived from its domain, and the domain here is the same
 # on every run, so a run's state is the next run's unless it goes. A run cleans
 # that state before it boots (whatever an interrupted run left) and on exit
-# stops the stack, puts back the Browser's and worker's documents as it found them (the
-# launcher's own, if there was none), cleans the state, forgets the KB in the
+# stops the stack, puts back the Browser's and Worker's documents as it found them
+# (the launcher's own, if there were none), cleans the state, forgets the KB in the
 # launcher's registry, and removes the KB directory it made (never one
 # SMOKE_KB names).
 #
@@ -106,15 +106,14 @@ ok()    { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
 bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-BROWSER_DOC=""
-BROWSER_KEPT=""
-WORKER_DOC=""
-WORKER_KEPT=""
+SHARED_DOCS=()
+SHARED_KEPT=()
 cleanup() {
   cd / || return
   "$SEMIONT" stop --runtime "$RUNTIME" >/dev/null 2>&1
-  [ -n "$BROWSER_KEPT" ] && mv "$BROWSER_KEPT" "$BROWSER_DOC"
-  [ -n "$WORKER_KEPT" ] && mv "$WORKER_KEPT" "$WORKER_DOC"
+  for index in "${!SHARED_DOCS[@]}"; do
+    mv "${SHARED_KEPT[$index]}" "${SHARED_DOCS[$index]}"
+  done
   "$SEMIONT" clean --root "$KB" >/dev/null 2>&1
   "$SEMIONT" forget "$KB" >/dev/null 2>&1
   [ -z "${SMOKE_KB:-}" ] && rm -rf "$(dirname "$KB")"
@@ -138,9 +137,9 @@ else
 fi
 # The images are the documents' to name: init names :latest, and the run names
 # the set it was given, as a person choosing a release would. The Browser and
-# worker are the machine's, so their images are named in their own documents.
-# The launcher names them (`settings browser|worker --path`, which writes
-# them where absent), and the run puts both back as it found them on exit.
+# Worker are shared by the machine, so their images are named in their own
+# documents (`settings browser|worker --path`, which writes one where there
+# is none). The run restores both on exit.
 for doc in "$KB"/.semiont/stack/*.yaml; do
   sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$IMAGES#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
 done
@@ -149,20 +148,23 @@ if [ "$IMAGES" = latest ] || ! grep -q 'ghcr.io/the-ai-alliance/semiont-[a-z]*:l
 else
   bad "a document still names a :latest image"; exit 1
 fi
-if ! BROWSER_DOC=$("$SEMIONT" settings browser --path); then
-  bad "the launcher named no Browser document"; exit 1
-fi
-KEPT=$(mktemp) || exit 1
-if ! cp "$BROWSER_DOC" "$KEPT"; then
-  rm -f "$KEPT"; bad "could not keep a copy of $BROWSER_DOC to put back"; exit 1
-fi
-BROWSER_KEPT=$KEPT
-sed "s#\(ghcr.io/the-ai-alliance/semiont-browser\):[^[:space:]]*#\1:$IMAGES#" "$BROWSER_DOC" > "$BROWSER_DOC.next" && mv "$BROWSER_DOC.next" "$BROWSER_DOC"
-if grep -q "image: ghcr.io/the-ai-alliance/semiont-browser:$IMAGES\$" "$BROWSER_DOC"; then
-  ok "the Browser's document names :$IMAGES"
-else
-  bad "the Browser's document ($BROWSER_DOC) does not name :$IMAGES"; exit 1
-fi
+for SERVICE in browser worker; do
+  if ! SHARED_DOC=$("$SEMIONT" settings "$SERVICE" --path); then
+    bad "the launcher named no $SERVICE document"; exit 1
+  fi
+  KEPT=$(mktemp) || exit 1
+  if ! cp "$SHARED_DOC" "$KEPT"; then
+    rm -f "$KEPT"; bad "could not keep a copy of $SHARED_DOC to put back"; exit 1
+  fi
+  SHARED_DOCS+=("$SHARED_DOC")
+  SHARED_KEPT+=("$KEPT")
+  sed "s#\(ghcr.io/the-ai-alliance/semiont-$SERVICE\):[^[:space:]]*#\1:$IMAGES#" "$SHARED_DOC" > "$SHARED_DOC.next" && mv "$SHARED_DOC.next" "$SHARED_DOC"
+  if grep -q "image: ghcr.io/the-ai-alliance/semiont-$SERVICE:$IMAGES\$" "$SHARED_DOC"; then
+    ok "$SERVICE's document names :$IMAGES"
+  else
+    bad "$SERVICE's document ($SHARED_DOC) does not name :$IMAGES"; exit 1
+  fi
+done
 
 if ! WORKER_DOC=$("$SEMIONT" settings worker --path); then
   bad "the launcher named no worker document"; exit 1
