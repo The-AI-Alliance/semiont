@@ -29,7 +29,7 @@ import (
 )
 
 // localWorkerLabel: the label of the shared worker, whose client the
-// realm import and `semiont identity sync` keep at the worker key.
+// realm's creation and `semiont identity sync` keep at the worker key.
 const localWorkerLabel = "local"
 
 // workerClientPrefix: what every worker's client id begins with; the label

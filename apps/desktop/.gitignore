@@ -1,0 +1,4 @@
+out/
+release/
+config.toml
+*.local

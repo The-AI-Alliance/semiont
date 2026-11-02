@@ -71,7 +71,7 @@
 # app: one for each directory under apps/.
 - name: "app:desktop"
   color: "c6e8c0"
-  description: "Semiont Desktop (apps/desktop): the Tauri shell around the Browser"
+  description: "Semiont Desktop (apps/desktop): native chat client"
 - name: "app:launcher"
   color: "c6e8c0"
   description: "The semiont command (apps/launcher) and its libraries (packages/go/launcher)"

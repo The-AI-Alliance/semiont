@@ -85,7 +85,8 @@ Node and the npm package `@semiont/browser`: the built `dist/` plus `server.js`,
 runtime dependencies. The image does not build the SPA; its first stage installs the
 published package from an npm registry. npm is removed from the runtime image. One build,
 three consumers: this image, the package `@semiont/browser` itself, and
-[`apps/desktop`](../../apps/desktop/), which uses this app's `dist/` as its Tauri frontend.
+[`apps/desktop`](../../apps/desktop/), a separate Electron chat client built from its own
+renderer.
 
 ## Working on it
 

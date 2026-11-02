@@ -158,11 +158,11 @@ func TestWhatTheLauncherKeepsIsClosedUnderAnOpenHome(t *testing.T) {
 	closed("a kept secret", store.where(custodyJWTSecret))
 
 	x := &liveExec{u: u}
-	staged, ok := x.stageRealm("probe", []byte(`{"clients":[{"secret":"probe"}]}`))
+	staged, ok := x.stageDir()
 	if !ok {
-		t.Fatal("stageRealm failed")
+		t.Fatal("stageDir failed")
 	}
-	closed("the staging dir", filepath.Dir(staged))
+	closed("the staging dir", staged)
 
 	if _, ok := x.stateMountsUnstamped("gateway", kb); !ok {
 		t.Fatal("mount prep refused")

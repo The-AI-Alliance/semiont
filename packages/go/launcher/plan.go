@@ -79,7 +79,7 @@ type rolePlan struct {
 	// one as its document states it, the launcher's Keycloak at localhost on
 	// its port (issuerURL gives a container's view).
 	Issuer string
-	// AccessTokenLifespan: seconds, for the realm the launcher imports.
+	// AccessTokenLifespan: seconds, for the realm the launcher creates.
 	// Zero means the built-in default; only a launcher-run Keycloak has one.
 	AccessTokenLifespan int
 }
@@ -685,9 +685,9 @@ func derivePlan(st *stack.Stack, keycloakPort, block int) (*launchPlan, error) {
 	// anywhere: it is the KB's own resource identifier, derived from the
 	// committed did:web domain, so it cannot disagree with the identity the
 	// KB already publishes. An Issuer document is a Keycloak the launcher
-	// runs, with the staged realm and its database on the PostgreSQL that
-	// document names; spec.issuer.external is an issuer somebody else runs,
-	// verified, never launched.
+	// runs, with the realm a start creates and its database on the PostgreSQL
+	// that document names; spec.issuer.external is an issuer somebody else
+	// runs, verified, never launched.
 	if ref := kb.Issuer.Ref; ref != nil {
 		is := st.Issuer.Spec
 		if is.Type != "keycloak" {

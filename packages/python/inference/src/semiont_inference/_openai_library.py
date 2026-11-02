@@ -4,12 +4,12 @@ Two modules ask through the library: the OpenAI driver
 (`semiont_inference.openai`), by the Responses API, and the client the vLLM
 and llama.cpp drivers share (`semiont_inference._chat_completions`), by the
 Chat Completions API. What both decide about the library is decided here,
-once: the client as it is made (`open_library`), and the headers of a request
-(`request_headers`). What a request says and how its reply is read are each
-module's own.
+once: the client as it is made (`open_library`), the headers of a request
+(`request_headers`), and the message of a refusal (`refusal_words`). What a
+request says and how its reply is read are each module's own.
 
 **What the library does on its own, and what is done about each** (`openai`,
-read at 3.37.0, so that a new release of it is read for the same):
+read at 3.40.0, so that a new release of it is read for the same):
 
 - Its HTTP client takes a proxy and its trusted certificates from the
   environment (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`,
@@ -43,6 +43,12 @@ read at 3.37.0, so that a new release of it is read for the same):
   `_MAX_RETRIES` states how many times.
 - It builds a reply into typed models without checking it. Each module reads
   a reply as the JSON the provider wrote, and says how.
+- Its refusal (`APIStatusError`) keeps the provider's answer, but the
+  message it makes keeps of that answer only a string `error.message`, where
+  the body has one: a vLLM 401's `{"error": "Unauthorized"}` and a llama.cpp
+  refusal's `type` are left out. A refusal's message is made here instead
+  (`refusal_words`): its status, and the body of the answer as the provider
+  wrote it.
 
 **What of it is not switched off**, because the library has no argument for
 it:
@@ -76,7 +82,7 @@ that was cancelled, and catches no cancellation.
 
 from typing import Final
 
-from openai import AsyncOpenAI, DefaultAsyncHttpx2Client, Omit, Timeout, omit
+from openai import APIStatusError, AsyncOpenAI, DefaultAsyncHttpx2Client, Omit, Timeout, omit
 
 # How long a generation may take. Asked for whole, a provider's answer is one
 # HTTP response, and any bound on the wait for it would be a ceiling on a
@@ -152,3 +158,14 @@ def request_headers(library: AsyncOpenAI, *, api_key: str | None, with_a_body: b
     would_add = (*library.default_headers, *_ADDED_TO_EACH_ATTEMPT, "Authorization")
     left_off: dict[str, str | Omit] = {name: omit for name in would_add if name not in stated}
     return {**left_off, **stated}
+
+
+def refusal_words(refused: APIStatusError) -> str:
+    """The message of a refusal: its status, and the provider's own words for it, the body of its answer as written.
+
+    An answer the library closed before it read it has no words, and the
+    message is its status alone.
+    """
+    answer = refused.response
+    said = "" if answer.is_closed and not answer.is_stream_consumed else answer.text.strip()
+    return f"Error code: {refused.status_code} - {said}" if said else f"Error code: {refused.status_code}"

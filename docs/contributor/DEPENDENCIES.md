@@ -8,10 +8,10 @@ How this repository's dependencies are kept current, how a vulnerable one is fix
 
 | Ecosystem | Where |
 |---|---|
-| npm | the repository root (which covers every workspace), `tests/e2e`, `tests/conformance` |
+| npm | the repository root (which covers every workspace, including `apps/desktop`), `tests/e2e`, `tests/conformance` |
 | Go modules | `apps/launcher`, `packages/go/sdk` |
-| Cargo | the Rust workspace at the root; the desktop app's `apps/desktop/src-tauri` |
-| The Rust toolchain | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml), which also names every Rust image: the builder stage of the Rust services and the desktop builder |
+| Cargo | the Rust workspace at the root |
+| The Rust toolchain | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml), which also names the builder stage of the Rust services |
 | GitHub Actions | the workflows |
 | Docker | the base images of the Browser and the seven service images |
 

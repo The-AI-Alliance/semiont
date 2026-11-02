@@ -65,8 +65,8 @@ func TestHealthEndpointReproducesTheStartGates(t *testing.T) {
 		{"archivist", driverSemiont, "http://localhost:24103/health"},
 		{"librarian", driverSemiont, "http://localhost:24104/health"},
 		{"dispatcher", driverSemiont, "http://localhost:24105/health"},
-		// The configured realm, not master: the import is what makes it
-		// answer, so that is what a start waits for.
+		// The configured realm, not master: it answers only once Keycloak
+		// holds it, so that is what says the issuer is up.
 		{"identity", "keycloak", "http://localhost:8080/realms/semiont"},
 	} {
 		if got := healthEndpoint(c.role, c.driver, plan, exposure{}); got != c.want {

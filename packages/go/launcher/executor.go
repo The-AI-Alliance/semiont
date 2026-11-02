@@ -23,11 +23,10 @@ import (
 )
 
 // stager: writes what a container will read: each service's configuration document, the launcher-owned
-// collector and Prometheus configs, the realm document, the broker's authorization block.
+// collector and Prometheus configs, the broker's authorization block.
 type stager interface {
 	stageAll(fc flowCtx, addr string) (string, bool)             // each service's configuration document; returns stage dir
 	stageOne(svc string, fc flowCtx, addr string) (string, bool) // one service's configuration document, written afresh
-	stageRealm(realm string, doc []byte) (string, bool)          // the realm file Keycloak imports; returns its staged path
 	stageNatsConf(doc []byte) (string, bool)                     // the broker's authorization block (no secret in it); returns its staged path
 	sweepStaging()                                               // this KB's /tmp/semiont-config.<key>.* removal (+ its record forgotten)
 	sharedConfigCurrent(file, want string) bool                  // whether the shared container's config file says want, byte for byte
@@ -96,6 +95,7 @@ type keeper interface {
 type admitter interface {
 	preflightIdentity(issuerBase, audience string, accounts realmAccounts, wantLifespan, browserPort int, managed bool) bool // the realm honours every service credential AND the clients people sign in through — the Browser's at its document's port — before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
 	openAdminToThisMachine(password string)                                                                                  // Keycloak's own admin answers this machine over plain HTTP, whatever address the runtime delivers its connections from
+	createRealm(base, realm, password string, doc []byte) bool                                                               // the knowledge base's realm at the Keycloak the launcher runs, created from doc unless Keycloak holds it
 }
 
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
@@ -365,12 +365,12 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 	saveStack(x.st)
 }
 
-// stageDir makes a fresh directory per run and keeps it to its owner: that is
-// what keeps the secrets staged in it — the realm's client secrets, the
-// broker's credentials — from other users. The files inside stay 0644 because
+// stageDir makes a fresh directory per run and keeps it to its owner, so what a
+// stack's documents say stays its owner's. None holds a secret: each reaches
+// its service as an environment variable. The files inside stay 0644 because
 // Docker on Linux and rootless Podman present a bind-mounted file with its host
-// owner and mode, and the containers read them as their own users (Keycloak as
-// uid 1000); a 0600 file would be readable only when the uids happen to match.
+// owner and mode, and the containers read them as their own users; a 0600 file
+// would be readable only when the uids happen to match.
 func (x *liveExec) stageDir() (string, bool) {
 	stage, err := os.MkdirTemp(stagingParent(), stagingPrefix(x.kb.key()))
 	if err != nil {
@@ -683,19 +683,6 @@ func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
 	return p, true
 }
 
-func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
-	stage, ok := x.stageDir()
-	if !ok {
-		return "", false
-	}
-	p := filepath.Join(stage, "keycloak-"+realm+"-realm.json")
-	if err := os.WriteFile(p, doc, 0o644); err != nil {
-		x.u.Fail("Staging the Keycloak realm: %v", err)
-		return "", false
-	}
-	return p, true
-}
-
 // createDatabase creates a database on the launcher-run PostgreSQL if it is
 // absent — idempotent by construction (psql's \gexec runs the CREATE only when
 // the WHERE finds nothing), so a second start is a no-op.
@@ -828,25 +815,42 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 // keeps Keycloak's default `sslRequired: external` — plain HTTP only from a
 // private address. Which address this machine's connections arrive from is the
 // runtime's affair: Docker Desktop delivers them from one that is not private,
-// and there every admin call `identity sync` and `useradd` make from here is
-// refused "HTTPS required". From inside the container the connection is local,
+// and there every admin call made from here is refused "HTTPS required": the
+// realm a start creates, and `identity sync`'s and `useradd`'s. From inside the container the connection is local,
 // and the change is allowed. The password crosses as the runtime's own environment:
 // named in argv, never valued there.
 //
-// Warns rather than refusing: the stack runs without the admin, and only those
-// two commands need it — but they will be refused, and this says why first.
+// Warns rather than refusing: a stack whose realm Keycloak holds runs without
+// the admin, and a realm that must be created refuses the start on its own —
+// but this says why first.
 func (x *liveExec) openAdminToThisMachine(password string) {
 	args := append([]string{"exec", "--env", "KC_CLI_PASSWORD", roleContainer("identity", x.kb.key())}, masterRealmOverHTTP()...)
 	x.u.EchoCmd(x.rt, args...)
 	out, err := runCapturedWithEnv([]string{"KC_CLI_PASSWORD=" + password}, x.rt, args...)
 	if err != nil {
-		x.say(sayWarn, "Keycloak's admin is not reachable from this machine, so `semiont useradd` and `semiont identity sync` will be refused: %v", err)
+		x.say(sayWarn, "Keycloak's admin is not reachable from this machine, so a realm this start must create, `semiont useradd` and `semiont identity sync` will be refused: %v", err)
 		if s := strings.TrimSpace(out); s != "" {
 			fmt.Fprintln(os.Stderr, indentLines(s, "    "))
 		}
 		return
 	}
 	x.say(sayLog, "Keycloak admin: %s", x.dim("reachable from this machine over HTTP"))
+}
+
+// createRealm refuses the start when the realm is neither held nor created:
+// nothing that follows signs in without it.
+func (x *liveExec) createRealm(base, realm, password string, doc []byte) bool {
+	created, err := ensureRealm(base, realm, password, doc)
+	if err != nil {
+		x.say(sayFail, "The knowledge base's realm, %s: %v", realm, err)
+		return false
+	}
+	if created {
+		x.say(sayLog, "Realm %s: %s", realm, x.dim("created"))
+	} else {
+		x.say(sayLog, "Realm %s: %s", realm, x.dim("held by Keycloak, left as it is"))
+	}
+	return true
 }
 
 // preflightIdentity refuses the start when the realm will not honour the
@@ -866,8 +870,8 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, accounts realm
 			fmt.Fprintln(os.Stderr, "  "+f.String())
 		}
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so a realm created")
-		fmt.Fprintln(os.Stderr, "  before these clients existed does not have them.")
+		fmt.Fprintln(os.Stderr, "  A realm is created by the FIRST start that finds it absent and never again, so")
+		fmt.Fprintln(os.Stderr, "  a realm created before these clients existed does not have them.")
 		fmt.Fprintln(os.Stderr, "")
 		// The repair, named rather than described — but named as the
 		// COMMANDS TO RUN, in order, with the follow-up: naming a verb
@@ -914,14 +918,14 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, accounts realm
 	}
 	x.u.Log("Service accounts: %s", x.u.Dim(fmt.Sprintf("%d verified at the realm", len(secretClients)+1)))
 
-	// The realm imports on FIRST BOOT and never again, so a knowledge base can
-	// configure a revocation window its realm has never heard of and nothing
-	// would say so. The tokens just minted carry what the realm actually
-	// stamps, which is the only reading available without administrator
-	// credentials — see tokenLifespan.
+	// The realm is created by the FIRST start and never again, so a knowledge
+	// base can configure a revocation window its realm has never heard of and
+	// nothing would say so. The tokens just minted carry what the realm
+	// actually stamps, which is the only reading available without
+	// administrator credentials — see tokenLifespan.
 	if wantLifespan > 0 && observedLifespan > 0 && observedLifespan != wantLifespan {
 		x.u.Warn("This realm mints access tokens that live %ds, but the config asks for %ds.", observedLifespan, wantLifespan)
-		fmt.Fprintln(os.Stderr, "    A realm is imported once, on its first boot — a lifespan changed afterwards does")
+		fmt.Fprintln(os.Stderr, "    A realm is created once, by its first start — a lifespan changed afterwards does")
 		fmt.Fprintln(os.Stderr, "    not reach it. The revocation window in force is the realm's, not the config's.")
 		fmt.Fprintln(os.Stderr, "    Change it in the Keycloak console, or `semiont clean --store identity-store` and start again.")
 	}
@@ -1405,30 +1409,6 @@ func (x *planExec) stageNatsConf(_ []byte) (string, bool) {
 	return "<stage>/nats-semiont.conf", true
 }
 
-// The clients are read OUT OF the document rather than described alongside it.
-// A restatement of someone else's shape drifts the moment that shape grows;
-// this cannot, because adding a client to keycloakRealmJSON adds it here too.
-func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
-	var parsed struct {
-		Clients []struct {
-			ClientID string `json:"clientId"`
-		} `json:"clients"`
-	}
-	if err := json.Unmarshal(doc, &parsed); err != nil || len(parsed.Clients) == 0 {
-		// No fallback sentence: a realm document this cannot read is a real
-		// problem, and a plausible-looking line would hide it.
-		x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; UNREADABLE — its clients could not be listed)", realm)
-		return "<config-stage>/keycloak-" + realm + "-realm.json", true
-	}
-	ids := make([]string, 0, len(parsed.Clients))
-	for _, c := range parsed.Clients {
-		ids = append(ids, c.ClientID)
-	}
-	x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; realm %q, clients: %s)",
-		realm, realm, strings.Join(ids, ", "))
-	return "<config-stage>/keycloak-" + realm + "-realm.json", true
-}
-
 func (x *planExec) createDatabase(user, name string) bool {
 	x.c("create database %s on PostgreSQL if absent: %s exec -i %s psql -U %s (SQL on stdin)", name, x.rt, roleContainer("identity-store", x.kb.key()), user)
 	return true
@@ -1498,7 +1478,7 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, accounts realm
 	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")
 	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, semiont.BrowserClientID, semiont.ScriptClientID)
 	if wantLifespan > 0 {
-		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was imported with another", wantLifespan)
+		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was created with another", wantLifespan)
 	}
 	return true
 }
@@ -1506,6 +1486,30 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, accounts realm
 func (x *planExec) openAdminToThisMachine(string) {
 	x.c("open Keycloak's admin to this machine over HTTP: %s exec --env KC_CLI_PASSWORD %s %s",
 		x.rt, roleContainer("identity", x.kb.key()), strings.Join(masterRealmOverHTTP(), " "))
+}
+
+// The clients are read OUT OF the document rather than described alongside it.
+// A restatement of someone else's shape drifts the moment that shape grows;
+// this cannot, because adding a client to keycloakRealmJSON adds it here too.
+func (x *planExec) createRealm(base, realm, _ string, doc []byte) bool {
+	var parsed struct {
+		Clients []struct {
+			ClientID string `json:"clientId"`
+		} `json:"clients"`
+	}
+	if err := json.Unmarshal(doc, &parsed); err != nil || len(parsed.Clients) == 0 {
+		// No fallback sentence: a realm document this cannot read is a real
+		// problem, and a plausible-looking line would hide it.
+		x.c("ask %s/realms/%s, and create realm %q where Keycloak does not hold it (UNREADABLE — its clients could not be listed)", base, realm, realm)
+		return true
+	}
+	ids := make([]string, 0, len(parsed.Clients))
+	for _, c := range parsed.Clients {
+		ids = append(ids, c.ClientID)
+	}
+	x.c("ask %s/realms/%s, and where Keycloak does not hold it, create realm %q: POST %s/admin/realms as %s (clients: %s)",
+		base, realm, realm, base, keycloakAdminUser, strings.Join(ids, ", "))
+	return true
 }
 
 // --dry-run reaches for nothing; name the query a real run would make.

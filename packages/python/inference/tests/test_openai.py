@@ -1048,10 +1048,13 @@ def test_a_refused_generation_is_a_provider_status_error_with_the_librarys_failu
                 await driver(played).generate_text("p", 100, 0)
             cause = failed.value.__cause__
             assert isinstance(cause, openai.APIStatusError)
-            # What the library said of it, with the status and the provider's own words in it.
-            assert (failed.value.status, str(failed.value)) == (status, cause.message)
+            # The status, and the provider's own words: the whole of its answer, of which the library's own message
+            # keeps only the `message`.
+            assert failed.value.status == status
             assert str(status) in str(failed.value)
             assert "what the provider said" in str(failed.value)
+            assert kind in str(failed.value)
+            assert code is None or code in str(failed.value)
             # The retries are this driver's choice of two: a refusal the library asks again for is asked three times
             # in all, and any other once.
             assert played.generations == [said_to("gpt-x", "p", 100, temperature=0)] * asked

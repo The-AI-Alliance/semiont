@@ -4,8 +4,8 @@ package launcher
 // them.
 //
 // A service credential lives in two stores with independent lifecycles — a
-// file per root, and a realm written by an import that runs on FIRST BOOT AND
-// NEVER AGAIN — and the token's SHAPE matters as well as its value.
+// file per root, and a realm created by the FIRST START AND NEVER AGAIN — and
+// the token's SHAPE matters as well as its value.
 //
 // So a start can hand six services credentials the realm has never seen, and
 // the only symptom is six services failing to authenticate with nothing
@@ -63,7 +63,7 @@ var preflightNoRedirect = &http.Client{
 //
 // `issuerBase` is the issuer the services sign in at, as their documents name
 // it (placement.issuer), and not where the launcher reaches its own Keycloak
-// for its waits and its administration (keycloakEndpoint). A secret proves
+// for its waits and its administration (keycloakBase). A secret proves
 // itself at any address, but a key's assertion names the token endpoint it is
 // for: a Keycloak whose hostname is fixed admits one only under that name,
 // while its discovery, asked at another address, names the token endpoint
@@ -149,7 +149,7 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 	// Every further role the realm document stamps on THIS client — the
 	// worker's, which the dispatcher admits a job:claim by. Derived from the
 	// function that renders the mapper, so a role added there is asked for here
-	// without a second list to forget. A realm imported before the role holds
+	// without a second list to forget. A realm created before the role holds
 	// the mapper rendering only the service role: the worker authenticates and
 	// can never claim a job — a broken deployment, so a refusal, not a warning.
 	for _, role := range serviceRoles(svc) {
@@ -163,7 +163,7 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 		return serviceAccountFinding{
 			svc:    svc,
 			reason: reason,
-			fix:    fmt.Sprintf("the realm's hardcoded-claim mapper for this client does not render %q — a realm imported before that role", role),
+			fix:    fmt.Sprintf("the realm's hardcoded-claim mapper for this client does not render %q — a realm created before that role", role),
 		}, true
 	}
 	if !audienceContains(claims["aud"], audience) {
@@ -179,7 +179,7 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 		return serviceAccountFinding{
 			svc:    svc,
 			reason: fmt.Sprintf("token carries no `%s` of %q, which the realm document stamps on every service's account and no person's", kindClaim, agentKind),
-			fix:    "the realm's hardcoded-claim mapper for this client — a realm imported before the claim",
+			fix:    "the realm's hardcoded-claim mapper for this client — a realm created before the claim",
 		}, true
 	}
 	return serviceAccountFinding{}, false
@@ -264,7 +264,7 @@ func verifyBrowserOrigin(issuerBase string, port int) (publicClientFinding, bool
 	return publicClientFinding{
 		clientID: semiont.BrowserClientID,
 		reason:   fmt.Sprintf("the realm will not accept a token exchange from %s (no Access-Control-Allow-Origin)", origin),
-		fix:      fmt.Sprintf("its web origins do not name the Browser's origin — a realm imported before this was fixed derives them from the portless loopback redirects, which drops the port. Run `semiont identity sync`; sign-in at %s would fail after a redirect that worked", origin),
+		fix:      fmt.Sprintf("its web origins do not name the Browser's origin — a realm created before this was fixed derives them from the portless loopback redirects, which drops the port. Run `semiont identity sync`; sign-in at %s would fail after a redirect that worked", origin),
 	}, true
 }
 
@@ -344,7 +344,7 @@ func verifyPublicClients(issuerBase string, browserPort int) []publicClientFindi
 			findings = append(findings, publicClientFinding{
 				clientID: semiont.ScriptClientID,
 				reason:   "the realm has no such client",
-				fix:      "a realm imported before this client existed will not have it",
+				fix:      "a realm created before this client existed will not have it",
 			})
 		default:
 			findings = append(findings, publicClientFinding{
@@ -364,7 +364,7 @@ func verifyPublicClients(issuerBase string, browserPort int) []publicClientFindi
 			findings = append(findings, publicClientFinding{
 				clientID: semiont.BrowserClientID,
 				reason:   "the realm has no such client",
-				fix:      "a realm imported before this client existed will not have it; nobody can sign in from a browser",
+				fix:      "a realm created before this client existed will not have it; nobody can sign in from a browser",
 			})
 		}
 	}
@@ -391,7 +391,7 @@ func verifyPublicClients(issuerBase string, browserPort int) []publicClientFindi
 					clientID: semiont.BrowserClientID,
 					warnOnly: true,
 					reason:   fmt.Sprintf("the realm pins the Browser to a port: it redirects to %s and to no other", probeRedirect),
-					fix:      "another port in the Browser's document will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
+					fix:      "another port in the Browser's document will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Run `semiont identity sync`, or add `http://localhost/*` to the client",
 				})
 			}
 			// PKCE must be REQUIRED, not merely supported. A realm that
