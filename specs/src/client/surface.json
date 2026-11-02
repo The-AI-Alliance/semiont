@@ -1779,6 +1779,7 @@
     {
       "module": "serviceToken",
       "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
+      "notYetReached": { "swift": "The Swift SDK service token for external workers, including credential renewal." },
       "where": {
         "typescript": [
           "packages/typescript/core/src/service-account.ts"
