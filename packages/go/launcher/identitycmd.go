@@ -4,7 +4,7 @@ package launcher
 // operator-facing half of identitysync.go and identitygrant.go.
 //
 // Resolution mirrors `start`'s exactly, and deliberately: each must change the
-// realm THIS root would import, and sync reconciles it against the credentials
+// realm THIS root would create, and sync reconciles it against the credentials
 // THIS root would inject. Deriving either differently is how a repair produces
 // a realm that still does not match the next start.
 
@@ -28,12 +28,12 @@ sync
   redirect URIs that let the Browser move port, the implicit flow (off), and
   the access-token lifetime.
 
-  A realm is imported on its FIRST boot and never again, so a deployment that
+  A realm is created by its FIRST start and never again, so a deployment that
   predates a service simply does not have that service's client — and one that
   predates a role still stamps the old roles on that client's token — and
   ` + "`semiont start`" + ` refuses, correctly, rather than starting processes
   that cannot authenticate, or a worker that can never claim a job. This adds
-  and updates what the import would have rendered.
+  and updates what its creation would have rendered.
 
   It reconciles CONFIGURATION ONLY. It creates clients, updates an existing
   client's roles and kind mappers and the worker's client's key — this
@@ -111,7 +111,7 @@ func subcommandArgs(u *UI, args []string, takes ...string) (map[string]string, [
 	return flags, positional, true
 }
 
-// adminRealm: the realm a root's launcher-run Keycloak imports, resolved as
+// adminRealm: the realm a root's launcher-run Keycloak holds, resolved as
 // `start` resolves it, and what administering it takes.
 type adminRealm struct {
 	kb        kbRoot

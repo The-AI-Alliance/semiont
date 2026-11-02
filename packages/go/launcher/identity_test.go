@@ -117,7 +117,7 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		`"oauth2.device.authorization.grant.enabled": "true"`,
 		// The revocation window for every person on this knowledge base: Semiont
 		// keeps no admission flag of its own, so a disabled account's token stays
-		// good until it expires. A realm imported without this would take whatever
+		// good until it expires. A realm created without this would take whatever
 		// Keycloak defaults to that release.
 		`"accessTokenLifespan": 300`,
 		// Each service signs in as its own account, so each needs a

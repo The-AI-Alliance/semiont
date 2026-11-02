@@ -39,6 +39,10 @@ type stubAdmin struct {
 	// refuseWrites: the admin API refusing every change to a client, as it
 	// refuses an admin without the rights to make one.
 	refuseWrites bool
+	// absent: Keycloak holding no such realm until one is POSTed to
+	// /admin/realms, which records the document in realmDocs.
+	absent    bool
+	realmDocs [][]byte
 }
 
 // refusing: whether the stub refuses this request, and if so answers it so.
@@ -190,6 +194,42 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 			return
 		}
 		w.WriteHeader(http.StatusNotFound)
+	})
+
+	mux.HandleFunc("/realms/"+realm, func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.paths = append(s.paths, r.Method+" "+r.URL.Path)
+		absent := s.absent
+		s.mu.Unlock()
+		if absent {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("content-type", "application/json")
+		fmt.Fprintf(w, `{"realm":%q}`, realm)
+	})
+
+	mux.HandleFunc("/admin/realms", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		s.paths = append(s.paths, r.Method+" "+r.URL.Path)
+		s.mu.Unlock()
+		if r.Header.Get("Authorization") != "Bearer admin-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Method != http.MethodPost || s.refusing(w, r) {
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if !s.absent {
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		s.absent = false
+		s.realmDocs = append(s.realmDocs, body)
+		w.WriteHeader(http.StatusCreated)
 	})
 
 	mux.HandleFunc("/admin/realms/"+realm, func(w http.ResponseWriter, r *http.Request) {

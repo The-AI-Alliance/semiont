@@ -138,10 +138,10 @@ container run -d --name semiont-example.github.io-test-kb-nats --memory 512M -p 
 # wait: tcp <host-addr>:4222 (15s)
 # probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 4222
 # create database keycloak on PostgreSQL if absent: container exec -i semiont-example.github.io-test-kb-postgres psql -U postgres (SQL on stdin)
-# write <config-stage>/keycloak-semiont-realm.json (launcher-owned; realm "semiont", clients: semiont-browser, semiont-cli, semiont-archivist, semiont-dispatcher, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker-local)
-container run -d --name semiont-example.github.io-test-kb-keycloak --memory 1G -p <host-addr>:8080:8080 -v <config-stage>/keycloak-semiont-realm.json:/opt/keycloak/data/import/semiont.json:ro -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak -e KC_HOSTNAME=http://<host-addr>:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --import-realm --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
-# wait: http://<host-addr>:8080/realms/semiont (90s)
+container run -d --name semiont-example.github.io-test-kb-keycloak --memory 1G -p <host-addr>:8080:8080 -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak -e KC_HOSTNAME=http://<host-addr>:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
+# wait: http://<host-addr>:8080/realms/master (90s)
 # open Keycloak's admin to this machine over HTTP: container exec --env KC_CLI_PASSWORD semiont-example.github.io-test-kb-keycloak /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE --no-config --server http://localhost:8080 --realm master --user admin
+# ask http://<host-addr>:8080/realms/semiont, and where Keycloak does not hold it, create realm "semiont": POST http://<host-addr>:8080/admin/realms as admin (clients: semiont-browser, semiont-cli, semiont-archivist, semiont-dispatcher, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker-local)
 # client-credentials grant at http://<host-addr>:8080/realms/semiont as semiont-archivist — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
 # client-credentials grant at http://<host-addr>:8080/realms/semiont as semiont-dispatcher — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
 # client-credentials grant at http://<host-addr>:8080/realms/semiont as semiont-gateway — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
@@ -153,7 +153,7 @@ container run -d --name semiont-example.github.io-test-kb-keycloak --memory 1G -
 # authorization request at http://<host-addr>:8080/realms/semiont as semiont-browser — require a redirect to http://localhost:3000/en/auth/callback
 # the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered
 # password grant at http://<host-addr>:8080/realms/semiont as semiont-browser and semiont-cli, sending no credential — require both to refuse it
-# compare `exp - iat` on those tokens against the configured 300s — warn if the realm was imported with another
+# compare `exp - iat` on those tokens against the configured 300s — warn if the realm was created with another
 # mount gateway state (no image stamps it: an image change clears nothing)
 container run -d --name semiont-example.github.io-test-kb-gateway --publish 127.0.0.1:4000:4000 --publish <host-addr>:14000:4000 --memory 2G --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro -v <data-home>/roots/example.github.io-test-kb/gateway:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET --env JWT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest@sha256:<verified>
 # wait: http://localhost:4000/api/health (120s)

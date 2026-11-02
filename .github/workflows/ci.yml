@@ -3616,7 +3616,7 @@ jobs:
             echo "::error::a live test skipped, so it was not run against Keycloak"
             exit 1
           fi
-          for test in TestIdentitySyncLive TestWorkerGrantLive; do
+          for test in TestIdentitySyncLive TestWorkerGrantLive TestStartCreatesTheRealmLive; do
             if ! grep -q -- "--- PASS: $test " live.out; then
               echo "::error::$test did not run and pass"
               exit 1

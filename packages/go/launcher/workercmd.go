@@ -2,8 +2,8 @@ package launcher
 
 // workercmd.go — `semiont worker key`: the public half of the key this
 // machine's worker proves itself with, for an issuer the launcher does not run
-// to register. A realm the launcher runs is given it by the import, or by
-// `semiont identity sync`. And `semiont worker kb`: the knowledge bases on the
+// to register. A realm the launcher runs is given it when a start creates it,
+// or by `semiont identity sync`. And `semiont worker kb`: the knowledge bases on the
 // machine's worker's list (workerkbs.go) — the local ones each start puts
 // there, and the ones someone else runs, added here.
 
@@ -32,8 +32,9 @@ key
   one key, whichever knowledge bases it serves. The private half is never
   printed.
 
-  An issuer the launcher runs holds it already: the realm import registers it,
-  and ` + "`semiont identity sync`" + ` brings an older realm to it. For an
+  An issuer the launcher runs holds it already: the start that creates its
+  realm registers it, and ` + "`semiont identity sync`" + ` brings an older
+  realm to it. For an
   issuer you run yourself, create a confidential client for the worker that
   authenticates with a signed JWT, enable its client-credentials grant, and
   register this key on it. For a knowledge base someone else runs, send it to
