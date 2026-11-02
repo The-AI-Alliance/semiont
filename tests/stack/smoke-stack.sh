@@ -44,7 +44,7 @@
 # secrets under a key derived from its domain, and the domain here is the same
 # on every run, so a run's state is the next run's unless it goes. A run cleans
 # that state before it boots (whatever an interrupted run left) and on exit
-# stops the stack, puts back the Browser's document as it found it (the
+# stops the stack, puts back the Browser's and worker's documents as it found them (the
 # launcher's own, if there was none), cleans the state, forgets the KB in the
 # launcher's registry, and removes the KB directory it made (never one
 # SMOKE_KB names).
@@ -108,10 +108,13 @@ head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
 BROWSER_DOC=""
 BROWSER_KEPT=""
+WORKER_DOC=""
+WORKER_KEPT=""
 cleanup() {
   cd / || return
   "$SEMIONT" stop --runtime "$RUNTIME" >/dev/null 2>&1
   [ -n "$BROWSER_KEPT" ] && mv "$BROWSER_KEPT" "$BROWSER_DOC"
+  [ -n "$WORKER_KEPT" ] && mv "$WORKER_KEPT" "$WORKER_DOC"
   "$SEMIONT" clean --root "$KB" >/dev/null 2>&1
   "$SEMIONT" forget "$KB" >/dev/null 2>&1
   [ -z "${SMOKE_KB:-}" ] && rm -rf "$(dirname "$KB")"
@@ -134,10 +137,10 @@ else
   bad "clean refused the state an earlier run left"; exit 1
 fi
 # The images are the documents' to name: init names :latest, and the run names
-# the set it was given, as a person choosing a release would. The Browser is
-# the machine's, so its image is named in its own document, which the
-# launcher keeps and names (`settings browser --path`, which writes it where
-# there is none), and which the run puts back as it found it on exit.
+# the set it was given, as a person choosing a release would. The Browser and
+# worker are the machine's, so their images are named in their own documents.
+# The launcher names them (`settings browser|worker --path`, which writes
+# them where absent), and the run puts both back as it found them on exit.
 for doc in "$KB"/.semiont/stack/*.yaml; do
   sed "s#\(ghcr.io/the-ai-alliance/semiont-[a-z]*\):latest#\1:$IMAGES#" "$doc" > "$doc.next" && mv "$doc.next" "$doc"
 done
@@ -159,6 +162,21 @@ if grep -q "image: ghcr.io/the-ai-alliance/semiont-browser:$IMAGES\$" "$BROWSER_
   ok "the Browser's document names :$IMAGES"
 else
   bad "the Browser's document ($BROWSER_DOC) does not name :$IMAGES"; exit 1
+fi
+
+if ! WORKER_DOC=$("$SEMIONT" settings worker --path); then
+  bad "the launcher named no worker document"; exit 1
+fi
+KEPT=$(mktemp) || exit 1
+if ! cp "$WORKER_DOC" "$KEPT"; then
+  rm -f "$KEPT"; bad "could not keep a copy of $WORKER_DOC to put back"; exit 1
+fi
+WORKER_KEPT=$KEPT
+sed "s#\(ghcr.io/the-ai-alliance/semiont-worker\):[^[:space:]]*#\1:$IMAGES#" "$WORKER_DOC" > "$WORKER_DOC.next" && mv "$WORKER_DOC.next" "$WORKER_DOC"
+if grep -q "image: ghcr.io/the-ai-alliance/semiont-worker:$IMAGES\$" "$WORKER_DOC"; then
+  ok "the worker's document names :$IMAGES"
+else
+  bad "the worker's document ($WORKER_DOC) does not name :$IMAGES"; exit 1
 fi
 
 head_ "Boot from :$IMAGES on $RUNTIME"

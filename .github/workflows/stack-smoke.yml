@@ -40,7 +40,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/stack-smoke.yml
-      - tests/stack/smoke-stack.sh
+      - tests/stack/**
       - images/local-build.sh
       - .dockerignore
   # Nightly, on main: the periodic verification above, at 08:17 UTC (4:17 in
@@ -79,6 +79,9 @@ jobs:
       IMAGES: ${{ inputs.images || 'local' }}
     steps:
       - uses: actions/checkout@v7.0.1
+
+      - name: Check smoke image selection and cleanup
+        run: python3 -m unittest discover -s tests/stack -p 'test_*.py' -v
 
       # The Rust images' builder stage is one cold release build of the
       # workspace for Alpine, twelve minutes of this job's nineteen, and the
