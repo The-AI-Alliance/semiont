@@ -197,6 +197,10 @@
   color: "f9d0c4"
   description: "The end-to-end suite (tests/e2e)"
 
+- name: "tests:stack"
+  color: "f9d0c4"
+  description: "The real-stack smoke test (tests/stack)"
+
 # Of no dimension.
 - name: "good first issue"
   color: "7057ff"

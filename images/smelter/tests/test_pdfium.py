@@ -3,7 +3,7 @@
 What is held here is what PDFium hands over of a real file, which no
 scripted reader can say: the words it finds and where a line ends, where a
 word is put, a form's widgets, the images a page paints and their pixels,
-and the two ways a document does not open. `scripts/fixtures/make-pdf-fixtures.py`
+and the two ways a document does not open. `tests/fixtures/scripts/make-pdf-fixtures.py`
 says what each fixture draws.
 
 No fixture has a colour in it, and a bitmap of PDFium's is blue first. So

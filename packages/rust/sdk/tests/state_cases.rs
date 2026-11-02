@@ -6,7 +6,7 @@
 //! (`specs/src/client/surface.json`, `stateUnits`) says this SDK lacks has its
 //! cases left unrun, as the surface test leaves a row's `absent` SDK: they run
 //! once the unit lands and its `absent` goes. What the table may say is held
-//! by `scripts/lint/check-state-unit-cases.mjs`; what a case cannot say, the
+//! by `.github/scripts/checks/check-state-unit-cases.mjs`; what a case cannot say, the
 //! axioms, each unit's own test holds.
 //!
 //! Every case runs on a runtime of its own, whose clock moves only when the

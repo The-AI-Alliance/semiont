@@ -1,7 +1,7 @@
 """A model catalogue file, and what reads one: `semiont_inference.catalogue`.
 
 The package carries no catalogue. It reads a file it is pointed to, which an
-image's build makes with `scripts/inference/generate-model-catalogue.mjs`
+image's build makes with `packages/python/inference/scripts/generate-model-catalogue.mjs`
 from the npm package the repository pins. `tests/catalogue` holds one such
 file, made by that script: real data at the pin. CI's drift job holds it to
 the script and the pin. What is held here is what that check cannot say: that
@@ -146,7 +146,7 @@ def test_the_fixture_says_which_package_it_was_made_from_at_the_version_the_repo
 def test_the_fixture_is_where_the_repositorys_scripts_write_and_check_it() -> None:
     # CI's drift job runs the second of these: it is this directory that is held to the generator and the pin.
     scripts = thing(read(ROOT / "package.json")["scripts"], "the repository's scripts")
-    generator, directory = "node scripts/inference/generate-model-catalogue.mjs", FIXTURE.relative_to(ROOT).as_posix()
+    generator, directory = "node packages/python/inference/scripts/generate-model-catalogue.mjs", FIXTURE.relative_to(ROOT).as_posix()
     assert scripts["generate:model-catalogue"] == f"{generator} --out {directory}"
     assert scripts["generate:model-catalogue:check"] == f"{generator} --check {directory}"
     assert sorted(path.name for path in FIXTURE.iterdir()) == ["model-catalogue.LICENSE", "model-catalogue.json"]

@@ -140,7 +140,7 @@ fn check_classification(classification: &Value) {
     for (channel, attrs) in channels {
         if attrs["direction"].as_str().is_none() {
             panic!(
-                "bus-classification.json: {channel} has no direction; regenerate it with scripts/bus/generate-ts.mjs"
+                "bus-classification.json: {channel} has no direction; regenerate it with packages/codegen/bus/generate-ts.mjs"
             );
         }
     }

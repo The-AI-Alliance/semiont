@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Adds to a pull request the labels of the files it changes: the app, image,
- * test suite, SDK or part of the spec each is in (scripts/lint/path-labels.mjs). A
+ * test suite, SDK or part of the spec each is in (.github/scripts/checks/path-labels.mjs). A
  * renamed file gives the labels of both its paths.
  *
  * It only adds. A label already on the pull request, put there by hand or by
@@ -14,7 +14,7 @@
  * token from GH_TOKEN.
  */
 import { execFileSync } from 'node:child_process';
-import { pathLabel } from '../../scripts/lint/path-labels.mjs';
+import { pathLabel } from './checks/path-labels.mjs';
 
 const [repository, number] = process.argv.slice(2);
 if (!/^[\w.-]+\/[\w.-]+$/.test(repository ?? '') || !/^\d+$/.test(number ?? '')) {

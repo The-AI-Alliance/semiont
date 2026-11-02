@@ -80,7 +80,7 @@ RECORDED: Final = frozenset(
     for channel in objects(read(SPEC / "bus/registry.json")["channels"], "channels")
     if "event" in channel
 )
-"""The events of the record: the registry's channels that name an event, as the bus derives them (scripts/bus/delivery.mjs)."""
+"""The events of the record: the registry's channels that name an event, as the bus derives them (packages/codegen/bus/delivery.mjs)."""
 
 
 def stored(log: str, sequence: int, event_type: str) -> StoredEventResponse:

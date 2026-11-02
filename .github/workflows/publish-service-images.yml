@@ -148,10 +148,10 @@ jobs:
         id: args
         run: |
           if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ] || [ "${{ matrix.service }}" = archivist ]; then
-            toolchain=$(scripts/ci/rust-toolchain.sh)
+            toolchain=$(packages/rust/scripts/rust-toolchain.sh)
             argument="RUST_TOOLCHAIN=$toolchain"
           elif [ "${{ matrix.service }}" = worker ] || [ "${{ matrix.service }}" = smelter ] || [ "${{ matrix.service }}" = weaver ] || [ "${{ matrix.service }}" = librarian ]; then
-            floor=$(scripts/ci/python-floor.sh)
+            floor=$(packages/python/scripts/python-floor.sh)
             argument="PYTHON_FLOOR=$floor"
           else
             echo "::error::${{ matrix.service }} is neither a Rust service nor a Python one: this step knows no build argument for it."
@@ -175,7 +175,7 @@ jobs:
 
       - name: Determine tags
         id: tags
-        run: scripts/ci/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
+        run: images/scripts/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
 
       # Single-platform build for scanning + SBOM, on the runner's own platform.
       # For an emulated multi-arch leg, amd64 OS-package CVEs cover arm64 too
@@ -266,20 +266,20 @@ jobs:
       # The gateway image carries no source and starts within its bound.
       - name: Check the gateway image
         if: matrix.service == 'gateway'
-        run: scripts/container/check-gateway-image.sh semiont-${{ matrix.service }}:scan docker
+        run: images/scripts/check-gateway-image.sh semiont-${{ matrix.service }}:scan docker
 
       # The dispatcher's and the archivist's images carry no source and no
       # Node, and refuse at once without their document.
       - name: Check the image of a service that only reads its document
         if: matrix.service == 'dispatcher' || matrix.service == 'archivist'
-        run: scripts/container/check-document-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
+        run: images/scripts/check-document-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
 
       # The image of a Python service carries every library it can be
       # configured for, no installer and no Node, and refuses by name without
       # its document. The smelter's reads a scanned page with no network.
       - name: Check the image of a Python service
         if: matrix.service == 'worker' || matrix.service == 'smelter' || matrix.service == 'weaver' || matrix.service == 'librarian'
-        run: scripts/container/check-python-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
+        run: images/scripts/check-python-image.sh ${{ matrix.service }} semiont-${{ matrix.service }}:scan docker
 
       - name: Build and push Docker image
         id: build-push
@@ -404,7 +404,7 @@ jobs:
 
       - name: Determine tags
         id: tags
-        run: scripts/ci/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
+        run: images/scripts/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
 
       - name: Collect the amd64 digest
         uses: actions/download-artifact@v8

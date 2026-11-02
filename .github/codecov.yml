@@ -226,7 +226,12 @@ ignore:
   - "**/*_gen.go"
 
   # Scripts
-  - "scripts/**"
+  - "**/scripts/**"
+  - "packages/codegen/**"
+  - "images/local-build.sh"
+  - "tests/fixtures/**"
+  - "tests/stack/**"
+  - ".github/release/**"
 
 # Comment configuration
 comment:

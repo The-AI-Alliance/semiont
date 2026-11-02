@@ -1,6 +1,6 @@
 // Code generated from packages/go/launcher/verbs/mcp-tools.json and specs/src/components/schemas — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-mcp-tools-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-mcp-tools-go.mjs
 
 package verbs
 

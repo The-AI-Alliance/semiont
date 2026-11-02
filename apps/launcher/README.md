@@ -640,7 +640,7 @@ semiont stop
   0/1 on that service alone.
 - **The images are the documents'**: each service runs the `image` its
   document names, and `semiont init` names `:latest`. An image tagged
-  `:local`, built on this machine by `scripts/ci/local-build.sh`, is never
+  `:local`, built on this machine by `images/local-build.sh`, is never
   pulled; a KB runs one by naming it. The Browser, which no KB owns, runs
   the image its own document names, `ghcr.io/the-ai-alliance/semiont-browser:latest`
   as the launcher writes it.
@@ -910,7 +910,7 @@ the other clients' form. What the server does that a verb does not:
   `packages/go/launcher/verbs/mcp-tools.json`, which names the SDK methods each tool calls
   and gives a reason for every method of the client surface no tool calls.
   Each tool's input and output schema is the spec's, made self-contained by
-  `scripts/spec/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
+  `packages/codegen/schemas/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
   fails when either drifts. `TestMCPToolsCensus` holds the table to
   `specs/src/client/surface.json` both ways.
 - **A call is checked before anything is sent**, and a refusal names every
@@ -1099,7 +1099,7 @@ drive it. Everything else it runs on is its libraries,
 Build and test both (hermetically — no Go on the host required):
 
 ```sh
-container run --rm -v "$(pwd)":/work -w /work "golang:$(scripts/ci/go-toolchain.sh)" \
+container run --rm -v "$(pwd)":/work -w /work "golang:$(packages/go/scripts/go-toolchain.sh)" \
   sh -c "cd apps/launcher && go vet ./... && go test ./... && cd ../../packages/go/launcher && go vet ./... && go test ./..."
 ```
 

@@ -1,6 +1,6 @@
 // Code generated from specs/src/errors/codes.json — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-error-codes-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-error-codes-go.mjs
 // The TypeScript and Python vocabularies are generated from the same table,
 // and Rust's by its SDK's build script.
 

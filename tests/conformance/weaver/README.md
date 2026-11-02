@@ -53,11 +53,11 @@ from the record.
 **The run is told where its neo4j is,** in `NEO4J_HOST` and `NEO4J_PASSWORD`,
 and starts none. Without them it fails, and says so; it is not skipped.
 **It clears the database it is given,** so it is given one of its own.
-`scripts/ci/neo4j-image.sh` prints the image the launcher starts for an
+`packages/go/launcher/scripts/neo4j-image.sh` prints the image the launcher starts for an
 operator, which is the one to run:
 
 ```bash
-docker run -d --name weaver-suite-neo4j -p 7687:7687 -e NEO4J_AUTH=neo4j/a-password "$(scripts/ci/neo4j-image.sh)"
+docker run -d --name weaver-suite-neo4j -p 7687:7687 -e NEO4J_AUTH=neo4j/a-password "$(packages/go/launcher/scripts/neo4j-image.sh)"
 NEO4J_HOST=localhost NEO4J_PASSWORD=a-password npm run test:weaver
 ```
 

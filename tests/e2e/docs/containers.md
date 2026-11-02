@@ -10,9 +10,9 @@ through that lifecycle.
 
 | Container | What's inside | Where it comes from |
 |---|---|---|
-| `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `images/local-build.sh` |
+| `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `images/local-build.sh` |
+| `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `images/local-build.sh` |
 | plus: `semiont-<kb>-neo4j`, `semiont-<kb>-qdrant`, `semiont-ollama`, `semiont-<kb>-postgres`, `semiont-<kb>-nats`, `semiont-<kb>-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
 
 A knowledge base's containers are named `semiont-<kb>-<product>`, where
@@ -22,7 +22,7 @@ worker, Ollama and Jaeger are shared by every knowledge base, and keep
 `semiont-<name>`. See
 [the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names).
 
-**Key fact:** `scripts/ci/local-build.sh` (in this repo) publishes the
+**Key fact:** `images/local-build.sh` (in this repo) publishes the
 `@semiont/*` packages to a throwaway local Verdaccio and builds **every**
 Semiont image from them as a local-only `:local` tag (plus the
 launcher binary). KB repos build nothing — the stack runs the `:local`
@@ -83,9 +83,9 @@ container ls | grep -E 'semiont-(browser|.+-gateway)'    # inspection only
 ## Building the `:local` images
 
 ```sh
-./scripts/ci/local-build.sh                 # everything
-./scripts/ci/local-build.sh --package <list>  # narrow the package set (<language>/<name>, or a language)
-./scripts/ci/local-build.sh --image <list>    # narrow the image set
+./images/local-build.sh                 # everything
+./images/local-build.sh --package <list>  # narrow the package set (<language>/<name>, or a language)
+./images/local-build.sh --image <list>    # narrow the image set
 ```
 
 `--help` lists the full package set. The script:

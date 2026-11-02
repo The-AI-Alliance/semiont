@@ -1,7 +1,7 @@
 //! The spec a service is built against, embedded when it is compiled
 //! (build.rs): the protocol's OpenAPI document, the Archivist's, their
 //! component schemas as validators, and the bus registry with the channel
-//! classification scripts/bus/generate-ts.mjs derives from it.
+//! classification packages/codegen/bus/generate-ts.mjs derives from it.
 
 use jsonschema::{Draft, Validator, ValidatorMap};
 use serde_json::Value;

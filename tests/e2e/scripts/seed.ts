@@ -184,7 +184,7 @@ const TEXT_PDF_FIXTURE_BASE64 =
  * anchored-text store is keyed by content checksum, so neither can affect the
  * other.
  *
- * Regenerate with scripts/fixtures/make-legible-scan.py if the text changes.
+ * Regenerate with tests/fixtures/scripts/make-legible-scan.py if the text changes.
  */
 const LEGIBLE_SCAN_PDF_FIXTURE_BASE64 =
   'JVBERi0xLjcKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAw' +

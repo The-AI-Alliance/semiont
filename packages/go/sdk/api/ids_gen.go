@@ -1,6 +1,6 @@
 // Code generated from specs/src/identifiers/kinds.json and each kind's schema — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-identifiers-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-identifiers-go.mjs
 // The TypeScript and Python kinds are generated from the same table, and Rust's
 // by its SDK's build script.
 

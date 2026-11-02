@@ -1,6 +1,6 @@
 # Local development
 
-Local development is built around **[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
+Local development is built around **[`images/local-build.sh`](../../images/local-build.sh)**. It builds your working tree into the real service images, and the launcher runs those. What you test is what ships.
 
 ## What you need
 
@@ -11,7 +11,7 @@ Local development is built around **[`scripts/ci/local-build.sh`](../../scripts/
 
 ```bash
 # 1. In the repository: build the packages, all eight images, the launcher, and the Python SDK
-./scripts/ci/local-build.sh
+./images/local-build.sh
 
 # 2. In the knowledge base: run the stack on what you built. Name the :local
 #    images in .semiont/stack/*.yaml (ghcr.io/the-ai-alliance/semiont-gateway:local,
@@ -49,10 +49,10 @@ Two things make the stack use your build:
 ### Rebuilding one thing
 
 ```bash
-./scripts/ci/local-build.sh --package typescript/react-ui --image browser   # one package, then one image
-./scripts/ci/local-build.sh --packages-only --package rust                 # the Rust crates, nothing else
-./scripts/ci/local-build.sh --images-only --image librarian                # one image, from the working tree
-./scripts/ci/local-build.sh --help                                         # every option
+./images/local-build.sh --package typescript/react-ui --image browser   # one package, then one image
+./images/local-build.sh --packages-only --package rust                 # the Rust crates, nothing else
+./images/local-build.sh --images-only --image librarian                # one image, from the working tree
+./images/local-build.sh --help                                         # every option
 ```
 
 - The Browser's image, the one Node image, installs its package from the local registry, so a change to package source reaches it only after that package is rebuilt and republished. `--images-only` skips that step: use it when the package has not changed.
@@ -60,7 +60,7 @@ Two things make the stack use your build:
 - The worker, weaver, smelter and librarian images are built from the working tree every time too: the Python service in `images/worker`, `images/weaver`, `images/smelter` or `images/librarian` and the Python packages it runs on, with what its `uv.lock` pins. `--images-only --image smelter` picks up a change to any of them.
 - `--package` takes `<language>/<name>` (`typescript/core`, `rust/sdk`), or a language for all of its packages, and `--image` an image's name. What either names always builds, and `--force` builds everything selected; otherwise what is unchanged is skipped. An unknown name is refused with the list.
 
-The script's own README, [scripts/ci/README.md](../../scripts/ci/README.md), covers the rest.
+The script's own README, [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md), covers the rest.
 
 ## Working on one package, without a stack
 
@@ -76,7 +76,7 @@ npm test --workspace=@semiont/sdk       # one workspace's suite
 Without it, run the same commands in a container:
 
 ```bash
-container run --rm -v "$PWD":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
+container run --rm -v "$PWD":/work -w /work "node:$(packages/typescript/scripts/node-version.sh)-alpine" \
   sh -c 'npm ci --include=optional && npm run build:packages'
 ```
 
@@ -98,7 +98,7 @@ In the Browser's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for 
 
 ## Related
 
-- [scripts/ci/README.md](../../scripts/ci/README.md): `local-build.sh` and the build and publish scripts
+- [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md): `local-build.sh` and the build and publish scripts
 - [Testing](TESTING.md): the suites and how to run them
 - [The service catalog](../operator/services/OVERVIEW.md): what is running, and on which ports
 - [Running knowledge bases on your computer](../operator/LOCAL-SEMIONT.md): the launcher from an operator's side

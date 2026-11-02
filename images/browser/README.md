@@ -106,7 +106,7 @@ merges them with `@semiont/react-ui`'s on the `pre*` hooks and writes `messages/
 
 The image does not build the app: it installs a published `@semiont/browser` from an npm
 registry, `NPM_REGISTRY` (npm's own by default), at the version `SEMIONT_BROWSER_VERSION`
-(`latest` by default). [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds
+(`latest` by default). [`images/local-build.sh`](../local-build.sh) builds
 this directory's package, publishes it to the Verdaccio it starts, and builds the image
 against that registry, tagged `ghcr.io/the-ai-alliance/semiont-browser:local`;
 [`publish-browser.yml`](../../.github/workflows/publish-browser.yml) builds it from the

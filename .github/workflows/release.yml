@@ -92,7 +92,7 @@ jobs:
         id: tags
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          MODULES=$(scripts/release/published-go-modules.sh)
+          MODULES=$(packages/go/scripts/published-go-modules.sh)
           TAGS="v$VERSION"
           for dir in $MODULES; do
             TAGS="$TAGS $dir/v$VERSION"

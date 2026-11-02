@@ -13,8 +13,8 @@ mkdir -p "$REPORT_DIR"
 REPORT_FILE="$REPORT_DIR/BROWSER-COMPLIANCE.md"
 
 # Shared compliance scripts
-DISCOVER="$REPO_ROOT/scripts/compliance/discover-symbols.ts"
-AUDIT="$REPO_ROOT/scripts/compliance/batch-audit.ts"
+DISCOVER="$REPO_ROOT/packages/typescript/scripts/compliance/discover-symbols.ts"
+AUDIT="$REPO_ROOT/packages/typescript/scripts/compliance/batch-audit.ts"
 
 echo "🔍 Discovering symbols in $SRC_DIR..."
 npx tsx "$DISCOVER" "$SRC_DIR" "$SYMBOLS_FILE"

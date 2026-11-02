@@ -2,6 +2,7 @@ package required
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
@@ -134,5 +135,23 @@ func TestTheTableNamesNothingItLacks(t *testing.T) {
 	}
 	for name, s := range schemas() {
 		held(name, s)
+	}
+}
+
+func TestMalformedGeneratedSchemasFailLoudly(t *testing.T) {
+	defer func() {
+		failure := recover()
+		message, ok := failure.(string)
+		if !ok || !strings.Contains(message, "schemas_gen.json is not what packages/codegen/schemas/generate-required-go.mjs writes:") {
+			t.Fatalf("malformed generated table must identify its source, got %v", failure)
+		}
+	}()
+	readSchemas([]byte(`{"schemas":`))
+}
+
+func TestReadingGeneratedSchemasPreservesRequiredMembers(t *testing.T) {
+	table := readSchemas([]byte(`{"schemas":{"Example":{"required":["name"]}}}`))
+	if len(table) != 1 || table["Example"] == nil || !reflect.DeepEqual(table["Example"].Required, []string{"name"}) {
+		t.Fatalf("generated required members were not read: %#v", table)
 	}
 }

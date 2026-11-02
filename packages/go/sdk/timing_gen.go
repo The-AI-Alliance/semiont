@@ -1,6 +1,6 @@
 // Code generated from specs/src/client/timing.json — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-client-timing-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-client-timing-go.mjs
 // The TypeScript and Python constants are generated from the same table, and
 // Rust's by its SDK's build script.
 

@@ -1,6 +1,6 @@
 // Code generated from specs/src/client/refresh.json — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-cache-refresh-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-cache-refresh-go.mjs
 
 package semiont
 

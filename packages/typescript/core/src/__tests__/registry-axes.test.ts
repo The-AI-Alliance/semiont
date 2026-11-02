@@ -24,7 +24,7 @@ import { dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
-const SCRIPTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../../scripts/bus');
+const SCRIPTS = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../codegen/bus');
 
 // The validator is ESM (.mjs) outside this workspace; import it by path.
 const { validateRegistry } = await import(`${SCRIPTS}/validate-registry.mjs`);
