@@ -39,8 +39,8 @@ echo "Using container runtime: $RT"
 
 # The Rust the builder image carries and the Node the browser is built in:
 # read first, so a file that names none stops the run before anything is built.
-RUST_TOOLCHAIN="$("$REPO_ROOT/scripts/ci/rust-toolchain.sh")"
-NODE_IMAGE="node:$("$REPO_ROOT/scripts/ci/node-version.sh")-alpine"
+RUST_TOOLCHAIN="$("$REPO_ROOT/packages/rust/scripts/rust-toolchain.sh")"
+NODE_IMAGE="node:$("$REPO_ROOT/packages/typescript/scripts/node-version.sh")-alpine"
 
 # --- Build browser ---
 

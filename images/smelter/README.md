@@ -207,20 +207,20 @@ uv run pytest        # needs the `tesseract` program, with its English data
 ```
 
 The tests read the PDFs in [`specs/src/smelter/fixtures`](../../specs/src/smelter/fixtures/),
-which [`make-pdf-fixtures.py`](../../scripts/fixtures/make-pdf-fixtures.py) writes.
+which [`make-pdf-fixtures.py`](../../tests/fixtures/scripts/make-pdf-fixtures.py) writes.
 
 ## Building it
 
-From the repository root, on the Python [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh)
+From the repository root, on the Python [`packages/python/scripts/python-floor.sh`](../../packages/python/scripts/python-floor.sh)
 prints:
 
 ```bash
-docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
+docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh) \
   --file images/smelter/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-smelter:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other
-images, and [`scripts/container/check-python-image.sh`](../../scripts/container/check-python-image.sh)
+[`images/local-build.sh`](../local-build.sh) builds it so with the other
+images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 
 ## Related

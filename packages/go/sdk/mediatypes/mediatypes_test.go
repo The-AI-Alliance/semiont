@@ -57,7 +57,7 @@ func TestForExtensionFollowsTheRegistry(t *testing.T) {
 		}
 	}
 	if len(Rows) != len(r.MediaTypes) {
-		t.Errorf("the generated table has %d rows, the registry %d: regenerate with node scripts/spec/generate-media-types-go.mjs", len(Rows), len(r.MediaTypes))
+		t.Errorf("the generated table has %d rows, the registry %d: regenerate with node packages/codegen/schemas/generate-media-types-go.mjs", len(Rows), len(r.MediaTypes))
 	}
 }
 

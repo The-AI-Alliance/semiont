@@ -25,7 +25,7 @@ import (
 // looks correct in the console.
 //
 // CI's "Launcher Tests (Go, Keycloak)" job runs it, with TestWorkerGrantLive,
-// against the Keycloak the launcher starts (scripts/ci/keycloak-image.sh), and
+// against the Keycloak the launcher starts (packages/go/launcher/scripts/keycloak-image.sh), and
 // fails if either skips. Elsewhere it is skipped unless SEMIONT_LIVE_KEYCLOAK
 // names a base URL. Run it with the admin password this root persisted:
 //

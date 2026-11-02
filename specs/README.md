@@ -81,7 +81,7 @@ gateway and Browser import from core
    npm run lint:spec-protocol  # The spec states the whole gateway protocol
    ```
 
-   `lint:spec-protocol` ([scripts/spec/check-protocol.mjs](../scripts/spec/check-protocol.mjs))
+   `lint:spec-protocol` ([.github/scripts/checks/specs/check-protocol.mjs](../.github/scripts/checks/specs/check-protocol.mjs))
    fails when the spec leaves something to be learned from the gateway's code
    instead: an operation that does not say whether it is public, a 401 with no
    challenge header, a response with no body schema, an error whose body is not

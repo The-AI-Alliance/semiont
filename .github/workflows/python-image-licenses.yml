@@ -28,7 +28,7 @@ on:
       - 'images/*/pyproject.toml'
       - 'images/*/Dockerfile'
       - 'packages/python/*/pyproject.toml'
-      - scripts/ci/python-floor.sh
+      - packages/python/scripts/python-floor.sh
       - '.github/licenses/**'
       - .github/scripts/check-licenses.mjs
       - .github/scripts/license-policy.mjs
@@ -93,7 +93,7 @@ jobs:
       # argument with no default.
       - name: Build argument
         id: args
-        run: echo "floor=$(scripts/ci/python-floor.sh)" >> "$GITHUB_OUTPUT"
+        run: echo "floor=$(packages/python/scripts/python-floor.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.4.1

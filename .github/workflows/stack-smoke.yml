@@ -1,6 +1,6 @@
 # Stack smoke: boot a real stack and assert the things the hermetic suite
 # cannot, then run tests/e2e's default tier against that same stack before it
-# stops. The check itself is scripts/release/smoke-stack.sh, which this
+# stops. The check itself is tests/stack/smoke-stack.sh, which this
 # workflow runs with --e2e and a laptop runs the same way; what it asserts is
 # said there, once. The stack serves inference and embedding from the models a
 # new knowledge base names. The suite runs without its @model tests, which
@@ -11,7 +11,7 @@
 # The LAUNCHER always comes from the commit this workflow runs on. The IMAGES
 # come from one of two places:
 #
-#   - the same commit, by default: scripts/ci/local-build.sh builds the npm
+#   - the same commit, by default: images/local-build.sh builds the npm
 #     packages, publishes them to a Verdaccio it starts on the runner, builds
 #     every image against it into the runner's docker store as `:local`, and
 #     builds the launcher. The other languages' packages are CI's own jobs'. Nothing is pushed anywhere. A change that moves the
@@ -40,8 +40,8 @@ on:
   pull_request:
     paths:
       - .github/workflows/stack-smoke.yml
-      - scripts/release/smoke-stack.sh
-      - scripts/ci/local-build.sh
+      - tests/stack/smoke-stack.sh
+      - images/local-build.sh
       - .dockerignore
   # Nightly, on main: the periodic verification above, at 08:17 UTC (4:17 in
   # the morning Eastern under daylight time, 3:17 under standard; off the hour,
@@ -106,7 +106,7 @@ jobs:
         # they are not copied into the runner's podman as well. The npm
         # packages are the ones an image installs; the other languages'
         # packages are built and tested by ci.yml's jobs.
-        run: scripts/ci/local-build.sh --package typescript --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
+        run: images/local-build.sh --package typescript --no-fanout --layer-cache "$RUNNER_TEMP/rust-image-layers"
 
       - uses: actions/setup-go@v7.0.0
         if: env.IMAGES != 'local'
@@ -141,7 +141,7 @@ jobs:
         # 1.8 GB of image plus two models. That is the supported path,
         # and it exercises the host-probe → container-fallback branch and
         # ensureModels along with everything else.
-        run: scripts/release/smoke-stack.sh "$IMAGES" --e2e
+        run: tests/stack/smoke-stack.sh "$IMAGES" --e2e
 
       - name: Summarise the e2e default tier
         if: always()

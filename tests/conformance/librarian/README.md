@@ -74,12 +74,12 @@ stand-in does not serve.
 `NEO4J_PASSWORD` and `QDRANT_HOST`, and starts neither. Without the three it
 fails, and names the ones that are missing; it is not skipped. **It clears the
 graph database and the index it is given,** so it is given ones of its own.
-`scripts/ci/neo4j-image.sh` and `scripts/ci/qdrant-image.sh` print the images
+`packages/go/launcher/scripts/neo4j-image.sh` and `packages/go/launcher/scripts/qdrant-image.sh` print the images
 the launcher starts for an operator, which are the ones to run:
 
 ```bash
-docker run -d --name librarian-suite-neo4j -p 7687:7687 -e NEO4J_AUTH=neo4j/a-password "$(scripts/ci/neo4j-image.sh)"
-docker run -d --name librarian-suite-qdrant -p 6333:6333 "$(scripts/ci/qdrant-image.sh)"
+docker run -d --name librarian-suite-neo4j -p 7687:7687 -e NEO4J_AUTH=neo4j/a-password "$(packages/go/launcher/scripts/neo4j-image.sh)"
+docker run -d --name librarian-suite-qdrant -p 6333:6333 "$(packages/go/launcher/scripts/qdrant-image.sh)"
 NEO4J_HOST=localhost NEO4J_PASSWORD=a-password QDRANT_HOST=localhost npm run test:librarian
 ```
 

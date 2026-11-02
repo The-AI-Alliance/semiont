@@ -11,7 +11,7 @@ own bus. A call that is awaited is driven on a task of its own, and what it
 resolves with is not this test's to judge: a case holds what the call did, not
 what it was answered.
 
-Signatures are read by `scripts/lint/check-client-surface.mjs`.
+Signatures are read by `.github/scripts/checks/check-client-surface.mjs`.
 """
 
 import asyncio

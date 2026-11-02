@@ -8,7 +8,7 @@ The process around a change (forks, branches, pull requests, review) is in **[CO
 
 ## What you need
 
-A container runtime (Apple `container`, Docker or Podman) and `git`. Nothing else has to be installed: [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. See [Local Development](LOCAL-DEVELOPMENT.md).
+A container runtime (Apple `container`, Docker or Podman) and `git`. Nothing else has to be installed: [`images/local-build.sh`](../../images/local-build.sh) builds every package, every image and the launcher inside containers. See [Local Development](LOCAL-DEVELOPMENT.md).
 
 To run tools directly on your machine instead, the versions are:
 
@@ -54,6 +54,7 @@ semiont/
 │   ├── desktop/            # The Browser as a desktop app (Tauri)
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
+│   ├── codegen/            # Shared bus and schema generators; specs/ holds their inputs
 │   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
 │   │   ├── core/           # Generated types, typed ids, the bus protocol
 │   │   ├── sdk/            # The TypeScript SDK
@@ -72,10 +73,11 @@ semiont/
 │   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
 │   └── python/service/     # What every Python service does to be one (package `semiont_service`)
 ├── tests/
+│   ├── stack/              # Real-stack smoke test
+│   ├── fixtures/           # Shared fixture generators
 │   ├── conformance/        # Black-box suites: the gateway, the dispatcher, every SDK
 │   ├── e2e/                # Playwright, against a live stack
 │   └── doc-snippets/       # Typechecks the code in the docs
-├── scripts/                # ci/, release/, lint/, compliance/, spec/, container/, dev/
 ├── docs/                   # By persona: analyst/, builder/, operator/, contributor/;
 │                           #   and for every reader: architecture/, protocol/
 └── website/                # The project site
@@ -105,7 +107,7 @@ Each app, image and package has a README, and most have a `docs/` directory abou
 [`docs/builder`](../builder/README.md) is what someone building on the SDK reads. Three rules keep it one coherent set:
 
 - **Each kind of content has one home.** A concept a newcomer needs before any code goes in the [Introduction](../builder/INTRODUCTION.md) and nowhere else, so the mental model is taught in one place. A new recipe goes in the [Developer Guide](../builder/DEVELOPER-GUIDE.md), a new method in [Usage](../builder/Usage.md), a new design rationale in [Reactive model](../builder/REACTIVE-MODEL.md) or [State units](../builder/STATE-UNITS.md). A new cache behavior gets a B-number in [Cache semantics](../protocol/CACHE-SEMANTICS.md) and a test that cites it. A change that fits no one home is probably two changes.
-- **Code fences are compile-checked.** Every `ts`, `tsx` and `typescript` fence in the builder docs, the skills included, is extracted and type-checked against the built packages by `scripts/compliance/audit-doc-snippets.sh`, with a pass that catches an `await` on something that is not awaitable. Names a snippet does not define come from the prelude at [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts) (the skills have their own, `prelude-skills.ts`): extend the prelude rather than adding boilerplate to a snippet. Mark a fence `ts sketch` only for pseudocode or a display-only shape. Exemptions are counted, and the count should hold or shrink.
+- **Code fences are compile-checked.** Every `ts`, `tsx` and `typescript` fence in the builder docs, the skills included, is extracted and type-checked against the built packages by `tests/doc-snippets/audit-doc-snippets.sh`, with a pass that catches an `await` on something that is not awaitable. Names a snippet does not define come from the prelude at [`tests/doc-snippets/prelude.ts`](../../tests/doc-snippets/prelude.ts) (the skills have their own, `prelude-skills.ts`): extend the prelude rather than adding boilerplate to a snippet. Mark a fence `ts sketch` only for pseudocode or a display-only shape. Exemptions are counted, and the count should hold or shrink.
 - **Wire-level truth lives in [`docs/protocol/`](../protocol/README.md).** [TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) is what every transport honors, [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) the wire over a gateway, and [EVENT-BUS.md](../protocol/EVENT-BUS.md) and [CHANNELS.md](../protocol/CHANNELS.md) the bus and its channels. The builder docs link there and do not restate wire format.
 
 Before changing an SDK itself, read [Reactive model](../builder/REACTIVE-MODEL.md) and [State units](../builder/STATE-UNITS.md) for the constraints a change has to fit, [Cache semantics](../protocol/CACHE-SEMANTICS.md) before touching anything the cache backs, and the protocol docs before touching anything on the wire. The axiom and liveness harnesses in `@semiont/core/testing/axioms` are the executable half of those docs. The test doubles are at `@semiont/core/testing`, which needs no `fast-check`.

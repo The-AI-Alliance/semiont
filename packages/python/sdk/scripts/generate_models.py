@@ -59,7 +59,7 @@ ROOT = PACKAGE.parents[2]
 SPEC = ROOT / "specs/openapi.json"
 KINDS = ROOT / "specs/src/identifiers/kinds.json"
 OUT = PACKAGE / "src/semiont/types.py"
-FLOOR = ROOT / "scripts/ci/python-floor.sh"
+FLOOR = ROOT / "packages/python/scripts/python-floor.sh"
 
 SCHEMA_REF = "#/components/schemas/"
 

@@ -1,5 +1,5 @@
 # Generated from specs/src/sdk-telemetry/telemetry.json; do not edit.
-# Regenerate: node scripts/spec/generate-sdk-telemetry-python.mjs
+# Regenerate: node packages/codegen/schemas/generate-sdk-telemetry-python.mjs
 
 """The telemetry a Semiont SDK's transports export, when the process they run
 in exports at all: every span and metric, its kind, and the attributes it

@@ -32,7 +32,7 @@
 - [ ] Kotlin SDK (`packages/kotlin/sdk`)
 - [ ] Conformance suites (`tests/conformance`)
 - [ ] End-to-end suite (`tests/e2e`)
-- [ ] Scripts (`scripts/`)
+- [ ] Build, generation, or release tooling (beside its owner)
 - [ ] GitHub Actions (`.github/workflows/`)
 - [ ] Documentation (`docs/`, `website/`)
 
@@ -80,4 +80,4 @@ Complete this section if the change touches the gateway's routes, how any part m
 
 - [ ] `docs/` is updated for the readers this affects (`analyst/`, `builder/`, `operator/`, `contributor/`, `architecture/`, `protocol/`)
 - [ ] The README and `docs/` of each app or package changed are updated
-- [ ] TypeScript examples in the docs typecheck: `npm run build:packages && ./scripts/compliance/audit-doc-snippets.sh`
+- [ ] TypeScript examples in the docs typecheck: `npm run build:packages && ./tests/doc-snippets/audit-doc-snippets.sh`

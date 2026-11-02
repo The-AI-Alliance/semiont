@@ -320,7 +320,7 @@ fn utf8_labels(table: &Value) -> String {
 
 /// The registry as an enum per vocabulary, a row per media type in the
 /// registry's order, and the row a clone falls back to. The registry's own
-/// generator (scripts/spec/generate-media-types.mjs) is where it is held to
+/// generator (packages/codegen/schemas/generate-media-types.mjs) is where it is held to
 /// the `SupportedMediaType` schema; this refuses only what it cannot render.
 fn media_types(table: &Value) -> String {
     const VOCABULARIES: [(&str, &str, &str, &str); 3] = [
@@ -424,7 +424,7 @@ fn media_types(table: &Value) -> String {
 }
 
 /// The refresh table as its queries, its triggers and each trigger's rows.
-/// The table's own generator (scripts/spec/generate-cache-refresh.mjs) is
+/// The table's own generator (packages/codegen/schemas/generate-cache-refresh.mjs) is
 /// where it is held to account; this refuses only what it cannot render.
 fn cache_refresh(table: &Value) -> String {
     let mut code = String::from("// Generated from specs/src/client/refresh.json; do not edit.\n");

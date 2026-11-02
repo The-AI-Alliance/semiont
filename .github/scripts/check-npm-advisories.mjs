@@ -38,7 +38,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { repositoryFiles } from '../../scripts/lint/repository-files.mjs';
+import { repositoryFiles } from './checks/repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const IGNORES = '.github/npm-advisories.json';

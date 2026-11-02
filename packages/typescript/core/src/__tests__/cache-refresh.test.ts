@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const GENERATOR = fileURLToPath(new URL('../../../../../scripts/spec/generate-cache-refresh.mjs', import.meta.url));
+const GENERATOR = fileURLToPath(new URL('../../../../codegen/schemas/generate-cache-refresh.mjs', import.meta.url));
 const TABLE = fileURLToPath(new URL('../../../../../specs/src/client/refresh.json', import.meta.url));
 
 interface Query {

@@ -16,12 +16,12 @@ A release publishes, all at the version in [`version.json`](../../version.json):
 
 ## The flow
 
-The scripts are in [`scripts/release/`](../../scripts/release/README.md), which documents each one.
+The scripts are in [`.github/release/`](../../.github/release/README.md), which documents each one.
 
 ### 1. Check that main is releasable
 
 ```bash
-./scripts/release/preflight.sh
+./.github/release/preflight.sh
 ```
 
 It reads `origin/main` over the wire, so a stale or dirty clone cannot make a bad commit look releasable. It checks that every `package.json` is at `version.json`'s version, that no tag of the version exists yet (neither `v<version>` nor the Go SDK's), and that CI is green on that exact commit. On success it prints the release command.
@@ -59,7 +59,7 @@ None of the chain uses a `push: tags` trigger. The tag is pushed with the workfl
 ### 3. Verify what was published
 
 ```bash
-./scripts/release/verify-release.sh <version>
+./.github/release/verify-release.sh <version>
 ```
 
 It inspects the artifacts, not the workflows' conclusions: the tag, the release's assets, a downloaded archive hashed against `checksums.txt`, the tap's formula, every published package in the npm registry with its tarball hashed against the registry's integrity, every published crate on crates.io with its `.crate` hashed against the index, the Python package on PyPI with each file hashed against the index and attested as built by its publish workflow, the Go SDK's tag at the release's commit with the zip the Go module proxy serves hashed against the checksum database, each of those tarballs, `.crate` files, Python files and Go zips carrying the repository's `LICENSE` as it stands at the tag, and for each image both platforms, build provenance whose subject matches the tag's digest, signed by the image's publish workflow of this repository at the release's tag (the signer the launcher requires before it runs an image), and `latest` resolving to the same digest as the version. It exits non-zero and lists what failed.
@@ -73,9 +73,9 @@ gh workflow run stack-smoke.yml --field images=<version>
 ### 4. Announce it
 
 ```bash
-./scripts/release/notes-context.sh                      # writes .release-notes-context.md
-./scripts/release/announce.sh <version> draft.md        # lint the post
-./scripts/release/announce.sh <version> draft.md --post # publish it as a Discussion
+./.github/release/notes-context.sh                      # writes .release-notes-context.md
+./.github/release/announce.sh <version> draft.md        # lint the post
+./.github/release/announce.sh <version> draft.md --post # publish it as a Discussion
 ```
 
 `notes-context.sh` gathers every substantive pull request merged since the last release, with its full body. Write the post from that, not from commit subjects. The draft's first line is the Discussion's title.
@@ -83,7 +83,7 @@ gh workflow run stack-smoke.yml --field images=<version>
 ### 5. Bump the version
 
 ```bash
-./scripts/release/version-bump.sh patch    # or minor, or major; no argument prompts
+./.github/release/version-bump.sh patch    # or minor, or major; no argument prompts
 ```
 
 On a branch. The script bumps `version.json`, syncs every `package.json` and the published crates, regenerates `package-lock.json` in a container, commits, and pushes the branch. Open a pull request for it and merge it: `main` takes no direct pushes.
@@ -94,7 +94,7 @@ The bump is safe as soon as the tag exists. Everything downstream is pinned to t
 
 ### npm packages
 
-[`scripts/ci/build.sh`](../../scripts/ci/build.sh) builds, and [`scripts/ci/publish.sh`](../../scripts/ci/publish.sh) stamps versions and publishes, in `version.json`'s order, stopping at the first failure. A re-run after a fix skips the versions already published. Before publishing, each package's `dist` is checked to resolve under `NodeNext` from a consumer's side.
+[`packages/typescript/scripts/build.sh`](../../packages/typescript/scripts/build.sh) builds, and [`packages/typescript/scripts/publish.sh`](../../packages/typescript/scripts/publish.sh) stamps versions and publishes, in `version.json`'s order, stopping at the first failure. A re-run after a fix skips the versions already published. Before publishing, each package's `dist` is checked to resolve under `NodeNext` from a consumer's side.
 
 The Browser publishes from a staging directory, `.npm-stage/browser`: it is a pre-built bundle whose dependencies are compiled in, so its published manifest declares none.
 
@@ -107,7 +107,7 @@ Dispatching the npm workflow on its own, without `stable_release`, publishes a d
 Each image passes these gates before it is pushed, in order. They fail one at a time, so fixing one can reveal the next:
 
 1. **The packages exist.** The Browser's image, the one Node image, installs the published `@semiont/browser` at its own version, never a working tree, and its workflow refuses to build until every published package is installable. The gateway, dispatcher and Archivist images compile from the commit instead, and the worker, weaver, smelter and librarian images are built from it too (each its Python service, with what its `uv.lock` pins), which is why they are published from the release tag.
-2. **The image is what it should be.** The Rust images are checked to carry no source and to start as documented ([`check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh), [`check-document-image.sh`](../../scripts/container/check-document-image.sh) for the dispatcher's and the Archivist's). The worker's, the weaver's, the smelter's and the librarian's images are checked to carry every library they can be configured for (each model provider's, each graph database's client), no installer and no Node, and to refuse by name without their document; the smelter's is checked to carry the `tesseract` program with its English data too, and to read a scanned page with no network ([`check-python-image.sh`](../../scripts/container/check-python-image.sh)).
+2. **The image is what it should be.** The Rust images are checked to carry no source and to start as documented ([`check-gateway-image.sh`](../../images/scripts/check-gateway-image.sh), [`check-document-image.sh`](../../images/scripts/check-document-image.sh) for the dispatcher's and the Archivist's). The worker's, the weaver's, the smelter's and the librarian's images are checked to carry every library they can be configured for (each model provider's, each graph database's client), no installer and no Node, and to refuse by name without their document; the smelter's is checked to carry the `tesseract` program with its English data too, and to read a scanned page with no network ([`check-python-image.sh`](../../images/scripts/check-python-image.sh)).
 3. **Vulnerabilities and secrets.** Trivy scans for `HIGH` and `CRITICAL` findings and fails on any vulnerability that has a fix, and on any secret. A file the secret scan misreads is skipped only by an allow rule in [`.github/trivy-secret.yaml`](../../.github/trivy-secret.yaml), which says why nothing in it is a secret. A vulnerability whose fix no dependent admits yet is passed only by an entry in [`.github/trivyignore.yaml`](../../.github/trivyignore.yaml), which names the package, says why the flaw does not reach the image's code, and expires.
 4. **Licences.** See [Dependencies](DEPENDENCIES.md#licences).
 
@@ -170,7 +170,7 @@ The Python SDK (`packages/python/sdk`) is published to PyPI as one project, `sem
 
 [`publish-pypi.yml`](../../.github/workflows/publish-pypi.yml) publishes it. A published version is permanent: its files can be yanked, never replaced. So the workflow:
 
-1. Builds the source distribution, and the wheel from it, with [`scripts/ci/build-python-sdk.sh`](../../scripts/ci/build-python-sdk.sh), which CI runs on every change and `local-build.sh` on every full run.
+1. Builds the source distribution, and the wheel from it, with [`packages/python/sdk/scripts/build-python-sdk.sh`](../../packages/python/sdk/scripts/build-python-sdk.sh), which CI runs on every change and `local-build.sh` on every full run.
 2. Refuses distributions not named for the version, that hold more than the package, or that do not carry the repository's `LICENSE` and name it in their metadata (`License-File: LICENSE`). The script copies the root's `LICENSE` beside `pyproject.toml` before it builds, where hatchling takes it as the licence file: the source distribution carries it at its root, and the wheel in its `.dist-info` at `licenses/LICENSE`. The copy is ignored by git.
 3. Installs the wheel in an environment of its own and imports every module of it, so a module that needs what the package does not declare fails before anything is uploaded.
 4. Skips a version already on PyPI, so a run can be made again.
@@ -190,7 +190,7 @@ gh workflow run publish-pypi.yml --field dry_run=true                   # build 
 
 ### The Go SDK
 
-The Go SDK (`packages/go/sdk`) is the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`. Go has no registry to upload to: a module is published by a tag, and a module in a subdirectory by a tag named for its directory, `packages/go/sdk/v<version>`. [`published-go-modules.sh`](../../scripts/release/published-go-modules.sh) names the modules a release publishes, and the SDK is the only one. It fails when a module's path is not this repository's path and its directory, or when its `go.mod` has a `replace`, which a program that requires the module does not read.
+The Go SDK (`packages/go/sdk`) is the module `github.com/The-AI-Alliance/semiont/packages/go/sdk`. Go has no registry to upload to: a module is published by a tag, and a module in a subdirectory by a tag named for its directory, `packages/go/sdk/v<version>`. [`published-go-modules.sh`](../../packages/go/scripts/published-go-modules.sh) names the modules a release publishes, and the SDK is the only one. It fails when a module's path is not this repository's path and its directory, or when its `go.mod` has a `replace`, which a program that requires the module does not read.
 
 `release.yml` pushes the tag beside `v<version>`, on the same commit, and asks [the Go module proxy](https://proxy.golang.org) for the version. The proxy makes the module's zip from the tag, [the checksum database](https://sum.golang.org) records the zip's hash, and [pkg.go.dev](https://pkg.go.dev/github.com/The-AI-Alliance/semiont/packages/go/sdk) lists it.
 
@@ -249,7 +249,7 @@ A Go module needs nothing set up anywhere. A new one is published from the next 
 
 ## Related
 
-- [`scripts/release/README.md`](../../scripts/release/README.md): each release script in detail
-- [`scripts/ci/README.md`](../../scripts/ci/README.md): the build and publish scripts
+- [`.github/release/README.md`](../../.github/release/README.md): each release script in detail
+- [`images/LOCAL-BUILD.md`](../../images/LOCAL-BUILD.md): the build and publish scripts
 - [Dependencies](DEPENDENCIES.md): the lockfile rule and how internal dependencies are pinned
 - [Container Images](../operator/administration/IMAGES.md): tags, and verifying an image

@@ -21,7 +21,7 @@ on:
       - .node-version
       - .github/npm-advisories.json
       - .github/scripts/check-npm-advisories.mjs
-      - scripts/lint/repository-files.mjs
+      - .github/scripts/checks/repository-files.mjs
       - .github/workflows/npm-advisories.yml
   schedule:
     - cron: '0 6 * * *'

@@ -1,5 +1,5 @@
 # Generated from specs/src/errors/codes.json; do not edit.
-# Regenerate: node scripts/spec/generate-error-codes-python.mjs
+# Regenerate: node packages/codegen/schemas/generate-error-codes-python.mjs
 
 """The codes a Semiont client reports a failure under.
 

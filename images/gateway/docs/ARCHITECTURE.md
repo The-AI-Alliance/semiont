@@ -32,7 +32,7 @@ malformed spec fails the build, never a boot or a request, and it generates the
 Rust types of the configuration documents from their schemas. The binary also
 embeds the bus registry and
 [bus-classification.json](../../../packages/rust/core/src/bus-classification.json),
-which `scripts/bus/generate-ts.mjs` derives from the registry beside core's
+which `packages/codegen/bus/generate-ts.mjs` derives from the registry beside core's
 TypeScript table. `semiont_core::spec` reads them: validators by schema name,
 each channel's schema, the registry's operations, and which channels are
 replies and which write. [src/limits.rs](../src/limits.rs) reads what the

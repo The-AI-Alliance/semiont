@@ -2,7 +2,7 @@
  * Spec validation, and the spec's limits — `@semiont/core/openapi`.
  *
  * The validators are GENERATED from `specs/openapi.json`
- * (`scripts/spec/generate-validators.mjs`), the same bundle `types.ts` and
+ * (`packages/codegen/schemas/generate-validators.mjs`), the same bundle `types.ts` and
  * `go/sdk/api/client_gen.go` come from. One authority, four artifacts.
  *
  * Compiled at BUILD time, deliberately. Ajv's `addSchema` does not compile;

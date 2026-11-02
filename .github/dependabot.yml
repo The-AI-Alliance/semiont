@@ -161,7 +161,7 @@ updates:
   # version moves with that image's tag (descriptors.go): a bump here alone
   # fails TestBrokerPairIsReadByTheLaunchedBrokersParser. It is also the
   # version of the broker CI's conformance jobs install
-  # (scripts/ci/install-nats-server.sh), so a bump here runs every suite
+  # (.github/scripts/install-nats-server.sh), so a bump here runs every suite
   # against the new broker.
   # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
   - package-ecosystem: "gomod"
@@ -348,7 +348,7 @@ updates:
   # images' builder stage (rust:<channel>-alpine) and the desktop builder
   # (rust:<channel>-bookworm). local-build.sh, apps/desktop/build.sh,
   # publish-service-images.yml and build-images.js ask
-  # scripts/ci/rust-toolchain.sh for it, so one bump moves the compiler
+  # packages/rust/scripts/rust-toolchain.sh for it, so one bump moves the compiler
   # everywhere; the cooldown gives the official images time to be published.
   - package-ecosystem: "rust-toolchain"
     directory: "/packages/rust"

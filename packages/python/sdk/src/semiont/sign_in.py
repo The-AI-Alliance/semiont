@@ -1,5 +1,5 @@
 # Generated from specs/src/sign-in-store/SignIn.json; do not edit.
-# Regenerate: node scripts/spec/generate-sign-in-python.mjs
+# Regenerate: node packages/codegen/schemas/generate-sign-in-python.mjs
 
 """One entry of the sign-in store (`specs/src/sign-in-store`): the file where
 `semiont login` keeps the sign-in to each stack, and where an application

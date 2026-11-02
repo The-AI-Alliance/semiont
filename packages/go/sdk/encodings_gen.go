@@ -1,6 +1,6 @@
 // Code generated from specs/src/text/encoding-cases.json — DO NOT EDIT.
 //
-// Regenerate: node scripts/spec/generate-encodings-go.mjs
+// Regenerate: node packages/codegen/schemas/generate-encodings-go.mjs
 
 package semiont
 

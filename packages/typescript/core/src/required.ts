@@ -8,7 +8,7 @@
  * reply it reads to what its schema requires instead, and refuses one that
  * lacks a member, as they do. What each schema requires is generated from the
  * spec (`generated/required-schemas.ts`, by the rules of
- * scripts/spec/required-members.mjs, which Go's table is read by too). It is
+ * packages/codegen/schemas/required-members.mjs, which Go's table is read by too). It is
  * not a validator of the schemas: a member of the wrong kind is no member
  * missing.
  */
@@ -28,7 +28,7 @@ interface Variant {
   readonly shape: Shape;
 }
 
-/** What a value must carry, as far as its members go: scripts/spec/required-members.mjs states what each part means. */
+/** What a value must carry, as far as its members go: packages/codegen/schemas/required-members.mjs states what each part means. */
 export interface Shape {
   readonly ref?: SchemaName;
   readonly required?: readonly string[];

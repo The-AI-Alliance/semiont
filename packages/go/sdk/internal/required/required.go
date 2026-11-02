@@ -5,8 +5,8 @@
 // here first, and so refuses it too.
 //
 // What a type of package api requires is its schema's, read from the spec
-// (schemas_gen.json, which scripts/spec/generate-required-go.mjs writes by
-// the rules of scripts/spec/required-members.mjs), and the type is found
+// (schemas_gen.json, which packages/codegen/schemas/generate-required-go.mjs writes by
+// the rules of packages/codegen/schemas/required-members.mjs), and the type is found
 // there by its name, which is its schema's. What any other struct requires
 // is read from its JSON tags: each member it writes without omitempty, which
 // may be null where it is a pointer, an interface or raw JSON; and what its
@@ -26,7 +26,7 @@ import (
 )
 
 // shape is what a value must carry, as far as its members go:
-// scripts/spec/required-members.mjs states what each part means.
+// packages/codegen/schemas/required-members.mjs states what each part means.
 type shape struct {
 	Ref           string            `json:"ref"`
 	Required      []string          `json:"required"`
@@ -60,7 +60,7 @@ var schemas = sync.OnceValue(func() map[string]*shape {
 		Schemas map[string]*shape `json:"schemas"`
 	}
 	if err := json.Unmarshal(generatedTable, &table); err != nil {
-		panic("schemas_gen.json is not what scripts/spec/generate-required-go.mjs writes: " + err.Error())
+		panic("schemas_gen.json is not what packages/codegen/schemas/generate-required-go.mjs writes: " + err.Error())
 	}
 	return table.Schemas
 })

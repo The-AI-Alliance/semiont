@@ -93,7 +93,7 @@ Every container the launcher runs from a document runs the `image` that document
 
 An image of Semiont's runs only when a release built it: `semiont start` verifies its build provenance first, and runs it by its digest ([What `semiont start` checks](IMAGES.md#what-semiont-start-checks)).
 
-An image tagged `:local` is never pulled: it is one [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
+An image tagged `:local` is never pulled: it is one [`images/local-build.sh`](../../../images/local-build.sh) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
 
 The Browser's image is named by its own document ([The Browser](#the-browser)). The images of Ollama and the telemetry containers are the launcher's own.
 

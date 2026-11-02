@@ -21,7 +21,7 @@ export default defineConfig({
     'src/testing/axioms.ts',
     // `@semiont/core/testing/issuer` — the in-process OIDC issuer double. Its
     // own entry so neither `.` nor the `testing` barrel pulls `jose` in behind it.
-    // `scripts/lint/check-core-subpath-isolation.mjs` fails if `.` re-exports it.
+    // `packages/typescript/core/scripts/check-core-subpath-isolation.mjs` fails if `.` re-exports it.
     'src/testing/issuer.ts',
   ],
   external: ['fast-check'],

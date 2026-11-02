@@ -1,6 +1,6 @@
 // Code generated from specs/src/bus/registry.json — DO NOT EDIT.
 //
-// Regenerate: node scripts/bus/generate-go.mjs
+// Regenerate: node packages/codegen/bus/generate-go.mjs
 
 package bus
 

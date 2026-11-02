@@ -47,7 +47,7 @@ jobs:
         # With the env var unset (the default), the SDK is dynamic-
         # imported and dropped from the bundle entirely, so the build
         # is comfortably within memory.
-        run: ./scripts/ci/build.sh
+        run: ./packages/typescript/scripts/build.sh
 
       - name: Verify NodeNext resolution
         # Pre-publish gate: every @semiont/* package's dist must
@@ -55,7 +55,7 @@ jobs:
         # an external consumer's perspective. Catches an asymmetric
         # dist (bundled .js with per-file .d.ts shards) before it
         # ships to npm.
-        run: ./scripts/ci/verify-nodenext-resolution.sh
+        run: ./packages/typescript/scripts/verify-nodenext-resolution.sh
 
       - name: Determine version
         id: version
@@ -75,7 +75,7 @@ jobs:
       - name: Publish
         if: inputs.dry_run != true
         run: |
-          ./scripts/ci/publish.sh \
+          ./packages/typescript/scripts/publish.sh \
             --version "${{ steps.version.outputs.publish }}" \
             --tag "${{ steps.version.outputs.tag }}"
 
