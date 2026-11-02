@@ -741,8 +741,11 @@ func createRealm(container string, body io.Reader) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer record.Close()
-	if _, err := fmt.Fprintf(record, "POST /admin/realms %s\n", doc.Realm); err != nil {
+	_, err = fmt.Fprintf(record, "POST /admin/realms %s\n", doc.Realm)
+	if closeErr := record.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
 		return 0, err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "realm-"+container+".json"), b, 0o644); err != nil {
