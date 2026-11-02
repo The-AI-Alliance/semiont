@@ -41,7 +41,7 @@ create accounts or start knowledge base services.
 From the monorepo root, run the renderer's Vite server in Apple Container:
 
 ```sh
-NODE_IMAGE="node:$(scripts/ci/node-version.sh)-alpine"
+NODE_IMAGE="node:$(packages/typescript/scripts/node-version.sh)-alpine"
 container run --rm -v "$PWD":/workspace -w /workspace -p 5173:5173 "$NODE_IMAGE" sh -lc \
   'npm ci && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run dev --workspace=semiont-desktop -- --host 0.0.0.0'
 ```
