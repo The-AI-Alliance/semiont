@@ -20,7 +20,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
-import type { components } from '@semiont/core';
+import { kbDid, type components } from '@semiont/core';
 import { ArchivistWorld, sha256, shardOf, unstamped, type Answer, type BusClient } from './archivist-world';
 import { eventually } from './net';
 import { startOllamaEmbed, type StandInEmbedder } from './ollama-embed';
@@ -97,7 +97,7 @@ export class SmelterWorld {
 
     const world = new SmelterWorld(
       kb,
-      vectorIndex(host),
+      vectorIndex(host, kbDid(kb.world.served.domain)),
       provider,
       command,
       {

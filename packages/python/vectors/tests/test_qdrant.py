@@ -16,10 +16,12 @@ import httpx
 import pytest
 from aio import run
 from semiont.identifiers import AnnotationId, ResourceId
+from semiont.identity import kb_did
 
 from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
 from semiont_vectors.store import AnnotationPayload, Declined, SearchOptions, VectorReader, VectorStore
 
+KB: Final = kb_did("example.github.io:plain-kb")
 RESOURCE: Final = ResourceId("res-1")
 ANNOTATION: Final = AnnotationId("ann-1")
 QUOTED: Final = AnnotationPayload(
@@ -39,7 +41,7 @@ async def never_asked() -> int:
 
 def store() -> QdrantVectorStore:
     """A store of a Qdrant that is not there: nothing listens on port 1 of this machine."""
-    return QdrantVectorStore(host="127.0.0.1", port=1, dimensions=never_asked)
+    return QdrantVectorStore(host="127.0.0.1", port=1, kb=KB, dimensions=never_asked)
 
 
 type Call = Callable[[VectorStore], Awaitable[object]]
@@ -114,7 +116,7 @@ def test_a_store_that_cannot_reach_its_qdrant_raises_and_is_not_connected() -> N
 
 def reader() -> QdrantVectorReader:
     """A reader of a Qdrant that is not there: nothing listens on port 1 of this machine."""
-    return QdrantVectorReader(host="127.0.0.1", port=1)
+    return QdrantVectorReader(host="127.0.0.1", port=1, kb=KB)
 
 
 type Read = Callable[[VectorReader], Awaitable[object]]

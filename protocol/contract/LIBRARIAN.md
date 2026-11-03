@@ -180,6 +180,11 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
   makes no constraint and no index there, and connecting to the vector index
   makes no collection and no payload index.
   *Held by `images/librarian/tests/test_census.py`, and by `packages/python/graph/tests/neo4j_live.py` and `packages/python/vectors/tests/qdrant_live.py`, for the two readers against a database.*
+- **It reads the index of the knowledge base it serves, and no other's:** the
+  collections named from that knowledge base's DID, as
+  [SMELTER.md](./SMELTER.md#the-index) states. A Qdrant that holds other
+  knowledge bases' indexes answers it none of their points.
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant.*
 - **A search of a collection the Smelter has not made yet fails,** and makes
   none. An index nobody has started is no index that found nothing: a
   reference search, a text search and both gathers each answer on their

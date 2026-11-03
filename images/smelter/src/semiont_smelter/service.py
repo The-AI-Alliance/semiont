@@ -91,8 +91,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     configure(SERVICE, config.log_level, config.log_format, own=(LOG.name, "semiont_service", "semiont_vectors", "semiont"))
     credential = service_account_of(SERVICE, config.identity.issuer, environment)
     provider = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
-    # The index is as wide as the model's vectors, which the store asks the provider when it has to make the index.
-    index = create_vector_store(config.vectors, dimensions=provider.dimensions)
+    # The knowledge base's index, as wide as the model's vectors, which the store asks the provider when it has to make the index.
+    index = create_vector_store(config.vectors, kb=kb_did(config.kb.domain), dimensions=provider.dimensions)
     return _Started(config=config, credential=credential, provider=provider, index=index)
 
 

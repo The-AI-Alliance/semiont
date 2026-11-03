@@ -12,6 +12,7 @@ import pytest
 from aio import run
 from provider import KEY, Ollama, Voyage
 from pydantic import JsonValue, TypeAdapter
+from semiont.identity import kb_did
 from semiont.types import EmbeddingConfig, VectorsConfig
 
 from semiont_vectors.factory import create_embedding_provider, create_vector_reader, create_vector_store
@@ -23,6 +24,9 @@ from semiont_vectors.voyage import VoyageEmbeddingProvider
 
 _VECTORS = TypeAdapter[VectorsConfig](VectorsConfig)
 _EMBEDDING = TypeAdapter[EmbeddingConfig](EmbeddingConfig)
+
+KB = kb_did("example.github.io:plain-kb")
+"""The knowledge base whose index each store and reader here is."""
 
 
 def vectors(stated: JsonValue) -> VectorsConfig:
@@ -39,12 +43,12 @@ async def never_asked() -> int:
 
 def test_a_qdrant_is_made_of_the_host_and_the_port_the_document_states_and_nothing_is_dialled() -> None:
     # No server listens at this address: a store that dialled when it was made would fail here.
-    store = create_vector_store(vectors({"type": "qdrant", "host": "127.0.0.1", "port": 1}), dimensions=never_asked)
+    store = create_vector_store(vectors({"type": "qdrant", "host": "127.0.0.1", "port": 1}), kb=KB, dimensions=never_asked)
     assert isinstance(store, QdrantVectorStore)
 
 
 def test_an_index_in_memory_is_made_for_the_kind_memory() -> None:
-    store = create_vector_store(vectors({"type": "memory"}), dimensions=never_asked)
+    store = create_vector_store(vectors({"type": "memory"}), kb=KB, dimensions=never_asked)
     assert isinstance(store, MemoryVectorStore)
 
 
@@ -84,13 +88,13 @@ def test_voyage_is_refused_without_a_key(key: str | None) -> None:
 
 def test_a_qdrant_reader_is_made_of_the_host_and_the_port_the_document_states_and_nothing_is_dialled() -> None:
     # No server listens at this address: a reader that dialled when it was made would fail here.
-    made = create_vector_reader(vectors({"type": "qdrant", "host": "127.0.0.1", "port": 1}))
+    made = create_vector_reader(vectors({"type": "qdrant", "host": "127.0.0.1", "port": 1}), kb=KB)
     assert isinstance(made, QdrantVectorReader)
 
 
 def test_a_reader_of_the_kind_memory_is_an_index_in_memory_that_holds_nothing() -> None:
     async def scenario() -> None:
-        made = create_vector_reader(vectors({"type": "memory"}))
+        made = create_vector_reader(vectors({"type": "memory"}), kb=KB)
         assert isinstance(made, MemoryVectorStore)
         await made.connect()
         assert await made.search_resources([1.0, 0.0], SearchOptions(limit=5)) == []
