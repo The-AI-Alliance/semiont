@@ -416,7 +416,7 @@ button:disabled {
 .git-modal__missing {
   color: var(--danger);
 }
-@media (max-width: 560px) {
+@media (width <= 560px) {
   .telemetry-service,
   .telemetry-modal__collector {
     align-items: flex-start;
