@@ -63,6 +63,38 @@ function scrollElementIntoView(el: Element | null | undefined, options: ScrollIn
   if (typeof el?.scrollIntoView === 'function') el.scrollIntoView(options);
 }
 
+/** The viewer is embedded in different hosts, so its actual scrollport is the
+ *  nearest ancestor that scrolls vertically (usually BrowseView's content).
+ *  Keeping page navigation and visibility observation on that same element
+ *  avoids scrolling the host pane and the viewer at once. */
+function findScrollport(el: Element | null): HTMLElement | null {
+  let parent = el?.parentElement ?? null;
+  while (parent) {
+    const { overflowY } = getComputedStyle(parent);
+    if (overflowY === 'auto' || overflowY === 'scroll') return parent;
+    parent = parent.parentElement;
+  }
+  return null;
+}
+
+/** Scroll only the viewer's scrollport. `scrollIntoView` can scroll every
+ *  scrollable ancestor; that is ambiguous in an embedded viewer and becomes
+ *  especially visible when the page column is zoomed. */
+function scrollPageIntoView(el: HTMLElement | null | undefined): void {
+  if (!el) return;
+  const scrollport = findScrollport(el);
+  if (scrollport && typeof scrollport.scrollTo === 'function') {
+    const pageTop = el.getBoundingClientRect().top;
+    const portTop = scrollport.getBoundingClientRect().top + scrollport.clientTop;
+    scrollport.scrollTo({
+      top: scrollport.scrollTop + pageTop - portTop,
+      behavior: 'instant',
+    });
+    return;
+  }
+  scrollElementIntoView(el, { block: 'start' });
+}
+
 /**
  * Get color for annotation based on motivation
  */
@@ -245,7 +277,7 @@ export function PdfAnnotationCanvas({
             return next;
           });
         },
-        { rootMargin: PRELOAD_MARGIN },
+        { root: findScrollport(columnRef.current), rootMargin: PRELOAD_MARGIN },
       );
     } catch {
       // No IntersectionObserver: mount every page rather than none. Correct,
@@ -275,7 +307,7 @@ export function PdfAnnotationCanvas({
           }
           return next;
         });
-      });
+      }, { root: findScrollport(columnRef.current) });
       onscreenRef.current = onscreen;
       for (const el of slotRefs.current.values()) onscreen.observe(el);
     } catch {
@@ -313,7 +345,7 @@ export function PdfAnnotationCanvas({
   const currentTickRef = useRef<HTMLButtonElement>(null);
 
   const scrollToPage = useCallback((page: number) => {
-    scrollElementIntoView(slotRefs.current.get(page), { block: 'start' });
+    scrollPageIntoView(slotRefs.current.get(page));
   }, []);
 
   // In the column the reader decides which page they are on by scrolling, so

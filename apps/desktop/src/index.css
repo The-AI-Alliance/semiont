@@ -1207,7 +1207,11 @@ body.resizing {
 .rview__body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+
+  /* ResourceViewer owns the document scrollport. Keeping another scrollable
+     ancestor here makes PDF page jumps scroll two containers, which can reset
+     the visible page when the document column is zoomed. */
+  overflow: hidden;
 }
 .rview__zoom-canvas {
   min-width: 100%;
