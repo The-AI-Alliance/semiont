@@ -16,7 +16,7 @@ knowledge base's did:web domain made safe for a name
 | Command | `/usr/local/bin/semiont-gateway --config /etc/semiont/gateway.json` |
 | Code | Rust, in this directory: [src](./src) |
 | Specification | the OpenAPI spec, [specs/src/openapi.json](../../specs/src/openapi.json) |
-| Judged by | [tests/conformance/gateway](../../tests/conformance/gateway/README.md) |
+| Judged by | [packages/conformance/gateway](../../packages/conformance/gateway/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -187,7 +187,7 @@ cargo build --release -p semiont-gateway   # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../tests/conformance/gateway/README.md), run against the built binary
+[conformance suite](../../packages/conformance/gateway/README.md), run against the built binary
 on both signal planes; see [TESTING.md](docs/TESTING.md). To run one by hand, write a
 `GatewayConfig` to a file, pass its path to `--config`, and set the three variables under
 [Configuration](#configuration).
@@ -195,18 +195,18 @@ on both signal planes; see [TESTING.md](docs/TESTING.md). To run one by hand, wr
 ## Building it
 
 From the repository root, with the toolchain
-[`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh) prints:
+[`packages/rust/scripts/rust-toolchain.sh`](../../packages/rust/scripts/rust-toolchain.sh) prints:
 
 ```bash
-docker build --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh) \
+docker build --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.sh) \
   --file images/gateway/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-gateway:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and the publish workflow pass
+[`make local-build`](../../Makefile) and the publish workflow pass
 the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the Archivist's
 and the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to
-[`scripts/container/check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh):
+[`images/scripts/check-gateway-image.sh`](../scripts/check-gateway-image.sh):
 no source in it, and `/api/health` served within its start bound.
 
 ## Related

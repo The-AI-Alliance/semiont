@@ -4,11 +4,12 @@
     "typescript": ["packages/typescript/core/src/__tests__/annotation-id.test.ts", "packages/typescript/core/src/__tests__/id-cases.test.ts"],
     "rust": ["packages/rust/sdk/src/annotations/id.rs"],
     "python": ["packages/python/sdk/tests/test_annotation_ids.py", "packages/python/sdk/tests/test_readme.py"],
-    "conformance": ["tests/conformance/worker-service/yield.test.ts"],
+    "conformance": ["packages/conformance/worker-service/yield.test.ts"],
     "go": ["packages/go/sdk/annotations/id_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationIdsTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared annotations/id-cases.json cases.",
     "swift": "The Swift SDK's annotations module: the id its builders derive for an annotation."
   },
   "cases": [

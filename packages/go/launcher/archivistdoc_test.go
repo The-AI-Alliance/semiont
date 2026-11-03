@@ -42,7 +42,7 @@ func TestArchivistDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.GatewayUrl != "http://192.168.64.1:14000" {
 		t.Errorf("gatewayUrl = %q, want the gateway at the launcher's address", doc.GatewayUrl)
 	}
-	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" {
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/example.github.io-test-kb" {
 		t.Errorf("issuer = %q", doc.Identity.Issuer)
 	}
 	if doc.Root != kbMountTarget || doc.AnchoredTextDir != stateStores["anchored-text"].mounts[0].target || doc.StateHome != stateStores["state"].mounts[0].target {

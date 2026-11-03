@@ -9,6 +9,8 @@ queries:
     uses: security-and-quality
 
 paths:
+  - packages/csharp/sdk/src
+  - packages/csharp/sdk/analyzers
   - images/browser/src
   # The Rust workspace: its services and the crates they share
   - images/gateway/src
@@ -25,8 +27,9 @@ paths:
   - packages/rust/observability
   - packages/rust/sdk
   - packages/rust/telemetry
-  # The desktop shell: a Cargo workspace of its own, outside the root one
-  - apps/desktop/src-tauri/src
+  # The desktop chat renderer and Electron main/preload processes
+  - apps/desktop/src
+  - apps/desktop/electron
   # Go launcher — module root, not a src/ dir (main.go and its tests)
   - apps/launcher
   # The launcher's libraries: a module root too
@@ -54,6 +57,8 @@ paths:
   - images/librarian/src
 
 paths-ignore:
+  - "**/bin"
+  - "**/obj"
   - packages/go/launcher/testdata
   - images/browser/node_modules
   - "**/node_modules"

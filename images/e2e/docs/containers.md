@@ -1,0 +1,143 @@
+# Containers and rebuild flow
+
+The e2e harness drives the Browser **container**, which talks to the
+gateway **container**. Every Semiont image bundles `@semiont/*`
+packages — a change to a package isn't visible to the tests until the
+images are rebuilt and the stack is restarted from them. This doc walks
+through that lifecycle.
+
+## The moving parts
+
+| Container | What's inside | Where it comes from |
+|---|---|---|
+| `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `make local-build` |
+| `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `make local-build` |
+| `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `make local-build` |
+| plus: `semiont-<kb>-neo4j`, `semiont-<kb>-qdrant`, `semiont-ollama`, `semiont-<kb>-postgres`, `semiont-<kb>-nats`, `semiont-<kb>-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
+
+A knowledge base's containers are named `semiont-<kb>-<product>`, where
+`<kb>` is its did:web domain made safe for a name: `did:web:example.org:my-kb`
+runs its gateway as `semiont-example.org-my-kb-gateway`. The Browser, the
+worker, Ollama and Jaeger are shared by every knowledge base, and keep
+`semiont-<name>`. See
+[the launcher's names](../../../docs/operator/services/OVERVIEW.md#the-launchers-names).
+
+**Key fact:** `make local-build` (in this repo) publishes the
+`@semiont/*` packages to a throwaway local Verdaccio and builds **every**
+Semiont image from them as a local-only `:local` tag (plus the
+launcher binary). KB repos build nothing — the stack runs the `:local`
+images only when the KB's `.semiont/stack/*.yaml` documents name them
+(`ghcr.io/the-ai-alliance/semiont-<service>:local`) and the Browser's and the
+worker's own documents name theirs (`semiont settings browser --path`,
+`semiont settings worker --path`); an image still named
+`:latest` is pulled as published, and your local changes are invisible.
+
+So the "full rebuild" flow depends on what changed:
+
+| Change in | Rebuild | Restart |
+|---|---|---|
+| `packages/typescript/react-ui`, `packages/typescript/http-transport`, `packages/typescript/core` | `make local-build` | browser |
+| `images/browser` only | `make local-build` | browser |
+| `images/librarian`, `images/worker`, `images/weaver`, `images/smelter`, or a Python package one of them runs on | `make local-build` (rebuilds the `:local` images) | the stack: `semiont start` |
+| `images/gateway` | `make local-build` | the stack: `semiont start` |
+
+## Apple container CLI primer
+
+Everything is one container per service on the `192.168.64.0/24`
+bridge. No compose, no swarm.
+
+```sh
+container ls                              # list running
+container ls | grep semiont-              # list the dev stack
+container stop <name>                     # graceful stop
+container logs <name>                     # tail logs (add -f to follow)
+container exec <name> <cmd>               # run a command inside
+container image ls                        # list local images
+container inspect <name>                  # JSON dump — mounts, env, IP, etc.
+```
+
+Use `container logs --follow semiont-<kb>-gateway` when diagnosing a failing test
+— the gateway's structured logs often reveal whether a bus handler
+actually ran. (`semiont logs`, from the KB directory, follows all
+services at once with `[svc]` prefixes.)
+
+## <a name="ip-refresh"></a>IP refresh after every restart
+
+Apple's container runtime assigns a **fresh bridge IP** on every
+`container run` and every `container start`. The `192.168.64.x` value
+from your last session is stale the moment either the gateway or
+Browser restarts, even if you didn't rebuild.
+
+Symptom: every request in your first test times out because the
+browser is dialing a dead address.
+
+```sh
+container ls | grep -E 'semiont-(browser|.+-gateway)'    # inspection only
+```
+
+> Useful for *seeing* what is running. Do **not** feed these IPs to the e2e
+> suite — they change on every restart, and pointing the suite at the gateway
+> container also breaks `19-worker-vitals`, which expects the worker's `:24100`
+> on the same host as the gateway. Use `192.168.64.1` for both URLs.
+
+## Building the `:local` images
+
+```sh
+make local-build                 # everything
+make local-build PACKAGE_NAMES=<list>  # narrow the package set (<language>/<name>, or a language)
+make local-build IMAGE_NAMES=<list>    # narrow the image set
+```
+
+`--help` lists the full package set. The script:
+
+1. Starts a fresh `semiont-verdaccio` container on `:4873`.
+2. Builds each package in a Node container (Alpine) and publishes it
+   to Verdaccio.
+3. Builds every Semiont image against Verdaccio, tagged
+   `ghcr.io/the-ai-alliance/semiont-<svc>:local` (never pushed), and
+   loads them into every container engine on the machine.
+4. Builds the launcher binary to `apps/launcher/dist/semiont`.
+
+Output ends with a `DONE ✓` banner. `--no-cache` matters when you
+republish the **same package version**: the `npm install` layer is
+cached by version, so a same-version republish is invisible without it.
+
+## Restarting the stack on new images
+
+The stack is run from the KB project directory, not this repo. For the
+template KB:
+
+```sh
+cd /path/to/semiont-template-kb
+# The documents in .semiont/stack/ name the :local images, and the
+# Browser's and the worker's own documents name theirs (once):
+perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(semiont settings browser --path)"
+perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(semiont settings worker --path)"
+# semiont start reads ANTHROPIC_API_KEY from env when --config anthropic.
+# Source your secrets first if it's not already exported.
+semiont start --config anthropic
+echo password | semiont useradd --email admin@example.com
+```
+
+The `ollama-gemma` Inference document avoids the API-key requirement if
+you only need to exercise non-inference paths.
+
+`semiont start` stops and recreates the running containers, so their IPs
+change. **That is exactly why e2e should not use them** — target the host
+bridge gateway `192.168.64.1`, which routes to the published ports and is
+stable across restarts. See
+[running.md](running.md#running-from-a-container-recommended-on-macos).
+
+## Playwright image tag must match `@playwright/test`
+
+The container invocation must use a tag matching the installed
+`@playwright/test`. Derive it (`PW=$(node -p "require('./node_modules/@playwright/test/package.json').version")`)
+rather than hardcoding. If `npm install` upgrades the library, pull the
+matching image:
+
+```sh
+container image pull mcr.microsoft.com/playwright:v<version>-noble
+```
+
+A mismatch produces a "please update docker image as well" error at
+test startup.

@@ -58,7 +58,7 @@ func TestGatewayDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if doc.Port != 4000 || doc.PublicUrl != "https://kb.example.com" {
 		t.Errorf("port %d, publicUrl %q: want the KnowledgeBase's port and its publicURL as written", doc.Port, doc.PublicUrl)
 	}
-	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/semiont" || doc.Identity.SubjectClaim != "sub" {
+	if doc.Identity.Issuer != "http://192.168.64.1:8080/realms/example.github.io-test-kb" || doc.Identity.SubjectClaim != "sub" {
 		t.Errorf("identity = %+v", doc.Identity)
 	}
 	if doc.Archivist.Host != "192.168.64.1" || doc.Archivist.Port != semiontDescriptor("archivist").ports[0].port {
@@ -91,7 +91,7 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 		p := placed(t, st)
 		p.rt, p.addr = c.rt, c.addr
 		doc := gatewayDocumentOf(t, p)
-		if doc.Identity.Issuer != "http://keycloak.localhost:8080/realms/semiont" {
+		if doc.Identity.Issuer != "http://keycloak.localhost:8080/realms/example.github.io-test-kb" {
 			t.Errorf("%s at %s: issuer %q, want one the laptop resolves as well as the containers", c.rt, c.addr, doc.Identity.Issuer)
 		}
 		if doc.Signal.Servers == nil || *doc.Signal.Servers != c.addr+":4222" {
@@ -104,12 +104,12 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 // it — else the gateway advertises one issuer and the realm stamps another.
 func TestGatewayDocumentNamesTheIssuerAtItsPort(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	plan, err := derivePlan(st, 8081, 0)
+	plan, err := derivePlan(st, fixtureKB(t).key(), 8081, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	doc := gatewayDocumentOf(t, placement{st: st, plan: plan, rt: "docker", addr: "172.17.0.1"})
-	if doc.Identity.Issuer != "http://keycloak.localhost:8081/realms/semiont" {
+	if doc.Identity.Issuer != "http://keycloak.localhost:8081/realms/example.github.io-test-kb" {
 		t.Errorf("issuer %q, want the moved port", doc.Identity.Issuer)
 	}
 }

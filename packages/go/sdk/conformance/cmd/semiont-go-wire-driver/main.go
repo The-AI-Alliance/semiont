@@ -1,6 +1,6 @@
 // Command semiont-go-wire-driver is the Go SDK's wire driver: the program the
 // SDK conformance suite talks to in the Go SDK's place
-// (tests/conformance/sdk/README.md, § The driver protocol). It holds a
+// (packages/conformance/sdk/README.md, § The driver protocol). It holds a
 // transport, and reaches it only as an application does, through what the
 // SDK exports, so what the suite observes is what a caller of the SDK gets.
 package main

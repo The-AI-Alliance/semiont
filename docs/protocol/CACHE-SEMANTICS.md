@@ -43,7 +43,7 @@ implementation must satisfy and that tests must verify, in every language.
 Every SDK. The behaviors are numbered so that each can be tested by name:
 
 - The SDK conformance suite's live cases put each SDK through them against a
-  real gateway ([tests/conformance/sdk](../../tests/conformance/sdk/README.md)).
+  real gateway ([packages/conformance/sdk](../../packages/conformance/sdk/README.md)).
 - What a bus event refreshes is not prose at all: it is
   [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json), from
   which each SDK's handlers are generated.
@@ -616,7 +616,7 @@ key the cache holds. Every act is on a key the cache holds (B20); each
 refetch goes through its key's window (B19); writes and removes do neither.
 
 The SDK conformance suite builds a live case from every row
-([`tests/conformance/sdk`](../../tests/conformance/sdk/README.md)), so a
+([`packages/conformance/sdk`](../../packages/conformance/sdk/README.md)), so a
 row is a statement every SDK is held to.
 
 Two things the table's shape follows from:

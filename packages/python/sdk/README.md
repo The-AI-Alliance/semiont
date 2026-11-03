@@ -1075,9 +1075,9 @@ Apache-2.0. See [LICENSE][license].
 [transport-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md
 [transport-http]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md
 [cache-semantics]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md
-[conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/sdk/README.md
+[conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/conformance/sdk/README.md
 [worker-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md
-[worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/tests/conformance/worker/README.md
+[worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/conformance/worker/README.md
 [sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/typescript/sdk/README.md
 [sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/rust/sdk/README.md
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md

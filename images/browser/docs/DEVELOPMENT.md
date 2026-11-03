@@ -42,7 +42,7 @@ container. Under Vite, add the knowledge base by hand.
 ## Run it as the shipped container
 
 When a change needs to be exercised as the image, or it touches a package a service runs,
-rebuild with [`scripts/ci/local-build.sh`](../../../scripts/ci/local-build.sh) and name the
+rebuild with [`make local-build`](../../../Makefile) and name the
 `:local` image: `ghcr.io/the-ai-alliance/semiont-browser:local` as `spec.image` in the
 Browser's document (`semiont settings browser --path` prints where it is), and `:local` in the
 knowledge base's `.semiont/stack/` documents for the services. An image still named `:latest` is the published one, and your change is not in it.
@@ -141,7 +141,7 @@ react-ui's [Styles](../../../docs/builder/react-ui/STYLES.md).
 
 - **See the bus.** In the page's console, `window.__SEMIONT_BUS_LOG__ = true` logs one line for
   every bus event the page sends and receives. It is usually the fastest way to see what a
-  change did ([bus logging](../../../tests/e2e/docs/bus-logging.md)).
+  change did ([bus logging](../../e2e/docs/bus-logging.md)).
 - **Who am I signed in as?** `GET /api/users/me` on the gateway, with the session's token,
   answers the DID every event is attributed to.
 - **Sign-in fails.** Look at the identity provider's logs, not the gateway's: a sign-in that

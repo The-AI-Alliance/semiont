@@ -1,7 +1,7 @@
-//! The Rust live driver for the SDK conformance suite (tests/conformance/sdk):
+//! The Rust live driver for the SDK conformance suite (packages/conformance/sdk):
 //! the SDK's client, its live queries and their cache, driven one operation
 //! per line on stdin, reporting each observer's states on stdout;
-//! tests/conformance/sdk/README.md is the protocol.
+//! packages/conformance/sdk/README.md is the protocol.
 //!
 //! It reaches the SDK only as an application does, through what `semiont` and
 //! `semiont-http-transport` export.

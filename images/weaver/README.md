@@ -16,13 +16,13 @@ other services (`semiont start`).
 | Command | `python -P -m semiont_weaver --config /etc/semiont/weaver.json` |
 | Code | Python, in this directory: [`src/semiont_weaver`](./src/semiont_weaver/) |
 | Specification | [docs/protocol/WEAVER.md](../../docs/protocol/WEAVER.md) |
-| Judged by | [tests/conformance/weaver](../../tests/conformance/weaver/README.md) |
+| Judged by | [packages/conformance/weaver](../../packages/conformance/weaver/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
 
 [WEAVER.md](../../docs/protocol/WEAVER.md) states what a Weaver does, rule by rule; the
-[weaver conformance suite](../../tests/conformance/weaver/README.md) holds a Weaver to each rule,
+[weaver conformance suite](../../packages/conformance/weaver/README.md) holds a Weaver to each rule,
 as a process behind a real gateway, a real Archivist and a real Neo4j.
 
 It follows the record as every follower of it does
@@ -187,16 +187,16 @@ reach no database: the Weaver as a process is the conformance suite's.
 
 ## Building it
 
-From the repository root, on the Python [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh)
+From the repository root, on the Python [`packages/python/scripts/python-floor.sh`](../../packages/python/scripts/python-floor.sh)
 prints:
 
 ```bash
-docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
+docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh) \
   --file images/weaver/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-weaver:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it the same way, with the
-other images, and [`scripts/container/check-python-image.sh`](../../scripts/container/check-python-image.sh)
+[`make local-build`](../../Makefile) builds it the same way, with the
+other images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 
 ## Related

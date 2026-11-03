@@ -115,7 +115,7 @@ Where each port listens depends on the container runtime:
 By default a stack under Apple `container` answers this Mac alone. `semiont settings network lan` lets the network reach two things more, from the next start on, and `semiont settings network local` returns it to the default:
 
 - **The gateway**, on port 4000 at this Mac's address on the network.
-- **The issuer**, at `http://<this Mac's address>:8080/realms/semiont`. The issuer moves there for everyone, this Mac and the containers included, because a token names one issuer. A proxy the launcher runs answers at that address and passes the realm's sign-in pages and nothing else: Keycloak's admin console, its admin API and its master realm stay on the bridge address. `semiont stop` ends the proxy, and `semiont status` starts it again if it has died.
+- **The issuer**, at `http://<this Mac's address>:8080/realms/<the knowledge base's realm>`. The issuer moves there for everyone, this Mac and the containers included, because a token names one issuer. A proxy the launcher runs answers at that address and passes the realm's sign-in pages and nothing else: Keycloak's admin console, its admin API and its master realm stay on the bridge address. `semiont stop` ends the proxy, and `semiont status` starts it again if it has died.
 
 The address is read afresh at every start. When it changes, so does the issuer every token names, and people sign in again.
 
@@ -139,7 +139,7 @@ A stack's containers reach each other through your machine's own address, so the
 
 ## Images built from source
 
-The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh), name the `:local` images in the documents, and the Browser's and the worker's in their own documents (`semiont settings browser --path` and `semiont settings worker --path` say where they are). See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
+The documents in `.semiont/stack/` name the image each service runs, and the launcher pulls none tagged `:local`. To run images built from a checkout of this repository instead of the published ones, build them with [`make local-build`](../../Makefile), name the `:local` images in the documents, and the Browser's and the worker's in their own documents (`semiont settings browser --path` and `semiont settings worker --path` say where they are). See [Local Development](../contributor/LOCAL-DEVELOPMENT.md).
 
 ## Related
 

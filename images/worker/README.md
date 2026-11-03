@@ -15,12 +15,12 @@ serves every knowledge base on its list at once, each apart from the others.
 | Command | `python -P -m semiont_worker --config /etc/semiont/worker.json` |
 | Code | Python, in this directory: [`src/semiont_worker`](./src/semiont_worker/) |
 | Specification | [docs/protocol/WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md) |
-| Judged by | [tests/conformance/worker-service](../../tests/conformance/worker-service/README.md) |
+| Judged by | [packages/conformance/worker-service](../../packages/conformance/worker-service/README.md) |
 | Published | to no package index: the image only |
 
 What the worker does is written rule by rule in
 [WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md), and the
-[worker-service conformance suite](../../tests/conformance/worker-service/README.md) holds an
+[worker-service conformance suite](../../packages/conformance/worker-service/README.md) holds an
 implementation to each rule. This page is the image, and how it is run.
 
 ## What it does
@@ -228,16 +228,16 @@ image the [Dockerfile](./Dockerfile) copies it from. The checkers are `uv run my
 
 ## Building it
 
-From the repository root, on the Python [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh)
+From the repository root, on the Python [`packages/python/scripts/python-floor.sh`](../../packages/python/scripts/python-floor.sh)
 prints:
 
 ```bash
-docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
+docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh) \
   --file images/worker/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-worker:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other
-images, and [`scripts/container/check-python-image.sh`](../../scripts/container/check-python-image.sh)
+[`make local-build`](../../Makefile) builds it so with the other
+images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 
 ## Related

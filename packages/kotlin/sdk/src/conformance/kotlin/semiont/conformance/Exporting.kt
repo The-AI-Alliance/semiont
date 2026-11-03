@@ -17,7 +17,7 @@ import io.opentelemetry.sdk.trace.export.BatchSpanProcessor
 
 /**
  * Export the SDK's telemetry over OTLP/HTTP when the suite says where
- * (tests/conformance/sdk/README.md): the global OpenTelemetry the SDK tells,
+ * (packages/conformance/sdk/README.md): the global OpenTelemetry the SDK tells,
  * with W3C's propagators. Closing it sends the last of it.
  */
 public fun exporting(): OpenTelemetrySdk? {

@@ -35,6 +35,11 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 20
+    # TypeScript 7 is held, here and in the two test suites' entries below.
+    # Remove all three to take it.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     labels:
       - "kind:dependencies"
     commit-message:
@@ -78,7 +83,7 @@ updates:
   # E2E test suite — tests/ is NOT in the root workspaces[], so "/" does not reach it;
   # it needs its own entry.
   - package-ecosystem: "npm"
-    directory: "/tests/e2e"
+    directory: "/images/e2e"
     versioning-strategy: increase-if-necessary
     cooldown:
       default-days: 5
@@ -90,6 +95,10 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # TypeScript 7 is held, as in the root entry.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     labels:
       - "kind:dependencies"
       - "tests:e2e"
@@ -101,10 +110,10 @@ updates:
       prefix: "tests"
       include: "scope"
 
-  # Gateway conformance suite — outside workspaces[] like tests/e2e, so it
+  # Gateway conformance suite — outside workspaces[] like images/e2e, so it
   # needs its own entry.
   - package-ecosystem: "npm"
-    directory: "/tests/conformance"
+    directory: "/packages/conformance"
     versioning-strategy: increase-if-necessary
     cooldown:
       default-days: 5
@@ -116,6 +125,10 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # TypeScript 7 is held, as in the root entry.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
     labels:
       - "kind:dependencies"
       - "tests:conformance"
@@ -161,7 +174,7 @@ updates:
   # version moves with that image's tag (descriptors.go): a bump here alone
   # fails TestBrokerPairIsReadByTheLaunchedBrokersParser. It is also the
   # version of the broker CI's conformance jobs install
-  # (scripts/ci/install-nats-server.sh), so a bump here runs every suite
+  # (.github/scripts/install-nats-server.sh), so a bump here runs every suite
   # against the new broker.
   # NB: kept to default-days only; the semver cooldown tiers are npm-oriented.
   - package-ecosystem: "gomod"
@@ -301,6 +314,12 @@ updates:
       day: "monday"
       time: "09:00"
     open-pull-requests-limit: 5
+    # together 3 is held: it drops /v1 from the client's base URL and moves chat
+    # completions to another host, and the Together driver's model discovery
+    # fails under it. The inference package's extra caps it too (<3).
+    ignore:
+      - dependency-name: "together"
+        versions: [">=3"]
     groups:
       mypy:
         patterns: ["mypy"]
@@ -345,10 +364,9 @@ updates:
 
   # The repository's Rust toolchain (rust-toolchain.toml), which every Rust
   # build uses. Its channel is also the tag of every Rust image: the service
-  # images' builder stage (rust:<channel>-alpine) and the desktop builder
-  # (rust:<channel>-bookworm). local-build.sh, apps/desktop/build.sh,
+  # images' builder stage (rust:<channel>-alpine). local-build.sh,
   # publish-service-images.yml and build-images.js ask
-  # scripts/ci/rust-toolchain.sh for it, so one bump moves the compiler
+  # packages/rust/scripts/rust-toolchain.sh for it, so one bump moves the compiler
   # everywhere; the cooldown gives the official images time to be published.
   - package-ecosystem: "rust-toolchain"
     directory: "/packages/rust"
@@ -363,28 +381,6 @@ updates:
       - "kind:dependencies"
     commit-message:
       prefix: "gateway"
-      include: "scope"
-
-  # The desktop app's crates (apps/desktop/src-tauri, Tauri). One grouped PR,
-  # as for the gateway: Tauri's crates move together.
-  - package-ecosystem: "cargo"
-    directory: "/apps/desktop/src-tauri"
-    cooldown:
-      default-days: 5
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "09:00"
-    open-pull-requests-limit: 5
-    labels:
-      - "kind:dependencies"
-      - "app:desktop"
-    groups:
-      desktop-crates:
-        patterns:
-          - "*"
-    commit-message:
-      prefix: "desktop"
       include: "scope"
 
   # GitHub Actions dependencies
@@ -429,9 +425,6 @@ updates:
     commit-message:
       prefix: "browser-docker"
       include: "scope"
-
-  # The desktop builder (apps/desktop/Dockerfile.builder) has no entry: its one
-  # base image is rust:<channel>-bookworm, which the rust-toolchain entry moves.
 
   # Service image base images (images/<svc>/Dockerfile). Grouped into one PR:
   # the gateway's, the dispatcher's and the archivist's runtime base is one
@@ -495,6 +488,41 @@ updates:
       prefix: "service-docker"
       include: "scope"
 
+  # The C# solution and the SDK version its global.json pins.
+  - package-ecosystem: "nuget"
+    directory: "/packages/csharp/sdk"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "sdk:csharp"
+    groups:
+      sdk-csharp:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "sdk-csharp"
+      include: "scope"
+  - package-ecosystem: "dotnet-sdk"
+    directory: "/packages/csharp/sdk"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "kind:dependencies"
+      - "sdk:csharp"
+    commit-message:
+      prefix: "sdk-csharp"
+      include: "scope"
   - package-ecosystem: "swift"
     directory: "/packages/swift/sdk"
     schedule:

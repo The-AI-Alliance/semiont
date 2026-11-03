@@ -699,7 +699,7 @@ func TestStartStagesEveryAddressAsALiteral(t *testing.T) {
 	// The gateway and Neo4j's bolt port are a person's too, so the containers
 	// dial their own side of each (containersSide).
 	mustContain(t, "staged librarian.json", librarian,
-		`"gatewayUrl": "http://192.168.64.1:14000"`, "bolt://192.168.64.1:17687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/semiont")
+		`"gatewayUrl": "http://192.168.64.1:14000"`, "bolt://192.168.64.1:17687", "http://192.168.64.1:11434", "http://192.168.64.1:8080/realms/"+testKBKey)
 	if strings.Contains(librarian, "${") {
 		t.Errorf("the staged librarian.json leaves an address to its environment:\n%s", librarian)
 	}
@@ -772,7 +772,7 @@ func TestStartDefaultBoot(t *testing.T) {
 
 // The launcher half of the split supervision gate: local runs pass the
 // SEMIONT_SUPERVISE opt-in (the image half, that every image can be
-// supervised, is scripts/compliance/audit-supervision.sh). Published images
+// supervised, is images/scripts/audit-supervision.sh). Published images
 // run their CMD directly — supervision is a per-run opt-in, and LOCAL
 // placement is the one place with no orchestrator restart policy, so the
 // launcher must grant it to every service it starts. A service missing the
@@ -970,11 +970,16 @@ func TestStartDryRunNetworkLAN(t *testing.T) {
 		"--publish 4000:4000", "--publish <host-addr>:14000:4000",
 		"-p <host-addr>:18080:8080",
 		"KC_HOSTNAME=http://<lan-addr>:8080",
-		"issuer-proxy --listen <lan-addr>:8080 --upstream <host-addr>:18080 --realm semiont",
-		"wait: http://<host-addr>:18080/realms/semiont (90s)",
-		"wait: http://<lan-addr>:8080/realms/semiont (15s)",
+		"issuer-proxy --listen <lan-addr>:8080 --upstream <host-addr>:18080 --realm "+testKBKey,
+		"wait: http://<host-addr>:18080/realms/master (90s)",
+		"ask http://<host-addr>:18080/realms/"+testKBKey+", and where Keycloak does not hold it, create realm \""+testKBKey+"\": POST http://<host-addr>:18080/admin/realms",
+		"wait: http://<lan-addr>:8080/realms/"+testKBKey+" (15s)",
 		"network lan: the gateway answers the network at <lan-addr>:4000",
-		"network lan: the issuer answers it at http://<lan-addr>:8080/realms/semiont")
+		"network lan: the issuer answers it at http://<lan-addr>:8080/realms/"+testKBKey)
+	// The proxy answers for the realm, so the realm comes first.
+	if strings.Index(stdout, "create realm") > strings.Index(stdout, "issuer-proxy --listen") {
+		t.Errorf("a lan start runs the issuer proxy before it creates the realm the proxy answers for:\n%s", stdout)
+	}
 	for _, absent := range []string{"127.0.0.1:4000:4000", "<host-addr>:8080:8080"} {
 		if strings.Contains(stdout, absent) {
 			t.Errorf("a lan start still publishes %s:\n%s", absent, stdout)
@@ -1036,13 +1041,13 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Answering the network at 192.168.2.10",
 		"http://192.168.2.10:4000",
-		"http://192.168.2.10:8080/realms/semiont",
+		"http://192.168.2.10:8080/realms/"+testKBKey,
 		"Plain HTTP")
 	mustContain(t, "argv", s.argv(t), "--publish 4000:4000", "-p 192.168.64.1:18080:8080", "KC_HOSTNAME=http://192.168.2.10:8080")
 	for _, staged := range []string{"librarian.json", "gateway.json"} {
-		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/semiont")
+		mustContain(t, "staged "+staged, stagedFile(t, s, staged), "http://192.168.2.10:8080/realms/"+testKBKey)
 	}
-	mustContain(t, "the worker's document", sharedFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/semiont")
+	mustContain(t, "the worker's document", sharedFile(t, s, "worker.json"), "http://192.168.2.10:8080/realms/"+testKBKey)
 	status := func(url string) int {
 		t.Helper()
 		resp, err := http.Get(url)
@@ -1052,7 +1057,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 		resp.Body.Close()
 		return resp.StatusCode
 	}
-	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+	if got := status("http://127.0.0.1:8080/realms/" + testKBKey); got != http.StatusOK {
 		t.Errorf("the realm through the issuer proxy answered %d", got)
 	}
 	if got := status("http://127.0.0.1:8080/admin/master/console/"); got != http.StatusNotFound {
@@ -1084,7 +1089,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	}
 	mustContain(t, "status", revival, fmt.Sprintf("The issuer proxy (pid %d) is not running; starting it again.", killed))
 	before = claimProxy()
-	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+	if got := status("http://127.0.0.1:8080/realms/" + testKBKey); got != http.StatusOK {
 		t.Errorf("after status restarted the issuer proxy the realm through it answered %d", got)
 	}
 	// Restarting the issuer replaces its proxy: the old one leaves the
@@ -1095,7 +1100,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	if after := claimProxy(); after == before {
 		t.Errorf("after an issuer restart the record names proxy pid %d, the one before it: want a new one", after)
 	}
-	if got := status("http://127.0.0.1:8080/realms/semiont"); got != http.StatusOK {
+	if got := status("http://127.0.0.1:8080/realms/" + testKBKey); got != http.StatusOK {
 		t.Errorf("after an issuer restart the realm through the proxy answered %d", got)
 	}
 	if _, stderr, code := s.run(t, "stop"); code != 0 {
@@ -1103,7 +1108,7 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		resp, err := http.Get("http://127.0.0.1:8080/realms/semiont")
+		resp, err := http.Get("http://127.0.0.1:8080/realms/" + testKBKey)
 		if err != nil {
 			break
 		}
@@ -1174,7 +1179,7 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 		if run := keycloakRun(t, argv); !strings.Contains(run, "-p 192.168.64.1:"+step.want+":8080") {
 			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
 		}
-		issuer := "http://192.168.64.1:" + step.want + "/realms/semiont"
+		issuer := "http://192.168.64.1:" + step.want + "/realms/" + testKBKey
 		for _, staged := range []string{"smelter.json", "weaver.json", "librarian.json", "archivist.json", "gateway.json", "dispatcher.json"} {
 			if !strings.Contains(stagedFile(t, s, staged), issuer) {
 				t.Errorf("%s: the staged %s does not state the issuer at port %s:\n%s", step.name, staged, step.want, stagedFile(t, s, staged))
@@ -1237,7 +1242,7 @@ func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
 				// The issuer is named in what each service is staged; the probe's
 				// answer still places every other daemon.
 				librarian := stagedFile(t, s, "librarian.json")
-				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/semiont") {
+				if !strings.Contains(librarian, "http://keycloak.localhost:8080/realms/"+testKBKey) {
 					t.Errorf("the staged issuer is not the issuer's name:\n%s", librarian)
 				}
 				if !strings.Contains(librarian, "bolt://"+probe.addr+":7687") {
@@ -1289,7 +1294,7 @@ func TestKeycloakRunsInProductionModeAtTheIssuerTheServicesTrust(t *testing.T) {
 			if err := json.Unmarshal([]byte(stagedFile(t, s, "gateway.json")), &gateway); err != nil {
 				t.Fatal(err)
 			}
-			if hostname == "" || gateway.Identity.Issuer != hostname+"/realms/semiont" {
+			if hostname == "" || gateway.Identity.Issuer != hostname+"/realms/"+testKBKey {
 				t.Errorf("Keycloak's hostname is %q and the gateway trusts the issuer %q: its tokens would name another issuer", hostname, gateway.Identity.Issuer)
 			}
 		})
@@ -2106,7 +2111,7 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	}
 	realm, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-semiont-example.github.io-other-kb-keycloak.json"))
 	if err != nil {
-		t.Fatalf("the realm the second start's issuer imported: %v", err)
+		t.Fatalf("the realm the second start created: %v", err)
 	}
 	mustContain(t, "the second start's realm", string(realm), semiont.KbResource("example.github.io:other-kb"))
 	if strings.Contains(string(realm), semiont.KbResource("example.github.io:test-kb")) {
@@ -2120,6 +2125,44 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	}
 	roots, _, _ := s.run(t, "roots")
 	mustContain(t, "roots", roots, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
+}
+
+// A start creates the knowledge base's realm when its Keycloak holds none, and
+// a later start finds it held and leaves it as it is: one create across both,
+// as a realm outlives Keycloak in its database.
+func TestAStartCreatesTheRealmOnceAndLeavesItThereafter(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("the first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	doc, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+".json"))
+	if err != nil {
+		t.Fatalf("the realm the first start created: %v", err)
+	}
+	var created struct {
+		Realm string `json:"realm"`
+	}
+	if err := json.Unmarshal(doc, &created); err != nil || created.Realm == "" {
+		t.Fatalf("the realm the first start created names no realm (%v):\n%s", err, doc)
+	}
+	mustContain(t, "the first start", stdout+stderr, "Realm "+created.Realm+": created")
+
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("the second start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the second start", stdout+stderr, "Realm "+created.Realm+": held by Keycloak, left as it is")
+	log, err := os.ReadFile(filepath.Join(s.fakertDir, "admin-"+containerOf("keycloak")+".log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(log), "POST /admin/realms "); got != 1 {
+		t.Fatalf("the two starts created the realm %d times, want once:\n%s", got, log)
+	}
 }
 
 // withGatewayPort makes root's KnowledgeBase document commit port as its
@@ -2450,7 +2493,7 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	// The Neo4j Browser's port is a person's alone, wherever a block places it.
 	mustNotContain(t, "the second knowledge base's start", second, ":5432:5432", ":24103:24103", "17484")
 	mustContain(t, "the second start's librarian.json", stagedFile(t, s, "librarian.json"),
-		"bolt://192.168.64.1:17697", "http://192.168.64.1:8090/realms/semiont", `"port": 24113`)
+		"bolt://192.168.64.1:17697", "http://192.168.64.1:8090/realms/example.github.io-other-kb", `"port": 24113`)
 	mustContain(t, "the second start's dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4232")
 	mustContain(t, "the second start's smelter.json", stagedFile(t, s, "smelter.json"), `"port": 6343`, `"port": 24113`)
 	if got := blockOf(other); got != "1" {
@@ -3311,7 +3354,7 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("login: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "output", stdout+stderr, "realms/semiont", "FAKE-CODE")
+	mustContain(t, "output", stdout+stderr, "realms/fake-kb", "FAKE-CODE")
 	mustContain(t, "stdout", stdout, "Logged in", "admin@example.com")
 	if strings.Contains(stdout+stderr, "Password") {
 		t.Errorf("login asked for a password:\n%s\n%s", stdout, stderr)
@@ -3325,7 +3368,7 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	mustContain(t, "device authorization", string(da), "client_id=semiont-cli", "offline_access")
 	signIn, ok := storedSignIn(t, s.home, localKey)
 	if !ok || tagOf(signIn.Token) != "fake-jwt-token" || signIn.RefreshToken != "fake-refresh-token" ||
-		signIn.Issuer != "http://localhost:4000/realms/semiont" || signIn.TokenEndpoint == "" || signIn.Email != "admin@example.com" {
+		signIn.Issuer != "http://localhost:4000/realms/fake-kb" || signIn.TokenEndpoint == "" || signIn.Email != "admin@example.com" {
 		t.Errorf("tokens.json after login does not hold the issued session: %+v (%v)", signIn, ok)
 	}
 	if open := harness.OpenToOthers(t, tokensPathFor(s.home)); open != "" {
@@ -12465,8 +12508,8 @@ func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 
 // A KnowledgeBase whose issuer is the Issuer document the launcher runs — the
 // fixture's — boots Keycloak after PostgreSQL and before the gateway: its
-// database created on that PostgreSQL if absent, the realm file staged and
-// imported, the bootstrap admin password per root, and every service's
+// database created on that PostgreSQL if absent, the realm created through
+// its admin API, the bootstrap admin password per root, and every service's
 // staged document states the issuer.
 
 // The identity path in PLAN mode: a golden for everything the
@@ -12536,7 +12579,7 @@ func externalIssuer(t *testing.T, s *scenario) {
 }
 
 // An issuer someone else runs gets the SAME preflight as one the launcher
-// starts — and needs it more. A launcher-run realm is imported from the
+// starts — and needs it more. A launcher-run realm is created from the
 // launcher's own document and is correct by construction; an external one had
 // its clients created by hand.
 //

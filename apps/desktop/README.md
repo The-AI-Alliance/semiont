@@ -1,103 +1,66 @@
 # Semiont Desktop
 
-An installable native build of the Semiont browser UI. A thin [Tauri](https://tauri.app/) shell wraps the same SPA that runs in the web build — a native window and menu around the compiled UI — so Semiont launches from the OS like any other app, no browser tab required.
+Semiont Desktop is the Electron chat client for Semiont knowledge bases. Add the URL of an
+existing knowledge base gateway, sign in through its issuer in your system browser, then
+browse resources and work with them in chat. The app is a client; it does not run a gateway
+or keep a copy of the knowledge base.
 
-The desktop build ships only the UI. It holds no data and no application logic: like the web build, it talks to a knowledge base **gateway** over HTTP, which you point it at on first launch.
+The [Semiont Browser](../../images/browser/) is a separate web app. Desktop has its own chat
+interface and stores its local configuration, preferences, chat history, and sign-in
+sessions on this computer. See [DESKTOP.md](./DESKTOP.md) for its storage and security
+details.
 
 ## Install
 
-Download the latest build for your platform from the [Releases page](https://github.com/The-AI-Alliance/semiont/releases).
+The [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) workflow attaches
+installers to Semiont's [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases).
+It builds these targets:
 
-### macOS
+- **macOS Apple Silicon:** unsigned `.dmg`. Open the disk image and move Semiont Desktop to
+  Applications. Because the app is unsigned, macOS may ask you to confirm its first launch.
+- **Linux x64:** `.deb` for Debian-based systems. The package declares Electron's required
+  system libraries. Package creation has been verified; installation and launch on a Linux
+  host still need verification, so treat this artifact as experimental. To install a
+  published package, run `sudo apt install ./semiont-desktop_*_amd64.deb`.
 
-DMGs are published for both Apple Silicon (`aarch64`) and Intel (`x86_64`). They are not signed with an Apple Developer ID, so Gatekeeper quarantines them on download. Strip the quarantine attribute before opening:
+Other macOS architectures, Linux ARM64, RPM, and AppImage packages are not produced.
 
-```bash
-xattr -cr ~/Downloads/Semiont_*.dmg
+## Connect to a knowledge base
+
+1. Choose **Add a knowledge base** in the left sidebar and enter the gateway URL. For a
+   local knowledge base, the default is `http://localhost:4000`.
+2. Choose **Connect**. Desktop opens the knowledge base's issuer in your system browser to
+   sign in; the session is stored locally for that knowledge base.
+3. Return to Desktop to browse resources and start or continue chats.
+
+Any knowledge base gateway reachable from this computer can be added. The app does not
+create accounts or start knowledge base services.
+
+## Develop
+
+From the monorepo root, run the renderer's Vite server in Apple Container:
+
+```sh
+NODE_IMAGE="node:$(packages/typescript/scripts/node-version.sh)-alpine"
+container run --rm -v "$PWD":/workspace -w /workspace -p 5173:5173 "$NODE_IMAGE" sh -lc \
+  'npm ci && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run dev --workspace=semiont-desktop -- --host 0.0.0.0'
 ```
 
-Then open the DMG and drag Semiont.app to Applications. Without this step you'll see "Semiont is damaged and can't be opened" — that's Gatekeeper, not actual damage.
+Open `http://localhost:5173` in a browser to work on the renderer. In this mode, Desktop's
+Electron sign-in and file storage bridges are absent; the app uses its browser fallbacks.
+The command installs dependencies and builds the workspace packages in Apple Container.
 
-### Linux
+## Build installers
 
-Three x86_64 artifacts are published:
+Run these from the monorepo root on a Mac with Apple Container installed:
 
-- **`.deb`** — Debian, Ubuntu, and derivatives:
-  ```bash
-  sudo apt install ./Semiont_*_amd64.deb
-  ```
-- **`.rpm`** — Fedora, RHEL, and derivatives:
-  ```bash
-  sudo dnf install ./Semiont-*.x86_64.rpm
-  ```
-- **`.AppImage`** — portable, runs on most distributions:
-  ```bash
-  chmod +x Semiont_*_amd64.AppImage
-  ./Semiont_*_amd64.AppImage
-  ```
-
-## Connecting to a gateway
-
-On first launch, add a knowledge base in the Knowledge Bases panel: its gateway's protocol, host and port (for a knowledge base running on this computer, `http`, `localhost`, `4000`). The app then sends you to the knowledge base's identity provider to sign in. Any gateway reachable from your machine works.
-
-Working in the app is the same as in the web build: see [the analyst's guide](../../docs/analyst/README.md).
-
-## Building from source
-
-Most users only need the installers above. To build locally:
-
-### Prerequisites
-
-- [Rust](https://rustup.rs/) and Node.js 24.15.0 or later. The Tauri CLI is a dev dependency of this workspace, installed by `npm install` at the repo root
-- Xcode Command Line Tools (macOS)
-- Or, for the containerized path: just a container runtime (Apple Container, Docker, or Podman)
-
-### Develop
-
-Run the browser dev server, then open the desktop shell against it:
-
-```bash
-# Terminal 1: browser UI
-cd images/browser && npm run dev
-
-# Terminal 2: desktop shell
-cd apps/desktop && npm run dev
+```sh
+make desktop-macos            # unsigned macOS Apple Silicon DMG
+make desktop-linux   # Linux x64 Debian package
 ```
 
-The window points at the Vite dev server, so hot reload works.
-
-### Build
-
-The bundler emits installers for the platform it runs on:
-
-- **macOS** (Rust on host) → `.dmg`
-  ```bash
-  npm run build -w semiont-browser
-  cd apps/desktop && npm run build
-  # → src-tauri/target/release/bundle/dmg/Semiont_x.y.z_aarch64.dmg
-  ```
-- **Linux** → `.deb`, `.rpm` and `.AppImage`, from the same two commands on a Linux host. Without Rust or Node, the containerized build produces the `.deb` and `.rpm` for the host's CPU architecture:
-  ```bash
-  apps/desktop/build.sh
-  # → src-tauri/target/release/bundle/{deb,rpm}/
-  ```
-
-Official multi-platform builds — both Mac architectures and Linux — come from CI and land on the Releases page.
-
-## Architecture
-
-A thin native shell around `images/browser/dist/`. No UI code lives here — only the Tauri configuration, the Rust entry point, and the build scripts.
-
-```
-apps/desktop/
-├── src-tauri/
-│   ├── Cargo.toml          # Rust dependencies (tauri + opener)
-│   ├── tauri.conf.json     # window config, bundle targets, app identity
-│   ├── build.rs            # Tauri build hook
-│   ├── src/main.rs         # entry point: opens the window + native menu, loads the SPA
-│   └── icons/              # app icons (.icns, .ico, .png)
-├── build.sh                # containerized Linux build
-├── Dockerfile.builder      # builder image: Rust, GTK/WebKit, the pinned Tauri CLI
-├── package.json            # the pinned Tauri CLI and its scripts
-└── README.md
-```
+Both builds install dependencies and run npm inside the selected container runtime; Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
+temporary checksum-verified Node runtime on the host for Electron Builder's DMG step; the
+Linux build uses an amd64 Debian container (Rosetta on Apple Silicon). Installers are
+written to `apps/desktop/release/`. Linux host installation and launch have not yet been
+verified.

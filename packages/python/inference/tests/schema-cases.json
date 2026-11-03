@@ -1,5 +1,5 @@
 {
-  "about": "An element schema, the dialect it is rewritten into, the schema a provider is then sent for an array of such elements, an answer, and what is read from it. tests/test_schema.py runs every case. A case with `format` is one of the five a detection asks for, held to tests/conformance/worker-service/support.ts. A case with `refused` is a schema that is not rewritten, and the words it is refused in. `answer` is the reply as JSON; `answerText` is a reply that is not JSON, as its text.",
+  "about": "An element schema, the dialect it is rewritten into, the schema a provider is then sent for an array of such elements, an answer, and what is read from it. tests/test_schema.py runs every case. A case with `format` is one of the five a detection asks for, held to packages/conformance/worker-service/support.ts. A case with `refused` is a schema that is not rewritten, and the words it is refused in. `answer` is the reply as JSON; `answerText` is a reply that is not JSON, as its text.",
   "wrapper": "elements",
   "cases": [
     {

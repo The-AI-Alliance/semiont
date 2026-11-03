@@ -8,6 +8,7 @@ package launcher
 
 import (
 	"encoding/json"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -32,11 +33,32 @@ func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
 	})
 	rp := plan.Roles["identity"]
-	if rp.Issuer != "http://localhost:8080/realms/semiont" {
+	if rp.Issuer != "http://localhost:8080/realms/example.github.io-test-kb" {
 		t.Errorf("issuer not carried on the plan: %+v", rp)
 	}
-	if got := identityEndpoint(rp, exposure{}); got != "http://localhost:8080/realms/semiont" {
+	if got := identityEndpoint(rp, exposure{}); got != "http://localhost:8080/realms/example.github.io-test-kb" {
 		t.Errorf("endpoint: got %q", got)
+	}
+}
+
+// Each knowledge base has a realm of its own, named by its key: two knowledge
+// bases planned and placed alike have issuers that differ in the realm alone.
+func TestEachKnowledgeBaseHasARealmOfItsOwn(t *testing.T) {
+	issuers := map[string]string{}
+	for _, key := range []string{fixtureKB(t).key(), rootKey("did:web:owner.github.io:other-kb", "")} {
+		st := fixtureStack(t, "anthropic")
+		plan, err := derivePlan(st, key, 8080, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		issuers[key] = placement{st: st, plan: plan, rt: "container", addr: "192.168.64.1"}.issuer()
+	}
+	want := map[string]string{
+		"example.github.io-test-kb": "http://192.168.64.1:8080/realms/example.github.io-test-kb",
+		"owner.github.io-other-kb":  "http://192.168.64.1:8080/realms/owner.github.io-other-kb",
+	}
+	if !maps.Equal(issuers, want) {
+		t.Errorf("issuers by key = %v, want %v", issuers, want)
 	}
 }
 
@@ -117,7 +139,7 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		`"oauth2.device.authorization.grant.enabled": "true"`,
 		// The revocation window for every person on this knowledge base: Semiont
 		// keeps no admission flag of its own, so a disabled account's token stays
-		// good until it expires. A realm imported without this would take whatever
+		// good until it expires. A realm created without this would take whatever
 		// Keycloak defaults to that release.
 		`"accessTokenLifespan": 300`,
 		// Each service signs in as its own account, so each needs a

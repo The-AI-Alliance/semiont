@@ -5,10 +5,11 @@
     "rust": ["packages/rust/sdk/tests/reconcile_cases.rs"],
     "python": ["packages/python/sdk/tests/test_reconcile.py"],
     "go": ["packages/go/sdk/annotations/reconcile_test.go"],
-    "conformance": ["tests/conformance/worker-service/anchoring.test.ts"],
+    "conformance": ["packages/conformance/worker-service/anchoring.test.ts"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/ReconcileCasesTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared annotations/reconcile-cases.json cases.",
     "swift": "The Swift SDK's annotations module: where a quoted span is in a text."
   },
   "cases": [

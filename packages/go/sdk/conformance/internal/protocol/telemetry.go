@@ -2,7 +2,7 @@ package protocol
 
 // A driver started with OTEL_EXPORTER_OTLP_ENDPOINT in its environment
 // exports the SDK's telemetry there over OTLP/HTTP, and has exported all of
-// it by the time it exits (tests/conformance/sdk/README.md). Only the drivers
+// it by the time it exits (packages/conformance/sdk/README.md). Only the drivers
 // take OpenTelemetry's SDK and its exporters: the Go SDK takes the API alone.
 
 import (

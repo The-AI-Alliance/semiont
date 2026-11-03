@@ -56,11 +56,11 @@ dev = [
     "semiont-weaver[janusgraph,neo4j,neptune]",
     # What makes the histories of tests/test_properties.py.
     "hypothesis>=6.130,<7",
-    "mypy==2.4.0",
+    "mypy==2.4.1",
     "pyright==1.1.414",
     "pytest>=9.1,<10",
     "pytest-cov==7.1.0",
-    "ruff==0.17.2",
+    "ruff==0.17.3",
 ]
 
 # The version is the repository's, stated once, in version.json.

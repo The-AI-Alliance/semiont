@@ -676,7 +676,7 @@ SEMIONT_BUS_LOG=1 <command>          # A process (the services, a worker, the CL
 window.__SEMIONT_BUS_LOG__ = true;   # Browser (DevTools or e2e init)
 ```
 
-Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: gateway `EMIT` missing → request never reached the server; gateway `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`tests/e2e/docs/bus-logging.md`](../../tests/e2e/docs/bus-logging.md).
+Cost when disabled: a single truthy check, zero allocations. Five op codes — `EMIT`, `RECV`, `SSE`, `PUT`, `GET` — cover every transport-level write and read. Failure modes are diagnosable from a missing line: gateway `EMIT` missing → request never reached the server; gateway `SSE` missing → handler emitted no result; Browser `RECV` missing → server wrote but bytes never parsed client-side. The full guide with the timeline format and e2e capture API is at [`images/e2e/docs/bus-logging.md`](../../images/e2e/docs/bus-logging.md).
 
 When OpenTelemetry is initialized, every bus-log line gets a `trace=<8hex>` suffix that correlates the grep timeline with the trace UI.
 

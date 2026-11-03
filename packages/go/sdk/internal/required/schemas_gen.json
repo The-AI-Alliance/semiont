@@ -1,5 +1,5 @@
 {
-  "$comment": "GENERATED from the component schemas of specs/src/openapi.json by scripts/spec/generate-required-go.mjs — do not edit. What each requires of a value, as far as its members go, by its name: the rules are scripts/spec/required-members.mjs's.",
+  "$comment": "GENERATED from the component schemas of specs/src/openapi.json by packages/codegen/schemas/generate-required-go.mjs — do not edit. What each requires of a value, as far as its members go, by its name: the rules are packages/codegen/schemas/required-members.mjs's.",
   "schemas": {
     "Agent": {"oneOf":[{"kinds":["object"],"shape":{"ref":"AgentPerson"}},{"kinds":["object"],"shape":{"ref":"AgentOrganization"}},{"kinds":["object"],"shape":{"ref":"AgentSoftware"}}],"discriminator":{"property":"@type","mapping":{"Person":0,"Organization":1,"Software":2}}},
     "AgentOrganization": {"required":["@type","name"]},

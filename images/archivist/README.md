@@ -14,7 +14,7 @@ service that serves HTTP on port 24103, and the launcher starts it with `semiont
 | Command | `/usr/local/bin/semiont-archivist --config /etc/semiont/archivist.json` |
 | Code | Rust, in this directory: [src](./src), and its crates [record](./record) and [staging](./staging) |
 | Specification | [docs/protocol/ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md) |
-| Judged by | [tests/conformance/archivist](../../tests/conformance/archivist/README.md) |
+| Judged by | [packages/conformance/archivist](../../packages/conformance/archivist/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -162,25 +162,25 @@ cargo test -p semiont-archivist -p semiont-archivist-record -p semiont-archivist
 ```
 
 runs their tests, which CI's Rust Tests job runs with the rest of the workspace, under
-`cargo llvm-cov`. The [conformance suite](../../tests/conformance/archivist/README.md) holds a
+`cargo llvm-cov`. The [conformance suite](../../packages/conformance/archivist/README.md) holds a
 built Archivist to [ARCHIVIST.md](../../docs/protocol/ARCHIVIST.md), and in CI that Archivist is
 built instrumented, so its coverage counts what the suite runs too.
 
 ## Building it
 
 From the repository root, with the toolchain
-[`scripts/ci/rust-toolchain.sh`](../../scripts/ci/rust-toolchain.sh) prints:
+[`packages/rust/scripts/rust-toolchain.sh`](../../packages/rust/scripts/rust-toolchain.sh) prints:
 
 ```bash
-docker build --build-arg RUST_TOOLCHAIN=$(scripts/ci/rust-toolchain.sh) \
+docker build --build-arg RUST_TOOLCHAIN=$(packages/rust/scripts/rust-toolchain.sh) \
   --file images/archivist/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-archivist:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) and the publish workflow pass
+[`make local-build`](../../Makefile) and the publish workflow pass
 the toolchain the same way. The [Dockerfile](Dockerfile)'s builder stage is the gateway's and
 the dispatcher's too, and builds all three binaries (`lint:rust-images`). A built image is
 held to
-[`scripts/container/check-document-image.sh`](../../scripts/container/check-document-image.sh):
+[`images/scripts/check-document-image.sh`](../scripts/check-document-image.sh):
 no source and no Node in it, and, with no configuration document mounted, a prompt refusal
 that names the document it cannot read.
 

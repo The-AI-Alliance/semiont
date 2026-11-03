@@ -71,7 +71,7 @@
 # app: one for each directory under apps/.
 - name: "app:desktop"
   color: "c6e8c0"
-  description: "Semiont Desktop (apps/desktop): the Tauri shell around the Browser"
+  description: "Semiont Desktop (apps/desktop): native chat client"
 - name: "app:launcher"
   color: "c6e8c0"
   description: "The semiont command (apps/launcher) and its libraries (packages/go/launcher)"
@@ -123,7 +123,7 @@
   description: "The Swift SDK (packages/swift/sdk)"
 - name: "sdk:csharp"
   color: "bfd4f2"
-  description: "A C# SDK, not yet written"
+  description: "The C# SDK (packages/csharp/sdk)"
 - name: "sdk:haskell"
   color: "bfd4f2"
   description: "A Haskell SDK, not yet written"
@@ -189,13 +189,17 @@
 # tests: one for each directory under tests/.
 - name: "tests:conformance"
   color: "f9d0c4"
-  description: "The conformance suites (tests/conformance)"
+  description: "The conformance suites (packages/conformance)"
 - name: "tests:doc-snippets"
   color: "f9d0c4"
-  description: "The documentation's TypeScript examples, typechecked (tests/doc-snippets)"
+  description: "The documentation's TypeScript examples, typechecked (docs/checks/doc-snippets)"
 - name: "tests:e2e"
   color: "f9d0c4"
-  description: "The end-to-end suite (tests/e2e)"
+  description: "The end-to-end suite (images/e2e)"
+
+- name: "tests:stack"
+  color: "f9d0c4"
+  description: "The real-stack smoke test (images/tests/stack)"
 
 # Of no dimension.
 - name: "good first issue"

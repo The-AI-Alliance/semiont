@@ -1,7 +1,7 @@
 """A provider, played: enough of HTTP/1.1 to answer what a driver asks, from what a test scripted, and to keep what it was sent.
 
 `Ollama` plays the two calls the Ollama driver makes (`POST /api/show`, `POST
-/api/generate`), as `tests/conformance/harness/ollama.ts` plays them for the
+/api/generate`), as `packages/conformance/harness/ollama.ts` plays them for the
 Worker service's suite. `Anthropic` plays the two the Anthropic driver makes
 through Anthropic's library, as API version 2026-10-21 has them: the Models
 API, and a generation answered whole or as a stream of events, whichever was

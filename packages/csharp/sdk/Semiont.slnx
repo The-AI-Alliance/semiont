@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="analyzers/Semiont.Analyzers/Semiont.Analyzers.csproj" />
+  <Project Path="src/Semiont/Semiont.csproj" />
+  <Project Path="tests/Semiont.Tests/Semiont.Tests.csproj" />
+  <Project Path="tools/RefusalRunner/RefusalRunner.csproj" />
+</Solution>

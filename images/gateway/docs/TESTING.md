@@ -1,7 +1,7 @@
 # Gateway Testing
 
 The gateway's behavioural contract is one suite, and it lives outside this
-crate: [`tests/conformance/gateway`](../../../tests/conformance/gateway/README.md).
+crate: [`packages/conformance/gateway`](../../../packages/conformance/gateway/README.md).
 It is black-box. It starts gateway processes, talks to them over HTTP and SSE,
 and checks what they answer against the protocol as `specs/` states it — the
 OpenAPI document and the bus registry — and as
@@ -20,21 +20,21 @@ on the plane.
 | `npm run lint:spec-protocol` (repository root) | The spec states the whole protocol: every operation says whether it is public; every response has a body schema, every error body is an `ErrorResponse`, every 401 a challenge; the stream's messages, frame and id formats are schemas; every JSON body has a `maxBodyBytes` and a 413; the limits are positive integers |
 | `npm run lint:spec-identifiers` (repository root) | The spec names its ids: every property named for an id refers to its kind's schema, and every string [`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json) says a kind accepts or refuses agrees with that kind's pattern |
 | The build (`semiont-core`'s `build.rs`) | The spec bundles and every component schema compiles, or the gateway does not build; the bus registry names only schemas the spec declares; the service-only types (`semiont-core`) and the protocol's (`semiont`) are generated from the schemas, and a schema of a shape the generator does not know fails the build |
-| `tests/conformance/gateway` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, the limits on one principal (a person and an agent alike) and on one process, replicas, readiness, boot refusals, the headers on every response, the environment, and the telemetry census |
+| `packages/conformance/gateway` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, the limits on one principal (a person and an agent alike) and on one process, replicas, readiness, boot refusals, the headers on every response, the environment, and the telemetry census |
 | The gateway's boot | Its route table is exactly the spec's operations — no undeclared route, no declared operation unserved ([src/routes/mod.rs](../src/routes/mod.rs)) — and every Archivist operation it calls is in the Archivist's spec; every suite run boots gateways, so a route added without a spec entry fails CI |
 | `cargo test --workspace` | The tests of the crates the gateway is built from. The gateway crate has none of its own. What it relies on are the runners for the shared case tables ([packages/rust/sdk/tests/tables.rs](../../../packages/rust/sdk/tests/tables.rs)), against the SDK it names its principals with: the principals and the knowledge base's resource identifier, as core and the launcher compute them |
 | `npm run lint:broker-boundary` | The broker is reached only through its interface: `async_nats` only in `signal/nats.rs`, the dispatcher's JetStream queue and `semiont-core`'s broker helpers; that plane chosen only in `app.rs`; no NATS client in any TypeScript |
 | `npm run lint:service-environment`, `lint:service-role` | The environment it reads is exactly [variables.json](../../../specs/src/service-environment/variables.json)'s; its role names are the launcher's and core's |
-| `scripts/lint/check-image-crates.mjs` | Every crate it links is under a permitted licence, and credited in the image's NOTICE; every crate that compiles native code in says what, and a library under a licence of its own is credited too |
+| `images/scripts/check-image-crates.mjs` | Every crate it links is under a permitted licence, and credited in the image's NOTICE; every crate that compiles native code in says what, and a library under a licence of its own is credited too |
 | `cargo deny` ([deny.toml](../../../packages/rust/deny.toml); the Rust Crate Advisories workflow, on every change to what it links and daily) | No crate it links has a RustSec advisory, except those ignored with a reason, and an ignore that stops matching fails; no crate is yanked; every crate comes from crates.io, named by a version, not a wildcard |
-| `scripts/container/check-gateway-image.sh` | The built image carries no source and serves `/api/health` within its start bound |
+| `images/scripts/check-gateway-image.sh` | The built image carries no source and serves `/api/health` within its start bound |
 
 ## Running it
 
 ```bash
 (cd packages/rust && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway)
 npm run build:packages
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:gateway
 ```

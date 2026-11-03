@@ -8,6 +8,7 @@
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusLogTest.kt"]
   },
   "notYetReached": {
+    "csharp": "C# is still to implement and run the shared bus/log-cases.json cases.",
     "swift": "The Swift SDK's bus log, the line it writes for each frame when SEMIONT_BUS_LOG is set."
   },
   "names": [

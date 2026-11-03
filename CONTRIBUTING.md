@@ -54,7 +54,7 @@ This project is part of [The AI Alliance](https://thealliance.ai/) and follows t
 - Git
 - A container runtime: Apple Container, Docker or Podman
 
-That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/), and for the Kotlin SDK the JDK its [`.java-version`](packages/kotlin/sdk/.java-version) names (its wrapper, `./gradlew`, fetches Gradle).
+That is enough: [`make local-build`](make local-build) builds every package, every image and the launcher inside containers. To run the tools directly on your machine you also need Node.js 24.15.0 or later, for the Rust and Go parts the toolchains that [`rust-toolchain.toml`](packages/rust/rust-toolchain.toml) and each `go.mod` name, for the Python SDK Python 3.12 or later and [`uv`](https://docs.astral.sh/uv/), and for the Kotlin SDK the JDK its [`.java-version`](packages/kotlin/sdk/.java-version) names (its wrapper, `./gradlew`, fetches Gradle).
 
 ### Initial Setup
 
@@ -72,7 +72,7 @@ That is enough: [`scripts/ci/local-build.sh`](scripts/ci/local-build.sh) builds 
    `.semiont/stack/*.yaml` (`ghcr.io/the-ai-alliance/semiont-gateway:local`, and so on for each
    service), and the Browser's and the worker's in their own documents:
    ```bash
-   ./scripts/ci/local-build.sh
+   make local-build
    cd ../semiont-template-kb
    perl -pi -e 's#(semiont-browser):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings browser --path)"
    perl -pi -e 's#(semiont-worker):\S+#$1:local#' "$(../semiont/apps/launcher/dist/semiont settings worker --path)"
@@ -167,13 +167,13 @@ npm test -w semiont-browser
 
 # The gateway (Rust): its own checks, then the conformance suite
 (cd packages/rust && cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway)
-(cd tests/conformance && npm run test:gateway)
+(cd packages/conformance && npm run test:gateway)
 
 # The dispatcher, black-box, behind that gateway (needs cargo build --release -p semiont-dispatcher)
-(cd tests/conformance && npm run test:dispatcher)
+(cd packages/conformance && npm run test:dispatcher)
 
 # The SDKs, black-box, as clients of that gateway (needs cargo build --release -p semiont-conformance-drivers and npm run build:packages)
-(cd tests/conformance && npm run test:sdk)
+(cd packages/conformance && npm run test:sdk)
 
 # Type check
 npm run typecheck
@@ -304,9 +304,9 @@ npm test
 **Run service-specific tests:**
 ```bash
 cd images/browser && npm test                 # Browser suite
-cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` in packages/rust, and nats-server)
-cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
-cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
+cd packages/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` in packages/rust, and nats-server)
+cd packages/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway and the dispatcher built, and nats-server)
+cd packages/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway and the Rust drivers built, npm run build:packages, and nats-server)
 ```
 
 ### Test Requirements for PRs
@@ -343,7 +343,7 @@ Update docs when you:
 
 How one app or package is built inside stays with it: `apps/<app>/docs/`, `images/<image>/docs/`, `packages/<package>/docs/`, and each one's README. The launcher's manual is `apps/launcher/README.md`.
 
-Code in the docs is typechecked by CI, so an example has to compile ([`tests/doc-snippets`](tests/doc-snippets/)).
+Code in the docs is typechecked by CI, so an example has to compile ([`docs/checks/doc-snippets`](docs/checks/doc-snippets/)).
 
 ### Documentation Style
 

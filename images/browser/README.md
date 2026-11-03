@@ -85,7 +85,8 @@ Node and the npm package `@semiont/browser`: the built `dist/` plus `server.js`,
 runtime dependencies. The image does not build the SPA; its first stage installs the
 published package from an npm registry. npm is removed from the runtime image. One build,
 three consumers: this image, the package `@semiont/browser` itself, and
-[`apps/desktop`](../../apps/desktop/), which uses this app's `dist/` as its Tauri frontend.
+[`apps/desktop`](../../apps/desktop/), a separate Electron chat client built from its own
+renderer.
 
 ## Working on it
 
@@ -106,7 +107,7 @@ merges them with `@semiont/react-ui`'s on the `pre*` hooks and writes `messages/
 
 The image does not build the app: it installs a published `@semiont/browser` from an npm
 registry, `NPM_REGISTRY` (npm's own by default), at the version `SEMIONT_BROWSER_VERSION`
-(`latest` by default). [`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds
+(`latest` by default). [`make local-build`](../../Makefile) builds
 this directory's package, publishes it to the Verdaccio it starts, and builds the image
 against that registry, tagged `ghcr.io/the-ai-alliance/semiont-browser:local`;
 [`publish-browser.yml`](../../.github/workflows/publish-browser.yml) builds it from the

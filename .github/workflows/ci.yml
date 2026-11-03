@@ -102,6 +102,7 @@ jobs:
           npm run lint:rust-toolchain || fail=1
           npm run lint:go-toolchain || fail=1
           npm run lint:kotlin-toolchain || fail=1
+          npm run lint:dotnet-toolchain || fail=1
           npm run lint:swift-toolchain || fail=1
           npm run lint:python-version || fail=1
           npm run lint:node-version || fail=1
@@ -116,6 +117,15 @@ jobs:
           npm run lint:labels || fail=1
           npm run lint:path-globs || fail=1
           exit $fail
+
+      # What the local build reads to decide which packages changed: a
+      # generator's change changes every package, and an input that has moved
+      # fails the run. images/scripts is in the area every job runs on.
+      - name: Test the local build's package signatures
+        run: |
+          python3 -m unittest discover -s images/scripts -p 'test_*.py' -v
+          python3 -m unittest discover -s packages/codegen -p 'test_*.py' -v
+          node --test packages/typescript/scripts/test-local-publish.mjs
 
   # Which areas this push changed, read by every job's `if:`. A job whose
   # areas are untouched is skipped, and a skipped job passes the gate: GitHub
@@ -140,6 +150,7 @@ jobs:
       conformance: ${{ steps.areas.outputs.conformance }}
       go: ${{ steps.areas.outputs.go }}
       kotlin: ${{ steps.areas.outputs.kotlin }}
+      csharp: ${{ steps.areas.outputs.csharp }}
       swift: ${{ steps.areas.outputs.swift }}
       python-sdk: ${{ steps.areas.outputs.python-sdk }}
       python-inference: ${{ steps.areas.outputs.python-inference }}
@@ -172,7 +183,16 @@ jobs:
             all:
               - '.github/workflows/ci.yml'
               - '.github/scripts/changed-areas.mjs'
-              - 'scripts/ci/**'
+              - 'packages/typescript/scripts/**'
+              - 'packages/codegen/**'
+              - 'packages/go/scripts/**'
+              - 'packages/go/launcher/scripts/**'
+              - 'packages/python/scripts/**'
+              - 'packages/kotlin/scripts/**'
+              - 'packages/swift/scripts/**'
+              - 'images/scripts/**'
+              - 'Makefile'
+              - '.github/scripts/**'
               - 'specs/src/**'
               - 'specs/redocly.yaml'
               - 'specs/.redocly.lint-ignore.yaml'
@@ -187,8 +207,8 @@ jobs:
               - 'images/dispatcher/**'
               - 'images/archivist/**'
               - 'packages/rust/**'
-              - 'scripts/lint/check-image-crates.mjs'
-              - 'scripts/release/cargo-version.sh'
+              - 'images/scripts/check-image-crates.mjs'
+              - 'packages/rust/scripts/cargo-version.sh'
             # The npm libraries, what they share, and what installs them. The
             # conformance suites build @semiont/core from the root, so a change
             # here runs them too. Each is named: the filter takes no exclusion
@@ -210,26 +230,28 @@ jobs:
               - 'images/browser/**'
               - 'apps/desktop/**'
             conformance:
-              - 'tests/conformance/**'
+              - 'packages/conformance/**'
             # The Go modules, and what their tests read beyond them: every
             # workflow (imageverify_test.go), each image's Dockerfile and the
             # supervisor its entrypoint runs (imagepaths_test.go,
             # imageprobe_test.go, and the fake runtime the scenarios drive),
             # and the e2e suite's bridge (exposure_test.go). The spec and
-            # scripts/ci, which they read too, are all's.
+            # packages/typescript/scripts, which they read too, are all's.
             go:
               - 'apps/launcher/**'
               - 'packages/go/**'
               - '.github/workflows/**'
               - 'images/*/Dockerfile'
-              - 'scripts/container/supervise.sh'
-              - 'tests/e2e/e2e-localhost-bridge.mjs'
+              - 'images/shared/supervise.sh'
+              - 'images/e2e/e2e-localhost-bridge.mjs'
             # The Kotlin SDK. The JDK its builds run on is its .java-version,
-            # read by scripts/ci/jdk-version.sh, which is all's.
+            # read by packages/kotlin/scripts/jdk-version.sh, which is all's.
             swift:
               - 'packages/swift/**'
             kotlin:
               - 'packages/kotlin/**'
+            csharp:
+              - 'packages/csharp/**'
             # Each Python project; a job lists its own and the ones its
             # pyproject depends on (every one depends on the SDK).
             python-sdk:
@@ -255,9 +277,12 @@ jobs:
             # they compile them in, and the Dockerfiles they hold to
             # supervision.
             compliance:
-              - 'scripts/compliance/**'
+              - 'packages/typescript/scripts/compliance/**'
+              - '.github/scripts/checks/compliance/**'
+              - 'packages/typescript/react-ui/scripts/audit-*.sh'
+              - 'images/scripts/audit-supervision.sh'
               - 'docs/**'
-              - 'tests/doc-snippets/**'
+              - 'docs/checks/doc-snippets/**'
               - 'images/*/Dockerfile'
 
       - name: Which areas run
@@ -576,7 +601,7 @@ jobs:
               });
             }
 
-  # The audits in scripts/compliance, against the built packages. They read the
+  # The audits in packages/typescript/scripts/compliance, against the built packages. They read the
   # sources of every app, the launcher, the docs and the Dockerfiles, so they
   # run on any of those areas.
   compliance-check:
@@ -622,21 +647,21 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Doc Snippets Audit (sdk docs' code fences compile against dist through the exports map)"
-          ./scripts/compliance/audit-doc-snippets.sh
+          ./docs/checks/doc-snippets/audit-doc-snippets.sh
           echo "::endgroup::"
 
       - name: Run React Hooks Ordering Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::React Hooks Ordering Audit (no hook in a conditional render or inside a callback)"
-          npx tsx ./scripts/compliance/audit-hooks-ordering.ts
+          npx tsx ./packages/typescript/scripts/compliance/audit-hooks-ordering.ts
           echo "::endgroup::"
 
       - name: Run Raw Bus Access Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Raw Bus Access Audit (forbid client.emit/.on/.stream outside the SDK)"
-          ./scripts/compliance/audit-raw-bus.sh
+          ./.github/scripts/checks/compliance/audit-raw-bus.sh
           echo "::endgroup::"
 
       - name: Run StateUnit Compliance Audit
@@ -644,11 +669,11 @@ jobs:
         run: |
           echo "::group::StateUnit Compliance Audit (no class in a state-unit file / X3-static no-module-state / X5 fire-and-forget / A5 gathered context is SDK state / session-bound units built under a session)"
           fail=0
-          ./scripts/compliance/audit-state-unit-no-class.sh || fail=1
-          ./scripts/compliance/audit-state-unit-module-state.sh || fail=1
-          ./scripts/compliance/audit-fire-and-forget-promise-void.sh || fail=1
-          ./scripts/compliance/audit-gathered-context-component-state.sh || fail=1
-          ./scripts/compliance/audit-session-typed-factories.sh || fail=1
+          ./packages/typescript/scripts/compliance/audit-state-unit-no-class.sh || fail=1
+          ./packages/typescript/scripts/compliance/audit-state-unit-module-state.sh || fail=1
+          ./packages/typescript/scripts/compliance/audit-fire-and-forget-promise-void.sh || fail=1
+          ./packages/typescript/scripts/compliance/audit-gathered-context-component-state.sh || fail=1
+          ./packages/typescript/scripts/compliance/audit-session-typed-factories.sh || fail=1
           echo "::endgroup::"
           exit $fail
 
@@ -657,10 +682,10 @@ jobs:
         run: |
           echo "::group::Boot Contract Audit (P1-P3 path environment + H1 test-env hygiene + vi.mock targets + every service image can be supervised)"
           fail=0
-          ./scripts/compliance/audit-path-env.sh || fail=1
-          ./scripts/compliance/audit-test-env-hygiene.sh || fail=1
-          ./scripts/compliance/audit-mock-targets.sh || fail=1
-          ./scripts/compliance/audit-supervision.sh || fail=1
+          ./.github/scripts/checks/compliance/audit-path-env.sh || fail=1
+          ./.github/scripts/checks/compliance/audit-test-env-hygiene.sh || fail=1
+          ./.github/scripts/checks/compliance/audit-mock-targets.sh || fail=1
+          ./images/scripts/audit-supervision.sh || fail=1
           echo "::endgroup::"
           exit $fail
 
@@ -668,7 +693,7 @@ jobs:
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "::group::Storage-URI One-Home Audit (storageUri lives on Representation; descriptor access is invisible to tsc)"
-          ./scripts/compliance/audit-storage-uri-one-home.sh
+          ./.github/scripts/checks/compliance/audit-storage-uri-one-home.sh
           echo "::endgroup::"
 
       - name: Run One-Home Audits
@@ -676,8 +701,8 @@ jobs:
         run: |
           echo "::group::One-Home Audits (A6 one generated validator over the spec + toolbar preferences persisted by the policy layer alone)"
           fail=0
-          ./scripts/compliance/audit-spec-validator.sh || fail=1
-          ./scripts/compliance/audit-toolbar-pref-storage.sh || fail=1
+          ./.github/scripts/checks/compliance/audit-spec-validator.sh || fail=1
+          ./packages/typescript/react-ui/scripts/audit-toolbar-pref-storage.sh || fail=1
           echo "::endgroup::"
           exit $fail
 
@@ -688,7 +713,7 @@ jobs:
       # tree, because a gate that cannot fail passes everything.
       - name: Check the Compliance Audits Can Fail
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: ./scripts/compliance/audit-compliance-gate.sh
+        run: ./packages/typescript/scripts/compliance/audit-compliance-gate.sh
 
       - name: Run React-UI Compliance Audit
         id: react-ui-audit
@@ -894,7 +919,7 @@ jobs:
       # The crates published to crates.io are these four and no other, so a
       # crate that loses `publish = false` unmeant fails here; and each carries
       # version.json's version, as every published package does
-      # (scripts/release/cargo-version.sh keeps it so).
+      # (packages/rust/scripts/cargo-version.sh keeps it so).
       - name: Check which crates are published, and at what version
         run: |
           released=$(jq -r .version ../../version.json)
@@ -974,12 +999,12 @@ jobs:
                 > "$RUNNER_TEMP/crates/linked-$binary-$target.txt"
             done
           done
-          node ../../scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
+          node ../../images/scripts/check-image-crates.mjs "$RUNNER_TEMP/crates"
 
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
   # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
-  # (tests/conformance/harness/paths.ts). Each suite built its own: nine
+  # (packages/conformance/harness/paths.ts). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
   # suites fetch them and build nothing. It runs whenever any suite does: its
@@ -1038,7 +1063,7 @@ jobs:
             ${{ runner.os }}-rust-release-workspace-instrumented-
 
       # The workspace's crates instrumented for coverage, their dependencies
-      # not (scripts/ci/instrument-coverage.sh says why): each binary writes
+      # not (packages/rust/scripts/instrument-coverage.sh says why): each binary writes
       # what it ran as it exits, wherever the job running it points
       # LLVM_PROFILE_FILE, and Rust Coverage reads it. Unstripped, since what
       # llvm-cov reads must survive the build.
@@ -1046,7 +1071,7 @@ jobs:
         if: steps.binaries.outputs.cache-hit != 'true'
         run: cargo build --release --locked -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers
         env:
-          RUSTC_WORKSPACE_WRAPPER: ${{ github.workspace }}/scripts/ci/instrument-coverage.sh
+          RUSTC_WORKSPACE_WRAPPER: ${{ github.workspace }}/packages/rust/scripts/instrument-coverage.sh
           CARGO_PROFILE_RELEASE_STRIP: none
 
       # Several paths: the artifact's root is their common directory, so a
@@ -1103,7 +1128,7 @@ jobs:
             '  "kb": { "name": "test-project", "domain": "localhost" },' \
             '  "port": 4000,' \
             '  "publicUrl": "http://localhost:4000",' \
-            '  "identity": { "issuer": "http://localhost:8080/realms/semiont", "subjectClaim": "sub" },' \
+            '  "identity": { "issuer": "http://localhost:8080/realms/localhost", "subjectClaim": "sub" },' \
             '  "archivist": { "host": "localhost", "port": 24103 },' \
             '  "signal": { "type": "in-process" },' \
             '  "logLevel": "info",' \
@@ -1231,7 +1256,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer, and the job stream's
       # subjects — and bundles the spec with the root's redocly. Core is the one
@@ -1244,12 +1269,12 @@ jobs:
       # The suite runs every case on the NATS plane too, against a real broker
       # with JetStream, and spawns it from PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # Black-box: it starts gateway processes and checks them against specs/.
       - name: Run the gateway conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:gateway
         env:
@@ -1296,7 +1321,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -1307,13 +1332,13 @@ jobs:
 
       # The dispatcher's queue is JetStream, on a real broker spawned from PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # Black-box: it starts dispatcher processes behind a gateway and meets
       # them only on the bus and their health port.
       - name: Run the dispatcher conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:dispatcher
         env:
@@ -1360,7 +1385,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -1371,13 +1396,13 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # Black-box: it starts Archivist processes behind a gateway and meets
       # them on the bus, at their HTTP surface and in the files they keep.
       - name: Run the Archivist conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:archivist
         env:
@@ -1424,7 +1449,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The TypeScript drivers run the built SDK, as an application would, and
       # the packages it is built on.
@@ -1436,7 +1461,7 @@ jobs:
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
@@ -1446,7 +1471,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       # The Go drivers are static binaries, built from their own module so
       # that what only a driver takes reaches nothing else.
@@ -1477,7 +1502,7 @@ jobs:
       # agent, which their start scripts take from JAVA_OPTS.
       - name: Run the SDK conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:sdk
         env:
@@ -1545,7 +1570,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The TypeScript worker driver runs the built SDK over the built
       # transport, as a worker's author would.
@@ -1557,7 +1582,7 @@ jobs:
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # The Python driver runs the SDK from its locked environment, which the
       # suite's setup makes with uv.
@@ -1567,7 +1592,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       # The Go worker driver is a static binary, built from the drivers' own
       # module, as the SDK suite's are.
@@ -1597,7 +1622,7 @@ jobs:
       # environment before it starts.
       - name: Run the worker conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:worker
         env:
@@ -1651,7 +1676,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1661,13 +1686,13 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # The neo4j the launcher starts for an operator, whose image
-      # scripts/ci/neo4j-image.sh reads from the launcher's own descriptor.
+      # packages/go/launcher/scripts/neo4j-image.sh reads from the launcher's own descriptor.
       - name: Start neo4j
         run: |
-          image=$(scripts/ci/neo4j-image.sh)
+          image=$(packages/go/launcher/scripts/neo4j-image.sh)
           docker run -d --name neo4j -p 7687:7687 -e NEO4J_AUTH="neo4j/${NEO4J_PASSWORD}" "$image"
           for attempt in $(seq 1 60); do
             if docker exec neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" 'RETURN 1' > /dev/null 2>&1; then
@@ -1689,7 +1714,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Make the Python Weaver's environment
         run: uv sync --locked --no-dev --all-extras --project images/weaver
@@ -1698,7 +1723,7 @@ jobs:
       # Archivist, records through the Archivist, and reads the graph.
       - name: Run the Weaver conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:weaver
         env:
@@ -1751,7 +1776,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1761,14 +1786,14 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # The Qdrant the launcher starts for an operator, whose image
-      # scripts/ci/qdrant-image.sh reads from the launcher's own descriptor.
+      # packages/go/launcher/scripts/qdrant-image.sh reads from the launcher's own descriptor.
       # It is asked what the launcher asks it, to know it is ready.
       - name: Start Qdrant
         run: |
-          image=$(scripts/ci/qdrant-image.sh)
+          image=$(packages/go/launcher/scripts/qdrant-image.sh)
           docker run -d --name qdrant -p 6333:6333 "$image"
           for attempt in $(seq 1 60); do
             if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
@@ -1790,7 +1815,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the tesseract program
         run: |
@@ -1805,7 +1830,7 @@ jobs:
       # Archivist, records through the Archivist, and reads the index.
       - name: Run the Smelter conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:smelter
         env:
@@ -1862,7 +1887,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1872,13 +1897,13 @@ jobs:
 
       # The harness's global setup refuses to run without a broker on PATH.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       # The neo4j the launcher starts for an operator, whose image
-      # scripts/ci/neo4j-image.sh reads from the launcher's own descriptor.
+      # packages/go/launcher/scripts/neo4j-image.sh reads from the launcher's own descriptor.
       - name: Start neo4j
         run: |
-          image=$(scripts/ci/neo4j-image.sh)
+          image=$(packages/go/launcher/scripts/neo4j-image.sh)
           docker run -d --name neo4j -p 7687:7687 -e NEO4J_AUTH="neo4j/${NEO4J_PASSWORD}" "$image"
           for attempt in $(seq 1 60); do
             if docker exec neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" 'RETURN 1' > /dev/null 2>&1; then
@@ -1891,11 +1916,11 @@ jobs:
           exit 1
 
       # The Qdrant the launcher starts for an operator, whose image
-      # scripts/ci/qdrant-image.sh reads from the launcher's own descriptor.
+      # packages/go/launcher/scripts/qdrant-image.sh reads from the launcher's own descriptor.
       # It is asked what the launcher asks it, to know it is ready.
       - name: Start Qdrant
         run: |
-          image=$(scripts/ci/qdrant-image.sh)
+          image=$(packages/go/launcher/scripts/qdrant-image.sh)
           docker run -d --name qdrant -p 6333:6333 "$image"
           for attempt in $(seq 1 60); do
             if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
@@ -1920,7 +1945,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the tesseract program
         run: |
@@ -1942,7 +1967,7 @@ jobs:
       # the Librarian on the bus, and receives the telemetry it exports.
       - name: Run the Librarian conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:librarian
         env:
@@ -1992,7 +2017,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/conformance/package-lock.json
+            packages/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -2011,18 +2036,18 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Make the Python Worker service's environment
         run: uv sync --locked --no-dev --all-extras --project images/worker
 
       # The suite's setup looks for a broker on PATH, as every suite's does.
       - name: Install nats-server
-        run: scripts/ci/install-nats-server.sh
+        run: .github/scripts/install-nats-server.sh
 
       - name: Run the worker-service conformance suite
         run: |
-          cd tests/conformance
+          cd packages/conformance
           npm ci
           npm run test:worker-service
         env:
@@ -2145,7 +2170,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2191,12 +2216,74 @@ jobs:
       # a release is not the first place a packaging break is seen.
       - name: Build the distributions and check them
         if: matrix.python-version == '3.12'
-        run: ../../../scripts/ci/build-python-sdk.sh
+        run: ../../../packages/python/sdk/scripts/build-python-sdk.sh
+
+  # The C# SDK and its compiler/analyzer gates, on Linux and Windows.
+  test-sdk-csharp:
+    name: C# SDK
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.csharp == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Cache NuGet packages
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('packages/csharp/sdk/global.json', 'packages/csharp/sdk/**/packages.lock.json') }}
+      - name: Build, test and check
+        working-directory: packages/csharp/sdk
+        run: |
+          mkdir -p "$HOME/.nuget/packages"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE":/workspace -v "$HOME/.nuget/packages":/root/.nuget/packages \
+            -w /workspace/packages/csharp/sdk \
+            "mcr.microsoft.com/dotnet/sdk:$(../../../packages/csharp/scripts/dotnet-version.sh --image-tag)" \
+            sh -c 'test "$(dotnet --version)" = "$(../../../packages/csharp/scripts/dotnet-version.sh)" &&
+              dotnet build -p:RestoreLockedMode=true &&
+              dotnet test --no-build --settings test.runsettings --collect:"XPlat Code Coverage" &&
+              dotnet format --no-restore --verify-no-changes'
+      - name: The coverage report was written
+        run: test -n "$(find packages/csharp/sdk/tests -name coverage.cobertura.xml -size +0c -print -quit)"
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/csharp/sdk/tests/Semiont.Tests/TestResults/**/coverage.cobertura.xml
+          flags: csharp-sdk
+          name: csharp-sdk
+          verbose: true
+        continue-on-error: true
+
+  test-sdk-csharp-windows:
+    name: C# SDK (Windows)
+    runs-on: windows-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.csharp == 'true'
+    defaults:
+      run:
+        working-directory: packages/csharp/sdk
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: packages/csharp/sdk/global.json
+          cache: true
+          cache-dependency-path: packages/csharp/sdk/**/packages.lock.json
+      - name: Build
+        run: dotnet build -p:RestoreLockedMode=true
+      - name: Test
+        run: dotnet test --no-build --settings test.runsettings
+      - name: Format
+        run: dotnet format --no-restore --verify-no-changes
 
   # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
   # it as a Java program does, its ABI against the committed dump, its census
   # and the programs that must not compile. It runs in the JDK image
-  # .java-version names, as scripts/ci/local-build.sh builds it, as this
+  # .java-version names, as images/scripts/build-session.sh builds it, as this
   # runner's user, so what it leaves in the checkout and in Gradle's home is
   # the runner's to cache.
   test-sdk-swift:
@@ -2215,7 +2302,7 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp/swift-home \
             -v "$GITHUB_WORKSPACE":/workspace \
             -w /workspace/packages/swift/sdk \
-            "swift:$(../../../scripts/ci/swift-version.sh)" \
+            "swift:$(../../../packages/swift/scripts/swift-version.sh)" \
             sh -c 'mkdir -p "$HOME" && swift test --enable-code-coverage && Scripts/coverage.sh && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
       - name: The coverage report was written
         run: test -s .build/coverage.lcov
@@ -2259,7 +2346,7 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" \
             -v "$GITHUB_WORKSPACE":/workspace -v "$HOME/.gradle":/gradle \
             -w /workspace/packages/kotlin/sdk \
-            "eclipse-temurin:$(../../../scripts/ci/jdk-version.sh)-jdk" \
+            "eclipse-temurin:$(../../../packages/kotlin/scripts/jdk-version.sh)-jdk" \
             ./gradlew --no-daemon --console=plain --gradle-user-home /gradle check
 
       # check writes JaCoCo's report when the tests ran; a run that wrote none
@@ -2304,6 +2391,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
+      - name: Check the public Make interface on macOS
+        if: runner.os == 'macOS'
+        working-directory: .
+        run: |
+          /usr/bin/make --version | head -1 | grep 'GNU Make 3.81'
+          /usr/bin/make help
+          /usr/bin/make -n local-build
+
       - name: Setup Java
         uses: actions/setup-java@v6.1.0
         with:
@@ -2339,7 +2434,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2429,7 +2524,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2493,7 +2588,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2557,7 +2652,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2635,7 +2730,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2671,7 +2766,7 @@ jobs:
 
   # The Python neo4j store against a real neo4j: the same store contract the
   # in-memory store is held to, asked of the database. It starts the neo4j the
-  # launcher starts for an operator, whose image scripts/ci/neo4j-image.sh
+  # launcher starts for an operator, whose image packages/go/launcher/scripts/neo4j-image.sh
   # reads from the launcher's own descriptor.
   test-graph-python-neo4j:
     name: Python Graph Stores (neo4j)
@@ -2694,7 +2789,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         working-directory: packages/python/graph
@@ -2702,7 +2797,7 @@ jobs:
 
       - name: Start neo4j
         run: |
-          image=$(scripts/ci/neo4j-image.sh)
+          image=$(packages/go/launcher/scripts/neo4j-image.sh)
           docker run -d --name neo4j -p 7687:7687 -e NEO4J_AUTH="neo4j/${NEO4J_PASSWORD}" "$image"
           for attempt in $(seq 1 60); do
             if docker exec neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" 'RETURN 1' > /dev/null 2>&1; then
@@ -2758,7 +2853,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2795,7 +2890,7 @@ jobs:
   # The Python Qdrant store against a real Qdrant: the same store contract the
   # in-memory store is held to, asked of the database, and what the database
   # then holds of each point. It starts the Qdrant the launcher starts for an
-  # operator, whose image scripts/ci/qdrant-image.sh reads from the launcher's
+  # operator, whose image packages/go/launcher/scripts/qdrant-image.sh reads from the launcher's
   # own descriptor, and asks it what the launcher asks it, to know it is ready.
   test-vectors-python-qdrant:
     name: Python Vector Stores (Qdrant)
@@ -2816,7 +2911,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         working-directory: packages/python/vectors
@@ -2824,7 +2919,7 @@ jobs:
 
       - name: Start Qdrant
         run: |
-          image=$(scripts/ci/qdrant-image.sh)
+          image=$(packages/go/launcher/scripts/qdrant-image.sh)
           docker run -d --name qdrant -p 6333:6333 "$image"
           for attempt in $(seq 1 60); do
             if curl -fsS "http://${QDRANT_HOST}:6333/readyz" > /dev/null 2>&1; then
@@ -2880,7 +2975,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -2946,7 +3041,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the tesseract program
         run: |
@@ -3017,7 +3112,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: Install the locked environment
         run: uv sync --locked
@@ -3074,7 +3169,7 @@ jobs:
           npm run build:packages
 
       - name: Verify every published dist import is declared
-        run: node scripts/ci/check-dist-imports.mjs
+        run: node packages/typescript/scripts/check-dist-imports.mjs
 
   build-all:
     name: Build All Applications
@@ -3111,7 +3206,7 @@ jobs:
 
   # Generated code is committed (so consumers and CI never need the
   # generators), which means it can go stale the moment its authority changes.
-  # scripts/ci/local-build.sh has these gates too, but in CI that script runs
+  # images/scripts/build-session.sh has these gates too, but in CI that script runs
   # only in Stack Smoke, which few PRs trigger — without this job, nothing
   # checks generated artifacts on a PR.
   generated-artifacts:
@@ -3140,7 +3235,7 @@ jobs:
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime. Each language's generators are listed once,
       # in package.json's generate:<list>:check; this step and the two below
-      # run those lists, as scripts/ci/local-build.sh does.
+      # run those lists, as images/scripts/build-session.sh does.
       - name: Bus registry vs generated code
         run: npm run generate:bus:check
 
@@ -3166,7 +3261,7 @@ jobs:
       # lint:spec-stack, in the Census job, holds every property of the schemas
       # to a field of the generated types.
       - name: Knowledge base documents vs the launcher's generated Go
-        run: node scripts/spec/generate-stack-go.mjs --check
+        run: node packages/codegen/schemas/generate-stack-go.mjs --check
 
       # `semiont mcp`'s tools (packages/go/launcher/verbs/mcp-tools.json) and
       # the components they name → each tool's input and output schema, made
@@ -3174,7 +3269,7 @@ jobs:
       # (packages/go/launcher/verbs/mcp_tools_gen.go). TestMCPToolsCensus, in
       # the launcher's suite, holds the table to the client surface both ways.
       - name: MCP tools vs the launcher's generated Go
-        run: node scripts/spec/generate-mcp-tools-go.mjs --check
+        run: node packages/codegen/schemas/generate-mcp-tools-go.mjs --check
 
       # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from specs/src/. A fresh checkout has no such file, so the client
@@ -3200,7 +3295,7 @@ jobs:
       # a generation command that drops schemas passes it forever. This is the
       # independent oracle — spec says N schemas, Go must have N.
       - name: Generated Go client covers every schema
-        run: node scripts/ci/check-go-schema-coverage.mjs
+        run: node packages/go/sdk/scripts/check-go-schema-coverage.mjs
 
       # Authority: specs/openapi.json → packages/python/sdk/src/semiont/types.py.
       # Deterministic because the generator and the formatter are pinned in the
@@ -3213,7 +3308,7 @@ jobs:
           python-version: '3.12'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v10.3.2
+        uses: astral-sh/setup-uv@v10.3.3
 
       - name: OpenAPI spec vs the Python SDK's generated models
         run: uv run --project packages/python/sdk --locked python packages/python/sdk/scripts/generate_models.py --check
@@ -3462,7 +3557,7 @@ jobs:
         continue-on-error: true
 
   # The launcher against a real Keycloak: the one the launcher starts for an
-  # operator, whose image scripts/ci/keycloak-image.sh reads from the
+  # operator, whose image packages/go/launcher/scripts/keycloak-image.sh reads from the
   # launcher's own descriptor. A stub admits whatever it is shown, so only
   # Keycloak proves that the realm sync's clients and a granted worker's are
   # ones it admits a sign-in at, that a token it mints carries the flat
@@ -3506,7 +3601,7 @@ jobs:
       - name: Start Keycloak
         working-directory: .
         run: |
-          image=$(scripts/ci/keycloak-image.sh)
+          image=$(packages/go/launcher/scripts/keycloak-image.sh)
           docker run -d --name keycloak -p 8080:8080 \
             -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD" \
             -e KC_HOSTNAME=http://keycloak.localhost:8080 \
@@ -3539,7 +3634,7 @@ jobs:
             echo "::error::a live test skipped, so it was not run against Keycloak"
             exit 1
           fi
-          for test in TestIdentitySyncLive TestWorkerGrantLive; do
+          for test in TestIdentitySyncLive TestWorkerGrantLive TestStartCreatesTheRealmLive; do
             if ! grep -q -- "--- PASS: $test " live.out; then
               echo "::error::$test did not run and pass"
               exit 1
@@ -3633,6 +3728,8 @@ jobs:
       - test-sdk-go-windows
       - test-sdk-rust-windows
       - test-sdk-kotlin
+      - test-sdk-csharp
+      - test-sdk-csharp-windows
       - test-sdk-swift
       - test-sdk-kotlin-store
       - test-inference-python

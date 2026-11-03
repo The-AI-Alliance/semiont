@@ -18,7 +18,7 @@ What Semiont enforces, what it leaves to the issuer and to your platform, and wh
 
 **The gateway has no development mode.** It reads no setting that relaxes any of the above, and behaves the same wherever it runs.
 
-The [gateway conformance suite](../../../tests/conformance/gateway/README.md) holds a built gateway to this on every pull request: every protected operation answers 401 without a credential and to a token it cannot verify, public operations answer without challenging, undeclared paths answer 404, and every response carries the security headers. A gateway whose routes are not exactly the spec's operations refuses to start.
+The [gateway conformance suite](../../../packages/conformance/gateway/README.md) holds a built gateway to this on every pull request: every protected operation answers 401 without a credential and to a token it cannot verify, public operations answer without challenging, undeclared paths answer 404, and every response carries the security headers. A gateway whose routes are not exactly the spec's operations refuses to start.
 
 ## What is the issuer's
 

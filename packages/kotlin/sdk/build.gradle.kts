@@ -267,7 +267,7 @@ val refusals = tasks.register<Refusals>("refusals") {
     scratch = layout.buildDirectory.dir("refusals")
 }
 
-// The conformance drivers: programs the suites under tests/conformance start
+// The conformance drivers: programs the suites under packages/conformance start
 // in the SDK's place, each reaching the SDK only through what it makes public.
 // installConformance lays them out as the suites find them: a start script
 // each in build/conformance/bin, over the SDK and what it runs on in lib.

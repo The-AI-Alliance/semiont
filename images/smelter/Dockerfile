@@ -8,7 +8,7 @@
 # packages support, which packages/python/sdk/pyproject.toml states
 # (requires-python), the one place it is written:
 #
-#   --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh)
+#   --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh)
 #
 # There is no default: without it a FROM names no image and the build stops,
 # rather than building on a Python nothing pinned.
@@ -81,8 +81,8 @@ RUN addgroup --system --gid 1001 semiont && \
 COPY --from=builder /opt/venv /opt/venv
 
 COPY LICENSE images/smelter/NOTICE /home/semiont/
-COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
-COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+COPY images/shared/supervise.sh /usr/local/bin/supervise.sh
+COPY images/shared/boot.sh /usr/local/bin/boot.sh
 
 WORKDIR /kb
 RUN chown semiont:semiont /kb

@@ -54,7 +54,7 @@ release calls it.
 
 ### Path Labels (`path-labels.yml`)
 **A pull request's `app:`, `image:`, `sdk:`, `tests:` and `spec:` labels, from the files it changes**:
-- `.github/scripts/label-pull-request.mjs` adds the label of the app, image, test suite, SDK or part of the spec each changed file is in, by the rule of `scripts/lint/path-labels.mjs`, which `npm run lint:labels` holds `labels.yml` to; a renamed file gives the labels of both its paths
+- `.github/scripts/label-pull-request.mjs` adds the label of the app, image, test suite, SDK or part of the spec each changed file is in, by the rule of `.github/scripts/checks/path-labels.mjs`, which `npm run lint:labels` holds `labels.yml` to; a renamed file gives the labels of both its paths
 - It only adds: a label put on by hand or by Dependabot stays, and a label the repository does not have is skipped and named
 - Runs as `pull_request_target`, so a pull request from Dependabot or a fork can be labelled: the workflow is main's, and it checks out main, never the pull request
 - `kind:`, `verb:`, `stack:` and `media:` are the author's to choose
@@ -63,17 +63,17 @@ release calls it.
 
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
-- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
+- npm: the workspaces (one entry at the root), `images/e2e`, `packages/conformance`
 - Go modules: `apps/launcher`, `packages/go/sdk`
-- Cargo: the Rust workspace at the root, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `rust-toolchain.toml`
-- GitHub Actions, and the Docker base images of the Browser and the seven service images; the desktop builder's is a Rust image, which the toolchain entry moves
+- Cargo: the Rust workspace at the root; the Rust toolchain: `rust-toolchain.toml`
+- GitHub Actions, and the Docker base images of the Browser and the seven service images
 - A cooldown before a new release is adopted; security updates are not held by it
 - `npm run lint:dependabot` (the Census job of `ci.yml`) fails when a tracked manifest has no entry, or an entry names a directory with none
 - `npm run lint:rust-toolchain` (the Census job of `ci.yml`) fails when the Rust version is written anywhere but `rust-toolchain.toml`
 - `npm run lint:go-toolchain` (the Census job of `ci.yml`) fails when the Go version is written anywhere but a `go.mod`, or the two `go.mod` files pin different toolchains
 - `npm run lint:python-version` (the Census job of `ci.yml`) fails when a restatement of the Python SDK's `requires-python` (mypy, pyright, the classifiers, a workflow, a document) says another version
 - `npm run lint:node-version` (the Census job of `ci.yml`) fails when a workflow or a script writes a Node version in place of reading `.node-version`, or a `package.json` states another `engines.node` than the root's
-- `npm run lint:nats-version` (the Census job of `ci.yml`) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `scripts/ci/install-nats-server.sh` fetches a `nats-server` release
+- `npm run lint:nats-version` (the Census job of `ci.yml`) fails when the NATS broker's version is written anywhere but the launcher's `go.mod`, or anything but `.github/scripts/install-nats-server.sh` fetches a `nats-server` release
 - Each entry's labels are `kind:dependencies` and, when all its directories are in one app, image, test suite or SDK, that one's label; `npm run lint:labels` holds them to that and to `labels.yml`. The Path Labels workflow adds the labels of the files each pull request changes
 
 ### Labels (`labels.yml`)
@@ -181,7 +181,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd images/browser && npm run test:security
-   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd tests/conformance && npm run test:gateway)
+   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd packages/conformance && npm run test:gateway)
    ```
 
 2. **Complete the Security section** of the PR template when the change touches the gateway's routes, token handling or the Browser's session code

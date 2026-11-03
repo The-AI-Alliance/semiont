@@ -17,7 +17,7 @@ command line.
 |---|---|---|---|
 | Token-signing key | `JWT_SECRET` | `jwt-secret` | the gateway |
 | Keycloak's admin password | `KC_BOOTSTRAP_ADMIN_PASSWORD` | `keycloak-admin-password` | Keycloak, `semiont useradd` |
-| A service's account secret | `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` | `oidc-client-secret-<service>` | that service, and the realm Keycloak imports |
+| A service's account secret | `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` | `oidc-client-secret-<service>` | that service, and the realm a start creates |
 | The worker's key | `SEMIONT_OIDC_CLIENT_KEY` | `worker-key`, for the machine rather than a knowledge base | the worker, which signs its sign-ins with it; every realm the launcher runs holds its public half |
 | Neo4j's password | `NEO4J_PASSWORD` | `neo4j-password` | Neo4j, the librarian and the weaver |
 | PostgreSQL's password | `POSTGRES_PASSWORD` | `postgres-password` | PostgreSQL, and Keycloak's connection to it |
@@ -26,7 +26,7 @@ command line.
 There is one service account for each stack service: the gateway, archivist, dispatcher,
 librarian, smelter, weaver and worker. Each proves itself with its secret but the worker, which
 proves itself with a key: one RSA key for the machine, kept in the file store under the
-launcher's data directory (`machine/worker-key`) whichever store a knowledge base names, and
+launcher's data directory (`shared/worker-key`) whichever store a knowledge base names, and
 never sent anywhere — the worker signs each sign-in with it, and a realm holds only its public
 half. `semiont worker key` prints that public half. A daemon's password exists only when the
 launcher runs that daemon.
@@ -103,7 +103,7 @@ something that outlived the stack:
 - A new token-signing key invalidates every media token already issued.
 - A data directory keeps the password it was initialized with, so a new daemon password
   locks the services out of their own data.
-- Keycloak creates its admin, and imports the service accounts, on its first boot.
+- Keycloak creates its admin on its first boot, and a start creates the service accounts with the realm.
 
 **What you may set yourself.**
 - An exported `JWT_SECRET` wins, for every knowledge base you start with it. Each gateway's

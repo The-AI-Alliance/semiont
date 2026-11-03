@@ -17,7 +17,7 @@ launcher starts it with `semiont start`.
 | Command | `python -P -m semiont_librarian --config /etc/semiont/librarian.json` |
 | Code | Python, in this directory: [`src/semiont_librarian`](./src/semiont_librarian/) |
 | Specification | [docs/protocol/LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) |
-| Judged by | [tests/conformance/librarian](../../tests/conformance/librarian/README.md) |
+| Judged by | [packages/conformance/librarian](../../packages/conformance/librarian/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -181,23 +181,23 @@ uv sync --locked
 uv run pytest
 ```
 
-The [librarian conformance suite](../../tests/conformance/librarian/README.md) holds a
+The [librarian conformance suite](../../packages/conformance/librarian/README.md) holds a
 Librarian to [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md), as a process behind a real
 gateway and a real Archivist, reading a Neo4j a real Weaver writes and a Qdrant a real Smelter
 writes.
 
 ## Building it
 
-From the repository root, on the Python [`scripts/ci/python-floor.sh`](../../scripts/ci/python-floor.sh)
+From the repository root, on the Python [`packages/python/scripts/python-floor.sh`](../../packages/python/scripts/python-floor.sh)
 prints:
 
 ```bash
-docker build --build-arg PYTHON_FLOOR=$(scripts/ci/python-floor.sh) \
+docker build --build-arg PYTHON_FLOOR=$(packages/python/scripts/python-floor.sh) \
   --file images/librarian/Dockerfile --tag ghcr.io/the-ai-alliance/semiont-librarian:local .
 ```
 
-[`scripts/ci/local-build.sh`](../../scripts/ci/local-build.sh) builds it so with the other
-images, and [`scripts/container/check-python-image.sh`](../../scripts/container/check-python-image.sh)
+[`make local-build`](../../Makefile) builds it so with the other
+images, and [`images/scripts/check-python-image.sh`](../scripts/check-python-image.sh)
 checks what a built one promises.
 
 ## Related

@@ -6,7 +6,7 @@ If you only want to *use* the protocol from a script, you don't need this doc �
 
 - Building a transport
 - Adding a new actor or worker that subscribes to channels directly via `eventBus.on(channel)`
-- Debugging a bus-mediated round-trip with the [bus log](../../tests/e2e/docs/bus-logging.md)
+- Debugging a bus-mediated round-trip with the [bus log](../../images/e2e/docs/bus-logging.md)
 - Adding a new channel to the EventMap
 
 The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go and Rust equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
@@ -238,7 +238,7 @@ Three layers, deliberately, because each catches what the others structurally ca
 
 | Layer | Where | Catches |
 |---|---|---|
-| **Source** | [validate-registry.mjs](../../scripts/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel also given an `audience` (the double-delivery shape) — reported against the registry line you typed |
+| **Source** | [validate-registry.mjs](../../packages/codegen/bus/validate-registry.mjs), run by both generators before they emit | undeclared operation channels, a reply owned by two operations, a non-emittable request, and a reply channel also given an `audience` (the double-delivery shape) — reported against the registry line you typed |
 | **Compile time** | `satisfies` clauses in the generated TypeScript | an unknown channel, a missing payload binding, a schema name that isn't in the OpenAPI types |
 | **Test time** | [bus-invariants.test.ts](../../packages/typescript/core/src/__tests__/bus-invariants.test.ts) and [bridged_test.go](../../packages/go/sdk/bus/bridged_test.go) | duplicates in the bridged set, the frozen-snapshot equality, bridged ∩ persisted, and — in Go, which has no `satisfies` — the reply-is-bridged and request-is-emittable properties |
 
@@ -285,7 +285,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 | `PUT` | `HttpContentTransport.putBinary()`. The gateway writes none for an upload |
 | `GET` | `HttpContentTransport.getBinary()`, `getBinaryStream()`, `getResourceGraph()` and `getAnchoredText()`; and, for a read of bytes, the matching gateway route |
 
-The full capture API and per-test fixture are in **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)**.
+The full capture API and per-test fixture are in **[../../images/e2e/docs/bus-logging.md](../../images/e2e/docs/bus-logging.md)**.
 
 A clean round-trip across the wire shows a contiguous EMIT → EMIT → SSE → RECV pattern. Missing lines diagnose with surgical precision: no gateway `EMIT` means the request never reached the server (auth, CORS, network); no gateway `SSE` means the handler never produced a result; no Browser `RECV` means the SSE bytes never parsed.
 
@@ -315,10 +315,10 @@ Two generators read it:
 
 | Output | Generator |
 |---|---|
-| `packages/typescript/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node scripts/bus/generate-ts.mjs` |
-| `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node scripts/bus/generate-go.mjs` |
+| `packages/typescript/core/src/bus-protocol.ts`, `bus-operations.ts`, `bus-classification.ts` | `node packages/codegen/bus/generate-ts.mjs` |
+| `packages/go/sdk/bus/{channels,operations,bridged}_gen.go` | `node packages/codegen/bus/generate-go.mjs` |
 | The Rust SDK's channel and operation tables | its build script, [`packages/rust/sdk/build.rs`](../../packages/rust/sdk/build.rs), on every build |
-| `packages/python/sdk/src/semiont/channels.py`, `operations.py` | `node scripts/bus/generate-python.mjs` |
+| `packages/python/sdk/src/semiont/channels.py`, `operations.py` | `node packages/codegen/bus/generate-python.mjs` |
 
 ```sh
 npm run generate:bus          # regenerate TypeScript and Go
@@ -421,7 +421,7 @@ of which SSE subscription carries a wire event to a client. Related, not the
 same axis.
 
 Nothing regenerates automatically. The `Generated Artifacts (drift)` CI job
-and `scripts/ci/local-build.sh` both fail if the committed output disagrees
+and `make local-build` both fail if the committed output disagrees
 with the registry, naming the command to run.
 
 ## Adding a new channel
@@ -455,7 +455,7 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`.
 - **`packages/go/sdk/bus/`** — GENERATED Go channels, each a value typed by its payload, the operations with their replies, and the bridged and scoped lists; `typed.go` holds the types they are values of.
 - **[`packages/typescript/core/src/event-bus.ts`](../../packages/typescript/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.
-- **[../../tests/e2e/docs/bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — the bus log format and capture API.
+- **[../../images/e2e/docs/bus-logging.md](../../images/e2e/docs/bus-logging.md)** — the bus log format and capture API.
 - **[../../docs/builder/Usage.md](../builder/Usage.md)** — the namespace tour with worked examples per verb.
 - **[../operator/administration/OBSERVABILITY.md](../operator/administration/OBSERVABILITY.md)** — how a frame's trace correlates with OpenTelemetry spans and the `busLog` grep timeline.
 - **[flows/README.md](flows/README.md)** — the eight verbs that organize the channel namespace.

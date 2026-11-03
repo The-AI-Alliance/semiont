@@ -21,18 +21,18 @@ How Semiont's test suites are organized, configured and run, and what CI gates o
 | Python | `images/weaver` (`uv run pytest`) | The Weaver's Python code: the fold against the case table of what each event does to the graph, and the Weaver over a scripted transport and a graph in the process (its order, its fold taken as a follower's take, a store that fails, a start, a rewound record, reconcile, rebuild, what it refuses to start on), and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
 | Python | `images/smelter` (`uv run pytest`) | The Smelter's Python code: reading a PDF with PDFium and a scanned page with the `tesseract` program, each against the real engine; the rules that make a document's text, against the case table of what deriving a PDF's text comes to; how a text is cut and the work a start plans, each against its case table; the anchored-text store, its entries held to their schema; the Smelter over a scripted transport and an index in the process (what each event does, its order, what it decides, reconcile, rebuild, what it refuses to start on); and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later, `uv`, and the `tesseract` program with its English data |
 | Python | `images/librarian` (`uv run pytest`) | The Librarian's Python code, over a fake of everything it reads by: the protocols it is handed, and what the project is made of, under `mypy` and `pyright`, both strict | Python 3.12 or later and `uv` |
-| Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
-| Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
-| Archivist conformance | [`tests/conformance/archivist`](../../tests/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
-| SDK conformance | [`tests/conformance/sdk`](../../tests/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
-| Worker conformance | [`tests/conformance/worker`](../../tests/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
-| Worker-service conformance | [`tests/conformance/worker-service`](../../tests/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
-| Weaver conformance | [`tests/conformance/weaver`](../../tests/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back with a reader of its own, and exporting telemetry the suite receives, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project images/weaver`); `@semiont/core` built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
-| Smelter conformance | [`tests/conformance/smelter`](../../tests/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, and exporting telemetry the suite receives, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; `@semiont/core` built; the Smelter's Python environment (`uv sync --locked --no-dev --project images/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
-| Librarian conformance | [`tests/conformance/librarian`](../../tests/conformance/librarian/README.md) | The Librarian as a running process, black-box, behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, with an embedding provider and two models the suite plays, and exporting telemetry the suite receives, against [LIBRARIAN.md](../protocol/LIBRARIAN.md) | Everything the Weaver's and the Smelter's suites need, since it starts both: a built gateway and Archivist; `@semiont/core` built; the Librarian's, the Weaver's and the Smelter's Python environments and the `tesseract` program; `git`; `nats-server`; a neo4j and a Qdrant of its own, named in `NEO4J_HOST`, `NEO4J_PASSWORD` and `QDRANT_HOST` |
-| End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
+| Gateway conformance | [`packages/conformance/gateway`](../../packages/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway; `nats-server` 2.10 or later on `PATH` |
+| Dispatcher conformance | [`packages/conformance/dispatcher`](../../packages/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway and dispatcher; `nats-server` |
+| Archivist conformance | [`packages/conformance/archivist`](../../packages/conformance/archivist/README.md) | A running Archivist, black-box, on the bus through a real gateway, at its HTTP surface and in the files it keeps, against [ARCHIVIST.md](../protocol/ARCHIVIST.md) | A built gateway and Archivist; `git`; `nats-server` |
+| SDK conformance | [`packages/conformance/sdk`](../../packages/conformance/sdk/README.md) | Every SDK, through a driver, as a client of a real gateway: one corpus of cases, on the wire and in live queries | A built gateway and the Rust drivers; `@semiont/sdk` built; `uv` and Python 3.12 or later, for the Python drivers; `nats-server` |
+| Worker conformance | [`packages/conformance/worker`](../../packages/conformance/worker/README.md) | A worker written on each SDK, through a driver, with the suite playing the dispatcher, against [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md) | A built gateway and the Rust drivers; the packages built; `uv` and Python 3.12 or later, for the Python driver; `nats-server` |
+| Worker-service conformance | [`packages/conformance/worker-service`](../../packages/conformance/worker-service/README.md) | The Worker service as a running process, black-box, behind a real gateway, with the suite playing the dispatcher, the record, the Smelter and the model's provider, against [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) | A built gateway; `@semiont/core` built; the Worker service's environment, which `uv` makes; `nats-server` |
+| Weaver conformance | [`packages/conformance/weaver`](../../packages/conformance/weaver/README.md) | The Weaver as a running process, black-box, behind a real gateway and a real Archivist, writing a real neo4j that the suite reads back with a reader of its own, and exporting telemetry the suite receives, against [WEAVER.md](../protocol/WEAVER.md) | A built gateway and Archivist; the Weaver's Python environment (`uv sync --locked --no-dev --all-extras --project images/weaver`); `@semiont/core` built; `git`; `nats-server`; a neo4j of its own, named in `NEO4J_HOST` and `NEO4J_PASSWORD` |
+| Smelter conformance | [`packages/conformance/smelter`](../../packages/conformance/smelter/README.md) | The Smelter as a running process, black-box, behind a real gateway and a real Archivist, with an embedding provider the suite plays, writing a real Qdrant that the suite reads back, and exporting telemetry the suite receives, against [SMELTER.md](../protocol/SMELTER.md) | A built gateway and Archivist; `@semiont/core` built; the Smelter's Python environment (`uv sync --locked --no-dev --project images/smelter`) and the `tesseract` program; `git`; `nats-server`; a Qdrant of its own, named in `QDRANT_HOST` |
+| Librarian conformance | [`packages/conformance/librarian`](../../packages/conformance/librarian/README.md) | The Librarian as a running process, black-box, behind a real gateway and a real Archivist, reading a neo4j a real Weaver writes and a Qdrant a real Smelter writes, with an embedding provider and two models the suite plays, and exporting telemetry the suite receives, against [LIBRARIAN.md](../protocol/LIBRARIAN.md) | Everything the Weaver's and the Smelter's suites need, since it starts both: a built gateway and Archivist; `@semiont/core` built; the Librarian's, the Weaver's and the Smelter's Python environments and the `tesseract` program; `git`; `nats-server`; a neo4j and a Qdrant of its own, named in `NEO4J_HOST`, `NEO4J_PASSWORD` and `QDRANT_HOST` |
+| End-to-end | [`images/e2e`](../../images/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user at its issuer |
 
-The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
+The conformance suites import nothing from what they check. One line per service and per SDK in [`harness/paths.ts`](../../packages/conformance/harness/paths.ts) names the implementation, so the same cases judge any implementation of the same spec.
 
 The tools: **Vitest** runs every TypeScript suite; **React Testing Library**, with the `jest-dom` and `jest-axe` matchers, tests components under jsdom; **Playwright** drives the end-to-end suite; Go's `testing` package, Cargo's test harness and **pytest** cover the rest.
 
@@ -70,7 +70,7 @@ The two jsdom setup files:
 
 ### Environment variables
 
-No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../scripts/compliance/audit-test-env-hygiene.sh) fails when a test file under `images/gateway`, `images/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
+No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../.github/scripts/checks/compliance/audit-test-env-hygiene.sh) fails when a test file under `images/gateway`, `images/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
 
 `NODE_ENV` selects nothing. Vitest sets it to `test` when it is unset; no code compares it to `test`, and the only reads — react-ui's error boundaries and the Browser's translation manager — check for `development` to show diagnostics.
 
@@ -86,7 +86,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### How the conformance suites are configured
 
-[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds nine projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker`, `worker-service`, `weaver`, `smelter` and `librarian`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
+[`packages/conformance/vitest.config.ts`](../../packages/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds nine projects over one shared harness: `gateway`, `dispatcher`, `archivist`, `sdk`, `worker`, `worker-service`, `weaver`, `smelter` and `librarian`. It uses the `forks` pool with up to four workers, since each file boots its own gateways, issuer and broker, and a 60-second test timeout.
 
 Each gateway the suite starts gets a fresh temporary directory holding its `GatewayConfig` document, and an environment of `PATH` plus the variables the case sets, such as `JWT_SECRET` and `SEMIONT_OIDC_CLIENT_ID`. Nothing else from your shell reaches it.
 
@@ -102,7 +102,7 @@ Tests run through each workspace's npm scripts, `cargo`, `go` and `uv`. The `sem
 npm test --workspace=@semiont/sdk
 ```
 
-`tests/conformance` and `tests/e2e` are not root workspaces. Each has its own `package.json` and lockfile and runs from its own directory.
+`packages/conformance` and `images/e2e` are not root workspaces. Each has its own `package.json` and lockfile and runs from its own directory.
 
 ### The npm workspaces
 
@@ -138,7 +138,7 @@ cargo test --workspace
 ```bash
 (cd packages/rust && cargo build --release -p semiont-gateway -p semiont-dispatcher -p semiont-archivist -p semiont-conformance-drivers)
 npm run build:packages
-cd tests/conformance
+cd packages/conformance
 npm ci
 npm run test:gateway        # or test:dispatcher, test:archivist, test:sdk, test:worker, test:worker-service, test:weaver, test:smelter, test:librarian; npm test runs all nine
 ```
@@ -162,7 +162,7 @@ The launcher's suite takes minutes; its notes are in [apps/launcher/README.md](.
 As CI runs it, in the JDK image `.java-version` names:
 
 ```bash
-container run --rm -v "$PWD":/w -w /w/packages/kotlin/sdk eclipse-temurin:"$(scripts/ci/jdk-version.sh)"-jdk ./gradlew --no-daemon check
+container run --rm -v "$PWD":/w -w /w/packages/kotlin/sdk eclipse-temurin:"$(packages/kotlin/scripts/jdk-version.sh)"-jdk ./gradlew --no-daemon check
 ```
 
 `check` runs the Kotlin tests, the Java tests (`javaTest`), the programs that must not compile (`refusals`), the census of suppressed warnings and environment variables, and the public API against its committed dump (`checkKotlinAbi`). The [SDK's README](../../packages/kotlin/sdk/README.md#building-it) says what each holds.
@@ -188,7 +188,7 @@ None of the toolchains has to be on your machine. Two things to know:
 **`node_modules` holds native binaries for the platform that installed it** (rolldown, lightningcss). Run tests in the same image family you installed with. An install made under the Alpine image (`node:<version>-alpine`) fails under the glibc one (`node:<version>`) with a `*.linux-<arch>-gnu.node` module-not-found, and the reverse fails the other way. `tsc --noEmit` runs under either.
 
 ```bash
-container run --rm -v "$(pwd)":/work -w /work "node:$(scripts/ci/node-version.sh)-alpine" \
+container run --rm -v "$(pwd)":/work -w /work "node:$(packages/typescript/scripts/node-version.sh)-alpine" \
   sh -c 'npm test --workspace=@semiont/sdk'
 ```
 
@@ -260,7 +260,7 @@ This stays invisible until the mock is given a throwing implementation. Then the
 
 ## End-to-end tests
 
-The suite at [`tests/e2e/`](../../tests/e2e/) runs Playwright against a real stack. It exists for what no in-process test can see: timing on the event stream, races between a page's lifecycle and the bus, tear-down on navigation, a session rebuilt across sign-out and sign-in, and annotations that persist across a reload.
+The suite at [`images/e2e/`](../../images/e2e) runs Playwright against a real stack. It exists for what no in-process test can see: timing on the event stream, races between a page's lifecycle and the bus, tear-down on navigation, a session rebuilt across sign-out and sign-in, and annotations that persist across a reload.
 
 It is deliberately small. A spec earns its place by guarding a path that has broken before and that a unit or integration test cannot catch.
 
@@ -274,28 +274,28 @@ It is deliberately small. A spec earns its place by guarding a path that has bro
 It reads four variables: `E2E_EMAIL` and `E2E_PASSWORD`, which are required and have no default, and `E2E_BROWSER_URL` and `E2E_GATEWAY_URL`, which default to `http://localhost:3000` and `http://localhost:4000`.
 
 ```bash
-cd tests/e2e
+cd images/e2e
 npm ci
 npx playwright install chromium
 npm test                                   # typechecks the specs, then runs them
 npm test -- specs/02-open-resource.spec.ts # one spec
 ```
 
-Use `npm test` rather than `npx playwright test`: its `pretest` typechecks the specs, and nothing else does, because `tests/e2e` is not a root workspace.
+Use `npm test` rather than `npx playwright test`: its `pretest` typechecks the specs, and nothing else does, because `images/e2e` is not a root workspace.
 
 Everything else is in the suite's own docs:
 
 | Doc | What it covers |
 |---|---|
-| [README](../../tests/e2e/README.md) | Running from a container, reaching the stack from inside one, and the full flow against a freshly built stack |
-| [running.md](../../tests/e2e/docs/running.md) | Invocation: one spec, headed, `--repeat-each` |
-| [writing.md](../../tests/e2e/docs/writing.md) | The spec template, fixture ordering, selectors |
-| [bus-logging.md](../../tests/e2e/docs/bus-logging.md) | The bus log, the `bus` capture fixture and its helpers |
-| [debugging.md](../../tests/e2e/docs/debugging.md) | Traces, pulling an error out of one, diagnostic specs |
-| [containers.md](../../tests/e2e/docs/containers.md) | Rebuilding the stack after a code change |
-| [jaeger.md](../../tests/e2e/docs/jaeger.md), [page-errors.md](../../tests/e2e/docs/page-errors.md) | The fixtures that attach traces and uncaught page errors to a report |
-| [live-monitoring.md](../../tests/e2e/docs/live-monitoring.md) | Hunting a bug on a running stack without Playwright |
-| [gotchas.md](../../tests/e2e/docs/gotchas.md) | The sharp edges |
+| [README](../../images/e2e/README.md) | Running from a container, reaching the stack from inside one, and the full flow against a freshly built stack |
+| [running.md](../../images/e2e/docs/running.md) | Invocation: one spec, headed, `--repeat-each` |
+| [writing.md](../../images/e2e/docs/writing.md) | The spec template, fixture ordering, selectors |
+| [bus-logging.md](../../images/e2e/docs/bus-logging.md) | The bus log, the `bus` capture fixture and its helpers |
+| [debugging.md](../../images/e2e/docs/debugging.md) | Traces, pulling an error out of one, diagnostic specs |
+| [containers.md](../../images/e2e/docs/containers.md) | Rebuilding the stack after a code change |
+| [jaeger.md](../../images/e2e/docs/jaeger.md), [page-errors.md](../../images/e2e/docs/page-errors.md) | The fixtures that attach traces and uncaught page errors to a report |
+| [live-monitoring.md](../../images/e2e/docs/live-monitoring.md) | Hunting a bug on a running stack without Playwright |
+| [gotchas.md](../../images/e2e/docs/gotchas.md) | The sharp edges |
 
 ## Coverage
 
@@ -320,9 +320,9 @@ It runs in one of two tiers, which the `changes` job decides. A pull request, th
 
 It runs in two stages and ends in a gate. `census`, `changes` and `generated-artifacts` need no build and finish in about two minutes; every other job waits for all three, so a tree that fails a lint or has drifted from its spec starts none of the jobs behind them. `gate` needs every job, runs whatever they did, and fails when any failed or was cancelled; a job skipped by a condition passes it. It is the one check of this workflow the merge ruleset requires, of a pull request and of the merge queue's commit.
 
-In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `ui`, `conformance`, `go`, `kotlin`, `compliance`, one per Python project), comparing a pull request with its base, the merge queue's commit with the `main` it was queued on, and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm libraries (`ts`: every npm package but `react-ui`, their shared configs and the root's npm files), `tests/conformance` or the Python projects it installs; the Browser's, the npm packages' and the other interface jobs also run on `ui` (`react-ui`, `images/browser`, `apps/desktop`), which no conformance suite reads; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/go`; the compliance audits on the code they read, the docs and their own scripts. A change to `ci.yml`, the script that maps the areas (`.github/scripts/changed-areas.mjs`), `scripts/ci/` or the spec (`specs/src/` and its Redocly configuration) runs every area; the rest of `.github/` is the census's, which always runs. A skipped job is reported as Success and passes the gate.
+In tier `change`, a job runs only when the push touched one of its areas. `changes` maps the changed paths to areas (`rust`, `ts`, `ui`, `conformance`, `go`, `kotlin`, `compliance`, one per Python project), comparing a pull request with its base, the merge queue's commit with the `main` it was queued on, and a push with the commit before it, and each job's `if` names the areas it reads: a conformance suite runs on a change to the Rust workspace, the npm libraries (`ts`: every npm package but `react-ui`, their shared configs and the root's npm files), `packages/conformance` or the Python projects it installs; the Browser's, the npm packages' and the other interface jobs also run on `ui` (`react-ui`, `images/browser`, `apps/desktop`), which no conformance suite reads; a Python package's job on its own tree and the projects its `pyproject.toml` depends on; the launcher's on `apps/launcher` and `packages/go`; the compliance audits on the code they read, the docs and their own scripts. A change to `ci.yml`, the script that maps the areas (`.github/scripts/changed-areas.mjs`), `packages/typescript/scripts/` or the spec (`specs/src/` and its Redocly configuration) runs every area; the rest of `.github/` is the census's, which always runs. A skipped job is reported as Success and passes the gate.
 
-The Rust binaries the conformance suites start are built once, by `build-rust`, which runs whenever any suite does and publishes them as an artifact; each suite fetches them into `target/release`, where [`harness/paths.ts`](../../tests/conformance/harness/paths.ts) looks, and builds nothing of its own.
+The Rust binaries the conformance suites start are built once, by `build-rust`, which runs whenever any suite does and publishes them as an artifact; each suite fetches them into `target/release`, where [`harness/paths.ts`](../../packages/conformance/harness/paths.ts) looks, and builds nothing of its own.
 
 `npm run lint:workflows` holds all of this: the `concurrency` of every workflow that runs on pull requests, its group led by the workflow's file name, that no job of them checks out, installs or builds and then checks nothing, that every other workflow running on pull requests names the paths it checks, that `ci.yml` has its first stage, its edges and its gate, that every job behind the first stage reads areas the `changes` job defines or the tier alone, that `cargo build` runs in `build-rust` alone, that `ci.yml` runs in the merge queue and every event it runs on has a tier in `changed-areas.mjs`, and that every relative path a step of any workflow names is one the repository holds, read from where the step runs: its `working-directory`, and each `cd` its script makes.
 
@@ -336,7 +336,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 | `test-package` | A matrix over every npm package with a suite: build, typecheck and the suite with coverage, uploaded under the package's flag |
 | `browser-security` | A built Browser probed for privileged content and secret-shaped strings in the shell it serves for the moderation routes |
 | `lighthouse-accessibility` | Lighthouse against a built Browser's signed-out pages, failing below an accessibility score of 90 (`images/browser/lighthouserc.json` names the pages and the score) |
-| `compliance-check` | The audits in [`scripts/compliance/`](../../scripts/compliance/), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports |
+| `compliance-check` | The audits in [`packages/typescript/scripts/compliance/`](../../packages/typescript/scripts/compliance), each against the built packages: the doc snippets, raw bus use, the state-unit axioms, the boot contract, the one-home rules, and the React-UI and Browser compliance reports |
 | `build-rust` | `cargo build --release` of the gateway, the dispatcher, the Archivist and the Rust SDK's three conformance drivers, once, the workspace's own crates instrumented for coverage, published as an artifact the conformance jobs fetch into `target/release`. The six binaries are cached under a key that hashes what the build reads, the same list Stack Smoke's layer cache hashes, so a run whose Rust sources were built before compiles nothing |
 | `test-rust` | `cargo fmt --check`, `clippy -D warnings`, the tests under `cargo llvm-cov` and the doc tests for the Rust workspace, its coverage uploaded under every crate's flag and every Rust image's; which crates may depend on which; the published crates' set and version, and each packaged and built from its packaged form (`cargo publish --dry-run`); the licence policy for the crates each image links |
 | `gateway-security` | The gateway, on the binaries `build-rust` built, probed for 401s on protected routes, the error shape, and leaked secrets |
@@ -374,7 +374,7 @@ The Rust binaries the conformance suites start are built once, by `build-rust`, 
 
 [`codeql-analysis.yml`](../../.github/workflows/codeql-analysis.yml) runs CodeQL over the TypeScript, Go, Rust, Python and Kotlin nightly at 08:17 UTC and when a release calls it, not on pull requests. GitHub's default-setup Code Quality analysis, which no file here configures, runs on pull requests.
 
-[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on pull requests; it gates releases. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`scripts/release/smoke-stack.sh`](../../scripts/release/smoke-stack.sh) with `--e2e`, which boots a real stack, says what it checks, and runs [`tests/e2e`](../../tests/e2e/README.md)'s default tier against it with the models a new knowledge base names, less the tests the suite tags `@model` (`npm run test:ci`), which those models on a runner with no GPU do not answer in time. The run's summary has a table of the suite's specs, and its Playwright report is kept for 30 days. A release calls it on the commit it is about to tag. It also runs nightly on `main`, and on a pull request that changes the workflow, that script, `local-build.sh` or `.dockerignore`. The three Rust images share one builder stage, a release build of the workspace for Alpine that takes twelve minutes cold; the workflow keeps its layers between runs under a key that hashes everything the stage copies, so a run whose Rust is unchanged restores the stage and compiles nothing. The nightly run writes `main`'s copy, which a pull request's run can read; GitHub evicts a copy unread for a week. `local-build.sh --layer-cache <dir>` is how, and `npm run lint:workflows` holds every file the Dockerfiles copy to a pattern of the key.
+[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a gate on pull requests; it gates releases. On manual dispatch it builds every image and the launcher from the commit, or takes a published tag, and runs [`images/tests/stack/smoke-stack.sh`](../../images/tests/stack/smoke-stack.sh) with `--e2e`, which boots a real stack, says what it checks, and runs [`images/e2e`](../../images/e2e/README.md)'s default tier against it with the models a new knowledge base names, less the tests the suite tags `@model` (`npm run test:ci`), which those models on a runner with no GPU do not answer in time. The run's summary has a table of the suite's specs, and its Playwright report is kept for 30 days. A release calls it on the commit it is about to tag. It also runs nightly on `main`, and on a pull request that changes the workflow, that script, `make local-build` or `.dockerignore`. The three Rust images share one builder stage, a release build of the workspace for Alpine that takes twelve minutes cold; the workflow keeps its layers between runs under a key that hashes everything the stage copies, so a run whose Rust is unchanged restores the stage and compiles nothing. The nightly run writes `main`'s copy, which a pull request's run can read; GitHub evicts a copy unread for a week. `make local-build LAYER_CACHE=<dir>` is how, and `npm run lint:workflows` holds every file the Dockerfiles copy to a pattern of the key.
 
 Locally, run the suite for the code you changed. CI runs the whole matrix.
 
@@ -382,5 +382,5 @@ Locally, run the suite for the code you changed. CI runs the whole matrix.
 
 - [Local Development](LOCAL-DEVELOPMENT.md): building a stack from your tree to test against
 - [Browser testing](../../images/browser/docs/TESTING.md), [react-ui testing](../../packages/typescript/react-ui/docs/TESTING.md), [gateway testing](../../images/gateway/docs/TESTING.md): each part's own guide
-- [The conformance suites](../../tests/conformance/README.md): what they are and how the harness works
+- [The conformance suites](../../packages/conformance/README.md): what they are and how the harness works
 - [Testing with the SDK's doubles](../builder/react-ui/TESTING.md): for anyone building on the SDK

@@ -19,7 +19,7 @@ corrected deliberately. There is no third option.
 **How this document is held.** Each rule ends with *Held by* and what fails
 when a Smelter breaks it. `smelter/<case>` is the file `<case>.test.ts` of the
 smelter conformance suite
-([`tests/conformance/smelter`](../../tests/conformance/smelter/README.md)),
+([`packages/conformance/smelter`](../../packages/conformance/smelter/README.md)),
 which starts a Smelter as a process behind a real gateway and a real
 Archivist, records through the Archivist, plays its embedding provider, and
 reads the index back from a real database: the same cases judge every

@@ -69,7 +69,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
 ### `semiont start` refuses at the identity preflight
 
-The realm is imported on Keycloak's first boot and never again, so a realm created by an older launcher can lack clients or roles a newer one needs. The preflight refuses rather than start services that cannot authenticate, and names the fix:
+A start creates the realm when Keycloak does not hold it, and leaves one it holds as it is, so a realm created by an older launcher can lack clients or roles a newer one needs. The preflight refuses rather than start services that cannot authenticate, and names the fix:
 
 ```bash
 semiont identity sync   # adds missing clients, reconciles roles, the kind claim, the worker's key, redirects, web origins, lifetime; touches no secret or account
@@ -80,16 +80,16 @@ A realm that does not list the Browser's origin refuses the token exchange from 
 
 Needs the bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one persisted for this root). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
 
-### `semiont useradd` or `semiont identity sync` is refused at the admin login
+### `semiont start`, `semiont useradd` or `semiont identity sync` is refused at the admin login
 
-Both sign in to Keycloak's own admin, in its `master` realm, from this machine. The error carries Keycloak's reason:
+Each signs in to Keycloak's own admin, in its `master` realm, from this machine — `semiont start` only when it must create the knowledge base's realm. The error carries Keycloak's reason:
 
 - **`Invalid user credentials`** — the bootstrap admin password is not the one the realm's database was created with. Keycloak creates that admin on its first boot only; the launcher persists the password per root, and `$KC_BOOTSTRAP_ADMIN_PASSWORD` overrides it.
-- **`HTTPS required`** — the master realm accepts plain HTTP only from an address it counts as private, and some runtimes deliver this machine's connections from one it does not (Docker Desktop does). `semiont start` lets the master realm answer plain HTTP, from inside the Keycloak container, every time it starts one; start the stack again with a current launcher.
+- **`HTTPS required`** — the master realm accepts plain HTTP only from an address it counts as private, and some runtimes deliver this machine's connections from one it does not (Docker Desktop does). `semiont start` lets the master realm answer plain HTTP, from inside the Keycloak container, every time it starts one, and warns when it cannot.
 
 ### A service never picks up work
 
-Every service authenticates at the knowledge base's issuer as its own account (client credentials), and presents that token to the gateway. The issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, a worker key the realm does not hold, or a realm that never imported the client), or the gateway may refuse the token (another audience, or a realm whose clients do not carry the `kind` claim, which `semiont start` refuses up front).
+Every service authenticates at the knowledge base's issuer as its own account (client credentials), and presents that token to the gateway. The issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, a worker key the realm does not hold, or a realm created without the client), or the gateway may refuse the token (another audience, or a realm whose clients do not carry the `kind` claim, which `semiont start` refuses up front).
 
 ```bash
 semiont logs --service worker | grep -iE "token|auth|oidc|client"

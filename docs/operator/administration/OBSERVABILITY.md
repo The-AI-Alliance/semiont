@@ -4,7 +4,7 @@ A stack can be observed three ways, each switched on separately:
 
 1. **Traces.** Every service and the Browser can export OpenTelemetry spans. A service exports nothing until it is given an OTLP endpoint; the launcher gives every service one.
 2. **Metrics and log correlation.** Counters, histograms and gauges go to the same endpoint, and every structured log line carries the `trace_id` and `span_id` of the span it was written in.
-3. **The `busLog` timeline.** With `SEMIONT_BUS_LOG=1`, a process writes one line per bus event, in a format made for `grep`. It is a developer's tool: see [Bus logging](../../../tests/e2e/docs/bus-logging.md).
+3. **The `busLog` timeline.** With `SEMIONT_BUS_LOG=1`, a process writes one line per bus event, in a format made for `grep`. It is a developer's tool: see [Bus logging](../../../images/e2e/docs/bus-logging.md).
 
 All three share the W3C `trace_id`: a `busLog` line written inside a span carries `trace=`, the id's first eight hex digits.
 
@@ -402,7 +402,7 @@ When no SDK is initialized, or no span is active, neither field is added.
 
 ## Related documentation
 
-- [Bus logging](../../../tests/e2e/docs/bus-logging.md) — `busLog` format,
+- [Bus logging](../../../images/e2e/docs/bus-logging.md) — `busLog` format,
   enable flags, e2e capture API.
 - [Architecture](../../architecture/ACTOR-MODEL.md) — actor topology and event-bus
   design that the trace and metric attributes describe.

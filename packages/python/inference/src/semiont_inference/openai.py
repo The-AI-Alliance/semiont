@@ -67,7 +67,7 @@ try:
     from openai.types.responses import ResponseTextConfigParam
     from openai.types.shared_params import Reasoning
 
-    from semiont_inference._openai_library import open_library, request_headers
+    from semiont_inference._openai_library import open_library, refusal_words, request_headers
 except ModuleNotFoundError as missing:
     # A module the library itself lacks is another failure, and is left as it is.
     if missing.name != "openai":
@@ -342,7 +342,7 @@ class OpenAIInferenceClient:
             return await self._request(prompt, max_tokens, temperature, held_to)
         except APIStatusError as refused:
             self._record(started, "error", (None, None))
-            raise ProviderStatusError(refused.message, refused.status_code) from refused
+            raise ProviderStatusError(refusal_words(refused), refused.status_code) from refused
         except BaseException:
             # An answer that could not be read at all, a failure of the library's with no status (a
             # connection that ended), which is passed on as it came, and a caller that cancelled. The

@@ -124,6 +124,10 @@ component_management:
       name: "packages/go/launcher"
       paths:
         - packages/go/launcher/**
+    - component_id: csharp-sdk
+      name: "packages/csharp/sdk"
+      paths:
+        - packages/csharp/sdk/**
     - component_id: swift-sdk
       name: "packages/swift/sdk"
       paths:
@@ -152,6 +156,10 @@ component_management:
       name: "packages/go"
       paths:
         - packages/go/**
+    - component_id: csharp
+      name: "packages/csharp"
+      paths:
+        - packages/csharp/**
     - component_id: kotlin
       name: "packages/kotlin"
       paths:
@@ -212,6 +220,11 @@ ignore:
   - "packages/go/launcher/fakert/**"
   - "packages/go/launcher/harness/**"
 
+  # Independent test infrastructure, formerly under root tests/.
+  - "images/e2e/**"
+  - "docs/checks/doc-snippets/**"
+  - "packages/conformance/**"
+
   # Build artifacts
   - "**/dist/**"
   - "**/build/**"
@@ -226,7 +239,11 @@ ignore:
   - "**/*_gen.go"
 
   # Scripts
-  - "scripts/**"
+  - "**/scripts/**"
+  - "packages/codegen/**"
+  - "images/smelter/tools/fixtures/**"
+  - "images/tests/stack/**"
+  - ".github/release/**"
 
 # Comment configuration
 comment:
@@ -331,6 +348,11 @@ flags:
   go-launcher:
     paths:
       - packages/go/launcher/**
+    carryforward: true
+
+  csharp-sdk:
+    paths:
+      - packages/csharp/sdk/**
     carryforward: true
 
   swift-sdk:
