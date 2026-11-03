@@ -111,6 +111,7 @@ export function ImageAnnotateRenderer({
   selectedMotivation,
   hoveredAnnotationId,
   hoverDelayMs = 150,
+  zoom = 1,
 }: AnnotateMediaRendererProps) {
   if (!content) return null;
   return (
@@ -123,6 +124,7 @@ export function ImageAnnotateRenderer({
       session={session}
       hoveredAnnotationId={hoveredAnnotationId || null}
       hoverDelayMs={hoverDelayMs}
+      zoom={zoom}
     />
   );
 }

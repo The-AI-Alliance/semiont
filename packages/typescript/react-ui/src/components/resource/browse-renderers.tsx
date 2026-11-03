@@ -52,7 +52,7 @@ export function TextBrowseRenderer({ content }: MediaRendererProps) {
   return <MemoizedMarkdown content={content} />;
 }
 
-export function ImageBrowseRenderer({ content, resourceUri, annotations, session }: MediaRendererProps) {
+export function ImageBrowseRenderer({ content, resourceUri, annotations, session, zoom = 1 }: MediaRendererProps) {
   // The annotate-mode canvas, read-only (drawingMode=null): paints SvgSelector
   // shapes over the image and routes click/hover via the session — the same
   // shapes browse mode silently dropped when this was a bare ImageViewer.
@@ -64,6 +64,7 @@ export function ImageBrowseRenderer({ content, resourceUri, annotations, session
       drawingMode={null}
       selectedMotivation={null}
       session={session}
+      zoom={zoom}
     />
   );
 }

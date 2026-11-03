@@ -418,6 +418,7 @@ export function PdfAnnotationCanvas({
 
   const pageProps = {
     scale,
+    zoom,
     resourceUri,
     existingAnnotations,
     drawing,
