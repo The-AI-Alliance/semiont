@@ -10,7 +10,7 @@
  *
  * Checked in `docs/builder` (the guides, the skills and `react-ui`), the root `README.md`,
  * `packages/README.md`, every npm package's `README.md` and `docs`, `apps/README.md`, `images/README.md`,
- * every app's and image's `README.md` and `docs`, `protocol/contract` and `protocol/contract/flows`:
+ * every app's and image's `README.md` and `docs`, `protocol/README.md`, `protocol/contract` and `protocol/contract/flows`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
  *     wildcard re-export of another package counts, read from its types);
@@ -265,6 +265,7 @@ const DOCS = [
   'images/README.md',
   // Only shipped images have product-surface docs; independent test projects do not.
   ...[...TREE].filter((f) => /^apps\/[^/]+\/README\.md$/.test(f) || (/^images\/[^/]+\/README\.md$/.test(f) && TREE.has(`${dirname(f)}/Dockerfile`))).flatMap((f) => ownDocs(dirname(f))),
+  'protocol/README.md',
   ...markdownIn('protocol/contract'),
   ...markdownIn('protocol/contract/flows'),
 ];
@@ -359,10 +360,11 @@ for (const doc of DOCS) {
     }
     for (const m of t.matchAll(/npm run ([\w:.-]+)/g)) if (!SCRIPTS.has(m[1])) report(doc, line, 'script', m[1]);
     for (const m of t.matchAll(/(?:^|[\s`(['"])((?:packages|apps|images|scripts|specs|protocol|tests|docs|\.github)\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
-      // A path is the repository's, or its document's own package's: a
-      // README's `docs/TESTING.md` is the one beside it. The react-ui builder
+      // A path is the repository's, or its document's own package's, or for a
+      // document in protocol/ the protocol's: a README's `docs/TESTING.md` is
+      // the one beside it, and protocol/README.md's `specs/README.md` is protocol/specs's. The react-ui builder
       // docs live under docs/builder and still name react-ui's files.
-      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/typescript/react-ui' : doc.match(/^(?:packages\/[^/]+\/[^/]+|apps\/[^/]+|images\/[^/]+)(?=\/)/)?.[0];
+      const pkgRoot = doc.startsWith('docs/builder/react-ui/') ? 'packages/typescript/react-ui' : doc.match(/^(?:packages\/[^/]+\/[^/]+|apps\/[^/]+|images\/[^/]+|protocol)(?=\/)/)?.[0];
       const standings = [m[1], ...(pkgRoot ? [join(pkgRoot, m[1])] : [])].map(standing);
       if (!standings.some((is) => is === 'held' || is === 'built')) report(doc, line, 'path', `${m[1]} — ${why(standings)}`);
     }
