@@ -199,7 +199,10 @@ var serviceDescriptors = []serviceDescriptor{
 		// Neo4j answers HTTP on its browser port; bolt is not a health route.
 		health: healthProbe{port: 7474}},
 
-	{role: "vectors", driver: "qdrant", name: "qdrant", image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", mem: "2G",
+	// Qdrant's 1G ceiling: 48 MiB with an empty knowledge base's three
+	// collections, 391 MiB at 100,000 points 768 wide. On Apple container an
+	// indexed Qdrant's VM grows to its ceiling, so the ceiling is its cost.
+	{role: "vectors", driver: "qdrant", name: "qdrant", image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", mem: "1G",
 		ports: []portNeed{{6333, "Qdrant"}}, display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant",
 		health: healthProbe{path: "/readyz"}},
 
