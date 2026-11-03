@@ -59,7 +59,7 @@ import Testing
 }
 @Test func stateGraphFollowsTheProtocolDocument() throws {
   let document = try String(
-    contentsOf: Spec.repository.appendingPathComponent("docs/protocol/TRANSPORT-HTTP.md"),
+    contentsOf: Spec.repository.appendingPathComponent("protocol/contract/TRANSPORT-HTTP.md"),
     encoding: .utf8)
   let rows = document.split(separator: "\n").filter { $0.contains("→") }
   var covered: Set<String> = []

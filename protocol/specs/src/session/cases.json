@@ -1,0 +1,493 @@
+{
+  "$comment": "How a client holds a session, as every SDK must compute it. `refreshSchedule`: how long to wait before renewing an access token, from its own claims. The margin before expiry is half the token's lifetime (`exp - iat`, or the time remaining when there is no `iat`), capped at 300 seconds; the wait is never under 10 seconds; a token with no readable `exp` schedules nothing (`delay` null). Times are in seconds; a row gives the token's `claims`, which a runner puts in any JWT, or a literal `token`. `tokenExpiry`: reading `exp` out of a token. A JWT's segments are base64url without padding, and its payload is UTF-8, so a reader that assumes plain base64 or ASCII fails for the accounts whose names produce `-`, `_` or a multi-byte character. `startup`: what a session does with the credential it finds stored, when it starts. It asks the gateway who the token is. A token the gateway refuses is renewed at the issuer once and asked about once more; a token the issuer has just issued and the gateway refuses is final, because renewing again cannot change the answer, and the session ends as `session.credential-refused`. So a session asks at most twice and renews at most once, whatever the gateway and the issuer answer. A stored token that has expired is renewed before anyone is asked, and only the issuer's refusal forgets it, with nothing said, because there was no session to end. A renewal that got no answer keeps it: the session starts with no token and says why as `session.auth-failed`. Whenever a session renews, at its start, on its schedule or when the gateway refuses its token, only the issuer's refusal ends it and forgets what is stored. A renewal that got no answer leaves it no usable token and keeps what is stored: it says why as `session.refresh-exhausted` (at the start, `session.auth-failed`), and tells `onAuthFailed` nothing, because the session is not over. It renews again when a request is refused, and on its own on the reconnect backoff of protocol/specs/src/client/timing.json: each wait is the equal jitter of its step (half the step, and a random share of the other half), the step `reconnectMs` doubling to `maxReconnectMs`, until a renewal is made or refused, a token arrives some other way, or the session ends. Such a renewal asks nobody, but one that is made while nobody has said who the session's token is asks the gateway once, as the start would have, and keeps the answer. A row scripts both: `stored` is the access token found (`unexpired`, `expired`, or `none`), `gateway` what the gateway answers each time it is asked (`accepts`, `refuses`: its credential refused, a 401 or a 429 whose `code` is `refusal-rate` (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential), which every SDK reports as `unauthorized`, `unreachable`: no usable answer) and `issuer` what the issuer answers each renewal (`renews`, `refuses`: an answer the `refresh` rule of protocol/specs/src/retry/cases.json does not try again, which every SDK reports as the sign-in code `exchange` with the issuer's status, `unreachable`: no answer, or only answers that rule tries again, until the retry budget was spent); the last answer of each repeats, so a runner must fail a session that asks more than `asks` times or renews more than `renewals`. `ends` is `signed-in` (a token, and who the gateway last said it is), `signed-out` (neither) or `unconfirmed` (a token, and nobody to say who it is). A session that ends `signed-out` and keeps nothing asks neither of them anything afterwards, however long it is held. A row that ends `signed-out` and kept what is stored states `then`: the `asks`, `renewals` and `ends` it comes to once it has renewed once more on its own. That renewal falls due by `reconnectMs` at the latest, and a second no sooner than half as long again, so a runner holds the session for six fifths of `reconnectMs`, never for exactly the longest a jittered wait can be; the issuer's answers go on as `issuer` scripts them. `told` is the reason a session gives `onAuthFailed` when it ends, `expired` (the issuer refused to renew its token) or `refused` (the gateway refused a token its issuer had just issued), and `error` the code reported, each null when there is none. A reason is not a sentence: what a person reads is the host's to say, in their language; `kept` is whether a session is still stored. `refusal`: what a session that is already running does when the gateway refuses its token, which is when its transport asks it to `refresh`. The rule is the one `startup` has: the token is renewed once and the gateway is asked who the new one is, and its answer is who is signed in, and a token the issuer has just issued and the gateway refuses ends the session as `session.credential-refused`. So one refusal costs at most one renewal and one ask. A row's session started signed in, on a stored token the gateway accepted; `issuer` is what the issuer answers the renewal and `gateway` what the gateway answers when asked who the renewed token is, each as in `startup`. `asks` and `renewals` count from the refusal on, and `given` is whether `refresh` gives a token. A gateway that cannot be asked refuses nothing: the renewed token is given, and nothing is said. A renewal the session makes on its own schedule follows no refusal, and asks nobody. Every runner runs all four parts, `refreshSchedule`, `tokenExpiry`, `startup` and `refusal`, and fails on a difference.",
+  "runBy": {
+    "typescript": ["packages/typescript/sdk/src/session/__tests__/session-agreement.test.ts"],
+    "rust": ["packages/rust/sdk/tests/session.rs", "packages/rust/sdk/tests/session_cases.rs"],
+    "python": ["packages/python/sdk/tests/test_session.py", "packages/python/sdk/tests/test_session_tables.py"],
+    "go": ["packages/go/sdk/session_test.go", "packages/go/sdk/token_test.go"],
+    "launcher": ["packages/go/launcher/verbs/session_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/session/SessionCasesTest.kt"]
+  },
+  "notYetReached": {
+    "csharp": "C# is still to implement and run the shared session/cases.json cases.",
+    "swift": "The Swift SDK's session: when it renews a token, a token's expiry, its bounded startup and its answer to a refusal."
+  },
+  "refreshSchedule": [
+    {
+      "why": "an hour-long token just issued is renewed 300 seconds before it expires: the margin's ceiling",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800000000,
+      "delay": 3300
+    },
+    {
+      "why": "a five-minute token is renewed at half its life, not at once: a fixed 300-second margin equals this lifetime and schedules a renewal for the moment of issue, forever",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000300
+      },
+      "now": 1800000000,
+      "delay": 150
+    },
+    {
+      "why": "a one-minute token is renewed at half its life",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000060
+      },
+      "now": 1800000000,
+      "delay": 30
+    },
+    {
+      "why": "a ten-minute token sits where half its life equals the ceiling",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000600
+      },
+      "now": 1800000000,
+      "delay": 300
+    },
+    {
+      "why": "the margin comes from the lifetime the issuer chose, not from what remains of it",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800001800,
+      "delay": 1500
+    },
+    {
+      "why": "a token past its renewal point waits the floor, never zero",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800003500,
+      "delay": 10
+    },
+    {
+      "why": "an expired token waits the floor: one attempt per interval, not a loop",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800003650,
+      "delay": 10
+    },
+    {
+      "why": "a token shorter than twice the floor waits the floor, though that is past its half-life",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000012
+      },
+      "now": 1800000000,
+      "delay": 10
+    },
+    {
+      "why": "with no iat the lifetime is what remains, and half of it is still bounded",
+      "claims": {
+        "exp": 1800000100
+      },
+      "now": 1800000000,
+      "delay": 50
+    },
+    {
+      "why": "with no iat and a long time remaining the ceiling applies",
+      "claims": {
+        "exp": 1800003600
+      },
+      "now": 1800000000,
+      "delay": 3300
+    },
+    {
+      "why": "a token with no exp schedules nothing",
+      "claims": {
+        "iat": 1800000000
+      },
+      "now": 1800000000,
+      "delay": null
+    },
+    {
+      "why": "a token that is not a JWT schedules nothing",
+      "token": "not-a-jwt",
+      "now": 1800000000,
+      "delay": null
+    }
+  ],
+  "tokenExpiry": [
+    {
+      "why": "an ASCII payload, whose length is not a multiple of four: JWTs omit the padding",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGljZSIsImV4cCI6MTkwMDAwMDAwMH0.c2lnbmF0dXJl",
+      "exp": 1900000000
+    },
+    {
+      "why": "a payload whose base64url spelling contains `_`: the name is Zoë Fauré",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiWm_DqyBGYXVyw6kiLCJleHAiOjE5MDAwMDAwMDB9.c2lnbmF0dXJl",
+      "exp": 1900000000
+    },
+    {
+      "why": "a payload whose base64url spelling contains `-`: the name is O’Connor, with a typographic apostrophe",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiT-KAmUNvbm5vciIsImV4cCI6MTkwMDAwMDAwMH0.c2lnbmF0dXJl",
+      "exp": 1900000000
+    },
+    {
+      "why": "a payload with no exp",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJl",
+      "exp": null
+    },
+    {
+      "why": "two segments are not a JWT",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5MDAwMDAwMDB9",
+      "exp": null
+    },
+    {
+      "why": "a payload that is not base64url",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.!!!.c2lnbmF0dXJl",
+      "exp": null
+    },
+    {
+      "why": "a payload that is not JSON",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.bm90IGpzb24.c2lnbmF0dXJl",
+      "exp": null
+    }
+  ],
+  "startup": [
+    {
+      "why": "nothing stored: nobody is asked, and nothing is said",
+      "stored": "none",
+      "gateway": [
+        "accepts"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 0,
+      "renewals": 0,
+      "ends": "signed-out",
+      "told": null,
+      "error": null,
+      "kept": false
+    },
+    {
+      "why": "a stored token the gateway accepts is the session's",
+      "stored": "unexpired",
+      "gateway": [
+        "accepts"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 1,
+      "renewals": 0,
+      "ends": "signed-in",
+      "told": null,
+      "error": null,
+      "kept": true
+    },
+    {
+      "why": "a token the gateway refuses is renewed once and asked about again",
+      "stored": "unexpired",
+      "gateway": [
+        "refuses",
+        "accepts"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 2,
+      "renewals": 1,
+      "ends": "signed-in",
+      "told": null,
+      "error": null,
+      "kept": true
+    },
+    {
+      "why": "a token the gateway refuses and the issuer will not renew: the session has expired",
+      "stored": "unexpired",
+      "gateway": [
+        "refuses"
+      ],
+      "issuer": [
+        "refuses"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": "expired",
+      "error": "session.refresh-exhausted",
+      "kept": false
+    },
+    {
+      "why": "the gateway refuses every token the issuer goes on issuing: asked twice, renewed once, and over",
+      "stored": "unexpired",
+      "gateway": [
+        "refuses"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 2,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": "refused",
+      "error": "session.credential-refused",
+      "kept": false
+    },
+    {
+      "why": "a stored token that has expired is renewed before anyone is asked",
+      "stored": "expired",
+      "gateway": [
+        "accepts"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "ends": "signed-in",
+      "told": null,
+      "error": null,
+      "kept": true
+    },
+    {
+      "why": "an expired token the issuer will not renew is forgotten, and nothing is said: there was no session to end",
+      "stored": "expired",
+      "gateway": [
+        "accepts"
+      ],
+      "issuer": [
+        "refuses"
+      ],
+      "asks": 0,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": null,
+      "error": null,
+      "kept": false
+    },
+    {
+      "why": "an expired token whose renewal got no answer is kept: the session starts with no token, says why, and renews it when a request is refused",
+      "stored": "expired",
+      "gateway": [
+        "accepts"
+      ],
+      "issuer": [
+        "unreachable"
+      ],
+      "asks": 0,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": null,
+      "error": "session.auth-failed",
+      "kept": true,
+      "then": {
+        "asks": 0,
+        "renewals": 2,
+        "ends": "signed-out"
+      }
+    },
+    {
+      "why": "an expired token whose renewal got no answer, renewed on the backoff: nobody has said who it is, so the gateway is asked once",
+      "stored": "expired",
+      "gateway": [
+        "accepts"
+      ],
+      "issuer": [
+        "unreachable",
+        "renews"
+      ],
+      "asks": 0,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": null,
+      "error": "session.auth-failed",
+      "kept": true,
+      "then": {
+        "asks": 1,
+        "renewals": 2,
+        "ends": "signed-in"
+      }
+    },
+    {
+      "why": "an expired token is renewed and the gateway refuses the new one: it was just issued, so it is not renewed again",
+      "stored": "expired",
+      "gateway": [
+        "refuses"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": "refused",
+      "error": "session.credential-refused",
+      "kept": false
+    },
+    {
+      "why": "a gateway that cannot be asked refuses nothing: the token is kept, and the failure is said",
+      "stored": "unexpired",
+      "gateway": [
+        "unreachable"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 1,
+      "renewals": 0,
+      "ends": "unconfirmed",
+      "told": null,
+      "error": "session.auth-failed",
+      "kept": true
+    },
+    {
+      "why": "a token the gateway refuses, whose renewal got no answer: the session holds no token, keeps what is stored, and says why",
+      "stored": "unexpired",
+      "gateway": [
+        "refuses"
+      ],
+      "issuer": [
+        "unreachable"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "ends": "signed-out",
+      "told": null,
+      "error": "session.refresh-exhausted",
+      "kept": true,
+      "then": {
+        "asks": 1,
+        "renewals": 2,
+        "ends": "signed-out"
+      }
+    },
+    {
+      "why": "the renewed token could not be asked about: it is kept, and the failure is said",
+      "stored": "unexpired",
+      "gateway": [
+        "refuses",
+        "unreachable"
+      ],
+      "issuer": [
+        "renews"
+      ],
+      "asks": 2,
+      "renewals": 1,
+      "ends": "unconfirmed",
+      "told": null,
+      "error": "session.auth-failed",
+      "kept": true
+    }
+  ],
+  "refusal": [
+    {
+      "why": "the gateway accepts the renewed token: the session goes on as whoever the gateway says it is, and the request can be made again",
+      "issuer": [
+        "renews"
+      ],
+      "gateway": [
+        "accepts"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "given": true,
+      "ends": "signed-in",
+      "told": null,
+      "error": null,
+      "kept": true
+    },
+    {
+      "why": "the gateway refuses the renewed token too: it was just issued, so the session is over",
+      "issuer": [
+        "renews"
+      ],
+      "gateway": [
+        "refuses"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "given": false,
+      "ends": "signed-out",
+      "told": "refused",
+      "error": "session.credential-refused",
+      "kept": false
+    },
+    {
+      "why": "the issuer will not renew: the session has expired, and nobody is asked",
+      "issuer": [
+        "refuses"
+      ],
+      "gateway": [
+        "accepts"
+      ],
+      "asks": 0,
+      "renewals": 1,
+      "given": false,
+      "ends": "signed-out",
+      "told": "expired",
+      "error": "session.refresh-exhausted",
+      "kept": false
+    },
+    {
+      "why": "the renewal got no answer: the session holds no token, keeps what is stored, and says why; the next refusal renews again",
+      "issuer": [
+        "unreachable"
+      ],
+      "gateway": [
+        "accepts"
+      ],
+      "asks": 0,
+      "renewals": 1,
+      "given": false,
+      "ends": "signed-out",
+      "told": null,
+      "error": "session.refresh-exhausted",
+      "kept": true,
+      "then": {
+        "asks": 0,
+        "renewals": 2,
+        "ends": "signed-out"
+      }
+    },
+    {
+      "why": "the renewal got no answer, and is made on the backoff: the gateway has said who the session is, so nobody is asked",
+      "issuer": [
+        "unreachable",
+        "renews"
+      ],
+      "gateway": [
+        "accepts"
+      ],
+      "asks": 0,
+      "renewals": 1,
+      "given": false,
+      "ends": "signed-out",
+      "told": null,
+      "error": "session.refresh-exhausted",
+      "kept": true,
+      "then": {
+        "asks": 0,
+        "renewals": 2,
+        "ends": "signed-in"
+      }
+    },
+    {
+      "why": "a gateway that cannot be asked refuses nothing: the renewed token is given, and nothing is said",
+      "issuer": [
+        "renews"
+      ],
+      "gateway": [
+        "unreachable"
+      ],
+      "asks": 1,
+      "renewals": 1,
+      "given": true,
+      "ends": "signed-in",
+      "told": null,
+      "error": null,
+      "kept": true
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 A prompt asks for the text of each span, `exact`, and for what stands before
 and after it, and never for an offset: where a span is, is found in the text
 afterwards. The words are those the worker service's suite holds a worker to,
-as the files of `packages/conformance/worker-service/prompts` state them.
+as the files of `protocol/conformance/worker-service/prompts` state them.
 
 Two languages may be named, and neither depends on the other. `language` is
 the one the model is to write in, which matters to a comment and to an

@@ -4,7 +4,7 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonIgnoreUnknownKeys
 
-// What a registry of knowledge bases keeps in a SessionStorage, as specs/src/session/stored.json states it.
+// What a registry of knowledge bases keeps in a SessionStorage, as protocol/specs/src/session/stored.json states it.
 // StoredTest fails when this differs from the table.
 
 /** The registered knowledge bases: a JSON list of `KnowledgeBase`. */

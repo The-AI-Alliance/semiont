@@ -1,7 +1,7 @@
 """What a Librarian reads of the record, and the profiles of the knowledge base's principals: each asked of the Archivist, over the bus.
 
 The Archivist keeps both, and a Librarian only reads them
-(`docs/protocol/LIBRARIAN.md` § What it answers, § Names). Each read is
+(`protocol/contract/LIBRARIAN.md` § What it answers, § Names). Each read is
 bounded by its question: a resource's descriptor and the sequence number of
 its last event (`browse:resource-requested`), one annotation on a resource
 (`browse:annotation-requested`), and the profiles of the principals a

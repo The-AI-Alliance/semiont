@@ -6,7 +6,7 @@ annotation of each, hands each piece's annotations over to be committed with
 where that leaves the unit, reports where the job stands, and answers the
 job's counts. A `yield` job makes a resource. Its processor asks a model for
 the document (`semiont_worker.generation`) and answers the artifact to
-upload. `docs/protocol/WORKER-SERVICE.md` states what each does, rule by
+upload. `protocol/contract/WORKER-SERVICE.md` states what each does, rule by
 rule.
 
 A processor reads nothing and sends nothing itself. It is handed the text

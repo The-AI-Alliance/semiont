@@ -11,7 +11,7 @@ import (
 )
 
 // What a caller that states nothing is given. Every SDK sends the same: the
-// cases of specs/src/client/surface.json hold each to it.
+// cases of protocol/specs/src/client/surface.json hold each to it.
 const (
 	gatherContextWindow = 2000
 	gatherDepth         = 2

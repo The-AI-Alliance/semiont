@@ -1,7 +1,7 @@
 package launcher
 
 // librariandoc.go — the Librarian's configuration document: LibrarianConfig in
-// specs/, the Go type generated from it (packages/go/sdk). The launcher writes
+// protocol/specs/, the Go type generated from it (packages/go/sdk). The launcher writes
 // it for the Librarian it starts, every address a literal (placement), and
 // mounts it where the Librarian's image points its `--config` flag, so the
 // Librarian neither reads a knowledge base's documents nor resolves or

@@ -115,7 +115,7 @@ private fun <T> inSpan(digit: Char, work: () -> T): T {
 }
 
 /**
- * A worker's side of the queue (docs/protocol/WORKER-CONTRACT.md) beyond what
+ * A worker's side of the queue (protocol/contract/WORKER-CONTRACT.md) beyond what
  * the worker conformance suite holds on the wire: what a host is handed and
  * reads, and how each settle and commit is said.
  */

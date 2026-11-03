@@ -1,9 +1,9 @@
 //! How a knowledge base is named, and the principals who act in it.
 //!
 //! Every function here is held to a shared case table (tests/tables.rs):
-//! `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, `kind_of`
-//! to specs/src/principals/kind-cases.json, the rest to
-//! specs/src/principals/cases.json, which Python and Go run too.
+//! `kb_did` and `kb_resource` to protocol/specs/src/kb-identity/cases.json, `kind_of`
+//! to protocol/specs/src/principals/kind-cases.json, the rest to
+//! protocol/specs/src/principals/cases.json, which Python and Go run too.
 
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 

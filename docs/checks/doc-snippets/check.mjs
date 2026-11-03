@@ -6,7 +6,7 @@
 //
 // Four suites, each one TypeScript program with its own preludes:
 //   - sdk: the builder docs (docs/builder) and the protocol docs
-//     (docs/protocol and its flows), plus the repo-root and packages/typescript/sdk READMEs, which
+//     (protocol/contract and its flows), plus the repo-root and packages/typescript/sdk READMEs, which
 //     carry the first sdk code most readers see and are the least likely to
 //     be revisited when a signature moves. They teach scripts as well as
 //     applications, so Node's types are on; resolved like an external node
@@ -80,8 +80,8 @@ const SUITES = {
   sdk: {
     docs: [
       ...markdownIn('docs/builder'),
-      ...markdownIn('docs/protocol'),
-      ...markdownIn('docs/protocol/flows'),
+      ...markdownIn('protocol/contract'),
+      ...markdownIn('protocol/contract/flows'),
       'README.md',
       'packages/typescript/sdk/README.md',
     ],

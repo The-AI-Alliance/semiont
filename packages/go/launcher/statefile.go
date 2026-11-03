@@ -122,7 +122,7 @@ func (st *StackState) platform() platform {
 }
 
 // StateDir is the launcher's state home on this machine: where the SDK says it
-// is (semiont.StateDir, held to specs/src/sign-in-store/cases.json), from what
+// is (semiont.StateDir, held to protocol/specs/src/sign-in-store/cases.json), from what
 // this machine's environment says. "" when no home is resolvable.
 func StateDir() string {
 	dir, _ := semiont.StateDir(semiont.ThisSystem(), userHome(), os.Getenv("XDG_STATE_HOME"), os.Getenv("LOCALAPPDATA"))

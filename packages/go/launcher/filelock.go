@@ -8,7 +8,7 @@ package launcher
 //
 // Each system has its own call (filelock_unix.go, filelock_windows.go). On
 // both, the lock excludes the lock an application on the Rust SDK takes on
-// the sign-in store's tokens.lock (specs/src/sign-in-store).
+// the sign-in store's tokens.lock (protocol/specs/src/sign-in-store).
 
 import (
 	"errors"

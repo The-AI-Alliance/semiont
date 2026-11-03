@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // generate-sign-in-python.mjs — generate the Python SDK's entry of the sign-in
-// store from specs/src/sign-in-store/SignIn.json, the schema the launcher and
+// store from protocol/specs/src/sign-in-store/SignIn.json, the schema the launcher and
 // the Rust SDK generate their own from, and how the store's directory and
-// files are kept to their owner from specs/src/sign-in-store/owner-only.json.
+// files are kept to their owner from protocol/specs/src/sign-in-store/owner-only.json.
 //
 //   packages/python/sdk/src/semiont/sign_in.py            the entry
 //   packages/python/sdk/src/semiont/_owner_only_table.py  the directory's and
@@ -24,8 +24,8 @@ import { pyBanner, pyComment, pyDocstring, pySnake, pyString } from '../lib/pyth
 import { readSignInSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const SCHEMA = resolve(ROOT, 'specs/src/sign-in-store/SignIn.json');
-const OWNER_ONLY = resolve(ROOT, 'specs/src/sign-in-store/owner-only.json');
+const SCHEMA = resolve(ROOT, 'protocol/specs/src/sign-in-store/SignIn.json');
+const OWNER_ONLY = resolve(ROOT, 'protocol/specs/src/sign-in-store/owner-only.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/sign_in.py');
 const OWNER_ONLY_OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/_owner_only_table.py');
 const CHECK = process.argv.includes('--check');
@@ -49,8 +49,8 @@ const field = ({ name, description, required }) => {
 
 const usesField = schema.fields.some(({ name }) => pySnake(name) !== name);
 
-const text = `${pyBanner('specs/src/sign-in-store/SignIn.json', 'packages/codegen/schemas/generate-sign-in-python.mjs')}
-"""One entry of the sign-in store (\`specs/src/sign-in-store\`): the file where
+const text = `${pyBanner('protocol/specs/src/sign-in-store/SignIn.json', 'packages/codegen/schemas/generate-sign-in-python.mjs')}
+"""One entry of the sign-in store (\`protocol/specs/src/sign-in-store\`): the file where
 \`semiont login\` keeps the sign-in to each stack, and where an application
 finds it.
 """
@@ -73,7 +73,7 @@ writeOrCheck(ROOT, OUT, text, CHECK);
 
 const { directoryMode, fileMode, accessList } = readOwnerOnly(OWNER_ONLY);
 
-const ownerOnly = `${pyBanner('specs/src/sign-in-store/owner-only.json', 'packages/codegen/schemas/generate-sign-in-python.mjs')}
+const ownerOnly = `${pyBanner('protocol/specs/src/sign-in-store/owner-only.json', 'packages/codegen/schemas/generate-sign-in-python.mjs')}
 """How a writer of the sign-in store keeps its directory and its files to their owner, as the launcher keeps its state home."""
 
 from typing import Final

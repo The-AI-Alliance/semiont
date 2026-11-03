@@ -27,11 +27,11 @@
  *      image:  the directories under images/
  *      tests:  the logical suites at their owner-local paths
  *      spec:   the parts of the spec, by who honours them (SPEC_PARTS); every
- *              directory under specs/src/, and every file directly in it, is
+ *              directory under protocol/specs/src/, and every file directly in it, is
  *              in exactly one
- *      verb:   the namespaces of specs/src/client/surface.json, but the ones
+ *      verb:   the namespaces of protocol/specs/src/client/surface.json, but the ones
  *              listed below as no verb
- *      stack:  the kinds the schemas of specs/src/stack are for, in kebab case
+ *      stack:  the kinds the schemas of protocol/specs/src/stack are for, in kebab case
  *    sdk: has a label for every SDK the repository holds (each
  *    packages/<language>/sdk), and for the languages ruled ahead of their
  *    SDKs. The app:, image:, tests: and sdk: values
@@ -58,8 +58,8 @@ import { repositoryFiles } from './repository-files.mjs';
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const LABELS = '.github/labels.yml';
 const DEPENDABOT = '.github/dependabot.yml';
-const SURFACE = 'specs/src/client/surface.json';
-const STACK = 'specs/src/stack/';
+const SURFACE = 'protocol/specs/src/client/surface.json';
+const STACK = 'protocol/specs/src/stack/';
 
 const DIMENSIONS = ['kind', 'verb', 'app', 'image', 'sdk', 'stack', 'spec', 'media', 'tests'];
 const KEYS = ['name', 'color', 'description', 'from_name'];
@@ -185,14 +185,14 @@ heldBothWays('app', givenIn('app'), 'apps/');
 heldBothWays('image', givenIn('image'), 'images/');
 heldBothWays('tests', givenIn('tests'), 'the test suite paths');
 
-/** What specs/src holds: its directories, and the files directly in it. */
-const specEntries = new Set(files.filter((file) => file.startsWith('specs/src/')).map((file) => file.split('/')[2]));
+/** What protocol/specs/src holds: its directories, and the files directly in it. */
+const specEntries = new Set(files.filter((file) => file.startsWith('protocol/specs/src/')).map((file) => file.split('/')[3]));
 for (const entry of specEntries) {
   const parts = Object.keys(SPEC_PARTS).filter((part) => SPEC_PARTS[part].includes(entry));
-  if (parts.length !== 1) fail(`specs/src/${entry} is in ${parts.length === 0 ? 'no part' : `${parts.length} parts (${parts.join(', ')})`} of SPEC_PARTS; each is in one`);
+  if (parts.length !== 1) fail(`protocol/specs/src/${entry} is in ${parts.length === 0 ? 'no part' : `${parts.length} parts (${parts.join(', ')})`} of SPEC_PARTS; each is in one`);
 }
 for (const [part, entries] of Object.entries(SPEC_PARTS)) {
-  for (const entry of entries) if (!specEntries.has(entry)) fail(`SPEC_PARTS lists specs/src/${entry} under ${part}, and specs/src has no such entry: take it off the list`);
+  for (const entry of entries) if (!specEntries.has(entry)) fail(`SPEC_PARTS lists protocol/specs/src/${entry} under ${part}, and protocol/specs/src has no such entry: take it off the list`);
 }
 heldBothWays('spec', new Set(Object.keys(SPEC_PARTS)), 'the parts of the spec (SPEC_PARTS)');
 

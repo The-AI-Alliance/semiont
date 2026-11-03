@@ -1,4 +1,4 @@
-//! The stream's framing (docs/protocol/TRANSPORT-HTTP.md § Wire framing and
+//! The stream's framing (protocol/contract/TRANSPORT-HTTP.md § Wire framing and
 //! client parser obligations): `text/event-stream`, each event an `event`
 //! line, an `id` line and one `data` line, ended by a blank line.
 //!

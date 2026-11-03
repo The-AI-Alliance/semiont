@@ -7,7 +7,7 @@
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=rust-codegen)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 The build-time code generator of the [Semiont Rust SDK](../sdk/README.md).
-It turns the [Semiont specification](../../../specs/README.md), an OpenAPI
+It turns the [Semiont specification](../../../protocol/specs/README.md), an OpenAPI
 document and its JSON Schemas, into the Rust types of `semiont::types`.
 
 ## You do not need to add it

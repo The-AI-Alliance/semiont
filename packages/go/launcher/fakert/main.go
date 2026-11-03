@@ -1761,7 +1761,7 @@ func busybox(args []string, joined string) {
 
 // The fake bus delivers as the real one does: a broadcast reaches every open
 // subscription that names its channel, and a correlated reply only the
-// subscriptions of the client that asked (docs/protocol/TRANSPORT-HTTP.md §
+// subscriptions of the client that asked (protocol/contract/TRANSPORT-HTTP.md §
 // POST /bus/subscribe). A fake with different delivery semantics than the
 // real bus tests a protocol nobody implements.
 type busSub struct {

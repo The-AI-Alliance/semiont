@@ -1,7 +1,7 @@
 package launcher
 
 // dispatcherdoc.go — the dispatcher's configuration document: DispatcherConfig
-// in specs/, the Go type generated from it (packages/go/sdk). The launcher
+// in protocol/specs/, the Go type generated from it (packages/go/sdk). The launcher
 // writes it for the dispatcher it starts, every address a literal
 // (placement), and mounts it where the dispatcher's image points its
 // `--config` flag, so the dispatcher neither reads a knowledge base's

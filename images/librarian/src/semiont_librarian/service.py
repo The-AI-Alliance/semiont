@@ -14,7 +14,7 @@ service that cannot start says so while an operator is watching it boot: one
 line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
-It starts in the order `docs/protocol/LIBRARIAN.md` § Boot states: it signs
+It starts in the order `protocol/contract/LIBRARIAN.md` § Boot states: it signs
 in as its account, reaches the graph database and the vector index, begins to
 take requests from the bus, and opens its health port last, so a Librarian
 whose health answers is answering. It loads nothing and makes nothing: it

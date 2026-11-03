@@ -1,5 +1,5 @@
 //! What each reader of a resource's description answers is one table,
-//! specs/src/resources/reader-cases.json, which every SDK runs: this crate's
+//! protocol/specs/src/resources/reader-cases.json, which every SDK runs: this crate's
 //! `semiont::resources` gives, for each case's resource, what TypeScript's
 //! and Python's readers give.
 

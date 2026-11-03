@@ -63,7 +63,7 @@ release calls it.
 
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
-- npm: the workspaces (one entry at the root), `images/e2e`, `packages/conformance`
+- npm: the workspaces (one entry at the root), `images/e2e`, `protocol/conformance`
 - Go modules: `apps/launcher`, `packages/go/sdk`
 - Cargo: the Rust workspace at the root; the Rust toolchain: `rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser and the seven service images
@@ -78,11 +78,11 @@ release calls it.
 
 ### Labels (`labels.yml`)
 **Every label the repository has**, each a name, a colour and a description:
-- A label is `<dimension>:<value>`: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/`), `image:` (one for each directory under `images/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `spec:` (the parts of `specs/src/`, by who honours them: `protocol`, `sdk`, `services`, `launcher`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
+- A label is `<dimension>:<value>`: `kind:` (what a change or issue is), `verb:` (the eight verbs), `app:` (one for each directory under `apps/`), `image:` (one for each directory under `images/`), `sdk:` (one for each language), `stack:` (one for each kind of document in a knowledge base's `.semiont/stack/`), `spec:` (the parts of `protocol/specs/src/`, by who honours them: `protocol`, `sdk`, `services`, `launcher`), `media:` (kinds of content) and `tests:` (one for each directory under `tests/`)
 - Its colour says what it is: each `kind:` its own, bold, as GitHub's are; every other dimension one pale hue of its own, but `verb:`, one shade for each of the three ways the verbs work on the corpus (writing, reading, attention)
 - Three are of no dimension: `good first issue` and `help wanted`, which GitHub reads by those names, and `Ontology`
 - `from_name` renames a label in place, so what it is on keeps it; it is deleted once the sync has run
-- `npm run lint:labels` (Census) fails when an entry is not a label GitHub can hold, a label is of no dimension and not listed, `app:`, `image:`, `tests:`, `verb:` or `stack:` disagrees with the directories, the client surface's namespaces or the stack schemas' kinds, an entry of `specs/src/` is in no `spec:` part or in two, an SDK has no `sdk:`, or a Dependabot entry applies another label than its directories give it
+- `npm run lint:labels` (Census) fails when an entry is not a label GitHub can hold, a label is of no dimension and not listed, `app:`, `image:`, `tests:`, `verb:` or `stack:` disagrees with the directories, the client surface's namespaces or the stack schemas' kinds, an entry of `protocol/specs/src/` is in no `spec:` part or in two, an SDK has no `sdk:`, or a Dependabot entry applies another label than its directories give it
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **The analysis configuration**:
@@ -181,7 +181,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd images/browser && npm run test:security
-   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd packages/conformance && npm run test:gateway)
+   (cd packages/rust && cargo build --release -p semiont-gateway) && (cd protocol/conformance && npm run test:gateway)
    ```
 
 2. **Complete the Security section** of the PR template when the change touches the gateway's routes, token handling or the Browser's session code

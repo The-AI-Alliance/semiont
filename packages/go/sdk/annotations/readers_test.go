@@ -1,6 +1,6 @@
 package annotations_test
 
-// The annotation readers, held to specs/src/annotations/reader-cases.json:
+// The annotation readers, held to protocol/specs/src/annotations/reader-cases.json:
 // the table every SDK's readers run.
 
 import (
@@ -14,10 +14,10 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/sdk/api"
 )
 
-// readSpec is a file of specs/src.
+// readSpec is a file of protocol/specs/src.
 func readSpec(t *testing.T, path string) []byte {
 	t.Helper()
-	text, err := os.ReadFile("../../../../specs/src/" + path)
+	text, err := os.ReadFile("../../../../protocol/specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}

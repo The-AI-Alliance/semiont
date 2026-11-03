@@ -1,4 +1,4 @@
-# Generated from specs/src/text/encoding-cases.json; do not edit.
+# Generated from protocol/specs/src/text/encoding-cases.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-encodings-python.mjs
 
 """The Encoding Standard as the reader of a resource's text needs it: the encoding each label names, and each single-byte encoding byte by byte."""

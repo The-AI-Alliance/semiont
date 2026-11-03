@@ -12,7 +12,7 @@ output-options:
   # But not the kinds of id: oapi-codegen would make each an alias of string,
   # which any text converts to. packages/codegen/schemas/generate-identifiers-go.mjs writes
   # them into this package as types made only through their rule
-  # (api/ids_gen.go), and holds this list to specs/src/identifiers/kinds.json.
+  # (api/ids_gen.go), and holds this list to protocol/specs/src/identifiers/kinds.json.
   exclude-schemas:
     - ResourceId
     - AnnotationId

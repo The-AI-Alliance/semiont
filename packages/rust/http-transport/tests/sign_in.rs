@@ -1046,7 +1046,7 @@ async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() 
 
 // ── What a renewal keeps while other programs renew and sign out ──────
 //
-// Every renewal of specs/src/sign-in-store/cases.json, through
+// Every renewal of protocol/specs/src/sign-in-store/cases.json, through
 // refresh_stored_session, over each storage a sign-in is kept in here.
 
 /// The sign-in error a failure is.
@@ -1239,13 +1239,14 @@ async fn renewed_as_the_row_says(row: &Value, store: &str) -> Vec<String> {
     wrong
 }
 
-/// The key a pending sign-in is kept under is specs/src/session/stored.json's;
+/// The key a pending sign-in is kept under is protocol/specs/src/session/stored.json's;
 /// semiont's tests hold the table's other keys.
 #[test]
 fn a_pending_sign_in_is_kept_under_the_tables_key() {
-    let table: Value =
-        serde_json::from_str(include_str!("../../../../specs/src/session/stored.json"))
-            .expect("the table");
+    let table: Value = serde_json::from_str(include_str!(
+        "../../../../protocol/specs/src/session/stored.json"
+    ))
+    .expect("the table");
     let key = table["keys"]
         .as_array()
         .expect("the keys")
@@ -1259,7 +1260,7 @@ fn a_pending_sign_in_is_kept_under_the_tables_key() {
 #[tokio::test]
 async fn every_renewal_is_the_tables() {
     let table: Value = serde_json::from_str(include_str!(
-        "../../../../specs/src/sign-in-store/cases.json"
+        "../../../../protocol/specs/src/sign-in-store/cases.json"
     ))
     .expect("the table");
     let rows = table["renewals"].as_array().expect("the renewals");
@@ -2369,7 +2370,7 @@ async fn an_agent_whose_token_the_gateway_refuses_is_not_signed_in() {
 
 fn assertion_table() -> Value {
     serde_json::from_str(include_str!(
-        "../../../../specs/src/session/client-assertion-cases.json"
+        "../../../../protocol/specs/src/session/client-assertion-cases.json"
     ))
     .expect("the table is JSON")
 }

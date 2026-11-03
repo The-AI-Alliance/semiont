@@ -236,7 +236,7 @@ Every service but the Browser also mounts its own configuration document, read-o
 
 The gateway exposes two endpoints that carry the work: `POST /bus/emit` and `POST /bus/subscribe`. Every other route is for sign-in metadata, tokens, content bytes or health. Every participant uses those two endpoints through an SDK, whether it is the Browser, a script, an agent, or one of Semiont's own services. A new kind of participant joins the same way, with no change to the gateway.
 
-The wire protocol is [EVENT-BUS.md](../protocol/EVENT-BUS.md). The actors, and why people and agents are the same kind of participant, are in [the actor model](../architecture/ACTOR-MODEL.md).
+The wire protocol is [EVENT-BUS.md](../../protocol/contract/EVENT-BUS.md). The actors, and why people and agents are the same kind of participant, are in [the actor model](../architecture/ACTOR-MODEL.md).
 
 ## In a codespace
 

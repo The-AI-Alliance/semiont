@@ -1,5 +1,5 @@
 //! What refreshes a client's cache, generated from
-//! specs/src/client/refresh.json, the table every SDK applies: a row per
+//! protocol/specs/src/client/refresh.json, the table every SDK applies: a row per
 //! trigger, saying which live queries it asks again for (`refetches`), which
 //! it writes with the value the event carries (`writes`), and which it ends,
 //! their entity being gone (`removes`). A client applies it to the queries

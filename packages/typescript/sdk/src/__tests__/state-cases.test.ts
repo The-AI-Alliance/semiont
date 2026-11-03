@@ -1,10 +1,10 @@
 /**
- * The state units against specs/src/client/state-units.json.
+ * The state units against protocol/specs/src/client/state-units.json.
  *
  * Each case of a unit this SDK has is run as the table states it: its units
  * are built over a scripted transport, driven step by step, and held to what
  * the case says they hold and said. A unit that the names table
- * (specs/src/client/surface.json, `stateUnits`) says this SDK lacks has its
+ * (protocol/specs/src/client/surface.json, `stateUnits`) says this SDK lacks has its
  * cases left unrun, as the surface test leaves a row's `absent` SDK: they run
  * once the unit lands and its `absent` goes. What the table may say is held by
  * .github/scripts/checks/check-state-unit-cases.mjs; what a case cannot say, the axioms,
@@ -59,7 +59,7 @@ interface Case {
   steps: Json[];
 }
 
-const read = (path: string): unknown => JSON.parse(readFileSync(new URL(`../../../../../specs/src/${path}`, import.meta.url), 'utf8'));
+const read = (path: string): unknown => JSON.parse(readFileSync(new URL(`../../../../../protocol/specs/src/${path}`, import.meta.url), 'utf8'));
 
 const TABLE = read('client/state-units.json') as { fixtures: Record<string, Json>; cases: Case[] };
 const NAMES = read('client/surface.json') as { stateUnits: Array<{ unit: string; absent?: Record<string, string> }> };
@@ -108,13 +108,13 @@ function resolved(value: Json): Json {
   return Object.fromEntries(keys.map((key) => [key, resolved(value[key] as Json)]));
 }
 
-/** A duration as the table states it, in milliseconds: a number, or a timing of specs/src/client/timing.json scaled and moved. */
+/** A duration as the table states it, in milliseconds: a number, or a timing of protocol/specs/src/client/timing.json scaled and moved. */
 function durationMs(value: Json | undefined): number {
   if (typeof value === 'number') return value;
   const stated = object(value, 'a duration');
   const name = text(stated['timing'], 'a timing');
   const base = TIMING.get(name);
-  if (base === undefined) throw new Error(`${name} is no timing of specs/src/client/timing.json`);
+  if (base === undefined) throw new Error(`${name} is no timing of protocol/specs/src/client/timing.json`);
   const times = stated['times'] === undefined ? 1 : count(stated['times'], 'times');
   const plus = stated['plusMs'] === undefined ? 0 : count(stated['plusMs'], 'plusMs');
   return base * times + plus;
@@ -575,7 +575,7 @@ async function play(stated: Case): Promise<void> {
 
 // ── The tests ───────────────────────────────────────────────────────────
 
-describe('the state units against specs/src/client/state-units.json', () => {
+describe('the state units against protocol/specs/src/client/state-units.json', () => {
   beforeEach(() => {
     // The microtasks the test transport answers on stay real; the clock is held.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });

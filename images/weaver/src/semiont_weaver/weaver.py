@@ -1,6 +1,6 @@
 """The Weaver: what follows the record, applies it to the graph, and repairs what the graph lost.
 
-`docs/protocol/WEAVER.md` states what it does, rule by rule. Held with
+`protocol/contract/WEAVER.md` states what it does, rule by rule. Held with
 `async with`: it follows the record from the way in to the way out, as a
 follower of the record (`semiont_service.follower`), each resource's log
 taken into the graph by the fold. Its two other pieces of work are asked of
@@ -213,7 +213,7 @@ class Weaver:
     # ── Reconcile ──────────────────────────────────────────────────────
 
     async def reconcile(self) -> Reconciled:
-        """Find and heal a graph that no longer holds what was applied to it (`docs/protocol/WEAVER.md` § Reconcile).
+        """Find and heal a graph that no longer holds what was applied to it (`protocol/contract/WEAVER.md` § Reconcile).
 
         Each resource is compared in its own lane, and healed there, so that
         neither is done in the middle of one of its events.
@@ -277,7 +277,7 @@ class Weaver:
     # ── Rebuild ────────────────────────────────────────────────────────
 
     async def rebuild_resource(self, resource_id: ResourceId) -> Retaken:
-        """Rebuild one resource from the record, in its lane (`docs/protocol/WEAVER.md` § Rebuild).
+        """Rebuild one resource from the record, in its lane (`protocol/contract/WEAVER.md` § Rebuild).
 
         The graph loses the resource and the annotations on it, and the resource's log is taken again from its first event.
         """
@@ -291,7 +291,7 @@ class Weaver:
         return rebuilt
 
     async def rebuild_all(self) -> Retaken:
-        """Rebuild the whole graph from the record (`docs/protocol/WEAVER.md` § Rebuild).
+        """Rebuild the whole graph from the record (`protocol/contract/WEAVER.md` § Rebuild).
 
         The graph is cleared with no lane working, and every resource's log is taken again from its first event.
         """

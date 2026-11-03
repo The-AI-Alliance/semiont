@@ -1,8 +1,8 @@
 /**
  * The TypeScript worker driver for the worker conformance suite
- * (packages/conformance/worker). The suite starts it, sends it one operation per
+ * (protocol/conformance/worker). The suite starts it, sends it one operation per
  * line on stdin and reads what it did, and what it saw, one line at a time
- * from stdout; packages/conformance/worker/README.md is the protocol.
+ * from stdout; protocol/conformance/worker/README.md is the protocol.
  *
  * It reaches the worker's surface only as a worker's author does, through
  * what `@semiont/sdk` and `@semiont/core` export: `job.claim`, the claims it
@@ -71,7 +71,7 @@ function failure(error: unknown): { code?: string; status?: number; detail: stri
   return { code: error.code, ...(typeof status === 'number' && status > 0 ? { status } : {}), detail };
 }
 
-/** The entries of specs/src/client/timing.json this driver can override: the transport's, and a worker's. */
+/** The entries of protocol/specs/src/client/timing.json this driver can override: the transport's, and a worker's. */
 const TRANSPORT_TIMING = ['reconnectMs', 'lazyRemoveMs', 'lingerMs'] as const;
 const WORKER_TIMING = ['jobClaimTimeoutMs', 'heldJobStallMs', 'heldJobStallCheckMs', 'markCommitTimeoutMs'] as const;
 

@@ -4,7 +4,7 @@ workspace = "../../packages/rust"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "The Semiont gateway: authenticates, validates and relays the knowledge base's protocol as specs/ states it."
+description = "The Semiont gateway: authenticates, validates and relays the knowledge base's protocol as protocol/specs/ states it."
 
 [lib]
 name = "semiont_gateway"

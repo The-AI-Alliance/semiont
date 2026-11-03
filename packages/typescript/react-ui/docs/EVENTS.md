@@ -32,8 +32,8 @@ where an event reaches `/bus/emit` but never produces a response.
 ## Channels that never leave the page
 
 Some channels are published on a client's own bus and never cross the wire. The
-protocol's flow docs say which channels cross ([Browse](../../../../docs/protocol/flows/BROWSE.md),
-[Beckon](../../../../docs/protocol/flows/BECKON.md)); this section is the other half.
+protocol's flow docs say which channels cross ([Browse](../../../../protocol/contract/flows/BROWSE.md),
+[Beckon](../../../../protocol/contract/flows/BECKON.md)); this section is the other half.
 
 ### The rule: `browse:*` may cross, `nav:*` never does
 

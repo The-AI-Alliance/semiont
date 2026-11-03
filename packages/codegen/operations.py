@@ -22,7 +22,7 @@ def go_command(source: str) -> tuple[list[str], str]:
 
 def snapshot(cache: Path) -> Path:
     temp = Path(tempfile.mkdtemp(prefix="codegen-", dir=cache))
-    for relative in ("specs", "packages/codegen", "packages/typescript/core"):
+    for relative in ("protocol/specs", "packages/codegen", "packages/typescript/core"):
         shutil.copytree(
             ROOT / relative,
             temp / relative,

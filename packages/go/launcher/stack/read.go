@@ -3,8 +3,8 @@
 // .semiont/config.yaml; and the Browser's, which belongs to no knowledge base
 // and is kept in the launcher's state home.
 //
-// A document is held to its schema in specs/src/stack/ or
-// specs/src/kb-identity/ (schemas_gen.go carries their text), the schema
+// A document is held to its schema in protocol/specs/src/stack/ or
+// protocol/specs/src/kb-identity/ (schemas_gen.go carries their text), the schema
 // lint:spec-stack holds the shared cases to, so the schema alone decides a
 // document's shape. Only a document that holds to it is decoded into its type
 // (types_gen.go).
@@ -32,7 +32,7 @@ type Refusal struct {
 	// At: the JSON pointer of the value refused, or of the field missing.
 	At string
 	// Reason: unknown-field, missing-required, wrong-type, not-allowed, or
-	// exactly-one — as specs/src/stack/cases.json names them.
+	// exactly-one — as protocol/specs/src/stack/cases.json names them.
 	Reason string
 	// Line: the line the value is on; for a field missing, its object's.
 	Line int

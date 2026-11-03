@@ -4,7 +4,7 @@ No library of Qdrant's is used. Each call is one request, with a JSON body,
 to `http://{host}:{port}`. What holds this module's reading of the API is a
 real Qdrant under this package's tests (`tests/qdrant_live.py`).
 
-The store makes the three collections `specs/src/vectors/payload-cases.json`
+The store makes the three collections `protocol/specs/src/vectors/payload-cases.json`
 states under `collections`, each with the distance and the payload indexes
 stated there. Two hold the points that are searched, and are as wide as the
 embedding provider's vectors. Connecting makes a collection only where there
@@ -195,7 +195,7 @@ type _Body = dict[str, JsonValue]
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class _Collection:
-    """A collection as Qdrant is asked to make it. `specs/src/vectors/payload-cases.json` states each, under `collections`."""
+    """A collection as Qdrant is asked to make it. `protocol/specs/src/vectors/payload-cases.json` states each, under `collections`."""
 
     name: str
     distance: str

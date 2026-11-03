@@ -3,7 +3,7 @@
 It is started with the path of its configuration document (`--config`), the
 key it signs in with at every knowledge base (`SEMIONT_OIDC_CLIENT_KEY`), and
 the variable each engine's `apiKeyEnv` names. Beside those it reads the
-variables `docs/protocol/WORKER-SERVICE.md` § Environment lists, and no other.
+variables `protocol/contract/WORKER-SERVICE.md` § Environment lists, and no other.
 This is the one module that reads the process's environment and its
 arguments: everything else is handed what it needs.
 

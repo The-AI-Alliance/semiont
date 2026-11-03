@@ -9,7 +9,7 @@
  * of it.
  *
  * It owns the vocabulary writes, on the `frame:add-entity-type` and
- * `frame:add-tag-schema` channels. See `docs/protocol/flows/FRAME.md`
+ * `frame:add-tag-schema` channels. See `protocol/contract/flows/FRAME.md`
  * for the per-flow contract.
  *
  * Live reads of the vocabulary stay on Browse (`browse.entityTypes()`,

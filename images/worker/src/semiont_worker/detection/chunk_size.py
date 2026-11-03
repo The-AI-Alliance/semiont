@@ -11,7 +11,7 @@ but a measured under-use grows a piece: no statistic of the text, and no
 guess at its density. A piece that is cut off or runs out of time is asked
 again in smaller pieces by the descent, and the next piece is cut at the size
 the descent found to fit: one overflow teaches the walk what a dense stretch
-needs. `specs/src/worker/chunk-plan-cases.json` holds the rule, as its `step`.
+needs. `protocol/specs/src/worker/chunk-plan-cases.json` holds the rule, as its `step`.
 """
 
 import math

@@ -291,7 +291,7 @@ export class SemiontSession implements StateUnit {
     // Asking again for as long as the issuer goes on issuing is a loop with
     // no end — one browser tab can send a gateway 300 requests a second. So
     // the gateway is asked at most twice and the issuer at most once
-    // (specs/src/session/cases.json, `startup`).
+    // (protocol/specs/src/session/cases.json, `startup`).
     const validate = this.doValidate;
     let token = startToken;
     let justIssued = expired;
@@ -387,7 +387,7 @@ export class SemiontSession implements StateUnit {
    * who the new one is. This is what the session's transport calls when it
    * is refused the token.
    *
-   * The rule is startup's (specs/src/session/cases.json, `refusal`): a token
+   * The rule is startup's (protocol/specs/src/session/cases.json, `refusal`): a token
    * the issuer has just issued and the gateway refuses is final, and the
    * session ends as `session.credential-refused`. So one refusal costs at
    * most one renewal and one ask, and a gateway that refuses whatever its

@@ -85,7 +85,7 @@ pub fn read<T: DeserializeOwned>(path: &Path, document: &Document) -> Result<T, 
     let where_ = path.display();
     let text = std::fs::read_to_string(path).map_err(|e| {
         ConfigError::Unreadable(format!(
-            "Cannot read the {service}'s configuration document at {where_} ({e}). The launcher writes it; a {service} started another way is given one ({schema} in specs/)."
+            "Cannot read the {service}'s configuration document at {where_} ({e}). The launcher writes it; a {service} started another way is given one ({schema} in protocol/specs/)."
         ))
     })?;
     let value: Value = serde_json::from_str(&text)

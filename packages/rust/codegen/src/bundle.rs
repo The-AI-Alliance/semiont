@@ -1,4 +1,4 @@
-//! Bundling specs/src into whole documents: every file `$ref` followed,
+//! Bundling protocol/specs/src into whole documents: every file `$ref` followed,
 //! each file the root document lists under `components` named by its
 //! component and the rest inlined, as the published bundles are, and the
 //! component schemas as JSON Schema draft 7.
@@ -135,13 +135,13 @@ impl Bundle {
                         .unwrap_or((reference.as_str(), ""));
                     if file.is_empty() {
                         panic!(
-                            "an internal $ref {reference} in a file under {}: specs/src refers by file",
+                            "an internal $ref {reference} in a file under {}: protocol/specs/src refers by file",
                             base.display()
                         );
                     }
                     if !pointer.is_empty() {
                         panic!(
-                            "$ref {reference} under {} points into a file: specs/src refers to whole files",
+                            "$ref {reference} under {} points into a file: protocol/specs/src refers to whole files",
                             base.display()
                         );
                     }

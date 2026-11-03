@@ -1,5 +1,5 @@
 //! The kinds of id, held to the cases every SDK runs
-//! (specs/src/identifiers/kinds.json): each string a kind accepts makes a
+//! (protocol/specs/src/identifiers/kinds.json): each string a kind accepts makes a
 //! value of its type and each it refuses does not, whether a caller makes it
 //! or a peer sent it.
 
@@ -83,7 +83,7 @@ fn each_kind_of_id_is_held_to_the_cases_every_sdk_runs() {
                 held::<UserId>(name, UserId::PATTERN, kind);
             }
             other => panic!(
-                "specs/src/identifiers/kinds.json names {other}, which this test does not hold"
+                "protocol/specs/src/identifiers/kinds.json names {other}, which this test does not hold"
             ),
         }
     }

@@ -1,7 +1,7 @@
 # Gateway Architecture
 
 How the gateway is put together. What it serves is the spec's
-([specs/src/openapi.json](../../../specs/src/openapi.json)); this is the code
+([protocol/specs/src/openapi.json](../../../protocol/specs/src/openapi.json)); this is the code
 that serves it.
 
 ## The crates it is built from
@@ -24,7 +24,7 @@ The gateway is a member of the repository's Rust workspace
 
 The spec is compiled into the binary.
 [semiont-core's build.rs](../../../packages/rust/core/build.rs) reads
-`specs/src` — the bundles in `specs/` are gitignored build output — and writes
+`protocol/specs/src` — the bundles in `protocol/specs/` are gitignored build output — and writes
 three documents the binary embeds: the protocol's OpenAPI document, the
 Archivist's, and the component schemas as JSON Schema draft 7 (OpenAPI 3.0's
 `nullable` made a type). It compiles every schema while it builds, so a
@@ -160,7 +160,7 @@ Opening and closing are presence: `session:joined`, `session:left`.
 ## Limits
 
 What one principal may take and what one process can hold
-([TRANSPORT-HTTP.md § Limits](../../../docs/protocol/TRANSPORT-HTTP.md#limits)).
+([TRANSPORT-HTTP.md § Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits)).
 Nothing here asks whether a principal is a person or an agent: a limit's
 coefficient comes from the principal's roles ([src/limits.rs](../src/limits.rs)
 `PrincipalLimit`) — the baseline when it holds none the limit names, and
@@ -205,7 +205,7 @@ relays. The gateway makes no bus request of its own.
 ## Telemetry
 
 `semiont_observability::telemetry` exports over OTLP/HTTP (protobuf) the spans and
-metrics [specs/src/service-telemetry/telemetry.json](../../../specs/src/service-telemetry/telemetry.json)
+metrics [protocol/specs/src/service-telemetry/telemetry.json](../../../protocol/specs/src/service-telemetry/telemetry.json)
 lists for the gateway, and nothing else, under the resource the table lists for
 it: its name, its version and `semiont.kb`, the DID of the knowledge base its
 document's `kb` names. They are the process's own readings, the gateway's

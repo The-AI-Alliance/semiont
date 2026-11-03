@@ -1,4 +1,4 @@
-"""The metric and resource rows of `specs/src/service-telemetry/telemetry.json`, for the tests that hold what a process exports."""
+"""The metric and resource rows of `protocol/specs/src/service-telemetry/telemetry.json`, for the tests that hold what a process exports."""
 
 from typing import Final
 

@@ -6,7 +6,7 @@ permission path it carries.
 ## What a knowledge base decides
 
 A gateway makes one decision about a request: its token is good, or the answer is 401. It reads
-no role to decide access and answers no 403 ([RBAC](../../../docs/protocol/RBAC.md)). Accounts,
+no role to decide access and answers no 403 ([RBAC](../../../protocol/contract/RBAC.md)). Accounts,
 and any roles they hold, live at the knowledge base's identity provider.
 
 So the Browser has nothing to check before it acts. A component attempts the action and handles
@@ -130,5 +130,5 @@ describe('Authorization', () => {
 ## Related
 
 - [Authentication](./AUTHENTICATION.md): sessions, 401s and the session-ended path
-- [RBAC](../../../docs/protocol/RBAC.md): the one decision a gateway makes, and the two service roles
+- [RBAC](../../../protocol/contract/RBAC.md): the one decision a gateway makes, and the two service roles
 - [`APIError`](../../../packages/typescript/http-transport/docs/API-Reference.md#apierror): the transport's error

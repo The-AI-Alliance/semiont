@@ -1,7 +1,7 @@
 """The five prompts a Librarian sends a model: each made from plain values, with the token limit and the temperature it is sent with.
 
-`docs/protocol/LIBRARIAN.md` § The prompts states them, and
-`specs/src/librarian/prompt-cases.json` is the rule: what each prompt is made
+`protocol/contract/LIBRARIAN.md` § The prompts states them, and
+`protocol/specs/src/librarian/prompt-cases.json` is the rule: what each prompt is made
 from, and its text to the last character. A function here takes what the
 table says its prompt is made from, by the table's names, and answers the
 prompt. It reads no store and asks no model.

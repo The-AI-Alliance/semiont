@@ -1,4 +1,4 @@
-"""A knowledge base's bus over its gateway's HTTP transport (`docs/protocol/TRANSPORT-HTTP.md`), as a `semiont.transport.Transport`.
+"""A knowledge base's bus over its gateway's HTTP transport (`protocol/contract/TRANSPORT-HTTP.md`), as a `semiont.transport.Transport`.
 
 One stream, `POST /bus/subscribe`, naming the client's global channels and an
 entry per resource scope it holds; and `POST /bus/emit` for what it sends. The

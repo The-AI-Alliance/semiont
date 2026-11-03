@@ -1,4 +1,4 @@
-"""A read-through cache: what a client's live queries answer from (`docs/protocol/CACHE-SEMANTICS.md`, B1 to B20).
+"""A read-through cache: what a client's live queries answer from (`protocol/contract/CACHE-SEMANTICS.md`, B1 to B20).
 
 **A key has one state, and every observer of the key holds it**: `Pending`
 (no value yet; a fetch may be in flight), `Ready` (a value, which may be the

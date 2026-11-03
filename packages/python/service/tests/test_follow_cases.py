@@ -1,8 +1,8 @@
-"""The follower of the record, held to `specs/src/follower/follow-cases.json`.
+"""The follower of the record, held to `protocol/specs/src/follower/follow-cases.json`.
 
 The table is the one every implementation of a follower runs: a case is a
 record, the cursors a follower starts with and what happens to it, and what it
-must take of each log. The rule is docs/protocol/TRANSPORT-CONTRACT.md § What
+must take of each log. The rule is protocol/contract/TRANSPORT-CONTRACT.md § What
 repairs a passing frame, and what it does in each case is stated in the table
 once, and not once for each language.
 

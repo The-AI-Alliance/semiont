@@ -1,5 +1,5 @@
-//! The media-type registry (specs/src/media-types/registry.json) as this SDK
-//! holds it, and the rules read from it, run as specs/src/media-types/cases.json
+//! The media-type registry (protocol/specs/src/media-types/registry.json) as this SDK
+//! holds it, and the rules read from it, run as protocol/specs/src/media-types/cases.json
 //! states them: the cases every SDK runs.
 
 use semiont::media_types::{

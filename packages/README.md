@@ -54,12 +54,11 @@ Apache-2.0
 ## Generation tooling
 
 [codegen/](codegen/README.md) holds shared bus and schema generators across languages.
-Their declarative inputs and fixtures stay in `specs/`. Language-wide build and
+Their declarative inputs and fixtures stay in `protocol/specs/`. Language-wide build and
 release helpers live under each language's `scripts/` directory; tooling for one
 package lives with that package.
 
-## Shared conformance project
+## Conformance
 
-[conformance/](conformance/README.md) is an independently installed private test project.
-Its shared harness checks service, SDK, and worker implementations through their protocol
-interfaces. It is not a published language package or a root npm workspace.
+The packages here are implementations of the protocol, and the conformance kit holds
+each SDK, and each service built on them, to it: [protocol/conformance](../protocol/conformance/README.md).

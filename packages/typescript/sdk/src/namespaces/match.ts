@@ -7,7 +7,7 @@ import { CacheRefresher } from '../cache-refresh';
 import type { MatchNamespace as IMatchNamespace, MatchSearchProgress, MatchedResources, ResourceSearchFilters } from './types';
 
 /**
- * The live queries of specs/src/client/refresh.json this namespace answers.
+ * The live queries of protocol/specs/src/client/refresh.json this namespace answers.
  * `client.ts` holds the namespaces to answering every one between them.
  */
 export const MATCH_QUERIES = ['matchedResources'] as const satisfies readonly CacheQuery[];
@@ -37,7 +37,7 @@ export class MatchNamespace implements IMatchNamespace {
     options?: {
       /** Timeout of the requests the live query issues; absent, `Bus.request`'s own. */
       busTimeoutMs?: number;
-      /** B19's window; absent, `invalidationWindowMs` of specs/src/client/timing.json. */
+      /** B19's window; absent, `invalidationWindowMs` of protocol/specs/src/client/timing.json. */
       invalidationWindowMs?: number;
     },
   ) {

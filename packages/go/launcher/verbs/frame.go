@@ -2,7 +2,7 @@ package verbs
 
 // frame.go — `semiont frame`: writes to the KB's SCHEMA layer. Where every
 // other verb acts on content (resources, annotations, references, attention),
-// Frame acts on what kinds of things exist. See docs/protocol/flows/FRAME.md.
+// Frame acts on what kinds of things exist. See protocol/contract/flows/FRAME.md.
 //
 // Reads deliberately live on Browse — `semiont browse --entity-types` is the
 // live read of the vocabulary this verb writes to. The asymmetry is the

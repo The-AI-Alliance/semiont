@@ -1,8 +1,8 @@
 //! What text a resource's bytes are is two tables, which every reader of a
-//! resource's text runs. specs/src/text/decode-cases.json is written by hand:
+//! resource's text runs. protocol/specs/src/text/decode-cases.json is written by hand:
 //! what is said of a content type, of a label, of a byte-order mark, of
 //! malformed UTF-8 and UTF-16, and of a media type whose text is not its
-//! bytes. specs/src/text/encoding-cases.json is generated: every label of
+//! bytes. protocol/specs/src/text/encoding-cases.json is generated: every label of
 //! the Encoding Standard, and every byte of each of its single-byte
 //! encodings.
 //!

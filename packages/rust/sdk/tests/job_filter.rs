@@ -1,5 +1,5 @@
 //! Whether a job matches a filter is one table,
-//! specs/src/jobs/filter-cases.json, which every implementation runs: the
+//! protocol/specs/src/jobs/filter-cases.json, which every implementation runs: the
 //! dispatcher's claims and each SDK's reading of an announcement answer
 //! through this crate's `job_matches_filter`.
 

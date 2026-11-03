@@ -12,10 +12,10 @@ that holds anything to keep.
 The store asks a Qdrant by requests of its own making, and nothing but a
 Qdrant says whether they are requests Qdrant takes, and whether it answers
 them as the store reads its answers. So every history of
-`specs/src/vectors/store-cases.json` is run here, through the contract. What
+`protocol/specs/src/vectors/store-cases.json` is run here, through the contract. What
 only a Qdrant shows is here too, read back by this module's own requests and
 never through the store: that each point
-`specs/src/vectors/payload-cases.json` states is kept under its `qdrantId`
+`protocol/specs/src/vectors/payload-cases.json` states is kept under its `qdrantId`
 with exactly its `payload`, the point that remembers a decline among them;
 that the collections are as that table's `collections` states them; and that
 an index made anew is as wide as the provider's vectors are then, and states

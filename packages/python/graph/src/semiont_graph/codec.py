@@ -5,7 +5,7 @@ chains properties and keeps a list as a JSON string, the in-memory store
 keeps a dictionary. What none of them owns is the shape: which properties a
 row has and what each is called, which are required, how a selector is
 serialized, and how a body is read back from tag edges and a link. That is
-decided here, once, and `specs/src/graph/codec-cases.json` holds every
+decided here, once, and `protocol/specs/src/graph/codec-cases.json` holds every
 implementation of these codecs to one answer.
 
 The graph is a purpose-built projection and not a copy of the record. It

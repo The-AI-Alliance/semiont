@@ -1,4 +1,4 @@
-"""What a session does (`specs/src/session/cases.json`: `startup` and `refusal`).
+"""What a session does (`protocol/specs/src/session/cases.json`: `startup` and `refusal`).
 
 At its start, with the sign-in it finds kept; and when the gateway refuses its
 token, which is when its transport asks it to `refresh`. Each row scripts what

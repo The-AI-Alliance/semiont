@@ -1,6 +1,6 @@
 """A resource read by its id: from the graph, and from the record where the graph has none or its read fails.
 
-The rule is `docs/protocol/LIBRARIAN.md`'s, of a reference search, a text
+The rule is `protocol/contract/LIBRARIAN.md`'s, of a reference search, a text
 search and what refers to a resource: each reads a resource back from the
 graph, and from the record when the graph has none or its read fails, and one
 neither holds is left out. A read of the record that fails is one the

@@ -9,7 +9,7 @@
 //! So arithmetic is done on offsets, and a length is a difference of two of
 //! them: every count a rule states is of code points. A string's own index is
 //! only ever what a search of the string gave or what a slice of it takes,
-//! and is converted here. specs/src/text/offset-cases.json holds the count,
+//! and is converted here. protocol/specs/src/text/offset-cases.json holds the count,
 //! for this and for every other implementation.
 
 /// A text's offsets and its string's indices, each given the other.

@@ -2,7 +2,7 @@ package semiont_test
 
 // The root package's state units held to the state-unit axioms (the cache,
 // the session, the session's signals), what the session's signals' cases in
-// specs/src/client/state-units.json cannot count, and the census that every
+// protocol/specs/src/client/state-units.json cannot count, and the census that every
 // state unit of the module is held to the axioms somewhere.
 
 import (

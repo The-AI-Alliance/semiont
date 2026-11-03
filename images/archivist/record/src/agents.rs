@@ -17,7 +17,7 @@ fn uri_shaped(value: &str) -> bool {
 }
 
 /// The agent a DID names: its kind by `kind_of` (held to
-/// specs/src/principals/kind-cases.json), and the DID itself when it is a URI.
+/// protocol/specs/src/principals/kind-cases.json), and the DID itself when it is a URI.
 /// Nothing else is read from a DID: a person's name is filled in when a record
 /// is read, and what an agent calls itself, and what it runs, are its own to
 /// say.
@@ -118,12 +118,12 @@ mod tests {
         }
     }
 
-    /// The record reads a DID's kind as specs/src/principals/kind-cases.json
+    /// The record reads a DID's kind as protocol/specs/src/principals/kind-cases.json
     /// states it.
     #[test]
     fn kind_cases() {
         let table: Value = serde_json::from_str(include_str!(
-            "../../../../specs/src/principals/kind-cases.json"
+            "../../../../protocol/specs/src/principals/kind-cases.json"
         ))
         .expect("principals/kind-cases.json is JSON");
         let cases = table["cases"]

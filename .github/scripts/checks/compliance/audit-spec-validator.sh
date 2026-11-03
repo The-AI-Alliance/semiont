@@ -11,7 +11,7 @@ set -euo pipefail
 # because the two setups disagree, not because the payload is right.
 #
 # A6 — no package configures Ajv against the OpenAPI spec. The validators are
-#      generated from `specs/openapi.json` into `@semiont/core/openapi` by
+#      generated from `protocol/specs/openapi.json` into `@semiont/core/openapi` by
 #      packages/codegen/schemas/generate-validators.mjs, which is the only place that may
 #      construct an Ajv instance over spec schemas. The `nullable` conversion
 #      is packages/codegen/schemas/openapi-schema.mjs's alone, which every generator that
@@ -27,8 +27,8 @@ echo "🔍 Auditing the spec validator (A6)..."
 
 # ---------------------------------------------------------------------------
 # A6a: only the generator constructs Ajv.
-# The independent conformance harness validates its own case documents and
-# protocol observations; it was outside this production-code audit under tests/.
+# The conformance kit validates its own case documents and protocol
+# observations; it is in protocol/, outside the code this audit reads.
 # ---------------------------------------------------------------------------
 offenders=""
 while IFS= read -r hit; do
@@ -39,7 +39,6 @@ done < <(grep -rn "new Ajv(" \
       "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/.github" 2>/dev/null \
       | grep -v "/node_modules/" \
       | grep -v "/dist/" \
-      | grep -v "$REPO_ROOT/packages/conformance/" \
       | grep -v "$GENERATOR" || true)
 
 if [ -n "$offenders" ]; then
@@ -63,7 +62,6 @@ if converters=$(grep -rn "nullable === true\|convertNullable" \
       "$REPO_ROOT/packages" "$REPO_ROOT/apps" "$REPO_ROOT/.github" 2>/dev/null \
       | grep -v "/node_modules/" \
       | grep -v "/dist/" \
-      | grep -v "$REPO_ROOT/packages/conformance/" \
       | grep -v "$CONVERTER" \
       | grep -v "$GENERATOR:[0-9]*:import { convertNullable } from './openapi-schema.mjs';" \
       | grep -v "$GENERATOR:[0-9]*:  convertNullable(converted);"); then

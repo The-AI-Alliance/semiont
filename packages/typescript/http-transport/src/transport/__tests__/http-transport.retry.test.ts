@@ -181,7 +181,7 @@ function refusedByLimit(code: string, retryAfterSeconds: number): Response {
 
 // A refused credential — a 401, or a 429 `refusal-rate` — is renewed once
 // and sent again at once, or final; never retried with the token refused,
-// and never after its Retry-After (docs/protocol/TRANSPORT-CONTRACT.md
+// and never after its Retry-After (protocol/contract/TRANSPORT-CONTRACT.md
 // § A refused credential). The Retry-After here outlasts a test's deadline,
 // so a client that waited it out fails by timing out.
 describe('HttpTransport — a refused credential', () => {

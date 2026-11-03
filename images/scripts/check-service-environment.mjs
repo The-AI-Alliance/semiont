@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * lint:service-environment — each Rust service reads exactly the environment
- * specs/src/service-environment/variables.json lists for it.
+ * protocol/specs/src/service-environment/variables.json lists for it.
  *
  * For each service in SERVICES:
  *
@@ -22,15 +22,15 @@ import { fileURLToPath } from 'node:url';
 import { withoutComments } from '../../.github/scripts/checks/source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const TABLE = 'specs/src/service-environment/variables.json';
+const TABLE = 'protocol/specs/src/service-environment/variables.json';
 const BOOT_GOLDEN = 'packages/go/launcher/testdata/golden/start-default-boot.argv';
 const SUPERVISOR = 'images/shared/supervise.sh';
 
 /** Each service the table covers: its crate, its image, and its suite. */
 const SERVICES = [
-  { name: 'gateway', crate: 'images/gateway', dockerfile: 'images/gateway/Dockerfile', cases: 'packages/conformance/gateway' },
-  { name: 'dispatcher', crate: 'images/dispatcher', dockerfile: 'images/dispatcher/Dockerfile', cases: 'packages/conformance/dispatcher' },
-  { name: 'archivist', crate: 'images/archivist', dockerfile: 'images/archivist/Dockerfile', cases: 'packages/conformance/archivist' },
+  { name: 'gateway', crate: 'images/gateway', dockerfile: 'images/gateway/Dockerfile', cases: 'protocol/conformance/gateway' },
+  { name: 'dispatcher', crate: 'images/dispatcher', dockerfile: 'images/dispatcher/Dockerfile', cases: 'protocol/conformance/dispatcher' },
+  { name: 'archivist', crate: 'images/archivist', dockerfile: 'images/archivist/Dockerfile', cases: 'protocol/conformance/archivist' },
 ];
 
 const READERS = new Set(['service', 'opentelemetry']);

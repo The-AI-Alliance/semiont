@@ -33,7 +33,7 @@ import Testing
 
 @Test func everySpecSchemaAndTableGeneratesTogether() throws {
   let specs = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-    .appendingPathComponent("../../../../../specs/src").standardizedFileURL
+    .appendingPathComponent("../../../../../protocol/specs/src").standardizedFileURL
   let definitions = try loadDefinitions(specs)
   let kinds = try #require(
     loadJSON(specs.appendingPathComponent("identifiers/kinds.json")).object["kinds"])

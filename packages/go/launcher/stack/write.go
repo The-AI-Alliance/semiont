@@ -14,8 +14,8 @@ var APIVersion = func() string {
 	var schema struct {
 		Const string `json:"const"`
 	}
-	if err := json.Unmarshal([]byte(schemaFiles["specs/src/stack/ApiVersion.json"]), &schema); err != nil || schema.Const == "" {
-		panic(fmt.Sprintf("specs/src/stack/ApiVersion.json states no const: %v", err))
+	if err := json.Unmarshal([]byte(schemaFiles["protocol/specs/src/stack/ApiVersion.json"]), &schema); err != nil || schema.Const == "" {
+		panic(fmt.Sprintf("protocol/specs/src/stack/ApiVersion.json states no const: %v", err))
 	}
 	return schema.Const
 }()

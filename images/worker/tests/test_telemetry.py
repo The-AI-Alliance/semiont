@@ -1,7 +1,7 @@
 """What the worker tells OpenTelemetry beside what its bounded calls and its descents tell.
 
-It is held to `specs/src/service-telemetry/telemetry.json`. A call's span is held where the bound is (`test_inference_call.py`), and a
-descent's calls where the descent is (`test_chunk_plan.py`).
+It is held to `protocol/specs/src/service-telemetry/telemetry.json`. A call's span is held where the bound is
+(`test_inference_call.py`), and a descent's calls where the descent is (`test_chunk_plan.py`).
 """
 
 import asyncio

@@ -1,4 +1,4 @@
-//! How a client holds a session is one table, specs/src/session/cases.json,
+//! How a client holds a session is one table, protocol/specs/src/session/cases.json,
 //! which every SDK that holds a session runs: here through this crate's
 //! refresh schedule and its reading of a token's expiry.
 

@@ -1,6 +1,6 @@
 """The two folds a gather waits on: what `weave:applied` and `smelt:settled` have signalled of each resource.
 
-The rules are `docs/protocol/LIBRARIAN.md`'s (§ The two waits, § Stopping).
+The rules are `protocol/contract/LIBRARIAN.md`'s (§ The two waits, § Stopping).
 A fold keeps the highest sequence number, or the last decision, signalled of
 each resource. A wait is answered at once where the fold keeps what it asks
 for, when the signal comes where it does not, and with the wait's own

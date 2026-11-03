@@ -11,7 +11,7 @@
  * release after its tag is cut. That happened on 0.6.8.
  *
  * A `file:` specifier is a project outside the workspace naming a package by
- * path (images/e2e, packages/conformance), and is left alone.
+ * path (images/e2e, protocol/conformance), and is left alone.
  */
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';

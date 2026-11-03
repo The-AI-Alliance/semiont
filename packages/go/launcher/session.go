@@ -5,7 +5,7 @@ package launcher
 // stored, which asks the gateway who its token is at its start, renews it at
 // the issuer when it has expired or the gateway refuses it, and forgets a
 // sign-in the issuer will not renew, as every SDK's session does
-// (specs/src/session/cases.json). What is the launcher's here is the
+// (protocol/specs/src/session/cases.json). What is the launcher's here is the
 // command's: a session that is over ends whatever the command is waiting on,
 // and is said in the launcher's words with the one fix that applies. Also
 // `semiont logout`.

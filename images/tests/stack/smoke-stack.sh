@@ -29,9 +29,8 @@
 # the version images/e2e/package.json pins. A
 # failing suite is a failed check like any other, so the container logs print
 # and the stack stops. The image reaches the stack at localhost through
-# `--network host`, which docker and podman have and Apple's `container` does
-# not, so --e2e refuses that runtime (images/e2e/README.md runs the suite there
-# by hand, through the host bridge). The suite's packages, @semiont/core and
+# `--network host` on Docker and Podman, or the existing localhost bridge
+# on Apple container. The suite's packages, @semiont/core and
 # @semiont/sdk, link to this checkout's packages/, which must be built:
 # images/scripts/build-session.sh builds them, as `npm run build:packages` does.
 #
@@ -55,7 +54,7 @@
 # debugging it. stack-smoke.yml runs it after images/scripts/build-session.sh, or,
 # given a published tag, after building only the launcher.
 #
-# Requires: docker (or another runtime via SMOKE_RUNTIME), git, curl, nc.
+# Requires: a responding container runtime (CONTAINER_RUNTIME selects one), git, curl, nc.
 
 set -uo pipefail
 
@@ -71,13 +70,12 @@ case "${2:-}" in
   --e2e) E2E=true ;;
   *) usage ;;
 esac
-RUNTIME="${SMOKE_RUNTIME:-docker}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+source "$REPO_ROOT/images/scripts/container-runtime.sh"
+RUNTIME=$(detect_container_runtime) || exit 2
+E2E_NETWORK=(--network host --ipc host)
+if [[ "$RUNTIME" == container ]]; then E2E_NETWORK=(); fi
 if [ "$E2E" = true ]; then
-  if [ "$RUNTIME" = container ]; then
-    echo "--e2e runs the suite with --network host, which Apple's container has not; run it as images/e2e/README.md says." >&2
-    exit 2
-  fi
   # Playwright refuses to run when the image and the library disagree, so the
   # tag is the version the suite pins, read here and never typed.
   PLAYWRIGHT=$(sed -n 's/^ *"@playwright\/test": "\(.*\)",\{0,1\}$/\1/p' "$REPO_ROOT/images/e2e/package.json")
@@ -223,7 +221,7 @@ if [ "$E2E" = true ]; then
     # run: PLAYWRIGHT_JSON_OUTPUT_NAME is Playwright's, and test-results/ is
     # the suite's output directory, emptied when a run begins.
     STARTED=$SECONDS
-    if "$RUNTIME" run --rm --network host --ipc host \
+    if "$RUNTIME" run --rm -m 8g ${E2E_NETWORK[@]+"${E2E_NETWORK[@]}"} \
       -v "$REPO_ROOT":/workspace -w /workspace/images/e2e \
       -e E2E_EMAIL -e E2E_PASSWORD \
       -e E2E_BROWSER_URL=http://localhost:3000 \
@@ -231,7 +229,18 @@ if [ "$E2E" = true ]; then
       -e PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/report.json \
       -e CI=1 \
       "mcr.microsoft.com/playwright:v$PLAYWRIGHT-noble" \
-      sh -c 'npm ci && npm run test:ci -- --reporter=list,html,json'; then
+      sh -c '
+        set -e
+        npm ci
+        if [ "$1" = container ]; then
+          node e2e-localhost-bridge.mjs &
+          bridge_pid=$!
+          trap "kill $bridge_pid 2>/dev/null || true" EXIT
+          sleep 1
+          kill -0 "$bridge_pid"
+        fi
+        npm run test:ci -- --reporter=list,html,json
+      ' sh "$RUNTIME"; then
       ok "the default tier passed ($((SECONDS - STARTED))s)"
     else
       bad "the default tier failed ($((SECONDS - STARTED))s): images/e2e/playwright-report holds the report"

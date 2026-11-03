@@ -1,5 +1,5 @@
 //! Where the words a model quoted are in a text is one table,
-//! specs/src/annotations/reconcile-cases.json, which every SDK runs: this
+//! protocol/specs/src/annotations/reconcile-cases.json, which every SDK runs: this
 //! crate's `semiont::annotations::reconcile` answers, for each case's text
 //! and quote, what TypeScript's and Python's answer.
 

@@ -133,8 +133,8 @@ The index is a projection of a knowledge base's record: a point for each
 chunk of a resource's text, and a point for each annotation that quotes
 text. One service writes the points and others search them, so what a point
 is, and what the index answers after a history of writes, are stated once,
-in [`specs/src/vectors/payload-cases.json`][payload-cases] and
-[`specs/src/vectors/store-cases.json`][store-cases]. Every store runs both
+in [`protocol/specs/src/vectors/payload-cases.json`][payload-cases] and
+[`protocol/specs/src/vectors/store-cases.json`][store-cases]. Every store runs both
 tables, the Qdrant store against a real Qdrant.
 
 A vector is as wide as the embedding model makes it. The width is measured,
@@ -196,7 +196,7 @@ case, and fails, and is not skipped, without the variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
-[payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/payload-cases.json
-[store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/vectors/store-cases.json
-[vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/VectorsConfig.json
-[embedding-config]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/EmbeddingConfig.json
+[payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/vectors/payload-cases.json
+[store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/vectors/store-cases.json
+[vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/components/schemas/VectorsConfig.json
+[embedding-config]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/components/schemas/EmbeddingConfig.json

@@ -1,12 +1,12 @@
 """What the process exports of itself: when it exports nothing, and the readings it takes of itself.
 
-§ Environment of each service's page of `docs/protocol` states what each
+§ Environment of each service's page of `protocol/contract` states what each
 variable does, and that service's conformance suite holds a started service
 to it, exporter by exporter. A process installs its telemetry once, so what
 is installed is those suites' to hold. Here is what is decided before
 anything is installed: whether anything is, and the resource everything is
 exported under, held to the `resource` rows of
-`specs/src/service-telemetry/telemetry.json`. Here is each reading, held to
+`protocol/specs/src/service-telemetry/telemetry.json`. Here is each reading, held to
 the rows of that table that every service exports. And here is how a number a
 service reads of what it keeps is reported as a gauge: when it is read, and
 what the gauge says between two reads.

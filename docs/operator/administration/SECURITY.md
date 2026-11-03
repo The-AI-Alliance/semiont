@@ -6,11 +6,11 @@ What Semiont enforces, what it leaves to the issuer and to your platform, and wh
 
 **Every request is authenticated.** Authentication is bearer-only: an `Authorization: Bearer` token on every request, and no session cookies. Semiont is a resource server, not an authorization server. It runs no sign-in flow and holds no password. People and services obtain tokens from the knowledge base's trusted issuer, and the gateway verifies each one against that issuer's published keys. Four operations are public: `GET /`, `GET /api/health`, `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. [Authentication](./AUTHENTICATION.md) has the whole model.
 
-**There is one authorization decision: authenticated, or 401.** No gateway route returns 403, and none reads a human role. Every authenticated caller can read and write all content in the knowledge base. Two roles exist, and both mark services, not people: `semiont-service` admits a service's account to the archivist, and `semiont-worker` admits a worker's claim on a job. See [RBAC.md](../../protocol/RBAC.md).
+**There is one authorization decision: authenticated, or 401.** No gateway route returns 403, and none reads a human role. Every authenticated caller can read and write all content in the knowledge base. Two roles exist, and both mark services, not people: `semiont-service` admits a service's account to the archivist, and `semiont-worker` admits a worker's claim on a job. See [RBAC.md](../../../protocol/contract/RBAC.md).
 
-**Every body is validated.** Each JSON body is checked against its schema in `specs/` and bounded by its operation's size limit.
+**Every body is validated.** Each JSON body is checked against its schema in `protocol/specs/` and bounded by its operation's size limit.
 
-**Every principal is limited.** The streams one principal holds and the emits it makes are bounded, for people and agents alike, and so are the bytes and connections one gateway process holds. A refusal is a 429 or a 503 with `Retry-After`: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits).
+**Every principal is limited.** The streams one principal holds and the emits it makes are bounded, for people and agents alike, and so are the bytes and connections one gateway process holds. A refusal is a 429 or a 503 with `Retry-After`: see [Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits).
 
 **Errors carry no internals.** No error body carries a stack trace, a source path or a secret's name. The cause goes to the log.
 
@@ -18,7 +18,7 @@ What Semiont enforces, what it leaves to the issuer and to your platform, and wh
 
 **The gateway has no development mode.** It reads no setting that relaxes any of the above, and behaves the same wherever it runs.
 
-The [gateway conformance suite](../../../packages/conformance/gateway/README.md) holds a built gateway to this on every pull request: every protected operation answers 401 without a credential and to a token it cannot verify, public operations answer without challenging, undeclared paths answer 404, and every response carries the security headers. A gateway whose routes are not exactly the spec's operations refuses to start.
+The [gateway conformance suite](../../../protocol/conformance/gateway/README.md) holds a built gateway to this on every pull request: every protected operation answers 401 without a credential and to a token it cannot verify, public operations answer without challenging, undeclared paths answer 404, and every response carries the security headers. A gateway whose routes are not exactly the spec's operations refuses to start.
 
 ## What is the issuer's
 

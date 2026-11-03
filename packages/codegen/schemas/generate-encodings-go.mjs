@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-encodings-go.mjs — generate the Go SDK's table of the Encoding
-// Standard from specs/src/text/encoding-cases.json, the table every reader of
+// Standard from protocol/specs/src/text/encoding-cases.json, the table every reader of
 // a resource's text runs.
 //
 //   packages/go/sdk/encodings_gen.go
@@ -21,7 +21,7 @@ import { writeOrCheck } from '../lib/committed-source.mjs';
 import { goComment } from '../lib/go-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/text/encoding-cases.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/text/encoding-cases.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/encodings_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -59,7 +59,7 @@ for (const stated of table.cases) {
 }
 const labels = [...encodingOf.keys()].sort();
 
-const text = `// Code generated from specs/src/text/encoding-cases.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/text/encoding-cases.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-encodings-go.mjs
 

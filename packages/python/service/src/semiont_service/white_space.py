@@ -1,4 +1,4 @@
-"""White space, as the case tables under `specs/src` count it: what Unicode gives the White_Space property.
+"""White space, as the case tables under `protocol/specs/src` count it: what Unicode gives the White_Space property.
 
 Python's own is another set. `str.isspace`, and so a bare `str.strip`, also
 takes the four separators U+001C to U+001F, which do not have the property.

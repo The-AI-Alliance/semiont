@@ -14,12 +14,12 @@
 // `nullable` translated. What is the tool's own — `kb`, an option such as
 // `withText`, a result's wrapping — the table states as a schema of its own
 // (`own`), and nothing else is. A member whose name starts with `_` is the
-// gateway's to stamp (docs/protocol/EVENT-BUS.md) and is refused as an
+// gateway's to stamp (protocol/contract/EVENT-BUS.md) and is refused as an
 // argument. A form this generator does not render is refused by name, rather
 // than rendered as a guess.
 //
 // The tool table holds whether each SDK method is called; TestMCPToolsCensus,
-// in the launcher, holds the table to specs/src/client/surface.json both ways.
+// in the launcher, holds the table to protocol/specs/src/client/surface.json both ways.
 //
 // --check diffs without writing (the CI drift gate).
 
@@ -156,7 +156,7 @@ const tools = table.tools.map((tool) => {
 const leftOut = Object.fromEntries(Object.keys(table.leftOut).sort().map((method) => [method, table.leftOut[method]]));
 const document = JSON.stringify({ tools, leftOut });
 
-const text = `// Code generated from ${TABLE} and specs/src/components/schemas — DO NOT EDIT.
+const text = `// Code generated from ${TABLE} and protocol/specs/src/components/schemas — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-mcp-tools-go.mjs
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-ts.mjs — regenerate the TypeScript bus authority from
-// specs/src/bus/registry.json.
+// protocol/specs/src/bus/registry.json.
 //
 //   packages/typescript/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS, TRACE_FIELD, CHANNEL_STAMPS and CHANNEL_PAYLOADS)
 //   packages/typescript/core/src/persisted-events.ts    (the persisted-event catalog)
@@ -19,8 +19,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
-const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
+const REGISTRY = resolve(ROOT, 'protocol/specs/src/bus/registry.json');
+const SCHEMAS = resolve(ROOT, 'protocol/specs/src/components/schemas');
 const PROTOCOL = resolve(ROOT, 'packages/typescript/core/src/bus-protocol.ts');
 const PERSISTED = resolve(ROOT, 'packages/typescript/core/src/persisted-events.ts');
 const BRIDGED = resolve(ROOT, 'packages/typescript/core/src/bridged-channels.ts');
@@ -46,7 +46,7 @@ const pad = (head, col) => head + (head.length < col ? ' '.repeat(col - head.len
  *  nobody hand-edits its output and wonders why it reverted. */
 const BANNER = `// ⚠ GENERATED FILE — do not edit.
 //
-// Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
+// Authority:   protocol/specs/src/bus/registry.json  (channels, payloads, operations)
 // Regenerate:  node packages/codegen/bus/generate-ts.mjs
 // Go counterpart: node packages/codegen/bus/generate-go.mjs → packages/go/sdk/bus
 //
@@ -445,7 +445,7 @@ const attrLines = attrs.map(({ channel, recorded, direction, writes, delivery })
 const classificationJson =
   JSON.stringify(
     {
-      $comment: 'GENERATED from specs/src/bus/registry.json by packages/codegen/bus/generate-ts.mjs — do not edit. Each channel\'s attributes, as packages/typescript/core/src/bus-classification.ts states them; the Rust gateway embeds this file.',
+      $comment: 'GENERATED from protocol/specs/src/bus/registry.json by packages/codegen/bus/generate-ts.mjs — do not edit. Each channel\'s attributes, as packages/typescript/core/src/bus-classification.ts states them; the Rust gateway embeds this file.',
       channels: Object.fromEntries(attrs.map(({ channel, ...rest }) => [channel, rest])),
     },
     null,
@@ -464,7 +464,7 @@ export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 /**
  * A channel's delivery class: what a subscriber is promised about a frame on
  * it when its stream drops, or is handed to another. The promise comes from
- * the frame's identity (docs/protocol/TRANSPORT-CONTRACT.md § Delivery).
+ * the frame's identity (protocol/contract/TRANSPORT-CONTRACT.md § Delivery).
  *
  *   positioned — a recorded event delivered on its resource's scope. Its id
  *                is its place in that resource's record: a subscriber that

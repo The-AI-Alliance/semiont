@@ -1,4 +1,4 @@
-"""The search pipeline: what its cases in `specs/src/client/state-units.json` cannot state.
+"""The search pipeline: what its cases in `protocol/specs/src/client/state-units.json` cannot state.
 
 Its behaviour is the table's, run by `tests/test_state_cases.py`. Here are the
 axioms, and that a search it abandons is closed.

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // generate-media-types-python.mjs — generate the Python SDK's media-type table
-// from specs/src/media-types/registry.json, the registry the TypeScript, Rust
+// from protocol/specs/src/media-types/registry.json, the registry the TypeScript, Rust
 // and Go generators read.
 //
 //   packages/python/sdk/src/semiont/media_types_table.py
 //
-// Python reads the registry for the two rules specs/src/media-types/cases.json
+// Python reads the registry for the two rules protocol/specs/src/media-types/cases.json
 // holds in every SDK (the format a clone takes, and the name content is
 // stored under) and for what a worker asks of a type: where its text comes
 // from, and whether a generation can write it. So a row carries its media
@@ -21,15 +21,15 @@ import { readMediaTypeTable } from './media-type-table.mjs';
 import { pyBanner, pyString } from '../lib/python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/media-types/registry.json');
-const ENUM = resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/media-types/registry.json');
+const ENUM = resolve(ROOT, 'protocol/specs/src/components/schemas/SupportedMediaType.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/media_types_table.py');
 const CHECK = process.argv.includes('--check');
 
 const { table, rows } = readMediaTypeTable(TABLE, ENUM);
 const pyBool = (value) => (value ? 'True' : 'False');
 
-const text = `${pyBanner('specs/src/media-types/registry.json', 'packages/codegen/schemas/generate-media-types-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/media-types/registry.json', 'packages/codegen/schemas/generate-media-types-python.mjs')}
 """The media types a knowledge base admits, with what this SDK reads of each."""
 
 from dataclasses import dataclass

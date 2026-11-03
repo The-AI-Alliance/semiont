@@ -1,4 +1,4 @@
-"""The transport contract (`docs/protocol/TRANSPORT-CONTRACT.md`): what a client needs of whatever carries the bus.
+"""The transport contract (`protocol/contract/TRANSPORT-CONTRACT.md`): what a client needs of whatever carries the bus.
 
 A `Transport` is the bus over some carrier: an emit out, frames in, the
 connection's state, the failures it met, the resource scopes it holds and the
@@ -58,7 +58,7 @@ __all__ = [
 ]
 
 type ConnectionState = Literal["initial", "connecting", "open", "reconnecting", "degraded", "unauthenticated", "closed"]
-"""Whether the bus can deliver (`docs/protocol/TRANSPORT-HTTP.md` § Connection lifecycle).
+"""Whether the bus can deliver (`protocol/contract/TRANSPORT-HTTP.md` § Connection lifecycle).
 
 - `initial`: before the transport has started its stream.
 - `connecting`: a connect is in flight and no stream is live.

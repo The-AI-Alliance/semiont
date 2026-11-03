@@ -2,7 +2,7 @@
 // lint:spec-reply-bounds — how large each answer on the bus can be.
 //
 // A bus message is bounded by its question; an answer whose size follows a
-// document or a collection is read over HTTP. specs/src/bus/reply-bounds.json
+// document or a collection is read over HTTP. protocol/specs/src/bus/reply-bounds.json
 // names each list or map an operation's reply carries that its own schema does
 // not bound: one bounded by a member of the request, or one that grows.
 //
@@ -25,12 +25,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const SCHEMAS = resolve(REPO, 'specs/src/components/schemas');
+const SCHEMAS = resolve(REPO, 'protocol/specs/src/components/schemas');
 const RECORD = ['ResourceDescriptor.json', 'Annotation.json'];
 
 const load = (file) => JSON.parse(readFileSync(file, 'utf8'));
-const registry = load(resolve(REPO, 'specs/src/bus/registry.json'));
-const table = load(resolve(REPO, 'specs/src/bus/reply-bounds.json')).replies;
+const registry = load(resolve(REPO, 'protocol/specs/src/bus/registry.json'));
+const table = load(resolve(REPO, 'protocol/specs/src/bus/reply-bounds.json')).replies;
 const channels = new Map(registry.channels.map((entry) => [entry.channel, entry]));
 
 const failures = [];

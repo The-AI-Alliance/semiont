@@ -22,7 +22,7 @@ import type { JobErrorCode } from '@semiont/core';
 
 /**
  * The single derivation site: a floor, and a wait that grows with the
- * length asked for. The three numbers are specs/src/client/timing.json's, so
+ * length asked for. The three numbers are protocol/specs/src/client/timing.json's, so
  * every SDK waits as long.
  */
 export function deriveStallDeadlineMs(maxTokens: number | undefined): number {

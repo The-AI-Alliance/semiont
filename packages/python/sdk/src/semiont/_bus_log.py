@@ -3,7 +3,7 @@
     [bus EMIT] mark:create-request scope=res-1 cid=a89a670a trace=8f3ca4ed {"resourceId":"res-1"}
 
 Every Semiont SDK writes it, in one form, so that the lines of several
-processes read as one timeline (`docs/protocol/EVENT-BUS.md` § Wire format).
+processes read as one timeline (`protocol/contract/EVENT-BUS.md` § Wire format).
 A line is what was sent or asked for, written when it is: the frame's
 channel, or `content` for a read or an upload; the resource's scope, the
 first eight characters of the correlation id, and the first eight of the id
@@ -18,7 +18,7 @@ No line holds a credential. The value of a member whose whole name is one a
 credential goes by (`token`, which is what the spec names the token a
 resource is cloned by, and the rest of `_CREDENTIALS` below) is not written,
 wherever in a payload it is: `[withheld]` is written in its place, as every
-bus log writes it (`specs/src/bus/log-cases.json`).
+bus log writes it (`protocol/specs/src/bus/log-cases.json`).
 """
 
 import json
@@ -57,7 +57,7 @@ _CREDENTIALS: Final = frozenset(
 )
 """The names of the members whose value is one.
 
-The list `specs/src/bus/log-cases.json` states for every bus log, which this
+The list `protocol/specs/src/bus/log-cases.json` states for every bus log, which this
 package's tests hold this one to.
 """
 

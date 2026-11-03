@@ -111,7 +111,7 @@ private func withoutDroppedStamps(_ input: JSONValue, _ back: JSONValue) throws 
   var refused: Set<String> = []
   var held = 0
   for directory in [
-    "packages/conformance/sdk/wire", "packages/conformance/sdk/live", "packages/conformance/worker",
+    "protocol/conformance/sdk/wire", "protocol/conformance/sdk/live", "protocol/conformance/worker",
   ] {
     for file in try Spec.jsonFiles(directory) {
       let value = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: file))

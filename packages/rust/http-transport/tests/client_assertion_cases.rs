@@ -1,5 +1,5 @@
 //! A service account's assertion of itself, held to
-//! specs/src/session/client-assertion-cases.json.
+//! protocol/specs/src/session/client-assertion-cases.json.
 //!
 //! The table states the shape: the thumbprint a key is named by, and the
 //! header and claims an assertion carries. The signature over them, and the
@@ -15,7 +15,7 @@ use serde_json::Value;
 
 fn table() -> Value {
     serde_json::from_str(include_str!(
-        "../../../../specs/src/session/client-assertion-cases.json"
+        "../../../../protocol/specs/src/session/client-assertion-cases.json"
     ))
     .expect("the table is JSON")
 }

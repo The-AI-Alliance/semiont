@@ -1,4 +1,4 @@
-"""The lists read off a knowledge graph, held to `specs/src/librarian/derive-views-cases.json`.
+"""The lists read off a knowledge graph, held to `protocol/specs/src/librarian/derive-views-cases.json`.
 
 It is the table every implementation of the reading runs, so that one graph
 gives one set of connections, citations and sibling entity types in any

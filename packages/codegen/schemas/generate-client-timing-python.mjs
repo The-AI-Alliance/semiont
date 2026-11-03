@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Python SDK's client constants from specs/src/client/timing.json:
+// Generate the Python SDK's client constants from protocol/specs/src/client/timing.json:
 // its deadlines, its retry budgets, the cadence of its stream, and what it
 // keeps count of.
 //
@@ -24,7 +24,7 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/timing.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/client/timing.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/timing.py'));
 const CHECK = process.argv.includes('--check');
 
@@ -41,7 +41,7 @@ const constants = timing.map(({ name, value, docs }) =>
     : `${pyComment(docs)}\n${pyConstant(name)}: Final = ${value}\n`,
 );
 
-const text = `${pyBanner('specs/src/client/timing.json', 'packages/codegen/schemas/generate-client-timing-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/client/timing.json', 'packages/codegen/schemas/generate-client-timing-python.mjs')}
 """The timing a Semiont client keeps: its deadlines, its retry budgets, the
 cadence of its stream, and what it keeps count of.
 

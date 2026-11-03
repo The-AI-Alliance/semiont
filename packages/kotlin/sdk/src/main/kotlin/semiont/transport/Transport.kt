@@ -208,7 +208,7 @@ internal class Broadcast<T : Any>(private val keepForFirst: Boolean = false) {
     }
 }
 
-/** A connection's state: whether the bus can deliver (docs/protocol/TRANSPORT-HTTP.md, Connection lifecycle). */
+/** A connection's state: whether the bus can deliver (protocol/contract/TRANSPORT-HTTP.md, Connection lifecycle). */
 public enum class ConnectionState(
     /** The state as every SDK spells it. */
     public val wire: String,
@@ -337,7 +337,7 @@ internal class ReplyRouter {
     }
 }
 
-/** The bus, over whatever carries it (docs/protocol/TRANSPORT-CONTRACT.md). */
+/** The bus, over whatever carries it (protocol/contract/TRANSPORT-CONTRACT.md). */
 public interface Transport : AutoCloseable {
     /** What the transport speaks to: an origin over HTTP. */
     public val baseUrl: String

@@ -1,7 +1,7 @@
 """What a point of the index is: the key it is kept under, its payload, and how a stamp and a search result are read from a payload.
 
 A point one implementation wrote is read by another, so this is stated once
-and every store goes through it: `specs/src/vectors/payload-cases.json` holds
+and every store goes through it: `protocol/specs/src/vectors/payload-cases.json` holds
 it, and the tests run that table.
 
 A payload has the members named here and no other. It does not say which

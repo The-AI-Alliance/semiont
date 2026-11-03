@@ -4,7 +4,7 @@ package semiont.annotations
  * A span of a text, and finding the one a model quoted. A model asked to mark
  * a text quotes it, and nothing it says is trusted: `reconcile` finds the
  * quoted words in the text and answers a span that is the text's own, or
- * nothing (specs/src/annotations/reconcile-cases.json).
+ * nothing (protocol/specs/src/annotations/reconcile-cases.json).
  */
 
 /**

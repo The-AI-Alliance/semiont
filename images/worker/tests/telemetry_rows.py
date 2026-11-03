@@ -1,4 +1,5 @@
-"""The rows of `specs/src/service-telemetry/telemetry.json` that list the worker, for the tests that hold what the service records."""
+"""The rows of `protocol/specs/src/service-telemetry/telemetry.json` that list the worker, for the tests that hold
+what the service records."""
 
 from typing import Final
 

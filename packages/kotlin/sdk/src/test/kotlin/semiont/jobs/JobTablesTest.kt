@@ -16,7 +16,7 @@ import semiont.types.wireJson
 
 private fun cases(table: String): List<JsonObject> = Spec.read(table).jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 
-/** The two tables a worker answers alike with the dispatcher: specs/src/jobs/filter-cases.json and retry-cases.json. */
+/** The two tables a worker answers alike with the dispatcher: protocol/specs/src/jobs/filter-cases.json and retry-cases.json. */
 class JobTablesTest {
     @Test
     fun whetherAJobMatchesAFilterIsTheTablesAnswer() {

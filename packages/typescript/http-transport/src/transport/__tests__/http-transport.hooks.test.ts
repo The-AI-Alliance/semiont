@@ -425,7 +425,7 @@ describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
     // The transport was made with a token, and opened its stream then.
     await vi.waitFor(() => expect(seen).toHaveLength(1));
     // The error a refused request is, with a code from
-    // specs/src/errors/codes.json: a consumer routing on `unauthorized` hears
+    // protocol/specs/src/errors/codes.json: a consumer routing on `unauthorized` hears
     // a refused stream as it hears a refused request.
     expect(seen[0]).toBeInstanceOf(APIError);
     expect((seen[0] as APIError).status).toBe(401);

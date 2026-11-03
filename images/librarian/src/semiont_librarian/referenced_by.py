@@ -1,7 +1,7 @@
 """What refers to a resource: the annotations elsewhere that link to it, each with the name of the resource it is on.
 
 `gather:referenced-by-requested` names a resource, and may name a motivation
-(`docs/protocol/LIBRARIAN.md` § What refers to a resource). It asks which
+(`protocol/contract/LIBRARIAN.md` § What refers to a resource). It asks which
 links arrive at a resource, which only the graph answers. The graph is asked
 as it holds them then: nothing here waits for it. A resource nobody made is
 no resource nothing refers to: the request fails for one the record does not

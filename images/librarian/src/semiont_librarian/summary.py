@@ -1,6 +1,6 @@
 """An annotation's summary: what a model says of a passage where it stands.
 
-`docs/protocol/LIBRARIAN.md` § An annotation's summary states it. The
+`protocol/contract/LIBRARIAN.md` § An annotation's summary states it. The
 resource is read as the record describes it, and the annotation on it; the
 resource's text is read and cut around what the annotation selects, 200 code
 points on each side; the model is asked with the annotation-summary prompt;

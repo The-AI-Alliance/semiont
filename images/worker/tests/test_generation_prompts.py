@@ -1,7 +1,7 @@
 """What a generation says to its model.
 
 Four prompts are stated outside the worker's source: the files
-`yield-*.txt` of `packages/conformance/worker-service/prompts`, each the exact
+`yield-*.txt` of `protocol/conformance/worker-service/prompts`, each the exact
 text of one prompt less its one final line end. A prompt built here from what
 the suite's case asked with, around the resource's text as the file carries
 it, is that file's text.
@@ -30,7 +30,7 @@ from semiont_worker.generation.resource_generation import (
 )
 from semiont_worker.log import LOG
 
-PROMPTS: Final = ROOT / "packages/conformance/worker-service/prompts"
+PROMPTS: Final = ROOT / "protocol/conformance/worker-service/prompts"
 
 type Wire = dict[str, JsonValue]
 """Part of a job, as the wire carries it."""

@@ -1,4 +1,4 @@
-//! A checkpoint merged into a job's record (docs/protocol/JOBS.md
+//! A checkpoint merged into a job's record (protocol/contract/JOBS.md
 //! § Checkpoints): finished units by union, and one cursor for each unit,
 //! finished or not, replaced whole and only by one that got further.
 

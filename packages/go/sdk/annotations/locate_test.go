@@ -1,7 +1,7 @@
 package annotations
 
 // Where a span of a PDF's text is on its pages, held to the `cases` of
-// specs/src/annotations/pdf-locate-cases.json. The table's `claims` and
+// protocol/specs/src/annotations/pdf-locate-cases.json. The table's `claims` and
 // `landing` are the first-party worker's, and no SDK's.
 
 import (
@@ -14,7 +14,7 @@ import (
 )
 
 func TestASpanIsLocatedAsTheTableSays(t *testing.T) {
-	text, err := os.ReadFile("../../../../specs/src/annotations/pdf-locate-cases.json")
+	text, err := os.ReadFile("../../../../protocol/specs/src/annotations/pdf-locate-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

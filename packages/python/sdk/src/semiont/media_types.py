@@ -1,8 +1,8 @@
 """The rules read from the media types a knowledge base admits.
 
-The table is `specs/src/media-types/registry.json`
+The table is `protocol/specs/src/media-types/registry.json`
 (`semiont.media_types_table`), and the rules are the ones
-`specs/src/media-types/cases.json` holds in every SDK: the format a clone
+`protocol/specs/src/media-types/cases.json` holds in every SDK: the format a clone
 takes, the name content is stored under, and where a type's text comes from,
 with what follows from that.
 """

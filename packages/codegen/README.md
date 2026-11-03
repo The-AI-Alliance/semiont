@@ -1,6 +1,6 @@
 # Repository code generation
 
-The declarative inputs live in `specs/`. Executable generation tooling lives here:
+The declarative inputs live in `protocol/specs/`. Executable generation tooling lives here:
 
 - `bus/`: registry validation and bus generation across languages.
 - `schemas/`: schema readers and SDK generation.

@@ -1,4 +1,4 @@
-"""How the worker plans the pieces of a text, held to `specs/src/worker/chunk-plan-cases.json`.
+"""How the worker plans the pieces of a text, held to `protocol/specs/src/worker/chunk-plan-cases.json`.
 
 It is the table every worker runs, so that one text under one budget is asked
 about in the same pieces, and a failed piece is asked again the same way,
@@ -74,7 +74,7 @@ class StatedVerdict(Stated, frozen=True):
 
 
 class StatedFailure(Stated, frozen=True):
-    """A failure, described as `specs/src/worker/failure-class-cases.json` describes one, with what a yield collapse carries."""
+    """A failure, described as `protocol/specs/src/worker/failure-class-cases.json` describes one, with what a yield collapse carries."""
 
     name: str
     stop_reason: Annotated[str | None, Field(alias="stopReason")] = None

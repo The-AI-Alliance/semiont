@@ -1,7 +1,7 @@
 """The recorded events the Weaver's fold applies.
 
 The fold applies eight of the events a knowledge base records
-(`docs/protocol/WEAVER.md` § The fold). Every other event of a resource's log
+(`protocol/contract/WEAVER.md` § The fold). Every other event of a resource's log
 is taken as nothing: a Weaver follows the record whole
 (`semiont_service.follower`), and an event it has no use for moves its cursor
 all the same. Each is a stored event, whose own payload is its channel's to

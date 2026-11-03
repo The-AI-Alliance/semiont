@@ -4,7 +4,7 @@ package verbs
 //
 // `semiont login` stores a short-lived access token and the refresh token that
 // renews it. A verb's session is the Go SDK's, held to the session table every
-// SDK runs (specs/src/session/cases.json): it asks the gateway who its token
+// SDK runs (protocol/specs/src/session/cases.json): it asks the gateway who its token
 // is at its start, renews a token that has expired or that the gateway
 // refuses, goes on under the renewed token and keeps the rotation, and
 // forgets a sign-in the issuer will not renew. The user is sent back to

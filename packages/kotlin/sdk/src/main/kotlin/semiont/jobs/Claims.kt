@@ -69,7 +69,7 @@ internal class Holder(
 /**
  * A worker's claims, from `job.claim`: each job the worker comes to hold, one
  * at a time (`next`), and each claim it was refused (`refused`)
- * (docs/protocol/WORKER-CONTRACT.md).
+ * (protocol/contract/WORKER-CONTRACT.md).
  *
  * The worker claims at every moment it becomes idle, and never otherwise:
  * once the stream is open after its claims are first read, when it settles

@@ -7,7 +7,7 @@ import kotlin.math.abs
 
 /*
  * Where a span of a PDF's text is on its pages
- * (specs/src/annotations/pdf-locate-cases.json): one rectangle for each line
+ * (protocol/specs/src/annotations/pdf-locate-cases.json): one rectangle for each line
  * it touches, each written as an RFC 3778 fragment. Coordinates are PDF points
  * from the bottom-left corner of the page, `y` growing upward.
  */

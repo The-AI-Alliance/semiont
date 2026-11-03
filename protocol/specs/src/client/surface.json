@@ -1,0 +1,2042 @@
+{
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by .github/scripts/checks/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's; each of its sections holds the SDKs it has a reader for. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust and `ResourceContent` in Go, whose first letter is a capital), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). Swift keeps both names, including its contextual `yield`. Neither is a keyword in Kotlin, which keeps both names; Java reaches them through their getters (`getYield()`), which Java's contextual `yield` does not touch. An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK. `worker` is the surface of what a worker is handed: the claims `job.claim` returns, and a job the worker holds. Each lists its members by name, and the same lint holds every SDK to the list both ways: a member the list has and an SDK lacks, and a public member an SDK has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's: what a held job states is a property in TypeScript and Python and a method in Rust, and a property that gives a stream of values is named `<member>$` in TypeScript. What a language's own protocols give a type is no member here: how a type is made, Python's names that begin with an underscore, its `__aenter__` and `__anext__` among them, Rust's trait implementations, and what a TypeScript class inherits from a class the SDK does not declare. `absent` is as it is for a method. `named` gives the name an SDK has the member under where its ecosystem has a name of its own for it, and why: the lint then fails if that SDK lacks that name, or has the table's name as well. `takes` marks a member a held job has as its verb's: for each verb, the schema of what the member takes. What a member does is not held here and these rows have no cases: protocol/contract/WORKER-CONTRACT.md states it, and the worker conformance suite (protocol/conformance/worker) holds each SDK to it. Add a member here before adding it to any SDK. `stateUnits` lists each state unit: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways: a unit an SDK does not declare, or declares as no `StateUnit`; a `StateUnit` an SDK declares among its units that no row makes; a member the list has and an SDK's unit lacks; and a public member an SDK's unit has and the list lacks. A member is held by its name alone, spelled as its language spells it, and its form is its language's, as for `worker`; a member's `absent` names an SDK whose unit has no such member, and why, and the lint then fails if that SDK's unit has it. `dispose` is no member here: every unit has it, being a `StateUnit`. How a unit is made is held apart from its members: every unit can be made from outside its SDK, by the type's own public constructor (Rust's `pub fn new` in the type's own `impl`, Python's class), or by the public function that `madeBy` names for that SDK, spelled as that SDK spells it, where the constructor is not what makes it; Go has no constructors, so every Go unit names one. The same lint fails a unit no public way makes, and a `madeBy` that names a function its SDK lacks, or has but not publicly. Public is reachable from outside the SDK, including what Swift declares `public` or `open`: what TypeScript's entry (packages/typescript/sdk/src/index.ts) exports, an item a module Rust's crate root reaches declares or re-exports, a name in the `__all__` of a Python module whose path has no private part, what Kotlin declares `public`, and what Go exports from a package that is not internal. `absent` names an SDK that has no such unit, and why: the lint then fails if that SDK has one. What a unit does is not held here: each SDK's tests of its units hold that. Add a unit or a member here before adding it to any SDK. `wire` is the typed bus over a client's transport, which every client hands out as `wire`: what each SDK makes it as (`made`), and its members by name. The same lint holds every SDK to it both ways, as for a state unit: a bus an SDK does not declare, a member the list has and an SDK's bus lacks, and a public member an SDK's bus has and the list lacks; a member's `absent` names an SDK whose bus has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`; how a bus is made is no member. A Go method takes no type parameters, so a member of Go's bus that is generic in its channel is a function of its package that takes the bus (`Emit(ctx, w, bus.MarkSubmit, payload)`). TypeScript's bus is read where @semiont/core declares it. A transport is no member: a bus hands out none. Add a member here before adding it to any SDK. `storage` is where a client keeps text under a key: the interface an application implements (a trait in Rust, a protocol in Python), what each SDK names it (`made`), and its members by name. The same lint holds every SDK to it both ways, as for `wire`: a storage an SDK does not declare, a member the list has and an SDK's storage lacks, and a public member an SDK's storage has and the list lacks; a member's `absent` names an SDK whose storage has no such member, and why, and the lint then fails if that SDK's has it. A member is held by its name alone, as for `worker`. What implements a storage is not read here. Add a member here before adding it to any SDK. `modules` is what each SDK has beside its namespaces: the free functions, types and values of its modules, each module with where each SDK keeps it and its members. A member is named as the table spells it and held by its `kind`: a `function` is spelled by each language's convention, a `reader` as a function but `get` and its name in TypeScript, a `type` as the table spells it, and a `constant` in capitals with underscores but in Go, as a function, and in Swift, as the table spells it. `named` gives an SDK's own name where the rule does not, `absent` says why an SDK has none, and `notYetReached`, on a member or a module, names an SDK still to have it; each is stale, and fails the lint, once it is not so. A module whose `whole` names an SDK is that SDK's files alone, and every public member of them is listed.",
+  "shapes": {
+    "promise": "Asked once, answered once: the value, or a failure with a code.",
+    "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
+    "delegation": "A job another party does: the job's events as it goes, the queue's naming of it the first of them and its completion the last. Awaited, it gives the completion.",
+    "upload": "An upload in flight: its progress, then the id of the resource created.",
+    "cache": "A live query. Building it touches nothing; its one-shot read asks the service now.",
+    "signal": "Fire-and-forget. Nothing is returned and nothing is awaited.",
+    "count": "A drive at the other participants: resolves with how many the gateway reached, or with no count when it kept none.",
+    "events": "The events of one channel of the client's own bus, from now on.",
+    "claims": "A worker's claims: each job it comes to hold, one at a time, from the first claim on. A held job starts, reports and settles itself."
+  },
+  "via": {
+    "request": "A request of a bus operation, answered on its result or failure channel.",
+    "emit": "A frame sent over the wire, with no reply awaited.",
+    "local": "A frame published on the client's own bus and nowhere else.",
+    "content": "An operation of the content transport: putBinary, getBinary, getBinaryStream, getResourceGraph, getAnnotations or getAnchoredText.",
+    "gateway": "One of the gateway's own operations: getCurrentUser, getMediaToken, getProtectedResourceMetadata, healthCheck or getStatus.",
+    "observes": "The channel of the client's own bus whose frames an `events` row gives."
+  },
+  "fixtures": {
+    "context": {
+      "focus": {
+        "kind": "resource",
+        "resource": {
+          "@context": "https://schema.org",
+          "@id": "res-1",
+          "name": "A resource",
+          "representations": [{ "mediaType": "text/plain" }]
+        }
+      },
+      "graph": { "nodes": [], "edges": [] },
+      "metadata": {}
+    },
+    "selector": { "type": "TextQuoteSelector", "exact": "hello" }
+  },
+  "namespaces": [
+    {
+      "namespace": "frame",
+      "docs": "The knowledge base's vocabulary: what kinds of things exist.",
+      "notYetReached": {"csharp": "C# is still to implement the frame namespace.", "swift": "The Swift SDK's frame: The knowledge base's vocabulary: what kinds of things exist."},
+      "methods": [
+        {
+          "method": "addEntityType",
+          "shape": "promise",
+          "via": { "request": "frame:add-entity-type" },
+          "cases": [{ "args": { "type": "Person" }, "sends": { "tag": "Person" } }]
+        },
+        {
+          "method": "addEntityTypes",
+          "shape": "promise",
+          "via": { "request": "frame:add-entity-type" },
+          "cases": [
+            {
+              "why": "one request per type, in order, each awaited",
+              "args": { "types": ["Person", "Place"] },
+              "sends": { "tag": "Person" },
+              "answers": null,
+              "then": [{ "request": "frame:add-entity-type", "sends": { "tag": "Place" } }]
+            }
+          ]
+        },
+        {
+          "method": "addTagSchema",
+          "shape": "promise",
+          "via": { "request": "frame:add-tag-schema" },
+          "cases": [
+            {
+              "args": { "schema": { "id": "s1", "name": "Structure", "description": "Parts of an argument", "domain": "legal", "tags": [] } },
+              "sends": { "schema": { "id": "s1", "name": "Structure", "description": "Parts of an argument", "domain": "legal", "tags": [] } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "browse",
+      "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
+      "notYetReached": {"csharp": "C# is still to implement the browse namespace.", "swift": "The Swift SDK's browse: Reads: live queries, one-shot reads, and this viewer's own signals."},
+      "methods": [
+        {
+          "method": "resource",
+          "shape": "cache",
+          "via": { "request": "browse:resource-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resources",
+          "shape": "cache",
+          "via": { "request": "browse:resources-requested" },
+          "cases": [
+            { "why": "no filters: the first hundred", "args": {}, "sends": { "limit": 100, "offset": 0 } },
+            {
+              "args": { "filters": { "archived": false, "entityType": "Person", "limit": 5 } },
+              "sends": { "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
+            },
+            {
+              "why": "a page further on: the resources before it are passed over",
+              "args": { "filters": { "limit": 50, "offset": 100 } },
+              "sends": { "limit": 50, "offset": 100 }
+            }
+          ]
+        },
+        {
+          "method": "annotations",
+          "shape": "cache",
+          "via": { "content": "getAnnotations" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "annotation",
+          "shape": "cache",
+          "via": { "request": "browse:annotation-requested" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "entityTypes",
+          "shape": "cache",
+          "via": { "request": "browse:entity-types-requested" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "tagSchemas",
+          "shape": "cache",
+          "via": { "request": "browse:tag-schemas-requested" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "engines",
+          "shape": "cache",
+          "via": { "request": "browse:engines-requested" },
+          "cases": [{ "why": "the engines are asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
+        },
+        {
+          "method": "events",
+          "shape": "cache",
+          "via": { "request": "browse:events-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceContent",
+          "shape": "promise",
+          "via": { "content": "getBinary" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceGraph",
+          "shape": "promise",
+          "via": { "content": "getResourceGraph" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceAnchoredText",
+          "shape": "promise",
+          "via": { "content": "getAnchoredText" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceRepresentation",
+          "shape": "promise",
+          "via": { "content": "getBinary" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceRepresentationStream",
+          "shape": "promise",
+          "via": { "content": "getBinaryStream" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceEvents",
+          "shape": "promise",
+          "via": { "request": "browse:events-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "annotationHistory",
+          "shape": "promise",
+          "via": { "request": "browse:annotation-history-requested" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "files",
+          "shape": "promise",
+          "via": { "request": "browse:directory-requested" },
+          "cases": [
+            { "why": "no arguments: the root, by name", "args": {}, "sends": { "path": ".", "sort": "name" } },
+            { "args": { "dirPath": "docs", "sort": "mtime" }, "sends": { "path": "docs", "sort": "mtime" } }
+          ]
+        },
+        {
+          "method": "kb",
+          "shape": "promise",
+          "via": { "request": "browse:kb-requested" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "click",
+          "shape": "signal",
+          "via": { "local": "browse:click" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "openResource",
+          "shape": "signal",
+          "via": { "local": "browse:resource-open" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceViewed",
+          "shape": "signal",
+          "via": { "emit": "browse:resource-viewed" },
+          "cases": [{ "why": "a report, so it goes over the wire", "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        }
+      ]
+    },
+    {
+      "namespace": "mark",
+      "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
+      "notYetReached": {"csharp": "C# is still to implement the mark namespace.", "swift": "The Swift SDK's mark: Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job."},
+      "methods": [
+        {
+          "method": "annotation",
+          "shape": "promise",
+          "via": { "request": "mark:create-request" },
+          "cases": [
+            {
+              "why": "the resource is the annotation's target",
+              "args": { "input": { "motivation": "highlighting", "target": { "source": "res-1" } } },
+              "sends": { "resourceId": "res-1", "request": { "motivation": "highlighting", "target": { "source": "res-1" } } }
+            }
+          ]
+        },
+        {
+          "method": "delete",
+          "shape": "promise",
+          "via": { "request": "mark:delete" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1", "resourceId": "res-1" } }]
+        },
+        {
+          "method": "archive",
+          "shape": "promise",
+          "via": { "request": "mark:archive" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "unarchive",
+          "shape": "promise",
+          "via": { "request": "mark:unarchive" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "updateEntityTypes",
+          "shape": "promise",
+          "via": { "request": "mark:update-entity-types" },
+          "cases": [
+            {
+              "args": { "resourceId": "res-1", "current": ["Person"], "updated": ["Person", "Place"] },
+              "sends": { "resourceId": "res-1", "currentEntityTypes": ["Person"], "updatedEntityTypes": ["Person", "Place"] }
+            }
+          ]
+        },
+        {
+          "method": "delegate",
+          "shape": "delegation",
+          "via": { "request": "job:create" },
+          "cases": [
+            {
+              "why": "the namespace is the verb, so the job is a mark job; its parameters state its motivation",
+              "args": { "resourceId": "res-1", "params": { "motivation": "highlighting" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "highlighting" } }
+            },
+            {
+              "args": { "resourceId": "res-1", "params": { "motivation": "linking", "entityTypes": ["Person"], "includeDescriptiveReferences": true } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "linking", "entityTypes": ["Person"], "includeDescriptiveReferences": true } }
+            },
+            {
+              "why": "a tagging job is given what a tagging job takes, each parameter under its own name",
+              "args": { "resourceId": "res-1", "params": { "motivation": "tagging", "schemaId": "s1", "categories": ["claim"], "language": "en", "sourceLanguage": "fr" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "tagging", "schemaId": "s1", "categories": ["claim"], "language": "en", "sourceLanguage": "fr" } }
+            },
+            {
+              "why": "an assessing job is given what an assessing job takes",
+              "args": { "resourceId": "res-1", "params": { "motivation": "assessing", "instructions": "be brief", "tone": "critical", "density": 2.5, "language": "en", "sourceLanguage": "fr" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "assessing", "instructions": "be brief", "tone": "critical", "density": 2.5, "language": "en", "sourceLanguage": "fr" } }
+            },
+            {
+              "args": { "resourceId": "res-1", "params": { "motivation": "commenting", "tone": "scholarly" } },
+              "sends": { "jobType": "mark", "resourceId": "res-1", "params": { "motivation": "commenting", "tone": "scholarly" } }
+            }
+          ]
+        },
+        {
+          "method": "request",
+          "shape": "signal",
+          "via": { "local": "mark:requested" },
+          "cases": [
+            {
+              "args": { "source": "res-1", "selector": { "$fixture": "selector" }, "motivation": "highlighting" },
+              "sends": { "source": "res-1", "selector": { "$fixture": "selector" }, "motivation": "highlighting" }
+            }
+          ]
+        },
+        {
+          "method": "submit",
+          "shape": "signal",
+          "via": { "local": "mark:submit" },
+          "cases": [
+            {
+              "args": { "input": { "source": "res-1", "motivation": "highlighting", "selector": { "$fixture": "selector" } } },
+              "sends": { "source": "res-1", "motivation": "highlighting", "selector": { "$fixture": "selector" } }
+            }
+          ]
+        },
+        {
+          "method": "reportDeleteError",
+          "shape": "signal",
+          "via": { "local": "mark:delete-error" },
+          "cases": [
+            {
+              "args": { "input": { "resourceId": "res-1", "message": "the delete was refused" } },
+              "sends": { "resourceId": "res-1", "message": "the delete was refused" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "bind",
+      "docs": "Linking a reference to what it refers to.",
+      "notYetReached": {"csharp": "C# is still to implement the bind namespace.", "swift": "The Swift SDK's bind: Linking a reference to what it refers to."},
+      "methods": [
+        {
+          "method": "body",
+          "shape": "promise",
+          "via": { "request": "bind:update-body" },
+          "cases": [
+            {
+              "args": { "resourceId": "res-1", "annotationId": "ann-1", "operations": [{ "op": "remove" }] },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "operations": [{ "op": "remove" }] }
+            }
+          ]
+        },
+        {
+          "method": "initiate",
+          "shape": "signal",
+          "via": { "local": "bind:initiate" },
+          "cases": [
+            {
+              "args": { "input": { "annotationId": "ann-1", "resourceId": "res-1", "defaultTitle": "A title", "entityTypes": ["Person"] } },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "defaultTitle": "A title", "entityTypes": ["Person"] }
+            }
+          ]
+        },
+        {
+          "method": "reportBodyError",
+          "shape": "signal",
+          "via": { "local": "bind:body-error" },
+          "cases": [
+            {
+              "args": { "input": { "resourceId": "res-1", "message": "the link was refused" } },
+              "sends": { "resourceId": "res-1", "message": "the link was refused" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "gather",
+      "docs": "Assembling the context a model is given, and what refers to a resource.",
+      "notYetReached": {"csharp": "C# is still to implement the gather namespace.", "swift": "The Swift SDK's gather: Assembling the context a model is given, and what refers to a resource."},
+      "methods": [
+        {
+          "method": "annotation",
+          "shape": "stream",
+          "via": { "request": "gather:requested" },
+          "cases": [
+            {
+              "why": "no options: a window of two thousand characters",
+              "args": { "resourceId": "res-1", "annotationId": "ann-1" },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 2000 } }
+            },
+            {
+              "args": { "resourceId": "res-1", "annotationId": "ann-1", "options": { "contextWindow": 500 } },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 500 } }
+            },
+            {
+              "why": "a context asked for or left out is sent as stated, false as well as true; the window not stated is two thousand",
+              "args": { "resourceId": "res-1", "annotationId": "ann-1", "options": { "includeSourceContext": false, "includeTargetContext": true } },
+              "sends": {
+                "annotationId": "ann-1",
+                "resourceId": "res-1",
+                "options": { "includeSourceContext": false, "includeTargetContext": true, "contextWindow": 2000 }
+              }
+            }
+          ]
+        },
+        {
+          "method": "resource",
+          "shape": "promise",
+          "via": { "request": "gather:resource-requested" },
+          "cases": [
+            {
+              "why": "no options: two hops, ten resources, their content and no summary",
+              "args": { "resourceId": "res-1" },
+              "sends": { "resourceId": "res-1", "options": { "depth": 2, "maxResources": 10, "includeContent": true, "includeSummary": false } }
+            },
+            {
+              "args": { "resourceId": "res-1", "options": { "depth": 1, "maxResources": 3, "includeContent": false, "includeSummary": true, "excludeEntityTypes": ["Question"] } },
+              "sends": { "resourceId": "res-1", "options": { "depth": 1, "maxResources": 3, "includeContent": false, "includeSummary": true, "excludeEntityTypes": ["Question"] } }
+            },
+            {
+              "why": "an empty exclusion is no exclusion, and is not sent",
+              "args": { "resourceId": "res-1", "options": { "excludeEntityTypes": [] } },
+              "sends": { "resourceId": "res-1", "options": { "depth": 2, "maxResources": 10, "includeContent": true, "includeSummary": false } }
+            }
+          ]
+        },
+        {
+          "method": "referencedBy",
+          "shape": "cache",
+          "via": { "request": "gather:referenced-by-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        }
+      ]
+    },
+    {
+      "namespace": "match",
+      "docs": "Searching: for what a reference could refer to, and for resources by text.",
+      "notYetReached": {"csharp": "C# is still to implement the match namespace.", "swift": "The Swift SDK's match: Searching: for what a reference could refer to, and for resources by text."},
+      "methods": [
+        {
+          "method": "search",
+          "shape": "stream",
+          "via": { "request": "match:search-requested" },
+          "cases": [
+            {
+              "why": "no options: ten candidates, scored semantically",
+              "args": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } },
+              "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" }, "limit": 10, "useSemanticScoring": true }
+            },
+            {
+              "args": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" }, "options": { "limit": 3, "useSemanticScoring": false } },
+              "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" }, "limit": 3, "useSemanticScoring": false }
+            }
+          ]
+        },
+        {
+          "method": "requestSearch",
+          "shape": "signal",
+          "via": { "local": "match:search-requested" },
+          "cases": [
+            {
+              "why": "the caller's key rides the envelope, never the payload",
+              "args": { "input": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } }, "correlationId": "cid-1" },
+              "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } },
+              "correlationId": "cid-1"
+            }
+          ]
+        },
+        {
+          "method": "resources",
+          "shape": "cache",
+          "via": { "request": "match:resources-requested" },
+          "cases": [
+            { "why": "no filters: the first hundred", "args": { "search": "cat" }, "sends": { "search": "cat", "limit": 100, "offset": 0 } },
+            {
+              "args": { "search": "cat", "filters": { "archived": false, "entityType": "Person", "limit": 5 } },
+              "sends": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
+            },
+            {
+              "why": "a page further on: the resources before it are passed over",
+              "args": { "search": "cat", "filters": { "limit": 50, "offset": 100 } },
+              "sends": { "search": "cat", "limit": 50, "offset": 100 }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "yield",
+      "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
+      "notYetReached": {"csharp": "C# is still to implement the yield namespace.", "swift": "The Swift SDK's yield: Creating resources: by upload, by a generation delegated as a job, by cloning."},
+      "methods": [
+        {
+          "method": "resource",
+          "shape": "upload",
+          "via": { "content": "putBinary" },
+          "cases": [
+            {
+              "args": { "data": { "name": "Notes", "content": "hello", "format": "text/plain", "storageUri": "file://notes.txt" } },
+              "sends": { "name": "Notes", "content": "hello", "format": "text/plain", "storageUri": "file://notes.txt" }
+            }
+          ]
+        },
+        {
+          "method": "delegate",
+          "shape": "delegation",
+          "via": { "request": "job:create" },
+          "cases": [
+            {
+              "why": "the namespace is the verb, so the job is a yield job; it names no resource: its context's focus does",
+              "args": { "params": { "title": "A summary", "storageUri": "file://a-summary.md", "context": { "$fixture": "context" } } },
+              "sends": { "jobType": "yield", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "context": { "$fixture": "context" } } }
+            },
+            {
+              "why": "how long the follower waits is the client's own: it is given beside the job's parameters, and is not sent",
+              "args": { "params": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "context": { "$fixture": "context" } }, "stallDeadlineMs": 5000 },
+              "sends": { "jobType": "yield", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "context": { "$fixture": "context" } } }
+            }
+          ]
+        },
+        {
+          "method": "cloneToken",
+          "shape": "promise",
+          "via": { "request": "yield:clone-token-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "fromToken",
+          "shape": "promise",
+          "via": { "request": "yield:clone-resource-requested" },
+          "cases": [{ "args": { "token": "tok-1" }, "sends": { "token": "tok-1" } }]
+        },
+        {
+          "method": "createFromToken",
+          "shape": "promise",
+          "via": { "request": "yield:clone-resource-requested" },
+          "cases": [
+            {
+              "why": "the source is read first; the clone is uploaded in a format its source's allows, under a name made from its own",
+              "args": { "options": { "token": "tok-1", "name": "A Copy", "content": "hello" } },
+              "sends": { "token": "tok-1" },
+              "answers": {
+                "sourceResource": { "@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": [{ "mediaType": "text/markdown" }] },
+                "expiresAt": "2030-01-01T00:00:00.000Z"
+              },
+              "then": [{ "content": "putBinary", "sends": { "name": "A Copy", "content": "hello", "format": "text/markdown", "storageUri": "file://a-copy.md", "cloneToken": "tok-1" } }]
+            },
+            {
+              "why": "a source in a format nobody authors is cloned as plain text",
+              "args": { "options": { "token": "tok-1", "name": "A Copy", "content": "hello" } },
+              "sends": { "token": "tok-1" },
+              "answers": {
+                "sourceResource": { "@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": [{ "mediaType": "application/pdf" }] },
+                "expiresAt": "2030-01-01T00:00:00.000Z"
+              },
+              "then": [{ "content": "putBinary", "sends": { "name": "A Copy", "content": "hello", "format": "text/plain", "storageUri": "file://a-copy.txt", "cloneToken": "tok-1" } }]
+            }
+          ]
+        },
+        {
+          "method": "clone",
+          "shape": "signal",
+          "via": { "local": "yield:clone" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    },
+    {
+      "namespace": "beckon",
+      "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
+      "notYetReached": {"csharp": "C# is still to implement the beckon namespace.", "swift": "The Swift SDK's beckon: Attention: driving the other participants' viewers, and this viewer's own signals."},
+      "methods": [
+        {
+          "method": "attention",
+          "shape": "count",
+          "via": { "emit": "beckon:focus" },
+          "cases": [
+            { "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1", "resourceId": "res-1" } },
+            { "why": "no annotation: the focus is on the resource as a whole, and names none", "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }
+          ]
+        },
+        {
+          "method": "click",
+          "shape": "count",
+          "via": { "emit": "browse:click" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "openResource",
+          "shape": "count",
+          "via": { "emit": "browse:resource-open" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "sparkleAll",
+          "shape": "count",
+          "via": { "emit": "beckon:sparkle" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "hover",
+          "shape": "signal",
+          "via": { "local": "beckon:hover" },
+          "cases": [
+            { "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } },
+            { "why": "nothing is hovered: the field says so", "args": { "annotationId": null }, "sends": { "annotationId": null } }
+          ]
+        },
+        {
+          "method": "sparkle",
+          "shape": "signal",
+          "via": { "local": "beckon:sparkle" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        }
+      ]
+    },
+    {
+      "namespace": "job",
+      "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
+      "notYetReached": {"csharp": "C# is still to implement the job namespace.", "swift": "The Swift SDK's job: Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them."},
+      "methods": [
+        {
+          "method": "queued",
+          "shape": "events",
+          "via": { "observes": "job:queued" },
+          "cases": [
+            {
+              "why": "a yield job is announced with what it is asked to make, and without its context",
+              "args": {},
+              "sends": { "jobId": "job-1", "jobType": "yield", "resourceId": "res-1", "userId": "did:web:example.org:users:alice", "params": { "title": "A summary", "storageUri": "file://a-summary.md" } }
+            },
+            {
+              "why": "a mark job is announced with its parameters, its motivation among them",
+              "args": {},
+              "sends": { "jobId": "job-2", "jobType": "mark", "resourceId": "res-1", "userId": "did:web:example.org:users:alice", "params": { "motivation": "tagging", "schemaId": "s1", "categories": ["claim"] } }
+            }
+          ]
+        },
+        {
+          "method": "progress",
+          "shape": "events",
+          "via": { "observes": "job:report-progress" },
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "percentage": 12.5 } }]
+        },
+        {
+          "method": "complete",
+          "shape": "events",
+          "via": { "observes": "job:complete" },
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "yield" } }]
+        },
+        {
+          "method": "fail",
+          "shape": "events",
+          "via": { "observes": "job:fail" },
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "yield", "error": "the model refused" } }]
+        },
+        {
+          "method": "status",
+          "shape": "promise",
+          "via": { "request": "job:status-requested" },
+          "cases": [{ "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+        },
+        {
+          "method": "pollUntilComplete",
+          "shape": "promise",
+          "via": { "request": "job:status-requested" },
+          "cases": [{ "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+        },
+        {
+          "method": "cancel",
+          "shape": "promise",
+          "via": { "request": "job:cancel-requested" },
+          "cases": [{ "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+        },
+        {
+          "method": "claim",
+          "shape": "claims",
+          "via": { "request": "job:claim" },
+          "cases": [
+            {
+              "why": "a claim carries the filters of the jobs the worker takes, as it was given them",
+              "args": { "options": { "accepts": [{ "jobType": "mark", "params": { "motivation": "tagging" } }, { "jobType": "yield" }] } },
+              "sends": { "accepts": [{ "jobType": "mark", "params": { "motivation": "tagging" } }, { "jobType": "yield" }] }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "auth",
+      "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
+      "notYetReached": {"csharp": "C# is still to implement the auth namespace.", "swift": "The Swift SDK's auth: The gateway's view of who is signed in. Present when the client was given a gateway."},
+      "methods": [
+        {
+          "method": "me",
+          "shape": "promise",
+          "via": { "gateway": "getCurrentUser" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "mediaToken",
+          "shape": "promise",
+          "via": { "gateway": "getMediaToken" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "protectedResourceMetadata",
+          "shape": "promise",
+          "via": { "gateway": "getProtectedResourceMetadata" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    },
+    {
+      "namespace": "system",
+      "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
+      "notYetReached": {"csharp": "C# is still to implement the system namespace.", "swift": "The Swift SDK's system: What the knowledge base says about itself. Present when the client was given a gateway."},
+      "methods": [
+        {
+          "method": "healthCheck",
+          "shape": "promise",
+          "via": { "gateway": "healthCheck" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "status",
+          "shape": "promise",
+          "via": { "gateway": "getStatus" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    }
+  ],
+  "worker": [
+    {
+      "handed": "claims",
+      "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
+      "notYetReached": {"csharp": "C# is still to implement the claims worker surface.", "swift": "The Swift SDK's claims: What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go."},
+      "members": [
+        {
+          "member": "next",
+          "absent": {
+            "typescript": "The claims are an rxjs Observable, read by subscribing to them: `subscribe` is rxjs's own, and the SDK declares no member for it.",
+            "python": "The claims are an asynchronous iterator, read with `async for`: `__anext__` is the language's protocol."
+          },
+          "named": {
+            "go": { "name": "All", "why": "The claims are ranged over, `for job, err := range claims.All()`, and Go's standard library names the method that gives a sequence of every element `All` (`maps.All`, `slices.All`)." }
+          }
+        },
+        {
+          "member": "refused",
+          "absent": {
+            "rust": "`next` answers a `Result`, and a claim that was refused is its `Err`: it is handed out where a job would be.",
+            "python": "The claims are iterated with `async for`, and an exception raised into the loop would end it; a claim that was refused does not end a worker's claims, so it is handed out where a job would be, as a `ClaimRefusal`.",
+            "go": "The claims are ranged over as pairs of a job and an error, and a claim that was refused is the error, a `*ClaimRefusal`: it is handed out where a job would be."
+          }
+        },
+        { "member": "stalled" },
+        { "member": "vitals" },
+        {
+          "member": "stop",
+          "named": {
+            "python": { "name": "aclose", "why": "Python closes an asynchronous iterator with `aclose`: it is what an asynchronous generator has, and what `contextlib.aclosing` calls." },
+            "go": { "name": "Close", "why": "Go stops what is held with `Close`, the name `io.Closer` gives it and what a `defer` calls." }
+          }
+        }
+      ]
+    },
+    {
+      "handed": "heldJob",
+      "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
+      "notYetReached": {"csharp": "C# is still to implement the heldJob worker surface.", "swift": "The Swift SDK's heldJob: A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked."},
+      "members": [
+        { "member": "jobId" },
+        { "member": "jobType" },
+        { "member": "resourceId" },
+        { "member": "params" },
+        { "member": "completedUnits" },
+        { "member": "unitCursors" },
+        { "member": "retryCount" },
+        { "member": "maxRetries" },
+        { "member": "attempt" },
+        { "member": "annotationId" },
+        { "member": "trace" },
+        { "member": "cancelled" },
+        {
+          "member": "settled",
+          "absent": {
+            "rust": "`complete`, `fail` and `cancel` take the job by value: a job its holder has settled is gone, and nothing is left to ask it."
+          }
+        },
+        { "member": "start" },
+        { "member": "progress" },
+        { "member": "checkpoint" },
+        { "member": "commit" },
+        { "member": "complete", "takes": { "mark": "MarkJobResult", "yield": "YieldJobResult" } },
+        { "member": "fail" },
+        { "member": "cancel" }
+      ]
+    }
+  ],
+  "stateUnits": [
+    {
+      "unit": "mark",
+      "docs": "The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource.",
+      "notYetReached": {"csharp": "C# is still to implement the mark state unit.", "swift": "The Swift SDK's mark: The composing and delegating of annotations on one resource: the annotation being composed, the delegated job's motivation, its progress and what that progress is of, why the last job ended without completing, and the job's id. A request and a submission reach it as the signals the mark namespace publishes, which name its resource; a delegation, the cancelling of the annotation being composed and the dismissing of a job's progress are asked of the unit itself, so none reaches a unit of another resource."},
+      "made": { "typescript": "MarkStateUnit", "rust": "MarkStateUnit", "python": "MarkStateUnit", "go": "MarkStateUnit", "kotlin": "MarkStateUnit" },
+      "madeBy": { "typescript": "createMarkStateUnit", "go": "NewMarkStateUnit" },
+      "members": [
+        { "member": "pendingAnnotation" },
+        { "member": "delegatingMotivation" },
+        { "member": "progress" },
+        { "member": "progressMotivation" },
+        { "member": "failure" },
+        { "member": "jobId" },
+        { "member": "requestDelegate" },
+        { "member": "cancelPending" },
+        { "member": "dismissProgress" }
+      ]
+    },
+    {
+      "unit": "yield",
+      "docs": "A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods.",
+      "notYetReached": {"csharp": "C# is still to implement the yield state unit.", "swift": "The Swift SDK's yield: A generation: whether a run is under way, its progress, what the finished run produced, why the last run ended without a result, and the job's id. It is moved by its own methods."},
+      "made": { "typescript": "YieldStateUnit", "rust": "YieldStateUnit", "python": "YieldStateUnit", "go": "YieldStateUnit", "kotlin": "YieldStateUnit" },
+      "madeBy": { "typescript": "createYieldStateUnit", "go": "NewYieldStateUnit" },
+      "members": [
+        { "member": "isGenerating" },
+        { "member": "progress" },
+        { "member": "outcome" },
+        { "member": "failure" },
+        { "member": "jobId" },
+        { "member": "generate" },
+        { "member": "dismissProgress" }
+      ]
+    },
+    {
+      "unit": "gather",
+      "docs": "The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource.",
+      "notYetReached": {"csharp": "C# is still to implement the gather state unit.", "swift": "The Swift SDK's gather: The context gathered around one resource: for the annotation last asked about and for the resource last asked about, the context, whether it is loading and why it failed. Each gather is asked of the unit itself, so none reaches a unit of another resource."},
+      "made": { "typescript": "GatherStateUnit", "rust": "GatherStateUnit", "python": "GatherStateUnit", "go": "GatherStateUnit", "kotlin": "GatherStateUnit" },
+      "madeBy": { "typescript": "createGatherStateUnit", "go": "NewGatherStateUnit" },
+      "members": [
+        { "member": "context" },
+        { "member": "loading" },
+        { "member": "error" },
+        { "member": "annotationId" },
+        { "member": "resourceContext" },
+        { "member": "resourceLoading" },
+        { "member": "resourceError" },
+        { "member": "gatherAnnotation" },
+        { "member": "gatherResource" }
+      ]
+    },
+    {
+      "unit": "match",
+      "docs": "Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said.",
+      "notYetReached": {"csharp": "C# is still to implement the match state unit.", "swift": "The Swift SDK's match: Matching, run for whoever asks on the client's own bus: a search asked for by a signal is run and answered under the asker's correlation id. It holds no state: what it found is what it said."},
+      "made": { "typescript": "MatchStateUnit", "rust": "MatchStateUnit", "python": "MatchStateUnit", "go": "MatchStateUnit", "kotlin": "MatchStateUnit" },
+      "madeBy": { "typescript": "createMatchStateUnit", "go": "NewMatchStateUnit" },
+      "members": []
+    },
+    {
+      "unit": "beckon",
+      "docs": "Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant.",
+      "notYetReached": {"csharp": "C# is still to implement the beckon state unit.", "swift": "The Swift SDK's beckon: Attention on one resource: the annotation this participant hovers, a sparkle for one the moment it is hovered, and a focus, naming the unit's resource, for one clicked here or by another participant."},
+      "made": { "typescript": "BeckonStateUnit", "rust": "BeckonStateUnit", "python": "BeckonStateUnit", "go": "BeckonStateUnit", "kotlin": "BeckonStateUnit" },
+      "madeBy": { "typescript": "createBeckonStateUnit", "go": "NewBeckonStateUnit" },
+      "members": [
+        { "member": "hoveredAnnotationId" },
+        { "member": "focus" }
+      ]
+    },
+    {
+      "unit": "hoverDwell",
+      "docs": "A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves.",
+      "notYetReached": {"csharp": "C# is still to implement the hoverDwell state unit.", "swift": "The Swift SDK's hoverDwell: A pointer's rest: an annotation is said to be hovered once the pointer has rested on it for a delay, and none at once when it leaves."},
+      "made": { "typescript": "HoverDwell", "rust": "HoverDwell", "python": "HoverDwell", "go": "HoverDwell", "kotlin": "HoverDwell" },
+      "madeBy": { "typescript": "createHoverDwell", "go": "NewHoverDwell" },
+      "members": [
+        { "member": "enter" },
+        { "member": "leave" }
+      ]
+    },
+    {
+      "unit": "search",
+      "docs": "A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce.",
+      "notYetReached": {"csharp": "C# is still to implement the search state unit.", "swift": "The Swift SDK's search: A search that follows a query as it is typed: the query as last set, and the results of the query it last settled on, once that query has stayed the same for a debounce."},
+      "made": { "typescript": "SearchPipeline", "rust": "SearchPipeline", "python": "SearchPipeline", "go": "SearchPipeline", "kotlin": "SearchPipeline" },
+      "madeBy": { "typescript": "createSearchPipeline", "go": "NewSearchPipeline" },
+      "members": [
+        { "member": "query" },
+        { "member": "state" },
+        { "member": "setQuery" }
+      ]
+    },
+    {
+      "unit": "sessionSignals",
+      "docs": "What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it.",
+      "notYetReached": {"csharp": "C# is still to implement the sessionSignals state unit.", "swift": "The Swift SDK's sessionSignals: What a host shows about a session, apart from the session: that it ended and why, that a request was refused for lack of permission, and that a different knowledge base answers at a registered address. Each is a notice while something is raised and none once it is acknowledged; raising it again is a new occurrence, told to every reader even when the notice equals the last. A host builds one beside each live session and wires the session's failures into it."},
+      "made": { "typescript": "SessionSignals", "rust": "SessionSignals", "python": "SessionSignals", "go": "SessionSignals", "kotlin": "SessionSignals" },
+      "madeBy": { "typescript": "createSessionSignals", "go": "NewSessionSignals" },
+      "members": [
+        { "member": "sessionEnded" },
+        { "member": "permissionDenied" },
+        { "member": "kbIdentityConflict" },
+        { "member": "notifySessionEnded" },
+        { "member": "notifyPermissionDenied" },
+        { "member": "notifyKbIdentityConflict" },
+        { "member": "acknowledgeSessionEnded" },
+        { "member": "acknowledgePermissionDenied" },
+        { "member": "acknowledgeKbIdentityConflict" }
+      ]
+    },
+    {
+      "unit": "cache",
+      "docs": "Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table.",
+      "notYetReached": {"csharp": "C# is still to implement the cache state unit.", "swift": "The Swift SDK's cache: Values the knowledge base answers with, kept by key and held as state: each key's state (pending, ready with its value, or failed), fetched when first observed and again when invalidated, and set, removed or invalidated by its methods. What it does is held by the cache's own tables (protocol/specs/src/client/refresh.json and the cache's rules in each SDK), not by the behaviour table."},
+      "made": { "typescript": "Cache", "rust": "Cache", "python": "Cache", "go": "Cache", "kotlin": "Cache" },
+      "madeBy": { "typescript": "createCache", "go": "NewCache" },
+      "members": [
+        { "member": "observe" },
+        { "member": "fetch" },
+        { "member": "get" },
+        { "member": "known" },
+        { "member": "keys" },
+        { "member": "invalidate" },
+        { "member": "invalidateAll" },
+        { "member": "remove" },
+        { "member": "set" },
+        { "member": "persistencePending" }
+      ]
+    },
+    {
+      "unit": "session",
+      "docs": "A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table.",
+      "notYetReached": {"csharp": "C# is still to implement the session state unit.", "swift": "The Swift SDK's session: A session with one knowledge base: the token its client's transport sends and who is signed in, the token renewed before it expires and when the gateway refuses it. It writes its token and who is signed in, so it ends them; it only uses its client, so it never ends it, and whoever made the client and the session ends both. What it does is held by the session's own table (protocol/specs/src/session/cases.json), not by the behaviour table."},
+      "made": { "typescript": "SemiontSession", "rust": "SemiontSession", "python": "SemiontSession", "go": "Session", "kotlin": "SemiontSession" },
+      "madeBy": { "go": "StartSession", "kotlin": "sessionFromKept" },
+      "members": [
+        { "member": "id" },
+        { "member": "kb" },
+        { "member": "client" },
+        { "member": "token" },
+        { "member": "user" },
+        { "member": "streamState" },
+        { "member": "errors" },
+        { "member": "ready" },
+        { "member": "expiresAt" },
+        { "member": "refresh" },
+        {
+          "member": "renewer",
+          "absent": {
+            "typescript": "A TypeScript transport is handed a closure that calls the session's `refresh`, and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "python": "A Python transport is handed a closure that calls the session's `refresh` (`refresher`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "go": "A Go transport is handed a TokenRefresher that asks the session's `Refresh` (SessionFromKept's `refreshedBy`), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead.",
+            "kotlin": "A Kotlin transport is handed a refresher that asks the session to renew the token a request was refused with (sessionFromKept's), and a closure can name the session it is built before. Rust's ownership forbids a transport and its session holding each other, so Rust hands its transport a weak handle instead."
+          }
+        }
+      ]
+    }
+  ],
+  "wire": {
+    "docs": "The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there.",
+    "notYetReached": {"csharp": "C# is still to implement the wire contract.", "swift": "The Swift SDK's wire: The typed bus over a client's transport, which a client hands out as `wire`: what it emits goes over the wire, and what it reads is what the wire delivers. A read gives each frame with its envelope, who emitted it and the trace it was sent under. A channel of a resource's scope is read for one resource, and the read holds that resource's scope while it is read. The client's own in-process signals are on its own bus, never here. It hands out no transport: a client's transport is the client's `transport`, and only there."},
+    "made": { "typescript": "Bus", "rust": "Bus", "python": "Bus", "go": "Wire", "kotlin": "Bus" },
+    "members": [
+      { "member": "emit" },
+      { "member": "frames" },
+      {
+        "member": "framesOf",
+        "absent": {
+          "typescript": "`frames` is overloaded: a channel of a resource's scope is read as `frames(channel, resourceId)`. Rust, which has no overloading, names that read apart.",
+          "python": "`frames` is overloaded (`typing.overload`): a channel of a resource's scope is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart.",
+          "kotlin": "`frames` is overloaded: a channel of a resource's scope (`ScopedChannel`) is read as `frames(channel, resource)`. Rust, which has no overloading, names that read apart."
+        }
+      },
+      { "member": "request" },
+      {
+        "member": "emitOn",
+        "absent": {
+          "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is emitted on with `emit`. Rust's typed `emit` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+        }
+      },
+      {
+        "member": "framesOn",
+        "absent": {
+          "typescript": "A TypeScript channel is a value, checked against the registry's names, so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "python": "A Python channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own.",
+          "kotlin": "A Kotlin channel is a value (`Channel`), so a channel chosen at run time is read with `frames`. Rust's typed `frames` takes its channel as a type parameter, and a channel named at run time needs a method of its own."
+        }
+      },
+      {
+        "member": "requestOf",
+        "absent": {
+          "typescript": "A TypeScript operation is a value, checked against the registry's operations, so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
+          "python": "A Python operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own.",
+          "kotlin": "A Kotlin operation is a value (`Operation`), so one chosen at run time is asked with `request`. Rust's typed `request` takes its operation as a type parameter, and an operation named at run time needs a method of its own."
+        }
+      }
+    ]
+  },
+  "storage": {
+    "docs": "Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes.",
+    "notYetReached": {"csharp": "C# is still to implement the storage contract.", "swift": "The Swift SDK's storage: Where a client keeps what must outlive it: text under a key, in a store the application supplies (a file, a browser's storage, a platform's store), so nothing above it knows where it runs. A client's sessions, its registry of knowledge bases and its kept caches keep what they keep there. More than one context can write one store, two windows or two processes: what is written from what was read goes through `update`, which a store makes one step, so one writer's change is never lost under another's; and `subscribe` hears what another context writes, and is null where no other context writes."},
+    "made": { "typescript": "SessionStorage", "rust": "SessionStorage", "python": "SessionStorage", "go": "SessionStorage", "kotlin": "SessionStorage" },
+    "members": [
+      { "member": "get" },
+      { "member": "set" },
+      { "member": "delete" },
+      { "member": "update" },
+      { "member": "subscribe" }
+    ]
+  },
+  "modules": [
+    {
+      "module": "annotations",
+      "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
+      "notYetReached": {"csharp": "C# is still to implement the annotations module.", "swift": "The Swift SDK's annotations: The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables."},
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/web-annotation-utils.ts",
+          "packages/typescript/core/src/annotation-builders.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/annotations.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/annotations.py"
+        ],
+        "go": [
+          "packages/go/sdk/annotations"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/annotations"
+        ]
+      },
+      "whole": [
+        "typescript",
+        "rust",
+        "python",
+        "go",
+        "kotlin"
+      ],
+      "members": [
+        {
+          "member": "bodySource",
+          "kind": "reader"
+        },
+        {
+          "member": "targetSource",
+          "kind": "reader"
+        },
+        {
+          "member": "targetSelector",
+          "kind": "reader"
+        },
+        {
+          "member": "commentText",
+          "kind": "reader"
+        },
+        {
+          "member": "textQuoteSelector",
+          "kind": "reader"
+        },
+        {
+          "member": "exactText",
+          "kind": "reader"
+        },
+        {
+          "member": "annotationExactText",
+          "kind": "reader"
+        },
+        {
+          "member": "entityTypes",
+          "kind": "reader"
+        },
+        {
+          "member": "tagCategory",
+          "kind": "reader"
+        },
+        {
+          "member": "tagSchemaId",
+          "kind": "reader"
+        },
+        {
+          "member": "isBodyResolved",
+          "kind": "function"
+        },
+        {
+          "member": "isHighlight",
+          "kind": "function"
+        },
+        {
+          "member": "isReference",
+          "kind": "function"
+        },
+        {
+          "member": "isAssessment",
+          "kind": "function"
+        },
+        {
+          "member": "isComment",
+          "kind": "function"
+        },
+        {
+          "member": "isTag",
+          "kind": "function"
+        },
+        {
+          "member": "isStubReference",
+          "kind": "function"
+        },
+        {
+          "member": "isResolvedReference",
+          "kind": "function"
+        },
+        {
+          "member": "textPositionSelector",
+          "kind": "reader",
+          "absent": {
+            "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+          }
+        },
+        {
+          "member": "svgSelector",
+          "kind": "reader",
+          "absent": {
+            "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+          }
+        },
+        {
+          "member": "fragmentSelector",
+          "kind": "reader",
+          "absent": {
+            "rust": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "python": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "go": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself.",
+            "kotlin": "TypeScript's alone: the selectors react-ui's viewer draws by. A reader of a selector in another SDK reads the selector itself."
+          }
+        },
+        {
+          "member": "reconcile",
+          "kind": "function"
+        },
+        {
+          "member": "annotationOfSpan",
+          "kind": "function"
+        },
+        {
+          "member": "annotationOfResource",
+          "kind": "function"
+        },
+        {
+          "member": "QuotedText",
+          "kind": "type"
+        },
+        {
+          "member": "TextSpan",
+          "kind": "type"
+        },
+        {
+          "member": "ReconciledSpan",
+          "kind": "type"
+        },
+        {
+          "member": "AnchorMethod",
+          "kind": "type"
+        },
+        {
+          "member": "MatchQuality",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript states it inline, as ReconciledSpan's matchQuality, and names no type for it."
+          }
+        },
+        {
+          "member": "SpanRefusedError",
+          "kind": "type",
+          "absent": {
+            "rust": "Rust refuses a span with errors::SpanRefusal, which is itself an error.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusedError: a SemiontError, and that family is sealed, so every member of it is in semiont.errors."
+          }
+        },
+        {
+          "member": "SpanRefusal",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's is with @semiont/core's other error codes.",
+            "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
+            "go": "Go's is semiont.SpanRefusal, generated with the other error codes.",
+            "kotlin": "Kotlin's is semiont.errors.SpanRefusal, generated with the other error codes."
+          }
+        },
+        {
+          "member": "Spanned",
+          "kind": "type",
+          "absent": {
+            "typescript": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "python": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "go": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where the others take a PDF's anchored text beside the text.",
+            "kotlin": "Rust's alone: its annotation_of_span takes a text or a PDF as one enum, where Kotlin's annotationOfSpan is overloaded for each."
+          }
+        },
+        {
+          "member": "OfSpan",
+          "kind": "type",
+          "absent": {
+            "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
+            "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
+          }
+        },
+        {
+          "member": "OfResource",
+          "kind": "type",
+          "absent": {
+            "typescript": "Go's alone: Go's builder takes what it builds from as one struct, which it names, where TypeScript's states the object's type inline.",
+            "rust": "Go's alone: Go's builder takes what it builds from as one struct, where Rust's takes each as an argument.",
+            "python": "Go's alone: Go's builder takes what it builds from as one struct, where Python's takes each as an argument.",
+            "kotlin": "Go's alone: Go's builder takes what it builds from as one struct, where Kotlin's takes each as an argument."
+          }
+        }
+      ]
+    },
+    {
+      "module": "jobFilter",
+      "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json.",
+      "notYetReached": {"csharp": "C# is still to implement the jobFilter module.", "swift": "The Swift SDK's jobFilter: Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json."},
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/job-filter.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/job_filter.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/job_filter.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
+        ]
+      },
+      "whole": [
+        "rust",
+        "python"
+      ],
+      "members": [
+        {
+          "member": "jobMatchesFilter",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "claims",
+      "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json.",
+      "notYetReached": {"csharp": "C# is still to implement the claims module.", "swift": "The Swift SDK's claims: What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/claims.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/claims.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/claims.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/jobs"
+        ]
+      },
+      "members": [
+        {
+          "member": "jobClaimChannels",
+          "kind": "constant"
+        },
+        {
+          "member": "jobCommitChannels",
+          "kind": "constant"
+        },
+        {
+          "member": "willRetryAfter",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "retry",
+      "docs": "Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out.",
+      "notYetReached": {"csharp": "C# is still to implement the retry module.", "swift": "The Swift SDK's retry: Doing work again by a backoff, until it succeeds, it fails as nothing can mend, or the attempts run out."},
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/retry.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/retry.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/retry.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/retry"
+        ]
+      },
+      "members": [
+        {
+          "member": "retryWithBackoff",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "hostName",
+      "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
+      "notYetReached": {"csharp": "C# is still to implement the hostName module.", "swift": "The Swift SDK's hostName: Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/session/storage.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/session/knowledge_base.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/http/endpoint.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ]
+      },
+      "members": [
+        {
+          "member": "isValidHostname",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "tokens",
+      "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json.",
+      "notYetReached": {"csharp": "C# is still to implement the tokens module.", "swift": "The Swift SDK's tokens: What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/session/storage.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/session/mod.rs",
+          "packages/rust/sdk/src/session/stored.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/session.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/session"
+        ]
+      },
+      "members": [
+        {
+          "member": "textClaim",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "tokenExpiry",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "isTokenExpired",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "renewalDelay",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session hands out no reader of a token but when to renew it (refreshDelayMs)."
+          }
+        },
+        {
+          "member": "refreshDelay",
+          "kind": "function",
+          "named": {
+            "typescript": "refreshDelayMs"
+          }
+        }
+      ]
+    },
+    {
+      "module": "storagePersister",
+      "docs": "Where a client keeps its queries' values: a session storage, under one key, kept within a size.",
+      "notYetReached": {"csharp": "C# is still to implement the storagePersister module.", "swift": "The Swift SDK's storagePersister: Where a client keeps its queries' values: a session storage, under one key, kept within a size."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/cache-persister.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/cache.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/storage.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/storage"
+        ]
+      },
+      "members": [
+        {
+          "member": "StoragePersister",
+          "kind": "type",
+          "named": {
+            "typescript": "sessionStoragePersister"
+          }
+        }
+      ]
+    },
+    {
+      "module": "bus",
+      "docs": "What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps.",
+      "notYetReached": {"csharp": "C# is still to implement the bus module.", "swift": "The Swift SDK's bus: What the bus's registry gives a program beside its channels: the reply channels of given operations, the refusal of a request whose replies cannot arrive, and the channels whose events the record keeps."},
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/bus-request.ts",
+          "packages/typescript/core/src/persisted-events.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/bus.rs",
+          "packages/rust/sdk/src/transport.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/bus.py",
+          "packages/python/sdk/src/semiont/transport.py",
+          "packages/python/sdk/src/semiont/channels.py"
+        ],
+        "go": [
+          "packages/go/sdk",
+          "packages/go/sdk/bus"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/bus",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/transport"
+        ]
+      },
+      "members": [
+        {
+          "member": "replyChannelsFor",
+          "kind": "function"
+        },
+        {
+          "member": "unsubscribed",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript makes the refusal where it refuses, and hands out no maker of it."
+          }
+        },
+        {
+          "member": "persistedEventTypes",
+          "kind": "constant",
+          "absent": {
+            "rust": "Rust tells the record's events by their channels' type, `Recorded`."
+          }
+        }
+      ]
+    },
+    {
+      "module": "registry",
+      "docs": "What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered.",
+      "notYetReached": {"csharp": "C# is still to implement the registry module.", "swift": "The Swift SDK's registry: What an application holds beside its knowledge bases: the list it has registered, which one is active and its session, what a person has open in each, and what it keeps in its storage, under which keys. Sessions are built by a factory it is given; one over HTTP reaches a knowledge base at its gateway. A person's sign-in by a page redirect lands on the entry for the knowledge base that answered."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/session/semiont-browser.ts",
+          "packages/typescript/sdk/src/session/session-factory.ts",
+          "packages/typescript/sdk/src/session/http-session-factory.ts",
+          "packages/typescript/sdk/src/session/knowledge-base.ts",
+          "packages/typescript/sdk/src/session/open-resource.ts",
+          "packages/typescript/sdk/src/session/storage.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/session/browser.rs",
+          "packages/rust/sdk/src/session/factory.rs",
+          "packages/rust/sdk/src/session/knowledge_base.rs",
+          "packages/rust/sdk/src/session/open_resource.rs",
+          "packages/rust/sdk/src/session/stored.rs",
+          "packages/rust/http-transport/src/session.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/stored.py",
+          "packages/python/sdk/src/semiont/registry.py",
+          "packages/python/sdk/src/semiont/http/session.py"
+        ],
+        "go": [
+          "packages/go/sdk/registry"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ]
+      },
+      "whole": [
+        "go"
+      ],
+      "members": [
+        {
+          "member": "SemiontBrowser",
+          "kind": "type"
+        },
+        {
+          "member": "newSemiontBrowser",
+          "kind": "function",
+          "absent": {
+            "python": "Python makes one with `SemiontBrowser(config)`, held with `async with`.",
+            "typescript": "TypeScript makes one with `new SemiontBrowser(config)`.",
+            "rust": "Rust makes one with `SemiontBrowser::new(config)`.",
+            "kotlin": "Kotlin makes one with `SemiontBrowser(config)`, closed with `close()`."
+          }
+        },
+        {
+          "member": "SemiontBrowserConfig",
+          "kind": "type"
+        },
+        {
+          "member": "SignedIn",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's `completeSignIn` lands a sign-in itself, and names no type for what the registry is handed."
+          }
+        },
+        {
+          "member": "Expected",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript states what a person believed inside `SignInOutcome`, and names no type for it."
+          }
+        },
+        {
+          "member": "SignInOutcome",
+          "kind": "type"
+        },
+        {
+          "member": "KbReadVerdict",
+          "kind": "type"
+        },
+        {
+          "member": "KbReadKind",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's verdict is a union told apart by its `kind`.",
+            "rust": "Rust's verdict is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "SessionFactory",
+          "kind": "type"
+        },
+        {
+          "member": "SessionFactoryOptions",
+          "kind": "type"
+        },
+        {
+          "member": "HttpSessionFactory",
+          "kind": "type",
+          "named": {
+            "typescript": "createHttpSessionFactory"
+          }
+        },
+        {
+          "member": "KbSessionStatus",
+          "kind": "type"
+        },
+        {
+          "member": "OpenResource",
+          "kind": "type"
+        },
+        {
+          "member": "TabCheck",
+          "kind": "type"
+        },
+        {
+          "member": "TabVerdict",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's check is a union told apart by its `kind`.",
+            "rust": "Rust's check is an enum, whose variants are its verdicts."
+          }
+        },
+        {
+          "member": "applyTabChecks",
+          "kind": "function"
+        },
+        {
+          "member": "sortOpenResources",
+          "kind": "function"
+        },
+        {
+          "member": "StoredSession",
+          "kind": "type"
+        },
+        {
+          "member": "knowledgeBasesKey",
+          "kind": "constant",
+          "named": {
+            "typescript": "STORAGE_KEY"
+          }
+        },
+        {
+          "member": "activeKey",
+          "kind": "constant"
+        },
+        {
+          "member": "openResourcesByKbKey",
+          "kind": "constant"
+        },
+        {
+          "member": "lastViewedResourceByKbKey",
+          "kind": "constant"
+        },
+        {
+          "member": "sessionKey",
+          "kind": "function"
+        },
+        {
+          "member": "kbOfSessionKey",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's registry hears another context's writes by key without reading a session's key back."
+          }
+        },
+        {
+          "member": "storedSession",
+          "kind": "function",
+          "named": {
+            "typescript": "getStoredSession",
+            "go": "StoredSessionOf"
+          }
+        },
+        {
+          "member": "storeSession",
+          "kind": "function",
+          "named": {
+            "typescript": "setStoredSession"
+          }
+        },
+        {
+          "member": "clearStoredSession",
+          "kind": "function"
+        },
+        {
+          "member": "loadKnowledgeBases",
+          "kind": "function"
+        },
+        {
+          "member": "saveKnowledgeBases",
+          "kind": "function"
+        },
+        {
+          "member": "keptIn",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's session reads and writes its tokens in the registry's storage itself.",
+            "rust": "Rust's session reads and writes its tokens in the registry's storage itself."
+          }
+        },
+        {
+          "member": "beginSignIn",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's is a method of `SemiontBrowser`."
+          }
+        },
+        {
+          "member": "completeSignIn",
+          "kind": "function",
+          "absent": {
+            "typescript": "TypeScript's is a method of `SemiontBrowser`."
+          }
+        }
+      ]
+    },
+    {
+      "module": "redirectSignIn",
+      "docs": "A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is.",
+      "notYetReached": {"csharp": "C# is still to implement the redirectSignIn module.", "swift": "The Swift SDK's redirectSignIn: A person's sign-in by a page redirect: the authorization-code grant with PKCE, its pending record kept across the trip to the issuer and back, and the question a completed sign-in asks the knowledge base, who it is."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/session/oauth.ts",
+          "packages/typescript/sdk/src/session/connect.ts"
+        ],
+        "rust": [
+          "packages/rust/http-transport/src/oauth.rs",
+          "packages/rust/http-transport/src/session.rs",
+          "packages/rust/sdk/src/errors.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/stored.py",
+          "packages/python/sdk/src/semiont/http/oauth.py",
+          "packages/python/sdk/src/semiont/http/session.py",
+          "packages/python/sdk/src/semiont/errors.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/registry",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/errors"
+        ]
+      },
+      "members": [
+        {
+          "member": "codeChallenge",
+          "kind": "function"
+        },
+        {
+          "member": "PendingAuthorization",
+          "kind": "type"
+        },
+        {
+          "member": "pendingAuthorizationKey",
+          "kind": "constant"
+        },
+        {
+          "member": "BeginAuthorizationOptions",
+          "kind": "type",
+          "named": {
+            "rust": "BeginAuthorization"
+          }
+        },
+        {
+          "member": "beginAuthorization",
+          "kind": "function"
+        },
+        {
+          "member": "completeAuthorization",
+          "kind": "function"
+        },
+        {
+          "member": "describeConnection",
+          "kind": "function"
+        },
+        {
+          "member": "ConnectionIdentity",
+          "kind": "type"
+        },
+        {
+          "member": "IdentityUnverifiableError",
+          "kind": "type",
+          "named": {
+            "rust": "IdentityUnverifiable"
+          }
+        }
+      ]
+    },
+    {
+      "module": "serviceToken",
+      "docs": "A service account's token, which a process holds for its own account at the issuer a knowledge base trusts: the issuer's token endpoint discovered once, through the HTTP client the token was made with, one client-credentials grant at a time, the token held until it is due for renewal, and the `Authorization` header's value it gives (`authorization`).",
+      "notYetReached": {"csharp": "C# is still to implement the service-token module.", "swift": "The Swift SDK service token for external workers, including credential renewal."},
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/service-account.ts"
+        ],
+        "rust": [
+          "packages/rust/http-transport/src/service_account.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/http/agent.py"
+        ],
+        "go": [
+          "packages/go/sdk"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ]
+      },
+      "members": [
+        {
+          "member": "ServiceToken",
+          "kind": "type"
+        }
+      ]
+    },
+    {
+      "module": "discovery",
+      "docs": "The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read.",
+      "notYetReached": {"csharp": "C# is still to implement the discovery module.", "swift": "The Swift SDK's discovery: The knowledge bases a launcher manages, as it publishes them: its document read whole or not at all, absent told from empty, entries told apart by address, and what changed since it was last read."},
+      "where": {
+        "typescript": [
+          "packages/typescript/sdk/src/discovery.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/discovery.rs",
+          "packages/rust/http-transport/src/discovery.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/discovery.py",
+          "packages/python/sdk/src/semiont/http/discovery.py"
+        ],
+        "go": [
+          "packages/go/sdk/discovery"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/discovery",
+          "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ]
+      },
+      "whole": [
+        "go",
+        "python"
+      ],
+      "members": [
+        {
+          "member": "discoveryInterval",
+          "kind": "constant",
+          "absent": {
+            "typescript": "TypeScript's subscription is given its interval by its caller."
+          }
+        },
+        {
+          "member": "DiscoveryAbsentReason",
+          "kind": "type"
+        },
+        {
+          "member": "DiscoveryRead",
+          "kind": "type",
+          "named": {
+            "typescript": "DiscoveryReadResult"
+          }
+        },
+        {
+          "member": "DiscoveryState",
+          "kind": "type"
+        },
+        {
+          "member": "Absent",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's state is a union told apart by its `kind`.",
+            "rust": "Rust's state is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "Managed",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's state is a union told apart by its `kind`.",
+            "rust": "Rust's state is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "Unchanged",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's read is a union told apart by its `kind`.",
+            "rust": "Rust's read is an enum, whose variants are its kinds."
+          }
+        },
+        {
+          "member": "DiscoveryTransport",
+          "kind": "type"
+        },
+        {
+          "member": "parseDiscoveryDocument",
+          "kind": "function"
+        },
+        {
+          "member": "textDiscovery",
+          "kind": "function"
+        },
+        {
+          "member": "httpDiscovery",
+          "kind": "function"
+        },
+        {
+          "member": "DiscoveryDiff",
+          "kind": "type"
+        },
+        {
+          "member": "subscribeDiscovery",
+          "kind": "function"
+        }
+      ]
+    },
+    {
+      "module": "testing",
+      "docs": "What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share.",
+      "notYetReached": {"csharp": "C# is still to implement the testing module.", "swift": "The Swift SDK's testing: What a consumer's tests hold a composition and a registry to: the liveness axioms, that under any behaviour of the wire something is eventually said and every event is delivered exactly once; a real session over test doubles; a factory of scripted sessions for a registry; and a storage several contexts share."},
+      "where": {
+        "typescript": [
+          "packages/typescript/core/src/liveness-axioms.ts",
+          "packages/typescript/sdk/src/testing.ts"
+        ],
+        "rust": [
+          "packages/rust/sdk/src/testing/liveness.rs",
+          "packages/rust/sdk/src/testing/client.rs",
+          "packages/rust/sdk/src/testing/sessions.rs",
+          "packages/rust/sdk/src/testing/storage.rs"
+        ],
+        "python": [
+          "packages/python/sdk/src/semiont/testing/__init__.py",
+          "packages/python/sdk/src/semiont/testing/liveness.py"
+        ],
+        "go": [
+          "packages/go/sdk/semionttest"
+        ],
+        "kotlin": [
+          "packages/kotlin/sdk/src/main/kotlin/semiont/testing"
+        ]
+      },
+      "members": [
+        {
+          "member": "LivenessScenario",
+          "kind": "type"
+        },
+        {
+          "member": "LivenessSpec",
+          "kind": "type",
+          "named": {
+            "typescript": "LivenessAxiomSpec"
+          }
+        },
+        {
+          "member": "Respond",
+          "kind": "type",
+          "named": {
+            "go": "MakeResponse",
+            "python": "MakeResponse"
+          },
+          "absent": {
+            "typescript": "TypeScript's spec states how the gateway answers as a function it names no type for."
+          }
+        },
+        {
+          "member": "faultActions",
+          "kind": "function",
+          "named": {
+            "typescript": "arbFaultAction"
+          }
+        },
+        {
+          "member": "faultSchedules",
+          "kind": "function",
+          "named": {
+            "typescript": "arbFaultSchedule"
+          }
+        },
+        {
+          "member": "assertLivenessAxioms",
+          "kind": "function"
+        },
+        {
+          "member": "DeliverySubject",
+          "kind": "type"
+        },
+        {
+          "member": "DeliveryOp",
+          "kind": "type"
+        },
+        {
+          "member": "deliveryOps",
+          "kind": "function",
+          "named": {
+            "typescript": "arbDeliveryOps"
+          }
+        },
+        {
+          "member": "assertExactlyOnceDelivery",
+          "kind": "function"
+        },
+        {
+          "member": "createTestSession",
+          "kind": "function",
+          "named": {
+            "go": "NewTestSession"
+          }
+        },
+        {
+          "member": "TestSession",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript gives the session, and what it was built over, as an object it names no type for."
+          }
+        },
+        {
+          "member": "TestSessionOptions",
+          "kind": "type",
+          "named": {
+            "go": "TestSessionConfig"
+          }
+        },
+        {
+          "member": "ScriptedSessions",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's testing module has no factory of scripted sessions."
+          }
+        },
+        {
+          "member": "Renewal",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's testing module has no factory of scripted sessions.",
+            "rust": "Rust's scripted sessions are given what a renewal gives as it is: a token, none, or the SignInError it fails with, which Rust makes with the issuer's status.",
+            "python": "Python's scripted sessions are given what a renewal gives as it is: a token, None, or the SignInError it raises, which Python makes with the issuer's status.",
+            "kotlin": "Kotlin's scripted sessions are given a token (queueRenewals) or the SignInError a renewal fails with (failRenewal), which Kotlin makes with the issuer's status."
+          }
+        },
+        {
+          "member": "SharedStorage",
+          "kind": "type",
+          "absent": {
+            "typescript": "TypeScript's testing module has no storage several contexts share."
+          }
+        }
+      ]
+    }
+  ]
+}

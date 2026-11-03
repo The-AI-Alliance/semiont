@@ -1,4 +1,4 @@
-"""A failure, as this SDK reports one: under a code of `specs/src/errors/codes.json`.
+"""A failure, as this SDK reports one: under a code of `protocol/specs/src/errors/codes.json`.
 
 Every failure is a `SemiontError`, and each vocabulary of codes has a class of
 its own, so `except BusRequestError` reads as what it catches and a `match`

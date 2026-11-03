@@ -1,7 +1,7 @@
 """The limit of a search: the fewest answers a request may ask for.
 
 A reference search and a text search each carry a `limit`
-(`docs/protocol/LIBRARIAN.md` § Reference search, § Text search). One that
+(`protocol/contract/LIBRARIAN.md` § Reference search, § Text search). One that
 asks for fewer than one answer is refused before anything is read. This is
 the one place that says what the bound is, and in what words.
 """

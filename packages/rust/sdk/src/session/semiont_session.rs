@@ -452,7 +452,7 @@ impl Shared {
 
     /// The gateway refused the session's token: renew it, and ask the
     /// gateway who the new one is. The rule is the start's
-    /// (specs/src/session/cases.json, `refusal`): a token the issuer has
+    /// (protocol/specs/src/session/cases.json, `refusal`): a token the issuer has
     /// just issued and the gateway refuses is final, and the session ends as
     /// `CredentialRefused`. So one refusal costs at most one renewal and one
     /// ask, and a gateway that refuses whatever its issuer issues is not
@@ -536,7 +536,7 @@ impl Shared {
     /// final: renewing again cannot change the answer, and asking for as
     /// long as the issuer goes on issuing is a loop with no end. So the
     /// gateway is asked at most twice and the issuer at most once
-    /// (specs/src/session/cases.json, `startup`).
+    /// (protocol/specs/src/session/cases.json, `startup`).
     async fn validate(&self, stored: Option<StoredSession>) {
         let Some(stored) = stored else { return };
         let expired = is_token_expired(&stored.access, SystemTime::now());

@@ -39,7 +39,7 @@ private fun withoutItsMoment(built: Annotation): JsonObject {
     return JsonObject(written - "created")
 }
 
-/** The annotation builders, held to specs/src/annotations/builder-cases.json: an annotation of a span (`cases`), and one of a resource as a whole (`resources`). */
+/** The annotation builders, held to protocol/specs/src/annotations/builder-cases.json: an annotation of a span (`cases`), and one of a resource as a whole (`resources`). */
 class AnnotationBuildersTest {
     private val table = Spec.read("annotations/builder-cases.json").jsonObject
     private val cases: List<JsonObject> = table.getValue("cases").jsonArray.map { it.jsonObject }
