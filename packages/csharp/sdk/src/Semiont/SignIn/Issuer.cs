@@ -5,7 +5,7 @@ using Semiont.Types;
 
 namespace Semiont.SignIn;
 
-public sealed class Issuer : IDisposable
+public sealed partial class Issuer : IDisposable
 {
     private readonly HttpClient? client;
     private readonly HttpMessageInvoker? owned;
@@ -46,16 +46,44 @@ public sealed class Issuer : IDisposable
 
     private async Task<(string Access, string? Refresh)> GrantAsync(StoredSession held, CancellationToken cancellation)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, held.TokenEndpoint);
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
+        var answer = await AnswerAsync(held.TokenEndpoint, new Dictionary<string, string>
         {
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = held.Refresh,
             ["client_id"] = held.ClientId,
-        });
+        }, cancellation: cancellation).ConfigureAwait(false);
+        if (answer.Status != 200) throw Failure("The issuer refused the refresh grant", answer.Status);
+        return Issued(answer);
+    }
+
+    private static (string Access, string? Refresh) Issued(IssuerAnswer answer)
+    {
+        var access = answer.Text("access_token");
+        if (string.IsNullOrEmpty(access)) throw Failure("The issuer answered without an access token", answer.Status);
+        string? refresh = null;
+        if (answer.Body is JsonElement body && body.TryGetProperty("refresh_token", out var stated))
+        {
+            if (stated.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(stated.GetString())) throw Failure("The issuer answered with an invalid refresh token", answer.Status);
+            refresh = stated.GetString();
+        }
+        return (access, refresh);
+    }
+
+    internal sealed record IssuerAnswer(int Status, JsonElement? Body)
+    {
+        internal string? Text(string name) => Body is JsonElement body && body.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        internal double? Seconds(string name) => Body is JsonElement body && body.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var seconds) && seconds >= 0 && double.IsFinite(seconds) ? seconds : null;
+    }
+
+    internal async Task<IssuerAnswer> AnswerAsync(string url, Dictionary<string, string>? form = null,
+        string errorCode = "exchange", CancellationToken cancellation = default)
+    {
+        lifetime.Token.ThrowIfCancellationRequested();
+        using var request = new HttpRequestMessage(form is null ? HttpMethod.Get : HttpMethod.Post, url);
+        request.Headers.Accept.ParseAdd("application/json");
+        if (form is not null) request.Content = new FormUrlEncodedContent(form);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("httpRequestTimeoutMs").GetDouble()), clock);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, deadline.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token, deadline.Token);
         int? status = null;
         try
         {
@@ -63,23 +91,22 @@ public sealed class Issuer : IDisposable
                 ? await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false)
                 : await (owned ?? throw new InvalidOperationException("No issuer HTTP handler")).SendAsync(request, linked.Token).ConfigureAwait(false);
             status = (int)response.StatusCode;
-            if (status != 200) throw Failure("The issuer refused the refresh grant", status);
-            await using var body = await response.Content.ReadAsStreamAsync(linked.Token).ConfigureAwait(false);
-            using var answer = await JsonDocument.ParseAsync(body, cancellationToken: linked.Token).ConfigureAwait(false);
-            var root = answer.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("access_token", out var access) || access.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(access.GetString()))
-                throw Failure("The issuer answered without an access token", status);
-            string? refresh = null;
-            if (root.TryGetProperty("refresh_token", out var stated))
+            var bytes = await response.Content.ReadAsByteArrayAsync(linked.Token).ConfigureAwait(false);
+            if (bytes.Length == 0) return new IssuerAnswer(status.Value, null);
+            try
             {
-                if (stated.ValueKind != JsonValueKind.String || string.IsNullOrEmpty(stated.GetString())) throw Failure("The issuer answered with an invalid refresh token", status);
-                refresh = stated.GetString();
+                using var document = JsonDocument.Parse(bytes);
+                if (document.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException("The issuer answered with no JSON object");
+                return new IssuerAnswer(status.Value, document.RootElement.Clone());
             }
-            return (access.GetString() ?? throw Failure("The issuer answered without an access token", status), refresh);
+            catch (JsonException) when (!response.IsSuccessStatusCode) { return new IssuerAnswer(status.Value, null); }
         }
-        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested) { throw Failure("The issuer did not answer before the deadline", null); }
-        catch (HttpRequestException error) { throw Failure("The issuer did not answer", null, error); }
-        catch (JsonException error) { throw Failure("The issuer answered with invalid JSON", status, error); }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested && !lifetime.IsCancellationRequested)
+        { throw new SignInError(ProtocolFacts.SignInError(errorCode), "The issuer did not answer before the deadline"); }
+        catch (Exception error) when (error is HttpRequestException or IOException)
+        { throw new SignInError(ProtocolFacts.SignInError(errorCode), "The issuer did not answer", inner: error); }
+        catch (JsonException error)
+        { throw new SignInError(ProtocolFacts.SignInError(errorCode), "The issuer answered with invalid JSON", status, error); }
     }
 
     private static SignInError Failure(string message, int? status, Exception? inner = null) => new(ProtocolFacts.SignInError("exchange"), message, status, inner);

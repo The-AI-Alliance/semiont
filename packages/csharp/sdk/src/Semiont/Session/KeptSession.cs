@@ -187,7 +187,10 @@ public sealed class KeptSession : IDisposable
             try { Set(token, await validate(token, lifetime.Token).ConfigureAwait(false)); }
             catch (TransportError error) when (error.Code == ProtocolFacts.Error(401))
             { await EndAsync("refused", "credential-refused").ConfigureAwait(false); }
-            catch (SemiontError) { }
+            catch (SemiontError)
+            {
+                // An unanswered identity request refuses nothing; keep the renewed token and last confirmed user.
+            }
             return State.Token;
         }
         finally { operations.Release(); }
@@ -234,7 +237,10 @@ public sealed class KeptSession : IDisposable
                 step = unanswered ? Math.Min(step * 2, ProtocolFacts.Timing("maxReconnectMs").GetDouble()) : ProtocolFacts.Timing("reconnectMs").GetDouble();
             }
         }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            // Disposal ends the scheduler; it is not a session failure.
+        }
     }
 
     public void Dispose()

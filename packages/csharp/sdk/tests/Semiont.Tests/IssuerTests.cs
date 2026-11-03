@@ -68,7 +68,7 @@ public sealed class IssuerTests
     [Fact]
     public async Task RefreshRetriesUseThePublicClockAndOwnedBudget()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var calls = 0;
         using var handler = new Handler((_, _) => { calls++; return Task.FromResult(Answer(503, "{}")); });
         using var client = new HttpClient(handler);
@@ -124,7 +124,7 @@ public sealed class IssuerTests
     [InlineData(true)]
     public async Task AnUnansweredGrantCanRetryAndRotateTheRefreshToken(bool timeout)
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var calls = 0;
         using var handler = new Handler(async (_, cancellation) =>
         {
@@ -154,7 +154,7 @@ public sealed class IssuerTests
     [Fact]
     public async Task HeadersWithoutABodyAreNoIssuerVerdict()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var calls = 0;
         using var unanswered = new HttpResponseMessage(HttpStatusCode.OK) { Content = new UnansweredContent() };
         using var handler = new Handler((_, _) => Task.FromResult(++calls == 1
@@ -190,24 +190,5 @@ public sealed class IssuerTests
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => throw new InvalidOperationException("A cancellable read is required");
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
     }
-    private sealed class Clock : TimeProvider
-    {
-        private readonly FakeTimeProvider fake = new();
-        private readonly Channel<TimeSpan> timers = Channel.CreateUnbounded<TimeSpan>();
-        public override DateTimeOffset GetUtcNow() => fake.GetUtcNow();
-        public override long GetTimestamp() => fake.GetTimestamp();
-        public override long TimestampFrequency => fake.TimestampFrequency;
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            var timer = fake.CreateTimer(callback, state, dueTime, period);
-            timers.Writer.TryWrite(dueTime);
-            return timer;
-        }
-        internal void Advance(TimeSpan elapsed) => fake.Advance(elapsed);
-        internal async Task WaitForAsync(TimeSpan due)
-        {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (await timers.Reader.ReadAsync(deadline.Token) != due) { }
-        }
-    }
+
 }
