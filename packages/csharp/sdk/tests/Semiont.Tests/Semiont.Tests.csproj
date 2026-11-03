@@ -4,6 +4,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include="../../../../../protocol/specs/src/sign-in-store/README.md" Link="specs/sign-in-store/README.md" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../../protocol/specs/src/**/*.json" Link="specs/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../../protocol/conformance/**/*.json" Link="corpus/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../generators/Semiont.Generator/Semiont.Generator.csproj" />

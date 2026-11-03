@@ -54,36 +54,47 @@ async def index_and_ask(
     return await store.search_resources(await provider.embed_query(question), SearchOptions(limit=5))
 ```
 
-A Qdrant store is told where its Qdrant is, and how to learn how wide its
-vectors are. It asks that only when it has to make a collection, so a store
+A Qdrant store is told where its Qdrant is, whose index it is, and how to
+learn how wide its vectors are. Whose index it is, is a knowledge base's
+DID: the store makes, writes and reads that knowledge base's collections
+and no other's, so the stores of several knowledge bases share one Qdrant.
+Each collection is named by the SHA-256 of the DID, a hyphen and the
+collection's word, as [the payload cases][payload-cases] state. A store asks
+how wide its vectors are only when it has to make a collection, so a store
 that connects to collections that exist asks no provider anything. A store
 told to make its index anew asks again.
 
 ```python
+from semiont.identity import kb_did
+
 from semiont_vectors.ollama import OllamaEmbeddingProvider
 from semiont_vectors.qdrant import QdrantVectorStore
 
 
 async def connected() -> QdrantVectorStore:
     provider = OllamaEmbeddingProvider(model="nomic-embed-text", base_url="http://localhost:11434")
-    store = QdrantVectorStore(host="localhost", port=6333, dimensions=provider.dimensions)
+    kb = kb_did("example.github.io:my-kb")
+    store = QdrantVectorStore(host="localhost", port=6333, kb=kb, dimensions=provider.dimensions)
     await store.connect()
     return store
 ```
 
-A service that only searches the index is handed a reader. A reader has the
-three searches and nothing that writes, and it makes nothing in its index:
-connecting one to a Qdrant makes no collection. It is told no width and
-needs no provider to be made. A search of a collection that nobody has made
-yet fails, and says the collection is not there.
+A service that only searches the index is handed a reader, of one knowledge
+base's index as a store is. A reader has the three searches and nothing that
+writes, and it makes nothing in its index: connecting one to a Qdrant makes
+no collection. It is told no width and needs no provider to be made. A
+search of a collection that nobody has made yet fails, and says the
+collection is not there.
 
 ```python
+from semiont.identity import kb_did
+
 from semiont_vectors.qdrant import QdrantVectorReader
 from semiont_vectors.store import SearchOptions, VectorReader, VectorSearchResult
 
 
 async def reading() -> VectorReader:
-    reader = QdrantVectorReader(host="localhost", port=6333)
+    reader = QdrantVectorReader(host="localhost", port=6333, kb=kb_did("example.github.io:my-kb"))
     await reader.connect()
     return reader
 
@@ -114,17 +125,19 @@ exports nothing.
   search found to one entry for each resource.
 - `semiont_vectors.memory`: `MemoryVectorStore`, a store, and so a reader
   too.
-- `semiont_vectors.qdrant`: `QdrantVectorStore`, which makes the collections
-  and their payload indexes when it connects, and again when it makes the
-  index anew, and `QdrantVectorReader`, which makes nothing.
+- `semiont_vectors.qdrant`: `QdrantVectorStore`, which makes its knowledge
+  base's collections and their payload indexes when it connects, and again
+  when it makes the index anew, and `QdrantVectorReader`, which makes
+  nothing.
 - `semiont_vectors.embedding`: `EmbeddingProvider`, the protocol every
   provider is (`embed_query`, `embed_documents`, `dimensions`), and
   `EmbeddingProviderError`, the failure one raises.
 - `semiont_vectors.ollama`, `semiont_vectors.voyage`, `semiont_vectors.mock`:
   one provider each.
 - `semiont_vectors.factory`: `create_vector_store`, `create_vector_reader`
-  and `create_embedding_provider`, which make the store, the reader and the
-  provider a service's configuration document names
+  and `create_embedding_provider`, which make the store and the reader of the
+  knowledge base whose DID they are handed, and the provider, that a
+  service's configuration document names
   ([`VectorsConfig`][vectors-config], [`EmbeddingConfig`][embedding-config]).
 
 ## What the index holds
@@ -158,8 +171,8 @@ again at every start to learn that, the index remembers it
 (`decline_resource`): the checksum of those bytes, the media type they were
 read as, and why they gave no text. A resource has points or is remembered
 so, and never both, and what is remembered is no point: it is never
-searched and is not counted. A Qdrant keeps it in a third collection,
-`declined`.
+searched and is not counted. A Qdrant keeps it in a third collection of the
+knowledge base's, the declined.
 
 ## Asking a provider
 
@@ -190,9 +203,9 @@ uv run pytest                        # needs no server
 uv run pytest tests/qdrant_live.py   # against a real Qdrant
 ```
 
-The second run is told where a Qdrant is by `QDRANT_HOST`. It deletes that
-Qdrant's `resources`, `annotations` and `declined` collections before each
-case, and fails, and is not skipped, without the variable.
+The second run is told where a Qdrant is by `QDRANT_HOST`. It deletes every
+collection of that Qdrant before each case, and fails, and is not skipped,
+without the variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk

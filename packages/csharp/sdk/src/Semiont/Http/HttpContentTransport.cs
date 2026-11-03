@@ -1,3 +1,4 @@
+using Semiont.Protocol;
 using Semiont.Errors;
 using System.Diagnostics;
 using System.Net;
@@ -74,7 +75,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
             return form;
         }, upload: true, cancellation: cancellation).ConfigureAwait(false);
         var created = await response.Content.ReadFromJsonAsync<CreateResourceResponse>(cancellation).ConfigureAwait(false)
-            ?? throw new TransportError(TransportFacts.Error(0), "Upload returned null");
+            ?? throw new TransportError(ProtocolFacts.Error(0), "Upload returned null");
         return created.ResourceId;
     }
 
@@ -84,7 +85,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         cancellation = linked.Token;
         using var activity = SdkTelemetry.Start("content.get", new ActivityTagsCollection { { "resource.id", resource.Value } });
         using var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(false);
-        return new BinaryContent(response.Content.Headers.ContentType?.ToString() ?? throw new TransportError(TransportFacts.Error(0), "The content response has no media type"), await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(false));
+        return new BinaryContent(response.Content.Headers.ContentType?.ToString() ?? throw new TransportError(ProtocolFacts.Error(0), "The content response has no media type"), await response.Content.ReadAsByteArrayAsync(cancellation).ConfigureAwait(false));
     }
 
     public async Task<BinaryStream> GetBinaryStreamAsync(ResourceId resource, CancellationToken cancellation = default)
@@ -95,7 +96,7 @@ public sealed class HttpContentTransport(HttpTransport transport) : IDisposable
         var response = await transport.ExchangeAsync(HttpMethod.Get, Path(resource), cancellation: cancellation).ConfigureAwait(false);
         try
         {
-            var mediaType = response.Content.Headers.ContentType?.ToString() ?? throw new TransportError(TransportFacts.Error(0), "The content response has no media type");
+            var mediaType = response.Content.Headers.ContentType?.ToString() ?? throw new TransportError(ProtocolFacts.Error(0), "The content response has no media type");
             var stream = new ResponseStream(await response.Content.ReadAsStreamAsync(cancellation).ConfigureAwait(false), response, activity, lifetime.Token, Released);
             lock (gate)
             {

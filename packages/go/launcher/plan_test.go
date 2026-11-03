@@ -138,7 +138,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			})
 			checkRole(t, plan, "vectors", rolePlan{
 				Presence: presenceLauncher, Driver: "qdrant",
-				Image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", Memory: "2G", Port: 6333,
+				Image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", Memory: "1G", Port: 6333,
 			})
 			// embedding: with ollama engines, the inference role runs the
 			// Ollama and embedding rides along (external, sharing it). With

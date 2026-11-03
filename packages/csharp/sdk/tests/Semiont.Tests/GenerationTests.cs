@@ -91,7 +91,7 @@ public sealed class GenerationTests
     [Fact]
     public void EverySchemaGeneratesInProcessWithoutDiagnostics()
     {
-        var files = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "specs"), "*.json", SearchOption.AllDirectories)
+        var files = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "specs"), "*", SearchOption.AllDirectories).Where(path => path.EndsWith(".json", StringComparison.Ordinal) || path.EndsWith("README.md", StringComparison.Ordinal))
             .Select(path => new SpecFile("/specs/src/" + Path.GetRelativePath(Path.Combine(AppContext.BaseDirectory, "specs"), path).Replace('\\', '/'), File.ReadAllText(path))).ToArray();
         var compilation = CSharpCompilation.Create("Example", options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(generators: [new ProtocolGenerator().AsSourceGenerator()], additionalTexts: files);
