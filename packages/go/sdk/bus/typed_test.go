@@ -58,7 +58,7 @@ func TestAChannelOfTheRecordRefusesAStoredEventOfAnotherType(t *testing.T) {
 }
 
 func TestTheEventsOfTheRecordAreTheRegistrysInItsOrder(t *testing.T) {
-	text, err := os.ReadFile("../../../../specs/src/bus/registry.json")
+	text, err := os.ReadFile("../../../../protocol/specs/src/bus/registry.json")
 	if err != nil {
 		t.Fatal(err)
 	}

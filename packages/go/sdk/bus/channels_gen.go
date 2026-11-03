@@ -1,4 +1,4 @@
-// Code generated from specs/src/bus/registry.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/bus/registry.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/bus/generate-go.mjs
 

@@ -8,7 +8,7 @@
  * Basic Multilingual Plane is two; and CodeMirror's document holds every line
  * break as one unit, where the content's CRLF is two code points.
  *
- * The first part runs specs/src/text/offset-cases.json, the table every
+ * The first part runs protocol/specs/src/text/offset-cases.json, the table every
  * implementation that makes or applies an offset is held to, through the
  * selection builder and the segmenter. Every other expected number was counted
  * by hand and again in Python, whose strings count code points; none is read
@@ -152,10 +152,10 @@ afterEach(() => {
 interface Span { exact: string; occurrence: number; start: number; end: number }
 interface Case { why: string; text: string; codePoints: number; spans: Span[] }
 
-const TABLE = 'specs/src/text/offset-cases.json';
+const TABLE = 'protocol/specs/src/text/offset-cases.json';
 const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../../..', TABLE), 'utf8'));
 
-describe('the offset table, through what makes an offset and what applies one (specs/src/text/offset-cases.json)', () => {
+describe('the offset table, through what makes an offset and what applies one (protocol/specs/src/text/offset-cases.json)', () => {
   it('has cases, and one at least with a character outside the basic plane', () => {
     expect(table.cases.length).toBeGreaterThan(0);
     expect(table.cases.some(({ text }) => /[\u{10000}-\u{10FFFF}]/u.test(text))).toBe(true);

@@ -1,4 +1,4 @@
-"""A reference search, where `specs/src/librarian/score-cases.json` holds none of it.
+"""A reference search, where `protocol/specs/src/librarian/score-cases.json` holds none of it.
 
 The table states what a search answers (`test_score_cases.py`). Here is what
 no case of it rests on: the half a score is rounded at, a date that is no
@@ -6,7 +6,7 @@ date, a frequency below 0, a limit below 0, which item of a body the model is
 shown, what is logged when a candidate is described from its view, a provider
 and a listing by entity type that fail, the characters a blank term is made
 of, and a description that has more members than the protocol names. The rules are those of
-`docs/protocol/LIBRARIAN.md` § Reference search and § The score.
+`protocol/contract/LIBRARIAN.md` § Reference search and § The score.
 """
 
 import logging

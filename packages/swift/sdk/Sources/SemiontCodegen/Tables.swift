@@ -100,7 +100,7 @@ package struct TableGenerator {
     }
   }
   package func generate() throws -> String {
-    var out = "// Generated from specs/src tables; do not edit.\nimport Foundation\n"
+    var out = "// Generated from protocol/specs/src tables; do not edit.\nimport Foundation\n"
     var received = try models.schema("BusFrame")
     var fields = try required(received, "properties").object
     let projection = fields.keys.sorted().map {

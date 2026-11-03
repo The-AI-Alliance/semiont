@@ -4,7 +4,7 @@ package bus
 //
 // TypeScript catches most of these at compile time through `satisfies`
 // clauses; Go has no equivalent, so the same properties are asserted at test
-// time. Both languages generate from specs/src/bus/registry.json, so
+// time. Both languages generate from protocol/specs/src/bus/registry.json, so
 // these are a second opinion rather than the only guard — which is the point.
 // A generated artifact checked only against the thing that generated it can
 // agree with a mistake indefinitely.

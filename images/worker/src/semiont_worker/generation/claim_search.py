@@ -18,7 +18,7 @@ compiler says the cited span ended, which the worker asked it when it made
 the PDF. No place is taken where none is there, so a citation is never
 anchored in the wrong place.
 
-`specs/src/annotations/pdf-locate-cases.json` holds the rule, under `claims`
+`protocol/specs/src/annotations/pdf-locate-cases.json` holds the rule, under `claims`
 and `landing`. An offset counts the text's code points, as a Python string's
 own index does.
 """

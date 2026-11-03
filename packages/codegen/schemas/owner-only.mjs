@@ -1,4 +1,4 @@
-// owner-only.mjs — read and check specs/src/sign-in-store/owner-only.json: the
+// owner-only.mjs — read and check protocol/specs/src/sign-in-store/owner-only.json: the
 // modes a writer of the sign-in store gives its directory and its files, and
 // the access list it gives the directory.
 //

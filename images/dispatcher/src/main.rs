@@ -1,5 +1,5 @@
 //! The dispatcher: the knowledge base's job control plane, as
-//! docs/protocol/JOBS.md states it. It boots from the document its `--config`
+//! protocol/contract/JOBS.md states it. It boots from the document its `--config`
 //! names, signs in as its service account, opens the job queue on the broker
 //! within its boot deadline, and then answers the nine job channels over the
 //! gateway's bus, announcing each pending job it is delivered on `job:queued`.

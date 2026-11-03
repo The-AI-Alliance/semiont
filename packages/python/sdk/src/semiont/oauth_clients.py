@@ -1,4 +1,4 @@
-# Generated from specs/src/session/oauth.json; do not edit.
+# Generated from protocol/specs/src/session/oauth.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-oauth-clients-python.mjs
 
 """How a Semiont client presents itself to the issuer a knowledge base trusts:

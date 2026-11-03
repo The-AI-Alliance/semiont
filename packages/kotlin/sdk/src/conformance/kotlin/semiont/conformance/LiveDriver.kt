@@ -59,7 +59,7 @@ import semiont.types.TagSchema
 
 /**
  * The Kotlin SDK's live driver: the program the SDK conformance suite talks to
- * in the Kotlin SDK's place for the live layer (packages/conformance/sdk/README.md,
+ * in the Kotlin SDK's place for the live layer (protocol/conformance/sdk/README.md,
  * The live driver). It holds a client, and reaches it only as an application
  * does, through what the SDK makes public.
  */

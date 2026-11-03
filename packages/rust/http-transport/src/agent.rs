@@ -37,7 +37,7 @@ pub enum AgentSignInError {
     /// The gateway did not name the agent.
     Refused { status: u16 },
     /// The gateway refused the agent's token: a 401, or a 429 `refusal-rate`
-    /// (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). The same
+    /// (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential). The same
     /// token gets the same answer, so it is not tried again.
     CredentialRefused { status: u16 },
     /// The gateway answered something that names no agent.

@@ -1,7 +1,7 @@
 """The fold: what each recorded event does to the graph.
 
-`docs/protocol/WEAVER.md` § The fold states each rule, and
-`specs/src/weaver/fold-cases.json` holds every implementation to them.
+`protocol/contract/WEAVER.md` § The fold states each rule, and
+`protocol/specs/src/weaver/fold-cases.json` holds every implementation to them.
 
 The graph says what the record says. A resource is dated when its event was
 recorded and is by whom the event records; an annotation is by the creator

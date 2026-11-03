@@ -7,7 +7,7 @@ import { CacheRefresher, ScopedSources } from '../cache-refresh';
 import type { GatherNamespace as IGatherNamespace, GatherAnnotationComplete, ReferencedByEntry } from './types';
 
 /**
- * The live queries of specs/src/client/refresh.json this namespace answers.
+ * The live queries of protocol/specs/src/client/refresh.json this namespace answers.
  * `client.ts` holds the namespaces to answering every one between them.
  */
 export const GATHER_QUERIES = ['referencedBy'] as const satisfies readonly CacheQuery[];
@@ -27,7 +27,7 @@ export class GatherNamespace implements IGatherNamespace {
     options?: {
       /** Timeout of the requests the live query issues; absent, `Bus.request`'s own. */
       busTimeoutMs?: number;
-      /** B19's window; absent, `invalidationWindowMs` of specs/src/client/timing.json. */
+      /** B19's window; absent, `invalidationWindowMs` of protocol/specs/src/client/timing.json. */
       invalidationWindowMs?: number;
     },
   ) {

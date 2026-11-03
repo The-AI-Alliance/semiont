@@ -1,7 +1,7 @@
 /**
  * The cache-refresh table's generator refuses a table that cannot be meant.
  *
- * specs/src/client/refresh.json is the authority every SDK generates from:
+ * protocol/specs/src/client/refresh.json is the authority every SDK generates from:
  * what each event on the bus, and the reopening of a dropped stream, does to a
  * client's cache. A generated table cannot drift from it, so what is left to
  * hold is the table itself: each case hands the generator the committed table
@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const GENERATOR = fileURLToPath(new URL('../../../../codegen/schemas/generate-cache-refresh.mjs', import.meta.url));
-const TABLE = fileURLToPath(new URL('../../../../../specs/src/client/refresh.json', import.meta.url));
+const TABLE = fileURLToPath(new URL('../../../../../protocol/specs/src/client/refresh.json', import.meta.url));
 
 interface Query {
   name: string;

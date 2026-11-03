@@ -3,7 +3,7 @@
 //! An annotation of a PDF is anchored by rectangles on its pages, not by
 //! offsets, so a span found in the PDF's text is located: one rectangle for
 //! each line of each page it touches, each written as an RFC 3778 fragment.
-//! specs/src/annotations/pdf-locate-cases.json holds the rule in its `cases`,
+//! protocol/specs/src/annotations/pdf-locate-cases.json holds the rule in its `cases`,
 //! for this and for every other implementation. A span, like an item's
 //! `start` and `end`, is two offsets, which count Unicode code points:
 //! nothing here reads the text, so nothing is converted.

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// registry is specs/src/media-types/registry.json, read by the test itself:
+// registry is protocol/specs/src/media-types/registry.json, read by the test itself:
 // the oracle is the registry, not the Go generated from it.
 type registry struct {
 	ExtensionAliases map[string]string `json:"extensionAliases"`
@@ -22,7 +22,7 @@ type registry struct {
 
 func readRegistry(t *testing.T) registry {
 	t.Helper()
-	b, err := os.ReadFile("../../../../specs/src/media-types/registry.json")
+	b, err := os.ReadFile("../../../../protocol/specs/src/media-types/registry.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestTheRowsAreTheRegistrys(t *testing.T) {
 	}
 }
 
-// The rules every SDK reads from the registry, as specs/src/media-types/cases.json
+// The rules every SDK reads from the registry, as protocol/specs/src/media-types/cases.json
 // states them.
 type mediaTypeCases struct {
 	CloneFormat []struct {
@@ -118,7 +118,7 @@ type mediaTypeCases struct {
 
 func readCases(t *testing.T) mediaTypeCases {
 	t.Helper()
-	b, err := os.ReadFile("../../../../specs/src/media-types/cases.json")
+	b, err := os.ReadFile("../../../../protocol/specs/src/media-types/cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

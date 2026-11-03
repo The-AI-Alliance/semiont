@@ -122,7 +122,7 @@ semiont stop
 - **The Browser is not a stack member**: it is the one viewer of
   every KB, local and codespace, discovery-synced. **Its document says how it
   runs**: `stack/browser.yaml` in the state home, kind `Browser`
-  (`specs/src/stack/Browser.json`), naming its image, its memory and the port
+  (`protocol/specs/src/stack/Browser.json`), naming its image, its memory and the port
   it is published on, read with the reader a KB's documents are. The first
   command that needs it and finds none writes it from the launcher's catalog
   (`semiont-browser:latest`, 1G, port 3000) and says where; from then on the
@@ -177,7 +177,7 @@ semiont stop
   restarts that one; `semiont stop` stops them with the stack, and `semiont
   stop --service collector|traces|metrics` stops that one alone.
 - **The worker's settings belong to no KB either**: `stack/workers.yaml` in
-  the state home, kind `WorkerPool` (`specs/src/stack/WorkerPool.json`),
+  the state home, kind `WorkerPool` (`protocol/specs/src/stack/WorkerPool.json`),
   naming its image, its memory and its log level, written and read as the
   Browser's is (`semiont-worker:latest`, 2G, info) by the first start that
   runs a worker. A KB's repository holds none: its Inference document's
@@ -434,7 +434,7 @@ semiont stop
   localhost endpoint, placement, did:web and site name; `managedBy:
   semiont-launcher` so the Browser can split managed from manual entries.
   Endpoints and identity only, never a secret. The schema authority is
-  `specs/src/discovery/DiscoveryDocument.json`, and BOTH languages
+  `protocol/specs/src/discovery/DiscoveryDocument.json`, and BOTH languages
   generate from it — @semiont/core's types.ts via the OpenAPI pipeline, and
   this launcher's `discovery_types_gen.go` via go-jsonschema (go:generate in
   discovery.go) — so schema drift is a compile error, not a convention. The
@@ -485,10 +485,10 @@ semiont stop
 - **The launcher derives its work from the KB's documents in
   `.semiont/stack/`** — the files every service's configuration is written
   from (see `docs/operator/administration/CONFIGURATION.md`), each held to its
-  schema in `specs/src/stack/` before anything launches. For each daemon a
+  schema in `protocol/specs/src/stack/` before anything launches. For each daemon a
   document describes (the graph, the vectors, the broker, the issuer's
   database) it states who runs it, one way or the other and never both
-  (`specs/src/stack/Runner.json`): `image` and `resources` → the launcher
+  (`protocol/specs/src/stack/Runner.json`): `image` and `resources` → the launcher
   provides a container from that image and places it; `external` → somebody
   else runs it: the document states its address, and it is verified, never
   launched, skipped by stop and shown as "external" in status. The issuer is
@@ -664,7 +664,7 @@ forward instead of the local one.
 
 Sessions maintain themselves: access tokens are short-lived, and every verb's
 session is the Go SDK's, which every SDK's session agrees with
-(`specs/src/session/cases.json`). At its start it asks the gateway who its
+(`protocol/specs/src/session/cases.json`). At its start it asks the gateway who its
 token is; it renews the token invisibly at the issuer from the stored refresh
 token when the token has expired or the gateway refuses it (announced on
 stderr, kept, retried once); and it forgets a sign-in it cannot renew, so
@@ -676,7 +676,7 @@ said plainly when the issuer half didn't complete), and `semiont status
 the stack when reachable — valid / expired / unverified, never a guess.
 
 The stored sessions are the sign-in store, a contract in
-`specs/src/sign-in-store`: `<state home>/tokens.json`, which an application
+`protocol/specs/src/sign-in-store`: `<state home>/tokens.json`, which an application
 on any SDK reads and renews too, so one `semiont login` serves both. The
 launcher keeps it through the Go SDK's store: every change is made under an
 exclusive lock on `tokens.lock`, a member it does not understand is written
@@ -720,7 +720,7 @@ exit non-zero, and `--json` prints the job's completion as the stack sent it.
 A completion is read as its verb's: one that names the
 other verb, or reports what the other verb's job reports, is said and exits
 non-zero. What `mark --delegate` sends for each motivation is the
-`mark.delegate` row of `specs/src/client/surface.json`, which every SDK
+`mark.delegate` row of `protocol/specs/src/client/surface.json`, which every SDK
 runs.
 
 ### Searching a KB
@@ -912,7 +912,7 @@ the other clients' form. What the server does that a verb does not:
   Each tool's input and output schema is the spec's, made self-contained by
   `packages/codegen/schemas/generate-mcp-tools-go.mjs` into `mcp_tools_gen.go`, and CI
   fails when either drifts. `TestMCPToolsCensus` holds the table to
-  `specs/src/client/surface.json` both ways.
+  `protocol/specs/src/client/surface.json` both ways.
 - **A call is checked before anything is sent**, and a refusal names every
   fault at once: the MCP library's typed tools stop at the first, so each tool
   validates its own call with the JSON Schema library the launcher's documents

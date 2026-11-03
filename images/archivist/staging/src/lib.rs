@@ -1,5 +1,5 @@
 //! Staging: recording the working tree's changes where a person can commit
-//! them (docs/protocol/ARCHIVIST.md § Staging). The trait names the job;
+//! them (protocol/contract/ARCHIVIST.md § Staging). The trait names the job;
 //! `git` is the one technology behind it, and `none` is a knowledge base that
 //! does not sync git.
 //!

@@ -1,6 +1,6 @@
 /**
  * Whether a failed request is worth another attempt is one table,
- * specs/src/retry/cases.json, run here through `RETRY_RULES` and
+ * protocol/specs/src/retry/cases.json, run here through `RETRY_RULES` and
  * `retryAfterMs`. Every SDK that carries these rules runs the same table: a
  * mirror across implementations, gated by one table rather than generated.
  */
@@ -25,7 +25,7 @@ interface RetryAfterCase {
   ms: number | null;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/retry/cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../protocol/specs/src/retry/cases.json');
 const { rules, retryAfter } = JSON.parse(readFileSync(TABLE, 'utf-8')) as {
   rules: RuleCase[];
   retryAfter: RetryAfterCase[];

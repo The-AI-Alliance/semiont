@@ -22,7 +22,7 @@ internal fun readJson(path: Path): JsonElement =
     }
 
 /**
- * One OpenAPI document of specs/src with every file `$ref` followed: each
+ * One OpenAPI document of protocol/specs/src with every file `$ref` followed: each
  * file the root document lists under `components` named by its component, a
  * file that is under `schemas/` or `responses/` named by its own name, and
  * the rest inlined, as the published bundles are.
@@ -81,8 +81,8 @@ internal class Bundle private constructor() {
                 JsonObject(node.mapValues { (_, value) -> resolve(value, base) })
             } else {
                 val file = reference.substringBefore('#')
-                if (file.isEmpty()) refuse("an internal \$ref $reference in a file under $base: specs/src refers by file")
-                if (reference.contains('#')) refuse("\$ref $reference under $base points into a file: specs/src refers to whole files")
+                if (file.isEmpty()) refuse("an internal \$ref $reference in a file under $base: protocol/specs/src refers by file")
+                if (reference.contains('#')) refuse("\$ref $reference under $base points into a file: protocol/specs/src refers to whole files")
                 val target = base.resolve(file).toRealPath()
                 val component = named[target] ?: run {
                     val kind = target.parent.fileName.toString()

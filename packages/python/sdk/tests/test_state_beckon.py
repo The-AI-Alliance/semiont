@@ -1,4 +1,4 @@
-"""The beckon unit: what its cases in `specs/src/client/state-units.json` cannot state.
+"""The beckon unit: what its cases in `protocol/specs/src/client/state-units.json` cannot state.
 
 Its behaviour is the table's, run by `tests/test_state_cases.py`. Here are the
 axioms, and how often its state wakes a reader, which differs by language.

@@ -1,6 +1,6 @@
 """A resource's bytes and its annotations, read from an Archivist a test plays over real HTTP.
 
-The Archivist's content route is `specs/src/archivist/openapi.json`'s: the
+The Archivist's content route is `protocol/specs/src/archivist/openapi.json`'s: the
 bytes as they are stored, under the content type the record stores, or a 404
 that says which half of the lookup failed. Here is what the reader asks,
 what it hands over of each answer, and that whatever keeps the bytes from

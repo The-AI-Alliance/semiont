@@ -14,13 +14,13 @@ The transport contract is the single instrumentation layer. Every bus
 emit, content put/get, and worker job
 becomes a span. Trace context propagates over HTTP `traceparent`
 headers and, on a frame relayed over SSE, the payload field the bus
-registry names (`trace` in [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json)).
+registry names (`trace` in [`protocol/specs/src/bus/registry.json`](../../../protocol/specs/src/bus/registry.json)).
 
 The spans are in the tables below, by who exports them. What the Rust services, the
 Worker service, the Weaver, the Smelter and the Librarian export is specified, with kinds and attributes, in
-[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json),
+[`protocol/specs/src/service-telemetry/telemetry.json`](../../../protocol/specs/src/service-telemetry/telemetry.json),
 and what an SDK's transports export, in any language, in
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json),
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../../../protocol/specs/src/sdk-telemetry/telemetry.json),
 which also has the count of emits a client sends. Each service's conformance suite holds it
 to its rows in both directions, and the SDK suite holds each SDK to the SDK table.
 
@@ -98,12 +98,12 @@ job:yield                                       [the Worker service]
 
 The standard OpenTelemetry variables, set in each service's environment. The launcher sets the endpoint for every service it starts; on your own platform, set it in each container's environment.
 The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
-environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
+environment table lists ([`variables.json`](../../../protocol/specs/src/service-environment/variables.json))
 and configure their SDK from them. The Worker service reads the ones
-[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists, the Weaver the ones
-[WEAVER.md](../../protocol/WEAVER.md#environment) lists, the Smelter the ones
-[SMELTER.md](../../protocol/SMELTER.md#environment) lists, and the Librarian the ones
-[LIBRARIAN.md](../../protocol/LIBRARIAN.md#environment) lists. Every service reads these four:
+[WORKER-SERVICE.md](../../../protocol/contract/WORKER-SERVICE.md#environment) lists, the Weaver the ones
+[WEAVER.md](../../../protocol/contract/WEAVER.md#environment) lists, the Smelter the ones
+[SMELTER.md](../../../protocol/contract/SMELTER.md#environment) lists, and the Librarian the ones
+[LIBRARIAN.md](../../../protocol/contract/LIBRARIAN.md#environment) lists. Every service reads these four:
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -261,7 +261,7 @@ the jobs the worker concluded there among them.
   traces in the APM UI. A line shows the frame's payload, less the value
   of a member whose name is one a credential goes by (`token`, `password`,
   `apiKey` and the rest of a
-  [short list](../../../specs/src/bus/log-cases.json)), which is written
+  [short list](../../../protocol/specs/src/bus/log-cases.json)), which is written
   as `[withheld]`.
 - **OTel spans + metrics** (this doc) — distributed tracing and
   metrics over OTLP. Targets a collector + APM gateway.
@@ -290,7 +290,7 @@ its own process.
 
 The gateway, the dispatcher and the Archivist are Rust and export their own metrics,
 specified with their instruments, attributes and attribute values in
-[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
+[`protocol/specs/src/service-telemetry/telemetry.json`](../../../protocol/specs/src/service-telemetry/telemetry.json):
 the `semiont.process.*` and `semiont.runtime.*` instruments of the rows above, and the rows
 below. **When** is that table's word for when a series is there: `export`, whenever the
 service exports at all; `traffic`, from the first thing of its kind the service has to count.
@@ -309,7 +309,7 @@ The gateway:
 | `semiont.bus.correlation.size` | gauge          | `correlation.kind` (`claims`/`claims_max`)              | export  | Outstanding request claims, and the cap on them |
 
 The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../../../protocol/specs/src/sdk-telemetry/telemetry.json);
 `semiont.bus.emit` is the gateway's count of the emits it accepted.
 
 The dispatcher:

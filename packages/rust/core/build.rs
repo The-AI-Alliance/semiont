@@ -2,8 +2,8 @@
 //! against a malformed one, and generates the types of the schemas only the
 //! services read.
 //!
-//! The bundles in specs/ are gitignored build output, absent from a clean
-//! checkout, so this bundles specs/src itself (semiont-codegen): one document
+//! The bundles in protocol/specs/ are gitignored build output, absent from a clean
+//! checkout, so this bundles protocol/specs/src itself (semiont-codegen): one document
 //! per API — the protocol's, and the Archivist's. From the protocol's document
 //! it writes the component schemas as JSON Schema draft 7 and compiles every
 //! one of them, so a schema that cannot be compiled fails here rather than at
@@ -47,7 +47,7 @@ fn main() {
         PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
     let repo = crate_dir.join("../../..");
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR"));
-    let specs = repo.join("specs/src");
+    let specs = repo.join("protocol/specs/src");
     for watched in [
         specs.clone(),
         repo.join("version.json"),

@@ -2,7 +2,7 @@
 
 The issuer holds the key's public half, registered on the account's client, and
 checks the signature with it: the private key never leaves the process, and no
-secret is sent. The assertion's shape is `specs/src/session/client-assertion-cases.json`'s.
+secret is sent. The assertion's shape is `protocol/specs/src/session/client-assertion-cases.json`'s.
 """
 
 import base64

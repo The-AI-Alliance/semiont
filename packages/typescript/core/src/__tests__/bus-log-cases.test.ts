@@ -1,5 +1,5 @@
 /**
- * What a bus log shows of a payload, held to specs/src/bus/log-cases.json:
+ * What a bus log shows of a payload, held to protocol/specs/src/bus/log-cases.json:
  * the table every bus log runs. No line holds a credential: the value of a
  * member whose name is one of the table's `names` is withheld, and nothing
  * else of a line changes.
@@ -16,7 +16,7 @@ import { isObject } from '../type-guards';
 
 interface Case { why: string; payload: unknown; shown: unknown }
 
-const TABLE = 'specs/src/bus/log-cases.json';
+const TABLE = 'protocol/specs/src/bus/log-cases.json';
 const table: { names: string[]; cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', TABLE), 'utf8'));
 
 // The rule reads a name and no channel: every line here is written on this one.
@@ -54,7 +54,7 @@ function members(value: unknown): Record<string, unknown> {
   return value;
 }
 
-describe('what a bus log shows of a payload (specs/src/bus/log-cases.json)', () => {
+describe('what a bus log shows of a payload (protocol/specs/src/bus/log-cases.json)', () => {
   it('has names, and cases that carry a credential and cases that carry none, each stating a payload and what is shown of it', () => {
     expect(table.names.length).toBeGreaterThan(0);
     expect(new Set(table.names).size).toBe(table.names.length);

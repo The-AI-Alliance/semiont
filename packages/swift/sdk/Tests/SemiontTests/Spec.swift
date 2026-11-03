@@ -11,7 +11,7 @@ enum Spec {
   static func read(_ relative: String) throws -> JSONValue {
     try JSONDecoder().decode(
       JSONValue.self,
-      from: Data(contentsOf: repository.appendingPathComponent("specs/src/" + relative)))
+      from: Data(contentsOf: repository.appendingPathComponent("protocol/specs/src/" + relative)))
   }
   static func jsonFiles(_ relative: String) throws -> [URL] {
     let directory = repository.appendingPathComponent(relative)

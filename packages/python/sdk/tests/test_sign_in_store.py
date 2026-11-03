@@ -1,8 +1,8 @@
-"""The sign-ins `semiont login` keeps (`specs/src/sign-in-store/README.md`), as this package reads and writes them.
+"""The sign-ins `semiont login` keeps (`protocol/specs/src/sign-in-store/README.md`), as this package reads and writes them.
 
 Where the file is, is `test_state_dir.py`'s. Here: what an entry holds, what
 a renewal keeps while other programs renew and sign out (every renewal of
-`specs/src/sign-in-store/cases.json`), what is written back untouched, and the
+`protocol/specs/src/sign-in-store/cases.json`), what is written back untouched, and the
 lock every writer of the file takes.
 """
 

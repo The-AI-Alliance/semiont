@@ -276,7 +276,7 @@ The structural contract — `dispose()` exists — is the only part the **type s
 
 That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`), Go's (`semionttest.AssertStateUnitAxioms`) and Kotlin's (its tests' `assertStateUnitAxioms`, in `src/test/kotlin/semiont/state/Axioms.kt`) hold their units under the same ids; the last column says which rules they hold too.
 
-What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` and `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt`.
+What a unit does is held apart from the axioms. [`protocol/specs/src/client/state-units.json`](../../protocol/specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` and `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt`.
 
 Five enforcement tiers:
 
@@ -313,7 +313,7 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 ## See also
 
 - [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) — the four return-shape categories (Promise / StreamObservable / CacheObservable / void) and the naming convention. State unit method returns follow the same convention.
-- [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
+- [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
 - [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
 - [The Python SDK's README](../../packages/python/sdk/README.md#state-units) — the Python units, and a program that watches one.

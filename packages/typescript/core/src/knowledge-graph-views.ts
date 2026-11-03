@@ -3,7 +3,7 @@
  * not kept as separately built intermediates.
  *
  * A pure function over the core `KnowledgeGraph` type. `@semiont/react-ui` (the context summary) runs
- * it, and specs/src/librarian/derive-views-cases.json holds it to the derivation the Librarian runs. It
+ * it, and protocol/specs/src/librarian/derive-views-cases.json holds it to the derivation the Librarian runs. It
  * only transforms a graph the Librarian has already built.
  *
  * Reports the graph as-is: missing-view citers are kept (the citing annotation reflects a

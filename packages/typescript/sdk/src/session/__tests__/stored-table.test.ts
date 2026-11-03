@@ -1,5 +1,5 @@
 /**
- * What a registry keeps in its storage, as specs/src/session/stored.json
+ * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key this SDK writes by hand, the key of a knowledge base's
  * session, and the members of a stored session. A key or a member the table
  * gains fails here until this SDK has it.
@@ -28,7 +28,7 @@ interface StoredTable {
   storedSession: { properties: Record<string, unknown>; required: string[] };
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../specs/src/session/stored.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/stored.json');
 const table = JSON.parse(readFileSync(TABLE, 'utf-8')) as StoredTable;
 const members = Object.keys(table.storedSession.properties);
 
@@ -45,7 +45,7 @@ const KEYS: Record<string, string> = {
 const storedWithout = (left: string): string =>
   JSON.stringify(Object.fromEntries(members.filter((member) => member !== left).map((member) => [member, `the ${member}`])));
 
-describe('what a registry keeps, as specs/src/session/stored.json states it', () => {
+describe('what a registry keeps, as protocol/specs/src/session/stored.json states it', () => {
   it("each key is the table's, and the table has none this SDK lacks", () => {
     expect(Object.fromEntries(table.keys.map(({ member, key }) => [member, key]))).toEqual(KEYS);
   });

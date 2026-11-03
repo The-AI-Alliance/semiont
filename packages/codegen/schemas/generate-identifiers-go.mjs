@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Go SDK's kinds of id from specs/src/identifiers/kinds.json and
+// Generate the Go SDK's kinds of id from protocol/specs/src/identifiers/kinds.json and
 // each kind's schema: a type of its own for each, made only through the kind's
 // rule, in the package of the wire types that carry it.
 //
@@ -24,8 +24,8 @@ import { readIdentifierKinds } from './identifier-kinds.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const KINDS = resolve(ROOT, 'specs/src/identifiers/kinds.json');
-const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
+const KINDS = resolve(ROOT, 'protocol/specs/src/identifiers/kinds.json');
+const SCHEMAS = resolve(ROOT, 'protocol/specs/src/components/schemas');
 const CONFIG = resolve(ROOT, 'packages/go/sdk/oapi-codegen.yaml');
 const OUT = resolve(ROOT, 'packages/go/sdk/api/ids_gen.go');
 const CHECK = process.argv.includes('--check');
@@ -117,7 +117,7 @@ func (id *${name}) UnmarshalText(text []byte) error {
 `;
 });
 
-const text = `// Code generated from specs/src/identifiers/kinds.json and each kind's schema — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/identifiers/kinds.json and each kind's schema — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-identifiers-go.mjs
 // The TypeScript and Python kinds are generated from the same table, and Rust's

@@ -3,7 +3,7 @@
 //
 // A text offset counts Unicode code points from the start of the text, and so
 // does every length worked out from one: the W3C Web Annotation rule, and the
-// same number in every language. specs/src/text/offset-cases.json holds the
+// same number in every language. protocol/specs/src/text/offset-cases.json holds the
 // counting itself, and each implementation runs it. This gate holds the
 // wording: a member that carries an offset or a length of text and does not
 // say its unit leaves a reader to assume their own language's, and a
@@ -24,7 +24,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const SCHEMAS = 'specs/src/components/schemas';
+const SCHEMAS = 'protocol/specs/src/components/schemas';
 
 /** The members that carry an offset into a text, or a length of one: schema, then the path to the member. */
 const MEMBERS = [

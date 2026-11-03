@@ -53,7 +53,7 @@ reads them, in one module, and hands them on.
   the words to a started process.
 - **What a process exports of itself is the telemetry table's.** The readings
   registered here are rows of
-  [`specs/src/service-telemetry/telemetry.json`][telemetry], and the tests
+  [`protocol/specs/src/service-telemetry/telemetry.json`][telemetry], and the tests
   hold each to its row, and the resource everything is exported under to the
   keys the table lists for each service built on this package. A gauge a
   service has reported here is a row of the table that lists that service,
@@ -75,4 +75,4 @@ uv run pytest
 [weaver]: ../../../images/weaver/README.md
 [smelter]: ../../../images/smelter/README.md
 [sdk-python]: ../sdk/README.md
-[telemetry]: ../../../specs/src/service-telemetry/telemetry.json
+[telemetry]: ../../../protocol/specs/src/service-telemetry/telemetry.json

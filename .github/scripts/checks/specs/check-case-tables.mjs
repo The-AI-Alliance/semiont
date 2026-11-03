@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // lint:spec-case-tables — every case table, who runs it, and the files that do.
 //
-// A case table is a file under specs/src whose name ends in `cases.json`: a
+// A case table is a file under protocol/specs/src whose name ends in `cases.json`: a
 // rule stated case by case, which an implementation in any language is held
 // to. Each states, beside its `$comment`, who runs it:
 //
@@ -40,7 +40,7 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const SPECS = 'specs/src';
+const SPECS = 'protocol/specs/src';
 
 /** Each implementation that runs a case table, and the directories its files are in. */
 const IMPLEMENTATIONS = {
@@ -61,7 +61,7 @@ const IMPLEMENTATIONS = {
   'vectors-python': ['packages/python/vectors'],
   'inference-python': ['packages/python/inference'],
   'service-python': ['packages/python/service'],
-  conformance: ['packages/conformance'],
+  conformance: ['protocol/conformance'],
 };
 
 /** The SDKs, which are held to one another. */
@@ -101,7 +101,7 @@ function filesUnder(directory) {
   return out;
 }
 
-/** Whether a file's text names a table: by its path under specs/src, or by Go's directory and name. */
+/** Whether a file's text names a table: by its path under protocol/specs/src, or by Go's directory and name. */
 function names(text, table) {
   const [directory, name] = [table.slice(0, table.lastIndexOf('/')), table.slice(table.lastIndexOf('/') + 1)];
   return text.includes(table) || text.includes(`"${directory}", "${name}"`);

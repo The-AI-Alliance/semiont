@@ -2,8 +2,8 @@
 
 A worker is any party that takes jobs and says how each one went. What it
 promises the dispatcher, and everyone who follows a job, is
-docs/protocol/WORKER-CONTRACT.md; this module is that contract for Python,
-and the worker conformance suite (packages/conformance/worker) holds it on the
+protocol/contract/WORKER-CONTRACT.md; this module is that contract for Python,
+and the worker conformance suite (protocol/conformance/worker) holds it on the
 wire.
 
 THE MODEL. A worker asks the queue at every moment it becomes idle, and never
@@ -166,7 +166,7 @@ def will_retry_after(retry_count: int, max_retries: int, failure_class: FailureC
     the answer and they must never disagree: the dispatcher's queue acts on
     it, and a worker reports it on `job:fail` as `willRetry`, so a follower of
     the job knows whether the failure it just saw is the end. Each language
-    has one implementation, and specs/src/jobs/retry-cases.json is the table
+    has one implementation, and protocol/specs/src/jobs/retry-cases.json is the table
     all of them answer alike.
     """
     return _retried(failure_class) and retry_count < max_retries

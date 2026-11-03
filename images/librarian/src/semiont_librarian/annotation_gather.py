@@ -1,6 +1,6 @@
 """Gathering around an annotation: the context a reference search and a generation are given for one annotation.
 
-`docs/protocol/LIBRARIAN.md` § Gathering around an annotation states it, rule
+`protocol/contract/LIBRARIAN.md` § Gathering around an annotation states it, rule
 by rule, and the reads are made in the order of its rules: the resource as
 the record describes it, and the annotation on it; the resource the
 annotation links to; the text around the selection; the linked resource's

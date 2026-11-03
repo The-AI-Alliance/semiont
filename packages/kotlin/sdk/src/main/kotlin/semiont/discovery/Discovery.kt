@@ -21,7 +21,7 @@ import java.nio.file.NoSuchFileException
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicBoolean
 
-// The knowledge bases a launcher manages, as the launcher publishes them (specs/src/discovery): what the
+// The knowledge bases a launcher manages, as the launcher publishes them (protocol/specs/src/discovery): what the
 // document says, read whole or not at all, and what changed since it was last read.
 
 /** How often a launcher's document is read again, in milliseconds, unless a caller says otherwise. */
@@ -30,7 +30,7 @@ public const val DISCOVERY_INTERVAL: Long = Timings.DISCOVERY_INTERVAL_MS
 /** The version of the document this client reads. */
 private const val VERSION = 1L
 
-/** Why no launcher was found, as specs/src/client/discovery-absent.json states each reason. */
+/** Why no launcher was found, as protocol/specs/src/client/discovery-absent.json states each reason. */
 public enum class DiscoveryAbsentReason(
     /** The reason as every SDK spells it. */
     public val wire: String,

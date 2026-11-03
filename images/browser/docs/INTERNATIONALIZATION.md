@@ -95,9 +95,9 @@ Translation file (`messages-source/en.json`):
 
 ## Adding a New Language
 
-The languages Semiont supports are the rows of `specs/src/locales/registry.json`. The interface is offered in each, and a resource can be written in each.
+The languages Semiont supports are the rows of `protocol/specs/src/locales/registry.json`. The interface is offered in each, and a resource can be written in each.
 
-1. Add the language's row to `specs/src/locales/registry.json`: its code, what it calls itself, and its name in English. `@semiont/core` generates `LOCALES` and `LOCALE_CODES` from the registry, and the Browser and react-ui read those.
+1. Add the language's row to `protocol/specs/src/locales/registry.json`: its code, what it calls itself, and its name in English. `@semiont/core` generates `LOCALES` and `LOCALE_CODES` from the registry, and the Browser and react-ui read those.
 
 2. Add translation file for the Browser:
    ```bash

@@ -6,7 +6,7 @@
  * start of the content, and so does every length here (the 64 and the 32).
  * They are a string's own positions only in a text with no character outside
  * the Basic Multilingual Plane; a caller that slices a string converts them
- * with `textOffsets`. specs/src/annotations/reconcile-cases.json holds the
+ * with `textOffsets`. protocol/specs/src/annotations/reconcile-cases.json holds the
  * rule, under CONTEXT.
  *
  * @see https://www.w3.org/TR/annotation-model/#text-quote-selector

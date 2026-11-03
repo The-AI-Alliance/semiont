@@ -4,7 +4,7 @@ The document is the protocol's `WeaverConfig`. It is found, read and refused
 as every Python service's is (`semiont_service.config`), and so is the
 service's account. A secret is never in the document. The document names the
 variable that holds the graph database's password, and the environment is
-read for it here. `docs/protocol/WEAVER.md` § Settings states each refusal.
+read for it here. `protocol/contract/WEAVER.md` § Settings states each refusal.
 """
 
 from collections.abc import Mapping

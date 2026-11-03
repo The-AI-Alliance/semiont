@@ -157,7 +157,7 @@ export function chatTurn(session: ChatSession, params: ChatTurnParams) {
     //    takes no resource id of its own. The streamed progress is coarse fixed
     //    checkpoints, so the turn awaits only the job's completion — which the
     //    worker reports AFTER it attaches every citation annotation (semiont
-    //    docs/protocol/), so answers arrive with their citations minted.
+    //    protocol/contract/), so answers arrive with their citations minted.
     //
     //    Q&A-shaped generation (the INFERENCE-TEMPLATE resolution, tiers 1+3):
     //    `task` frames the output as an ANSWER to the title (not an article about

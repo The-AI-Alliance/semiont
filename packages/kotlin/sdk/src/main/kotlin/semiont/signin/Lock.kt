@@ -18,7 +18,7 @@ internal fun interface Held : AutoCloseable {
 }
 
 /**
- * The lock every writer of the store takes (specs/src/sign-in-store/README.md,
+ * The lock every writer of the store takes (protocol/specs/src/sign-in-store/README.md,
  * Writing it): `flock` on the lock file, and on Windows `LockFileEx` on its one
  * byte at `OffsetHigh 0x40000000`. The JVM's own file lock is not `flock` on
  * Linux, and the two ignore each other, so `flock` is called through the JDK's

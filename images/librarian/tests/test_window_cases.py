@@ -1,4 +1,4 @@
-"""The text around a selection, held to `specs/src/librarian/window-cases.json`.
+"""The text around a selection, held to `protocol/specs/src/librarian/window-cases.json`.
 
 It is the table every Librarian runs, so that a window is cut at the same
 code points whoever cuts it. A case has one of two parts. An `around` case is
@@ -30,7 +30,7 @@ from semiont_librarian.window import (
     text_around,
 )
 
-TABLE = read(ROOT / "specs/src/librarian/window-cases.json")
+TABLE = read(ROOT / "protocol/specs/src/librarian/window-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 AROUND = [thing(case["around"], "around") | {"why": case["why"]} for case in CASES if "around" in case]
 GATHERED = [thing(case["gathered"], "gathered") | {"why": case["why"]} for case in CASES if "gathered" in case]

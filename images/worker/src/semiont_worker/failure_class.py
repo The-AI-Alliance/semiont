@@ -7,7 +7,7 @@ failure either one halves reliability, where the reverse costs one wasted
 attempt, so whatever is not recognized is left unclassified, and is retried.
 
 A failure is classed here, in the worker, where it is still typed. By the
-time the gateway has it, it is text. `specs/src/worker/failure-class-cases.json`
+time the gateway has it, it is text. `protocol/specs/src/worker/failure-class-cases.json`
 holds the rule.
 """
 
@@ -35,7 +35,7 @@ def _job(facts: RetryFacts) -> bool:
 
 
 JOB: Final = RetryRule("job", _job)
-"""A job's retry budget, where not retrying discards paid work: the `job` rule of `specs/src/retry/cases.json`.
+"""A job's retry budget, where not retrying discards paid work: the `job` rule of `protocol/specs/src/retry/cases.json`.
 
 A status from 500 up is retried here where a boot pass refuses it, because
 the alternative is throwing a long attempt away over one fault, and a retried

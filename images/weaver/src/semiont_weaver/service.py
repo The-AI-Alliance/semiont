@@ -4,7 +4,7 @@ It is started with the path of its configuration document (`--config`), its
 own account at the issuer (`SEMIONT_OIDC_CLIENT_ID` and
 `SEMIONT_OIDC_CLIENT_SECRET`), and the variable its document names for the
 graph database's password. Beside those it reads the variables that say
-where its telemetry goes (`docs/protocol/WEAVER.md` § Environment), and no
+where its telemetry goes (`protocol/contract/WEAVER.md` § Environment), and no
 other. This is the one module that reads the process's environment and its
 arguments: everything else is handed what it needs.
 
@@ -13,7 +13,7 @@ service that cannot start says so while an operator is watching it boot: one
 line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
-It starts in the order `docs/protocol/WEAVER.md` § Boot states: it signs in
+It starts in the order `protocol/contract/WEAVER.md` § Boot states: it signs in
 as its account, connects to the graph database, follows the record, opens its
 health port, and once its first sweep of the record is done runs reconcile.
 Following, it sweeps the record again each time its stream opens after a drop

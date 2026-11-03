@@ -5,7 +5,7 @@
 //! readers read each, so that nothing that reads an annotation narrows those
 //! shapes by hand.
 //!
-//! Every SDK has them, and specs/src/annotations/reader-cases.json holds each
+//! Every SDK has them, and protocol/specs/src/annotations/reader-cases.json holds each
 //! to one answer for one annotation: this crate's tests run it.
 //!
 //! A worker turns what a model said into annotations and commits them. Three
@@ -47,7 +47,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 //!
-//! Every SDK has the three, and the tables under specs/src/annotations hold
+//! Every SDK has the three, and the tables under protocol/specs/src/annotations hold
 //! each to one answer: reconcile-cases.json where a quote is, and
 //! builder-cases.json the annotation built, with id-cases.json for its id
 //! and pdf-locate-cases.json for where a span of a PDF is on its pages.
@@ -527,7 +527,7 @@ fn annotation(
 ///
 /// A span that is not the text's is refused, and the first check that fails
 /// is the refusal: a [`SpanRefusal`], whose codes are the spec's
-/// (specs/src/errors/codes.json). For a PDF, every item of the anchored text
+/// (protocol/specs/src/errors/codes.json). For a PDF, every item of the anchored text
 /// must be a stretch of that text, or no span of it is built. The span's
 /// offsets must be a span of the text.
 /// For a text, the text between them must be the span's `exact`. For a PDF,

@@ -15,7 +15,7 @@ import kotlin.random.Random
 /** What a retry rule is asked about a failure: the status its answer had, and the request's method. What is not stated is null. */
 public data class RetryFacts(public val status: Int? = null, public val method: String? = null)
 
-/** Which failures one context tries again (specs/src/retry/cases.json). A 401 is in none: a refused credential is renewed, never retried. */
+/** Which failures one context tries again (protocol/specs/src/retry/cases.json). A 401 is in none: a refused credential is renewed, never retried. */
 public class RetryRule internal constructor(
     /** The rule's name in the table. */
     public val name: String,

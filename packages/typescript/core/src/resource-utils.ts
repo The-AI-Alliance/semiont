@@ -32,7 +32,7 @@ function isRepresentation(value: unknown): value is Representation {
  * undefined for an empty list, or for no resource. A resource that states no
  * `representations`, or one that is neither one representation nor a list of
  * them, is no ResourceDescriptor and is refused, as the Rust and Python SDKs
- * refuse it when they decode it (specs/src/resources/reader-cases.json).
+ * refuse it when they decode it (protocol/specs/src/resources/reader-cases.json).
  */
 export function getPrimaryRepresentation(resource: ResourceDescriptor | undefined): Representation | undefined {
   if (resource === undefined) return undefined;
@@ -107,7 +107,7 @@ export function isDraft(resource: ResourceDescriptor | undefined): boolean {
 /**
  * A representation's bytes as the text they are, for a media type whose bytes
  * are its text. The reading is `decodeWithCharset`'s, which keeps the rule
- * every reader of a resource's text keeps (docs/protocol/W3C-SELECTORS.md,
+ * every reader of a resource's text keeps (protocol/contract/W3C-SELECTORS.md,
  * "The text of a resource"). An offset counts the code points of this text,
  * so every reader makes the same text of the same bytes.
  *

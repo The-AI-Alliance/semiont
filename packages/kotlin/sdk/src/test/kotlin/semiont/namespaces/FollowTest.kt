@@ -222,7 +222,7 @@ private suspend fun <T> failedWith(work: Deferred<T>): Throwable = withTimeout(5
     }
 }
 
-/** Following a job (docs/protocol/JOBS.md, Following a job), through the two methods that create one: `mark.delegate` and `yield.delegate`. */
+/** Following a job (protocol/contract/JOBS.md, Following a job), through the two methods that create one: `mark.delegate` and `yield.delegate`. */
 class FollowTest {
     @Test
     fun aJobReportsItsProgressAndEndsWithItsCompletion() = runBlocking {

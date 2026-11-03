@@ -2,7 +2,7 @@ package launcher
 
 // kbconfig.go — the read-side of a knowledge base's project file, its
 // committed identity card: `.semiont/config.yaml` (ProjectConfig, in
-// specs/src/kb-identity). Its project name and version, git sync, and site —
+// protocol/specs/src/kb-identity). Its project name and version, git sync, and site —
 // whose `domain` is the permanent did:web identity everything the KB mints is
 // stamped with (a committed literal naming the repo, never a machine address;
 // see the DID/site.domain history before treating it as one). A KB without
@@ -86,7 +86,7 @@ func (k *kbIdentity) resource() string {
 
 // name is the name the Archivist computes for the knowledge base at root: the
 // committed project.name, else the directory basename when there is no project
-// file (docs/protocol/ARCHIVIST.md). The launcher writes it as `kb.name` into
+// file (protocol/contract/ARCHIVIST.md). The launcher writes it as `kb.name` into
 // each document that names the knowledge base (served).
 func (k *kbIdentity) name(root string) string {
 	if k == nil {

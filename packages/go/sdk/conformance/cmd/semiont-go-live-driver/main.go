@@ -1,6 +1,6 @@
 // Command semiont-go-live-driver is the Go SDK's live driver: the program the
 // SDK conformance suite talks to in the Go SDK's place for its live layer
-// (packages/conformance/sdk/README.md, § The live driver). It holds a client, its
+// (protocol/conformance/sdk/README.md, § The live driver). It holds a client, its
 // live queries and their cache, and reaches them only as an application does,
 // through what the SDK exports, so what the suite observes is what a caller of
 // the SDK gets.
@@ -163,7 +163,7 @@ func filters(q protocol.Arguments) (semiont.ResourceFilters, error) {
 }
 
 // queryOf is the live query a case names: a query of
-// specs/src/client/refresh.json, by its name there.
+// protocol/specs/src/client/refresh.json, by its name there.
 func queryOf(c *semiont.Client, q protocol.Arguments) (query, error) {
 	name, err := protocol.Text(q, "query")
 	if err != nil {
@@ -231,7 +231,7 @@ func queryOf(c *semiont.Client, q protocol.Arguments) (query, error) {
 }
 
 // timing is the client's timing, with what the case overrides, each entry by
-// its name in specs/src/client/timing.json.
+// its name in protocol/specs/src/client/timing.json.
 func timing(args protocol.Arguments) (semiont.Timing, error) {
 	timing := semiont.DefaultTiming()
 	if _, given := args["timing"]; !given {

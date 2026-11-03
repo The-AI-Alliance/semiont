@@ -5,7 +5,7 @@
 //! resumed, another worker taking the job over) gives it the same id, and
 //! writing it a second time changes nothing. Nothing else goes into it: not
 //! when the annotation was made, not what made it, not the job it was made
-//! for. specs/src/annotations/id-cases.json holds the rule, for this and for
+//! for. protocol/specs/src/annotations/id-cases.json holds the rule, for this and for
 //! every other implementation.
 
 use crate::types::{AnnotationBodies, AnnotationId, Motivation, ResourceId};

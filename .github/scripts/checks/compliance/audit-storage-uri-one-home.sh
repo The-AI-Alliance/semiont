@@ -39,7 +39,7 @@ cd "$REPO_ROOT"
 
 FAIL=0
 
-if grep -q '"storageUri"' specs/src/components/schemas/ResourceDescriptor.json; then
+if grep -q '"storageUri"' protocol/specs/src/components/schemas/ResourceDescriptor.json; then
   echo "❌ ONE-HOME: storageUri is in ResourceDescriptor.json — its one home is Representation.json"
   FAIL=1
 fi

@@ -1,4 +1,4 @@
-"""The statuses a job's failure is retried for, held to the `job` rows of `specs/src/retry/cases.json`.
+"""The statuses a job's failure is retried for, held to the `job` rows of `protocol/specs/src/retry/cases.json`.
 
 The table states four rules. The SDK keeps three of them and names `job` as
 its worker's. This is that worker, and it keeps the one.

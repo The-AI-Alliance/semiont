@@ -1,6 +1,6 @@
 /**
  * A service account's assertion of itself, held to
- * specs/src/session/client-assertion-cases.json.
+ * protocol/specs/src/session/client-assertion-cases.json.
  *
  * The table states the shape: the thumbprint a key is named by, and the header
  * and claims an assertion carries. The signature over them, and the form a
@@ -33,10 +33,10 @@ interface Table {
 }
 
 const table: Table = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/session/client-assertion-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/session/client-assertion-cases.json', import.meta.url), 'utf8'),
 );
 
-describe('a service account\'s assertion (specs/src/session/client-assertion-cases.json)', () => {
+describe('a service account\'s assertion (protocol/specs/src/session/client-assertion-cases.json)', () => {
   it('has thumbprints and cases, each of an RSA key', () => {
     expect(table.thumbprints.length).toBeGreaterThan(0);
     expect(table.cases.length).toBeGreaterThan(0);

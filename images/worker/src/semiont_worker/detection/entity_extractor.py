@@ -11,7 +11,7 @@ piece holds, and nothing in the reply says so. So of a provider that asks
 for it, each reply that was read is followed by a second, small call that
 asks how many mentions the same piece holds. A reply that found under half
 of that count is taken to have missed mentions, which only a smaller piece
-can mend. `specs/src/worker/parser-cases.json` holds the reading and the
+can mend. `protocol/specs/src/worker/parser-cases.json` holds the reading and the
 count.
 """
 

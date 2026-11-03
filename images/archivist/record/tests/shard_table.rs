@@ -1,4 +1,4 @@
-//! Runs every case of specs/src/archivist/shard-cases.json through this
+//! Runs every case of protocol/specs/src/archivist/shard-cases.json through this
 //! crate's reading of where a key is filed. Python, which the Librarian
 //! and the Smelter read and write the same files with, runs the same table
 //! (packages/python/service/tests/test_shard_cases.py).
@@ -22,11 +22,12 @@ struct Case {
 fn every_key_is_filed_where_the_shared_table_says() {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../../specs/src/archivist/shard-cases.json"
+        "/../../../protocol/specs/src/archivist/shard-cases.json"
     );
-    let table: Table =
-        serde_json::from_str(&std::fs::read_to_string(path).expect("the shard table is in specs/"))
-            .expect("the shard table is JSON of cases");
+    let table: Table = serde_json::from_str(
+        &std::fs::read_to_string(path).expect("the shard table is in protocol/specs/"),
+    )
+    .expect("the shard table is JSON of cases");
     assert!(
         !table.cases.is_empty(),
         "the shard table has no cases: a gate that runs nothing passes on silence"

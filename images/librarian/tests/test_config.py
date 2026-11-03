@@ -1,6 +1,6 @@
 """The Librarian's document: what it refuses that no schema can state, and the secrets it reads by the names the document gives.
 
-`docs/protocol/LIBRARIAN.md` § Settings states each refusal. A refusal names
+`protocol/contract/LIBRARIAN.md` § Settings states each refusal. A refusal names
 the member as the document spells it, and what was expected of it.
 """
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-oauth-clients-go.mjs — generate the Go SDK's OAuth client ids and
-// the scope a sign-in asks for from specs/src/session/oauth.json, the file the
+// the scope a sign-in asks for from protocol/specs/src/session/oauth.json, the file the
 // TypeScript, Rust, Python and Kotlin SDKs generate theirs from.
 //
 //   packages/go/sdk/oauthclients_gen.go
@@ -18,7 +18,7 @@ import { goComment } from '../lib/go-source.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/session/oauth.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/oauthclients_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -29,7 +29,7 @@ const goName = (name) => `${name[0].toUpperCase()}${name.slice(1)}ClientID`;
 
 const constant = (name, docs, value) => `${goComment(`${name}: ${docs}`)}\nconst ${name} = ${JSON.stringify(value)}\n`;
 
-const text = `// Code generated from specs/src/session/oauth.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/session/oauth.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-oauth-clients-go.mjs
 // The TypeScript (packages/typescript/core/src/generated/oauth-clients.ts), Rust

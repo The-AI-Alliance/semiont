@@ -2,11 +2,11 @@
  * The media-type registry's generator refuses a registry that cannot be meant,
  * and the rules read from the registry do what the shared cases state.
  *
- * specs/src/media-types/registry.json is the authority every SDK generates its
+ * protocol/specs/src/media-types/registry.json is the authority every SDK generates its
  * table from, so a generated row cannot drift from it. What is left to hold is
  * the registry itself (each case hands the generator the committed one with
  * one fault and expects a refusal that names it) and the rules each SDK
- * writes over the table, which specs/src/media-types/cases.json states once
+ * writes over the table, which protocol/specs/src/media-types/cases.json states once
  * for all of them.
  */
 
@@ -29,9 +29,9 @@ import { deriveStorageUri, storageFileName } from '../storage-uri';
 
 const at = (path: string): string => fileURLToPath(new URL(`../../../../../${path}`, import.meta.url));
 const GENERATOR = at('packages/codegen/schemas/generate-media-types.mjs');
-const TABLE = at('specs/src/media-types/registry.json');
-const ENUM = at('specs/src/components/schemas/SupportedMediaType.json');
-const CASES = at('specs/src/media-types/cases.json');
+const TABLE = at('protocol/specs/src/media-types/registry.json');
+const ENUM = at('protocol/specs/src/components/schemas/SupportedMediaType.json');
+const CASES = at('protocol/specs/src/media-types/cases.json');
 
 interface Row {
   mediaType: string;

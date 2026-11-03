@@ -1,4 +1,4 @@
-"""The five prompts, held to `specs/src/librarian/prompt-cases.json`.
+"""The five prompts, held to `protocol/specs/src/librarian/prompt-cases.json`.
 
 It is the table every Librarian runs: what each prompt is made from, and its
 text to the last character, its token limit and its temperature. Each prompt

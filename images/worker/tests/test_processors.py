@@ -1,6 +1,6 @@
 """The five `mark` processors: what each asks of its detection, builds, hands over to be committed, reports, and answers.
 
-`docs/protocol/WORKER-SERVICE.md` states what a `mark` job does, and each
+`protocol/contract/WORKER-SERVICE.md` states what a `mark` job does, and each
 test here that holds one of its rules names the rule. The detection a
 processor calls is stood in for (`standing_in.py`): what a detection does
 with a model's reply is `test_detection.py`'s to hold. What is built is

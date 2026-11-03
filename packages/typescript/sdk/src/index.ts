@@ -156,7 +156,7 @@ export {
 // The annotation readers. An annotation's target is an id or an object, its
 // selector one or a list, its body absent, one item or a list: these read
 // each without a script narrowing by hand. Every SDK has them, and
-// specs/src/annotations/reader-cases.json holds them to one answer.
+// protocol/specs/src/annotations/reader-cases.json holds them to one answer.
 export {
   getAnnotationExactText,
   getBodySource,
@@ -183,7 +183,7 @@ export {
 // or of a resource as a whole (`annotationOfResource`), and commits it
 // (`job.commit`). A span that is not the text's is refused with a
 // `SpanRefusedError`. Every SDK has the three, and
-// specs/src/annotations/builder-cases.json holds them to one answer.
+// protocol/specs/src/annotations/builder-cases.json holds them to one answer.
 export { annotationOfResource, annotationOfSpan, reconcile, SpanRefusedError } from '@semiont/core';
 export type { AnchorMethod, MatchQuality, QuotedText, ReconciledSpan, SpanRefusal, TextSpan } from '@semiont/core';
 

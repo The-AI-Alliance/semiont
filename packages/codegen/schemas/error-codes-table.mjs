@@ -1,4 +1,4 @@
-// error-codes-table.mjs — the one reading of specs/src/errors/codes.json that
+// error-codes-table.mjs — the one reading of protocol/specs/src/errors/codes.json that
 // every generator of it shares: the table, held to account. It refuses a table
 // that disagrees with the wire's own vocabulary (`CommandError.code`) in
 // either direction, or that says one thing twice.

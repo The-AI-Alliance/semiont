@@ -1,6 +1,6 @@
 package launcher
 
-// weaverdoc.go — the Weaver's configuration document: WeaverConfig in specs/,
+// weaverdoc.go — the Weaver's configuration document: WeaverConfig in protocol/specs/,
 // the Go type generated from it (packages/go/sdk). The launcher writes it for
 // the Weaver it starts, every address a literal (placement), and mounts it
 // where the Weaver's image points its `--config` flag, so the Weaver neither

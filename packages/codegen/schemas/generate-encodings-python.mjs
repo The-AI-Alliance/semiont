@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-encodings-python.mjs — generate the Python SDK's table of the
-// Encoding Standard from specs/src/text/encoding-cases.json, the table every
+// Encoding Standard from protocol/specs/src/text/encoding-cases.json, the table every
 // reader of a resource's text runs.
 //
 //   packages/python/sdk/src/semiont/_encodings.py
@@ -21,7 +21,7 @@ import { writeOrCheck } from '../lib/committed-source.mjs';
 import { pyBanner } from '../lib/python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/text/encoding-cases.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/text/encoding-cases.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/_encodings.py');
 const CHECK = process.argv.includes('--check');
 
@@ -60,7 +60,7 @@ for (const stated of table.cases) {
 const labels = [...encodingOf.keys()].sort();
 const pySet = (names) => `frozenset({${names.map(pyAscii).join(', ')}})`;
 
-const text = `${pyBanner('specs/src/text/encoding-cases.json', 'packages/codegen/schemas/generate-encodings-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/text/encoding-cases.json', 'packages/codegen/schemas/generate-encodings-python.mjs')}
 """The Encoding Standard as the reader of a resource's text needs it: the encoding each label names, and each single-byte encoding byte by byte."""
 
 from collections.abc import Mapping

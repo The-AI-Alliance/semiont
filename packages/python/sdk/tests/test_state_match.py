@@ -1,4 +1,4 @@
-"""The match unit: what its cases in `specs/src/client/state-units.json` cannot state.
+"""The match unit: what its cases in `protocol/specs/src/client/state-units.json` cannot state.
 
 Its behaviour is the table's, run by `tests/test_state_cases.py`. Here are the
 axioms: it holds no state, and is given its client.

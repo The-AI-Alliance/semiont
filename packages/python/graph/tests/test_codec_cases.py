@@ -1,4 +1,4 @@
-"""The graph's two codecs, held to `specs/src/graph/codec-cases.json`.
+"""The graph's two codecs, held to `protocol/specs/src/graph/codec-cases.json`.
 
 The table is the one every implementation of the codecs runs: what the graph
 stores of an annotation and of a resource, what it reads back and what it

@@ -1,7 +1,7 @@
 """What a model is told a language is called.
 
 A job names a language by its tag, and a prompt says it by its English name.
-The names are those of `specs/src/locales/registry.json`, the languages
+The names are those of `protocol/specs/src/locales/registry.json`, the languages
 Semiont supports. They are written out here by hand, and a test holds them
 to the registry, each language and its order.
 """

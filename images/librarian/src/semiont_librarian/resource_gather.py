@@ -1,6 +1,6 @@
 """Gathering around a resource: the context a generation is given for one resource as a whole.
 
-`docs/protocol/LIBRARIAN.md` § Gathering around a resource states it, rule by
+`protocol/contract/LIBRARIAN.md` § Gathering around a resource states it, rule by
 rule, and the reads are made in the order of its rules: the resource, as the
 record describes it; its text, where the request asks for content or for a
 summary; the knowledge graph; the related resources and their texts; a

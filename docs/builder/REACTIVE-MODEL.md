@@ -14,7 +14,7 @@ Each SDK makes the same choice: the form that can be read over time is the primi
 
 ## The nine shapes
 
-Every namespace method returns exactly one of these. Which one is the method's row in [`specs/src/client/surface.json`](../../specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
+Every namespace method returns exactly one of these. Which one is the method's row in [`protocol/specs/src/client/surface.json`](../../protocol/specs/src/client/surface.json), the table every SDK is held to: `lint:client-surface` fails a method whose signature is not its row's.
 
 | Shape | What it is | TypeScript | Rust | Python | Go | Kotlin |
 |---|---|---|---|---|---|---|
@@ -136,7 +136,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `void`
 - `Promise<number | undefined>` (wire drives only)
 
-Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) The rule is enforced: every namespace method is a row of [`specs/src/client/surface.json`](../../specs/src/client/surface.json) with the shape of what it returns, `lint:client-surface` fails a method whose signature is not its row's, and every SDK is held to the same table. The table names two more shapes than this list, because it covers every namespace: `job`'s four lifecycle streams are `events`, and `yield.resource`'s `UploadObservable` is its own row.
+Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) The rule is enforced: every namespace method is a row of [`protocol/specs/src/client/surface.json`](../../protocol/specs/src/client/surface.json) with the shape of what it returns, `lint:client-surface` fails a method whose signature is not its row's, and every SDK is held to the same table. The table names two more shapes than this list, because it covers every namespace: `job`'s four lifecycle streams are `events`, and `yield.resource`'s `UploadObservable` is its own row.
 
 ### What this looks like at the call site
 
@@ -196,7 +196,7 @@ const done = await semiont.mark.delegate(rId, { motivation: 'linking', entityTyp
 
 ### Method-by-method assignment
 
-The authority for this list is [`specs/src/client/surface.json`](../../specs/src/client/surface.json), which names every method's shape and which every SDK is held to.
+The authority for this list is [`protocol/specs/src/client/surface.json`](../../protocol/specs/src/client/surface.json), which names every method's shape and which every SDK is held to.
 
 **`StreamObservable<T>`** (bounded; `then` resolves on completion):
 
@@ -350,7 +350,7 @@ that observes the bus from an effect has to survive that:
 ### Why this design
 
 1. **Live queries are genuinely reactive.** Browse reads represent "the current value of this resource, which changes when bus events fire." Promise can't express that. Observable can.
-2. **The `Cache<K,V>` primitive is a real architectural building block.** Multicast, per-key dedup, stale-while-revalidate. The subclass approach lets us keep it without leaking it through the public surface. See [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) for the cache's behavioral contract.
+2. **The `Cache<K,V>` primitive is a real architectural building block.** Multicast, per-key dedup, stale-while-revalidate. The subclass approach lets us keep it without leaking it through the public surface. See [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) for the cache's behavioral contract.
 3. **Lifecycle state is BehaviorSubject-shaped.** `token$`, `user$`, `state$` are state over time with synchronous snapshots. Native primitive.
 4. **Sugar costs ~50 lines.** Four small subclasses; `then` (streams/delegations/uploads) per the JS thenable spec, `.fresh()` (live queries) as an explicit method. No alternative shape (Promise-only API, dual-API per method, AsyncIterable conversion) is cheaper or cleaner.
 5. **No information loss.** A Promise-typed return would force a choice between progress and final value for streaming methods. The subclass surface lets the consumer pick — `await`/`.fresh()` for a value, `subscribe` for progress or live state, both can compose.
@@ -419,11 +419,11 @@ The Kotlin README shows [a delegation followed in both languages](../../packages
 
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples
 - [STATE-UNITS.md](./STATE-UNITS.md) — the foundational stateful-unit pattern (a surface consumers read but cannot write, and a dispose lifecycle); the substrate behind every flow state machine, worker adapter, and view-shaped state machine in the codebase
-- [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive's behavioral contract behind `CacheObservable`
+- [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive's behavioral contract behind `CacheObservable`
 - [`packages/typescript/sdk/src/awaitable.ts`](../../packages/typescript/sdk/src/awaitable.ts) — the awaitable Observable subclasses' implementation
-- [docs/protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md) — channel naming, scoping, correlation; the protocol layer the SDK wraps
-- [docs/protocol/CHANNELS.md](../protocol/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
-- [docs/protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
+- [protocol/contract/EVENT-BUS.md](../../protocol/contract/EVENT-BUS.md) — channel naming, scoping, correlation; the protocol layer the SDK wraps
+- [protocol/contract/CHANNELS.md](../../protocol/contract/CHANNELS.md) — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
+- [protocol/contract/TRANSPORT-CONTRACT.md](../../protocol/contract/TRANSPORT-CONTRACT.md) — the `ITransport` behavioral guarantees underlying every namespace method, including `errors$`
 - [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust form of each shape
 - [The Python SDK's README](../../packages/python/sdk/README.md) — the Python form of each shape
 - [The Go SDK's README](../../packages/go/sdk/README.md) — the Go form of each shape

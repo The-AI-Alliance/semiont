@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-stored-python.mjs — generate what the Python SDK's registry keeps
-// in a SessionStorage from specs/src/session/stored.json: the key each thing
+// in a SessionStorage from protocol/specs/src/session/stored.json: the key each thing
 // is kept under, the key of a knowledge base's session, and the stored
 // session's shape.
 //
@@ -21,7 +21,7 @@ import { pyBanner, pyComment, pyConstant, pyDocstring, pySnake, pyString } from 
 import { readFlatSchema } from './sign-in-schema.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/session/stored.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/session/stored.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/stored.py');
 const CHECK = process.argv.includes('--check');
 
@@ -60,8 +60,8 @@ const field = ({ name, description, required }) => {
 const constants = table.keys.map(({ member, key, docs }) => ({ name: pyConstant(member), key, docs }));
 const exported = [...constants.map(({ name }) => name), session.title, 'kb_of_session_key', 'session_key'].sort();
 
-const text = `${pyBanner('specs/src/session/stored.json', 'packages/codegen/schemas/generate-stored-python.mjs')}
-"""What a registry of knowledge bases keeps in a \`SessionStorage\` (\`specs/src/session/stored.json\`):
+const text = `${pyBanner('protocol/specs/src/session/stored.json', 'packages/codegen/schemas/generate-stored-python.mjs')}
+"""What a registry of knowledge bases keeps in a \`SessionStorage\` (\`protocol/specs/src/session/stored.json\`):
 the key each thing it keeps is kept under, and the shape of a knowledge base's
 stored session.
 """

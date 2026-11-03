@@ -8,8 +8,8 @@ package semiont
 // text of the bytes of a resource whose bytes are its text.
 //
 // Every SDK has these. The case tables hold each to one answer:
-// specs/src/resources/reader-cases.json the readers, and
-// specs/src/text/decode-cases.json with specs/src/text/encoding-cases.json the
+// protocol/specs/src/resources/reader-cases.json the readers, and
+// protocol/specs/src/text/decode-cases.json with protocol/specs/src/text/encoding-cases.json the
 // text. This package's tests run them.
 
 import (
@@ -157,7 +157,7 @@ var marks = []struct {
 // without its parameters and in lower case. Where a type's text comes from,
 // mediatypes.TextSourceOf says, so a text/ type the registry lacks is read.
 //
-// The rule is docs/protocol/W3C-SELECTORS.md's ("The text of a resource"):
+// The rule is protocol/contract/W3C-SELECTORS.md's ("The text of a resource"):
 // the MIME Sniffing Standard's reading of the content type and the Encoding
 // Standard's reading of the bytes, as a browser follows the two. The charset
 // is the one the content type states, UTF-8 when it states none, and is a

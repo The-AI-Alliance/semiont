@@ -1,4 +1,4 @@
-// Generate the job storage layout from specs/src/jobs/storage.json: the names
+// Generate the job storage layout from protocol/specs/src/jobs/storage.json: the names
 // and subjects every implementation of the job queue uses on the broker, so
 // work queued by one survives a switch to another. The JetStream queue builds
 // every name and subject from these; nothing restates them. The job types are
@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
-const SPEC = resolve(ROOT, 'specs/src/jobs/storage.json');
-const JOB_TYPE = resolve(ROOT, 'specs/src/components/schemas/JobType.json');
-const MARK_PARAMS = resolve(ROOT, 'specs/src/components/schemas/MarkJobParams.json');
+const SPEC = resolve(ROOT, 'protocol/specs/src/jobs/storage.json');
+const JOB_TYPE = resolve(ROOT, 'protocol/specs/src/components/schemas/JobType.json');
+const MARK_PARAMS = resolve(ROOT, 'protocol/specs/src/components/schemas/MarkJobParams.json');
 const OUT_DIR = resolve(ROOT, 'packages/typescript/core/src/generated');
 const OUT = resolve(OUT_DIR, 'job-storage.ts');
 
@@ -25,8 +25,8 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/src/jobs/storage.json, specs/src/components/schemas/JobType.json,
-//   specs/src/components/schemas/MarkJobParams.json
+// Source: protocol/specs/src/jobs/storage.json, protocol/specs/src/components/schemas/JobType.json,
+//   protocol/specs/src/components/schemas/MarkJobParams.json
 //   → packages/codegen/schemas/generate-job-storage.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 

@@ -2,7 +2,7 @@
 
 A generation asks `/api/show` first (the model's limits), so every scenario
 has both calls. What the driver sends is held exactly: in P5 the Worker
-service's suite (`packages/conformance/worker-service`) holds the Python worker
+service's suite (`protocol/conformance/worker-service`) holds the Python worker
 to the same bodies.
 """
 

@@ -3,7 +3,7 @@
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=image-gateway)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
 **The HTTP entry point to a Semiont knowledge base**: the one address clients and sidecar
-services dial. It is a Rust binary built against [`specs/`](../../specs/src/openapi.json),
+services dial. It is a Rust binary built against [`protocol/specs/`](../../protocol/specs/src/openapi.json),
 which is compiled into it, and it serves on port 4000. The launcher starts it, as the
 `semiont-<kb>-gateway` container, with the rest of the stack (`semiont start`). `<kb>` is the
 knowledge base's did:web domain made safe for a name
@@ -15,8 +15,8 @@ knowledge base's did:web domain made safe for a name
 | Port | 4000 |
 | Command | `/usr/local/bin/semiont-gateway --config /etc/semiont/gateway.json` |
 | Code | Rust, in this directory: [src](./src) |
-| Specification | the OpenAPI spec, [specs/src/openapi.json](../../specs/src/openapi.json) |
-| Judged by | [packages/conformance/gateway](../../packages/conformance/gateway/README.md) |
+| Specification | the OpenAPI spec, [protocol/specs/src/openapi.json](../../protocol/specs/src/openapi.json) |
+| Judged by | [protocol/conformance/gateway](../../protocol/conformance/gateway/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -49,10 +49,10 @@ container mounts the KB, and it is the Archivist.
 
 ## HTTP surface
 
-The OpenAPI document in [specs/src](../../specs/src/openapi.json) is the contract:
+The OpenAPI document in [protocol/specs/src](../../protocol/specs/src/openapi.json) is the contract:
 every route, every status each can answer and its body, the headers, the bus
 stream's messages and id formats, the limits, and the claims a token must carry.
-[TRANSPORT-HTTP.md](../../docs/protocol/TRANSPORT-HTTP.md) states the semantics a
+[TRANSPORT-HTTP.md](../../protocol/contract/TRANSPORT-HTTP.md) states the semantics a
 schema cannot hold.
 
 | Route | Serves |
@@ -118,7 +118,7 @@ frames reach the broker, export what telemetry is buffered, and exit.
 ## Configuration
 
 One document: a JSON `GatewayConfig`
-([schema](../../specs/src/components/schemas/GatewayConfig.json)) at the path its `--config`
+([schema](../../protocol/specs/src/components/schemas/GatewayConfig.json)) at the path its `--config`
 flag names, bind-mounted read-only. Without `--config`, the gateway refuses to start; the
 image passes `/etc/semiont/gateway.json`, where the launcher mounts the document. The
 launcher writes it from the knowledge base's stack documents and its committed identity:
@@ -160,7 +160,7 @@ connection.
 A broker credential is named by the variable holding it (`signal.userEnv`,
 `signal.passwordEnv`). Every environment variable the gateway reads, what sets it and what it
 changes, is in
-[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json).
+[`protocol/specs/src/service-environment/variables.json`](../../protocol/specs/src/service-environment/variables.json).
 
 It runs one worker thread per CPU it may use — its container's CPU limit and affinity — so
 that limit is what sizes it. No variable does: not even `TOKIO_WORKER_THREADS`, which its
@@ -187,7 +187,7 @@ cargo build --release -p semiont-gateway   # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../packages/conformance/gateway/README.md), run against the built binary
+[conformance suite](../../protocol/conformance/gateway/README.md), run against the built binary
 on both signal planes; see [TESTING.md](docs/TESTING.md). To run one by hand, write a
 `GatewayConfig` to a file, pass its path to `--config`, and set the three variables under
 [Configuration](#configuration).

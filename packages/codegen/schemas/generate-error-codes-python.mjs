@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Python SDK's error vocabularies from specs/src/errors/codes.json:
+// Generate the Python SDK's error vocabularies from protocol/specs/src/errors/codes.json:
 // the code types, the wire → bus-code mapping, and the HTTP status classifier.
 //
 //   packages/python/sdk/src/semiont/error_codes.py
@@ -23,9 +23,9 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/errors/codes.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/errors/codes.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/error_codes.py'));
-const COMMAND_ERROR = resolve(ROOT, 'specs/src/components/schemas/CommandError.json');
+const COMMAND_ERROR = resolve(ROOT, 'protocol/specs/src/components/schemas/CommandError.json');
 const CHECK = process.argv.includes('--check');
 
 function refuse(message) {
@@ -57,7 +57,7 @@ ${codes.map((entry) => `    ${pyString(entry.code)},`).join('\n')}
 )
 `;
 
-const text = `${pyBanner('specs/src/errors/codes.json', 'packages/codegen/schemas/generate-error-codes-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/errors/codes.json', 'packages/codegen/schemas/generate-error-codes-python.mjs')}
 """The codes a Semiont client reports a failure under.
 
 Each vocabulary is a closed set: a \`Literal\` union, so a \`match\` over one that

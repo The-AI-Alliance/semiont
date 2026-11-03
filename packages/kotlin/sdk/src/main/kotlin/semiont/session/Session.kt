@@ -60,7 +60,7 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
 /**
  * A session with one knowledge base: the token its client's transport sends
  * and who is signed in, the token renewed before it expires and when the
- * gateway refuses it (specs/src/session/cases.json). It writes its token and
+ * gateway refuses it (protocol/specs/src/session/cases.json). It writes its token and
  * who is signed in, so it ends them; it only uses its client, so it never ends
  * it, and whoever made the client and the session ends both.
  *

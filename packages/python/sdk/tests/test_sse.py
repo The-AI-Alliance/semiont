@@ -1,4 +1,4 @@
-"""The stream's parser gives the same events wherever the reads fall (`docs/protocol/TRANSPORT-HTTP.md` § Wire framing)."""
+"""The stream's parser gives the same events wherever the reads fall (`protocol/contract/TRANSPORT-HTTP.md` § Wire framing)."""
 
 from semiont.http.sse import SseEvent, SseParser
 

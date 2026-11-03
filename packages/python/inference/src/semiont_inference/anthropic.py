@@ -36,7 +36,7 @@ that a new release of it is read for the same:
 - It traces its own calls, wherever the process has a tracer, and sends
   each call's trace context to the provider in a `traceparent` header: both
   by default. A service exports the spans its row of
-  `specs/src/service-telemetry/telemetry.json` lists and no others, and a
+  `protocol/specs/src/service-telemetry/telemetry.json` lists and no others, and a
   provider is no party to its traces, so the client is made with both off
   (`open_telemetry`). `False` alone would turn off the spans and leave the
   header.

@@ -1,4 +1,4 @@
-"""How a token is held, as every SDK must compute it (`specs/src/session/cases.json`).
+"""How a token is held, as every SDK must compute it (`protocol/specs/src/session/cases.json`).
 
 `refreshSchedule`: how long to wait before renewing a token, from its own
 claims. `tokenExpiry`: reading `exp` out of one. The session's own conduct,

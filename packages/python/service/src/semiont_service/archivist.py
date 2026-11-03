@@ -3,7 +3,7 @@
 
 The Archivist serves the bytes of a resource's stored representation as they
 are stored, under the content type they are stored with
-(`specs/src/archivist/openapi.json`). Nothing between changes them, so the
+(`protocol/specs/src/archivist/openapi.json`). Nothing between changes them, so the
 checksum a service takes of what it reads is the one the record states. A
 resource's annotations are read here too, not over the bus: their number
 follows the document's, and a bus message is bounded. So is the record, for

@@ -8,14 +8,14 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.writeText
 
 /**
- * Writes, from specs/src, what the SDK holds of the protocol: every component
+ * Writes, from protocol/specs/src, what the SDK holds of the protocol: every component
  * schema of the bundled OpenAPI document as a type of `semiont.types`, each in
- * a file of its own, and the kinds of id (specs/src/identifiers/kinds.json) in
+ * a file of its own, and the kinds of id (protocol/specs/src/identifiers/kinds.json) in
  * `semiont.identifiers`. What it writes before is gone first, so a schema the
  * spec drops leaves nothing behind.
  */
 public fun main(args: Array<String>) {
-    require(args.size == 2) { "usage: <specs/src> <output directory>" }
+    require(args.size == 2) { "usage: <protocol/specs/src> <output directory>" }
     val specs = Path.of(args[0])
     val out = Path.of(args[1])
     try {
@@ -36,7 +36,7 @@ public fun main(args: Array<String>) {
             .writeText(header(IDENTIFIERS_PACKAGE, kinds) + generated.identifiers)
         val registry = readJson(specs.resolve("bus/registry.json")) as? JsonObject ?: refuse("bus/registry.json is no object")
         fun table(pkg: String, file: String, imports: List<String>, code: String) {
-            val start = "// Generated from specs/src; do not edit.\n\npackage $pkg\n\n" + imports.joinToString("") { "import $it\n" } + "\n"
+            val start = "// Generated from protocol/specs/src; do not edit.\n\npackage $pkg\n\n" + imports.joinToString("") { "import $it\n" } + "\n"
             out.resolve(pkg.replace('.', '/')).createDirectories().resolve(file).writeText(start + code)
         }
         table("semiont.channels", "Channels.kt", listOf("semiont.Generated", "semiont.types.*"), channelsFile(registry, definitions))

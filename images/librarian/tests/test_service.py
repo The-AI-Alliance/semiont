@@ -1,6 +1,6 @@
 """The service as a process: what it is started with, the order it refuses in, and what it says when it does not start.
 
-`docs/protocol/LIBRARIAN.md` § Settings states each refusal, § What it
+`protocol/contract/LIBRARIAN.md` § Settings states each refusal, § What it
 answers the channels its stream names, and § Health what its health endpoint
 says. Here is the order of the refusals, which says which is settled first,
 that a refusal is all the process writes, and each word of one. What the

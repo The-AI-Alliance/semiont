@@ -1,4 +1,4 @@
-// Generate the client error vocabularies from specs/src/errors/codes.json:
+// Generate the client error vocabularies from protocol/specs/src/errors/codes.json:
 // the code types, the wire → bus-code mapping, and the HTTP status classifier.
 //
 // The table is the authority every SDK generates from. Its reading, and the
@@ -21,9 +21,9 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/errors/codes.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/errors/codes.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/error-codes.ts'));
-const COMMAND_ERROR = resolve(ROOT, 'specs/src/components/schemas/CommandError.json');
+const COMMAND_ERROR = resolve(ROOT, 'protocol/specs/src/components/schemas/CommandError.json');
 
 function refuse(message) {
   console.error(`✗ ${TABLE}: ${message}`);
@@ -45,7 +45,7 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/src/errors/codes.json → packages/codegen/schemas/generate-error-codes.mjs
+// Source: protocol/specs/src/errors/codes.json → packages/codegen/schemas/generate-error-codes.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 
 ${union('BusRequestErrorCode', table.busRequest, busCodes)}

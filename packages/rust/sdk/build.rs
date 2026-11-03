@@ -1,4 +1,4 @@
-//! Generates, from specs/src, what this SDK's clients hold of the protocol:
+//! Generates, from protocol/specs/src, what this SDK's clients hold of the protocol:
 //!
 //! - `types.rs`: the body of every request and response the API declares but
 //!   the ones a service only passes through (`PASSED_THROUGH`), the schemas
@@ -110,7 +110,7 @@ fn api_bodies(document: &Value) -> Vec<String> {
 fn main() {
     let crate_dir =
         PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
-    // A link to specs/src in the repository, and the files themselves in the
+    // A link to protocol/specs/src in the repository, and the files themselves in the
     // published crate: cargo follows it when it packages.
     let specs = crate_dir.join("specs");
     let out = PathBuf::from(std::env::var("OUT_DIR").expect("cargo sets OUT_DIR"));
@@ -164,7 +164,7 @@ fn main() {
     .expect("cannot write types.rs");
 
     let mut operations = String::from(
-        "// Generated from specs/src/bus/registry.json; do not edit.\npub const OPERATIONS: &[Operation] = &[\n",
+        "// Generated from protocol/specs/src/bus/registry.json; do not edit.\npub const OPERATIONS: &[Operation] = &[\n",
     );
     for op in registry["operations"]
         .as_array()
@@ -314,7 +314,7 @@ fn utf8_labels(table: &Value) -> String {
         "utf-8 is not among its own labels"
     );
     format!(
-        "// Generated from specs/src/text/encoding-cases.json; do not edit.\n/// Every label of UTF-8 in the Encoding Standard, in lower case.\nconst UTF_8_LABELS: &[&str] = &{labels:?};\n"
+        "// Generated from protocol/specs/src/text/encoding-cases.json; do not edit.\n/// Every label of UTF-8 in the Encoding Standard, in lower case.\nconst UTF_8_LABELS: &[&str] = &{labels:?};\n"
     )
 }
 
@@ -343,8 +343,9 @@ fn media_types(table: &Value) -> String {
             "Where a type's text comes from: decoded from its own bytes, derived by reading them, or nowhere.",
         ),
     ];
-    let mut code =
-        String::from("// Generated from specs/src/media-types/registry.json; do not edit.\n");
+    let mut code = String::from(
+        "// Generated from protocol/specs/src/media-types/registry.json; do not edit.\n",
+    );
     for (key, _, name, docs) in VOCABULARIES {
         let words: Vec<&str> = list(&table[key], key)
             .iter()
@@ -427,7 +428,8 @@ fn media_types(table: &Value) -> String {
 /// The table's own generator (packages/codegen/schemas/generate-cache-refresh.mjs) is
 /// where it is held to account; this refuses only what it cannot render.
 fn cache_refresh(table: &Value) -> String {
-    let mut code = String::from("// Generated from specs/src/client/refresh.json; do not edit.\n");
+    let mut code =
+        String::from("// Generated from protocol/specs/src/client/refresh.json; do not edit.\n");
     let queries: Vec<&str> = list(&table["queries"], "queries")
         .iter()
         .map(|query| text(query, "name", "a query"))
@@ -589,7 +591,8 @@ fn channels_of(registry: &Value) -> String {
     if let Some(both) = scoped.iter().find(|c| bridged.contains(c)) {
         panic!("{both} is delivered both globally and per scope: a client would be given it twice");
     }
-    let mut code = String::from("// Generated from specs/src/bus/registry.json; do not edit.\n");
+    let mut code =
+        String::from("// Generated from protocol/specs/src/bus/registry.json; do not edit.\n");
     let mut constant = |docs: &str, name: &str, channels: &[String]| {
         let _ = writeln!(code, "/// {docs}\npub const {name}: &[&str] = &[");
         for channel in channels {
@@ -746,7 +749,8 @@ fn code_enum(code: &mut String, name: &str, vocabulary: &Value) -> Vec<(String, 
 }
 
 fn error_codes(table: &Value) -> String {
-    let mut code = String::from("// Generated from specs/src/errors/codes.json; do not edit.\n");
+    let mut code =
+        String::from("// Generated from protocol/specs/src/errors/codes.json; do not edit.\n");
 
     let bus = code_enum(&mut code, "BusRequestErrorCode", &table["busRequest"]);
     let unrecognized = text(&table["busRequest"], "unrecognizedFailure", "busRequest");
@@ -836,7 +840,8 @@ fn error_codes(table: &Value) -> String {
 
 /// Each client's id as `<NAME>_CLIENT_ID`, and the scope a sign-in asks for.
 fn oauth_clients(table: &Value) -> String {
-    let mut code = String::from("// Generated from specs/src/session/oauth.json; do not edit.\n");
+    let mut code =
+        String::from("// Generated from protocol/specs/src/session/oauth.json; do not edit.\n");
     for client in list(&table["clients"], "clients") {
         let _ = writeln!(
             code,
@@ -868,8 +873,9 @@ fn owner_only(table: &Value) -> String {
         "owner-only.json: the access list names {{owner}} {} times, not once",
         parts.len() - 1
     );
-    let mut code =
-        String::from("// Generated from specs/src/sign-in-store/owner-only.json; do not edit.\n");
+    let mut code = String::from(
+        "// Generated from protocol/specs/src/sign-in-store/owner-only.json; do not edit.\n",
+    );
     for (key, constant) in [
         ("directoryMode", "OWNER_ONLY_DIRECTORY_MODE"),
         ("fileMode", "OWNER_ONLY_FILE_MODE"),
@@ -914,7 +920,8 @@ fn screaming(name: &str) -> String {
 /// Each entry by the kind its name's ending states: `Ms` a duration, `Retry`
 /// a budget, `Count` a whole number.
 fn timing(table: &Value) -> String {
-    let mut code = String::from("// Generated from specs/src/client/timing.json; do not edit.\n");
+    let mut code =
+        String::from("// Generated from protocol/specs/src/client/timing.json; do not edit.\n");
     for entry in list(&table["timing"], "timing") {
         let name = text(entry, "name", "a timing entry");
         let value = &entry["value"];

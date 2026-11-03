@@ -1,6 +1,6 @@
 """The PDFs the tests read, held to the program that writes them.
 
-`specs/src/smelter/fixtures/` is kept in the repository, so that every reader
+`protocol/specs/src/smelter/fixtures/` is kept in the repository, so that every reader
 of a fixture reads the same bytes. `images/smelter/tools/fixtures/scripts/make-pdf-fixtures.py`
 writes all of them but one, the same bytes on every run: a fixture changed by
 hand, or a program changed without its files written again, fails here.

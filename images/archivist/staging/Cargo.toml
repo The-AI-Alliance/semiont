@@ -4,7 +4,7 @@ workspace = "../../../packages/rust"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "The Archivist's staging, as docs/protocol/ARCHIVIST.md states it: a working tree's changes recorded in the git index, deferred and deduped, or nowhere for a knowledge base that does not sync git."
+description = "The Archivist's staging, as protocol/contract/ARCHIVIST.md states it: a working tree's changes recorded in the git index, deferred and deduped, or nowhere for a knowledge base that does not sync git."
 
 [dependencies]
 opentelemetry = { workspace = true, features = ["metrics"] }

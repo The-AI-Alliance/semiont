@@ -3,7 +3,7 @@
 //! `gather`, `match_`, `yield_` and `beckon`; and `job`, `auth` and `system`.
 //!
 //! Every method returns one of nine shapes, and its name, its shape and what
-//! calling it does first are a row of specs/src/client/surface.json, which
+//! calling it does first are a row of protocol/specs/src/client/surface.json, which
 //! every SDK is held to:
 //!
 //! - an `async fn`: asked once, answered once;

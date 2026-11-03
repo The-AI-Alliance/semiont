@@ -11,7 +11,7 @@ It is deliberately NOT the fixture `22-pdf-scanned-decline.spec.ts` uses: that
 one is unreadable bars, so extraction declines. Two scans, two checksums, two
 opposite jobs.
 
-The same file is kept as specs/src/smelter/fixtures/legible-scan.pdf, which the
+The same file is kept as protocol/specs/src/smelter/fixtures/legible-scan.pdf, which the
 Python Smelter's tests read: it is written there by giving that path.
 
 From the repository root, run it in a container with Pillow and DejaVu:

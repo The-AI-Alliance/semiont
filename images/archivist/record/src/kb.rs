@@ -1,12 +1,12 @@
 //! What a knowledge base says of itself: its committed project file,
-//! `.semiont/config.yaml`, held to `specs/src/kb-identity/ProjectConfig.json`.
+//! `.semiont/config.yaml`, held to `protocol/specs/src/kb-identity/ProjectConfig.json`.
 
 use serde_json::Value;
 use std::path::Path;
 
 /// The project file's schema. The launcher holds the file to it too.
 const PROJECT_CONFIG_SCHEMA: &str =
-    include_str!("../../../../specs/src/kb-identity/ProjectConfig.json");
+    include_str!("../../../../protocol/specs/src/kb-identity/ProjectConfig.json");
 
 /// The keys of the committed project file the Archivist reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,7 +60,7 @@ fn from_yaml(path: &Path, text: &str) -> Result<Committed, String> {
         .collect();
     if !refusals.is_empty() {
         return Err(format!(
-            "{where_} does not hold to its schema (specs/src/kb-identity/ProjectConfig.json): {}",
+            "{where_} does not hold to its schema (protocol/specs/src/kb-identity/ProjectConfig.json): {}",
             refusals.join("; ")
         ));
     }
@@ -96,14 +96,15 @@ mod tests {
         root
     }
 
-    /// Every case of specs/src/kb-identity/cases.json, as the launcher runs
+    /// Every case of protocol/specs/src/kb-identity/cases.json, as the launcher runs
     /// them: a project file the case refuses is refused, and every other
     /// yields the name and domain the case states.
     #[test]
     fn every_identity_case_is_read_as_it_says() {
-        let table: Value =
-            serde_json::from_str(include_str!("../../../../specs/src/kb-identity/cases.json"))
-                .unwrap();
+        let table: Value = serde_json::from_str(include_str!(
+            "../../../../protocol/specs/src/kb-identity/cases.json"
+        ))
+        .unwrap();
         let (mut refused, mut read) = (0, 0);
         for case in table["cases"].as_array().expect("the table has cases") {
             let why = case["why"].as_str().expect("a case says why");

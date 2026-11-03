@@ -10,7 +10,7 @@ is done here, before and after it runs.
 Before, on a copy of the spec:
 
 - **A kind of id is this SDK's own type.** Wherever the spec refers to one of
-  the kinds `specs/src/identifiers/kinds.json` names, the generator is handed
+  the kinds `protocol/specs/src/identifiers/kinds.json` names, the generator is handed
   the type `semiont.identifiers` holds for it, so a field that carries an id is
   of its kind and of no other.
 - **A schema that extends another and restates one of its properties is written
@@ -56,8 +56,8 @@ from pydantic import JsonValue, TypeAdapter
 
 PACKAGE = Path(__file__).resolve().parents[1]
 ROOT = PACKAGE.parents[2]
-SPEC = ROOT / "specs/openapi.json"
-KINDS = ROOT / "specs/src/identifiers/kinds.json"
+SPEC = ROOT / "protocol/specs/openapi.json"
+KINDS = ROOT / "protocol/specs/src/identifiers/kinds.json"
 OUT = PACKAGE / "src/semiont/types.py"
 FLOOR = ROOT / "packages/python/scripts/python-floor.sh"
 
@@ -68,7 +68,7 @@ SCHEMA_REF = "#/components/schemas/"
 KEPT_AS_TEXT = frozenset({"date-time", "uri"})
 BYTES = "binary"
 BANNER = (
-    "# Generated from specs/openapi.json, the bundled spec; do not edit.\n"
+    "# Generated from protocol/specs/openapi.json, the bundled spec; do not edit.\n"
     "# Regenerate: uv run python scripts/generate_models.py (in packages/python/sdk)\n"
 )
 

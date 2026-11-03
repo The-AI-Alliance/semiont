@@ -9,7 +9,7 @@
  *
  * It is asked in two places: by the Dispatcher, choosing the next job a claim
  * takes, and by a party checking an announcement against its own claim before
- * it asks. `specs/src/jobs/filter-cases.json` holds every implementation to
+ * it asks. `protocol/specs/src/jobs/filter-cases.json` holds every implementation to
  * one answer.
  */
 

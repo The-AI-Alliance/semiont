@@ -1,6 +1,6 @@
 package semiont
 
-/** The waits a client keeps: specs/src/client/timing.json's, unless a caller that must not wait them out says otherwise. */
+/** The waits a client keeps: protocol/specs/src/client/timing.json's, unless a caller that must not wait them out says otherwise. */
 public data class ClientTiming @JvmOverloads constructor(
     /** How long a request of the bus waits for its reply. */
     public val busRequestMs: Long = Timings.BUS_REQUEST_TIMEOUT_MS,

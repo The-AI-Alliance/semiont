@@ -75,7 +75,7 @@ believe them at first:
 
 1. **The contract is the product.** The bus protocol, the annotation model, and
    the job lifecycle are specified independently of any language (see
-   [`docs/protocol/`](../protocol/)). Everything above that line is
+   [`protocol/contract/`](../../protocol/contract/)). Everything above that line is
    a projection of the contract.
 
 2. **Language SDKs are peers.** This book uses `@semiont/sdk` — the
@@ -110,7 +110,7 @@ it.
 The SDK's own shape, in one sentence: you open a **session** (sign-in and token
 refresh handled for you) and get a **client** whose namespaces are **the eight
 verbs of the protocol** — four that write, three that read, and one that directs
-attention, as in [`docs/protocol/flows/`](../protocol/flows/README.md):
+attention, as in [`protocol/contract/flows/`](../../protocol/contract/flows/README.md):
 
 | | Verb | What it does |
 |---|---|---|
@@ -160,7 +160,7 @@ The one escape hatch is `.fresh()`: an explicit one-shot fetch for "I want the
 latest, right now." The division of labor is deliberate — a cache read and a
 gateway request are different types, so "which one am I doing?" is impossible
 to get wrong. The full behavioral contract, numbered and test-cited, is
-[CACHE-SEMANTICS](../protocol/CACHE-SEMANTICS.md); the design rationale is
+[CACHE-SEMANTICS](../../protocol/contract/CACHE-SEMANTICS.md); the design rationale is
 [REACTIVE-MODEL](./REACTIVE-MODEL.md).
 
 ## A chat turn in one page
@@ -317,8 +317,8 @@ Where to go by goal:
 - **Understand why the API is shaped this way** —
   [REACTIVE-MODEL](./REACTIVE-MODEL.md), then
   [STATE-UNITS](./STATE-UNITS.md).
-- **Depend on exact behavior** — [CACHE-SEMANTICS](../protocol/CACHE-SEMANTICS.md) and
-  the wire-level contracts in [`docs/protocol/`](../protocol/).
+- **Depend on exact behavior** — [CACHE-SEMANTICS](../../protocol/contract/CACHE-SEMANTICS.md) and
+  the wire-level contracts in [`protocol/contract/`](../../protocol/contract/).
 - **Not a React shop? Not a TypeScript shop?** The concepts here and in the
   explanation docs are yours as-is; treat the binding- and language-specific
   material as a worked example of a pattern your stack will repeat.

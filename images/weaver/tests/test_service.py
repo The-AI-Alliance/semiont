@@ -1,6 +1,6 @@
 """The service as a process: what it is started with, the order it refuses in, and what it says when it does not start.
 
-`docs/protocol/WEAVER.md` § Settings states each refusal, and the weaver
+`protocol/contract/WEAVER.md` § Settings states each refusal, and the weaver
 conformance suite holds a started process to them. Here is their order, which
 says which is settled first, that a refusal is all the process writes, and
 what the suite does not reach: each word of a refusal.

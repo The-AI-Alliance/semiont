@@ -3,12 +3,12 @@
 //! once and never kept; and the signals are this viewer's own, with the one
 //! report among them going over the wire.
 //!
-//! What keeps a query true is specs/src/client/refresh.json
+//! What keeps a query true is protocol/specs/src/client/refresh.json
 //! (`crate::refresh`), which the client's refresher applies to the caches
 //! here (`super::refresher`): each event on the bus, and the reopening of a
 //! dropped stream, asks again for the queries its row names, writes the ones
 //! whose new value the event carries, and ends the ones whose entity is gone
-//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
+//! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
 use super::refresher::Subject;
 use crate::bus::{LIMITS_OPERATIONS, Operation, operation};
@@ -51,7 +51,7 @@ use tokio_stream::wrappers::WatchStream;
 
 /// How many resources a list or a search asks for when its caller states no
 /// limit. Every SDK asks for as many: the cases of
-/// specs/src/client/surface.json hold each to it.
+/// protocol/specs/src/client/surface.json hold each to it.
 const LIST_LIMIT: u64 = 100;
 
 /// The key of a query the knowledge base has one of.

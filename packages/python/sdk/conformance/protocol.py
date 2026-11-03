@@ -1,4 +1,4 @@
-"""The driver protocol of `packages/conformance/sdk`, as a program speaks it.
+"""The driver protocol of `protocol/conformance/sdk`, as a program speaks it.
 
 A driver is a process. The suite writes one JSON object to its stdin per line
 and reads one from its stdout per line. This is the part every driver shares:

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * lint:client-surface — every SDK's client has the surface
- * specs/src/client/surface.json states, and no other.
+ * protocol/specs/src/client/surface.json states, and no other.
  *
  * The table lists each namespace's methods with the shape of what each
  * returns. This reads the signatures each SDK declares and fails on:
@@ -84,7 +84,7 @@
  * `__init__`, a `new` that is not `pub`), Python's names that begin with an
  * underscore, Rust's trait implementations, and what a TypeScript class
  * inherits from a class the SDK does not declare. What a member does is not
- * read here either: docs/protocol/WORKER-CONTRACT.md states it, and the
+ * read here either: protocol/contract/WORKER-CONTRACT.md states it, and the
  * worker conformance suite holds each SDK to it.
  *
  * TypeScript's members are those of `interface Held` and of the class
@@ -214,8 +214,8 @@ import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const REPOSITORY = repositoryFiles(ROOT);
-const TABLE = 'specs/src/client/surface.json';
-const REGISTRY = 'specs/src/bus/registry.json';
+const TABLE = 'protocol/specs/src/client/surface.json';
+const REGISTRY = 'protocol/specs/src/bus/registry.json';
 const TS_INTERFACES = 'packages/typescript/sdk/src/namespaces/types.ts';
 const RUST_NAMESPACES = 'packages/rust/sdk/src/namespaces';
 const PYTHON_NAMESPACES = 'packages/python/sdk/src/semiont/namespaces';
@@ -232,7 +232,7 @@ const KOTLIN_SDK = 'packages/kotlin/sdk/src/main/kotlin/semiont';
 const KOTLIN_NAMESPACES = `${KOTLIN_SDK}/namespaces`;
 const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
-const SCHEMAS = 'specs/src/components/schemas';
+const SCHEMAS = 'protocol/specs/src/components/schemas';
 /** Each SDK as a message names it. */
 const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#' };
 
@@ -1928,7 +1928,7 @@ for (const thing of table.worker ?? []) {
     if (members.has(row.member)) fail(`${name} is listed twice`);
     members.set(row.member, row);
     const strays = Object.keys(row).filter((key) => !['member', 'absent', 'named', 'takes', 'notYetReached'].includes(key));
-    if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is docs/protocol/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
+    if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is protocol/contract/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
     for (const [sdk, why] of Object.entries(row.absent ?? {})) {
       if (!WORKER_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose worker's surface this lint reads`);
       if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);

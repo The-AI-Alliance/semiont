@@ -7,7 +7,7 @@ import (
 )
 
 // ConnectionState is whether the bus can deliver, as a transport reports it
-// (docs/protocol/TRANSPORT-CONTRACT.md § State).
+// (protocol/contract/TRANSPORT-CONTRACT.md § State).
 type ConnectionState string
 
 const (
@@ -35,7 +35,7 @@ const (
 )
 
 // allowed reports whether the connection's state may move from one state to
-// another (docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle).
+// another (protocol/contract/TRANSPORT-HTTP.md § Connection lifecycle).
 func allowed(from, to ConnectionState) bool {
 	switch from {
 	case ConnectionStateInitial:

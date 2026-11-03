@@ -1,6 +1,6 @@
 package semiont
 
-// The sign-in store (specs/src/sign-in-store): tokens.json is written by the
+// The sign-in store (protocol/specs/src/sign-in-store): tokens.json is written by the
 // launcher and by applications on every SDK, so every change is a read, a
 // change and a write under tokens.lock, and nothing a writer did not touch is
 // lost.
@@ -388,11 +388,11 @@ type renewalCase struct {
 	Gives   *string      `json:"gives"`
 }
 
-// renewalCases is the renewals table of specs/src/sign-in-store/cases.json,
+// renewalCases is the renewals table of protocol/specs/src/sign-in-store/cases.json,
 // every row stating every member.
 func renewalCases(t *testing.T) []renewalCase {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "sign-in-store", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "sign-in-store", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

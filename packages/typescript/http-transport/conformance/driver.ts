@@ -1,8 +1,8 @@
 /**
  * The TypeScript wire driver for the SDK conformance suite
- * (packages/conformance/sdk). The suite starts it, sends it one operation per
+ * (protocol/conformance/sdk). The suite starts it, sends it one operation per
  * line on stdin and reads what it did, and what it saw, one line at a time
- * from stdout; packages/conformance/sdk/README.md is the protocol.
+ * from stdout; protocol/conformance/sdk/README.md is the protocol.
  *
  * It reaches the transport only as an application does, through what
  * `@semiont/http-transport` and `@semiont/core` export, so what the suite

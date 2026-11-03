@@ -1,6 +1,6 @@
 """What of the worker's configuration is the Worker's own: that it serves a knowledge base once, and each engine's key.
 
-`docs/protocol/WORKER-SERVICE.md` § Configuration states each refusal, and
+`protocol/contract/WORKER-SERVICE.md` § Configuration states each refusal, and
 the worker service's conformance suite holds the words of each to a started
 process. How the document is found, read and refused is every Python
 service's, and is held where it is stated

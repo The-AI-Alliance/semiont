@@ -1,7 +1,7 @@
 """The service's agent at one knowledge base: its account there, signed in, and an engine for each of its `engines`, claiming jobs.
 
 The service is an agent at each knowledge base its document names
-(`docs/protocol/WORKER-SERVICE.md` § The agent). At each it signs in as the
+(`protocol/contract/WORKER-SERVICE.md` § The agent). At each it signs in as the
 client that knowledge base's `identity` names, and the DID that knowledge
 base's gateway answers is who the agent is there. It is used as answered and
 derived from nothing else: derived from the address the service happens to

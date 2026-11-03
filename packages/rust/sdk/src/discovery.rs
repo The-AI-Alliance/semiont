@@ -1,5 +1,5 @@
 //! The knowledge bases a launcher manages, as the launcher publishes them
-//! (specs/src/discovery): what the document says, read whole or not at all,
+//! (protocol/specs/src/discovery): what the document says, read whole or not at all,
 //! and what changed since it was last read.
 //!
 //! **Absent is not empty.** `Absent` is "no launcher was found", with why;

@@ -47,14 +47,14 @@ configurations.matching { it.name.startsWith("kotlin") }.configureEach {
 }
 
 // The generator of the SDK's protocol types: Kotlin of its own, compiled
-// first and run over specs/src, whose output is compiled with the SDK's own
+// first and run over protocol/specs/src, whose output is compiled with the SDK's own
 // sources. Nothing it writes is committed.
 val codegen: SourceSet = sourceSets.create("codegen")
 val generated = layout.buildDirectory.dir("generated/semiont/main/kotlin")
 val generate = tasks.register<JavaExec>("generate") {
-    description = "Writes the SDK's protocol types from specs/src."
+    description = "Writes the SDK's protocol types from protocol/specs/src."
     group = LifecycleBasePlugin.BUILD_GROUP
-    val specs = layout.projectDirectory.dir("../../../specs/src")
+    val specs = layout.projectDirectory.dir("../../../protocol/specs/src")
     inputs.dir(specs).withPathSensitivity(PathSensitivity.RELATIVE)
     outputs.dir(generated)
     classpath = codegen.runtimeClasspath
@@ -267,7 +267,7 @@ val refusals = tasks.register<Refusals>("refusals") {
     scratch = layout.buildDirectory.dir("refusals")
 }
 
-// The conformance drivers: programs the suites under packages/conformance start
+// The conformance drivers: programs the suites under protocol/conformance start
 // in the SDK's place, each reaching the SDK only through what it makes public.
 // installConformance lays them out as the suites find them: a start script
 // each in build/conformance/bin, over the SDK and what it runs on in lib.

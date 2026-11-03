@@ -9,7 +9,7 @@ The walk then cuts each piece only after the one before has answered, so that
 what a piece cost sizes the next (`semiont_worker.detection.chunk_size`). A
 piece whose reply fails in a way a smaller piece can fix is asked again in
 smaller pieces where it stands, and a failure a smaller piece cannot fix is
-raised as it was. `specs/src/worker/chunk-plan-cases.json` holds the rule, as
+raised as it was. `protocol/specs/src/worker/chunk-plan-cases.json` holds the rule, as
 its `budget`, `walk` and `descent`.
 """
 

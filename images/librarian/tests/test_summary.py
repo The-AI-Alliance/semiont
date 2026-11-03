@@ -1,4 +1,4 @@
-"""An annotation's summary (`docs/protocol/LIBRARIAN.md` § An annotation's summary), over fakes of what it reads by."""
+"""An annotation's summary (`protocol/contract/LIBRARIAN.md` § An annotation's summary), over fakes of what it reads by."""
 
 from typing import Final, final
 

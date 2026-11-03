@@ -21,7 +21,7 @@ import semiont.sameJson
 
 /**
  * The bus log's form, and what a line shows of a payload: the table every bus
- * log runs (specs/src/bus/log-cases.json), which lists the names a credential
+ * log runs (protocol/specs/src/bus/log-cases.json), which lists the names a credential
  * is withheld under.
  */
 class BusLogTest {

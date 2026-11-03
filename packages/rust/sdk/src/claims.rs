@@ -2,8 +2,8 @@
 //!
 //! A worker is any party that takes jobs and says how each one went. What it
 //! promises the dispatcher, and everyone who follows a job, is
-//! docs/protocol/WORKER-CONTRACT.md; this module is that contract for Rust,
-//! and the worker conformance suite (packages/conformance/worker) holds it on
+//! protocol/contract/WORKER-CONTRACT.md; this module is that contract for Rust,
+//! and the worker conformance suite (protocol/conformance/worker) holds it on
 //! the wire.
 //!
 //! THE MODEL. A worker asks the queue at every moment it becomes idle, and
@@ -131,7 +131,7 @@ const fn weakness(evidence: DurabilityEvidence) -> u8 {
 /// queue acts on it, and a worker reports it on `job:fail` as `willRetry`, so
 /// a follower of the job knows whether the failure it just saw is the end.
 /// This is the one implementation in Rust, which the Dispatcher uses too, and
-/// specs/src/jobs/retry-cases.json is the table every language answers alike.
+/// protocol/specs/src/jobs/retry-cases.json is the table every language answers alike.
 pub fn will_retry_after(metadata: &JobMetadata, failure_class: Option<FailureClass>) -> bool {
     let retried = match failure_class {
         None | Some(FailureClass::Transient) => true,
@@ -140,7 +140,7 @@ pub fn will_retry_after(metadata: &JobMetadata, failure_class: Option<FailureCla
     retried && metadata.retry_count < metadata.max_retries
 }
 
-/// The waits a worker keeps, each the value of specs/src/client/timing.json
+/// The waits a worker keeps, each the value of protocol/specs/src/client/timing.json
 /// unless a caller that must not wait it out states another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClaimTiming {

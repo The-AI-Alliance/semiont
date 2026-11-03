@@ -4,8 +4,8 @@ package semiont
 //
 // A worker is any party that takes jobs and says how each one went. What it
 // promises the dispatcher, and everyone who follows a job, is
-// docs/protocol/WORKER-CONTRACT.md; this file is that contract for Go, and the
-// worker conformance suite (packages/conformance/worker) holds it on the wire.
+// protocol/contract/WORKER-CONTRACT.md; this file is that contract for Go, and the
+// worker conformance suite (protocol/conformance/worker) holds it on the wire.
 //
 // THE MODEL. A worker asks the queue at every moment it becomes idle, and
 // never otherwise. job:claim carries the jobs it takes; the dispatcher answers
@@ -118,7 +118,7 @@ var retriedClasses = map[api.FailureClass]bool{
 // the record before the failure is applied. A failure of no stated class
 // (nil) is retried as a transient one is. Two places need the answer and they
 // must never disagree: the dispatcher's queue acts on it, and a worker
-// reports it on job:fail as willRetry. specs/src/jobs/retry-cases.json is the
+// reports it on job:fail as willRetry. protocol/specs/src/jobs/retry-cases.json is the
 // table every implementation answers alike.
 func WillRetryAfter(retryCount, maxRetries int, failureClass *api.FailureClass) bool {
 	retried := true
@@ -145,7 +145,7 @@ var weakness = map[api.DurabilityEvidence]int{
 // as it is announced or held, with its jobType and its params. A filter is a
 // partial job description: a job matches when every field the filter states
 // equals the job's at the same path, and what the filter leaves out is not
-// compared. specs/src/jobs/filter-cases.json holds every implementation to
+// compared. protocol/specs/src/jobs/filter-cases.json holds every implementation to
 // one answer.
 func JobMatchesFilter(filter, job any) bool {
 	stated, ok := filter.(map[string]any)

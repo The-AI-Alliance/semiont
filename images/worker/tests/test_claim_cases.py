@@ -1,4 +1,4 @@
-"""Finding a claim again in a PDF's text, held to the `claims` and the `landing` of `specs/src/annotations/pdf-locate-cases.json`.
+"""Finding a claim again in a PDF's text, held to the `claims` and the `landing` of `protocol/specs/src/annotations/pdf-locate-cases.json`.
 
 The table's `cases` are the locating every SDK does for a span of a PDF, and
 each SDK runs them. Its `claims` and its `landing` are the rule of Semiont's

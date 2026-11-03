@@ -5,7 +5,7 @@ set -euo pipefail
 # type-checks against the BUILT packages, resolved through the exports map the
 # way that doc's reader resolves them. Doc rot fails CI instead of waiting for
 # a reader to paste a dead snippet. Four suites:
-#   - sdk:      docs/builder, docs/protocol and docs/protocol/flows, plus the repo-root and packages/typescript/sdk READMEs.
+#   - sdk:      docs/builder, protocol/contract and protocol/contract/flows, plus the repo-root and packages/typescript/sdk READMEs.
 #   - skills:   the agent skills, docs/builder/skills/*/SKILL.md, and their README.
 #   - packages: the READMEs of the packages the services are built from.
 #   - ui:       docs/builder/react-ui, packages/typescript/react-ui/docs and images/browser/docs plus their READMEs.

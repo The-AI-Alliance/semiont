@@ -21,7 +21,7 @@ use tokio::sync::watch;
 
 /// Why a session ended: its issuer refused to renew its token (`Expired`), or
 /// the gateway refused a token its issuer had just issued (`Refused`). The
-/// vocabulary is specs/src/session/cases.json's `told`.
+/// vocabulary is protocol/specs/src/session/cases.json's `told`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionEndReason {
     Expired,
@@ -29,7 +29,7 @@ pub enum SessionEndReason {
 }
 
 impl SessionEndReason {
-    /// The reason as specs/src/session/cases.json names it.
+    /// The reason as protocol/specs/src/session/cases.json names it.
     pub fn as_str(self) -> &'static str {
         match self {
             SessionEndReason::Expired => "expired",
