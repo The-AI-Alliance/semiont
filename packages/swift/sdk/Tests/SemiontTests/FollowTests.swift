@@ -343,7 +343,7 @@ private struct UnexpectedStatusFailure: Error {}
     }
   }
 }
-@Test func jobPollingHonorsItsDeadlineAndReportsEveryStatus() async throws {
+@Test func jobPollingReportsEveryStatusUntilCompletion() async throws {
   let probe = ProbeTransport()
   let client = try await SemiontClient(transport: probe)
   defer { client.dispose() }
@@ -357,20 +357,31 @@ private struct UnexpectedStatusFailure: Error {}
       JobStatusResult(response: statusFixture(status: count == 1 ? .pending : .complete)))
   }
   let statuses = Mutex<[JobStatusResponseStatus]>([])
-  _ = try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 1, timeoutMs: 1000) {
+  _ = try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 1, timeoutMs: 10000) {
     value in statuses.withLock { $0.append(value.status) }
   }
   #expect(statuses.withLock { $0 } == [.pending, .complete])
+  #expect(probe.calls.count == 2)
+}
+@Test(arguments: [false, true])
+func jobPollingDeadlineBoundsRequestsAndIntervals(unanswered: Bool) async throws {
+  let probe = ProbeTransport()
+  let client = try await SemiontClient(transport: probe)
+  defer { client.dispose() }
+  let requestEnded = Watched(false)
   probe.handle { _, _ in
-    try await sleepMilliseconds(60000)
-    return try wirePayload(JobStatusResult(response: statusFixture()))
+    defer { requestEnded.set(true) }
+    if unanswered { try await sleepMilliseconds(60000) }
+    return try wirePayload(JobStatusResult(response: statusFixture(status: .pending)))
   }
   do {
-    _ = try await within(1000) {
-      try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 1, timeoutMs: 30)
+    _ = try await within(5000) {
+      try await client.job.pollUntilComplete(JobId("job-1"), intervalMs: 60000, timeoutMs: 2000)
     }
     Issue.record("Unanswered polling succeeded")
   } catch let error as BusRequestError { #expect(error.reason == .busTimeout) }
+  #expect(requestEnded.value)
+  #expect(probe.calls.count == 1)
 }
 @Test func learnedCompletionUsesOnlyTheDelegatedVerbsResult() throws {
   var status = try statusFixture()
