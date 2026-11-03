@@ -2,7 +2,7 @@ import AsyncHTTPClient
 import Foundation
 import OpenTelemetryApi
 
-private struct RequestDeadline: Error {}
+struct RequestDeadline: Error {}
 func within<Value: Sendable>(
   _ milliseconds: Int, operation: @escaping @Sendable () async throws -> Value
 ) async throws -> Value {

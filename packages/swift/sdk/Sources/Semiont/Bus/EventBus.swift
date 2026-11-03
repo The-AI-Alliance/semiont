@@ -5,7 +5,7 @@ import Synchronization
 public final class EventBus: Sendable {
   private struct State: Sendable {
     var ended = false
-    var listeners: [UUID: (String, Broadcast<ReceivedFrame>)] = [:]
+    var listeners: [UUID: (Set<String>, Broadcast<ReceivedFrame>)] = [:]
   }
   private let dispatch = Mutex(())
   private let state = Mutex(State())
@@ -23,22 +23,22 @@ public final class EventBus: Sendable {
     }
   }
   public func frames<Payload>(_ channel: Channel<Payload>) -> Typed<Payload> {
-    Typed(channel: channel.name, stamps: channel.stamps, source: listen(channel.name))
+    Typed(channel: channel.name, stamps: channel.stamps, source: listen([channel.name]))
   }
   public func frames<Payload>(_ channel: ScopedChannel<Payload>, resource: ResourceId) -> Typed<
     Payload
   > {
     Typed(
-      channel: channel.name, stamps: channel.stamps, source: listen(channel.name),
+      channel: channel.name, stamps: channel.stamps, source: listen([channel.name]),
       resource: resource)
   }
-  func listen(_ channel: String) -> Events<ReceivedFrame> {
+  func listen(_ channels: [String]) -> Events<ReceivedFrame> {
     let id = UUID()
     let hub = Broadcast<ReceivedFrame>()
     let source = hub.listen { [weak self] in self?.remove(id) }
     let ended = state.withLock { state in
       if state.ended { return true }
-      state.listeners[id] = (channel, hub)
+      state.listeners[id] = (Set(channels), hub)
       return false
     }
     if ended { hub.finish() }
@@ -47,7 +47,7 @@ public final class EventBus: Sendable {
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
   private func publish(_ frame: ReceivedFrame) {
     let listeners = state.withLock { state in
-      state.ended ? [] : state.listeners.values.filter { $0.0 == frame.channel }.map(\.1)
+      state.ended ? [] : state.listeners.values.filter { $0.0.contains(frame.channel) }.map(\.1)
     }
     for listener in listeners { listener.yield(frame) }
   }

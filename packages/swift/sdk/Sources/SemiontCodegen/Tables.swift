@@ -103,6 +103,9 @@ package struct TableGenerator {
     var out = "// Generated from protocol/specs/src tables; do not edit.\nimport Foundation\n"
     _ = try models.inline(
       "", "HeldSignIn", required(table("session/stored.json"), "storedSession").object)
+    var gatherOptions = try models.schema("GatherResourceRequestOptions")
+    gatherOptions.removeValue(forKey: "required")
+    _ = try models.inline("", "GatherResourceOptions", gatherOptions)
     var received = try models.schema("BusFrame")
     var fields = try required(received, "properties").object
     let projection = fields.keys.sorted().map {
@@ -382,8 +385,23 @@ package struct TableGenerator {
       guard let request = rows[names[0]], let response = rows[names[1]] else {
         throw GenerationRefused(description: "missing operation channels")
       }
+      guard let failure = rows[names[2]], let failureSchema = failure.schema else {
+        throw GenerationRefused(description: "failure channel has no schema")
+      }
+      let fields = try models.merged(failureSchema)["properties"]?.object ?? [:]
+      let messages = ["message", "error"].filter { fields[$0] != nil }
+      guard messages.count == 1, let message = messages.first else {
+        throw GenerationRefused(description: "failure needs one message field")
+      }
+      let required = Set(
+        try models.merged(failureSchema)["required"]?.array.map { try $0.text } ?? [])
+      guard required.contains(message), let shape = fields[message],
+        try models.nonnull(shape.object).0["type"] == .string("string")
+      else {
+        throw GenerationRefused(description: "failure message must be a required string")
+      }
       out +=
-        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }),\n"
+        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0, stamps: Channels.\(escaped(memberName(names[0]))).stamps) }, response: { try projectWire(\(response.type).self, $0, stamps: Channels.\(escaped(memberName(names[1]))).stamps) }, decodeFailure: { try projectFailure(\(failure.type).self, $0, stamps: Channels.\(escaped(memberName(names[2]))).stamps, messageField: \(literal(message))) }),\n"
     }
     guard scoped.isDisjoint(with: everyone.union(replies)) else {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")

@@ -18,12 +18,12 @@ import Testing
   #expect(try await iterator.next() == nil)
 }
 
-private struct Call: Equatable, Sendable {
+struct Call: Equatable, Sendable {
   let via: String
   let name: String
   let payload: [String: JSONValue]
 }
-private final class ProbeTransport: Transport, GatewayOperations, Sendable {
+final class ProbeTransport: Transport, GatewayOperations, Sendable {
   let baseUrl = "http://kb.test"
   let state = Watched<ConnectionState>(.open)
   private let hub = Broadcast<ReceivedFrame>()
@@ -31,6 +31,9 @@ private final class ProbeTransport: Transport, GatewayOperations, Sendable {
   private struct State: Sendable {
     var calls: [Call] = []
     var count: Int? = 7
+    var onFrames: (@Sendable () -> Void)?
+    var frameEnds = 0
+    var handler: (@Sendable (String, [String: JSONValue]) async throws -> [String: JSONValue])?
     var failure: BusRequestError?
     var holds = 0
     var disposals = 0
@@ -39,11 +42,22 @@ private final class ProbeTransport: Transport, GatewayOperations, Sendable {
   var calls: [Call] { storage.withLock { $0.calls } }
   var holds: Int { storage.withLock { $0.holds } }
   var disposals: Int { storage.withLock { $0.disposals } }
+  func handle(
+    _ handler: @escaping @Sendable (String, [String: JSONValue]) async throws -> [String: JSONValue]
+  ) { storage.withLock { $0.handler = handler } }
+  var frameEnds: Int { storage.withLock { $0.frameEnds } }
+  func onFrames(_ action: @escaping @Sendable () -> Void) {
+    storage.withLock { $0.onFrames = action }
+  }
   func reset() { storage.withLock { $0.calls = [] } }
   func setCount(_ count: Int?) { storage.withLock { $0.count = count } }
   func setFailure(_ failure: BusRequestError?) { storage.withLock { $0.failure = failure } }
   func deliver(_ frame: ReceivedFrame) { hub.yield(frame) }
-  func frames(_ channels: [String]) async throws -> Events<ReceivedFrame> { hub.listen() }
+  func frames(_ channels: [String]) async throws -> Events<ReceivedFrame> {
+    let source = hub.listen { [weak self] in self?.storage.withLock { $0.frameEnds += 1 } }
+    storage.withLock { $0.onFrames }?()
+    return source
+  }
   func failures() -> Events<TransportError> { failureEvents.listen() }
   func subscribeToResource(_ resource: ResourceId) async -> ResourceHold {
     storage.withLock { $0.holds += 1 }
@@ -60,11 +74,13 @@ private final class ProbeTransport: Transport, GatewayOperations, Sendable {
   func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
     -> [String: JSONValue]
   {
-    try storage.withLock { state in
+    let handler = try storage.withLock { state in
       state.calls.append(Call(via: "request", name: operation, payload: payload))
       if let failure = state.failure { throw failure }
-      return [:]
+      return state.handler
     }
+    guard let handler else { throw SpecFailure.shape("Unscripted request: \(operation)") }
+    return try await handler(operation, payload)
   }
   func dispose() {
     storage.withLock { $0.disposals += 1 }
@@ -108,6 +124,120 @@ private final class ProbeTransport: Transport, GatewayOperations, Sendable {
 }
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "mark.annotation": { client, args in
+      try await encoded(
+        client.mark.annotation(decoded(CreateAnnotationRequest.self, required(args, "input"))))
+    },
+    "mark.delete": { client, args in
+      try await client.mark.delete(
+        resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+        annotationId: decoded(AnnotationId.self, required(args, "annotationId")))
+      return nil
+    },
+    "mark.archive": { client, args in
+      try await client.mark.archive(decoded(ResourceId.self, required(args, "resourceId")))
+      return nil
+    },
+    "mark.unarchive": { client, args in
+      try await client.mark.unarchive(decoded(ResourceId.self, required(args, "resourceId")))
+      return nil
+    },
+    "mark.updateEntityTypes": { client, args in
+      try await client.mark.updateEntityTypes(
+        resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+        current: decoded([String].self, required(args, "current")),
+        updated: decoded([String].self, required(args, "updated")))
+      return nil
+    },
+    "mark.request": { client, args in
+      try client.mark.request(
+        source: decoded(ResourceId.self, required(args, "source")),
+        selector: decoded(AnnotationSelector.self, required(args, "selector")),
+        motivation: decoded(Motivation.self, required(args, "motivation")))
+      return nil
+    },
+    "mark.submit": { client, args in
+      try client.mark.submit(decoded(MarkSubmitEvent.self, required(args, "input")))
+      return nil
+    },
+    "mark.reportDeleteError": { client, args in
+      try client.mark.reportDeleteError(decoded(ResourceErrorEvent.self, required(args, "input")))
+      return nil
+    },
+    "mark.delegate": { client, args in
+      try await encoded(
+        client.mark.delegate(
+          resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+          params: decoded(MarkJobParams.self, required(args, "params"))
+        ).completed())
+    },
+    "job.status": { client, args in
+      try await encoded(client.job.status(decoded(JobId.self, required(args, "jobId"))))
+    },
+    "job.pollUntilComplete": { client, args in
+      try await encoded(client.job.pollUntilComplete(decoded(JobId.self, required(args, "jobId"))))
+    },
+    "job.cancel": { client, args in
+      try await encoded(client.job.cancel(decoded(JobId.self, required(args, "jobId"))))
+    },
+    "yield.delegate": { client, args in
+      let deadline = try args["stallDeadlineMs"].map { try Int(number($0)) }
+      return try await encoded(
+        client.yield.delegate(
+          params: decoded(GenerationJobParams.self, required(args, "params")),
+          stallDeadlineMs: deadline
+        ).completed())
+    },
+    "yield.cloneToken": { client, args in
+      try await encoded(
+        client.yield.cloneToken(decoded(ResourceId.self, required(args, "resourceId"))))
+    },
+    "yield.fromToken": { client, args in
+      try await encoded(client.yield.fromToken(required(args, "token").text))
+    },
+    "yield.clone": { client, _ in
+      try client.yield.clone()
+      return nil
+    },
+    "gather.annotation": { client, args in
+      try await encoded(
+        client.gather.annotation(
+          resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+          annotationId: decoded(AnnotationId.self, required(args, "annotationId")),
+          options: args["options"].map { try decoded(GatherAnnotationOptions.self, $0) }
+        ).completed())
+    },
+    "gather.resource": { client, args in
+      try await encoded(
+        client.gather.resource(
+          decoded(ResourceId.self, required(args, "resourceId")),
+          options: args["options"].map { try decoded(GatherResourceOptions.self, $0) }))
+    },
+    "match.search": { client, args in
+      let options = try args["options"]?.object
+      if let options {
+        return try await encoded(
+          client.match.search(
+            resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+            referenceId: decoded(AnnotationId.self, required(args, "referenceId")),
+            context: decoded(GatheredContext.self, required(args, "context")),
+            limit: decoded(Int.self, required(options, "limit")),
+            useSemanticScoring: decoded(Bool.self, required(options, "useSemanticScoring"))
+          ).completed())
+      }
+      return try await encoded(
+        client.match.search(
+          resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+          referenceId: decoded(AnnotationId.self, required(args, "referenceId")),
+          context: decoded(GatheredContext.self, required(args, "context"))
+        ).completed())
+    },
+    "match.requestSearch": { client, args in
+      try client.match.requestSearch(
+        decoded(MatchSearchRequest.self, required(args, "input")),
+        correlationId: required(args, "correlationId").text)
+      return nil
+    },
     "frame.addEntityType": { client, args in
       try await client.frame.addEntityType(required(args, "type").text)
       return nil
@@ -183,18 +313,33 @@ private let callsByName:
     let name = try required(namespace, "namespace").text
     for method in try required(namespace, "methods").array {
       let row = try method.object
+      if try row["notYetReached"]?.object["swift"] != nil { continue }
       let key = name + "." + (try required(row, "method").text)
       reached.insert(key)
-      let invoke = try #require(callsByName[key])
+      let invoke = callsByName[key]
       for value in try required(row, "cases").array {
-        let item = try value.object
+        let item = try expanded(value, fixtures: required(table, "fixtures").object).object
         let via = try required(row, "via").object
         let probe = ProbeTransport()
+        surfaceReplies(probe)
         let client = try await SemiontClient(transport: probe, gateway: probe)
         defer { client.dispose() }
-        let local = try via["local"].map { client.bus.listen(try $0.text) }
+        let local = try via["local"].map { client.bus.listen([try $0.text]) }
         defer { local?.dispose() }
-        let result = try await invoke(client, required(item, "args").object)
+        if let observed = via["observes"] {
+          let make = try #require(eventReadersByName[key])
+          let read = make(client)
+          probe.deliver(
+            ReceivedFrame(channel: try observed.text, payload: try required(item, "sends").object))
+          let result = try await within(1000) { try await read() }
+          #expect(result == (try required(item, "sends")))
+          #expect(probe.calls.isEmpty)
+          continue
+        }
+        let invoke = try #require(invoke)
+        let result = try await within(1000) {
+          try await invoke(client, required(item, "args").object)
+        }
         var expected: [Call] = []
         for (kind, name) in via {
           expected.append(
@@ -214,6 +359,9 @@ private let callsByName:
           }
           #expect(probe.calls.isEmpty)
           #expect(frame?.payload == expected.first?.payload)
+          if let correlation = item["correlationId"] {
+            #expect(frame?.correlationId == (try correlation.text))
+          }
         } else {
           #expect(probe.calls == expected, "\(key)")
         }
@@ -222,7 +370,7 @@ private let callsByName:
       }
     }
   }
-  #expect(reached == Set(callsByName.keys))
+  #expect(reached == Set(callsByName.keys).union(eventReadersByName.keys))
 }
 
 @Test func typedWirePreservesEnvelopeRefusesBadPayloadsAndKeepsReading() async throws {
@@ -338,6 +486,7 @@ private let callsByName:
 }
 @Test func malformedOperationRepliesFailWithoutDiscardingARequiredName() async throws {
   let probe = ProbeTransport()
+  probe.handle { _, _ in [:] }
   let bus = Bus(probe)
   do {
     _ = try await bus.request(
@@ -405,4 +554,68 @@ private let callsByName:
   #expect(probe.holds == 0)
   source.dispose()
   waiting.dispose()
+}
+private func eventReader<Payload>(_ source: Typed<Payload>)
+  -> @Sendable () async throws -> JSONValue
+{
+  {
+    var iterator = source.makeAsyncIterator()
+    guard case .delivered(let frame) = try await iterator.next() else {
+      throw SpecFailure.shape("No delivered event")
+    }
+    return try encoded(frame.payload)
+  }
+}
+private let eventReadersByName:
+  [String: @Sendable (SemiontClient) -> @Sendable () async throws -> JSONValue] = [
+    "job.queued": { eventReader($0.job.queued()) },
+    "job.progress": { eventReader($0.job.progress()) },
+    "job.complete": { eventReader($0.job.complete()) },
+    "job.fail": { eventReader($0.job.fail()) },
+  ]
+
+@Test func cancelledClientConstructionReleasesItsListenerBeforeTakingOwnership() async throws {
+  let probe = ProbeTransport()
+  probe.onFrames { withUnsafeCurrentTask { $0?.cancel() } }
+  let task = Task { try await SemiontClient(transport: probe) }
+  do {
+    _ = try await task.value
+    Issue.record("Cancelled constructor succeeded")
+  } catch is CancellationError {}
+  #expect(probe.frameEnds == 1)
+  #expect(probe.disposals == 0)
+  probe.dispose()
+}
+private struct ReadFailure: Error {}
+@Test func aTypedReadReleasesItsResourceWhenItsSourceFails() async throws {
+  let (stream, continuation) = AsyncThrowingStream<ReceivedFrame, any Error>.makeStream()
+  let released = Watched(false)
+  let source = Events(stream, stop: { continuation.finish() })
+  let typed = Typed<EnrichedResourceEvent>(
+    channel: Channels.markAdded.name, stamps: Channels.markAdded.stamps, source: source,
+    resource: try ResourceId("res-1"), hold: ResourceHold { released.set(true) })
+  continuation.finish(throwing: ReadFailure())
+  var iterator = typed.makeAsyncIterator()
+  await #expect(throws: ReadFailure.self) { try await iterator.next() }
+  #expect(released.value)
+}
+@Test func requiredMemberDiagnosticsTraverseArraysAndMapsWithoutExposingTheirKeys() throws {
+  let row = try #require(
+    required(Spec.read("annotations/reader-cases.json").object, "cases").array.first
+  ).object
+  var annotation = try required(row, "annotation").object
+  annotation.removeValue(forKey: "id")
+  let array = JSONValue.object(["annotations": .array([.object(annotation)]), "total": .number(1)])
+  let listShape = try #require(requiredModelMembers["GetAnnotationsResponse"])
+  #expect(listShape.lacking(in: array) == "annotations.id")
+  let cursor = UnitCursor(emitted: 2, errors: 0, found: 3, next: 20, size: 100)
+  let failed = try JobFailCommand(
+    error: "failure", jobId: JobId("job-1"), jobType: .mark, resourceId: ResourceId("res-1"),
+    unitCursors: ["some-unit": cursor])
+  var payload = try wirePayload(failed)
+  var incomplete = try wirePayload(cursor)
+  incomplete.removeValue(forKey: "size")
+  payload["unitCursors"] = .object(["some-unit": .object(incomplete)])
+  let mapShape = try #require(requiredModelMembers["JobFailCommand"])
+  #expect(mapShape.lacking(in: .object(payload)) == "unitCursors.size")
 }

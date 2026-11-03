@@ -219,7 +219,7 @@ public final class Events<Value: Sendable>: AsyncSequence, Sendable {
 }
 
 /// Cancellation settles this waiter without cancelling the shared operation.
-private final class SharedWait<Value: Sendable>: Sendable {
+final class SharedWait<Value: Sendable>: Sendable {
   private struct State: Sendable {
     var result: Result<Value, any Error>?
     var continuation: CheckedContinuation<Value, any Error>?

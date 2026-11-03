@@ -134,3 +134,19 @@ import Testing
     Set(MatchQuality.allCases.map(\.rawValue))
       == Set(try answered.compactMap { try $0["matchQuality"]?.text }))
 }
+
+@Test func selectorReadersFindTheirOwnKindAndRefuseTheOthers() throws {
+  let position = Selector.textPositionSelector(TextPositionSelector(end: 3, start: 1))
+  let svg = Selector.svgSelector(SvgSelector(value: "<svg/>"))
+  let fragment = Selector.fragmentSelector(FragmentSelector(value: "page=2"))
+  let quote = Selector.textQuoteSelector(TextQuoteSelector(exact: "words"))
+  let selectors = AnnotationSelector.list([position, svg, fragment, quote])
+  #expect(textPositionSelector(selectors)?.start == 1)
+  #expect(svgSelector(selectors)?.value == "<svg/>")
+  #expect(fragmentSelector(selectors)?.value == "page=2")
+  #expect(textQuoteSelector(selectors)?.exact == "words")
+  #expect(textPositionSelector(.selector(quote)) == nil)
+  #expect(svgSelector(.selector(quote)) == nil)
+  #expect(fragmentSelector(.selector(quote)) == nil)
+  #expect(textQuoteSelector(.selector(position)) == nil)
+}
