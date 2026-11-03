@@ -19,6 +19,7 @@ mac:
   icon: assets/icon.icns
 dmg:
   title: Semiont Desktop
+  background: assets/dmg-background.tiff
 linux:
   syncDesktopName: true
   category: Utility

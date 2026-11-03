@@ -59,8 +59,13 @@ make desktop-macos            # unsigned macOS Apple Silicon DMG
 make desktop-linux   # Linux x64 Debian package
 ```
 
-Both builds install dependencies and run npm inside the selected container runtime; Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
+Both builds snapshot the source, including uncommitted files, and install dependencies and build inside the container’s filesystem. Only installer output is copied back; the checkout’s `node_modules` and package build directories are not used or modified. Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
 native `hdiutil` on the host for the DMG step; app assembly stays in the Node container; the
 Linux build uses an amd64 Debian container (Rosetta on Apple Silicon). Installers are
 written to `apps/desktop/release/`. Linux host installation and launch have not yet been
 verified.
+
+The macOS icon and DMG artwork are rendered from the SVG sources in `assets/`. On macOS,
+regenerate the PNG, Retina TIFF and ICNS files after changing those sources with
+`apps/desktop/scripts/build-brand-assets.sh`. The Orbitron font and its SIL Open Font
+License are included with the artwork sources.

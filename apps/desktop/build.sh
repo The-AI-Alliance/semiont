@@ -30,7 +30,17 @@ RT=$(detect_container_runtime)
 # so normal builds show only the stage and artifact, while failures retain the
 # complete diagnostics that would otherwise be hidden.
 BUILD_LOG="$(mktemp -t semiont-desktop-build.XXXXXX)"
-trap 'rm -f "$BUILD_LOG"' EXIT
+SOURCE_ARCHIVE="$(mktemp -t semiont-desktop-source.XXXXXX)"
+DMG_WORK_DIR=""
+MOUNT_POINT=""
+cleanup() {
+  if [[ -n "$MOUNT_POINT" ]]; then
+    hdiutil detach "$MOUNT_POINT" -quiet >/dev/null 2>&1 || true
+  fi
+  [[ -z "$DMG_WORK_DIR" ]] || rm -rf "$DMG_WORK_DIR"
+  rm -f "$BUILD_LOG" "$SOURCE_ARCHIVE"
+}
+trap cleanup EXIT
 
 run_logged() {
   : > "$BUILD_LOG"
@@ -78,9 +88,13 @@ run_logged "$RT" run --rm \
   "$GO_IMAGE" \
   sh -c 'go build -buildvcs=false -trimpath -ldflags "$LAUNCHER_LDFLAGS" -o /workspace/apps/desktop/.build/launcher/semiont . && chmod 755 /workspace/apps/desktop/.build/launcher/semiont && test -x /workspace/apps/desktop/.build/launcher/semiont'
 
-# Install and build the workspace in the same Linux container so native Node
-# bindings match that build environment. The monorepo workspace supplies every
-# @semiont package; no private registry or host npm is involved.
+# Snapshot source, including uncommitted files, without sharing dependency or build
+# directories with other commands running in the checkout.
+git -C "$REPO_ROOT" ls-files --cached --others --exclude-standard -z |
+  tar -c -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" --null -T -
+tar -r -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" apps/desktop/.build/launcher/semiont
+mkdir -p "$SCRIPT_DIR/release"
+
 if [[ "$TARGET" == "linux" ]]; then
   # Build an amd64 Debian package in a matching glibc environment. Rosetta
   # translates the container on Apple Silicon; the resulting .deb targets x64.
@@ -92,12 +106,12 @@ if [[ "$TARGET" == "linux" ]]; then
   fi
   echo "Building Semiont Desktop Linux x64 .deb in $NODE_IMAGE..."
   run_logged "$RT" run --rm "${CONTAINER_ARCH[@]}" \
-    -v "$REPO_ROOT":/workspace \
-    -w /workspace \
+    -v "$SOURCE_ARCHIVE":/source.tar:ro \
+    -v "$SCRIPT_DIR/release":/output \
     -m 8g \
     -e ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     "$NODE_IMAGE" \
-    sh -lc 'apt-get update -qq && apt-get install -y -qq --no-install-recommends fakeroot && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --linux deb --x64 && test -x release/linux-unpacked/resources/launcher/semiont && deb=$(find release -maxdepth 1 -name "*.deb" -print -quit) && test -n "$deb" && dpkg-deb --contents "$deb" | grep -F "resources/launcher/semiont"'
+    sh -lc 'mkdir /workspace && tar -xf /source.tar -C /workspace && cd /workspace && apt-get update -qq && apt-get install -y -qq --no-install-recommends fakeroot && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --linux deb --x64 && test -x release/linux-unpacked/resources/launcher/semiont && deb=$(find release -maxdepth 1 -name "*.deb" -print -quit) && test -n "$deb" && dpkg-deb --contents "$deb" | grep -F "resources/launcher/semiont" && rm -rf /output/linux-unpacked && cp -a release/. /output/'
 
   echo "Build complete. Installer(s):"
   find "$SCRIPT_DIR/release" -maxdepth 1 -type f -name '*.deb' -print
@@ -106,12 +120,12 @@ fi
 
 echo "Building Semiont Desktop sources in $NODE_IMAGE..."
 run_logged "$RT" run --rm \
-  -v "$REPO_ROOT":/workspace \
-  -w /workspace \
+  -v "$SOURCE_ARCHIVE":/source.tar:ro \
+  -v "$SCRIPT_DIR/release":/output \
   -m 8g \
   -e ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
   "$NODE_IMAGE" \
-  sh -c 'npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --mac dir --arm64'
+  sh -c 'mkdir /workspace && tar -xf /source.tar -C /workspace && cd /workspace && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --mac dir --arm64 && rm -rf /output/mac-arm64 && cp -a release/. /output/'
 
 # App assembly runs in the Node container. The host only creates the native disk image.
 APP_DIR="$SCRIPT_DIR/release/mac-arm64"
@@ -131,7 +145,54 @@ elif [[ -e "$APP_DIR/Applications" ]]; then
 else
   ln -s /Applications "$APP_DIR/Applications"
 fi
+mkdir -p "$APP_DIR/.background"
+cp "$SCRIPT_DIR/assets/dmg-background.tiff" "$APP_DIR/.background/background.tiff"
+
+DMG_WORK_DIR="$(mktemp -d -t semiont-desktop-dmg.XXXXXX)"
+RW_DMG="$DMG_WORK_DIR/installer-rw.dmg"
+MOUNT_POINT="/Volumes/$APP_NAME"
+[[ ! -e "$MOUNT_POINT" ]] || {
+  echo "A volume named '$APP_NAME' is already mounted. Eject it before building the DMG." >&2
+  MOUNT_POINT=""
+  exit 1
+}
 echo "Creating macOS disk image..."
-run_logged hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -ov -format UDZO "$DMG"
+run_logged hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -fs HFS+ -ov -format UDRW "$RW_DMG"
+run_logged hdiutil attach "$RW_DMG" -readwrite -noverify
+sleep 5
+osascript - "$APP_NAME.app" "$MOUNT_POINT" "$APP_NAME" <<'APPLESCRIPT'
+on run argv
+  set appName to item 1 of argv
+  set mountPath to item 2 of argv
+  set volumeName to item 3 of argv
+  set backgroundFile to POSIX file (mountPath & "/.background/background.tiff") as alias
+  tell application "Finder"
+    tell disk volumeName
+      open
+      delay 1
+      set current view of container window to icon view
+      set toolbar visible of container window to false
+      set statusbar visible of container window to false
+      set bounds of container window to {120, 100, 880, 682}
+      set viewOptions to icon view options of container window
+      set arrangement of viewOptions to not arranged
+      set icon size of viewOptions to 96
+      set text size of viewOptions to 13
+      set background picture of viewOptions to backgroundFile
+      set position of item appName of container window to {190, 300}
+      set position of item "Applications" of container window to {570, 300}
+      close container window
+      open
+      update without registering applications
+      delay 5
+      close container window
+    end tell
+  end tell
+end run
+APPLESCRIPT
+sleep 3
+hdiutil detach "$MOUNT_POINT" -quiet
+MOUNT_POINT=""
+run_logged hdiutil convert "$RW_DMG" -format UDZO -imagekey zlib-level=9 -ov -o "$DMG"
 echo "Build complete. Installer(s):"
 printf '%s\n' "$DMG"
