@@ -75,105 +75,16 @@ fanout_all() {
   done
 }
 
-# --- Skip unchanged images ---
-# An image is a function of its Dockerfile, the files it COPYs from the
-# repository (the gateway's crate and the spec, a Python service's projects
-# and their lockfile, the shared supervisor, the
-# NOTICE), and the @semiont/* packages it installs — DIRECTLY OR TRANSITIVELY. "Unchanged" is decided by package
-# INTEGRITY against the freshly-published Verdaccio — versions and mtimes are
-# useless because every run republishes (check-semiont-drift.mjs reasons the
-# same way) — plus the Dockerfile hash. Third-party deps and the base tag are
-# treated as stable; when upstream moves them, --image <name> forces the
-# rebuild (explicit wins, and it also refreshes the recorded signature). The
-# @semiont/* set is DERIVED from the Dockerfile text, not restated here.
-#
-# The closure is the whole point. An image that installs ONE package (the
-# Browser's, `npm install @semiont/browser`) inherits whatever @semiont/*
-# packages that one depends on, all pinned "*" so they resolve to latest at
-# install time. Signing only the named package would let a fix landing in a
-# package it depends on leave the named one byte-identical, the signature
-# match, and the image skip — while a rebuild would pick the fix up: correct
-# about the package it watches and wrong about the image it produces.
-
-# One line capturing everything a rebuild depends on; EMPTY when any
-# integrity lookup fails, and an empty signature never skips and never
-# records — lookup trouble degrades to building, not to false skips.
-image_signature() {
-  local df
-  df="$REPO_ROOT/$(image_dockerfile "$1")"
-  # Install lines only — comments mention packages that are not installed.
-  # Those seed a walk over each package's @semiont/* dependencies, because the
-  # install line names the root of a tree, not the tree. A Dockerfile built
-  # from the working tree installs none, and under pipefail an empty grep ends
-  # the run.
-  { grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' || true; } | sort -u \
-    | REGISTRY="$REGISTRY" DOCKERFILE="$df" REPO_ROOT="$REPO_ROOT" python3 -c '
-import hashlib, json, os, sys, urllib.parse, urllib.request
-
-registry = os.environ["REGISTRY"].rstrip("/")
-
-def packument(name):
-    url = registry + "/" + urllib.parse.quote(name, safe="")
-    with urllib.request.urlopen(url, timeout=10) as response:
-        return json.load(response)
-
-integrity = {}
-pending = [line.strip() for line in sys.stdin if line.strip()]
-try:
-    while pending:
-        name = pending.pop()
-        if name in integrity:
-            continue
-        latest = packument(name)
-        version = latest["versions"][latest["dist-tags"]["latest"]]
-        integrity[name] = version["dist"]["integrity"]
-        for dep in version.get("dependencies", {}):
-            if dep.startswith("@semiont/") and dep not in integrity:
-                pending.append(dep)
-except Exception:
-    # Lookup trouble degrades to building, never to a false skip.
-    print("")
-    sys.exit(0)
-
-dockerfile = open(os.environ["DOCKERFILE"], "rb").read()
-digest = hashlib.sha256(dockerfile).hexdigest()
-
-# What the Dockerfile COPYs from the build context (not from another stage),
-# every file under each source, in order: a changed crate, spec or supervisor
-# is a changed image.
-root = os.environ["REPO_ROOT"]
-sources = hashlib.sha256()
-text = dockerfile.decode().replace("\\\n", " ")
-for line in text.splitlines():
-    words = line.split()
-    if not words or words[0].upper() != "COPY" or any(w.startswith("--from") for w in words):
-        continue
-    for source in [w for w in words[1:-1] if not w.startswith("--")]:
-        path = os.path.join(root, source)
-        files = [path] if os.path.isfile(path) else sorted(
-            os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs)
-        for f in files:
-            sources.update(os.path.relpath(f, root).encode())
-            sources.update(open(f, "rb").read())
-
-# Sorted: the walk order is not stable, and an unstable signature would rebuild
-# everything forever while looking like a cache.
-parts = ["dockerfile:" + digest, "sources:" + sources.hexdigest()] + [n + ":" + integrity[n] for n in sorted(integrity)]
-print(" ".join(parts))
-'
-}
-
+source "$BUILD_DIR/image-plan.sh"
 BUILD_IMGS=()
 BUILD_SIGS=()
 for img in $IMAGES; do
-  TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
-  SIG=$(image_signature "$img")
-  if [[ "$FORCE" != true && "$IMAGES_NAMED" != true && -n "$SIG" && "$(state_get "images/$img")" == "$SIG" ]] \
-     && $RT image inspect "$TAG" >/dev/null 2>&1; then
-    summarize "images/$img" "unchanged"
+  decide_image "$img"
+  if [[ "$IMAGE_ACTION" == skip ]]; then
+    summarize "images/$img" "$IMAGE_REASON"
   else
     BUILD_IMGS+=("$img")
-    BUILD_SIGS+=("$SIG")
+    BUILD_SIGS+=("$IMAGE_SIGNATURE")
   fi
 done
 # --- The image each build replaces ---
@@ -436,7 +347,7 @@ store_report() {
     container)
       # Apple container has no `system df`; sum the per-image sizes it reports
       # as human strings ("56.3 MB"). Decimal units, as the engine prints them.
-      line=$(container image list --format json 2>/dev/null | python3 -c '
+      line=$(container image list --format json 2>/dev/null | tool_python --stdin -c '
 import sys, json
 units = {"B": 1, "KB": 1e3, "kB": 1e3, "MB": 1e6, "GB": 1e9, "TB": 1e12}
 try:

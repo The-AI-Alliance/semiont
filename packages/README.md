@@ -37,8 +37,15 @@ The rest is what those are built on, and what Semiont's own services are built o
 ## Working on a package
 
 - [Package Architecture](../docs/architecture/PACKAGE-ARCHITECTURE.md) draws how the packages depend on one another in each language, and says what each service image runs.
-- The contributor's [orientation](../docs/contributor/README.md) covers building and running a change, testing it, and [adding a package](../docs/contributor/README.md#adding-a-package). The pull-request process is in [CONTRIBUTING.md](../CONTRIBUTING.md).
+- The contributor's [orientation](../docs/contributor/README.md) covers building and running a change, testing it, and [adding a package](#adding-a-package). The pull-request process is in [CONTRIBUTING.md](../CONTRIBUTING.md).
 - Each package's README says who uses it and what a change to it must keep.
+
+## Adding a package
+
+1. Create `packages/<language>/<name>/` with its manifest, following a neighbor. A TypeScript package is named `@semiont/<name>`, and depends on other `@semiont/*` packages as `"*"`, never a version ([why](../docs/contributor/DEPENDENCIES.md#how-packages-here-depend-on-each-other)).
+2. A TypeScript package goes in [`version.json`](../version.json) too, after the packages it depends on. The order there is the build order, and `publish` says whether it ships to npm. A package missing from `version.json` is not built by `make local-build`, and anything that installs it gets a 404. Its `vitest.config.ts` merges the [shared config](typescript/vitest.shared.config.ts), and it has a `test:coverage` script; `npm run lint:vitest-coverage` says what else that needs.
+3. Its coverage is named five times: a flag and a component `<language>-<name>` in [`codecov.yml`](../.github/codecov.yml), an upload under that flag in `ci.yml`, a badge in its README, and a row in its language's README. `npm run lint:coverage-roster` names each one missing, and `npm run lint:workflows` a directory that no area of `ci.yml` runs on.
+4. A package that will be published needs seeding before its first release ([Release](../docs/contributor/RELEASE.md#a-new-package)).
 
 ## License
 

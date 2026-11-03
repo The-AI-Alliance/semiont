@@ -1,5 +1,9 @@
 # Testing
 
+The package-native commands below run inside the appropriate tooling container or a provisioned
+CI runner; they are not instructions to install language SDKs on the local build host. Use the
+root [Make interface](../../Makefile) for local builds and code generation.
+
 How Semiont's test suites are organized, configured and run, and what CI gates on.
 
 ## The suites

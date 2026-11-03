@@ -18,7 +18,7 @@ if [[ "$IMAGES_ONLY" == true ]]; then
     echo ""
     exit 1
   fi
-  REUSED_COUNT=$(curl -sf "$REGISTRY/-/verdaccio/data/packages" 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
+  REUSED_COUNT=$(curl -sf "$REGISTRY/-/verdaccio/data/packages" 2>/dev/null | tool_python --stdin -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
   if [[ "${REUSED_COUNT:-0}" -eq 0 ]]; then
     fail "Verdaccio at $REGISTRY is up but holds no packages — an image build would have nothing to install."
     echo ""
@@ -31,11 +31,11 @@ else
   # Replace only the named registry from an earlier local-build session.
   $RT stop "$VERDACCIO_NAME" >/dev/null 2>&1 || true
   $RT rm "$VERDACCIO_NAME" >/dev/null 2>&1 || true
-  if python3 -c 'import socket,sys
+  if tool_python -c 'import socket,sys
 try:
-    socket.create_connection(("localhost", 4873), timeout=0.3).close()
+    socket.create_connection((sys.argv[1], 4873), timeout=0.3).close()
 except OSError:
-    sys.exit(1)' ; then
+    sys.exit(1)' "$PYTHON_TOOLS_HOST" ; then
     fail "Port 4873 is occupied; stop its owner before starting local Verdaccio."
     exit 1
   fi

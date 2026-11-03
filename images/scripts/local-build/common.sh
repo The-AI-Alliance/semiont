@@ -19,22 +19,8 @@ fail()   { echo -e "${RED}✗${RESET} $1"; }
 
 # --- Detect container runtime ---
 
-detect_runtime() {
-  if [[ -n "${CONTAINER_RUNTIME:-}" ]]; then
-    echo "$CONTAINER_RUNTIME"
-    return
-  fi
-  for rt in container docker podman; do
-    if command -v "$rt" >/dev/null 2>&1; then
-      echo "$rt"
-      return
-    fi
-  done
-  fail "No container runtime found. Install Apple Container, Docker, or Podman."
-  exit 1
-}
-
-RT=$(detect_runtime)
+source "$REPO_ROOT/packages/python/scripts/container-tools.sh"
+RT=$(detect_container_runtime)
 GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direct'
 
 source "$BUILD_DIR/toolchains.sh"
@@ -68,10 +54,10 @@ SWIFTPM_DIR="$CACHE_ROOT/local-build-swiftpm"
 
 # What each package and image was last built from, keyed by its directory.
 STATE="$CACHE_ROOT/local-build-state.json"
-state_get() { python3 -c 'import json,sys
+state_get() { tool_python -c 'import json,sys
 try: print(json.load(open(sys.argv[1])).get(sys.argv[2],""))
 except Exception: print("")' "$STATE" "$1"; }
-state_put() { python3 -c 'import json,sys
+state_put() { tool_python -c 'import json,sys
 p=sys.argv[1]
 try: d=json.load(open(p))
 except Exception: d={}

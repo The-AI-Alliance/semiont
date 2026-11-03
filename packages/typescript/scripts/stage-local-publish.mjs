@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { verifyPublication } from './publication-inputs.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const version = JSON.parse(readFileSync(join(root, 'version.json'), 'utf8'));
@@ -12,11 +13,7 @@ if (!['verify', 'stage'].includes(operation) || (operation === 'stage' && !desti
 }
 for (const entry of Object.values(version.packages).filter((entry) => entry.publish && !entry.stage)) {
   const manifest = JSON.parse(readFileSync(join(root, entry.dir, 'package.json'), 'utf8'));
-  for (const output of [manifest.main, manifest.types].filter(Boolean)) {
-    if (!existsSync(join(root, entry.dir, output))) {
-      throw new Error(`${entry.dir}/${output} is missing; run make packages PACKAGE_NAMES=typescript first.`);
-    }
-  }
+  verifyPublication(join(root, entry.dir), manifest, entry.dir);
 }
 execFileSync(process.execPath, [join(root, 'packages/typescript/scripts/publish-npm-apps.mjs'), '--verify'], { stdio: 'inherit' });
 if (operation === 'stage') {
