@@ -1,6 +1,9 @@
 <Project>
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
+    <!-- Locked restore covers both self-contained driver deployment graphs. -->
+    <RuntimeIdentifiers>linux-x64;linux-arm64</RuntimeIdentifiers>
+    <SemiontBuildToolGlobalPropertiesToRemove>RuntimeIdentifier;SelfContained;PublishSingleFile;PublishTrimmed;PublishReadyToRun;PublishAot</SemiontBuildToolGlobalPropertiesToRemove>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -10,6 +13,7 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
   <ItemGroup Condition="'$(MSBuildProjectName)' != 'Semiont.Analyzers'">
-    <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Semiont.Analyzers/Semiont.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- Analyzers execute on the build host, not the application deployment target. -->
+    <ProjectReference Include="$(MSBuildThisFileDirectory)analyzers/Semiont.Analyzers/Semiont.Analyzers.csproj" GlobalPropertiesToRemove="$(SemiontBuildToolGlobalPropertiesToRemove)" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

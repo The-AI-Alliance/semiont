@@ -18,6 +18,12 @@
           "Microsoft.CodeAnalysis.Common": "[5.9.0]"
         }
       },
+      "Microsoft.Extensions.TimeProvider.Testing": {
+        "type": "Direct",
+        "requested": "[10.11.0, )",
+        "resolved": "10.11.0",
+        "contentHash": "DTivKZ2Du0dJideTTa6vPj/eXKNRu+RxtjBX7NOOUXHBtHx1ehbE+lM+j3/5M3wU6BqzcZqEEyR4+FnPKs2rTA=="
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[18.11.0, )",
@@ -125,6 +131,8 @@
       "semiont.generator": {
         "type": "Project"
       }
-    }
+    },
+    "net11.0/linux-arm64": {},
+    "net11.0/linux-x64": {}
   }
 }

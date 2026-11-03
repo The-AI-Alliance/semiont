@@ -133,7 +133,7 @@ internal sealed class Models
         }
         switch (Text(schema, "type"))
         {
-            case "string": return schema.TryGetProperty("enum", out _) ? Inline(owner, property, schema) : "string";
+            case "string": return Text(schema, "format") == "binary" ? "byte[]" : schema.TryGetProperty("enum", out _) ? Inline(owner, property, schema) : "string";
             case "integer": return "long";
             case "number": return "double";
             case "boolean": return "bool";

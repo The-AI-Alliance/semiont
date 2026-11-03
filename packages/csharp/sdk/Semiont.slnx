@@ -4,4 +4,5 @@
   <Project Path="tests/Semiont.Tests/Semiont.Tests.csproj" />
   <Project Path="tools/RefusalRunner/RefusalRunner.csproj" />
   <Project Path="generators/Semiont.Generator/Semiont.Generator.csproj" />
+  <Project Path="conformance/WireDriver/WireDriver.csproj" />
 </Solution>
