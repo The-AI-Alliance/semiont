@@ -30,7 +30,6 @@
     "src/styles",
     "src/components",
     "src/features",
-    "src/examples",
     "translations",
     "public",
     "README.md"

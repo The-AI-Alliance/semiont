@@ -29,7 +29,7 @@ build_npm() {
   names=$(names_of $packages)
   if [[ "$OPERATION" == packages && " $PACKAGES_NAMED " == *" typescript "* ]]; then
     local apps
-    apps=$(python3 -c 'import json,pathlib; v=json.load(open("version.json")); print(",".join(pathlib.Path(p["dir"]).name for p in v["packages"].values() if p.get("publish") and p.get("stage")))')
+    apps=$(tool_python -c 'import json,pathlib; v=json.load(open("version.json")); print(",".join(pathlib.Path(p["dir"]).name for p in v["packages"].values() if p.get("publish") and p.get("stage")))')
     names="${names:+$names,}$apps"
   fi
   for img in $REGISTRY_IMAGES; do names="${names:+$names,}$img"; done
