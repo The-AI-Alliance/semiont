@@ -63,6 +63,10 @@ internal static class ProtocolFacts
         .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
         .Single(code => code == name);
 
+    internal static string SessionError(string name) => Errors.RootElement.GetProperty("session").GetProperty("codes").EnumerateArray()
+        .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
+        .Single(code => code == "session." + name);
+
     internal static bool RetryRefresh(int? status) => Retry.RootElement.GetProperty("rules").EnumerateArray().Any(row =>
         row.GetProperty("rule").GetString() == "refresh" &&
         (row.TryGetProperty("status", out var stated) ? stated.GetInt32() == (status >= 500 ? 500 : status) : status is null) && row.GetProperty("retries").GetBoolean());

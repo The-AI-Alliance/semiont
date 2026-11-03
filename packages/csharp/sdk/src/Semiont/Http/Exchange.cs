@@ -15,9 +15,9 @@ public sealed partial class HttpTransport
     public Task<ProtectedResourceMetadata> GetProtectedResourceMetadataAsync(CancellationToken cancellation = default) => AnswerAsync<ProtectedResourceMetadata>(HttpMethod.Get, "/.well-known/oauth-protected-resource", authenticated: false, cancellation: cancellation);
     public Task<MediaTokenResponse> GetMediaTokenAsync(ResourceId resource, CancellationToken cancellation = default) => AnswerAsync<MediaTokenResponse>(HttpMethod.Post, "/api/tokens/media", () => JsonContent.Create(new MediaTokenRequest { ResourceId = resource }), cancellation: cancellation);
 
-    internal async Task<T> AnswerAsync<T>(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, CancellationToken cancellation = default)
+    internal async Task<T> AnswerAsync<T>(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, CancellationToken cancellation = default, bool retry = true)
     {
-        using var response = await ExchangeAsync(method, path, content, authenticated, cancellation: cancellation).ConfigureAwait(false);
+        using var response = await ExchangeAsync(method, path, content, authenticated, cancellation: cancellation, retry: retry).ConfigureAwait(false);
         using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(timing.HttpRequestMs), clock);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token, lifetime.Token, cancellation);
         try
@@ -35,7 +35,7 @@ public sealed partial class HttpTransport
         }
     }
 
-    internal async Task<HttpResponseMessage> ExchangeAsync(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, bool upload = false, CancellationToken cancellation = default)
+    internal async Task<HttpResponseMessage> ExchangeAsync(HttpMethod method, string path, Func<HttpContent>? content = null, bool authenticated = true, bool upload = false, CancellationToken cancellation = default, bool retry = true)
     {
         var renewed = false;
         for (var attempt = 0; ; attempt++)
@@ -56,7 +56,7 @@ public sealed partial class HttpTransport
             }
             catch (HttpRequestException error)
             {
-                if (attempt == 0 && method == HttpMethod.Get)
+                if (retry && attempt == 0 && method == HttpMethod.Get)
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(ProtocolFacts.Timing("requestRetryPauseMs").GetInt32()), clock, linked.Token).ConfigureAwait(false);
                     continue;
@@ -75,7 +75,7 @@ public sealed partial class HttpTransport
                     continue;
                 }
             }
-            if (attempt == 0 && method == HttpMethod.Get && (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500) && failure.Code != ProtocolFacts.Error(401))
+            if (retry && attempt == 0 && method == HttpMethod.Get && (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500) && failure.Code != ProtocolFacts.Error(401))
             {
                 var delay = Math.Max(RetryAfter(response), ProtocolFacts.Timing("requestRetryPauseMs").GetInt32());
                 response.Dispose();
