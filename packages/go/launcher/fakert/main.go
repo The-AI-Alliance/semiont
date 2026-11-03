@@ -302,7 +302,7 @@ func codespaceKeycloakPort(name string) string {
 //	FAKERT_GH_CS_SHUTTING_DOWN_LISTS  the first n `codespace list` calls report a Shutdown
 //	                        codespace as ShuttingDown — a stop GitHub has not finished
 //	FAKERT_GH_CS_KEYCLOAK_PORT  the port the codespace's Keycloak starts on (default 8080;
-//	                        an ssh `KEYCLOAK_PORT=<n> semiont start` moves it)
+//	                        an ssh `semiont settings keycloak-port <n> && semiont start` moves it)
 //	FAKERT_GH_CS_ISSUER     an issuer the codespace does NOT run, advertised instead
 func ghCmd(args []string) {
 	joined := strings.Join(args, " ")
@@ -528,8 +528,8 @@ func ghCodespace(args []string, joined string) {
 		}
 		// A codespace forward carries the KB's GATEWAY, so it serves the
 		// gateway's routes — the forward is a tunnel, not a service. Any
-		// other remote port is the issuer: each KB's Keycloak has a port
-		// of its own, forwarded with the same number on both ends.
+		// other remote port is the issuer: each codespace's Keycloak has a
+		// port of its own, forwarded with the same number on both ends.
 		if forwardRemotePort(args) != "4000" {
 			serve("semiont-keycloak", ports)
 			return
@@ -645,7 +645,7 @@ func ghCodespace(args []string, joined string) {
 			// Held, it is the window in which the laptop's allocated port can
 			// be taken by something else.
 			holdIfNamed(codespaceArg(args))
-			if m := regexp.MustCompile(`KEYCLOAK_PORT=(\d+)`).FindStringSubmatch(joined); m != nil {
+			if m := regexp.MustCompile(`semiont settings keycloak-port (\d+)`).FindStringSubmatch(joined); m != nil {
 				if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 					_ = os.WriteFile(filepath.Join(dir, "cs-keycloak-port-"+codespaceArg(args)), []byte(m[1]), 0o644)
 				}
@@ -709,16 +709,34 @@ func writeRemoteKB(w io.Writer, withGit bool) error {
 	return gz.Close()
 }
 
+// realmFile: where FAKERT_DIR keeps the realm a Keycloak container holds,
+// one file per realm, which outlives the container as a realm outlives
+// Keycloak in its database.
+func realmFile(container, realm string) string {
+	return filepath.Join(os.Getenv("FAKERT_DIR"), "realm-"+container+"-"+realm+".json")
+}
+
+// adminRecord logs one write to a Keycloak container's admin API to
+// admin-<container>.log, as the method, the collection and the realm.
+func adminRecord(container, write string) error {
+	record, err := os.OpenFile(filepath.Join(os.Getenv("FAKERT_DIR"), "admin-"+container+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(record, write)
+	if closeErr := record.Close(); err == nil {
+		err = closeErr
+	}
+	return err
+}
+
 // createRealm keeps the realm document POSTed to a Keycloak container's admin
-// API as FAKERT_DIR/realm-<container>.json: the realm it then serves, which
-// outlives the container as a realm outlives Keycloak in its database. Each
-// create is logged to admin-<container>.log. A realm it holds already is 409,
-// as Keycloak answers; a second realm is refused loudly, since this fake keeps
-// one per container.
+// API (realmFile): a realm it then serves beside every other it holds. Each
+// create is logged (adminRecord). A realm it holds already is 409, as
+// Keycloak answers.
 func createRealm(container string, body io.Reader) (int, error) {
-	dir := os.Getenv("FAKERT_DIR")
-	if dir == "" {
-		return 0, errors.New("no FAKERT_DIR keeps the realm this issuer holds")
+	if os.Getenv("FAKERT_DIR") == "" {
+		return 0, errors.New("no FAKERT_DIR keeps the realms this issuer holds")
 	}
 	b, err := io.ReadAll(body)
 	if err != nil {
@@ -730,59 +748,56 @@ func createRealm(container string, body io.Reader) (int, error) {
 	if json.Unmarshal(b, &doc) != nil || doc.Realm == "" {
 		return http.StatusBadRequest, nil
 	}
-	switch held := heldRealm(container); held {
-	case doc.Realm:
+	if realmHeld(container, doc.Realm) {
 		return http.StatusConflict, nil
-	case "":
-	default:
-		return 0, fmt.Errorf("%s holds the realm %s, and this fake keeps one realm per container; %s was POSTed", container, held, doc.Realm)
 	}
-	record, err := os.OpenFile(filepath.Join(dir, "admin-"+container+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
+	if err := adminRecord(container, "POST /admin/realms "+doc.Realm); err != nil {
 		return 0, err
 	}
-	_, err = fmt.Fprintf(record, "POST /admin/realms %s\n", doc.Realm)
-	if closeErr := record.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return 0, err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "realm-"+container+".json"), b, 0o644); err != nil {
+	if err := os.WriteFile(realmFile(container, doc.Realm), b, 0o644); err != nil {
 		return 0, err
 	}
 	return http.StatusCreated, nil
 }
 
-// heldRealm: the realm a Keycloak container holds, as its admin API created
-// it; "" before one is.
-func heldRealm(container string) string {
-	b, err := os.ReadFile(filepath.Join(os.Getenv("FAKERT_DIR"), "realm-"+container+".json"))
-	if err != nil {
-		return ""
+// deleteRealm drops a realm a Keycloak container holds, as its admin API's
+// DELETE does: 204, and 404 for one it does not hold. Each delete is logged
+// (adminRecord).
+func deleteRealm(container, realm string) (int, error) {
+	if os.Getenv("FAKERT_DIR") == "" {
+		return 0, errors.New("no FAKERT_DIR keeps the realms this issuer holds")
 	}
-	var doc struct {
-		Realm string `json:"realm"`
+	if !realmHeld(container, realm) {
+		return http.StatusNotFound, nil
 	}
-	if json.Unmarshal(b, &doc) != nil {
-		return ""
+	if err := adminRecord(container, "DELETE /admin/realms "+realm); err != nil {
+		return 0, err
 	}
-	return doc.Realm
+	if err := os.Remove(realmFile(container, realm)); err != nil {
+		return 0, err
+	}
+	return http.StatusNoContent, nil
 }
 
-// realmAudiences: the audiences the realm container holds gives client's
-// tokens, one per audience mapper on it, and whether the realm holds the
-// client at all.
-func realmAudiences(container, client string) ([]string, bool, error) {
-	dir := os.Getenv("FAKERT_DIR")
-	if dir == "" {
-		return nil, false, errors.New("no FAKERT_DIR holds the realm this issuer serves")
+// realmHeld: whether a Keycloak container holds realm, as its admin API
+// created it.
+func realmHeld(container, realm string) bool {
+	_, err := os.Stat(realmFile(container, realm))
+	return err == nil
+}
+
+// realmAudiences: the audiences realm, at the Keycloak container, gives
+// client's tokens, one per audience mapper on it, and whether the realm holds
+// the client at all.
+func realmAudiences(container, realm, client string) ([]string, bool, error) {
+	if os.Getenv("FAKERT_DIR") == "" {
+		return nil, false, errors.New("no FAKERT_DIR holds the realms this issuer serves")
 	}
-	b, err := os.ReadFile(filepath.Join(dir, "realm-"+container+".json"))
+	b, err := os.ReadFile(realmFile(container, realm))
 	if err != nil {
-		return nil, false, fmt.Errorf("%s holds no realm: %v", container, err)
+		return nil, false, fmt.Errorf("%s holds no realm %s: %v", container, realm, err)
 	}
-	var realm struct {
+	var doc struct {
 		Clients []struct {
 			ClientID string `json:"clientId"`
 			Mappers  []struct {
@@ -791,10 +806,10 @@ func realmAudiences(container, client string) ([]string, bool, error) {
 			} `json:"protocolMappers"`
 		} `json:"clients"`
 	}
-	if err := json.Unmarshal(b, &realm); err != nil {
-		return nil, false, fmt.Errorf("the realm %s holds: %v", container, err)
+	if err := json.Unmarshal(b, &doc); err != nil {
+		return nil, false, fmt.Errorf("the realm %s, at %s: %v", realm, container, err)
 	}
-	for _, c := range realm.Clients {
+	for _, c := range doc.Clients {
 		if c.ClientID != client {
 			continue
 		}
@@ -2310,7 +2325,7 @@ func servedRoutes(container string) (func(string) bool, error) {
 		// the first, and asks the second before it creates the realm.
 		return func(p string) bool {
 			rest, ok := strings.CutPrefix(p, "/realms/")
-			return ok && (rest == "master" || rest != "" && rest == heldRealm(container))
+			return ok && (rest == "master" || rest != "" && !strings.Contains(rest, "/") && realmHeld(container, rest))
 		}, nil
 	case "postgres", "nats": // TCP only: a dial, no HTTP
 		return exact(), nil
@@ -2439,9 +2454,23 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 					_ = json.NewEncoder(w).Encode(body)
 				}
 				// Keycloak's own admin, as far as a start creating its realm
-				// needs it: the bootstrap admin's password grant at the master
-				// realm, checked against the password the container was run
-				// with, and the create (createRealm).
+				// and a clean deleting it need it: the bootstrap admin's
+				// password grant at the master realm, checked against the
+				// password the container was run with, the create
+				// (createRealm), and the delete (deleteRealm).
+				if gone, ok := strings.CutPrefix(r.URL.Path, "/admin/realms/"); ok && product(container) == "keycloak" && r.Method == http.MethodDelete && !strings.Contains(gone, "/") {
+					if r.Header.Get("Authorization") != "Bearer "+fakeAdminToken {
+						w.WriteHeader(http.StatusUnauthorized)
+						return
+					}
+					status, err := deleteRealm(container, gone)
+					if err != nil {
+						http.Error(w, "fakert: "+err.Error(), http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(status)
+					return
+				}
 				if product(container) == "keycloak" && r.Method == http.MethodPost {
 					switch r.URL.Path {
 					case "/realms/master/protocol/openid-connect/token":
@@ -2620,7 +2649,7 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 								}
 							}
 						}
-						auds, known, err := realmAudiences(container, client)
+						auds, known, err := realmAudiences(container, realm, client)
 						if err != nil {
 							http.Error(w, "fakert: "+err.Error(), http.StatusInternalServerError)
 							return

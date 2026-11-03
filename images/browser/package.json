@@ -49,7 +49,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.300.0",
     "@opentelemetry/resources": "^3.0.0",
     "@opentelemetry/sdk-trace": "^3.0.0",
-    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "@opentelemetry/semantic-conventions": "^1.44.0",
     "@semiont/react-ui": "*",
     "@semiont/sdk": "*",
     "i18next": "^26.5.12",

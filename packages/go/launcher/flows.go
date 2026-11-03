@@ -8,9 +8,7 @@ package launcher
 
 import (
 	"fmt"
-	"net"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
@@ -142,9 +140,10 @@ var depRoleTitles = map[string]string{
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
-// pulls → the shared traces and metrics (--observe) → its collector → identity-store → messaging →
-// identity → gateway → graph → vectors → inference → embedding → archivist →
-// librarian → dispatcher → sidecars → Browser.
+// pulls → the shared traces and metrics (--observe) → its collector → the
+// issuer (identity-store, identity and the realm) → messaging → gateway →
+// graph → vectors → inference → embedding → archivist → librarian →
+// dispatcher → sidecars → Browser.
 //
 // embedding follows inference deliberately: an ollama-typed embedding is
 // served BY the Ollama inference just brought up, so probing it any earlier
@@ -184,9 +183,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 	//
 	// The sweep is this knowledge base's stack alone: another's runs under
 	// names of its own. The shared containers are not in it — the
-	// telemetry, the worker, the shared Ollama and the Browser serve every
-	// KB here, and each is kept or replaced from its own record by its own
-	// flow (flowShared, flowOllama, flowBrowser).
+	// telemetry, the worker, the issuer, the shared Ollama and the Browser
+	// serve every KB here, and each is kept or replaced from its own record
+	// by its own flow (flowShared, flowIssuer, flowOllama, flowBrowser).
 	prior := stackContainers(fc.kb.key())
 	x.snapshotLogs(fc.kb, prior)
 	x.say(sayLog, "Removing prior containers %s", x.dim(fmt.Sprintf("(stop+rm, %d names; exact commands: semiont start --dry-run)", len(prior))))
@@ -197,9 +196,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 	}
 	swept := x.sweepStray(prior)
-	// A prior `network lan` start's issuer proxy holds the issuer's port at
-	// the network address, whatever this start's setting.
-	x.retireIssuerProxy()
 	x.sweepStaging()
 	// The settle is for the runtime to release what we just tore down. With
 	// nothing removed there is nothing to settle.
@@ -271,27 +267,20 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	otel := otelArgs(addr)
 
-	// The identity store, messaging and identity — everything the Gateway itself needs —
-	// AHEAD of the stores the actors use. The gateway dials no graph, vector or
-	// embedding client, and no database of its own: the PostgreSQL started here
-	// is Keycloak's, whose realm lives in it. What the gateway does wait for is
-	// the broker its signal plane dials (when [signal] selects nats) and the
-	// issuer whose keys it verifies tokens against, both below. It has the most
-	// ways to fail, so it precedes the stores.
+	// The issuer and messaging — everything the Gateway itself needs — AHEAD
+	// of the stores the actors use. The gateway dials no graph, vector or
+	// embedding client, and no database of its own. What it does wait for is
+	// the issuer whose keys it verifies tokens against, with the knowledge
+	// base's realm in it, and the broker its signal plane dials (when [signal]
+	// selects nats). It has the most ways to fail, so it precedes the stores.
 	// Invariant: everything below needs the Gateway; nothing above it does.
-	if code := flowDepRole(x, "identity-store", fc, addr); code != 0 {
+	if code := flowIssuer(x, fc, addr); code != 0 {
 		return code
 	}
 	// The broker (NATS: the dispatcher's JetStream queue, and the nats signal
 	// driver when [signal] selects it) precedes the gateway for the signal
 	// plane's sake; the dispatcher dials the same server later.
 	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
-		return code
-	}
-	// The identity provider (Keycloak, when the stack has an Issuer document) is a
-	// gateway dependency too: the gateway verifies human tokens against its
-	// keys. After the identity store, whose PostgreSQL holds its realm.
-	if code := flowDepRole(x, "identity", fc, addr); code != 0 {
 		return code
 	}
 
@@ -638,8 +627,10 @@ func flowWorker(x executor, fc flowCtx, addr string, otel []string) int {
 	}, addr)
 }
 
-// flowDepRole: the uniform dependency-role shape for identity-store / messaging /
-// identity / graph / vectors / embedding, presence-dispatched.
+// flowDepRole: the uniform dependency-role shape for messaging / graph /
+// vectors / embedding, presence-dispatched, and for the identity store and the
+// issuer that are somebody else's or absent. The shared issuer the launcher
+// runs is flowIssuer's.
 func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles[role]
 	// An embedding that OWNS the local Ollama (all-remote bindings — nothing
@@ -653,8 +644,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	switch rp.Presence {
 	case presenceLauncher:
 		// Persistent state rides the run argv: roles in stateStores mount
-		// their per-root dir; an identity-store refusal (data written by another
-		// image) stops the start here.
+		// their per-root dir.
 		extra, ok := x.stateMounts(role, rp.Image, fc.kb)
 		if !ok {
 			return 1
@@ -670,16 +660,6 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			}
 			extra = append(extra, "-v", conf+":"+natsConfPath+":ro")
 		}
-		var accounts realmAccounts
-		var adminPassword string
-		if role == "identity" {
-			kc, held, password, ok := identityRunExtras(x, fc, addr)
-			if !ok {
-				return 1
-			}
-			extra = append(extra, kc...)
-			accounts, adminPassword = held, password
-		}
 		creds, err := daemonLaunchEnv(fc, role, rp)
 		if err != nil {
 			x.say(sayFail, "%v", err)
@@ -693,45 +673,6 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		switch role {
-		case "identity":
-			// Keycloak itself, which under `network lan` is behind the proxy:
-			// its master realm answers once the server is up, and the
-			// knowledge base's realm only once it holds it.
-			e := x.exposure(addr)
-			base := keycloakBase(e, rp.Port)
-			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity", fc.kb.key()), base+"/realms/master", 90)
-			if !ok {
-				x.dumpLogs(roleContainer("identity", fc.kb.key()), "identity")
-				return 1
-			}
-			// Before the realm: where the runtime delivers this machine's
-			// connections from an address Keycloak does not count as private,
-			// creating it needs the admin opened first.
-			x.openAdminToThisMachine(adminPassword)
-			realm := keycloakRealm(issuerPath(rp.Issuer))
-			if !x.createRealm(base, realm, adminPassword, keycloakRealmJSON(realm, fc.kb.ident.resource(), fc.browser.spec.Port, rp.AccessTokenLifespan, accounts)) {
-				return 1
-			}
-			if e.behindProxy(role) {
-				host, port := e.keycloakAt(rp.Port)
-				listen := net.JoinHostPort(e.lan, strconv.Itoa(rp.Port))
-				if !x.issuerProxy(listen, net.JoinHostPort(host, strconv.Itoa(port)), keycloakRealm(issuerPath(rp.Issuer))) {
-					return 1
-				}
-				// The issuer where everyone dials it, through the proxy (D5).
-				if _, ok := x.waitHTTP("identity (the issuer proxy)", roleContainer("identity", fc.kb.key()), healthEndpoint(role, rp.Driver, fc.plan, e), 15); !ok {
-					return 1
-				}
-			}
-			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp, e), x.dim("("+took(d)+")"))
-			// The realm is held; prove it honours the credentials
-			// this start is about to inject, BEFORE the first process that
-			// holds one, at the issuer those processes sign in at — see
-			// verifyServiceAccounts on why not where the launcher reaches it.
-			if !x.preflightIdentity(placementOf(fc, e).issuer(), fc.kb.ident.resource(), accounts, rp.AccessTokenLifespan, fc.browser.spec.Port, true) {
-				return 1
-			}
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
 			d, ok := x.waitHTTP("graph ("+disp+")", roleContainer("graph", fc.kb.key()), healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), 30)
@@ -748,19 +689,6 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
-		case "identity-store":
-			d, ok := x.waitTCP("PostgreSQL", x.exposure(addr).probeHost(role, descriptorFor(role, rp.Driver).defaultPort), addr, rp.Port, 20)
-			if !ok {
-				x.dumpLogs(roleContainer("identity-store", fc.kb.key()), "identity-store")
-				return 1
-			}
-			// The port is the runtime's; sessions are the server's.
-			if !x.waitPGAccepting(30) {
-				x.dumpLogs(roleContainer("identity-store", fc.kb.key()), "identity-store")
-				return 1
-			}
-			x.say(sayOK, "identity-store — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
 		case "messaging":
 			// Same two-phase wait as Postgres: TCP up, then reachable on
@@ -1220,7 +1148,7 @@ func flowServices(x executor, fc flowCtx) int {
 			x.say(sayLog, "%s starts too: the %s needs it", m.role, m.because)
 			x.note("%s starts too: the %s needs it", m.role, m.because)
 		}
-		if code := flowService(x, fc, m.role); code != 0 {
+		if code := flowService(x, fc, m); code != 0 {
 			return code
 		}
 	}
@@ -1229,8 +1157,11 @@ func flowServices(x executor, fc flowCtx) int {
 
 // flowService: one service of a start of some — the no-op presence gate, the
 // service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
-// staging for config consumers, then the service's launch and gate.
-func flowService(x executor, fc flowCtx, svc string) int {
+// staging for config consumers, then the service's launch and gate. The
+// shared issuer is restarted when the start names it, and kept when it only
+// starts because something needs it.
+func flowService(x executor, fc flowCtx, m groupMember) int {
+	svc := m.role
 	if rp, nothing := nothingToLaunch(fc.plan, svc); nothing {
 		if rp.Presence == presenceExternal {
 			x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, roleDocument(fc.stack, svc), rp.Address, rp.Port)
@@ -1251,11 +1182,6 @@ func flowService(x executor, fc flowCtx, svc string) int {
 		if x.stopRm(roleContainer(svc, fc.kb.key())) {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.settle(portNumbers(ports)...)
-		}
-		// The issuer proxy holds the issuer's port at the network address; it
-		// goes with the issuer, before the ports are checked.
-		if svc == "identity" {
-			x.retireIssuerProxy()
 		}
 		if !x.portChecks(ports) {
 			return 1
@@ -1303,11 +1229,29 @@ func flowService(x executor, fc flowCtx, svc string) int {
 		if code := flowTraces(x, fc, addr); code != 0 {
 			return code
 		}
-	case "graph", "vectors", "identity-store", "messaging", "identity":
+	case "graph", "vectors", "messaging":
 		// The same flow a full start walks — one implementation, so a
 		// dependency started alone cannot differ from one started with the
 		// stack.
 		if code := flowDepRole(x, svc, fc, addr); code != 0 {
+			return code
+		}
+	case "identity-store":
+		// The launcher runs one only for the shared issuer (nothingToLaunch):
+		// its PostgreSQL alone, while its Keycloak goes on, as `--service
+		// identity` restarts the Keycloak alone.
+		if code, _ := flowIssuerStore(x, fc, addr, m.because == ""); code != 0 {
+			return code
+		}
+	case "identity":
+		password, ok := x.identityAdminPassword()
+		if !ok {
+			return 1
+		}
+		if code := flowIssuerServer(x, fc, addr, password, m.because == ""); code != 0 {
+			return code
+		}
+		if code := flowRealm(x, fc, addr, password); code != 0 {
 			return code
 		}
 	case "inference":
@@ -1390,10 +1334,8 @@ func servicePortNeeds(svc string, plan *launchPlan, browser browserDocument, e e
 		gateway := portNeed{plan.GatewayPort, "Gateway"}
 		ports = append([]portNeed{gateway}, e.containersSideNeed("gateway", gateway, plan.GatewayPort)...)
 	case plan != nil:
-		if rp, ok := plan.Roles[svc]; ok && rp.Presence == presenceLauncher && rp.Port != 0 {
-			spec := descriptorFor(svc, rp.Driver)
-			need := portNeed{rp.Port, spec.portLabel}
-			ports = append(append(plan.AuxPorts(svc), need), e.containersSideNeed(svc, need, spec.defaultPort)...)
+		if needs := rolePortNeeds(plan, svc, e); needs != nil {
+			ports = needs
 		}
 	}
 	return ports

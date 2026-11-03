@@ -37,8 +37,10 @@ func TestDiskUseIsWhatTheFilesTake(t *testing.T) {
 	}
 }
 
-// A knowledge base's directory is reported as each directory in it that is
-// there, largest first, with what it holds; its total is the whole of it.
+// A knowledge base's directory is reported as each of its stores that is
+// there, largest first, with what it holds, and its container logs; its total
+// is the whole of it. The machine's directory is reported as the shared
+// stores in it: the issuer's PostgreSQL, every knowledge base's realm.
 func TestStoreUseListsEachDirectoryLargestFirst(t *testing.T) {
 	dir := t.TempDir()
 	megabytes(t, filepath.Join(dir, "neo4j", "data", "store"), 3)
@@ -46,22 +48,28 @@ func TestStoreUseListsEachDirectoryLargestFirst(t *testing.T) {
 	megabytes(t, filepath.Join(dir, "postgres", "pgdata", "base"), 1)
 	megabytes(t, filepath.Join(dir, "something-else", "file"), 1)
 
-	uses, total, any := storeUse(dir)
+	rows := func(uses []storeUseRow) []string {
+		var names []string
+		for _, use := range uses {
+			names = append(names, use.dir+": "+use.holds)
+		}
+		return names
+	}
+	uses, total, any := storeUse(dir, false)
 	if !any {
-		t.Fatal("a directory with three stores in it reads as holding none")
+		t.Fatal("a directory with two stores in it reads as holding none")
 	}
-	var names []string
-	for _, use := range uses {
-		names = append(names, use.dir+": "+use.holds)
-	}
-	want := []string{"neo4j: graph", "logs: container logs kept from earlier starts", "postgres: Keycloak's realm and accounts"}
-	if !slices.Equal(names, want) {
-		t.Errorf("rows are %q, want %q", names, want)
+	if got, want := rows(uses), []string{"neo4j: graph", "logs: container logs kept from earlier starts"}; !slices.Equal(got, want) {
+		t.Errorf("a knowledge base's rows are %q, want %q", got, want)
 	}
 	if total < 7<<20 {
 		t.Errorf("the total is %d bytes: it leaves out what is in the directory beside the stores", total)
 	}
-	if _, _, any := storeUse(t.TempDir()); any {
+	uses, _, _ = storeUse(dir, true)
+	if got, want := rows(uses), []string{"postgres: Keycloak's realms and accounts, every knowledge base's"}; !slices.Equal(got, want) {
+		t.Errorf("the machine's rows are %q, want %q", got, want)
+	}
+	if _, _, any := storeUse(t.TempDir(), false); any {
 		t.Error("an empty directory reads as holding stores")
 	}
 }

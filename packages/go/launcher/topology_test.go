@@ -14,11 +14,10 @@ import (
 )
 
 // externalIssuer: st trusting a Keycloak somebody else runs at
-// login.example.com, with no Issuer document.
+// login.example.com, and not the shared one.
 func externalIssuer(st *stack.Stack) {
-	st.KnowledgeBase.Spec.Issuer.Ref = nil
+	st.KnowledgeBase.Spec.Issuer.Shared = nil
 	st.KnowledgeBase.Spec.Issuer.External = &stack.KnowledgeBaseIssuerExternal{Type: "keycloak", Url: "https://login.example.com/realms/kb"}
-	st.Issuer = nil
 }
 
 // A daemon whose document states no `external` is the launcher's to run and
@@ -56,35 +55,41 @@ func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 func TestADocumentsExternalIsSomebodyElsesDaemon(t *testing.T) {
 	for _, c := range []struct {
 		role, address string
-		external      func(st *stack.Stack)
+		// external states it somebody else's, in st or in the issuer's
+		// document st plans with.
+		external func(st *stack.Stack, issuer *issuerDocument)
 		// reached: where a container reaches the daemon, and want that address.
 		reached func(p placement) string
 		want    string
 	}{
-		{"graph", "graph.internal", externalGraph,
+		{"graph", "graph.internal", func(st *stack.Stack, _ *issuerDocument) { externalGraph(st) },
 			func(p placement) string { return p.graphURI() }, "bolt://graph.internal:7687"},
-		{"vectors", "qdrant.internal", func(st *stack.Stack) {
+		{"vectors", "qdrant.internal", func(st *stack.Stack, _ *issuerDocument) {
 			v := &st.KnowledgeIndex.Spec.Vectors
 			v.Image, v.Resources = nil, nil
 			v.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
 		}, func(p placement) string { host, port := p.vectors(); return fmt.Sprintf("%s:%d", host, port) }, "qdrant.internal:7000"},
-		{"identity-store", "pg.internal", func(st *stack.Stack) {
-			d := &st.Issuer.Spec.Database
-			d.Image, d.Resources = nil, nil
+		{"identity-store", "pg.internal", func(_ *stack.Stack, issuer *issuerDocument) {
+			d := &issuer.spec.Database
+			d.Image, d.Resources, d.Port = nil, nil, nil
 			d.External = &stack.IssuerDatabaseExternal{Host: "pg.internal", Port: 5432, Password: stack.SecretRef{FromEnv: "PG_PASSWORD"}}
 		}, nil, ""},
-		{"messaging", "nats.internal", externalBroker,
+		{"messaging", "nats.internal", func(st *stack.Stack, _ *issuerDocument) { externalBroker(st) },
 			func(p placement) string { return p.brokerServers() }, "nats.internal:4222"},
-		{"identity", "login.example.com", externalIssuer,
+		{"identity", "login.example.com", func(st *stack.Stack, _ *issuerDocument) { externalIssuer(st) },
 			func(p placement) string { return p.issuer() }, "https://login.example.com/realms/kb"},
-		{"embedding", "gpu.internal", func(st *stack.Stack) {
+		{"embedding", "gpu.internal", func(st *stack.Stack, _ *issuerDocument) {
 			endpoint := "http://gpu.internal:11434"
 			st.KnowledgeIndex.Spec.Embedding.Endpoint = &endpoint
 		}, nil, ""},
 	} {
 		st := fixtureStack(t, "ollama-gemma")
-		c.external(st)
-		p := placed(t, st)
+		issuer := issuerFor(t, st)
+		c.external(st, issuer)
+		if st.KnowledgeBase.Spec.Issuer.Shared == nil {
+			issuer = nil
+		}
+		p := placement{st: st, plan: mustPlanWith(t, st, issuer), rt: "container", addr: "192.168.64.1"}
 		if rp := p.plan.Roles[c.role]; rp.Presence != presenceExternal || rp.Address != c.address {
 			t.Errorf("%s: planned as (%v, %q), want somebody else's at %s", c.role, rp.Presence, rp.Address, c.address)
 		}

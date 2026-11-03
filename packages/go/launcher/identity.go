@@ -7,6 +7,7 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"slices"
 	"sort"
 	"strings"
@@ -54,9 +55,9 @@ const (
 	//
 	// Pinned rather than left to Keycloak's default so the window is a decision
 	// somebody made and can read back, not a value that moves with a Keycloak
-	// upgrade. `semiont init` writes it into the Issuer document's
-	// spec.accessTokenLifespan, where a knowledge base that wants a different
-	// one changes it.
+	// upgrade. `semiont init` writes it into the KnowledgeBase document's
+	// spec.issuer.shared.accessTokenLifespan, where a knowledge base that wants
+	// a different one changes it.
 	keycloakAccessTokenLifespan = 300
 )
 
@@ -109,6 +110,42 @@ func identityEndpoint(rp rolePlan, e exposure) string {
 func keycloakBase(e exposure, port int) string {
 	host, p := e.keycloakAt(port)
 	return fmt.Sprintf("http://%s:%d", host, p)
+}
+
+// keycloakHealthPath: where below its origin the shared Keycloak answers
+// once the server is up, whatever realms it holds.
+var keycloakHealthPath = descriptorFor("identity", "keycloak").health.path
+
+// sharedKeycloakBase: the shared Keycloak's origin, as the start that ran it
+// recorded it (its health endpoint, keycloakHealthPath below the origin), for
+// a command that administers it outside a start; "" when no record says it
+// runs.
+func sharedKeycloakBase(ss *StackSet) string {
+	rec := ss.Shared[sharedContainer("identity")]
+	if rec == nil {
+		return ""
+	}
+	return strings.TrimSuffix(rec.Endpoint, keycloakHealthPath)
+}
+
+// sharedKeycloakAdmin: the shared Keycloak's origin and its bootstrap admin's
+// password, with where the password was read, or a refusal that says which is
+// missing.
+func sharedKeycloakAdmin(u *UI, ss *StackSet) (base, password, source string, ok bool) {
+	if base = sharedKeycloakBase(ss); base == "" {
+		u.Fail("The shared Keycloak is not running, so its admin API cannot be reached.")
+		fmt.Fprintln(os.Stderr, "  Start a knowledge base that names it (spec.issuer.shared):  semiont start")
+		return "", "", "", false
+	}
+	if password, source, ok = keycloakAdminPassword(u); !ok {
+		return "", "", "", false
+	}
+	if password == "" {
+		u.Fail("No bootstrap admin password is kept for the shared Keycloak, so the admin API cannot be reached.")
+		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")
+		return "", "", "", false
+	}
+	return base, password, source, true
 }
 
 // secretClients: the realm's view of `stackServices`, every one of which
@@ -541,48 +578,4 @@ func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 		return realmAccounts{}, false
 	}
 	return realmAccounts{secrets: secrets, worker: worker}, true
-}
-
-// identityRunExtras: what a launched Keycloak needs beyond its plan row —
-// the database the Issuer document names, on the PostgreSQL it describes
-// (created there when the launcher runs that PostgreSQL), and the bootstrap
-// admin password. The password is per root and
-// persisted: Keycloak creates the admin on its FIRST boot only, so a
-// regenerated value would lock the console out of a realm that already
-// exists.
-func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAccounts, string, bool) {
-	rp := fc.plan.Roles["identity"]
-	db := fc.plan.Roles["identity-store"]
-	dbName := fc.stack.Issuer.Spec.Database.Name
-	dbHost := db.Address
-	// Authority, not presence: an external PostgreSQL is somebody's shared
-	// server, and creating a database in it is a privileged persistent
-	// change the launcher is not entitled to make.
-	if mayConfigure(db) {
-		dbHost = addr
-		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), dbName) {
-			return nil, realmAccounts{}, "", false
-		}
-	} else {
-		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, dbName)
-		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, dbName)
-	}
-	// Resolved here and kept (per root, and the worker's key shared), so
-	// the container that must PRESENT each credential reads the same value out
-	// of the same file rather than having it threaded through the start flow.
-	// Returned as well, because the realm is created with these same values
-	// and the preflight checks them against it.
-	accounts, ok := realmAccountsOf(x, fc.kb)
-	if !ok {
-		return nil, realmAccounts{}, "", false
-	}
-	password, ok := x.identityAdminPassword(fc.kb)
-	if !ok {
-		return nil, realmAccounts{}, "", false
-	}
-	return []string{
-		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, dbName),
-		"-e", "KC_HOSTNAME=" + placementOf(fc, x.exposure(addr)).keycloakHostname(),
-		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
-	}, accounts, password, true
 }

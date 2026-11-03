@@ -1,5 +1,5 @@
 {
-  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Issuer, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the shared ones, the Browser's (Browser) and the worker's (WorkerPool), which belong to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixture knowledge base, with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
+  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the shared ones, the Browser's (Browser), the worker's (WorkerPool) and the issuer's (Issuer), which belong to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixtures (its fixture knowledge base, and the state home's documents beside it), with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
   "runBy": {
     "launcher": ["packages/go/launcher/stack/read_test.go"]
   },
@@ -23,7 +23,7 @@
             "resources": null,
             "external": { "servers": "broker.example.com:4222", "user": { "fromEnv": "NATS_USER" }, "password": { "fromEnv": "NATS_PASSWORD" } }
           },
-          "issuer": { "ref": null, "external": { "type": "oidc", "url": "https://login.example.com" } }
+          "issuer": { "shared": null, "external": { "type": "oidc", "url": "https://login.example.com" } }
         }
       },
       "verdict": "accepted"
@@ -83,7 +83,7 @@
     {
       "why": "another version of the kinds",
       "schema": "Issuer",
-      "base": "packages/go/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
       "patch": { "apiVersion": "semiont.the-ai-alliance.github.io/v1beta1" },
       "verdict": "refused",
       "at": "/apiVersion",
@@ -134,13 +134,40 @@
       "reason": "exactly-one"
     },
     {
-      "why": "an issuer named and somebody else's at once",
+      "why": "the shared issuer and somebody else's at once",
       "schema": "KnowledgeBase",
       "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
       "patch": { "spec": { "issuer": { "external": { "type": "oidc", "url": "https://login.example.com" } } } },
       "verdict": "refused",
       "at": "/spec/issuer",
       "reason": "exactly-one"
+    },
+    {
+      "why": "an issuer named neither shared nor somebody else's",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "shared": null } } },
+      "verdict": "refused",
+      "at": "/spec/issuer",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "an Issuer document named from the knowledge base, which the machine's state home now holds",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "ref": "issuer" } } },
+      "verdict": "refused",
+      "at": "/spec/issuer/ref",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "the shared issuer with no lifespan for the knowledge base's realm",
+      "schema": "KnowledgeBase",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/knowledge-base.yaml",
+      "patch": { "spec": { "issuer": { "shared": { "accessTokenLifespan": null } } } },
+      "verdict": "refused",
+      "at": "/spec/issuer/shared/accessTokenLifespan",
+      "reason": "missing-required"
     },
     {
       "why": "graph and vector stores somebody else runs",
@@ -175,7 +202,7 @@
     {
       "why": "a database name that is no lowercase identifier: PostgreSQL would fold it, and the issuer would ask for another",
       "schema": "Issuer",
-      "base": "packages/go/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
       "patch": { "spec": { "database": { "name": "Keycloak" } } },
       "verdict": "refused",
       "at": "/spec/database/name",
@@ -184,8 +211,94 @@
     {
       "why": "a database the launcher runs and somebody else's at once",
       "schema": "Issuer",
-      "base": "packages/go/launcher/testdata/kb/.semiont/stack/issuer.yaml",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
       "patch": { "spec": { "database": { "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the fixture's Issuer, as it is",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "an Issuer whose database somebody else runs",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "image": null, "resources": null, "port": null, "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
+      "verdict": "accepted"
+    },
+    {
+      "why": "an Issuer with no type",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "type": null } },
+      "verdict": "refused",
+      "at": "/spec/type",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer with no image",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "image": null } },
+      "verdict": "refused",
+      "at": "/spec/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer with no resources",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "resources": null } },
+      "verdict": "refused",
+      "at": "/spec/resources",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer published on no port",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "port": null } },
+      "verdict": "refused",
+      "at": "/spec/port",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer with no database",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": null } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "missing-required"
+    },
+    {
+      "why": "an Issuer naming a realm's lifespan, which is each knowledge base's to name",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "accessTokenLifespan": 300 } },
+      "verdict": "refused",
+      "at": "/spec/accessTokenLifespan",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "a database the launcher runs, published on no port the issuer could reach",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "port": null } } },
+      "verdict": "refused",
+      "at": "/spec/database",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "somebody else's database with a port of the launcher's left behind",
+      "schema": "Issuer",
+      "base": "packages/go/launcher/testdata/issuer.yaml",
+      "patch": { "spec": { "database": { "image": null, "resources": null, "external": { "host": "db.example.com", "port": 5432, "password": { "fromEnv": "POSTGRES_PASSWORD" } } } } },
       "verdict": "refused",
       "at": "/spec/database",
       "reason": "exactly-one"

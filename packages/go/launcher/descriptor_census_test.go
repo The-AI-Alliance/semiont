@@ -44,12 +44,14 @@ func TestEveryImageTheLauncherNamesIsPinnedByDigest(t *testing.T) {
 // process.
 func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
 	shared := map[string]string{
-		"worker":    "the shared worker: kept or replaced by flowWorker, and stopped after the last stack by stopSharedServices, from its own record, since it serves every KB on its list",
-		"browser":   "not a stack member — kept open across stacks, and stopped after the last stack by stopSharedServices, from its own record",
-		"inference": "the shared Ollama: kept or replaced in the Ollama section, where a host instance may make the container unnecessary, and stopped after the last stack, from its own record",
-		"collector": "the shared collector: kept or replaced by flowShared, and stopped after the last stack, from its own record, since it takes every KB's signals",
-		"metrics":   "the shared Prometheus: kept or replaced by flowShared, and stopped after the last stack, from its own record",
-		"traces":    "the shared Jaeger: kept or replaced by flowShared, and stopped after the last stack, from its own record",
+		"worker":         "the shared worker: kept or replaced by flowWorker, and stopped after the last stack by stopSharedServices, from its own record, since it serves every KB on its list",
+		"identity":       "the shared Keycloak: kept or replaced by flowIssuerServer, and stopped after the last stack, from its own record, since every KB's realm is in it",
+		"identity-store": "the shared issuer's PostgreSQL: kept or replaced by flowIssuerStore, and stopped after the last stack, from its own record, since every KB's realm is kept in it",
+		"browser":        "not a stack member — kept open across stacks, and stopped after the last stack by stopSharedServices, from its own record",
+		"inference":      "the shared Ollama: kept or replaced in the Ollama section, where a host instance may make the container unnecessary, and stopped after the last stack, from its own record",
+		"collector":      "the shared collector: kept or replaced by flowShared, and stopped after the last stack, from its own record, since it takes every KB's signals",
+		"metrics":        "the shared Prometheus: kept or replaced by flowShared, and stopped after the last stack, from its own record",
+		"traces":         "the shared Jaeger: kept or replaced by flowShared, and stopped after the last stack, from its own record",
 	}
 	swept := stackContainers("kb")
 	for _, d := range serviceDescriptors {
@@ -79,9 +81,10 @@ func TestAStacksSweepCoversEveryContainerItRuns(t *testing.T) {
 // knowledge base is a fault, not a name.
 func TestAStacksContainersAreNamedForItsKnowledgeBase(t *testing.T) {
 	for role, want := range map[string]string{
-		"identity-store": "semiont-example.org-kb-postgres",
+		"graph":          "semiont-example.org-kb-neo4j",
 		"gateway":        "semiont-example.org-kb-gateway",
-		"identity":       "semiont-example.org-kb-keycloak",
+		"identity":       "semiont-keycloak",
+		"identity-store": "semiont-postgres",
 		"worker":         "semiont-worker",
 		"inference":      "semiont-ollama",
 		"collector":      "semiont-otel-collector",
@@ -90,21 +93,21 @@ func TestAStacksContainersAreNamedForItsKnowledgeBase(t *testing.T) {
 			t.Errorf("%s runs %s, want %s", role, got, want)
 		}
 	}
-	if a, b := roleContainer("identity-store", "a"), roleContainer("identity-store", "b"); a == b {
-		t.Errorf("two knowledge bases' identity stores share the name %s", a)
+	if a, b := roleContainer("graph", "a"), roleContainer("graph", "b"); a == b {
+		t.Errorf("two knowledge bases' graphs share the name %s", a)
 	}
 	defer func() {
 		if recover() == nil {
 			t.Error("a stack's container was named for no knowledge base")
 		}
 	}()
-	roleContainer("identity-store", "")
+	roleContainer("graph", "")
 }
 
 // The `--service` vocabulary, derived from the start walk: a reader meets
 // the roles in the order they come up — one list of roles, not two.
 func TestRoleListDerivesTheStartWalk(t *testing.T) {
-	want := "traces, metrics, collector, identity-store, messaging, identity, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
+	want := "traces, metrics, collector, identity-store, identity, messaging, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
 	if roleList != want {
 		t.Errorf("roleList =\n  %s\nwant\n  %s", roleList, want)
 	}
@@ -155,8 +158,7 @@ func TestEveryRoleHasOneGroup(t *testing.T) {
 			shared = append(shared, g.name)
 		}
 	}
-	// The issuer joins them when one Keycloak serves every knowledge base.
-	assertNames(t, "shared groups", shared, []string{"knowledge-workers", "providers", "telemetry"})
+	assertNames(t, "shared groups", shared, []string{"issuer", "knowledge-workers", "providers", "telemetry"})
 }
 
 // The realm's accounts are every Semiont service that presents a token to

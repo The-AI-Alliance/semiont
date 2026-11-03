@@ -169,7 +169,7 @@ func TestTheFixtureDocumentsReadIntoTheirTypes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if kb.Spec.Gateway.Port != 4000 || kb.Spec.Issuer.Ref == nil || *kb.Spec.Issuer.Ref != "issuer" || kb.Spec.Messaging.Image == nil {
+	if kb.Spec.Gateway.Port != 4000 || kb.Spec.Issuer.Shared == nil || kb.Spec.Issuer.Shared.AccessTokenLifespan != 300 || kb.Spec.Messaging.Image == nil {
 		t.Errorf("the KnowledgeBase did not read into its type: %+v", kb.Spec)
 	}
 	index, err := Read[KnowledgeIndex](filepath.Join(stack, "index.yaml"), "KnowledgeIndex")
@@ -179,11 +179,11 @@ func TestTheFixtureDocumentsReadIntoTheirTypes(t *testing.T) {
 	if index.Spec.KnowledgeBase != kb.Metadata.Name || index.Spec.Embedding.Chunking.ChunkSize != 512 || index.Spec.Librarian.Search.SemanticFloor != 0.6 {
 		t.Errorf("the KnowledgeIndex did not read into its type: %+v", index.Spec)
 	}
-	issuer, err := Read[Issuer](filepath.Join(stack, "issuer.yaml"), "Issuer")
+	issuer, err := Read[Issuer](filepath.Join(repository, "packages", "go", "launcher", "testdata", IssuerFile), "Issuer")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if issuer.Metadata.Name != *kb.Spec.Issuer.Ref || issuer.Spec.Database.Image == nil {
+	if issuer.Spec.Port != 8080 || issuer.Spec.Database.Image == nil || issuer.Spec.Database.Port == nil || *issuer.Spec.Database.Port != 5432 {
 		t.Errorf("the Issuer did not read into its type: %+v", issuer.Spec)
 	}
 	inference, err := Read[Inference](filepath.Join(stack, "inference", "anthropic.yaml"), "Inference")

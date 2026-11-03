@@ -24,7 +24,13 @@ import (
 // run as the catalog's worker document says.
 func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 	t.Helper()
-	plan, err := derivePlan(st, fixtureKB(t).key(), 8080, 0)
+	return mustPlanWith(t, st, issuerFor(t, st))
+}
+
+// mustPlanWith: mustPlan, on the issuer's document a test changed.
+func mustPlanWith(t *testing.T, st *stack.Stack, issuer *issuerDocument) *launchPlan {
+	t.Helper()
+	plan, err := derivePlan(st, issuer, fixtureKB(t).key(), 0)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
 	}
@@ -39,7 +45,13 @@ func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 // refused BEFORE anything is launched, and saying where is the whole value.
 func mustRefuse(t *testing.T, st *stack.Stack, want ...string) {
 	t.Helper()
-	plan, err := derivePlan(st, fixtureKB(t).key(), 8080, 0)
+	mustRefuseWith(t, st, issuerFor(t, st), want...)
+}
+
+// mustRefuseWith: mustRefuse, on the issuer's document a test changed.
+func mustRefuseWith(t *testing.T, st *stack.Stack, issuer *issuerDocument, want ...string) {
+	t.Helper()
+	plan, err := derivePlan(st, issuer, fixtureKB(t).key(), 0)
 	if err == nil {
 		t.Fatalf("derivePlan accepted documents the stack cannot run: %+v", plan.Roles)
 	}
@@ -50,9 +62,10 @@ func mustRefuse(t *testing.T, st *stack.Stack, want ...string) {
 	}
 }
 
-// asSomebodyElses: st with role's daemon stated as somebody else's —
-// `external` in place of `image` and `resources`, as the schema has it.
-func asSomebodyElses(st *stack.Stack, role string) {
+// asSomebodyElses: st, or the issuer's document st plans with, with role's
+// daemon stated as somebody else's — `external` in place of `image` and
+// `resources`, as the schema has it.
+func asSomebodyElses(st *stack.Stack, issuer *issuerDocument, role string) {
 	switch role {
 	case "graph":
 		g := &st.KnowledgeIndex.Spec.Graph
@@ -63,8 +76,8 @@ func asSomebodyElses(st *stack.Stack, role string) {
 		v.Image, v.Resources = nil, nil
 		v.External = &stack.HostPort{Host: "vectors.example.com", Port: 6334}
 	case "identity-store":
-		d := &st.Issuer.Spec.Database
-		d.Image, d.Resources = nil, nil
+		d := &issuer.spec.Database
+		d.Image, d.Resources, d.Port = nil, nil, nil
 		d.External = &stack.IssuerDatabaseExternal{Host: "db.example.com", Port: 5433, Password: stack.SecretRef{FromEnv: "EXT_DB_PASSWORD"}}
 	case "messaging":
 		m := &st.KnowledgeBase.Spec.Messaging
@@ -224,13 +237,13 @@ func TestDerivePlanExternalDaemons(t *testing.T) {
 	}{
 		{"graph", rolePlan{Presence: presenceExternal, Driver: "neo4j", Address: "graph.example.com", Port: 9999}, func(f stack.Files) string { return f.KnowledgeIndex }},
 		{"vectors", rolePlan{Presence: presenceExternal, Driver: "qdrant", Address: "vectors.example.com", Port: 6334}, func(f stack.Files) string { return f.KnowledgeIndex }},
-		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}, func(f stack.Files) string { return f.Issuer }},
+		{"identity-store", rolePlan{Presence: presenceExternal, Driver: "postgres", Address: "db.example.com", Port: 5433}, func(stack.Files) string { return issuerDocumentPath() }},
 		{"messaging", rolePlan{Presence: presenceExternal, Driver: "jetstream", Address: "nats.example.com", Port: 4223}, func(f stack.Files) string { return f.KnowledgeBase }},
 	} {
 		t.Run(c.role, func(t *testing.T) {
-			st := fixtureStack(t, "anthropic")
-			asSomebodyElses(st, c.role)
-			checkRole(t, mustPlan(t, st), c.role, c.want)
+			st, issuer := fixtureStack(t, "anthropic"), fixtureIssuer(t)
+			asSomebodyElses(st, issuer, c.role)
+			checkRole(t, mustPlanWith(t, st, issuer), c.role, c.want)
 			if got, want := roleDocument(st, c.role), c.doc(st.Files); got != want {
 				t.Errorf("a message names %s as stated by %q, want %q", c.role, got, want)
 			}
@@ -239,13 +252,13 @@ func TestDerivePlanExternalDaemons(t *testing.T) {
 }
 
 // The Keycloak the launcher runs keeps its realm on a PostgreSQL somebody else
-// runs, and signs in to it with the password the variable the Issuer document
-// names holds.
+// runs, and signs in to it with the password the variable the issuer's
+// document names holds.
 func TestTheLaunchersKeycloakReadsAnExternalDatabasesPasswordFromItsVariable(t *testing.T) {
-	st := fixtureStack(t, "anthropic")
-	asSomebodyElses(st, "identity-store")
-	if got := mustPlan(t, st).Roles["identity"].ExternalDBPassword; got != "EXT_DB_PASSWORD" {
-		t.Errorf("the Keycloak reads its database's password from %q, want the variable the Issuer document names", got)
+	st, issuer := fixtureStack(t, "anthropic"), fixtureIssuer(t)
+	asSomebodyElses(st, issuer, "identity-store")
+	if got := mustPlanWith(t, st, issuer).Roles["identity"].ExternalDBPassword; got != "EXT_DB_PASSWORD" {
+		t.Errorf("the Keycloak reads its database's password from %q, want the variable the issuer's document names", got)
 	}
 	if got := mustPlan(t, fixtureStack(t, "anthropic")).Roles["identity"].ExternalDBPassword; got != "" {
 		t.Errorf("a launcher-run PostgreSQL's password is the launcher's, and the plan reads it from %q", got)
@@ -260,8 +273,9 @@ func TestDerivePlanRunsADaemonFromTheImageItsDocumentNames(t *testing.T) {
 	graphImage, dbImage := "neo4j:6.0.1-community", "postgres:17.2-alpine"
 	st.KnowledgeIndex.Spec.Graph.Image = &graphImage
 	st.KnowledgeIndex.Spec.Graph.Resources.Limits.Memory = "4G"
-	st.Issuer.Spec.Database.Image = &dbImage
-	plan := mustPlan(t, st)
+	issuer := fixtureIssuer(t)
+	issuer.spec.Database.Image = &dbImage
+	plan := mustPlanWith(t, st, issuer)
 	if got := plan.Roles["graph"]; got.Image != graphImage || got.Memory != "4G" {
 		t.Errorf("graph runs from %q with %q, want %s with 4G", got.Image, got.Memory, graphImage)
 	}
@@ -426,26 +440,30 @@ func TestLauncherRunBrokerIsAlwaysAuthenticated(t *testing.T) {
 	}
 
 	st := fixtureStack(t, "anthropic")
-	asSomebodyElses(st, "messaging")
+	asSomebodyElses(st, nil, "messaging")
 	if extra := mustPlan(t, st).Roles["messaging"].CmdExtra; len(extra) != 0 {
 		t.Errorf("a broker somebody else runs is given %v", extra)
 	}
 }
 
-// The plan carries the port this launch gives the Keycloak it runs — what
-// Keycloak publishes on, what the port check guards, and what the realm is
-// reached at.
-func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
-	plan, err := derivePlan(fixtureStack(t, "anthropic"), fixtureKB(t).key(), 8081, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
+// The plan carries the port the issuer's document publishes the shared
+// Keycloak on — what Keycloak publishes on and what the realm is reached at —
+// and the PostgreSQL's beside it.
+func TestTheSharedIssuerIsOnItsDocumentsPorts(t *testing.T) {
+	issuer := fixtureIssuer(t)
+	issuer.spec.Port = 8081
+	dbPort := 5433
+	issuer.spec.Database.Port = &dbPort
+	plan := mustPlanWith(t, fixtureStack(t, "anthropic"), issuer)
 	rp := plan.Roles["identity"]
 	if rp.Presence != presenceLauncher || rp.Port != 8081 {
 		t.Errorf("identity = %s on %d, want launcher-run on 8081", rp.Presence, rp.Port)
 	}
 	if rp.Issuer != "http://localhost:8081/realms/example.github.io-test-kb" {
-		t.Errorf("issuer %q, want the realm on this launch's port", rp.Issuer)
+		t.Errorf("issuer %q, want the realm on the document's port", rp.Issuer)
+	}
+	if got := plan.Roles["identity-store"].Port; got != 5433 {
+		t.Errorf("identity-store on %d, want the document's 5433", got)
 	}
 }
 
@@ -498,7 +516,7 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	} {
 		st := fixtureStack(t, "anthropic")
 		c.engines(&st.Inference.Spec.Engines)
-		plan, err := derivePlan(st, fixtureKB(t).key(), 8080, 0)
+		plan, err := derivePlan(st, issuerFor(t, st), fixtureKB(t).key(), 0)
 		if err != nil {
 			t.Fatalf("%s: %v", c.why, err)
 		}

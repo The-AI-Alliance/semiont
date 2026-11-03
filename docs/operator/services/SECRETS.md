@@ -2,9 +2,11 @@
 
 Two kinds of secret reach a running stack, and the launcher treats them in opposite ways:
 
-- **Values the launcher keeps.** It generates them once per knowledge base and keeps them,
-  because each one must outlive the stack: the token-signing key, the identity provider's
-  credentials, and the passwords of the daemons it runs. The Neo4j password is one.
+- **Values the launcher keeps.** It generates them once and keeps them, because each one must
+  outlive the stack: the token-signing key, the identity provider's credentials, and the
+  passwords of the daemons it runs. Most are a knowledge base's; the Neo4j password is one.
+  What serves every knowledge base here, the shared issuer and the worker, has values of the
+  machine's.
 - **Values you own.** The launcher never stores them. It keeps a pointer to where each one
   lives and reads it at every start. An inference API key such as `ANTHROPIC_API_KEY` is one.
 
@@ -16,20 +18,23 @@ command line.
 | Value | Variable | Kept as | Used by |
 |---|---|---|---|
 | Token-signing key | `JWT_SECRET` | `jwt-secret` | the gateway |
-| Keycloak's admin password | `KC_BOOTSTRAP_ADMIN_PASSWORD` | `keycloak-admin-password` | Keycloak, `semiont useradd` |
+| Keycloak's admin password | `KC_BOOTSTRAP_ADMIN_PASSWORD` | `keycloak-admin-password`, for the machine rather than a knowledge base | the shared Keycloak, `semiont useradd`, and `semiont clean` when it deletes a realm |
 | A service's account secret | `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` | `oidc-client-secret-<service>` | that service, and the realm a start creates |
 | The worker's key | `SEMIONT_OIDC_CLIENT_KEY` | `worker-key`, for the machine rather than a knowledge base | the worker, which signs its sign-ins with it; every realm the launcher runs holds its public half |
 | Neo4j's password | `NEO4J_PASSWORD` | `neo4j-password` | Neo4j, the librarian and the weaver |
-| PostgreSQL's password | `POSTGRES_PASSWORD` | `postgres-password` | PostgreSQL, and Keycloak's connection to it |
+| PostgreSQL's password | `POSTGRES_PASSWORD` | `postgres-password`, for the machine rather than a knowledge base | the shared issuer's PostgreSQL, and Keycloak's connection to it |
 | The broker's password | `NATS_PASSWORD` (user `NATS_USER`, always `semiont`) | `nats-password` | the NATS broker, the dispatcher, and the gateway when its signal plane is the broker |
 
 There is one service account for each stack service: the gateway, archivist, dispatcher,
 librarian, smelter, weaver and worker. Each proves itself with its secret but the worker, which
-proves itself with a key: one RSA key for the machine, kept in the file store under the
-launcher's data directory (`shared/worker-key`) whichever store a knowledge base names, and
-never sent anywhere — the worker signs each sign-in with it, and a realm holds only its public
-half. `semiont worker key` prints that public half. A daemon's password exists only when the
-launcher runs that daemon.
+proves itself with a key: one RSA key for the machine, never sent anywhere — the worker signs
+each sign-in with it, and a realm holds only its public half. `semiont worker key` prints that
+public half. A daemon's password exists only when the launcher runs that daemon.
+
+The machine's values (the worker's key, and Keycloak's admin and PostgreSQL's passwords for the
+issuer every knowledge base signs in at) are kept in the file store under the launcher's data
+directory, `shared/<name>`, whichever store a knowledge base names: a store is a knowledge
+base's setting, and the machine has none.
 
 The broker's own `NATS_USER` and `NATS_PASSWORD` hold the pair in quotes, as strings of the NATS
 configuration syntax: `nats-server` reads a variable's value as configuration, and reads a bare
@@ -130,7 +135,14 @@ reject every login, so `semiont start` refuses and names the fix:
 ```bash
 semiont stop
 semiont clean --store graph           # Neo4j: a projection, rebuilt from the event log
-semiont clean --store identity-store  # PostgreSQL: Keycloak's accounts go with it
+semiont start
+```
+
+The issuer's PostgreSQL is every knowledge base's, and so is its clean. It is refused until no knowledge base here runs and the issuer is stopped:
+
+```bash
+semiont stop                                   # in each knowledge base here; the last stops the issuer
+semiont clean --shared --store identity-store  # every realm goes with it, and its accounts
 semiont start
 semiont useradd --email you@example.com --generate-password
 ```

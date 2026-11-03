@@ -6,9 +6,7 @@ container stop semiont-example.github.io-test-kb-archivist
 container stop semiont-example.github.io-test-kb-qdrant
 container stop semiont-example.github.io-test-kb-neo4j
 container stop semiont-example.github.io-test-kb-gateway
-container stop semiont-example.github.io-test-kb-keycloak
 container stop semiont-example.github.io-test-kb-nats
-container stop semiont-example.github.io-test-kb-postgres
 container logs semiont-example.github.io-test-kb-weaver
 container logs semiont-example.github.io-test-kb-smelter
 container logs semiont-example.github.io-test-kb-dispatcher
@@ -17,9 +15,7 @@ container logs semiont-example.github.io-test-kb-archivist
 container logs semiont-example.github.io-test-kb-qdrant
 container logs semiont-example.github.io-test-kb-neo4j
 container logs semiont-example.github.io-test-kb-gateway
-container logs semiont-example.github.io-test-kb-keycloak
 container logs semiont-example.github.io-test-kb-nats
-container logs semiont-example.github.io-test-kb-postgres
 container rm semiont-example.github.io-test-kb-weaver
 container rm semiont-example.github.io-test-kb-smelter
 container rm semiont-example.github.io-test-kb-dispatcher
@@ -28,9 +24,7 @@ container rm semiont-example.github.io-test-kb-archivist
 container rm semiont-example.github.io-test-kb-qdrant
 container rm semiont-example.github.io-test-kb-neo4j
 container rm semiont-example.github.io-test-kb-gateway
-container rm semiont-example.github.io-test-kb-keycloak
 container rm semiont-example.github.io-test-kb-nats
-container rm semiont-example.github.io-test-kb-postgres
 docker stop semiont-example.github.io-test-kb-weaver
 docker stop semiont-example.github.io-test-kb-smelter
 docker stop semiont-example.github.io-test-kb-dispatcher
@@ -39,9 +33,7 @@ docker stop semiont-example.github.io-test-kb-archivist
 docker stop semiont-example.github.io-test-kb-qdrant
 docker stop semiont-example.github.io-test-kb-neo4j
 docker stop semiont-example.github.io-test-kb-gateway
-docker stop semiont-example.github.io-test-kb-keycloak
 docker stop semiont-example.github.io-test-kb-nats
-docker stop semiont-example.github.io-test-kb-postgres
 docker logs --tail 5000 semiont-example.github.io-test-kb-weaver
 docker logs --tail 5000 semiont-example.github.io-test-kb-smelter
 docker logs --tail 5000 semiont-example.github.io-test-kb-dispatcher
@@ -50,9 +42,7 @@ docker logs --tail 5000 semiont-example.github.io-test-kb-archivist
 docker logs --tail 5000 semiont-example.github.io-test-kb-qdrant
 docker logs --tail 5000 semiont-example.github.io-test-kb-neo4j
 docker logs --tail 5000 semiont-example.github.io-test-kb-gateway
-docker logs --tail 5000 semiont-example.github.io-test-kb-keycloak
 docker logs --tail 5000 semiont-example.github.io-test-kb-nats
-docker logs --tail 5000 semiont-example.github.io-test-kb-postgres
 docker rm semiont-example.github.io-test-kb-weaver
 docker rm semiont-example.github.io-test-kb-smelter
 docker rm semiont-example.github.io-test-kb-dispatcher
@@ -61,9 +51,7 @@ docker rm semiont-example.github.io-test-kb-archivist
 docker rm semiont-example.github.io-test-kb-qdrant
 docker rm semiont-example.github.io-test-kb-neo4j
 docker rm semiont-example.github.io-test-kb-gateway
-docker rm semiont-example.github.io-test-kb-keycloak
 docker rm semiont-example.github.io-test-kb-nats
-docker rm semiont-example.github.io-test-kb-postgres
 podman stop semiont-example.github.io-test-kb-weaver
 podman stop semiont-example.github.io-test-kb-smelter
 podman stop semiont-example.github.io-test-kb-dispatcher
@@ -72,9 +60,7 @@ podman stop semiont-example.github.io-test-kb-archivist
 podman stop semiont-example.github.io-test-kb-qdrant
 podman stop semiont-example.github.io-test-kb-neo4j
 podman stop semiont-example.github.io-test-kb-gateway
-podman stop semiont-example.github.io-test-kb-keycloak
 podman stop semiont-example.github.io-test-kb-nats
-podman stop semiont-example.github.io-test-kb-postgres
 podman logs --tail 5000 semiont-example.github.io-test-kb-weaver
 podman logs --tail 5000 semiont-example.github.io-test-kb-smelter
 podman logs --tail 5000 semiont-example.github.io-test-kb-dispatcher
@@ -83,9 +69,7 @@ podman logs --tail 5000 semiont-example.github.io-test-kb-archivist
 podman logs --tail 5000 semiont-example.github.io-test-kb-qdrant
 podman logs --tail 5000 semiont-example.github.io-test-kb-neo4j
 podman logs --tail 5000 semiont-example.github.io-test-kb-gateway
-podman logs --tail 5000 semiont-example.github.io-test-kb-keycloak
 podman logs --tail 5000 semiont-example.github.io-test-kb-nats
-podman logs --tail 5000 semiont-example.github.io-test-kb-postgres
 podman rm semiont-example.github.io-test-kb-weaver
 podman rm semiont-example.github.io-test-kb-smelter
 podman rm semiont-example.github.io-test-kb-dispatcher
@@ -94,15 +78,25 @@ podman rm semiont-example.github.io-test-kb-archivist
 podman rm semiont-example.github.io-test-kb-qdrant
 podman rm semiont-example.github.io-test-kb-neo4j
 podman rm semiont-example.github.io-test-kb-gateway
-podman rm semiont-example.github.io-test-kb-keycloak
 podman rm semiont-example.github.io-test-kb-nats
-podman rm semiont-example.github.io-test-kb-postgres
 container stop semiont-worker
 container rm semiont-worker
 docker stop semiont-worker
 docker rm semiont-worker
 podman stop semiont-worker
 podman rm semiont-worker
+container stop semiont-keycloak
+container rm semiont-keycloak
+docker stop semiont-keycloak
+docker rm semiont-keycloak
+podman stop semiont-keycloak
+podman rm semiont-keycloak
+container stop semiont-postgres
+container rm semiont-postgres
+docker stop semiont-postgres
+docker rm semiont-postgres
+podman stop semiont-postgres
+podman rm semiont-postgres
 container stop semiont-otel-collector
 container rm semiont-otel-collector
 docker stop semiont-otel-collector

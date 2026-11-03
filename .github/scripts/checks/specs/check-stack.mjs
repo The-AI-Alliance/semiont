@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // lint:spec-stack — the documents the launcher reads, held to their schemas:
 // those a knowledge base's repository commits, and the machine's: the
-// Browser's and the worker's.
+// Browser's, the worker's and the issuer's.
 //
-// protocol/specs/src/stack/ holds one schema for each kind of the stack (KnowledgeBase,
-// KnowledgeIndex, Issuer, Inference) and for the Browser and the worker
-// (WorkerPool), which belong to no knowledge base; protocol/specs/src/kb-identity/
+// protocol/specs/src/stack/ holds one schema for each kind of the stack
+// (KnowledgeBase, KnowledgeIndex, Inference) and for the Browser, the worker
+// (WorkerPool) and the issuer the launcher runs (Issuer), which belong to no
+// knowledge base; protocol/specs/src/kb-identity/
 // holds the project file's (ProjectConfig). The launcher reads every document
 // against these schemas, with the same cases (protocol/specs/src/stack/cases.json),
 // so the schema is the one thing that decides a document's shape. It fails
@@ -15,8 +16,9 @@
 //     for a reason it does not say;
 //   - a schema has no refused case, or nothing accepted against it: a schema
 //     nothing is refused by holds nothing;
-//   - a document of the launcher's fixture knowledge base does not validate,
-//     or is of no kind a schema is for;
+//   - a document of the launcher's fixture knowledge base, or its fixture of
+//     the machine's issuer document, does not validate, or is of no kind a
+//     schema is for;
 //   - a project file of protocol/specs/src/kb-identity/cases.json validates when its
 //     case says every reader refuses it, or does not when it says none does;
 //   - a property a schema names has no field of the launcher's generated types
@@ -36,6 +38,7 @@ import yaml from 'js-yaml';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const CASES = resolve(ROOT, 'protocol/specs/src/stack/cases.json');
 const FIXTURE = resolve(ROOT, 'packages/go/launcher/testdata/kb/.semiont');
+const ISSUER_FIXTURE = resolve(ROOT, 'packages/go/launcher/testdata/issuer.yaml');
 
 /** Each schema a document is read against, by the name cases give it. */
 const SCHEMAS = {
@@ -161,7 +164,7 @@ function documents(dir) {
     return name.endsWith('.yaml') ? [path] : [];
   });
 }
-const fixtures = [resolve(FIXTURE, 'config.yaml'), ...documents(resolve(FIXTURE, 'stack'))];
+const fixtures = [resolve(FIXTURE, 'config.yaml'), ...documents(resolve(FIXTURE, 'stack')), ISSUER_FIXTURE];
 for (const path of fixtures) {
   const where = path.slice(ROOT.length + 1);
   const document = yaml.load(readFileSync(path, 'utf8'));

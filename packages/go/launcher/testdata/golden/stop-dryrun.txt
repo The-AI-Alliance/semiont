@@ -17,12 +17,8 @@ container stop semiont-example.github.io-test-kb-neo4j
 container rm semiont-example.github.io-test-kb-neo4j
 container stop semiont-example.github.io-test-kb-gateway
 container rm semiont-example.github.io-test-kb-gateway
-container stop semiont-example.github.io-test-kb-keycloak
-container rm semiont-example.github.io-test-kb-keycloak
 container stop semiont-example.github.io-test-kb-nats
 container rm semiont-example.github.io-test-kb-nats
-container stop semiont-example.github.io-test-kb-postgres
-container rm semiont-example.github.io-test-kb-postgres
 docker stop semiont-example.github.io-test-kb-weaver
 docker rm semiont-example.github.io-test-kb-weaver
 docker stop semiont-example.github.io-test-kb-smelter
@@ -39,12 +35,8 @@ docker stop semiont-example.github.io-test-kb-neo4j
 docker rm semiont-example.github.io-test-kb-neo4j
 docker stop semiont-example.github.io-test-kb-gateway
 docker rm semiont-example.github.io-test-kb-gateway
-docker stop semiont-example.github.io-test-kb-keycloak
-docker rm semiont-example.github.io-test-kb-keycloak
 docker stop semiont-example.github.io-test-kb-nats
 docker rm semiont-example.github.io-test-kb-nats
-docker stop semiont-example.github.io-test-kb-postgres
-docker rm semiont-example.github.io-test-kb-postgres
 podman stop semiont-example.github.io-test-kb-weaver
 podman rm semiont-example.github.io-test-kb-weaver
 podman stop semiont-example.github.io-test-kb-smelter
@@ -61,12 +53,8 @@ podman stop semiont-example.github.io-test-kb-neo4j
 podman rm semiont-example.github.io-test-kb-neo4j
 podman stop semiont-example.github.io-test-kb-gateway
 podman rm semiont-example.github.io-test-kb-gateway
-podman stop semiont-example.github.io-test-kb-keycloak
-podman rm semiont-example.github.io-test-kb-keycloak
 podman stop semiont-example.github.io-test-kb-nats
 podman rm semiont-example.github.io-test-kb-nats
-podman stop semiont-example.github.io-test-kb-postgres
-podman rm semiont-example.github.io-test-kb-postgres
 # remove staged configs: <home>/tmp/semiont-config.example.github.io-test-kb.*
 # stop the shared Worker:
 container stop semiont-worker
@@ -75,6 +63,20 @@ docker stop semiont-worker
 docker rm semiont-worker
 podman stop semiont-worker
 podman rm semiont-worker
+# stop the shared Keycloak:
+container stop semiont-keycloak
+container rm semiont-keycloak
+docker stop semiont-keycloak
+docker rm semiont-keycloak
+podman stop semiont-keycloak
+podman rm semiont-keycloak
+# stop the shared PostgreSQL:
+container stop semiont-postgres
+container rm semiont-postgres
+docker stop semiont-postgres
+docker rm semiont-postgres
+podman stop semiont-postgres
+podman rm semiont-postgres
 # stop the shared OTel collector:
 container stop semiont-otel-collector
 container rm semiont-otel-collector

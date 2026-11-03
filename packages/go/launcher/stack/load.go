@@ -16,17 +16,17 @@ const Dir = ".semiont/stack"
 const (
 	KnowledgeBaseFile  = "knowledge-base.yaml"
 	KnowledgeIndexFile = "index.yaml"
-	IssuerFile         = "issuer.yaml"
 	InferenceDir       = "inference"
 )
 
 // The documents that belong to no knowledge base are kept in the launcher's
-// state home, in StateHomeDir: the Browser's, as BrowserFile, and the
-// worker's, as WorkerPoolFile.
+// state home, in StateHomeDir: the Browser's, as BrowserFile, the worker's, as
+// WorkerPoolFile, and the issuer's, as IssuerFile.
 const (
 	StateHomeDir   = "stack"
 	BrowserFile    = "browser.yaml"
 	WorkerPoolFile = "workers.yaml"
+	IssuerFile     = "issuer.yaml"
 )
 
 // Stack: a knowledge base's documents, each held to its schema, and the names
@@ -34,10 +34,7 @@ const (
 type Stack struct {
 	KnowledgeBase  KnowledgeBase
 	KnowledgeIndex KnowledgeIndex
-	// Issuer: the document the KnowledgeBase's issuer.ref names; nil when the
-	// knowledge base trusts an issuer somebody else runs.
-	Issuer    *Issuer
-	Inference Inference
+	Inference      Inference
 	// Files: where each document was read, relative to the root, for the
 	// refusals that name one.
 	Files Files
@@ -45,7 +42,7 @@ type Stack struct {
 
 // Files: each document's path below the root.
 type Files struct {
-	KnowledgeBase, KnowledgeIndex, Issuer, Inference string
+	KnowledgeBase, KnowledgeIndex, Inference string
 }
 
 // InferencePath: the Inference document named name, below the root.
@@ -65,15 +62,15 @@ func InferenceNames(root string) []string {
 	return names
 }
 
-// Load reads the knowledge base at root: its three documents and the Inference
+// Load reads the knowledge base at root: its two documents and the Inference
 // document named inference. A document that does not hold to its schema is
 // refused with every place it does not; a document missing, or naming another
-// that is not there, is refused by name.
+// that is not there, is refused by name, and so is an Issuer document, which
+// is the machine's to keep.
 func Load(root, inference string) (*Stack, error) {
 	files := Files{
 		KnowledgeBase:  filepath.Join(Dir, KnowledgeBaseFile),
 		KnowledgeIndex: filepath.Join(Dir, KnowledgeIndexFile),
-		Issuer:         filepath.Join(Dir, IssuerFile),
 		Inference:      InferencePath(inference),
 	}
 	at := func(path string) string { return filepath.Join(root, path) }
@@ -88,14 +85,9 @@ func Load(root, inference string) (*Stack, error) {
 	if st.Inference, err = Read[Inference](at(files.Inference), "Inference"); err != nil {
 		return nil, err
 	}
-	if ref := st.KnowledgeBase.Spec.Issuer.Ref; ref != nil {
-		issuer, err := Read[Issuer](at(files.Issuer), "Issuer")
-		if err != nil {
-			return nil, err
-		}
-		st.Issuer = &issuer
-	} else if _, err := os.Stat(at(files.Issuer)); err == nil {
-		return nil, fmt.Errorf("%s: the knowledge base trusts the issuer at spec.issuer.external, and %s describes one the launcher would run — delete one of the two", files.KnowledgeBase, files.Issuer)
+	issuer := filepath.Join(Dir, IssuerFile)
+	if _, err := os.Stat(at(issuer)); err == nil {
+		return nil, fmt.Errorf("%s: the issuer the launcher runs is the machine's, described once for every knowledge base in the launcher's state home (%s), and a knowledge base names it as spec.issuer.shared — delete %s", issuer, filepath.Join(StateHomeDir, IssuerFile), issuer)
 	}
 	if err := st.namesHold(); err != nil {
 		return nil, err
@@ -108,9 +100,6 @@ func (st *Stack) namesHold() error {
 	kb := st.KnowledgeBase.Metadata.Name
 	if got := st.KnowledgeIndex.Spec.KnowledgeBase; got != kb {
 		return fmt.Errorf("%s: spec.knowledgeBase names %q, and %s is %q", st.Files.KnowledgeIndex, got, st.Files.KnowledgeBase, kb)
-	}
-	if ref := st.KnowledgeBase.Spec.Issuer.Ref; ref != nil && *ref != st.Issuer.Metadata.Name {
-		return fmt.Errorf("%s: spec.issuer.ref names %q, and %s is %q", st.Files.KnowledgeBase, *ref, st.Files.Issuer, st.Issuer.Metadata.Name)
 	}
 	if want := strings.TrimSuffix(filepath.Base(st.Files.Inference), ".yaml"); st.Inference.Metadata.Name != want {
 		return fmt.Errorf("%s: metadata.name is %q, and an Inference document is named by its file, %q", st.Files.Inference, st.Inference.Metadata.Name, want)

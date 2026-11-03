@@ -17,12 +17,11 @@ import (
 	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
-// trustExternalIssuer: st trusting an issuer somebody else runs, with no
-// Issuer document — and so no PostgreSQL of the launcher's for it.
+// trustExternalIssuer: st trusting an issuer somebody else runs, and so not
+// the shared one, nor the PostgreSQL it keeps its realms in.
 func trustExternalIssuer(st *stack.Stack, typ, url string) {
-	st.KnowledgeBase.Spec.Issuer.Ref = nil
+	st.KnowledgeBase.Spec.Issuer.Shared = nil
 	st.KnowledgeBase.Spec.Issuer.External = &stack.KnowledgeBaseIssuerExternal{Type: typ, Url: url}
-	st.Issuer = nil
 }
 
 func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
@@ -47,7 +46,7 @@ func TestEachKnowledgeBaseHasARealmOfItsOwn(t *testing.T) {
 	issuers := map[string]string{}
 	for _, key := range []string{fixtureKB(t).key(), rootKey("did:web:owner.github.io:other-kb", "")} {
 		st := fixtureStack(t, "anthropic")
-		plan, err := derivePlan(st, key, 8080, 0)
+		plan, err := derivePlan(st, issuerFor(t, st), key, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,7 +75,7 @@ func TestDerivePlanIdentityOIDCExternal(t *testing.T) {
 		t.Errorf("issuer %q, want the URL the KnowledgeBase states", got)
 	}
 	if got := plan.Roles["identity-store"].Presence; got != presenceAbsent {
-		t.Errorf("with no Issuer document the identity store is %s, want absent", got)
+		t.Errorf("trusting somebody else's issuer, the identity store is %s, want absent", got)
 	}
 }
 
@@ -95,10 +94,6 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 			func(st *stack.Stack) { trustExternalIssuer(st, "oidc", "login.example.com") },
 			func(st *stack.Stack) string { return st.Files.KnowledgeBase },
 			[]string{"spec.issuer.external.url", `"login.example.com"`, "http://"}},
-		{"an Issuer document of a type the launcher does not run",
-			func(st *stack.Stack) { st.Issuer.Spec.Type = "authentik" },
-			func(st *stack.Stack) string { return st.Files.Issuer },
-			[]string{"spec.type", `"authentik"`, `"keycloak"`}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -108,6 +103,11 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 			mustRefuse(t, st, append([]string{file + ": "}, c.want...)...)
 		})
 	}
+	t.Run("an issuer's document of a type the launcher does not run", func(t *testing.T) {
+		issuer := fixtureIssuer(t)
+		issuer.spec.Type = "authentik"
+		mustRefuseWith(t, fixtureStack(t, "anthropic"), issuer, issuer.path+": ", "spec.type", `"authentik"`, `"keycloak"`)
+	})
 }
 
 func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
@@ -209,11 +209,12 @@ func TestTheRealmMarksEveryAgentsAccountAndNoPersons(t *testing.T) {
 }
 
 // accessTokenLifespan sets the revocation window of the realm the launcher
-// imports. Only the launcher reads it, because only a realm the launcher
-// writes has a lifespan Semiont sets.
+// creates. Only the launcher reads it, because only a realm the launcher
+// creates has a lifespan Semiont sets; it is the knowledge base's, as its
+// realm is.
 func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
 	st := fixtureStack(t, "anthropic")
-	st.Issuer.Spec.AccessTokenLifespan = 60
+	st.KnowledgeBase.Spec.Issuer.Shared.AccessTokenLifespan = 60
 	plan := mustPlan(t, st)
 	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
 		t.Errorf("configured lifespan not carried on the plan: got %d, want 60", got)

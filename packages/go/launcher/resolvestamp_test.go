@@ -43,22 +43,30 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	}
 
 	// The refusal path must NOT restamp: the data on disk is still the old
-	// image's, and the stamp is the record of that fact.
-	pgsd := stateStores["identity-store"].storeDir(key)
+	// image's, and the stamp is the record of that fact. The identity store is
+	// the machine's, so its stamp is kept beside it, in the machine's
+	// directory, whichever knowledge base's start asks.
+	pg := stateStores["identity-store"]
+	pgsd, pgHome := pg.storeDir(key), pg.home(key)
+	if pgHome != sharedStateDir() {
+		t.Fatalf("the identity store's home is %s, want the machine's %s", pgHome, sharedStateDir())
+	}
 	if err := os.MkdirAll(pgsd, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(pgsd, "PG_VERSION"), []byte("15\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta = loadRootMeta(dir)
+	meta = loadRootMeta(pgHome)
 	meta.Stores["identity-store"] = storeMeta{Image: "pg:old"}
-	saveRootMeta(dir, meta)
+	saveRootMeta(pgHome, meta)
 
-	if x.resolveStoreStamp("identity-store", "pg:new", key) {
-		t.Fatal("an identity-store mismatch must refuse")
+	for _, asking := range []string{key, rootKey("did:web:owner.github.io:other-kb", "")} {
+		if x.resolveStoreStamp("identity-store", "pg:new", asking) {
+			t.Fatalf("an identity-store mismatch must refuse, whichever knowledge base asks (%s)", asking)
+		}
 	}
-	if got := loadRootMeta(dir).Stores["identity-store"].Image; got != "pg:old" {
+	if got := loadRootMeta(pgHome).Stores["identity-store"].Image; got != "pg:old" {
 		t.Errorf("stamp after a refusal = %q, want %q untouched", got, "pg:old")
 	}
 }

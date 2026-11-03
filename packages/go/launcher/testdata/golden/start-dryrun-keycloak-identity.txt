@@ -27,15 +27,10 @@ container stop semiont-example.github.io-test-kb-neo4j
 container rm semiont-example.github.io-test-kb-neo4j
 container stop semiont-example.github.io-test-kb-gateway
 container rm semiont-example.github.io-test-kb-gateway
-container stop semiont-example.github.io-test-kb-keycloak
-container rm semiont-example.github.io-test-kb-keycloak
 container stop semiont-example.github.io-test-kb-nats
 container rm semiont-example.github.io-test-kb-nats
-container stop semiont-example.github.io-test-kb-postgres
-container rm semiont-example.github.io-test-kb-postgres
-# end the issuer proxy the record names, if one runs
 # remove staged configs: <home>/tmp/semiont-config.example.github.io-test-kb.*
-# require free ports: 7474 7687 17687 6333 5432 4222 8080 4000 14000 24101 24102 24103 24104 24105
+# require free ports: 7474 7687 17687 6333 4222 4000 14000 24101 24102 24103 24104 24105
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
 # write <config-stage>/archivist.json (the Archivist's configuration document: ArchivistConfig, resolved)
@@ -81,20 +76,26 @@ container rm semiont-otel-collector
 # write <state-home>/shared/collector.yaml (the launcher's own; only as its container (re)starts)
 container run -d --name semiont-otel-collector --memory 1G -p <host-addr>:4318:4318 -p <host-addr>:24110:24110 --volume <state-home>/shared/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c
 # wait: http://<host-addr>:24110/metrics (30s)
-# identity-store state: <data-home>/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
-container run -d --name semiont-example.github.io-test-kb-postgres --memory 1G -p <host-addr>:5432:5432 -v <data-home>/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
+# identity-store: keep semiont-postgres if its record says tcp:<host-addr>:5432 under container with 1G and it runs postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f; else stop/rm it, then run it
+# else:
+container stop semiont-postgres
+container rm semiont-postgres
+# require free ports: 5432
+# identity-store state: <data-home>/shared/postgres (created if absent; reused across restarts)
+container run -d --name semiont-postgres --memory 1G -p <host-addr>:5432:5432 -v <data-home>/shared/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
 # wait: tcp <host-addr>:5432 (20s)
 # probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 5432
-# wait: container exec semiont-example.github.io-test-kb-postgres pg_isready -h 127.0.0.1 (30s) — the REAL server; initdb's temporary one answers the socket only
-# messaging state: <data-home>/roots/example.github.io-test-kb/nats (created if absent; reused across restarts)
-# stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)
-container run -d --name semiont-example.github.io-test-kb-nats --memory 512M -p <host-addr>:4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.15.2-alpine@sha256:823e7f1d6d8ffe3b30dbd73d4a06bbb939acf94929f7fdf224404da7a05bafb5 -js -sd /data -c /etc/nats/semiont.conf
-# wait: tcp <host-addr>:4222 (15s)
-# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 4222
-# create database keycloak on PostgreSQL if absent: container exec -i semiont-example.github.io-test-kb-postgres psql -U postgres (SQL on stdin)
-container run -d --name semiont-example.github.io-test-kb-keycloak --memory 1G -p <host-addr>:8080:8080 -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak -e KC_HOSTNAME=http://<host-addr>:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
+# wait: container exec semiont-postgres pg_isready -h 127.0.0.1 (30s) — the REAL server; initdb's temporary one answers the socket only
+# identity: keep semiont-keycloak if PostgreSQL was kept and its record says http://<host-addr>:8080/realms/master under container with 1G, KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak KC_HOSTNAME=http://<host-addr>:8080, and it runs quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c; else stop/rm it, then run it
+# else:
+# end the issuer proxy the record names, if one runs
+container stop semiont-keycloak
+container rm semiont-keycloak
+# require free ports: 8080
+# create database keycloak on PostgreSQL if absent: container exec -i semiont-postgres psql -U postgres (SQL on stdin)
+container run -d --name semiont-keycloak --memory 1G -p <host-addr>:8080:8080 -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak -e KC_HOSTNAME=http://<host-addr>:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
 # wait: http://<host-addr>:8080/realms/master (90s)
-# open Keycloak's admin to this machine over HTTP: container exec --env KC_CLI_PASSWORD semiont-example.github.io-test-kb-keycloak /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE --no-config --server http://localhost:8080 --realm master --user admin
+# open Keycloak's admin to this machine over HTTP: container exec --env KC_CLI_PASSWORD semiont-keycloak /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE --no-config --server http://localhost:8080 --realm master --user admin
 # ask http://<host-addr>:8080/realms/example.github.io-test-kb, and where Keycloak does not hold it, create realm "example.github.io-test-kb": POST http://<host-addr>:8080/admin/realms as admin (clients: semiont-browser, semiont-cli, semiont-archivist, semiont-dispatcher, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker-local)
 # client-credentials grant at http://<host-addr>:8080/realms/example.github.io-test-kb as semiont-archivist — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
 # client-credentials grant at http://<host-addr>:8080/realms/example.github.io-test-kb as semiont-dispatcher — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
@@ -108,6 +109,11 @@ container run -d --name semiont-example.github.io-test-kb-keycloak --memory 1G -
 # the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered
 # password grant at http://<host-addr>:8080/realms/example.github.io-test-kb as semiont-browser and semiont-cli, sending no credential — require both to refuse it
 # compare `exp - iat` on those tokens against the configured 300s — warn if the realm was created with another
+# messaging state: <data-home>/roots/example.github.io-test-kb/nats (created if absent; reused across restarts)
+# stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)
+container run -d --name semiont-example.github.io-test-kb-nats --memory 512M -p <host-addr>:4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.15.2-alpine@sha256:823e7f1d6d8ffe3b30dbd73d4a06bbb939acf94929f7fdf224404da7a05bafb5 -js -sd /data -c /etc/nats/semiont.conf
+# wait: tcp <host-addr>:4222 (15s)
+# probe: container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 <host-addr> 4222
 # mount gateway state (no image stamps it: an image change clears nothing)
 container run -d --name semiont-example.github.io-test-kb-gateway --publish 127.0.0.1:4000:4000 --publish <host-addr>:14000:4000 --memory 2G --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro -v <data-home>/roots/example.github.io-test-kb/gateway:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET --env JWT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest@sha256:<verified>
 # wait: http://localhost:4000/api/health (120s)

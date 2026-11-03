@@ -6,10 +6,8 @@
     "python": ["packages/python/sdk/tests/test_bus_log.py"],
     "go": ["packages/go/sdk/buslog_test.go"],
     "swift": ["packages/swift/sdk/Tests/SemiontTests/TransportTablesTests.swift"],
-    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusLogTest.kt"]
-  },
-  "notYetReached": {
-    "csharp": "C# is still to implement and run the shared bus/log-cases.json cases."
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/bus/BusLogTest.kt"],
+    "csharp": ["packages/csharp/sdk/tests/Semiont.Tests/BusLogTests.cs"]
   },
   "names": [
     "token",

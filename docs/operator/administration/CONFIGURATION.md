@@ -7,7 +7,6 @@ A knowledge base carries what it needs to run in its own repository, as YAML com
 | `.semiont/config.yaml` | The project file: the knowledge base's name, whether git stages its changes, and its permanent `did:web` identity | [`ProjectConfig`](../../../protocol/specs/src/kb-identity/ProjectConfig.json) |
 | `.semiont/stack/knowledge-base.yaml` | The gateway, the dispatcher, the archivist, the broker between them, and the issuer the knowledge base trusts | [`KnowledgeBase`](../../../protocol/specs/src/stack/KnowledgeBase.json) |
 | `.semiont/stack/index.yaml` | The graph, the vector store, the embedding model, and the librarian, the smelter and the weaver | [`KnowledgeIndex`](../../../protocol/specs/src/stack/KnowledgeIndex.json) |
-| `.semiont/stack/issuer.yaml` | The Keycloak the launcher runs, and the PostgreSQL it keeps its realm in | [`Issuer`](../../../protocol/specs/src/stack/Issuer.json) |
 | `.semiont/stack/inference/<name>.yaml` | The inference providers, and which provider and model serve each role | [`Inference`](../../../protocol/specs/src/stack/Inference.json) |
 
 The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a stack document; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
@@ -70,11 +69,12 @@ spec:
     image: nats:<version>-alpine@sha256:<digest>   # the broker release the launcher pins
     resources: { limits: { memory: 512M } }
   issuer:
-    ref: issuer
+    shared:
+      accessTokenLifespan: 300
     subjectClaim: sub
 ```
 
-The documents name one another by `metadata.name`: the KnowledgeIndex names the KnowledgeBase in `spec.knowledgeBase`, and the KnowledgeBase names its Issuer in `spec.issuer.ref`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`protocol/specs/src/stack/`](../../../protocol/specs/src/stack/README.md).
+The documents name one another by `metadata.name`: the KnowledgeIndex names the KnowledgeBase in `spec.knowledgeBase`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`specs/src/stack/`](../../../protocol/specs/src/stack/README.md).
 
 ### Who runs each daemon
 
@@ -85,7 +85,7 @@ The graph, the vector store, the broker and the issuer's PostgreSQL are each one
 
 Never both, and never neither: [`Runner.json`](../../../protocol/specs/src/stack/Runner.json) is the rule each of them is held to, and each one's schema says what its `external` holds. An external address must be one the containers can reach; `localhost` inside a container is the container itself.
 
-The issuer is chosen the same way, one level up: the KnowledgeBase names an Issuer document the launcher runs, or states an issuer somebody else runs ([The issuer](#the-issuer)).
+The issuer is chosen the same way, one level up: the KnowledgeBase names the issuer the launcher runs for every knowledge base here, or states an issuer somebody else runs ([The issuer](#the-issuer)).
 
 ### Images
 
@@ -149,14 +149,49 @@ One NATS daemon serves both. The launcher runs it from `image`, with a user and 
 
 The KnowledgeBase's `spec.issuer` names the one OIDC issuer the knowledge base trusts, in one of two ways:
 
-- **`ref`** names the Issuer document, `issuer.yaml`: a Keycloak the launcher runs, and in its `spec.database` the PostgreSQL Keycloak keeps its realm in, in the database `spec.database.name` names (`keycloak` as `semiont init` writes it). The realm is the knowledge base's own, named after its domain: `example.github.io:my-kb` keeps its people in the realm `example.github.io-my-kb`. Keycloak is published on port 8080 on the knowledge base's port block ([Ports](../LOCAL-SEMIONT.md#ports)) unless `semiont settings keycloak-port` sets another for it. With `semiont settings network lan`, the issuer is at this Mac's address on the network, behind a proxy that passes the realm alone ([Reaching it from another machine](../LOCAL-SEMIONT.md#reaching-it-from-another-machine)). `spec.accessTokenLifespan` is how long a token the realm mints stays valid, in seconds: the window in which a disabled account can still act ([Authentication](AUTHENTICATION.md#token-lifecycle)). The PostgreSQL is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)).
-- **`external`** is an issuer somebody else runs: its `type`, `oidc` or `keycloak`, and its `url`, exactly the `iss` its tokens carry. The knowledge base then has no `issuer.yaml`, and a start refuses one beside it.
+- **`shared`** is the Keycloak the launcher runs for every knowledge base here, each in a realm of its own, named after its domain: `example.github.io:my-kb` keeps its people in the realm `example.github.io-my-kb`. A start creates the realm when Keycloak holds none, and keeps the server running as it is for the other knowledge bases that sign in at it. `spec.issuer.shared.accessTokenLifespan` is how long a token the realm mints stays valid, in seconds: the window in which a disabled account can still act ([Authentication](AUTHENTICATION.md#token-lifecycle)). With `semiont settings network lan`, the issuer is at this Mac's address on the network, behind a proxy that passes the realms of the knowledge bases running here alone ([Reaching it from another machine](../LOCAL-SEMIONT.md#reaching-it-from-another-machine)). The server itself is described in [the issuer's document](#the-issuers-document).
+- **`external`** is an issuer somebody else runs: its `type`, `oidc` or `keycloak`, and its `url`, exactly the `iss` its tokens carry.
 
 Either way, **`subjectClaim`** names the issuer claim a person's DID is built from: `did:web:<site domain>:users:<that claim's value>`. With `sub`, which `semiont init` writes, people are named by the issuer's stable identifier, so a changed email changes nothing about who authored what. With `email`, the address is the identity.
 
 **There is no audience setting.** The audience a token must carry is the knowledge base's own resource identifier, derived from its `site.domain`.
 
 What an issuer of your own must provide is in [Authentication](AUTHENTICATION.md#at-the-issuer).
+
+### The issuer's document
+
+The issuer the launcher runs serves every knowledge base here and belongs to none, so its document is kept in the launcher's state home, beside the Browser's: `stack/issuer.yaml`, held to [`Issuer`](../../../protocol/specs/src/stack/Issuer.json) and read as strictly as the documents above.
+
+```yaml
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: Issuer
+metadata:
+  name: issuer
+spec:
+  type: keycloak
+  image: quay.io/keycloak/keycloak:<version>@sha256:<digest>
+  resources:
+    limits:
+      memory: 1G
+  port: 8080
+  database:
+    type: postgres
+    name: keycloak
+    user: postgres
+    image: postgres:<version>-alpine@sha256:<digest>
+    resources:
+      limits:
+        memory: 1G
+    port: 5432
+```
+
+The first command that needs it (a start of a knowledge base that names `shared`, `semiont settings issuer`, `semiont settings keycloak-port`) writes it as above, from the launcher's catalog, and says where. `semiont settings issuer` shows it, and `semiont settings issuer --path` prints its path alone. Edit it, and the next start runs what it says:
+
+- **`spec.image`** and **`spec.resources.limits.memory`**: Keycloak's image and memory ceiling.
+- **`spec.port`**: where Keycloak is published, on this machine: the origin of every realm's `iss`. It is on no knowledge base's port block ([Ports](../LOCAL-SEMIONT.md#ports)); `semiont settings keycloak-port` writes it. A start refuses to move a Keycloak another running knowledge base signs in at: their gateways name it where it is.
+- **`spec.database`**: the PostgreSQL Keycloak keeps every realm in, in the database `spec.database.name` names. With `image`, `resources` and `port`, the launcher runs it, and keeps its data under `shared/postgres` in its data home, which `semiont clean --shared --store identity-store` removes; with `external`, somebody else runs it, and the database must already exist there. The PostgreSQL is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)).
+
+A start keeps a running Keycloak and PostgreSQL that run what the document says, and restarts each that does not. The last knowledge base's `semiont stop` stops them, and so does `semiont stop --group issuer`.
 
 ## The Browser
 
@@ -218,7 +253,7 @@ A start resolves every provider key the list's engines name, not its own knowled
 A knowledge base's documents describe the stack the launcher runs on one machine. An organization deploying the knowledge base on infrastructure of its own starts from a copy of them, and changes what it runs itself:
 
 1. **Copy `.semiont/stack/`.** The project file stays as it is: the knowledge base's identity does not change with where it runs.
-2. **Trust its own issuer.** In `knowledge-base.yaml`, replace `spec.issuer.ref` with `spec.issuer.external`, giving its `type` and `url`, and delete `issuer.yaml`. Each Semiont service then needs its own client at that issuer ([What the issuer must provide](AUTHENTICATION.md#at-the-issuer)).
+2. **Trust its own issuer.** In `knowledge-base.yaml`, replace `spec.issuer.shared` with `spec.issuer.external`, giving its `type` and `url`. Each Semiont service then needs its own client at that issuer ([What the issuer must provide](AUTHENTICATION.md#at-the-issuer)).
 3. **Use its own stores.** In `index.yaml`, give the graph and the vector store `external` in place of `image` and `resources`. What `external` holds for each is in [`KnowledgeIndex.json`](../../../protocol/specs/src/stack/KnowledgeIndex.json); the broker is its own the same way, at `spec.messaging.external` in [`KnowledgeBase.json`](../../../protocol/specs/src/stack/KnowledgeBase.json).
 4. **Keep the images the documents name, or name its own.**
 
@@ -263,8 +298,9 @@ The launcher walks up from the current directory looking for `.semiont/`, as `gi
 |---|---|
 | A document does not hold to its schema, naming each place by its line | Fix each place. The schema the refusal names says what may be there |
 | A document is missing | Write it. The fixture has one of each kind |
-| `spec.knowledgeBase` or `spec.issuer.ref` names a document that is not there | Make the name agree with that document's `metadata.name` |
-| The knowledge base trusts the issuer at `spec.issuer.external`, and `issuer.yaml` describes one the launcher would run | Delete one of the two |
+| `spec.knowledgeBase` names a document that is not there | Make the name agree with that document's `metadata.name` |
+| `.semiont/stack/issuer.yaml`: the issuer the launcher runs is the machine's | Delete it, and name `spec.issuer.shared` in `knowledge-base.yaml`; the launcher keeps the issuer's document in its state home ([The issuer's document](#the-issuers-document)) |
+| `<state home>/stack/issuer.yaml` does not hold to the Issuer schema, naming each place by its line | Fix each place, or delete the file: the next start writes the launcher's ([The issuer's document](#the-issuers-document)) |
 | An Inference document's `metadata.name` is not its file's name | Make them the same |
 | An engine's provider is one `spec.providers` says nothing of | Add `spec.providers.<provider>` |
 | `spec.providers.<provider>.baseURL` is not stated | State the address of the provider's API |

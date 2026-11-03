@@ -22,3 +22,18 @@ func TestCleanUsageNamesEveryStore(t *testing.T) {
 		}
 	}
 }
+
+// The usage names both of a realm's cleans: a root's, which deletes its realm
+// through a running issuer or one it runs for the delete, and the shared one,
+// which removes the store every realm here is kept in.
+func TestCleanUsageNamesTheSharedIssuersCleans(t *testing.T) {
+	for _, want := range []string{
+		"one this clean runs for the delete and stops again",
+		"semiont clean --shared --store identity-store removes the shared issuer's",
+		"--shared         The machine's shared state instead of a root's",
+	} {
+		if !strings.Contains(cleanUsage, want) {
+			t.Errorf("cleanUsage does not say %q", want)
+		}
+	}
+}
