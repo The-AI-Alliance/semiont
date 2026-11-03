@@ -264,10 +264,17 @@ func (spec stateStoreSpec) home(key string) string {
 // plan mounts it — the machine's when the machine's container serves its
 // owner (presenceShared).
 func storeAt(store string, plan *launchPlan) stateStoreSpec {
-	spec := stateStores[store]
-	if plan.Roles[spec.owner].Presence == presenceShared {
-		spec.machine = true
+	if plan.Roles[stateStores[store].owner].Presence == presenceShared {
+		return machineStore(store)
 	}
+	return stateStores[store]
+}
+
+// machineStore: the store named store as the machine keeps it, for every
+// knowledge base here.
+func machineStore(store string) stateStoreSpec {
+	spec := stateStores[store]
+	spec.machine = true
 	return spec
 }
 

@@ -596,6 +596,13 @@ func issuerRoles(issuer *issuerDocument) (store, server rolePlan, err error) {
 	return store, server, nil
 }
 
+// sharedVectorsRole: the machine's vector store as its document gives it, a
+// role the launcher runs once for every knowledge base here naming it.
+func sharedVectorsRole(vectors *vectorStoreDocument) rolePlan {
+	return rolePlan{Role: "vectors", Driver: vectors.spec.Type, Presence: presenceShared,
+		Image: vectors.spec.Image, Memory: vectors.spec.Resources.Limits.Memory, Port: vectors.spec.Port}
+}
+
 // derivePlan maps a knowledge base's documents to each role's presence.
 // issuer is the issuer's document (issuerOf) for a knowledge base that names
 // the shared issuer, and nil for one that trusts somebody else's. vectors is
@@ -686,7 +693,7 @@ func derivePlan(st *stack.Stack, issuer *issuerDocument, vectors *vectorStoreDoc
 			if vectors.spec.Type != v.Type {
 				return nil, planErr(vectors.path, "spec.type", "is %q, and the knowledge base's %s names a %q vector store at spec.vectors.type", vectors.spec.Type, files.KnowledgeIndex, v.Type)
 			}
-			rp.Presence, rp.Image, rp.Memory, rp.Port = presenceShared, vectors.spec.Image, vectors.spec.Resources.Limits.Memory, vectors.spec.Port
+			rp = sharedVectorsRole(vectors)
 		case v.External != nil:
 			rp.Presence, rp.Address, rp.Port = presenceExternal, v.External.Host, v.External.Port
 		default:

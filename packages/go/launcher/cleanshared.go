@@ -56,8 +56,7 @@ func cleanShared(u *UI, store string, dryRun bool) int {
 		}
 		return 1
 	}
-	spec := stateStores[store]
-	spec.machine = true
+	spec := machineStore(store)
 	sd := spec.storeDir("")
 	if sd == "" {
 		u.Fail("No home directory resolvable; nowhere for state to live.")

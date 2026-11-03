@@ -1116,7 +1116,13 @@ using the state — stop first. The knowledge base's realm goes with its
 identity store: an unscoped clean, or `--store identity-store`, deletes it
 from the shared issuer through Keycloak's admin API, and keeps the
 PostgreSQL every other realm here is in. With the issuer not running, the
-clean runs it for the delete and stops it again, recording no stack.
+clean runs it for the delete and stops it again, recording no stack. The
+index of a knowledge base naming the shared Qdrant goes the same way: an
+unscoped clean, or `--store vectors`, deletes its three collections there,
+named by its DID, through Qdrant's API, and leaves every other knowledge
+base's; with the shared Qdrant not running, the clean runs it for the delete
+and stops it again. A shared Keycloak or Qdrant recorded as running that does
+not answer is refused rather than run in its place.
 `semiont clean --shared --store identity-store` removes that PostgreSQL's
 store, and every realm in it, once no recorded stack signs in at the issuer
 and its server is stopped (`semiont stop --group issuer`); the issuer's

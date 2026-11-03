@@ -15,24 +15,36 @@ func flowVectors(x executor, fc flowCtx, addr string, restart bool) int {
 	return flowSharedVectors(x, fc, addr, restart)
 }
 
-// flowSharedVectors: the machine's Qdrant, each knowledge base's index in
+// flowSharedVectors: the machine's Qdrant (runSharedVectors), and the
+// knowledge base's stack recording that the machine's serves it.
+func flowSharedVectors(x executor, fc flowCtx, addr string, restart bool) int {
+	health, code := runSharedVectors(x, fc, addr, restart)
+	if code != 0 {
+		return code
+	}
+	rp := fc.plan.Roles["vectors"]
+	x.servedByShared("vectors", rp.container(fc.kb.key()), health, rp.Driver)
+	return 0
+}
+
+// runSharedVectors: the machine's Qdrant, each knowledge base's index in
 // collections of its own. It is kept when its record says it runs under this
 // start's runtime, is reached where this start would probe it, and has the
 // memory and the image the vector store's document gives it, unless restart.
 // Otherwise it is stopped wherever its record says it runs and run afresh on
-// the machine's store. Its record is the machine's, and the knowledge base's
-// stack records that the machine's serves it.
-func flowSharedVectors(x executor, fc flowCtx, addr string, restart bool) int {
+// the machine's store. Its record is the machine's. health is where it is
+// probed.
+func runSharedVectors(x executor, fc flowCtx, addr string, restart bool) (health string, code int) {
 	rp := fc.plan.Roles["vectors"]
 	disp := driverDisplay("vectors", rp.Driver)
 	x.banner(roleBanner(fc, depRoleTitles["vectors"]+" ("+disp+")"))
 	name := rp.container(fc.kb.key())
 	rec := x.sharedRecord(name)
 	e := x.exposure(addr)
-	health := healthEndpoint("vectors", rp.Driver, fc.plan, e)
+	health = healthEndpoint("vectors", rp.Driver, fc.plan, e)
 	x.note("vectors: keep %s if its record says %s under %s with %s and it runs %s; else stop/rm it, then run it",
 		name, health, x.rtName(), rp.Memory, rp.Image)
-	code := x.either(func() bool {
+	return health, x.either(func() bool {
 		return !restart && rec != nil && rec.Runtime == x.rtName() && rec.Endpoint == health && rec.Memory == rp.Memory &&
 			x.containerCurrent(name, rp.Image)
 	},
@@ -67,9 +79,4 @@ func flowSharedVectors(x executor, fc flowCtx, addr string, restart bool) int {
 			x.recordShared(ServiceState{Container: name, ID: id, Image: rp.Image, Endpoint: health, Memory: rp.Memory, Ports: portNumbers(needs)})
 			return 0
 		})
-	if code != 0 {
-		return code
-	}
-	x.servedByShared("vectors", name, health, rp.Driver)
-	return 0
 }
