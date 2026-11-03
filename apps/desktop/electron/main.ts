@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
 import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
 import { registerAuthHandlers } from './auth';
@@ -17,11 +17,38 @@ function launcherPath(): string {
     : join(process.cwd(), '.build', 'launcher', 'semiont');
 }
 
+function launcherEnvironment(): NodeJS.ProcessEnv {
+  // GUI apps on macOS do not inherit the user's shell PATH. Add the usual
+  // Homebrew and Docker Desktop locations so `semiont` can find a runtime
+  // when Desktop is opened from Finder or the Dock.
+  const home = app.getPath('home');
+  const defaults = process.platform === 'darwin'
+    ? [
+        '/opt/homebrew/bin',
+        '/opt/homebrew/sbin',
+        '/usr/local/bin',
+        '/usr/local/sbin',
+        '/Applications/Docker.app/Contents/Resources/bin',
+        join(home, '.docker', 'bin'),
+        join(home, '.local', 'bin'),
+      ]
+    : [join(home, '.local', 'bin'), '/usr/local/bin', '/usr/bin', '/bin'];
+  const pathEntries = [...new Set([...(process.env.PATH ?? '').split(delimiter), ...defaults].filter(Boolean))];
+  return { ...process.env, PATH: pathEntries.join(delimiter) };
+}
+
 ipcMain.handle('launcher:status', () => new Promise<LauncherStatusResult>((resolve) => {
   execFile(
     launcherPath(),
     ['status'],
-    { cwd: app.getPath('home'), encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 120_000, windowsHide: true },
+    {
+      cwd: app.getPath('home'),
+      encoding: 'utf8',
+      env: launcherEnvironment(),
+      maxBuffer: 4 * 1024 * 1024,
+      timeout: 120_000,
+      windowsHide: true,
+    },
     (error, stdout, stderr) => {
       const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
       resolve({
