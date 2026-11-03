@@ -88,3 +88,12 @@ completes observers without signing out the kept credentials.
 `Gateway.Origin(endpoint)` validates the host and preserves the explicit port.
 `Gateway.GetCurrentUserAsync(origin, token)` asks who a token is with exactly one
 request, without opening a stream, retrying the request, or renewing the token.
+
+`Issuer.SignInDeviceAsync(endpoint, kept, onCode)` discovers the issuer the gateway
+trusts and begins a device sign-in. The callback receives the user code and verification
+address for the application to display. Polling follows the issuer's interval and
+slow-down replies, expires on the supplied clock, and stops on cancellation or issuer
+disposal. Only a successful grant with both access and refresh tokens is kept.
+`Issuer.SignOutAsync(kept)` attempts revocation and forgets the local credentials even
+when the issuer cannot be reached. Discovery rejects an issuer document that describes
+a different issuer or provides invalid endpoint addresses.

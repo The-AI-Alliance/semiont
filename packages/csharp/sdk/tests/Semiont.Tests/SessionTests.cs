@@ -15,7 +15,7 @@ public sealed class SessionTests
 {
     private static UserResponse User() => JsonSerializer.Deserialize<UserResponse>("{\"did\":\"did:web:kb.example:users:alice\",\"domain\":\"kb.example\",\"email\":null,\"name\":null,\"image\":null}") ?? throw new InvalidOperationException("No user");
 
-    private static MemorySignIn Stored(Clock clock) => new(new StoredSession
+    private static MemorySignIn Stored(TestClock clock) => new(new StoredSession
     {
         Access = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 }),
         Refresh = "refresh",
@@ -26,7 +26,7 @@ public sealed class SessionTests
     [Fact]
     public async Task PublicSessionUsesTheKeptIssuerThenValidatesTheIssuedTokenWithoutAStream()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var token = TokenTests.Jwt(new { exp = clock.GetUtcNow().ToUnixTimeSeconds() + 3600 });
         using var handler = new SessionHandler(token);
         using var client = new HttpClient(handler);
@@ -80,7 +80,7 @@ public sealed class SessionTests
     [Fact]
     public async Task ConcurrentRefusalsShareOneRenewalAndCancelOnlyTheirOwnWait()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var kept = Stored(clock);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var issued = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -109,7 +109,7 @@ public sealed class SessionTests
     [Fact]
     public async Task DisposalCancelsPendingWorkCompletesObserversAndDoesNotForgetTheSignIn()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var kept = Stored(clock);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         async Task<string?> Renew(string? holding, CancellationToken cancellation)
@@ -137,7 +137,7 @@ public sealed class SessionTests
     [Fact]
     public async Task ARefusalDuringStartupAdoptsTheStartsRenewal()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var kept = Stored(clock);
         var validating = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var refuse = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -162,7 +162,7 @@ public sealed class SessionTests
     [Fact]
     public async Task ProactiveRenewalUsesThePublicClockAndAsksNobody()
     {
-        var clock = new Clock();
+        var clock = new TestClock();
         var kept = Stored(clock);
         var asks = 0;
         var renewed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -190,7 +190,7 @@ public sealed class SessionTests
         using var table = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "specs/session/cases.json")));
         foreach (var row in table.RootElement.GetProperty(part).EnumerateArray())
         {
-            var clock = new Clock();
+            var clock = new TestClock();
             var asks = 0;
             var renewals = 0;
             var running = false;
@@ -258,6 +258,7 @@ public sealed class SessionTests
             }
             finally
             {
+                // Finish the pending MoveNext before the enumerator is disposed.
                 session.Dispose();
                 await errorRead;
             }
@@ -271,24 +272,5 @@ public sealed class SessionTests
     }
 
     private sealed class ZeroRandom : Random { public override double NextDouble() => 0; }
-    private sealed class Clock : TimeProvider
-    {
-        private readonly FakeTimeProvider fake = new(DateTimeOffset.FromUnixTimeSeconds(2000000000));
-        private readonly Channel<TimeSpan> timers = Channel.CreateUnbounded<TimeSpan>();
-        public override DateTimeOffset GetUtcNow() => fake.GetUtcNow();
-        public override long GetTimestamp() => fake.GetTimestamp();
-        public override long TimestampFrequency => fake.TimestampFrequency;
-        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
-        {
-            var timer = fake.CreateTimer(callback, state, dueTime, period);
-            timers.Writer.TryWrite(dueTime);
-            return timer;
-        }
-        internal void Advance(TimeSpan elapsed) => fake.Advance(elapsed);
-        internal async Task WaitForAsync(TimeSpan due)
-        {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (await timers.Reader.ReadAsync(deadline.Token) != due) { }
-        }
-    }
+
 }
