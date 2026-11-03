@@ -19,7 +19,7 @@
  * What a method does when it is called is not read here: each SDK's surface
  * test runs the table's cases (packages/typescript/sdk/src/__tests__/client-surface.test.ts,
  * packages/rust/sdk/tests/surface.rs, packages/python/sdk/tests/test_surface.py,
- * packages/go/sdk/surface_test.go).
+ * packages/go/sdk/surface_test.go, packages/swift/sdk/Tests/SemiontTests/ClientTests.swift).
  *
  * TypeScript's signatures are the interfaces of
  * packages/typescript/sdk/src/namespaces/types.ts; Rust's are the `pub fn`s of each
@@ -1737,7 +1737,8 @@ function swiftDeclarations(code) {
       if (c === ')') paren--;
       if (c === '[') bracket++;
       if (c === ']') bracket--;
-      if (!paren && !bracket && (c === '{' || c === '\n' || c === ';')) break;
+      const continuation = c === '\n' && /^\s*(?:->|async\b|throws\b|rethrows\b|where\b|\{)/.test(code.slice(end + 1));
+      if (!paren && !bracket && (c === '{' || c === '\n' && !continuation || c === ';')) break;
       end++;
     }
     const block = code[end] === '{' ? swiftBlock(code, end) : { body: '', end };
@@ -1818,6 +1819,39 @@ function swiftMakeable(made, declared, maker) {
   const type = swiftTypes().find((t) => t.name === made);
   return type && [type, ...type.extensions].some((t) => swiftDeclarations(t.body).some((d) => d.kind === 'init' && d.access === 'public')) ? undefined : 'Swift declares no public initializer';
 }
+// Formatter-owned line breaks cannot change what a signature means.
+function checkSwiftReader() {
+  const code = swiftCode(`
+    public struct ReaderProbe: Sendable {
+      public func audience(_ callback: @Sendable (String) -> Void) async throws
+        -> Int?
+      { let ignored = "public func forged() -> Cached<Value>" }
+      public func changes()
+        -> Typed<Value>
+      { }
+      private func hidden() { }
+    }
+    public protocol ProtocolProbe {
+      func audience() async throws
+        -> Int?
+      func signal()
+      func load() async throws
+        -> Value
+    }
+  `);
+  const types = swiftDeclarations(code).filter((entry) => ['struct', 'protocol'].includes(entry.kind)).map((entry) => ({ ...entry, file: 'Swift reader probe', extensions: [] }));
+  const expectations = { ReaderProbe: { audience: 'count', changes: 'events' }, ProtocolProbe: { audience: 'count', signal: 'signal', load: 'promise' } };
+  for (const type of types) {
+    const members = swiftMembers(type, types);
+    const wanted = expectations[type.name];
+    if (!wanted || members.size !== Object.keys(wanted).length) fail(`Swift reader probe: wrong members of ${type.name}`);
+    for (const [name, shape] of Object.entries(wanted ?? {})) {
+      if (members.get(name)?.shape !== shape) fail(`Swift reader probe: ${type.name}.${name} is no ${shape}`);
+    }
+  }
+  if (types.length !== Object.keys(expectations).length) fail('Swift reader probe: missing type');
+}
+checkSwiftReader();
 function swiftExports(files) { return files.flatMap((file) => swiftDeclarations(swiftCode(read(file))).filter((d) => ['public', 'open'].includes(d.access)).map((d) => d.name)); }
 
 // ── Each SDK against the table ──────────────────────────────────────────

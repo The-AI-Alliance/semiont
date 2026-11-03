@@ -42,5 +42,42 @@ transport. Dispose that owner before shutting down the HTTP client. The sessionâ
 storage failures. Pass `onError` to hear diagnostics from the start of construction,
 including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
 network renewal keeps the stored sign-in for another attempt. Session token and
-user state are read-only, and their sequences finish on disposal. The client and
+user state are read-only, and their sequences finish on disposal. The remaining client namespaces and
 registry surfaces arrive in later phases.
+
+Annotation readers accept every generated body, target and selector variant.
+`reconcile(text:quoted:)` finds a model's quote and returns the resource's own
+words and context; offsets count Unicode scalars. `annotationOfSpan` takes an
+`OfSpan` whose `Spanned` text is either plain text or a PDF's `AnchoredText`.
+It checks the span before building position/quote selectors or PDF rectangles.
+`annotationOfResource` builds an annotation of the whole resource. Both builders
+derive the same deterministic annotation ID as the other SDKs. Refused spans
+throw `SpanRefusedError` with a generated error code.
+
+Media-type helpers read generated registry rows, including clone formats,
+storage filenames, extension aliases, and whether a format's text is decoded
+or derived. Shared annotation, offset and media-type cases run in the unit suite.
+
+
+`SemiontClient.fromHttp(baseUrl:httpClient:token:)` constructs the HTTP client
+surface. `SemiontClient(transport:gateway:)` takes another `Transport`, with
+`auth` and `system` present only when a `GatewayOperations` is supplied. The
+implemented namespaces are `frame`, `bind`, `beckon`, `auth` and `system`;
+cache-backed reads, streaming operations, delegation and claims follow later.
+Dispose the client before shutting down the caller-owned HTTP client.
+
+`client.wire` sends typed generated `Channels` and `Operations`. `frames` on a
+`ScopedChannel` requires a resource and holds that resource only while the read
+is alive. Breaking, cancellation, completion or disposal releases the hold.
+A `Typed` sequence gives `Heard.delivered` with its original `ReceivedFrame`,
+decoded payload and principal, or `Heard.refused` for a malformed payload. A
+refusal names the missing member when known and leaves later frames readable.
+A second iterator is refused. Channel construction and payload mismatches are
+also checked by the compile-refusal suite.
+
+`client.bus` is the client's own bus: local signals stay local, while received
+wire frames are bridged into it. Every listener starts when asked for and keeps
+every subsequent event. `dispose()` cancels the bridge, disposes the transport
+once and finishes listeners. Custom transports can supply read-only state via
+`Watched(initial, updates:)`, events via `Events`, and scoped release via
+`ResourceHold` without a concurrency escape.
