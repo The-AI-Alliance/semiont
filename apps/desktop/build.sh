@@ -92,7 +92,9 @@ run_logged "$RT" run --rm \
 # directories with other commands running in the checkout.
 git -C "$REPO_ROOT" ls-files --cached --others --exclude-standard -z |
   tar -c -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" --null -T -
-tar -r -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" apps/desktop/.build/launcher/semiont
+if [[ -x "$LAUNCHER_BIN" ]]; then
+  tar -r -f "$SOURCE_ARCHIVE" -C "$REPO_ROOT" apps/desktop/.build/launcher/semiont
+fi
 mkdir -p "$SCRIPT_DIR/release"
 
 if [[ "$TARGET" == "linux" ]]; then
