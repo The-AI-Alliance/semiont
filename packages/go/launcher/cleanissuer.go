@@ -57,10 +57,15 @@ func issuerForClean(u *UI) (stop func(), ok bool) {
 	var ran []string
 	stop = func() {
 		ss := LoadStackSet()
+		var stopped []string
 		for _, name := range slices.Backward(ran) {
-			stopSharedService(u, []string{rt}, name, ss)
+			if stopSharedService(u, []string{rt}, name, ss) {
+				stopped = append(stopped, name)
+			}
 		}
-		u.Ok("Stopped %s, which this clean ran for the delete.", strings.Join(slices.Sorted(slices.Values(ran)), " and "))
+		if len(stopped) > 0 {
+			u.Ok("Stopped %s, which this clean ran for the delete.", strings.Join(slices.Sorted(slices.Values(stopped)), " and "))
+		}
 	}
 	if store.Presence == presenceLauncher {
 		code, restarted := runIssuerStore(x, fc, addr, false)
