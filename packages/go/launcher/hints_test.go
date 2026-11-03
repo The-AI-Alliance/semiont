@@ -75,8 +75,6 @@ func TestAnUnreachableStoreNamesTheVariableToSet(t *testing.T) {
 	}{
 		{"the token-signing key", func() bool { _, ok := loadOrCreateJWTSecret(u, key); return ok },
 			"Or export one yourself:  " + setVarHint(system, "JWT_SECRET", inlineRandomHex(system, 32))},
-		{"Keycloak's admin password", func() bool { _, ok := loadOrCreateKeycloakAdminPassword(u, key); return ok },
-			"Or export one yourself:  " + setVarHint(system, "KC_BOOTSTRAP_ADMIN_PASSWORD", inlineRandomHex(system, 16))},
 	} {
 		var ok bool
 		stderr := captureStderr(t, func() { ok = c.ask() })

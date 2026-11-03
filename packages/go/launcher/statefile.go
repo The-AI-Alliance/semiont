@@ -58,7 +58,12 @@ type ServiceState struct {
 	// Cache: Ollama's record only — the model cache it mounts, a named volume
 	// or a host directory, which with its image, port and runtime decides
 	// whether a start keeps it.
-	Cache     string    `json:"cache,omitempty"`
+	Cache string `json:"cache,omitempty"`
+	// Env: the shared Keycloak's record only — the settings it was run with
+	// that a start decides, its database and its hostname (issuerServerEnv),
+	// which with its image, endpoint and memory decide whether a start keeps
+	// it.
+	Env       []string  `json:"env,omitempty"`
 	StartedAt time.Time `json:"startedAt"`
 }
 
@@ -70,12 +75,10 @@ type StackState struct {
 	Config    string    `json:"config,omitempty"`
 	HostAddr  string    `json:"hostAddr,omitempty"`
 	// LanAddr: this Mac's address on the network, when the stack was started
-	// `network lan`; IssuerProxy the filtering proxy that serves the issuer
-	// there (issuerproxy.go). Both empty for a `local` stack.
-	LanAddr     string             `json:"lanAddr,omitempty"`
-	IssuerProxy *issuerProxyRecord `json:"issuerProxy,omitempty"`
-	Stage       string             `json:"configStage,omitempty"`
-	Ports       []int              `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
+	// `network lan`; empty for a `local` stack.
+	LanAddr string `json:"lanAddr,omitempty"`
+	Stage   string `json:"configStage,omitempty"`
+	Ports   []int  `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
 	// Codespace: the placement facts a stack on a codespace has and a local
 	// one cannot. Its PRESENCE is the platform — there is no separate
 	// platform field to keep in sync with it, and no local stack carrying
@@ -99,12 +102,13 @@ type codespacePlacement struct {
 }
 
 // issuerProxyRecord: the detached issuer proxy, and the arguments it was
-// started with, so status can start it again as it was.
+// started with, so status can start it again as it was: the realms it
+// passes, sorted, one for each recorded stack the shared issuer serves.
 type issuerProxyRecord struct {
-	PID      int    `json:"pid"`
-	Listen   string `json:"listen"`
-	Upstream string `json:"upstream"`
-	Realm    string `json:"realm"`
+	PID      int      `json:"pid"`
+	Listen   string   `json:"listen"`
+	Upstream string   `json:"upstream"`
+	Realms   []string `json:"realms"`
 }
 
 // exposure: where this stack was published, as its record says.
@@ -144,12 +148,17 @@ type StackSet struct {
 	Launcher  string                 `json:"launcherVersion"`
 	Stacks    map[string]*StackState `json:"stacks"`
 	// Shared: the containers the launcher runs for every knowledge base here rather than
-	// for one stack, by container name: the Browser, the shared Ollama,
-	// and the telemetry (the collector, Jaeger and Prometheus). Each serves
-	// every KB here, a start keeps a current one, and only a bare stop or a
-	// stop of its own role stops it. A host Ollama is the host's, and has no
+	// for one stack, by container name: the worker, the issuer (Keycloak and
+	// its PostgreSQL), the Browser, the shared Ollama, and the telemetry (the
+	// collector, Jaeger and Prometheus). Each serves every KB here, a start
+	// keeps a current one, and only the last stack's stop or a stop of its
+	// own role or group stops it. A host Ollama is the host's, and has no
 	// record.
 	Shared map[string]*ServiceState `json:"shared,omitempty"`
+	// IssuerProxy: the filtering proxy that serves the shared issuer to the
+	// network under `network lan` (issuerproxy.go), beside the Keycloak it
+	// fronts; nil when none runs.
+	IssuerProxy *issuerProxyRecord `json:"issuerProxy,omitempty"`
 	// unreadable: why the file on disk could not be understood, nil when it
 	// was (an ABSENT file included — no record is a clean, expected state).
 	//
@@ -361,6 +370,16 @@ func saveShared(e *ServiceState) {
 	})
 }
 
+// saveIssuerProxy records the issuer proxy that runs, or, nil, that none
+// does.
+func saveIssuerProxy(p *issuerProxyRecord) {
+	exclusively(statePath(), func() {
+		ss := LoadStackSet()
+		ss.IssuerProxy = p
+		saveStackSet(ss)
+	})
+}
+
 // forgetShared forgets the shared container name: stopped, or (Ollama)
 // replaced by a host install.
 func forgetShared(name string) {
@@ -372,6 +391,12 @@ func forgetShared(name string) {
 		delete(ss.Shared, name)
 		saveStackSet(ss)
 	})
+}
+
+// signsInAtSharedIssuer: whether the stack's knowledge base signs in at the
+// shared issuer, as its start recorded it.
+func (st *StackState) signsInAtSharedIssuer() bool {
+	return st.Services["identity"].Provided == providedShared
 }
 
 // recordService updates one service's entry and saves. provided says who

@@ -15,7 +15,8 @@ import (
 // stub cannot tell us is whether Keycloak takes keycloakRealmJSON whole through
 // POST /admin/realms — the clients and their mappers, the realm roles, the
 // worker's key and the declarative user profile — and whether the realm it
-// makes is one the start's own preflight admits.
+// makes is one the start's own preflight admits, and whether the clean's
+// delete removes it.
 //
 // CI's "Launcher Tests (Go, Keycloak)" job runs it beside TestIdentitySyncLive,
 // and fails if it skips. Run it as that test's comment says.
@@ -100,5 +101,17 @@ func TestStartCreatesTheRealmLive(t *testing.T) {
 	}
 	if created {
 		t.Fatal("a held realm was created again")
+	}
+
+	// 5. A clean deletes it as the admin, and deleting one Keycloak holds no
+	//    longer is no failure.
+	if err := deleteRealm(base, realm, pw); err != nil {
+		t.Fatalf("deleting the realm: %v", err)
+	}
+	if held, err := realmHeld(base, realm); err != nil || held {
+		t.Fatalf("after its delete Keycloak holds the realm: %v (%v)", held, err)
+	}
+	if err := deleteRealm(base, realm, pw); err != nil {
+		t.Fatalf("deleting a realm Keycloak no longer holds: %v", err)
 	}
 }

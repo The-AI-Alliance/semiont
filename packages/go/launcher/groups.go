@@ -21,10 +21,10 @@ type serviceGroup struct {
 func (g serviceGroup) shared() bool { return slices.ContainsFunc(g.roles, sharedRole) }
 
 // serviceGroups: every role, each in one group. A knowledge base is its
-// record and its index, with the issuer whose accounts sign in to it while
-// each runs a Keycloak of its own. The knowledge workers are where people
-// and agents work on it. The providers serve every knowledge base its
-// models, and the telemetry watches them all.
+// record and its index. The issuer signs every knowledge base's accounts in,
+// each in a realm of its own. The knowledge workers are where people and
+// agents work on it. The providers serve every knowledge base its models, and
+// the telemetry watches them all.
 var serviceGroups = []serviceGroup{
 	{"record", []string{"gateway", "archivist", "dispatcher", "messaging"}},
 	{"index", []string{"librarian", "smelter", "weaver", "graph", "vectors"}},

@@ -35,12 +35,12 @@ For a new one, `semiont init` creates a knowledge base in the current directory 
 |---|---|---|
 | `record` | `gateway`, `archivist`, `dispatcher` and `messaging` (NATS) | each knowledge base's own |
 | `index` | `librarian`, `smelter`, `weaver`, `graph` (Neo4j) and `vectors` (Qdrant) | each knowledge base's own |
-| `issuer` | `identity` (Keycloak) and `identity-store` (its PostgreSQL), where people sign in | each knowledge base's own |
+| `issuer` | `identity` (Keycloak) and `identity-store` (its PostgreSQL), where people sign in, each knowledge base in a realm of its own | shared |
 | `knowledge-workers` | `browser`, where people work, and `worker`, which runs agents' jobs | shared |
 | `providers` | `inference` and `embedding`: Ollama, or a hosted provider's API | shared |
 | `telemetry` | `collector` (OpenTelemetry), `traces` (Jaeger) and `metrics` (Prometheus) | shared |
 
-A knowledge base is everything behind its gateway: its record, its index and its issuer, which it runs for itself. `status` shows each knowledge base with those three, then each shared group once. A shared service serves every knowledge base here, whichever start ran it: a start keeps a running one that is current, and `semiont stop` stops the shared services with the last knowledge base. Where a service runs (a container runtime, a codespace, a host process, somebody else's address) is a column of its row, not a section.
+A knowledge base is everything behind its gateway: its record and its index, which it runs for itself, and its realm at the issuer. `status` shows each knowledge base with its record, its index and its realm, then each shared group once. A shared service serves every knowledge base here, whichever start ran it: a start keeps a running one that is current, and `semiont stop` stops the shared services with the last knowledge base. Where a service runs (a container runtime, a codespace, a host process, somebody else's address) is a column of its row, not a section.
 
 ## Choose a config
 
@@ -89,17 +89,16 @@ A knowledge base running here, and the services it shares, publish these for you
 |---|---|
 | 3000 | The Browser, as its document names it ([The Browser](#the-browser)) |
 | 4000 | The gateway: the knowledge base's address, as its `knowledge-base.yaml` commits it |
-| 8080 | Keycloak, where people sign in |
+| 8080 | Keycloak, where people sign in, shared: one serves every knowledge base here, each in a realm of its own |
 | 7474, 7687 | Neo4j's console and its bolt port |
 | 16686, 9090 | Jaeger and Prometheus ([Observability](administration/OBSERVABILITY.md)), shared: one each serves every knowledge base here |
 
 The services' own ports and the infrastructure's are in [the service catalog](services/OVERVIEW.md). `semiont start` checks that every port it needs is free before it starts anything.
 
-Each knowledge base on this Mac has a port block of its own. Its first start takes the lowest block no other knowledge base keeps, and it keeps that block until `semiont forget` drops it. Block 0 is the ports above and in the catalog. Block 1 places each of them 10 higher, block 2 20 higher, and so on: on block 1, Keycloak is at 8090, Neo4j at 7484 and 7697, PostgreSQL at 5442, NATS at 4232, Qdrant at 6343, and the services behind the gateway at 24111–24115. Each container still listens on its own port inside; only where it is published moves. Three ports are not in the block:
+Each knowledge base on this Mac has a port block of its own. Its first start takes the lowest block no other knowledge base keeps, and it keeps that block until `semiont forget` drops it. Block 0 is the ports above and in the catalog. Block 1 places each of them 10 higher, block 2 20 higher, and so on: on block 1, Neo4j is at 7484 and 7697, NATS at 4232, Qdrant at 6343, and the services behind the gateway at 24111–24115. Each container still listens on its own port inside; only where it is published moves. Two kinds of port are not in the block:
 
 - **The gateway's** is the one the knowledge base commits. `semiont init` writes one no other knowledge base this Mac knows commits: 4000, else 4010, 4020, and so on.
-- **Keycloak's** is the one `semiont settings keycloak-port` sets, if it has been set, and otherwise 8080 on the block.
-- **The shared services** keep their own ports whichever knowledge base runs: the Browser, the worker, Ollama and the telemetry.
+- **The shared services** keep their own ports whichever knowledge base runs: the Browser, the worker, Ollama, the telemetry, and the issuer. Keycloak and its PostgreSQL are where the issuer's document places them, 8080 and 5432 unless it says otherwise; `semiont settings keycloak-port` moves Keycloak ([The issuer's document](administration/CONFIGURATION.md#the-issuers-document)).
 
 Each start says where it publishes each service as it comes up.
 
@@ -115,7 +114,7 @@ Where each port listens depends on the container runtime:
 By default a stack under Apple `container` answers this Mac alone. `semiont settings network lan` lets the network reach two things more, from the next start on, and `semiont settings network local` returns it to the default:
 
 - **The gateway**, on port 4000 at this Mac's address on the network.
-- **The issuer**, at `http://<this Mac's address>:8080/realms/<the knowledge base's realm>`. The issuer moves there for everyone, this Mac and the containers included, because a token names one issuer. A proxy the launcher runs answers at that address and passes the realm's sign-in pages and nothing else: Keycloak's admin console, its admin API and its master realm stay on the bridge address. `semiont stop` ends the proxy, and `semiont status` starts it again if it has died.
+- **The issuer**, at `http://<this Mac's address>:8080/realms/<the knowledge base's realm>`. The issuer moves there for everyone, this Mac and the containers included, because a token names one issuer. Every knowledge base here signs in at the one Keycloak, so a start that would move it while another knowledge base runs is refused: stop the others first. A proxy the launcher runs answers at that address and passes the sign-in pages of the realms of the knowledge bases running here and nothing else: Keycloak's admin console, its admin API and its master realm stay on the bridge address. The last knowledge base's `semiont stop` ends the proxy, and `semiont status` starts it again if it has died.
 
 The address is read afresh at every start. When it changes, so does the issuer every token names, and people sign in again.
 

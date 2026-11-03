@@ -92,13 +92,15 @@ func TestAStartKeepsTheBlockItPlannedOnUnlessAnotherRootKeptIt(t *testing.T) {
 // Block 1 places every port the launcher chooses for the stack ten above
 // block 0's — the daemons it runs, Neo4j's Browser, the services behind the
 // gateway, and the containers' side of a port a person dials too — and
-// leaves the gateway's, the Keycloak's and the shared ones' where they are.
+// leaves the gateway's and the shared ones' where they are: the issuer and its
+// PostgreSQL on their document's ports, and Ollama on its own.
 func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
-	plan, err := derivePlan(fixtureStack(t, "ollama-gemma"), fixtureKB(t).key(), 8090, 1)
+	st := fixtureStack(t, "ollama-gemma")
+	plan, err := derivePlan(st, issuerFor(t, st), fixtureKB(t).key(), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for role, want := range map[string]int{"graph": 7697, "vectors": 6343, "identity-store": 5442, "messaging": 4232, "identity": 8090, "inference": 11434} {
+	for role, want := range map[string]int{"graph": 7697, "vectors": 6343, "identity-store": 5432, "messaging": 4232, "identity": 8080, "inference": 11434} {
 		if got := plan.Roles[role].Port; got != want {
 			t.Errorf("%s is published at %d, want %d", role, got, want)
 		}
@@ -112,7 +114,7 @@ func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 		}
 	}
 	claimed := portNumbers(planPortChecks(plan, appleContainer))
-	for _, want := range []int{7484, 7697, 17697, 6343, 5442, 4232, 8090, 4000, 14000, 24111, 24112, 24113, 24114, 24115} {
+	for _, want := range []int{7484, 7697, 17697, 6343, 4232, 4000, 14000, 24111, 24112, 24113, 24114, 24115} {
 		if !slices.Contains(claimed, want) {
 			t.Errorf("a start on block 1 does not claim %d; it claims %v", want, claimed)
 		}
@@ -145,7 +147,7 @@ func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 func TestABlockLeavesAnExternalDaemonWhereItsDocumentSays(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.Graph.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.example.org:7687"}
-	plan, err := derivePlan(st, fixtureKB(t).key(), 8090, 1)
+	plan, err := derivePlan(st, issuerFor(t, st), fixtureKB(t).key(), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,19 +156,6 @@ func TestABlockLeavesAnExternalDaemonWhereItsDocumentSays(t *testing.T) {
 	}
 	if got := plan.hostPort("graph", 7474); got != 7474 {
 		t.Errorf("an external graph's Browser is asked at %d, which no block of this machine's moves", got)
-	}
-}
-
-// Without KEYCLOAK_PORT or a port the root keeps, its Keycloak is Keycloak's
-// default on the root's block.
-func TestKeycloakIsOnItsKnowledgeBasesBlock(t *testing.T) {
-	harness.Home(t)
-	root := t.TempDir()
-	keepBlocks(t, []string{root}, map[string]int{root: 2})
-	t.Setenv("KEYCLOAK_PORT", "")
-	port, source, fromEnv, ok := keycloakPort(&UI{}, root)
-	if !ok || fromEnv || port != 8100 || source != "port block 2" {
-		t.Errorf("keycloakPort = %d (%q, from the environment %v, ok %v), want 8100 on port block 2", port, source, fromEnv, ok)
 	}
 }
 

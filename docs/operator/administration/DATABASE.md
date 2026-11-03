@@ -12,21 +12,20 @@ none, and there is no ORM, no migration step and no schema of ours to evolve.
 
 ## Overview
 
-- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine`, pinned by its digest, as `semiont init` names it in the Issuer document)
+- **Engine**: PostgreSQL 15 (`postgres:15.18-alpine`, pinned by its digest, as the launcher writes it in the issuer's document)
 - **Owner**: Keycloak. It creates and migrates its own schema on first boot.
 - **Semiont's schema**: none
-- **Why it is here at all**: the Issuer document, which describes the Keycloak the launcher runs,
-  names a PostgreSQL in its `spec.database`, because Keycloak needs somewhere to keep accounts,
-  realms and sessions.
+- **Why it is here at all**: the issuer's document, which describes the Keycloak the launcher runs
+  for every knowledge base here, names a PostgreSQL in its `spec.database`, because Keycloak needs
+  somewhere to keep accounts, realms and sessions.
 
-In a launcher-managed stack, PostgreSQL runs as the `semiont-<kb>-postgres` container, where `<kb>`
-is the knowledge base's did:web domain made safe for a name
-([the launcher's names](../services/OVERVIEW.md#the-launchers-names)), and Keycloak reaches it over
-the stack network. Keycloak keeps its realm in the database `spec.database.name`
-names, `keycloak` as `semiont init` writes it. The launcher creates that database when it runs
-PostgreSQL itself; against an external PostgreSQL it must already exist, and the launcher says so at
-start. Renaming it on a store that already holds a realm points Keycloak at an empty database: its
-accounts stay in the old one.
+One PostgreSQL serves every knowledge base on the machine, as one Keycloak does: the
+`semiont-postgres` container, with its data under `shared/postgres` in the launcher's data home
+([the launcher's names](../services/OVERVIEW.md#the-launchers-names)). Keycloak keeps every knowledge
+base's realm in the database `spec.database.name` names, `keycloak` as the launcher writes it. The
+launcher creates that database when it runs PostgreSQL itself; against an external PostgreSQL it must
+already exist, and the launcher says so at start. Renaming it on a store that already holds realms
+points Keycloak at an empty database: their accounts stay in the old one.
 
 ## Where accounts live
 
@@ -38,15 +37,22 @@ row of its own. What follows from that:
 - **Revocation is disabling at the issuer**, bounded by the access token lifetime. See
   [Authentication](./AUTHENTICATION.md).
 - **There is nothing of Semiont's to back up here.** Losing this database loses Keycloak's accounts
-  and realm configuration. It loses no knowledge, and no Semiont state.
+  and every knowledge base's realm. It loses no knowledge, and no Semiont state.
+- **One knowledge base's accounts go with its realm.** `semiont clean --store identity-store`
+  deletes that knowledge base's realm from Keycloak, and leaves the database and every other realm
+  in it. With no Keycloak running, the clean runs one for the delete and stops it again.
+- **Every account goes with the database.** `semiont clean --shared --store identity-store`
+  removes `shared/postgres`, and every realm in it. It is refused while a knowledge base here runs,
+  or while the issuer does (`semiont stop --group issuer`). The issuer's passwords stay, so its
+  next boot reuses them, and each knowledge base's next start creates its realm afresh.
 
 ## Backup and recovery
 
 Keycloak's database is the thing worth dumping, because it holds the accounts people sign in with:
 
 ```bash
-container exec semiont-<kb>-postgres pg_dump -U postgres keycloak > keycloak-$(date +%Y%m%d).sql
-container exec -i semiont-<kb>-postgres psql -U postgres keycloak < keycloak-20260101.sql
+container exec semiont-postgres pg_dump -U postgres keycloak > keycloak-$(date +%Y%m%d).sql
+container exec -i semiont-postgres psql -U postgres keycloak < keycloak-20260101.sql
 ```
 
 Restoring it restores who can sign in. It restores nothing else, because nothing else is in there.
@@ -57,7 +63,7 @@ The gateway's `GET /api/health` reports on no database; it has none. Check Postg
 and check the identity service for whether Keycloak is actually using it:
 
 ```bash
-container exec semiont-<kb>-postgres pg_isready -U postgres
+container exec semiont-postgres pg_isready -U postgres
 semiont logs --service identity-store
 semiont logs --service identity
 ```
@@ -65,7 +71,7 @@ semiont logs --service identity
 For query-level inspection:
 
 ```bash
-container exec semiont-<kb>-postgres psql -U postgres keycloak \
+container exec semiont-postgres psql -U postgres keycloak \
   -c "SELECT pid, state, now() - query_start AS duration, query FROM pg_stat_activity WHERE state = 'active';"
 ```
 
@@ -86,8 +92,8 @@ somebody else runs, where the database `spec.database.name` names was never crea
 ### Connection refused or timeouts
 
 ```bash
-container ps --all | grep semiont-<kb>-postgres
-container exec semiont-<kb>-postgres pg_isready -U postgres
+container ps --all | grep semiont-postgres
+container exec semiont-postgres pg_isready -U postgres
 ```
 
 ### The gateway is healthy but nobody can sign in
@@ -109,4 +115,4 @@ report itself healthy whatever state the database is in. Start at
 
 - [Container Topology](../CONTAINER-TOPOLOGY.md) — where PostgreSQL sits among the containers
 - [Authentication](./AUTHENTICATION.md) — how identity works without a Semiont user table
-- [Configuration](./CONFIGURATION.md#the-issuer) — the Issuer document and its `spec.database`
+- [Configuration](./CONFIGURATION.md#the-issuers-document) — the issuer's document and its `spec.database`

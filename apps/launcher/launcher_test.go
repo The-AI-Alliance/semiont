@@ -155,7 +155,7 @@ func shimDir(t *testing.T, runtimes ...string) string {
 // .semiont — its project file and its stack's documents.
 var fixtureDocuments = []string{
 	"config.yaml",
-	"stack/knowledge-base.yaml", "stack/index.yaml", "stack/issuer.yaml",
+	"stack/knowledge-base.yaml", "stack/index.yaml",
 	"stack/inference/anthropic.yaml", "stack/inference/ollama-gemma.yaml",
 }
 
@@ -1120,7 +1120,8 @@ func TestStartNetworkLANBoot(t *testing.T) {
 	}
 }
 
-// recordedIssuerProxyPID: the issuer proxy s's local stack record names, or 0.
+// recordedIssuerProxyPID: the issuer proxy s's record names, beside the
+// shared Keycloak it fronts, or 0.
 func recordedIssuerProxyPID(t *testing.T, s *scenario) int {
 	t.Helper()
 	b, err := os.ReadFile(statePathFor(s.home))
@@ -1128,56 +1129,59 @@ func recordedIssuerProxyPID(t *testing.T, s *scenario) int {
 		return 0
 	}
 	var doc struct {
-		Stacks map[string]struct {
-			IssuerProxy *struct {
-				PID int `json:"pid"`
-			} `json:"issuerProxy"`
-		} `json:"stacks"`
+		IssuerProxy *struct {
+			PID int `json:"pid"`
+		} `json:"issuerProxy"`
 	}
-	if json.Unmarshal(b, &doc) != nil || doc.Stacks[localKey].IssuerProxy == nil {
+	if json.Unmarshal(b, &doc) != nil || doc.IssuerProxy == nil {
 		return 0
 	}
-	return doc.Stacks[localKey].IssuerProxy.PID
+	return doc.IssuerProxy.PID
 }
 
-// The issuer's port is the launcher's to place, like its host — one Keycloak
-// port per KB, the same number on both ends, so a laptop can hold a forward
-// per codespace KB. KEYCLOAK_PORT follows the launcher's env shape: the
-// environment wins, the root records it, and 8080 is the default. The
-// codespace's post-start runs a bare start on every resume, which is why the
-// port a laptop moved it to must stick. The port reaches each service as part
-// of the issuer its staged config states.
-func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
+// The issuer's port is its document's, like the rest of the issuer: one
+// Keycloak for every knowledge base here, on 8080 unless `semiont settings
+// keycloak-port` writes another into the document. A codespace's post-start
+// runs a bare start on every resume, which is why the port a laptop moved it
+// to is written down rather than passed. The port reaches each service as
+// part of the issuer its staged config states, never through its environment.
+func TestKeycloakPortIsTheIssuerDocuments(t *testing.T) {
 	s := newScenario(t, "container")
-	keycloakRun := func(t *testing.T, argv string) string {
-		t.Helper()
+	keycloakRun := func(argv string) string {
 		for _, line := range strings.Split(argv, "\n") {
-			if strings.Contains(line, "run -d --name semiont-example.github.io-test-kb-keycloak") {
+			if strings.Contains(line, "run -d --name semiont-keycloak ") {
 				return line
 			}
 		}
-		t.Fatalf("no Keycloak run in:\n%s", argv)
 		return ""
 	}
-	base := s.extraEnv
 	for _, step := range []struct {
-		name string
-		env  []string
-		want string
+		name, setting, want string
+		runs                bool
 	}{
-		{"default", nil, "8080"},
-		{"environment wins", []string{"KEYCLOAK_PORT=8081"}, "8081"},
-		{"recorded for the next bare start", nil, "8081"},
+		{"default", "", "8080", true},
+		{"the document's port", "8081", "8081", true},
+		{"kept for the next bare start", "", "8081", false},
 	} {
-		s.extraEnv = append(append([]string{}, base...), step.env...)
+		if step.setting != "" {
+			if _, stderr, code := s.run(t, "settings", "keycloak-port", step.setting); code != 0 {
+				t.Fatalf("%s: settings keycloak-port %s: exit %d\n%s", step.name, step.setting, code, stderr)
+			}
+		}
+		if !step.runs {
+			issuerRunsAsRecorded(t, s)
+		}
 		before := len(s.argv(t))
 		stdout, stderr, code := s.run(t, "start")
 		if code != 0 {
 			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", step.name, code, stdout, stderr)
 		}
 		argv := s.argv(t)[before:]
-		if run := keycloakRun(t, argv); !strings.Contains(run, "-p 192.168.64.1:"+step.want+":8080") {
-			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
+		switch run := keycloakRun(argv); {
+		case step.runs && !strings.Contains(run, "-p 192.168.64.1:"+step.want+":8080"):
+			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, argv)
+		case !step.runs && run != "":
+			t.Errorf("%s: Keycloak was run again, though it runs as this start would run it:\n%s", step.name, run)
 		}
 		issuer := "http://192.168.64.1:" + step.want + "/realms/" + testKBKey
 		for _, staged := range []string{"smelter.json", "weaver.json", "librarian.json", "archivist.json", "gateway.json", "dispatcher.json"} {
@@ -1192,11 +1196,11 @@ func TestKeycloakPortIsPlacedAndSticky(t *testing.T) {
 			t.Errorf("%s: a container is told of the issuer through its environment:\n%s", step.name, argv)
 		}
 	}
-	roots, err := os.ReadFile(filepath.Join(filepath.Dir(statePathFor(s.home)), "roots.json"))
+	doc, err := os.ReadFile(sharedDocumentFor(s.home, "issuer.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustContain(t, "roots.json", string(roots), `"keycloakPort": 8081`)
+	mustContain(t, "issuer.yaml", string(doc), "port: 8081")
 }
 
 // Under Docker and Podman the issuer is named keycloak.localhost, whatever the
@@ -1267,7 +1271,7 @@ func TestKeycloakRunsInProductionModeAtTheIssuerTheServicesTrust(t *testing.T) {
 			}
 			var keycloak []string
 			for _, line := range strings.Split(s.argv(t), "\n") {
-				if strings.Contains(line, " run ") && strings.Contains(line, "--name semiont-example.github.io-test-kb-keycloak ") {
+				if strings.Contains(line, " run ") && strings.Contains(line, "--name "+containerOf("keycloak")+" ") {
 					keycloak = strings.Fields(line)
 				}
 			}
@@ -1985,7 +1989,7 @@ func TestStartDryRunServiceMetrics(t *testing.T) {
 // Keycloak connects to it.
 func TestStartKeepsTheRealmInTheDatabaseTheIssuerNames(t *testing.T) {
 	s := newScenario(t, "container")
-	editDocument(t, s, "issuer.yaml", "name: keycloak", "name: iam")
+	editSharedDocument(t, s, "issuer", "issuer.yaml", "name: keycloak", "name: iam")
 	stdout, stderr, code := s.run(t, "start", "--dry-run")
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
@@ -2038,7 +2042,13 @@ func stateHomeFor(home string) string {
 // workerListFor: where the knowledge bases the shared worker serves are
 // kept, beside its key.
 func workerListFor(home string) string {
-	return filepath.Join(dataHomeFor(home), "shared", "worker-knowledge-bases.json")
+	return filepath.Join(sharedStateFor(home), "worker-knowledge-bases.json")
+}
+
+// sharedStateFor: what the scenario's home keeps for every knowledge base:
+// the worker's key, and the shared issuer's passwords and store.
+func sharedStateFor(home string) string {
+	return filepath.Join(dataHomeFor(home), "shared")
 }
 
 func dataHomeFor(home string) string {
@@ -2072,13 +2082,39 @@ func (s *scenario) localRecord(runtime, rest string) string {
 }
 
 // containerOf: the container that runs product for the test KB — the
-// machine's own for the worker and the Browser, which serve every KB, and one
-// named for the KB otherwise.
+// machine's own for the worker, the Browser and the issuer, which serve every
+// KB, and one named for the KB otherwise.
 func containerOf(product string) string {
-	if product == "worker" || product == "browser" {
+	if slices.Contains([]string{"worker", "browser", "keycloak", "postgres"}, product) {
 		return "semiont-" + product
 	}
 	return "semiont-" + testKBKey + "-" + product
+}
+
+// issuerRunsAsRecorded scripts the shared issuer's containers as running, on
+// the images their records name, as the next start finds them when nothing
+// stopped them.
+func issuerRunsAsRecorded(t *testing.T, s *scenario) {
+	t.Helper()
+	recorded := readSharedRecords(t, s).Shared
+	for _, product := range []string{"postgres", "keycloak"} {
+		rec := recorded["semiont-"+product]
+		if rec == nil {
+			t.Fatalf("no shared record of semiont-%s", product)
+		}
+		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+product+"=running", "FAKERT_IMAGE_"+product+"="+rec.Image)
+	}
+}
+
+// realmOf: the realm the fake shared Keycloak holds for the knowledge base
+// keyed key, as its admin API created it; the test fails when it holds none.
+func realmOf(t *testing.T, s *scenario, key string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+"-"+key+".json"))
+	if err != nil {
+		t.Fatalf("the shared Keycloak holds no realm %s: %v", key, err)
+	}
+	return string(b)
 }
 
 // elsewhereRecord: stack.json's entry for another KB's local stack, run from
@@ -2109,14 +2145,14 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	if stdout, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("the second knowledge base's start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	realm, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-semiont-example.github.io-other-kb-keycloak.json"))
-	if err != nil {
-		t.Fatalf("the realm the second start created: %v", err)
-	}
-	mustContain(t, "the second start's realm", string(realm), semiont.KbResource("example.github.io:other-kb"))
-	if strings.Contains(string(realm), semiont.KbResource("example.github.io:test-kb")) {
+	realm := realmOf(t, s, "example.github.io-other-kb")
+	mustContain(t, "the second start's realm", realm, semiont.KbResource("example.github.io:other-kb"))
+	if strings.Contains(realm, semiont.KbResource("example.github.io:test-kb")) {
 		t.Errorf("the second knowledge base's realm names the first's audience:\n%s", realm)
 	}
+	// The first's realm is held beside it, in the database every realm here
+	// is kept in.
+	mustContain(t, "the first start's realm", realmOf(t, s, testKBKey), semiont.KbResource("example.github.io:test-kb"))
 
 	for _, key := range []string{testKBKey, "example.github.io-other-kb"} {
 		if _, err := os.Stat(stateRootFor(s.home, key)); err != nil {
@@ -2125,6 +2161,59 @@ func TestTwoKnowledgeBasesStartInTurn(t *testing.T) {
 	}
 	roots, _, _ := s.run(t, "roots")
 	mustContain(t, "roots", roots, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
+}
+
+// One Keycloak serves every knowledge base here. A second knowledge base's
+// start beside the first's keeps it and its PostgreSQL running as they are,
+// and creates its own realm in it beside the first's. A stop of either but
+// the last leaves them up; the last stack's stop stops them.
+func TestTwoKnowledgeBasesShareOneIssuer(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the first knowledge base's start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	issuerRunsAsRecorded(t, s)
+	issuer := readSharedRecords(t, s).Shared["semiont-keycloak"].ID
+
+	s.kb = other
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("the second knowledge base's start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh := strings.TrimPrefix(s.argv(t), before)
+	mustNotContain(t, "the second start", fresh, "--name semiont-keycloak", "--name semiont-postgres", "stop semiont-keycloak", "stop semiont-postgres")
+	mustContain(t, "the second start", stdout, "identity-store — PostgreSQL already running", "identity — Keycloak already running",
+		"realm example.github.io-other-kb at http://192.168.64.1:8080/realms/example.github.io-other-kb")
+	if got := readSharedRecords(t, s).Shared["semiont-keycloak"].ID; got != issuer {
+		t.Errorf("the second start replaced the shared Keycloak's record: %s, was %s", got, issuer)
+	}
+	realmOf(t, s, "example.github.io-other-kb")
+	realmOf(t, s, testKBKey)
+	mustContain(t, "the second start's gateway.json", stagedFile(t, s, "gateway.json"), "http://192.168.64.1:8080/realms/example.github.io-other-kb")
+
+	stopOf := func(kb, label string) []string {
+		t.Helper()
+		s.kb = kb
+		before := s.argv(t)
+		if _, stderr, code := s.run(t, "stop"); code != 0 {
+			t.Fatalf("%s: exit %d\nstderr:\n%s", label, code, stderr)
+		}
+		return argvStops(strings.TrimPrefix(s.argv(t), before))
+	}
+	if got := stopOf(first, "the first knowledge base's stop"); slices.Contains(got, "semiont-keycloak") || slices.Contains(got, "semiont-postgres") {
+		t.Errorf("a stop beside another stack stopped the issuer: %q", got)
+	}
+	if readSharedRecords(t, s).Shared["semiont-keycloak"] == nil {
+		t.Error("a stop beside another stack forgot the shared Keycloak")
+	}
+	if got := stopOf(other, "the last stack's stop"); !slices.Contains(got, "semiont-keycloak") || !slices.Contains(got, "semiont-postgres") {
+		t.Errorf("the last stack's stop left the issuer running: %q", got)
+	}
 }
 
 // A start creates the knowledge base's realm when its Keycloak holds none, and
@@ -2136,14 +2225,11 @@ func TestAStartCreatesTheRealmOnceAndLeavesItThereafter(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("the first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	doc, err := os.ReadFile(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+".json"))
-	if err != nil {
-		t.Fatalf("the realm the first start created: %v", err)
-	}
+	doc := realmOf(t, s, testKBKey)
 	var created struct {
 		Realm string `json:"realm"`
 	}
-	if err := json.Unmarshal(doc, &created); err != nil || created.Realm == "" {
+	if err := json.Unmarshal([]byte(doc), &created); err != nil || created.Realm == "" {
 		t.Fatalf("the realm the first start created names no realm (%v):\n%s", err, doc)
 	}
 	mustContain(t, "the first start", stdout+stderr, "Realm "+created.Realm+": created")
@@ -2414,7 +2500,8 @@ func TestStatusAsksARecordedStackOnlyWhereItsRecordSays(t *testing.T) {
 // Each knowledge base's stack is published on a port block of its own, taken
 // at its first start and kept: block k places each port the launcher chooses
 // at its block-0 port + 10k, and every document the start stages names the
-// block's ports. Each container listens where it always does. A dry run plans
+// block's ports. The shared issuer is on no block: its document places it,
+// for every knowledge base here. Each container listens where it always does. A dry run plans
 // on the block a start would take and keeps none; a re-run keeps its block;
 // `semiont forget` frees one, and the next knowledge base's first start takes
 // it. `semiont init` writes a gateway port no known knowledge base commits.
@@ -2465,7 +2552,7 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 		return "none"
 	}
 
-	if got := startOf("the first knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:5432:5432") {
+	if got := startOf("the first knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:4222:4222") {
 		t.Errorf("the first knowledge base's start is not on block 0:\n%s", got)
 	}
 	run("stop", "stop")
@@ -2478,22 +2565,24 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	s.kb = other
 	run("register the second knowledge base", "settings", "config", "ollama-gemma")
 	plan := run("the second knowledge base's dry run", "start", "--dry-run")
-	mustContain(t, "the second knowledge base's dry run", plan, "-p <host-addr>:5442:5432")
+	mustContain(t, "the second knowledge base's dry run", plan, "-p <host-addr>:4232:4222")
 	if got := blockOf(other); got != "none" {
 		t.Errorf("a dry run kept port block %s for the second knowledge base", got)
 	}
+	// The issuer, stopped with the last stack, runs again where its
+	// document places it: on no block.
 	second := startOf("the second knowledge base's start")
 	mustContain(t, "the second knowledge base's start", second,
-		"-p 192.168.64.1:5442:5432", "-p 192.168.64.1:4232:4222", "-p 192.168.64.1:6343:6333",
+		"-p 192.168.64.1:4232:4222", "-p 192.168.64.1:6343:6333",
 		"-p 127.0.0.1:7484:7474 -p 127.0.0.1:7697:7687 -p 192.168.64.1:17697:7687",
-		"-p 192.168.64.1:8090:8080",
-		"KC_DB_URL=jdbc:postgresql://192.168.64.1:5442/keycloak", "KC_HOSTNAME=http://192.168.64.1:8090",
+		"-p 192.168.64.1:5432:5432", "-p 192.168.64.1:8080:8080",
+		"KC_DB_URL=jdbc:postgresql://192.168.64.1:5432/keycloak", "KC_HOSTNAME=http://192.168.64.1:8080",
 		"--publish 192.168.64.1:24111:24101", "--publish 192.168.64.1:24112:24102", "--publish 192.168.64.1:24113:24103",
 		"--publish 192.168.64.1:24114:24104", "--publish 192.168.64.1:24115:24105")
 	// The Neo4j Browser's port is a person's alone, wherever a block places it.
-	mustNotContain(t, "the second knowledge base's start", second, ":5432:5432", ":24103:24103", "17484")
+	mustNotContain(t, "the second knowledge base's start", second, ":4222:4222", ":24103:24103", "17484", ":5442:", ":8090:")
 	mustContain(t, "the second start's librarian.json", stagedFile(t, s, "librarian.json"),
-		"bolt://192.168.64.1:17697", "http://192.168.64.1:8090/realms/example.github.io-other-kb", `"port": 24113`)
+		"bolt://192.168.64.1:17697", "http://192.168.64.1:8080/realms/example.github.io-other-kb", `"port": 24113`)
 	mustContain(t, "the second start's dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4232")
 	mustContain(t, "the second start's smelter.json", stagedFile(t, s, "smelter.json"), `"port": 6343`, `"port": 24113`)
 	if got := blockOf(other); got != "1" {
@@ -2502,7 +2591,7 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	run("stop", "stop")
 
 	s.kb = first
-	if got := startOf("the first knowledge base's next start"); !strings.Contains(got, "-p 192.168.64.1:5432:5432") || strings.Contains(got, ":5442:") {
+	if got := startOf("the first knowledge base's next start"); !strings.Contains(got, "-p 192.168.64.1:4222:4222") || strings.Contains(got, ":4232:") {
 		t.Errorf("the first knowledge base's next start left block 0:\n%s", got)
 	}
 	run("stop", "stop")
@@ -2511,7 +2600,7 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 	third := asTheSystemNamesIt(t, mkKB(t))
 	withDomain(t, third, "example.github.io:third-kb")
 	s.kb = third
-	if got := startOf("the third knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:5442:5432") {
+	if got := startOf("the third knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:4232:4222") {
 		t.Errorf("the third knowledge base's start did not take the block forget freed:\n%s", got)
 	}
 	run("stop", "stop")
@@ -2542,18 +2631,32 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("meta.json after start: %v", err)
 	}
-	mustContain(t, "meta.json", string(meta), "postgres:15.18-alpine", inJSON(s.kb))
-	if _, err := os.Stat(filepath.Join(dir, "postgres")); err != nil {
+	mustContain(t, "meta.json", string(meta), "neo4j:5.26.28-community", inJSON(s.kb))
+	// The issuer's store is the machine's, stamped where it is kept, and
+	// belongs to no knowledge base.
+	shared := sharedStateFor(s.home)
+	sharedMeta, err := os.ReadFile(filepath.Join(shared, "meta.json"))
+	if err != nil {
+		t.Fatalf("the shared meta.json after start: %v", err)
+	}
+	mustContain(t, "the shared meta.json", string(sharedMeta), "postgres:15.18-alpine")
+	mustNotContain(t, "the shared meta.json", string(sharedMeta), inJSON(s.kb))
+	if _, err := os.Stat(filepath.Join(shared, "postgres")); err != nil {
 		t.Fatalf("postgres state dir after start: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "postgres")); !os.IsNotExist(err) {
+		t.Errorf("the knowledge base keeps a postgres store of its own (%v)", err)
 	}
 	// A second start must REUSE the same dir — that is the whole feature:
 	// the mount appears in both boots' argv, same path both times.
-	s.killServes(t)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
 	_, stderr, code = s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mount := filepath.Join(dir, "postgres") + ":/var/lib/postgresql/data"
+	mount := filepath.Join(shared, "postgres") + ":/var/lib/postgresql/data"
 	if got := strings.Count(string(s.mustLog(t)), mount); got != 2 {
 		t.Errorf("state mount should appear in both boots (want 2, got %d)", got)
 	}
@@ -2717,8 +2820,10 @@ func TestCleanTakesTheAnchoredTextStore(t *testing.T) {
 		t.Errorf("clean --store anchored-text left the tree behind: %v", err)
 	}
 	// And the other stores are untouched — a scoped clean is scoped.
-	if _, err := os.Stat(filepath.Join(dir, "postgres")); err != nil {
-		t.Errorf("clean --store anchored-text took postgres too: %v", err)
+	for _, store := range []string{filepath.Join(dir, "qdrant"), filepath.Join(sharedStateFor(s.home), "postgres")} {
+		if _, err := os.Stat(store); err != nil {
+			t.Errorf("clean --store anchored-text took %s too: %v", store, err)
+		}
 	}
 }
 
@@ -2726,7 +2831,8 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	s := newScenario(t, "container")
 	// Existing postgres data written by a DIFFERENT image version: the
 	// launcher must refuse — user rows are not a projection it may delete.
-	dir := stateRootFor(s.home, testKBKey)
+	// The store is the machine's, every knowledge base's realm in it.
+	dir := sharedStateFor(s.home)
 	pg := filepath.Join(dir, "postgres", "pgdata")
 	if err := os.MkdirAll(pg, 0o755); err != nil {
 		t.Fatal(err)
@@ -2734,7 +2840,7 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(pg, "PG_VERSION"), []byte("14\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	meta := `{"kbRoot":"` + inJSON(s.kb) + `","stores":{"identity-store":{"image":"postgres:14.9-alpine"}}}`
+	meta := `{"stores":{"identity-store":{"image":"postgres:14.9-alpine"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -2748,11 +2854,28 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
 	}
 	mustContain(t, "refusal", stdout+stderr,
-		"postgres:14.9-alpine",                 // what wrote the data
-		"postgres:15.18-alpine",                // what the plan wants
-		"semiont clean --store identity-store") // the way out
+		"postgres:14.9-alpine",  // what wrote the data
+		"postgres:15.18-alpine", // what the plan wants
+		"It is every knowledge base's here; to start afresh: semiont clean --shared --store identity-store") // the way out
 	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
 		t.Error("a refusal must not touch the data dir")
+	}
+	// The way out it names: the store goes, with its stamp, and the password
+	// it was initialized with stays for the next boot, which then starts.
+	if stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "identity-store"); code != 0 {
+		t.Fatalf("the shared clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "postgres")); !os.IsNotExist(err) {
+		t.Errorf("the shared clean left the store (%v)", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "postgres-password")); err != nil || string(b) != "kept-by-an-earlier-start\n" {
+		t.Errorf("the shared clean took the password the next boot reuses: %q, %v", b, err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "meta.json")); err != nil || strings.Contains(string(b), "identity-store") {
+		t.Errorf("the shared clean left the store's stamp: %s, %v", b, err)
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the shared clean: exit %d\nstderr:\n%s", code, stderr)
 	}
 }
 
@@ -2925,7 +3048,7 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("declared-domain start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/postgres")
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/qdrant")
 }
 
 // A knowledge base whose project file is .semiont/config.yaml starts from it;
@@ -2942,7 +3065,7 @@ func TestStartReadsTheYAMLProjectFile(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("a start from config.yaml: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-test-kb/postgres")
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-test-kb/qdrant")
 
 	broken := strings.Replace(string(project), "  domain:", "  domian:", 1)
 	if broken == string(project) {
@@ -2960,15 +3083,14 @@ func TestStartReadsTheYAMLProjectFile(t *testing.T) {
 
 // --- clean ---
 
-// seedStateDir fabricates a populated per-root state dir with all three
+// seedStateDir fabricates a populated per-root state dir with both its
 // stores and a fully-stamped meta.json.
 func seedStateDir(t *testing.T, s *scenario) string {
 	t.Helper()
 	dir := stateRootFor(s.home, testKBKey)
 	for sub, content := range map[string]string{
-		"postgres/pgdata/PG_VERSION": "15\n",
-		"qdrant/collections/spike":   strings.Repeat("q", 2048),
-		"neo4j/data/databases/x":     strings.Repeat("n", 1024),
+		"qdrant/collections/spike": strings.Repeat("q", 2048),
+		"neo4j/data/databases/x":   strings.Repeat("n", 1024),
 	} {
 		p := filepath.Join(dir, sub)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -2979,7 +3101,6 @@ func seedStateDir(t *testing.T, s *scenario) string {
 		}
 	}
 	meta := `{"kbRoot":"` + inJSON(s.kb) + `","did":"did:web:example.github.io:test-kb","stores":{` +
-		`"identity-store":{"image":"postgres:15.18-alpine"},` +
 		`"vectors":{"image":"qdrant/qdrant:v1.19.1"},` +
 		`"graph":{"image":"neo4j:5.26.28-community"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
@@ -3003,7 +3124,7 @@ func TestCleanDryRunListsAndKeeps(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "dry-run", stdout, "would remove", "dry-run")
-	if _, err := os.Stat(filepath.Join(dir, "postgres", "pgdata", "PG_VERSION")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "qdrant", "collections", "spike")); err != nil {
 		t.Error("--dry-run removed data")
 	}
 	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "find /store") {
@@ -3025,7 +3146,7 @@ func TestCleanRemovesRootState(t *testing.T) {
 	// Every store is emptied by a container; the root dir itself — its
 	// secrets and meta.json are the invoker's — is never mounted.
 	log, _ := os.ReadFile(s.log)
-	for _, sub := range []string{"postgres", "qdrant", "neo4j"} {
+	for _, sub := range []string{"qdrant", "neo4j"} {
 		mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, sub)))
 	}
 	if strings.Contains(string(log), "-v "+dir+":") {
@@ -3049,10 +3170,8 @@ func TestCleanStoreScopes(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "qdrant")); !os.IsNotExist(err) {
 		t.Error("--store vectors left the qdrant dir")
 	}
-	for _, keep := range []string{"postgres", "neo4j"} {
-		if _, err := os.Stat(filepath.Join(dir, keep)); err != nil {
-			t.Errorf("--store vectors touched %s: %v", keep, err)
-		}
+	if _, err := os.Stat(filepath.Join(dir, "neo4j")); err != nil {
+		t.Errorf("--store vectors touched neo4j: %v", err)
 	}
 	meta, err := os.ReadFile(filepath.Join(dir, "meta.json"))
 	if err != nil {
@@ -3061,7 +3180,7 @@ func TestCleanStoreScopes(t *testing.T) {
 	if strings.Contains(string(meta), `"vectors"`) {
 		t.Error("vectors stamp survived its store's clean")
 	}
-	mustContain(t, "meta.json keeps other stamps", string(meta), `"identity-store"`, `"graph"`)
+	mustContain(t, "meta.json keeps other stamps", string(meta), `"graph"`)
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, "qdrant")))
 	if strings.Count(string(log), "find /store") != 1 {
@@ -3120,7 +3239,7 @@ func TestStartServiceIdentityStoreMountsState(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
 	}
-	mount := filepath.Join(stateRootFor(s.home, testKBKey), "postgres") + ":/var/lib/postgresql/data"
+	mount := filepath.Join(sharedStateFor(s.home), "postgres") + ":/var/lib/postgresql/data"
 	mustContain(t, "service-mode state mount", string(s.mustLog(t)), mount)
 }
 
@@ -3135,6 +3254,340 @@ func TestCleanRejectsTraversalKey(t *testing.T) {
 	}
 	if _, err := os.Stat(dir); err != nil {
 		t.Fatalf("traversal --root removed state outside roots/: %v", err)
+	}
+}
+
+// keepTheIssuerUp starts another knowledge base beside the scenario's, so a
+// stop of the scenario's own stack leaves the shared Keycloak running, as a
+// clean of its realm needs it.
+func keepTheIssuerUp(t *testing.T, s *scenario) {
+	t.Helper()
+	kb := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	s.kb = other
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the other knowledge base's start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	s.kb = kb
+}
+
+// A clean of a knowledge base's identity store deletes its realm at the
+// shared Keycloak, through the admin API, and leaves every other realm and
+// the store they are all kept in. A dry run says so and deletes nothing; an
+// unscoped clean deletes the realm too, before the root's secrets.
+func TestCleanDeletesTheRealmAtTheSharedIssuer(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	keepTheIssuerUp(t, s)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	realmOf(t, s, testKBKey)
+
+	stdout, stderr, code := s.run(t, "clean", "--store", "identity-store", "--dry-run")
+	if code != 0 {
+		t.Fatalf("clean --store identity-store --dry-run: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "dry run", stdout, "would delete realm "+testKBKey)
+	realmOf(t, s, testKBKey)
+
+	before := s.argv(t)
+	stdout, stderr, code = s.run(t, "clean", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("clean --store identity-store: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "clean", stdout, "Deleted realm "+testKBKey+" from the shared issuer.")
+	// The server that answers is the other knowledge base's too: left as it is.
+	if fresh := strings.TrimPrefix(s.argv(t), before); strings.Contains(fresh, "--name semiont-keycloak") || slices.Contains(argvStops(fresh), "semiont-keycloak") {
+		t.Errorf("a clean beside a running issuer ran or stopped it:\n%s", fresh)
+	}
+	if _, err := os.Stat(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+"-"+testKBKey+".json")); !os.IsNotExist(err) {
+		t.Errorf("the realm is held after its clean (%v)", err)
+	}
+	mustContain(t, "the other's realm", realmOf(t, s, "example.github.io-other-kb"), semiont.KbResource("example.github.io:other-kb"))
+	if _, err := os.Stat(filepath.Join(sharedStateFor(s.home), "postgres")); err != nil {
+		t.Errorf("a knowledge base's clean took the store every realm is kept in: %v", err)
+	}
+	// Its own stores and secrets are a --store clean's to keep.
+	if len(keptSecrets(t, stateRootFor(s.home, testKBKey))) == 0 {
+		t.Error("clean --store identity-store deleted the root's secrets")
+	}
+	stdout, _, code = s.run(t, "clean", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("a second clean --store identity-store: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "a second clean", stdout, "Nothing to remove: no realm "+testKBKey+" at the shared issuer")
+
+	// The next start creates it afresh; an unscoped clean deletes it with the
+	// rest.
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the clean: exit %d\nstderr:\n%s", code, stderr)
+	}
+	realmOf(t, s, testKBKey)
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, stderr, code = s.run(t, "clean")
+	if code != 0 {
+		t.Fatalf("clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "clean", stdout, "Deleted realm "+testKBKey+" from the shared issuer.", "Removed "+stateRootFor(s.home, testKBKey))
+	if _, err := os.Stat(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+"-"+testKBKey+".json")); !os.IsNotExist(err) {
+		t.Errorf("the realm is held after an unscoped clean (%v)", err)
+	}
+	log, err := os.ReadFile(filepath.Join(s.fakertDir, "admin-"+containerOf("keycloak")+".log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(log), "DELETE /admin/realms "+testKBKey); got != 2 {
+		t.Errorf("the realm was deleted %d times, want once for each clean:\n%s", got, log)
+	}
+}
+
+// With every stack stopped no server is up to take a realm's delete, so a
+// clean of the realm runs the shared issuer for it and stops what it ran,
+// recording no stack, whether the realm was there or not. A dry run runs
+// nothing, and a clean of another store asks after no realm.
+func TestCleanOfARealmRunsTheSharedIssuerForTheDelete(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	realmFile := filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+"-"+testKBKey+".json")
+	cleanRuns := func(args ...string) (stdout, argv string) {
+		t.Helper()
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, args...)
+		if code != 0 {
+			t.Fatalf("%v with the shared issuer down: exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		}
+		return stdout, strings.TrimPrefix(s.argv(t), before)
+	}
+	issuerLeftAsFound := func(label, argv string) {
+		t.Helper()
+		mustContain(t, label+"'s runtime calls", argv, "--name semiont-postgres", "--name semiont-keycloak")
+		if got := argvStops(argv); !slices.Contains(got, "semiont-keycloak") || !slices.Contains(got, "semiont-postgres") {
+			t.Errorf("%s left the issuer it ran running: %q", label, got)
+		}
+		// With nothing recorded there is no record to read.
+		if _, err := os.Stat(statePathFor(s.home)); os.IsNotExist(err) {
+			return
+		}
+		rec := readSharedRecords(t, s)
+		for _, name := range []string{"semiont-keycloak", "semiont-postgres"} {
+			if rec.Shared[name] != nil {
+				t.Errorf("%s left a record of %s", label, name)
+			}
+		}
+		if len(rec.Stacks) != 0 {
+			t.Errorf("%s recorded a stack: %v", label, rec.Stacks)
+		}
+	}
+
+	stdout, argv := cleanRuns("clean", "--store", "identity-store", "--dry-run")
+	mustContain(t, "the dry run", stdout, "would run the shared issuer, delete realm "+testKBKey+" if it holds it, and stop the issuer again")
+	mustNotContain(t, "the dry run's runtime calls", argv, "run -d")
+	realmOf(t, s, testKBKey)
+
+	_, argv = cleanRuns("clean", "--store", "vectors")
+	mustNotContain(t, "clean --store vectors's runtime calls", argv, "--name semiont-keycloak")
+
+	stdout, argv = cleanRuns("clean", "--store", "identity-store")
+	mustContain(t, "the clean", stdout,
+		"The shared issuer is not running: running it for the delete",
+		"Deleted realm "+testKBKey+" from the shared issuer.",
+		"Stopped semiont-keycloak and semiont-postgres, which this clean ran for the delete.")
+	issuerLeftAsFound("the clean", argv)
+	if _, err := os.Stat(realmFile); !os.IsNotExist(err) {
+		t.Errorf("the realm is held after its clean (%v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(sharedStateFor(s.home), "postgres")); err != nil {
+		t.Errorf("a knowledge base's clean took the store every realm is kept in: %v", err)
+	}
+
+	stdout, argv = cleanRuns("clean", "--store", "identity-store")
+	mustContain(t, "a second clean", stdout, "No realm "+testKBKey+" at the shared issuer")
+	mustNotContain(t, "a second clean", stdout, "Deleted realm")
+	issuerLeftAsFound("a second clean", argv)
+
+	// An unscoped clean deletes the realm the next start creates afresh, and
+	// the rest.
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the clean: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, argv = cleanRuns("clean")
+	mustContain(t, "the unscoped clean", stdout, "Deleted realm "+testKBKey+" from the shared issuer.", "Removed "+stateRootFor(s.home, testKBKey))
+	issuerLeftAsFound("the unscoped clean", argv)
+	if _, err := os.Stat(realmFile); !os.IsNotExist(err) {
+		t.Errorf("the realm is held after an unscoped clean (%v)", err)
+	}
+}
+
+// An issuer whose PostgreSQL somebody else runs may hold realms the launcher
+// cannot see, so a realm's clean runs its Keycloak alone for the delete,
+// handed the password the issuer's document names, and refuses, running
+// nothing, while that variable is unset.
+func TestCleanOfARealmRunsKeycloakAloneOnAnExternalDatabase(t *testing.T) {
+	s := newScenario(t, "container")
+	externalDatabase(t, s)
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "clean", "--store", "identity-store")
+	if code != 1 {
+		t.Fatalf("clean with the database's password unset: exit %d, want 1\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "the refusal", stderr, "name the variable EXT_PG (fromEnv), and it is not set in the environment.")
+	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "run -d")
+
+	s.extraEnv = append(s.extraEnv, "EXT_PG=pgsecret")
+	before = s.argv(t)
+	stdout, stderr, code = s.run(t, "clean", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the clean", stdout, "No realm "+testKBKey+" at the shared issuer", "Stopped semiont-keycloak, which this clean ran for the delete.")
+	argv := strings.TrimPrefix(s.argv(t), before)
+	// The password is handed by name, never on the command line.
+	mustContain(t, "the clean's runtime calls", argv, "--name semiont-keycloak", "KC_DB_URL=jdbc:postgresql://db.example.com:5432/keycloak", "-e KC_DB_PASSWORD ")
+	mustNotContain(t, "the clean's runtime calls", argv, "--name semiont-postgres", "pgsecret")
+	if got := argvStops(argv); !slices.Contains(got, "semiont-keycloak") || slices.Contains(got, "semiont-postgres") {
+		t.Errorf("the clean stopped %q, want the Keycloak it ran alone", got)
+	}
+}
+
+// A shared Keycloak recorded as running that does not answer may be another
+// knowledge base's issuer, so a clean of a realm refuses rather than run one in
+// its place, and names the stop after which it would.
+func TestCleanOfARealmRefusesAnIssuerRecordedAsRunningThatDoesNotAnswer(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-keycloak":{"container":"semiont-keycloak","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/realms/master"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "clean", "--store", "identity-store")
+	if code != 1 {
+		t.Fatalf("clean of a realm at an issuer that does not answer: exit %d, want 1\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "the refusal", stderr, "The shared issuer at http://127.0.0.1:9:",
+		"Once it is stopped (semiont stop --group issuer), this clean runs it for the delete.")
+	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-keycloak", "stop semiont-keycloak")
+	realmOf(t, s, testKBKey)
+}
+
+// `semiont clean --shared --store identity-store` removes the shared issuer's
+// PostgreSQL store, every realm in it, and its stamp, and keeps the issuer's
+// passwords for its next boot. It is refused beside --root, for any other
+// store, while a recorded stack signs in at the shared issuer, and while a
+// record says the issuer's server runs, removing nothing.
+func TestCleanSharedRemovesTheIssuersStore(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"clean", "--shared", "--store", "identity-store", "--root", s.kb}, "--shared names the machine's shared state, and --root one root's: name one of them."},
+		{[]string{"clean", "--shared"}, "--shared names the shared issuer's state, and its one store is identity-store."},
+		{[]string{"clean", "--shared", "--store", "vectors"}, "--shared names the shared issuer's state, and its one store is identity-store."},
+	} {
+		_, stderr, code := s.run(t, tc.args...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1", tc.args, code)
+		}
+		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
+	}
+
+	shared := sharedStateFor(s.home)
+	store := filepath.Join(shared, "postgres")
+	refused := func(label, want string) {
+		t.Helper()
+		stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "identity-store")
+		if code != 1 {
+			t.Fatalf("the shared clean %s: exit %d, want 1\nstdout:\n%s", label, code, stdout)
+		}
+		mustContain(t, "the shared clean "+label, stderr, want)
+		if _, err := os.Stat(store); err != nil {
+			t.Errorf("the shared clean %s removed the store: %v", label, err)
+		}
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	refused("beside a running stack", "A recorded stack signs in at the shared issuer")
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// The issuer's PostgreSQL alone, as `stop --service identity` leaves it.
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-postgres":{"container":"semiont-postgres","provided":"launcher","runtime":"container"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	refused("beside the issuer's record", "Stop it first: semiont stop --group issuer")
+	if _, stderr, code := s.run(t, "stop", "--group", "issuer"); code != 0 {
+		t.Fatalf("stop --group issuer: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// What the issuer's PostgreSQL wrote.
+	if err := os.MkdirAll(filepath.Join(store, "pgdata"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(store, "pgdata", "PG_VERSION"), []byte("15\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	passwords := map[string][]byte{}
+	for _, name := range []string{"postgres-password", "keycloak-admin-password"} {
+		b, err := os.ReadFile(filepath.Join(shared, name))
+		if err != nil {
+			t.Fatalf("the start kept no %s: %v", name, err)
+		}
+		passwords[name] = b
+	}
+
+	stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "identity-store", "--dry-run")
+	if code != 0 {
+		t.Fatalf("the shared clean's dry run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "the dry run", stdout, "would remove "+store+" — ", "(dry-run; nothing removed)")
+	if _, err := os.Stat(filepath.Join(store, "pgdata", "PG_VERSION")); err != nil {
+		t.Errorf("the dry run removed the store: %v", err)
+	}
+
+	stdout, stderr, code = s.run(t, "clean", "--shared", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("the shared clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the shared clean", stdout, "Removed "+store+" — ")
+	if _, err := os.Stat(store); !os.IsNotExist(err) {
+		t.Errorf("the shared clean left the store (%v)", err)
+	}
+	for name, want := range passwords {
+		if b, err := os.ReadFile(filepath.Join(shared, name)); err != nil || string(b) != string(want) {
+			t.Errorf("the shared clean changed %s (%v)", name, err)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(shared, "meta.json")); err != nil || strings.Contains(string(b), "identity-store") {
+		t.Errorf("the shared clean left the store's stamp: %s, %v", b, err)
+	}
+	stdout, _, code = s.run(t, "clean", "--shared", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("a second shared clean: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "a second shared clean", stdout, "Nothing to remove: no identity-store state under "+shared)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the shared clean: exit %d\nstderr:\n%s", code, stderr)
 	}
 }
 
@@ -3154,13 +3607,14 @@ func TestStatusVerboseDiskUsage(t *testing.T) {
 	// that size takes on disk is the same on every filesystem this runs on,
 	// and the order of the rows is the order of the sizes.
 	megabyte := strings.Repeat("x", 1<<20)
+	shared := sharedStateFor(s.home)
 	for file, megabytes := range map[string]int{
-		"postgres/pgdata/base":              3,
-		"qdrant/collections/segment":        2,
-		"neo4j/data/databases/store":        1,
-		"logs/20260101-000000Z/gateway.log": 0,
+		filepath.Join(shared, "postgres", "pgdata", "base"):           3,
+		filepath.Join(dir, "qdrant", "collections", "segment"):        2,
+		filepath.Join(dir, "neo4j", "data", "databases", "store"):     1,
+		filepath.Join(dir, "logs", "20260101-000000Z", "gateway.log"): 0,
 	} {
-		p := filepath.Join(dir, filepath.FromSlash(file))
+		p := file
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -3206,11 +3660,14 @@ func TestStatusVerboseDiskUsage(t *testing.T) {
 		"its stores "+dir,
 		"on disk, in these directories beneath it:",
 		"and 1 kept secret (semiont settings secret-store lists it)")
-	// Each store by its own directory, what it takes, and what it holds.
+	// Each store by its own directory, what it takes, and what it holds: the
+	// issuer's among what the machine keeps for every knowledge base, the
+	// knowledge base's own beneath its directory.
 	sep := regexp.QuoteMeta(string(os.PathSeparator))
+	mustContain(t, "the machine's row", stdout, "shared     "+shared, "on disk, the issuer's store among it:")
 	at := map[string]int{}
 	for _, row := range []struct{ store, size, holds string }{
-		{"postgres", `3\.\d MB`, "Keycloak's realm and accounts"},
+		{"postgres", `3\.\d MB`, "Keycloak's realms and accounts, every knowledge base's"},
 		{"qdrant", `2\.\d MB`, "vectors"},
 		{"neo4j", `1\.\d MB`, "graph"},
 		{"logs", `\d+(\.\d)? K?B`, "container logs kept from earlier starts"},
@@ -3224,7 +3681,7 @@ func TestStatusVerboseDiskUsage(t *testing.T) {
 		at[row.store] = found[0]
 	}
 	if len(at) == 4 && !(at["postgres"] < at["qdrant"] && at["qdrant"] < at["neo4j"] && at["neo4j"] < at["logs"]) {
-		t.Errorf("the stores are not listed largest first:\n%s", stdout)
+		t.Errorf("the machine's store is not listed first and the knowledge base's largest first:\n%s", stdout)
 	}
 	mustContain(t, "every knowledge base's row", stdout,
 		"all KBs    "+filepath.Dir(dir),
@@ -3612,7 +4069,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 11 container(s) across container, docker, podman",
+		"Sweeping 9 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -3738,11 +4195,13 @@ func TestStatusMixed(t *testing.T) {
 	}
 	// The report reads by what each service is part of: the knowledge base,
 	// its record, index and issuer a line each, then the services every
-	// knowledge base shares, a table for each group.
+	// knowledge base shares, a table for each group: the issuer's server
+	// once, among them.
 	wantLayout := []string{"KNOWLEDGE BASES",
 		"record: gateway archivist dispatcher messaging",
 		"index: librarian smelter weaver graph vectors",
-		"issuer: identity identity-store",
+		"issuer: identity",
+		"ISSUER", "identity", "identity-store",
 		"KNOWLEDGE WORKERS", "browser", "worker",
 		"PROVIDERS", "inference", "embedding",
 		"TELEMETRY", "collector", "traces", "metrics"}
@@ -3760,8 +4219,12 @@ func TestStatusMixed(t *testing.T) {
 	mustContain(t, "collector", statusLine(t, stdout, "collector"), "✗ absent")
 	mustContain(t, "stdout", stdout, "SERVICE", "RUNTIME", "STATUS", "semiont roots")
 	// A knowledge base's own services name no address: one is a --service
-	// away, with its runtime and the endpoint asked.
-	mustNotContain(t, "stdout", stdout, "http://localhost:4000/api/health", "tcp://localhost:5432", "machine")
+	// away, with its runtime and the endpoint asked. A shared one's row
+	// names where it is asked; with no stack recorded, the knowledge base
+	// has no realm to name.
+	mustNotContain(t, "stdout", stdout, "http://localhost:4000/api/health", "machine", "/realms/")
+	mustContain(t, "the issuer's line", statusLine(t, stdout, "issuer"), "✗ identity absent")
+	mustContain(t, "the issuer's store", statusLine(t, stdout, "identity-store"), "✗ absent", "tcp://localhost:5432")
 	for _, c := range []struct {
 		service string
 		code    int
@@ -3817,7 +4280,7 @@ func TestStatusAllHealthy(t *testing.T) {
 	// Jaeger absent is reported, and reported only.
 	s := newScenario(t, "container")
 	for _, svc := range []string{testKBKey + "-gateway", "worker", testKBKey + "-smelter", testKBKey + "-weaver", "browser",
-		testKBKey + "-neo4j", testKBKey + "-qdrant", testKBKey + "-postgres", "ollama"} {
+		testKBKey + "-neo4j", testKBKey + "-qdrant", "postgres", "ollama"} {
 		s.extraEnv = append(s.extraEnv, "FAKERT_STATE_"+svc+"=running")
 	}
 	serveHealth(t, 4000, 24100, 24101, 24102, 24103, 24104, 3000, 7474, 6333, 5432, 11434)
@@ -3914,16 +4377,18 @@ func TestStatusReadsByConcept(t *testing.T) {
 	}
 	kb := []string{"record: gateway archivist dispatcher messaging",
 		"index: librarian smelter weaver graph vectors",
-		"issuer: identity identity-store"}
+		"issuer: identity"}
 	want := slices.Concat([]string{"KNOWLEDGE BASES"}, kb, kb,
-		[]string{"KNOWLEDGE WORKERS", "browser", "worker",
+		[]string{"ISSUER", "identity", "identity-store",
+			"KNOWLEDGE WORKERS", "browser", "worker",
 			"PROVIDERS", "inference", "embedding",
 			"TELEMETRY", "collector", "traces", "metrics"})
 	if got := statusLayout(stdout); !slices.Equal(got, want) {
 		t.Errorf("status reads\n  %q\nwant\n  %q\n%s", got, want, stdout)
 	}
-	mustContain(t, "stdout", stdout, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb")
-	for _, role := range []string{"worker", "inference", "embedding", "collector", "traces", "metrics"} {
+	mustContain(t, "stdout", stdout, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb",
+		"✓ identity realm example.github.io-test-kb", "✓ identity realm example.github.io-other-kb")
+	for _, role := range []string{"identity", "identity-store", "worker", "inference", "embedding", "collector", "traces", "metrics"} {
 		mustContain(t, role+"'s row", statusLine(t, stdout, role), "test-kb", "other-kb")
 	}
 	mustNotContain(t, "browser's row", statusLine(t, stdout, "browser"), "test-kb", "other-kb")
@@ -3988,7 +4453,7 @@ func TestStatusOutsideAnyKnowledgeBase(t *testing.T) {
 		t.Fatalf("status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "(no recorded stack — cd into a KB clone, or --root, for its stack's)")
-	want := []string{"KNOWLEDGE BASES", "KNOWLEDGE WORKERS", "browser", "worker",
+	want := []string{"KNOWLEDGE BASES", "ISSUER", "identity", "identity-store", "KNOWLEDGE WORKERS", "browser", "worker",
 		"PROVIDERS", "inference", "embedding", "TELEMETRY", "collector", "traces", "metrics"}
 	if got := statusLayout(stdout); !slices.Equal(got, want) {
 		t.Errorf("status reads\n  %q\nwant\n  %q\n%s", got, want, stdout)
@@ -4451,9 +4916,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 		{"semiont-example.github.io-test-kb-weaver", "SEMIONT_OIDC_CLIENT_SECRET", ""},
 		// The PEM's first line: the record keeps a line per variable.
 		{"semiont-worker", "SEMIONT_OIDC_CLIENT_KEY", "-----BEGIN PRIVATE KEY-----"},
-		{"semiont-example.github.io-test-kb-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
-		{"semiont-example.github.io-test-kb-keycloak", "KC_DB_PASSWORD", ""},
-		{"semiont-example.github.io-test-kb-postgres", "POSTGRES_PASSWORD", ""},
+		{containerOf("keycloak"), "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
+		{containerOf("keycloak"), "KC_DB_PASSWORD", ""},
+		{containerOf("postgres"), "POSTGRES_PASSWORD", ""},
 	} {
 		got, _ := s.containerEnv(t, c.container, c.name)
 		if got == "" || (c.want != "" && got != c.want) {
@@ -4511,12 +4976,12 @@ func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
 	}
 }
 
-// externalDatabase: the fixture's Issuer document with its PostgreSQL run by
+// externalDatabase: the issuer's document with its PostgreSQL run by
 // somebody else, its password read from EXT_PG.
 func externalDatabase(t *testing.T, s *scenario) {
 	t.Helper()
-	editDocument(t, s, "issuer.yaml",
-		"    image: postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f\n    resources: { limits: { memory: 1G } }\n",
+	editSharedDocument(t, s, "issuer", "issuer.yaml",
+		"    image: postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f\n    resources:\n      limits:\n        memory: 1G\n    port: 5432\n",
 		"    external: { host: db.example.com, port: 5432, password: { fromEnv: EXT_PG } }\n")
 }
 
@@ -5707,7 +6172,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		}
 		log, _ := os.ReadFile(s.log)
 		mustContain(t, "argv log", string(log), "gh codespace ports forward 8080:8080 -c fake-cs-1")
-		if strings.Contains(string(log), "KEYCLOAK_PORT=") {
+		if strings.Contains(string(log), "keycloak-port") {
 			t.Errorf("moved a codespace already on the port it was given:\n%s", log)
 		}
 		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8080`, `"keycloakForwardPid"`)
@@ -5727,7 +6192,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 
 	t.Run("8080 taken: allocate 8081 and move the codespace", func(t *testing.T) {
 		s := newCodespaceScenario(t)
-		// A local stack on this machine holds 8080 (its own Keycloak).
+		// A local stack on this machine holds 8080 (the shared Keycloak).
 		local := `{"schema":3,"stacks":{` + elsewhereRecord(`"ports":[8080],"services":{}`) + `}}`
 		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
 			t.Fatal(err)
@@ -5741,7 +6206,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		}
 		log, _ := os.ReadFile(s.log)
 		mustContain(t, "argv log", string(log),
-			"KEYCLOAK_PORT=8081 semiont start",
+			"semiont settings keycloak-port 8081 && semiont start",
 			"gh codespace ports forward 8081:8081 -c fake-cs-1")
 		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
 		// The codespace's own summary names ITS ports, which are wrong from
@@ -5771,7 +6236,7 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		}
 		log, _ := os.ReadFile(s.log)
 		mustContain(t, "argv log", string(log), "gh codespace ports forward 8082:8082 -c fake-cs-1")
-		if strings.Contains(string(log), "KEYCLOAK_PORT=") {
+		if strings.Contains(string(log), "keycloak-port") {
 			t.Errorf("a resume on its recorded port rewrote the codespace:\n%s", log)
 		}
 	})
@@ -5923,7 +6388,7 @@ func TestCodespaceMovesOnlyAfterItsOwnStartFinishes(t *testing.T) {
 			stackProbes++
 			lastProbe = i
 		}
-		if move < 0 && strings.Contains(l, "KEYCLOAK_PORT=8081 semiont start") {
+		if move < 0 && strings.Contains(l, "semiont settings keycloak-port 8081 && semiont start") {
 			move = i
 		}
 	}
@@ -8104,12 +8569,23 @@ func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
 	ref := "op://Semiont/Semiont — " + testKBKey + "/"
 	mustContain(t, "first start", firstErr, "secrets: write jwt-secret ("+ref+"jwt-secret)")
 	kept := opItemFields(t, s)
-	if kept["jwt-secret"] == "" || kept["postgres-password"] == "" {
+	if kept["jwt-secret"] == "" || kept["neo4j-password"] == "" {
 		t.Fatalf("the start kept its values somewhere other than the item: %d fields", len(kept))
 	}
-	// The configured store is the only one: nothing lands on the filesystem.
+	// The configured store is the only one: nothing of the root's lands on
+	// the filesystem.
 	if files := keptSecrets(t, stateRootFor(s.home, testKBKey)); len(files) != 0 {
 		t.Errorf("a root on 1Password kept %d values in files too", len(files))
+	}
+	// The shared issuer's passwords are the machine's, not the root's: they
+	// are kept beside the worker's key, whichever store the root names.
+	for _, name := range []string{"postgres-password", "keycloak-admin-password"} {
+		if kept[name] != "" {
+			t.Errorf("the root's item keeps %s, which is the shared issuer's", name)
+		}
+		if _, err := os.Stat(filepath.Join(sharedStateFor(s.home), name)); err != nil {
+			t.Errorf("the shared issuer's %s is not kept for the machine: %v", name, err)
+		}
 	}
 	// Values travel on stdin: none reached any command line.
 	for name, v := range kept {
@@ -8142,7 +8618,7 @@ func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("secret store (show): exit %d", code)
 	}
-	mustContain(t, "secret store (show)", stdout, ref+"jwt-secret", ref+"postgres-password")
+	mustContain(t, "secret store (show)", stdout, ref+"jwt-secret", ref+"neo4j-password")
 }
 
 func TestSecretStoreNeverFallsBackToTheFilesystem(t *testing.T) {
@@ -8242,6 +8718,7 @@ func TestCleanClearsTheSecretStore(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
+	keepTheIssuerUp(t, s)
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
 	}
@@ -8283,6 +8760,7 @@ func TestCleanShowsEachSecretItDeletesFromTheFilesystem(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
+	keepTheIssuerUp(t, s)
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
 	}
@@ -8329,14 +8807,15 @@ var settingContinuation = strings.Repeat(" ", 27)
 
 func TestSettingsListsEverySetting(t *testing.T) {
 	s := newScenario(t, "container", "docker", "op")
-	s.extraEnv = append(s.extraEnv, "KEYCLOAK_PORT=8181")
+	if _, stderr, code := s.run(t, "settings", "keycloak-port", "8181"); code != 0 {
+		t.Fatalf("settings keycloak-port: exit %d\nstderr:\n%s", code, stderr)
+	}
 	if _, stderr, code := s.run(t, "start", "--runtime", "docker", "--config", "ollama-gemma"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if _, _, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d", code)
 	}
-	s.extraEnv = nil
 	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -8352,7 +8831,7 @@ func TestSettingsListsEverySetting(t *testing.T) {
 	for name, wants := range map[string][]string{
 		"runtime":       {"docker", "recorded"},
 		"config":        {"ollama-gemma", "recorded"},
-		"keycloak-port": {"8181", "recorded"},
+		"keycloak-port": {"8181", "spec.port of the issuer's document"},
 		"secret":        {"ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"},
 		"secret-store":  {`1Password vault "Semiont"`, "set"},
 	} {
@@ -8363,17 +8842,13 @@ func TestSettingsListsEverySetting(t *testing.T) {
 		}
 		mustContain(t, name+" row", row, wants...)
 	}
+	mustNotContain(t, "keycloak-port row", settingRow(stdout, "keycloak-port"), "default")
 	// Showing a setting reaches for no secret: no provider, no store.
 	for _, line := range strings.Split(freshLog(s, t, before), "\n") {
 		if strings.HasPrefix(line, "op ") {
 			t.Errorf("settings ran %q", line)
 		}
 	}
-
-	// The environment wins over a recorded port, and the row says so.
-	s.extraEnv = []string{"KEYCLOAK_PORT=9191"}
-	stdout, _, _ = s.run(t, "settings")
-	mustContain(t, "keycloak-port row", settingRow(stdout, "keycloak-port"), "9191", "KEYCLOAK_PORT")
 }
 
 func TestSettingsShowsTheDefaultsOfAFreshMachine(t *testing.T) {
@@ -9378,6 +9853,9 @@ func TestStopSharedGroupStopsItAlone(t *testing.T) {
 		stops []string
 	}{
 		{"telemetry", []string{"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger"}},
+		// The server first, then the PostgreSQL it holds sessions in; each
+		// knowledge base's gateway stays up.
+		{"issuer", []string{"semiont-keycloak", "semiont-postgres"}},
 		{"knowledge-workers", []string{"semiont-browser", "semiont-worker"}},
 		// Inference and embedding are one Ollama, stopped once.
 		{"providers", []string{"semiont-ollama"}},
@@ -9438,12 +9916,10 @@ func TestStopGroupRefusalsAndDryRun(t *testing.T) {
 	if got := argvStops(strings.TrimPrefix(s.argv(t), before)); len(got) != 0 {
 		t.Errorf("a dry run stopped %q", got)
 	}
-	mustContain(t, "dry run", stdout,
-		"# gateway stops too: it needs the identity",
-		"# archivist stops too: it needs the gateway",
-		"# stop the shared Worker:",
-		"container stop fid-semiont-"+testKBKey+"-keycloak",
-		"# staged configs left in place (--group)")
+	mustContain(t, "issuer dry run", stdout,
+		"# stop the shared Keycloak:", "container stop semiont-keycloak",
+		"# stop the shared PostgreSQL:", "container stop semiont-postgres")
+	mustNotContain(t, "issuer dry run", stdout, "stops too", testKBKey, "issuer stopped")
 }
 
 // argvRuns: the containers a run's runtime calls ran, by name, in order.
@@ -9502,15 +9978,17 @@ func TestStartGroupStartsWhatItNeeds(t *testing.T) {
 
 // Beside another knowledge base's stack, a group's start in one with none
 // recorded starts every service of its own the group needs: the default
-// block's ports answer for the other one. So does a start in one whose record
-// a group stop left without them. And each service it starts claims its
-// ports, whichever it starts first.
+// block's ports answer for the other one. Its realm is one of them, at the
+// shared issuer, which is kept: the other one signs in at it. So does a start
+// in one whose record a group stop left without them. And each service it
+// starts claims its ports, whichever it starts first.
 func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
 	s := newScenario(t, "container")
 	first := s.kb
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
+	issuerRunsAsRecorded(t, s)
 	other := asTheSystemNamesIt(t, mkKB(t))
 	withDomain(t, other, "example.github.io:other-kb")
 	withGatewayPort(t, other, 4010)
@@ -9527,10 +10005,13 @@ func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
 		}
 		return out
 	}
-	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("postgres", "nats", "keycloak", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
+	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("nats", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
 		t.Errorf("start --group index in the second ran\n  %q\nwant\n  %q", got, want)
 	}
-	mustContain(t, "start --group index in the second", stdout, "identity starts too: the gateway needs it")
+	mustContain(t, "start --group index in the second", stdout,
+		"identity starts too: the gateway needs it", "identity — Keycloak already running", "realm example.github.io-other-kb at")
+	realmOf(t, s, "example.github.io-other-kb")
+	realmOf(t, s, testKBKey)
 
 	if _, stderr, code := s.run(t, "stop", "--group", "record"); code != 0 {
 		t.Fatalf("stop --group record in the second: exit %d\n%s", code, stderr)
@@ -10995,10 +11476,13 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 		t.Fatalf("generated KnowledgeIndex missing: %v", err)
 	}
 	mustContain(t, "index.yaml", string(index), "model: nomic-embed-text", "semiont-librarian:latest")
-	for _, name := range []string{"knowledge-base.yaml", "issuer.yaml"} {
-		if _, err := os.Stat(filepath.Join(stackDir, name)); err != nil {
-			t.Errorf("%s not generated: %v", name, err)
-		}
+	kb, err := os.ReadFile(filepath.Join(stackDir, "knowledge-base.yaml"))
+	if err != nil {
+		t.Fatalf("generated KnowledgeBase missing: %v", err)
+	}
+	mustContain(t, "knowledge-base.yaml", string(kb), "shared:", "accessTokenLifespan: 300")
+	if _, err := os.Stat(filepath.Join(stackDir, "issuer.yaml")); !os.IsNotExist(err) {
+		t.Errorf("init wrote an issuer.yaml into the knowledge base (%v): the issuer's document is the machine's", err)
 	}
 	if _, err := os.Stat(filepath.Join(stackDir, "workers.yaml")); !os.IsNotExist(err) {
 		t.Errorf("init wrote a workers.yaml into the knowledge base (%v): the worker's document is shared", err)
@@ -11028,18 +11512,19 @@ func TestInitGeneratesStartableDocuments(t *testing.T) {
 		t.Fatalf("ollama documents failed the deriver: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
-	// A newborn's issuer is the Keycloak the launcher runs, on the port the
-	// launcher gives it, so the laptop that forwards it can move it.
-	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
-	_ = stderr
+	// A newborn's issuer is the Keycloak the launcher runs for every
+	// knowledge base here, on the port its document gives it, so the laptop
+	// that forwards it can move it.
 	if !strings.Contains(stdout, "-p <host-addr>:8080:8080") {
 		t.Errorf("the newborn's Keycloak is not on the default port:\n%s", stdout)
 	}
-	s2.extraEnv = append(s2.extraEnv, "KEYCLOAK_PORT=8081")
+	if _, stderr, code := s2.run(t, "settings", "keycloak-port", "8081"); code != 0 {
+		t.Fatalf("settings keycloak-port: exit %d\nstderr:\n%s", code, stderr)
+	}
 	if stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run"); code != 0 {
 		t.Fatalf("moved issuer: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p <host-addr>:8081:8080")
+	mustContain(t, "a newborn's issuer moves with keycloak-port", stdout, "-p <host-addr>:8081:8080")
 
 	// voyage embedding refuses: no established key variable exists, and the
 	// launcher never invents environment variables.
@@ -12395,11 +12880,11 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 			t.Errorf("the staged %s does not name NEO4J_PASSWORD, or states the password:\n%s", doc, staged)
 		}
 	}
-	pg, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-postgres", "POSTGRES_PASSWORD")
+	pg, _ := s.containerEnv(t, containerOf("postgres"), "POSTGRES_PASSWORD")
 	if len(pg) < 32 {
 		t.Fatalf("PostgreSQL was not given a generated password: %q", pg)
 	}
-	if v, _ := s.containerEnv(t, "semiont-example.github.io-test-kb-keycloak", "KC_DB_PASSWORD"); v != pg {
+	if v, _ := s.containerEnv(t, containerOf("keycloak"), "KC_DB_PASSWORD"); v != pg {
 		t.Errorf("Keycloak dials PostgreSQL with %q, want PostgreSQL's own password", v)
 	}
 
@@ -12567,15 +13052,12 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 }
 
 // externalIssuer: the fixture's KnowledgeBase trusting an issuer on a host the
-// launcher does NOT run — `oidc`, the bring-your-own-IdP shape — with no
-// Issuer document.
+// launcher does NOT run — `oidc`, the bring-your-own-IdP shape — in place of
+// the shared one.
 func externalIssuer(t *testing.T, s *scenario) {
 	t.Helper()
 	editDocument(t, s, "knowledge-base.yaml",
-		"    ref: issuer\n", "    external: { type: oidc, url: \"https://id.example.com/realms/semiont\" }\n")
-	if err := os.Remove(filepath.Join(s.kb, ".semiont", "stack", "issuer.yaml")); err != nil {
-		t.Fatal(err)
-	}
+		"    shared:\n      accessTokenLifespan: 300\n", "    external: { type: oidc, url: \"https://id.example.com/realms/semiont\" }\n")
 }
 
 // An issuer someone else runs gets the SAME preflight as one the launcher
@@ -12606,7 +13088,7 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 		"sending no credential — require both to refuse it",
 	)
 	// Verified, never launched.
-	if strings.Contains(stdout, "--name semiont-example.github.io-test-kb-keycloak") {
+	if strings.Contains(stdout, "--name "+containerOf("keycloak")) {
 		t.Error("an external issuer was launched")
 	}
 }

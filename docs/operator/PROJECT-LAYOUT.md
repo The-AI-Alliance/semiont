@@ -18,7 +18,6 @@ my-kb/
 │   └── stack/                        # What the knowledge base needs to run (commit)
 │       ├── knowledge-base.yaml
 │       ├── index.yaml
-│       ├── issuer.yaml
 │       └── inference/
 │           ├── anthropic.yaml
 │           └── ollama-gemma.yaml
@@ -41,7 +40,7 @@ Two kinds of streams live under `events/`:
 
 ### `.semiont/stack/`
 
-The stack's documents, each a YAML document held to its schema in [`protocol/specs/src/stack/`](../../protocol/specs/src/stack/README.md): the knowledge base's own services and the issuer it trusts (`knowledge-base.yaml`), its indexes (`index.yaml`), the Keycloak the launcher runs for it (`issuer.yaml`), and under `inference/` one document per way of serving its models, usually one per provider. The worker that does its jobs is shared, and so is its document (`semiont settings worker`). `semiont init` writes them; `semiont start --config <name>` picks the Inference document a start runs. A document states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md#semiontstack).
+The stack's documents, each a YAML document held to its schema in [`protocol/specs/src/stack/`](../../protocol/specs/src/stack/README.md): the knowledge base's own services and the issuer it trusts (`knowledge-base.yaml`), its indexes (`index.yaml`), and under `inference/` one document per way of serving its models, usually one per provider. The worker that does its jobs is shared, and so is its document (`semiont settings worker`). So is the Keycloak the launcher runs for every knowledge base that names `shared` as its issuer, each in a realm of its own (`semiont settings issuer`). `semiont init` writes them; `semiont start --config <name>` picks the Inference document a start runs. A document states no machine address and no secret, so it is safe to commit and works on any machine. See [Configuration](./administration/CONFIGURATION.md#semiontstack).
 
 ### Resource files
 
@@ -87,7 +86,6 @@ A knowledge base after two resources have been added:
 .semiont/stack/index.yaml
 .semiont/stack/inference/anthropic.yaml
 .semiont/stack/inference/ollama-gemma.yaml
-.semiont/stack/issuer.yaml
 .semiont/stack/knowledge-base.yaml
 
 % git log --oneline

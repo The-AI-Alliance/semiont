@@ -98,10 +98,11 @@ type stateMount struct{ sub, target string }
 // in the shapes Apple container's virtiofs allows.
 var stateStores = map[string]stateStoreSpec{
 	// The entrypoint chmods $PGDATA only — a created-inside subdir — never
-	// the mount root (which virtiofs refuses).
+	// the mount root (which virtiofs refuses). Its owner is shared, so it is
+	// the machine's: every knowledge base's realm is in it.
 	"identity-store": {
 		dir:    "postgres",
-		holds:  "Keycloak's realm and accounts",
+		holds:  "Keycloak's realms and accounts, every knowledge base's",
 		mounts: []stateMount{{"", "/var/lib/postgresql/data"}},
 		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
 		owner:  "identity-store",
@@ -241,9 +242,19 @@ func storeClearArgs(sd string) []string {
 		"find", "/store", "-mindepth", "1", "-maxdepth", "1", "-exec", "rm", "-rf", "{}", "+"}
 }
 
-// storeDir: the store's directory under the state dir of the root key names.
+// home: the directory the store and its stamp are kept under — the
+// machine's (sharedStateDir) for a store a shared role owns, whatever the
+// key, else the state dir of the root key names.
+func (spec stateStoreSpec) home(key string) string {
+	if sharedRole(spec.owner) {
+		return sharedStateDir()
+	}
+	return stateRootDir(key)
+}
+
+// storeDir: the store's directory under its home.
 func (spec stateStoreSpec) storeDir(key string) string {
-	dir := stateRootDir(key)
+	dir := spec.home(key)
 	if dir == "" {
 		return ""
 	}

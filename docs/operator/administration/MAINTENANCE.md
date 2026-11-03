@@ -88,9 +88,11 @@ semiont clean --store vectors        # one store: identity-store, graph,
                                      #   vectors, anchored-text, messaging,
                                      #   state, gateway or librarian
 semiont clean --root <path|name|key> # another knowledge base's, including an orphan's
+semiont clean --shared --store identity-store
+                                     # the issuer's PostgreSQL, every realm here
 ```
 
-An unscoped `semiont clean` also deletes the secrets the launcher kept for the knowledge base. Clearing `identity-store` removes the issuer's accounts with it, and clearing `messaging` drops the jobs that were waiting.
+An unscoped `semiont clean` also deletes the secrets the launcher kept for the knowledge base. Clearing `identity-store` deletes the knowledge base's realm at the issuer, its accounts with it, and clearing `messaging` drops the jobs that were waiting. The shared clean removes every knowledge base's realm, and is refused until no knowledge base runs and the issuer is stopped.
 
 The Ollama model cache is separate, and can be large:
 

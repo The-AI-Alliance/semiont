@@ -54,13 +54,14 @@ func custodyOwned(name string) bool {
 
 // daemonPasswords: the daemons the launcher runs and keeps a password for —
 // such a daemon's credential comes from custody, never from the config. Each
-// is generated once per root and kept, because a data directory keeps the
-// password it was initialized with. The variable names are the launcher's,
-// machine-wide — `semiont settings secret` registrations are machine-wide
-// while a daemon's presence is per-KB config, so no config may borrow one.
-// The custody names are also the files under roots/<key>/ where KB skills
-// that connect to a daemon directly are told to read its password: keep them
-// stable.
+// is generated once and kept, because a data directory keeps the password it
+// was initialized with: once per root, or, for a shared daemon (the issuer's
+// PostgreSQL), once for the machine (daemonCustody). The variable names are
+// the launcher's, machine-wide — `semiont settings secret` registrations are
+// machine-wide while a daemon's presence is per-KB config, so no config may
+// borrow one. The custody names are also the files under roots/<key>/, or
+// shared/, where KB skills that connect to a daemon directly are told to read
+// its password: keep them stable.
 var daemonPasswords = map[string]struct {
 	env, custody, display string
 	// kept: the daemon writes the password into its store at initialization,
@@ -97,7 +98,7 @@ func daemonCredentialVar(name string) bool {
 // naming the clean. It never wipes a store itself.
 func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 	d := daemonPasswords[role]
-	store, ok := custodyFor(u, key)
+	store, ok := daemonCustody(u, key, role)
 	if !ok {
 		return "", false
 	}
@@ -107,6 +108,10 @@ func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 	if spec, ok := stateStores[role]; ok && d.kept && storeHoldsData(spec.storeDir(key)) {
 		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(key))
 		fmt.Fprintln(os.Stderr, "  It was initialized with a password the launcher does not have (a config's literal, or one whose file was lost),")
+		if sharedRole(role) {
+			fmt.Fprintf(os.Stderr, "  and the daemon would reject every login. It is every knowledge base's here; to start afresh: semiont clean --shared --store %s\n", role)
+			return "", false
+		}
 		fmt.Fprintln(os.Stderr, "  and the daemon would reject every login. Clear it — the launcher then generates and keeps a new one:")
 		fmt.Fprintf(os.Stderr, "    semiont clean --store %s\n", role)
 		return "", false
@@ -117,6 +122,16 @@ func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 	}
 	u.Log("%s password: %s", d.display, u.Dim("generated and kept"))
 	return secret, true
+}
+
+// daemonCustody: where a daemon's password is kept — the machine's store for
+// a shared daemon, which every knowledge base's start reads alike, else the
+// root's.
+func daemonCustody(u *UI, key, role string) (custodyStore, bool) {
+	if sharedRole(role) {
+		return sharedCustody(), true
+	}
+	return custodyFor(u, key)
 }
 
 // storeHoldsData: anything but empty directories under dir. What the daemon
@@ -140,14 +155,17 @@ func storeHoldsData(dir string) bool {
 }
 
 // custodyNames: every value the launcher keeps for a root, sorted — what a
-// store lists, moves and clears.
+// store lists, moves and clears. A shared daemon's password and Keycloak's
+// admin password are the machine's (sharedCustody), not a root's.
 func custodyNames() []string {
-	names := []string{custodyJWTSecret, custodyKeycloakAdmin}
+	names := []string{custodyJWTSecret}
 	for _, svc := range secretClients {
 		names = append(names, serviceClientCustody(svc))
 	}
-	for _, d := range daemonPasswords {
-		names = append(names, d.custody)
+	for role, d := range daemonPasswords {
+		if !sharedRole(role) {
+			names = append(names, d.custody)
+		}
 	}
 	sort.Strings(names)
 	return names
@@ -230,24 +248,21 @@ func loadOrCreateJWTSecret(u *UI, key string) (string, bool) {
 	return secret, true
 }
 
-// keycloakAdminPassword resolves the bootstrap admin password WITHOUT creating
-// one — $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted per-root value, else
-// "" — and names where it came from, for the caller that logs it. False when
-// the store could not answer (reported), which is not "none kept".
+// keycloakAdminPassword resolves the shared Keycloak's bootstrap admin
+// password WITHOUT creating one — $KC_BOOTSTRAP_ADMIN_PASSWORD, else the
+// value kept for the machine, else "" — and names where it came from, for the
+// caller that logs it. False when the store could not answer (reported),
+// which is not "none kept".
 //
 // The read-only half exists for `semiont useradd`, which administers the realm
 // Keycloak already created: generating a password there would hand the gateway
 // a credential the realm has never seen, and the admin API would refuse it with
 // nothing to explain why.
-func keycloakAdminPassword(u *UI, key string) (secret, source string, ok bool) {
+func keycloakAdminPassword(u *UI) (secret, source string, ok bool) {
 	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
 		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment", true
 	}
-	store, ok := custodyFor(u, key)
-	if !ok {
-		return "", "", false
-	}
-	s, ok := store.get(u, custodyKeycloakAdmin)
+	s, ok := sharedCustody().get(u, custodyKeycloakAdmin)
 	if !ok || s == "" {
 		return "", "", ok
 	}
@@ -296,16 +311,16 @@ func loadOrCreateServiceClientSecret(u *UI, key, svc string) (string, bool) {
 	return secret, true
 }
 
-// loadOrCreateKeycloakAdminPassword resolves Keycloak's bootstrap admin
-// password for one root: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted
-// per-root value, else a freshly generated one persisted before use.
+// loadOrCreateKeycloakAdminPassword resolves the shared Keycloak's bootstrap
+// admin password: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the value kept for the
+// machine, else a freshly generated one kept before use.
 //
-// Per-root and persisted for the JWT secret's reason: Keycloak creates the
+// The machine's, as the Keycloak is, and persisted: Keycloak creates the
 // admin on its FIRST boot against an empty database and never reads the
-// variable again, so the value must outlive the stack with the database that
+// variable again, so the value must outlive the server with the database that
 // holds the admin it created — a regenerated one locks the console out.
-func loadOrCreateKeycloakAdminPassword(u *UI, key string) (string, bool) {
-	s, source, ok := keycloakAdminPassword(u, key)
+func loadOrCreateKeycloakAdminPassword(u *UI) (string, bool) {
+	s, source, ok := keycloakAdminPassword(u)
 	if !ok {
 		// The store did not answer; the environment is the other way in.
 		fmt.Fprintln(os.Stderr, "  Or export one yourself:  "+setVarHint(systemName(), "KC_BOOTSTRAP_ADMIN_PASSWORD", inlineRandomHex(systemName(), 16)))
@@ -315,12 +330,8 @@ func loadOrCreateKeycloakAdminPassword(u *UI, key string) (string, bool) {
 		u.Log("Keycloak admin password: %s", u.Dim(source+" (console user: "+keycloakAdminUser+")"))
 		return s, true
 	}
-	store, ok := custodyFor(u, key)
-	if !ok {
-		return "", false
-	}
 	secret, ok := generateHexSecret(u, 16, "Keycloak's admin password")
-	if !ok || !store.put(u, custodyKeycloakAdmin, secret) {
+	if !ok || !sharedCustody().put(u, custodyKeycloakAdmin, secret) {
 		return "", false
 	}
 	u.Log("Keycloak admin password: %s", u.Dim("generated and kept (console user: "+keycloakAdminUser+")"))
