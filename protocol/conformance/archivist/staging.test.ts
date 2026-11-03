@@ -4,11 +4,11 @@
  * runs none.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { sha256, shardOf, withArchivist } from '../harness/archivist-world';
-import { gitByHand } from '../harness/git';
+import { gitByHand, holdGitIndex } from '../harness/git';
 import { eventually } from '../harness/net';
 
 const logOf = (id: string) => `.semiont/events/${shardOf(id)}/${id}/events-000001.jsonl`;
@@ -80,15 +80,14 @@ withArchivist('staging, in a knowledge base that syncs git', (world) => {
 
   it('stays up, and goes on recording, when a batch cannot be staged', async () => {
     const editor = await world().person('editor');
-    const lock = join(world().dirs.root, '.git', 'index.lock');
-    writeFileSync(lock, '');
+    const release = await holdGitIndex(world().dirs.root);
     try {
       const id = await world().created(editor.did, { name: 'Degraded', storageUri: 'file://staged/degraded.md', content: 'degraded\n' });
       await editor.ask('mark:archive', { resourceId: id });
       expect(world().stored(id).map((e) => e.type)).toEqual(['yield:created', 'mark:archived']);
       expect((await world().http('GET', '/health', { anonymous: true, route: '/health' })).status).toBe(200);
     } finally {
-      execFileSync('rm', ['-f', lock]);
+      release();
     }
     // Held back by the lock, the changes are staged once it is gone.
     await world().untilIndexed('staged/degraded.md');
