@@ -6,10 +6,12 @@ struct WireOperation: Sendable {
   let request: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
   let response: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
 }
-func projectWire<Value: Codable>(_ type: Value.Type, _ payload: [String: JSONValue]) throws
+func projectWire<Value: Codable>(
+  _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>
+) throws
   -> [String: JSONValue]
 {
-  let data = try JSONEncoder().encode(payload)
+  let data = try JSONEncoder().encode(declared(payload, stamps: stamps))
   let decoded = try JSONDecoder().decode(type, from: data)
   return try JSONDecoder().decode([String: JSONValue].self, from: JSONEncoder().encode(decoded))
 }
@@ -79,7 +81,10 @@ extension HttpTransport {
       throw BusRequestError(code, failure.message)
     }
     do { return try descriptor.response(frame.payload) } catch {
-      throw BusRequestError(.busRejected, "Malformed reply for \(operation): \(error)")
+      let lacks = requiredPayloadMembers[descriptor.result]?.lacking(in: .object(frame.payload))
+      let detail = lacks.map { ": it has no `\($0)`" } ?? ""
+      throw TransportError(
+        .error, "A payload on \(descriptor.result) is not that channel's\(detail)")
     }
   }
   func fail(_ correlation: String, error: any Error) {

@@ -197,7 +197,7 @@ private actor Driver {
       return .null
     case "listen":
       let channel = try args.text("channel")
-      let frames = try await current().frames(channel)
+      let frames = try await current().frames([channel])
       let output = self.output
       reporters.append(
         Task {

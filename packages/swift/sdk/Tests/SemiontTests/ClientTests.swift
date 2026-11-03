@@ -1,0 +1,408 @@
+import Foundation
+import Synchronization
+import Testing
+
+@testable import Semiont
+
+@Test func localSignalsStayLocalAndFinishWithTheClientBus() async throws {
+  let bus = EventBus()
+  let events = bus.frames(Channels.beckonHover)
+  try bus.emit(Channels.beckonHover, BeckonHoverEvent(annotationId: nil))
+  var iterator = events.makeAsyncIterator()
+  guard case .delivered(let first) = try await iterator.next() else {
+    Issue.record("A local signal was not delivered")
+    return
+  }
+  #expect(first.payload.annotationId == nil)
+  bus.dispose()
+  #expect(try await iterator.next() == nil)
+}
+
+private struct Call: Equatable, Sendable {
+  let via: String
+  let name: String
+  let payload: [String: JSONValue]
+}
+private final class ProbeTransport: Transport, GatewayOperations, Sendable {
+  let baseUrl = "http://kb.test"
+  let state = Watched<ConnectionState>(.open)
+  private let hub = Broadcast<ReceivedFrame>()
+  private let failureEvents = Broadcast<TransportError>()
+  private struct State: Sendable {
+    var calls: [Call] = []
+    var count: Int? = 7
+    var failure: BusRequestError?
+    var holds = 0
+    var disposals = 0
+  }
+  private let storage = Mutex(State())
+  var calls: [Call] { storage.withLock { $0.calls } }
+  var holds: Int { storage.withLock { $0.holds } }
+  var disposals: Int { storage.withLock { $0.disposals } }
+  func reset() { storage.withLock { $0.calls = [] } }
+  func setCount(_ count: Int?) { storage.withLock { $0.count = count } }
+  func setFailure(_ failure: BusRequestError?) { storage.withLock { $0.failure = failure } }
+  func deliver(_ frame: ReceivedFrame) { hub.yield(frame) }
+  func frames(_ channels: [String]) async throws -> Events<ReceivedFrame> { hub.listen() }
+  func failures() -> Events<TransportError> { failureEvents.listen() }
+  func subscribeToResource(_ resource: ResourceId) async -> ResourceHold {
+    storage.withLock { $0.holds += 1 }
+    return ResourceHold { [self] in storage.withLock { $0.holds -= 1 } }
+  }
+  func emit(
+    channel: String, payload: [String: JSONValue], scope: ResourceId?, correlationId: String?
+  ) async throws -> Int? {
+    storage.withLock {
+      $0.calls.append(Call(via: "emit", name: channel, payload: payload))
+      return $0.count
+    }
+  }
+  func request(operation: String, payload: [String: JSONValue], timeoutMs: Int?) async throws
+    -> [String: JSONValue]
+  {
+    try storage.withLock { state in
+      state.calls.append(Call(via: "request", name: operation, payload: payload))
+      if let failure = state.failure { throw failure }
+      return [:]
+    }
+  }
+  func dispose() {
+    storage.withLock { $0.disposals += 1 }
+    hub.finish()
+    failureEvents.finish()
+    state.finish(with: .closed)
+  }
+  func getCurrentUser() async throws -> UserResponse {
+    storage.withLock { $0.calls.append(Call(via: "gateway", name: "getCurrentUser", payload: [:])) }
+    return UserResponse(
+      did: try UserId("did:web:kb.test:users:person"), domain: "kb.test", email: nil, image: nil,
+      name: nil)
+  }
+  func getMediaToken(_ resource: ResourceId) async throws -> MediaTokenResponse {
+    storage.withLock {
+      $0.calls.append(
+        Call(
+          via: "gateway", name: "getMediaToken", payload: ["resourceId": .string(resource.value)]))
+    }
+    return MediaTokenResponse(token: "media-token")
+  }
+  func getProtectedResourceMetadata() async throws -> ProtectedResourceMetadata {
+    storage.withLock {
+      $0.calls.append(Call(via: "gateway", name: "getProtectedResourceMetadata", payload: [:]))
+    }
+    return ProtectedResourceMetadata(
+      authorization_servers: ["https://issuer.test"], bearer_methods_supported: [.header],
+      resource: "http://kb.test")
+  }
+  func healthCheck() async throws -> HealthResponse {
+    storage.withLock { $0.calls.append(Call(via: "gateway", name: "healthCheck", payload: [:])) }
+    return HealthResponse(
+      message: "healthy", status: "ok", timestamp: "2026-11-03T00:00:00Z", version: "test")
+  }
+  func getStatus() async throws -> StatusResponse {
+    storage.withLock { $0.calls.append(Call(via: "gateway", name: "getStatus", payload: [:])) }
+    return StatusResponse(
+      features: StatusResponseFeatures(collaboration: "yes", semanticContent: "yes"),
+      message: "ready", status: "ok", version: "test")
+  }
+}
+private let callsByName:
+  [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "frame.addEntityType": { client, args in
+      try await client.frame.addEntityType(required(args, "type").text)
+      return nil
+    },
+    "frame.addEntityTypes": { client, args in
+      try await client.frame.addEntityTypes(decoded([String].self, required(args, "types")))
+      return nil
+    },
+    "frame.addTagSchema": { client, args in
+      try await client.frame.addTagSchema(decoded(TagSchema.self, required(args, "schema")))
+      return nil
+    },
+    "bind.body": { client, args in
+      try await client.bind.body(
+        resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+        annotationId: decoded(AnnotationId.self, required(args, "annotationId")),
+        operations: decoded([BindBodyOperation].self, required(args, "operations")))
+      return nil
+    },
+    "bind.initiate": { client, args in
+      try client.bind.initiate(decoded(BindInitiateCommand.self, required(args, "input")))
+      return nil
+    },
+    "bind.reportBodyError": { client, args in
+      try client.bind.reportBodyError(decoded(ResourceErrorEvent.self, required(args, "input")))
+      return nil
+    },
+    "beckon.attention": { client, args in
+      try await client.beckon.attention(
+        resourceId: decoded(ResourceId.self, required(args, "resourceId")),
+        annotationId: args["annotationId"].map { try decoded(AnnotationId.self, $0) }
+      ).map { .number(Double($0)) } ?? .null
+    },
+    "beckon.click": { client, args in
+      try await client.beckon.click(decoded(AnnotationId.self, required(args, "annotationId"))).map
+      { .number(Double($0)) } ?? .null
+    },
+    "beckon.openResource": { client, args in
+      try await client.beckon.openResource(decoded(ResourceId.self, required(args, "resourceId")))
+        .map { .number(Double($0)) } ?? .null
+    },
+    "beckon.sparkleAll": { client, args in
+      try await client.beckon.sparkleAll(decoded(AnnotationId.self, required(args, "annotationId")))
+        .map { .number(Double($0)) } ?? .null
+    },
+    "beckon.hover": { client, args in
+      try client.beckon.hover(
+        args["annotationId"] == .null
+          ? nil : decoded(AnnotationId.self, required(args, "annotationId")))
+      return nil
+    },
+    "beckon.sparkle": { client, args in
+      try client.beckon.sparkle(decoded(AnnotationId.self, required(args, "annotationId")))
+      return nil
+    },
+    "auth.me": { client, _ in try await encoded(#require(client.auth).me()) },
+    "auth.mediaToken": { client, args in
+      try await encoded(
+        #require(client.auth).mediaToken(decoded(ResourceId.self, required(args, "resourceId"))))
+    },
+    "auth.protectedResourceMetadata": { client, _ in
+      try await encoded(#require(client.auth).protectedResourceMetadata())
+    },
+    "system.healthCheck": { client, _ in try await encoded(#require(client.system).healthCheck()) },
+    "system.status": { client, _ in try await encoded(#require(client.system).status()) },
+  ]
+@Test func everyReachedNamespaceRunsEverySurfaceCase() async throws {
+  let table = try Spec.read("client/surface.json").object
+  var reached: Set<String> = []
+  for value in try required(table, "namespaces").array {
+    let namespace = try value.object
+    if try namespace["notYetReached"]?.object["swift"] != nil { continue }
+    let name = try required(namespace, "namespace").text
+    for method in try required(namespace, "methods").array {
+      let row = try method.object
+      let key = name + "." + (try required(row, "method").text)
+      reached.insert(key)
+      let invoke = try #require(callsByName[key])
+      for value in try required(row, "cases").array {
+        let item = try value.object
+        let via = try required(row, "via").object
+        let probe = ProbeTransport()
+        let client = try await SemiontClient(transport: probe, gateway: probe)
+        defer { client.dispose() }
+        let local = try via["local"].map { client.bus.listen(try $0.text) }
+        defer { local?.dispose() }
+        let result = try await invoke(client, required(item, "args").object)
+        var expected: [Call] = []
+        for (kind, name) in via {
+          expected.append(
+            Call(via: kind, name: try name.text, payload: try required(item, "sends").object))
+        }
+        for next in try item["then"]?.array ?? [] {
+          let next = try next.object
+          expected.append(
+            Call(
+              via: "request", name: try required(next, "request").text,
+              payload: try required(next, "sends").object))
+        }
+        if let local {
+          let frame = try await within(1000) {
+            var iterator = local.makeAsyncIterator()
+            return try await iterator.next()
+          }
+          #expect(probe.calls.isEmpty)
+          #expect(frame?.payload == expected.first?.payload)
+        } else {
+          #expect(probe.calls == expected, "\(key)")
+        }
+        if via["emit"] != nil { #expect(result == .number(7)) }
+        if via["gateway"] != nil { #expect(result != nil) }
+      }
+    }
+  }
+  #expect(reached == Set(callsByName.keys))
+}
+
+@Test func typedWirePreservesEnvelopeRefusesBadPayloadsAndKeepsReading() async throws {
+  let probe = ProbeTransport()
+  let bus = Bus(probe)
+  let source = try await bus.frames(Channels.beckonFocus)
+  let trace = ["traceparent": "00-trace-parent-01"]
+  probe.deliver(
+    ReceivedFrame(
+      channel: "beckon:focus", correlationId: "first",
+      payload: ["_userId": .string("did:web:kb.test:users:person")], trace: trace))
+  probe.deliver(
+    ReceivedFrame(
+      channel: "beckon:focus", correlationId: "second",
+      payload: [
+        "resourceId": .string("res-1"), "_userId": .string("did:web:kb.test:users:person"),
+        "_unrecognized": .string("ignore"),
+      ], trace: trace))
+  var iterator = source.makeAsyncIterator()
+  guard case .refused(let bad) = try await iterator.next() else {
+    Issue.record("Malformed frame delivered")
+    return
+  }
+  #expect(bad.channel == "beckon:focus")
+  #expect(bad.lacks == "resourceId")
+  #expect(bad.payload["_userId"] != nil)
+  guard case .delivered(let good) = try await iterator.next() else {
+    Issue.record("Valid frame refused")
+    return
+  }
+  #expect(good.payload.resourceId.value == "res-1")
+  #expect(good.frame.correlationId == "second")
+  #expect(good.frame.trace == trace)
+  #expect(good.userId?.value == "did:web:kb.test:users:person")
+  var second = source.makeAsyncIterator()
+  await #expect(throws: MultipleConsumers.self) { try await second.next() }
+  probe.deliver(ReceivedFrame(channel: "beckon:focus", payload: ["resourceId": .string("res-2")]))
+  guard case .delivered(let third) = try await iterator.next() else {
+    Issue.record("Second reader ended first")
+    return
+  }
+  #expect(third.payload.resourceId.value == "res-2")
+  source.dispose()
+  #expect(try await iterator.next() == nil)
+}
+@Test func scopedReadsHoldOnlyTheirResourceAndReleaseAtTheEnd() async throws {
+  let probe = ProbeTransport()
+  let bus = Bus(probe)
+  let resource = try ResourceId("res-1")
+  let source = try await bus.frames(Channels.markAdded, resource: resource)
+  #expect(probe.holds == 1)
+  probe.deliver(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-2")))
+  probe.deliver(
+    ReceivedFrame(
+      channel: "mark:added", payload: ["test-source": .string("wanted")], scope: resource))
+  probe.dispose()
+  var iterator = source.makeAsyncIterator()
+  guard case .refused(let wanted) = try await iterator.next() else {
+    Issue.record("No scoped frame")
+    return
+  }
+  #expect(wanted.payload["test-source"] == .string("wanted"))
+  #expect(try await iterator.next() == nil)
+  #expect(probe.holds == 0)
+  source.dispose()
+  #expect(probe.holds == 0)
+}
+@Test func clientsBridgeOnlyReceivedFramesAndDisposeExactlyOnce() async throws {
+  let probe = ProbeTransport()
+  var client: SemiontClient? = try await SemiontClient(transport: probe)
+  #expect(client?.auth == nil)
+  #expect(client?.system == nil)
+  let bus = try #require(client?.bus)
+  let local = bus.frames(Channels.beckonSparkle)
+  _ = try await client?.beckon.sparkleAll(AnnotationId("ann-1"))
+  // Emission itself cannot loop back. Only the received copy is bridged.
+  probe.deliver(
+    ReceivedFrame(channel: "beckon:sparkle", payload: ["annotationId": .string("ann-2")]))
+  let first = try await within(1000) {
+    var iterator = local.makeAsyncIterator()
+    return try await iterator.next()
+  }
+  guard case .delivered(let frame) = first else {
+    Issue.record("Wire event was not bridged")
+    return
+  }
+  #expect(frame.payload.annotationId.value == "ann-2")
+  let closing = bus.frames(Channels.beckonSparkle)
+  client?.dispose()
+  client = nil
+  #expect(probe.disposals == 1)
+  var closingReader = closing.makeAsyncIterator()
+  #expect(try await closingReader.next() == nil)
+  #expect(throws: BusRequestError.self) {
+    try bus.emit(Channels.beckonSparkle, BeckonSparkleEvent(annotationId: AnnotationId("ann-3")))
+  }
+}
+@Test func namespaceRequestsPropagateFailuresAndStopSequentialWrites() async throws {
+  let probe = ProbeTransport()
+  let client = try await SemiontClient(transport: probe)
+  defer { client.dispose() }
+  probe.setFailure(BusRequestError(.busRejected, "refused"))
+  do {
+    try await client.frame.addEntityTypes(["first", "second"])
+    Issue.record("Refusal succeeded")
+  } catch let error as BusRequestError { #expect(error.reason == .busRejected) }
+  #expect(probe.calls.count == 1)
+  probe.reset()
+  for count in [nil, 0, 11] as [Int?] {
+    probe.setCount(count)
+    #expect(try await client.beckon.attention(resourceId: ResourceId("res-1")) == count)
+  }
+}
+@Test func malformedOperationRepliesFailWithoutDiscardingARequiredName() async throws {
+  let probe = ProbeTransport()
+  let bus = Bus(probe)
+  do {
+    _ = try await bus.request(
+      Operations.browseResourceRequested, BrowseResourceRequest(resourceId: ResourceId("res-1")))
+    Issue.record("A malformed reply succeeded")
+  } catch let error as TransportError {
+    #expect(error.reason == .error)
+    #expect(error.description.contains("response"))
+  }
+}
+
+@Test func payloadDiagnosticsFollowTheSchemaAndPreferMissingParents() async throws {
+  let probe = ProbeTransport()
+  let user = try await encoded(probe.getCurrentUser()).object
+  let userShape = try #require(requiredModelMembers["UserResponse"])
+  let schema = try Spec.read("components/schemas/UserResponse.json").object
+  #expect(userShape.lacking(in: .object(user)) == nil)
+  for value in try required(schema, "required").array {
+    let name = try value.text
+    var missing = user
+    missing.removeValue(forKey: name)
+    #expect(userShape.lacking(in: .object(missing)) == name)
+    missing[name] = .null
+    let property = try #require(required(schema, "properties").object[name]).object
+    #expect(
+      userShape.lacking(in: .object(missing)) == (property["nullable"] == .bool(true) ? nil : name))
+  }
+  var status = try await encoded(probe.getStatus()).object
+  status["features"] = .object([:])
+  status.removeValue(forKey: "version")
+  let statusShape = try #require(requiredModelMembers["StatusResponse"])
+  #expect(statusShape.lacking(in: .object(status)) == "version")
+  status["version"] = .string("test")
+  #expect(statusShape.lacking(in: .object(status)) == "features.collaboration")
+  let registry = try Spec.read("bus/registry.json").object
+  let channels = try required(registry, "channels").array.map {
+    try required($0.object, "channel").text
+  }
+  #expect(Set(requiredPayloadMembers.keys) == Set(channels))
+}
+@Test func cancellingScopedConstructionReleasesItsHold() async throws {
+  let probe = ProbeTransport()
+  let task = Task {
+    withUnsafeCurrentTask { $0?.cancel() }
+    return try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-1"))
+  }
+  do {
+    _ = try await task.value
+    Issue.record("A cancelled scoped read opened")
+  } catch is CancellationError {}
+  #expect(probe.holds == 0)
+}
+
+@Test func breakingOrCancellingATypedReadReleasesItsScopeWhileTheSequenceIsHeld() async throws {
+  let probe = ProbeTransport()
+  let source = try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-1"))
+  probe.deliver(ReceivedFrame(channel: "mark:added", payload: [:], scope: try ResourceId("res-1")))
+  for try await _ in source { break }
+  #expect(probe.holds == 0)
+  let waiting = try await Bus(probe).frames(Channels.markAdded, resource: ResourceId("res-2"))
+  #expect(probe.holds == 1)
+  let task = Task { for try await _ in waiting {} }
+  task.cancel()
+  _ = try await task.value
+  #expect(probe.holds == 0)
+  source.dispose()
+  waiting.dispose()
+}

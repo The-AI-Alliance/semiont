@@ -49,8 +49,36 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
     var ended = false
     var listeners: [UUID: AsyncStream<Value>.Continuation] = [:]
   }
+  private let updatesLifetime = Lifetime()
   private let state: Mutex<State>
   init(_ value: Value) { state = Mutex(State(value: value)) }
+  public convenience init(_ initial: Value, updates: AsyncStream<Value>) {
+    self.init(initial)
+    let id = UUID()
+    let life = updatesLifetime
+    let task = Task { [weak self] in
+      defer { life.forget(id) }
+      for await value in updates {
+        if Task.isCancelled { break }
+        self?.set(value)
+      }
+      self?.finish()
+    }
+    life.keep(task, id: id)
+  }
+  deinit {
+    updatesLifetime.end()
+    finish()
+  }
+  func finish() {
+    let listeners = state.withLock { state in
+      state.ended = true
+      let listeners = Array(state.listeners.values)
+      state.listeners.removeAll()
+      return listeners
+    }
+    for listener in listeners { listener.finish() }
+  }
   public var value: Value { state.withLock { $0.value } }
   public func makeAsyncIterator() -> AsyncIterator {
     let (stream, continuation) = AsyncStream<Value>.makeStream(bufferingPolicy: .unbounded)
@@ -134,7 +162,7 @@ final class Lifetime: Sendable {
 
 public final class ResourceHold: Sendable {
   private let release: Mutex<(@Sendable () -> Void)?>
-  init(_ release: @escaping @Sendable () -> Void) { self.release = Mutex(release) }
+  public init(_ release: @escaping @Sendable () -> Void) { self.release = Mutex(release) }
   public func dispose() {
     let action = release.withLock { action in
       let held = action
@@ -155,7 +183,7 @@ public final class Events<Value: Sendable>: AsyncSequence, Sendable {
   private let claimed = Mutex(false)
   private let demand: @Sendable () -> Void
   private let stop: @Sendable () -> Void
-  init(
+  public init(
     _ stream: AsyncThrowingStream<Value, any Error>, demand: @escaping @Sendable () -> Void = {},
     stop: @escaping @Sendable () -> Void
   ) {
@@ -166,7 +194,7 @@ public final class Events<Value: Sendable>: AsyncSequence, Sendable {
   public struct AsyncIterator: AsyncIteratorProtocol {
     private let owner: Events<Value>
     private var iterator: AsyncThrowingStream<Value, any Error>.Iterator
-    private let rejected: Bool
+    let rejected: Bool
     fileprivate init(owner: Events<Value>, rejected: Bool) {
       self.owner = owner
       self.rejected = rejected

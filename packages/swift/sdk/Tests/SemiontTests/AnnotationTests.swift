@@ -3,12 +3,6 @@ import Testing
 
 @testable import Semiont
 
-func decoded<Value: Decodable>(_ type: Value.Type, _ value: JSONValue) throws -> Value {
-  try JSONDecoder().decode(type, from: JSONEncoder().encode(value))
-}
-func encoded<Value: Encodable>(_ value: Value) throws -> JSONValue {
-  try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
-}
 @Test func reconcileRunsEverySharedCase() throws {
   for value in try required(Spec.read("annotations/reconcile-cases.json").object, "cases").array {
     let row = try value.object

@@ -54,3 +54,10 @@ func required(_ object: [String: JSONValue], _ key: String) throws -> JSONValue 
   guard let value = object[key] else { throw SpecFailure.shape("missing \(key)") }
   return value
 }
+
+func decoded<Value: Decodable>(_ type: Value.Type, _ value: JSONValue) throws -> Value {
+  try JSONDecoder().decode(type, from: JSONEncoder().encode(value))
+}
+func encoded<Value: Encodable>(_ value: Value) throws -> JSONValue {
+  try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
+}
