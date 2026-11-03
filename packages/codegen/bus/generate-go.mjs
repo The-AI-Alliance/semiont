@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-go.mjs — generate the Go SDK's bus vocabulary from
-// specs/src/bus/registry.json, the same file the TypeScript and Python
+// protocol/specs/src/bus/registry.json, the same file the TypeScript and Python
 // generators read.
 //
 //   packages/go/sdk/bus/channels_gen.go   every channel, typed by its payload, and the field a
@@ -27,9 +27,9 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
+const REGISTRY = resolve(ROOT, 'protocol/specs/src/bus/registry.json');
 const OUT_DIR = resolve(ROOT, 'packages/go/sdk/bus');
-const SCHEMAS = resolve(ROOT, 'specs/src/components/schemas');
+const SCHEMAS = resolve(ROOT, 'protocol/specs/src/components/schemas');
 const CHECK = process.argv.includes('--check');
 
 const registryText = readFileSync(REGISTRY, 'utf8');
@@ -55,7 +55,7 @@ for (const c of reg.channels) {
   names.set(name, c.channel);
 }
 
-const BANNER = `// Code generated from specs/src/bus/registry.json — DO NOT EDIT.
+const BANNER = `// Code generated from protocol/specs/src/bus/registry.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/bus/generate-go.mjs
 `;
@@ -241,7 +241,7 @@ ${listed(reg.audience.scoped)}
 
 // PersistedEventTypes: the channels of the events of the record, each named
 // for the event it carries: every event the event log holds. A follower of the
-// record receives each of them (docs/protocol/TRANSPORT-CONTRACT.md § What
+// record receives each of them (protocol/contract/TRANSPORT-CONTRACT.md § What
 // repairs a passing frame).
 var PersistedEventTypes = []Channel{
 ${listed(reg.channels.filter((c) => c.event).map((c) => c.channel))}

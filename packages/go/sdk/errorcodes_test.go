@@ -1,6 +1,6 @@
 package semiont_test
 
-// The failure vocabularies' two mappings, held to specs/src/errors/codes.json:
+// The failure vocabularies' two mappings, held to protocol/specs/src/errors/codes.json:
 // the code an HTTP status becomes, and the bus code a peer's wire code becomes.
 // That each vocabulary's constants are the table's codes is the drift gate's:
 // the file is generated from the table and checked against it.
@@ -35,7 +35,7 @@ type codesTable struct {
 
 func readCodes(t *testing.T) codesTable {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "errors", "codes.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "errors", "codes.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

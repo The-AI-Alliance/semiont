@@ -5,7 +5,7 @@ package verbs
 // title"). A call is held to its tool's input schema, which is the spec's,
 // before anything is sent; a refusal names every fault; a value the caller
 // did not state is not sent, and where the SDK's surface states what a call
-// that states nothing sends (specs/src/client/surface.json), that is what is
+// that states nothing sends (protocol/specs/src/client/surface.json), that is what is
 // sent, for every SDK alike.
 
 import (

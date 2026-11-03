@@ -1,4 +1,4 @@
-"""`reconcile`, held to `specs/src/annotations/reconcile-cases.json`: the table every SDK's reconciling runs."""
+"""`reconcile`, held to `protocol/specs/src/annotations/reconcile-cases.json`: the table every SDK's reconciling runs."""
 
 import random
 from typing import Final, get_args

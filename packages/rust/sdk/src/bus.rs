@@ -1,7 +1,7 @@
 //! A client of a knowledge base's bus, over any `Transport`: emit, observe,
 //! and request.
 //!
-//! A request (docs/protocol/TRANSPORT-CONTRACT.md § Requests) is one emit
+//! A request (protocol/contract/TRANSPORT-CONTRACT.md § Requests) is one emit
 //! carrying a correlation id of this client's making on its envelope, answered
 //! on its operation's result or failure channel (the registry's `operations`).
 //! It is not sent before the stream that carries its reply is open; its id is

@@ -9,7 +9,7 @@ and what is kept of a passage is the text's own words and the text's own
 surroundings, never the model's. A proposal the text does not hold is
 counted, because a job reports it.
 
-`specs/src/worker/parser-cases.json` holds the reading. Each element schema
+`protocol/specs/src/worker/parser-cases.json` holds the reading. Each element schema
 is the one the worker service's suite holds a detection to, its properties in
 the suite's order: a provider that holds a reply to a schema writes an
 element's members in that order. `prefix` and `suffix` are not required of

@@ -41,7 +41,7 @@ const token = accessToken('eyJhbGc...');
 const eType = entityType('Person');
 ```
 
-The four kinds of id are types of their own, generated from the spec ([`specs/src/identifiers/kinds.json`](../../../../specs/src/identifiers/kinds.json) and each kind's schema): `ResourceId`, `AnnotationId`, `JobId`, `UserId`. The spec's types carry them, so a property that holds an id is of its kind and one kind is not assignable to another. Each is made by its constructor (`resourceId`, `annotationId`, `jobId`, `userId`), which holds text to the kind's rule and throws a `TypeError` for text the rule refuses:
+The four kinds of id are types of their own, generated from the spec ([`protocol/specs/src/identifiers/kinds.json`](../../../../protocol/specs/src/identifiers/kinds.json) and each kind's schema): `ResourceId`, `AnnotationId`, `JobId`, `UserId`. The spec's types carry them, so a property that holds an id is of its kind and one kind is not assignable to another. Each is made by its constructor (`resourceId`, `annotationId`, `jobId`, `userId`), which holds text to the kind's rule and throws a `TypeError` for text the rule refuses:
 
 ```typescript
 import { resourceId, annotationId } from '@semiont/core';
@@ -155,7 +155,7 @@ a position to something that indexes one converts with `textOffsets(text)`:
 Text paired with the geometry that indexes it, and the inverse pair that reads
 it in either direction. Pure arithmetic over plain data — this is what *reasons
 over* a coordinate map; producing one (text layer, OCR, tables, forms) is the
-[Smelter](../../../../docs/protocol/SMELTER.md)'s.
+[Smelter](../../../../protocol/contract/SMELTER.md)'s.
 
 ```typescript
 import { locate, textUnder, type AnchoredText } from '@semiont/core';
@@ -189,7 +189,7 @@ kbResource('example.com:kb');  // => 'https://example.com/kb', the audience its 
 ```
 
 A principal's DID is not made here: the gateway mints it from the token it verified, and the record
-reads its kind (`specs/src/principals/cases.json`, `specs/src/principals/kind-cases.json`).
+reads its kind (`protocol/specs/src/principals/cases.json`, `protocol/specs/src/principals/kind-cases.json`).
 
 ## Error Classes
 
@@ -220,7 +220,7 @@ if (isObject(value) && isString(value.name)) {
 
 - **ResourceDescriptor accessors** — `getResourceId`, `getPrimaryRepresentation`, `getPrimaryMediaType`, `getResourceEntityTypes`, `isArchived`, `decodeRepresentation`, …
 - **Locales** — `LOCALES`, `LOCALE_CODES`, `formatLocaleDisplay`
-- **Media types** — `MEDIA_TYPES` capability registry keyed by the spec's `SupportedMediaType` enum (render / anchoring / text source / authorable per type), generated from `specs/src/media-types/registry.json`, with `capabilitiesOf`, `textSourceOf`, `yieldsGeometryOf`, `derivesTextOf`, `mediaTypeForExtension`, `baseMediaType`, …
+- **Media types** — `MEDIA_TYPES` capability registry keyed by the spec's `SupportedMediaType` enum (render / anchoring / text source / authorable per type), generated from `protocol/specs/src/media-types/registry.json`, with `capabilitiesOf`, `textSourceOf`, `yieldsGeometryOf`, `derivesTextOf`, `mediaTypeForExtension`, `baseMediaType`, …
 - **Text encoding** — `decodeWithCharset`
 - **Text context** — `extractContext`
 - **SVG** — `createRectangleSvg`, `parseSvgSelector`, `scaleSvgToNative`, …

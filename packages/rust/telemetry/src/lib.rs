@@ -3,7 +3,7 @@
 //! with nothing installed no span is recorded and no trace context travels.
 //!
 //! A transport reports through one function per row of the SDK telemetry
-//! table (specs/src/sdk-telemetry/telemetry.json): [`bus_emit`], which is
+//! table (protocol/specs/src/sdk-telemetry/telemetry.json): [`bus_emit`], which is
 //! also the `semiont.bus.sent` count, [`bus_recv`], [`content_put`],
 //! [`content_get`], [`content_get_graph`], [`content_get_annotations`] and
 //! [`content_get_anchored_text`].

@@ -1,4 +1,4 @@
-//! The client's surface against specs/src/client/surface.json: every method
+//! The client's surface against protocol/specs/src/client/surface.json: every method
 //! the table lists is called as each of its cases states, and what the call
 //! did first is held to the row. A row with no call here fails, and so does a
 //! call here with no row: the table and this SDK list the same methods.

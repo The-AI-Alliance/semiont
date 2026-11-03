@@ -1,6 +1,6 @@
 package semiont_test
 
-// Trying again, held to the cases every SDK runs (specs/src/retry/cases.json).
+// Trying again, held to the cases every SDK runs (protocol/specs/src/retry/cases.json).
 // The table states four rules. This SDK keeps the ones it has a use for, and
 // the rest are named below with why: a rule the table gains, or one this SDK
 // comes to keep, fails here until this file says so.
@@ -37,7 +37,7 @@ type statedWait struct {
 
 func readRetryTable(t *testing.T) (rules []retryRow, waits []statedWait) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "retry", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "retry", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

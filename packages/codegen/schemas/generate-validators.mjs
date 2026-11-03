@@ -29,7 +29,7 @@ import { convertNullable } from './openapi-schema.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
-const SPEC = resolve(ROOT, 'specs/openapi.json');
+const SPEC = resolve(ROOT, 'protocol/specs/openapi.json');
 const OUT_DIR = resolve(ROOT, 'packages/typescript/core/src/generated');
 // CommonJS, deliberately. Ajv's `code.esm` option only changes the EXPORT
 // syntax — `compile/codegen/scope.js` has no ESM handling, so scope values
@@ -42,7 +42,7 @@ const OUT_JS = resolve(OUT_DIR, 'openapi-validators.cjs');
 const OUT_DTS = resolve(OUT_DIR, 'openapi-validators.d.cts');
 
 const BANNER = `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/openapi.json → packages/codegen/schemas/generate-validators.mjs
+// Source: protocol/specs/openapi.json → packages/codegen/schemas/generate-validators.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 `;
 

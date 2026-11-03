@@ -502,7 +502,7 @@ See [TESTING.md](TESTING.md) for details.
 - Invalidation is implicit — bus events drive cache refreshes, so there are no
   manual invalidation calls in component code
 
-See [CACHE-SEMANTICS.md](../../../../docs/protocol/CACHE-SEMANTICS.md) for the full cache contract.
+See [CACHE-SEMANTICS.md](../../../../protocol/contract/CACHE-SEMANTICS.md) for the full cache contract.
 
 ### Code Splitting
 

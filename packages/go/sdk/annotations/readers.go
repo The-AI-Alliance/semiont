@@ -13,7 +13,7 @@
 // it again, in any language, writes nothing new.
 //
 // Every SDK has the readers and the builders. The case tables in
-// specs/src/annotations hold each to one answer (reader-cases.json,
+// protocol/specs/src/annotations hold each to one answer (reader-cases.json,
 // reconcile-cases.json, builder-cases.json), and this package's tests run
 // them.
 package annotations

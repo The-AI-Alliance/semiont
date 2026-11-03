@@ -1,7 +1,7 @@
 /**
  * The error-code table's generator refuses a table that lies.
  *
- * specs/src/errors/codes.json is the authority every SDK generates its error
+ * protocol/specs/src/errors/codes.json is the authority every SDK generates its error
  * vocabularies from. A generated type cannot drift from it, so the place the
  * table can still go wrong is against the facts it restates: the wire's own
  * failure codes (`CommandError.code`), and itself. Each case here hands the
@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const GENERATOR = fileURLToPath(new URL('../../../../codegen/schemas/generate-error-codes.mjs', import.meta.url));
-const TABLE = fileURLToPath(new URL('../../../../../specs/src/errors/codes.json', import.meta.url));
+const TABLE = fileURLToPath(new URL('../../../../../protocol/specs/src/errors/codes.json', import.meta.url));
 
 interface Entry {
   code: string;

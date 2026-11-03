@@ -4,11 +4,11 @@ A knowledge base carries what it needs to run in its own repository, as YAML com
 
 | File | What it holds | Schema |
 |---|---|---|
-| `.semiont/config.yaml` | The project file: the knowledge base's name, whether git stages its changes, and its permanent `did:web` identity | [`ProjectConfig`](../../../specs/src/kb-identity/ProjectConfig.json) |
-| `.semiont/stack/knowledge-base.yaml` | The gateway, the dispatcher, the archivist, the broker between them, and the issuer the knowledge base trusts | [`KnowledgeBase`](../../../specs/src/stack/KnowledgeBase.json) |
-| `.semiont/stack/index.yaml` | The graph, the vector store, the embedding model, and the librarian, the smelter and the weaver | [`KnowledgeIndex`](../../../specs/src/stack/KnowledgeIndex.json) |
-| `.semiont/stack/issuer.yaml` | The Keycloak the launcher runs, and the PostgreSQL it keeps its realm in | [`Issuer`](../../../specs/src/stack/Issuer.json) |
-| `.semiont/stack/inference/<name>.yaml` | The inference providers, and which provider and model serve each role | [`Inference`](../../../specs/src/stack/Inference.json) |
+| `.semiont/config.yaml` | The project file: the knowledge base's name, whether git stages its changes, and its permanent `did:web` identity | [`ProjectConfig`](../../../protocol/specs/src/kb-identity/ProjectConfig.json) |
+| `.semiont/stack/knowledge-base.yaml` | The gateway, the dispatcher, the archivist, the broker between them, and the issuer the knowledge base trusts | [`KnowledgeBase`](../../../protocol/specs/src/stack/KnowledgeBase.json) |
+| `.semiont/stack/index.yaml` | The graph, the vector store, the embedding model, and the librarian, the smelter and the weaver | [`KnowledgeIndex`](../../../protocol/specs/src/stack/KnowledgeIndex.json) |
+| `.semiont/stack/issuer.yaml` | The Keycloak the launcher runs, and the PostgreSQL it keeps its realm in | [`Issuer`](../../../protocol/specs/src/stack/Issuer.json) |
+| `.semiont/stack/inference/<name>.yaml` | The inference providers, and which provider and model serve each role | [`Inference`](../../../protocol/specs/src/stack/Inference.json) |
 
 The launcher reads them and writes each service a JSON document ([What each service is given](#what-each-service-is-given)). No service reads a stack document; the Archivist, which mounts the repository, reads `.semiont/config.yaml` from it.
 
@@ -34,7 +34,7 @@ site:
   siteName: "My Knowledge Base"
 ```
 
-Its schema is [`ProjectConfig`](../../../specs/src/kb-identity/ProjectConfig.json). A command run in a knowledge base whose `config.yaml` does not hold to it stops there, naming each place by its line (`status` and `roots` show the refusal instead), and the Archivist does not start on one.
+Its schema is [`ProjectConfig`](../../../protocol/specs/src/kb-identity/ProjectConfig.json). A command run in a knowledge base whose `config.yaml` does not hold to it stops there, naming each place by its line (`status` and `roots` show the refusal instead), and the Archivist does not start on one.
 
 `git.sync: true` has the Archivist stage each change it makes in git; committing and pushing are yours. `semiont init --no-git` writes `false`.
 
@@ -74,7 +74,7 @@ spec:
     subjectClaim: sub
 ```
 
-The documents name one another by `metadata.name`: the KnowledgeIndex names the KnowledgeBase in `spec.knowledgeBase`, and the KnowledgeBase names its Issuer in `spec.issuer.ref`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`specs/src/stack/`](../../../specs/src/stack/README.md).
+The documents name one another by `metadata.name`: the KnowledgeIndex names the KnowledgeBase in `spec.knowledgeBase`, and the KnowledgeBase names its Issuer in `spec.issuer.ref`. A document's `spec.logLevel` is the log level of the services it describes; `semiont init` writes `info`. `semiont start` holds every document to its schema before it starts anything, and refuses one that does not hold, naming the file and each place by its line. The schemas, and the objects the kinds share, are listed in [`protocol/specs/src/stack/`](../../../protocol/specs/src/stack/README.md).
 
 ### Who runs each daemon
 
@@ -83,7 +83,7 @@ The graph, the vector store, the broker and the issuer's PostgreSQL are each one
 - **`image` and `resources`**: the launcher runs it and places it, and generates and keeps its password. The document states no address and no password.
 - **`external`**: somebody else runs it. The document states where it is and, where it takes one, names the variable that holds its credential, and the launcher checks that it answers and starts nothing.
 
-Never both, and never neither: [`Runner.json`](../../../specs/src/stack/Runner.json) is the rule each of them is held to, and each one's schema says what its `external` holds. An external address must be one the containers can reach; `localhost` inside a container is the container itself.
+Never both, and never neither: [`Runner.json`](../../../protocol/specs/src/stack/Runner.json) is the rule each of them is held to, and each one's schema says what its `external` holds. An external address must be one the containers can reach; `localhost` inside a container is the container itself.
 
 The issuer is chosen the same way, one level up: the KnowledgeBase names an Issuer document the launcher runs, or states an issuer somebody else runs ([The issuer](#the-issuer)).
 
@@ -115,11 +115,11 @@ semiont settings config anthropic   # make it this knowledge base's choice on th
 
 A start with no `--config` runs the choice recorded for the knowledge base: the one `semiont init` wrote, or the one a successful start last named, else `ollama-gemma`. A document's `metadata.name` is its file's name, and a start refuses one that differs.
 
-Each job and each actor has its engine stated by itself, keyed as a job is described ([`ArchivistEngines`](../../../specs/src/components/schemas/ArchivistEngines.json)): a `mark` job by its motivation, under `spec.engines.jobs.mark`, a `yield` job at `spec.engines.jobs.yield`, and the librarian's two actors that call a model, the `gatherer` and the `matcher`, under `spec.engines.actors`. Nothing stands in for an engine the document leaves out: a job with none is done by no software worker, and the librarian does not start without both actors' engines. An engine is how software does a job; a person who holds the worker role claims jobs from the same queue and uses none. `semiont init` gives every job and actor the one model chosen; anything finer is your edit, and providers can be mixed: a stronger model for the jobs that reason, a lighter or local one for the high-volume ones.
+Each job and each actor has its engine stated by itself, keyed as a job is described ([`ArchivistEngines`](../../../protocol/specs/src/components/schemas/ArchivistEngines.json)): a `mark` job by its motivation, under `spec.engines.jobs.mark`, a `yield` job at `spec.engines.jobs.yield`, and the librarian's two actors that call a model, the `gatherer` and the `matcher`, under `spec.engines.actors`. Nothing stands in for an engine the document leaves out: a job with none is done by no software worker, and the librarian does not start without both actors' engines. An engine is how software does a job; a person who holds the worker role claims jobs from the same queue and uses none. `semiont init` gives every job and actor the one model chosen; anything finer is your edit, and providers can be mixed: a stronger model for the jobs that reason, a lighter or local one for the high-volume ones.
 
 The shared worker serves a knowledge base only when one of its jobs has an engine ([The worker](#the-worker)). With no job's engine stated, a start takes the knowledge base off the worker's list and says so.
 
-An engine's `provider` is one of seven, and each one an engine names needs its entry in `spec.providers`, which says how it is reached ([`Provider`](../../../specs/src/stack/Provider.json)):
+An engine's `provider` is one of seven, and each one an engine names needs its entry in `spec.providers`, which says how it is reached ([`Provider`](../../../protocol/specs/src/stack/Provider.json)):
 
 - **`anthropic`** is Anthropic's API, reached at its own address unless the entry states a `baseURL`. Its `apiKey` names the variable holding your key.
 - **`ollama`** with no `baseURL` is the shared Ollama: the launcher uses an Ollama installed on the computer when there is one, runs one in a container when there is not, and pulls the models its engines name. With a `baseURL`, it is an Ollama somebody else runs.
@@ -160,7 +160,7 @@ What an issuer of your own must provide is in [Authentication](AUTHENTICATION.md
 
 ## The Browser
 
-The Browser serves every knowledge base here and belongs to none, so its document is kept in the launcher's state home, not in a knowledge base's repository: `stack/browser.yaml`, held to [`Browser`](../../../specs/src/stack/Browser.json) and read as strictly as the documents above.
+The Browser serves every knowledge base here and belongs to none, so its document is kept in the launcher's state home, not in a knowledge base's repository: `stack/browser.yaml`, held to [`Browser`](../../../protocol/specs/src/stack/Browser.json) and read as strictly as the documents above.
 
 ```yaml
 apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
@@ -185,7 +185,7 @@ A start keeps a running Browser that runs what its document says, and restarts o
 
 ## The worker
 
-The worker does the jobs of the knowledge bases here, and its image, memory and log level belong to no knowledge base. So its document is kept in the launcher's state home beside the Browser's, not in a knowledge base's repository: `stack/workers.yaml`, held to [`WorkerPool`](../../../specs/src/stack/WorkerPool.json) and read as strictly as the documents above.
+The worker does the jobs of the knowledge bases here, and its image, memory and log level belong to no knowledge base. So its document is kept in the launcher's state home beside the Browser's, not in a knowledge base's repository: `stack/workers.yaml`, held to [`WorkerPool`](../../../protocol/specs/src/stack/WorkerPool.json) and read as strictly as the documents above.
 
 ```yaml
 apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
@@ -219,14 +219,14 @@ A knowledge base's documents describe the stack the launcher runs on one machine
 
 1. **Copy `.semiont/stack/`.** The project file stays as it is: the knowledge base's identity does not change with where it runs.
 2. **Trust its own issuer.** In `knowledge-base.yaml`, replace `spec.issuer.ref` with `spec.issuer.external`, giving its `type` and `url`, and delete `issuer.yaml`. Each Semiont service then needs its own client at that issuer ([What the issuer must provide](AUTHENTICATION.md#at-the-issuer)).
-3. **Use its own stores.** In `index.yaml`, give the graph and the vector store `external` in place of `image` and `resources`. What `external` holds for each is in [`KnowledgeIndex.json`](../../../specs/src/stack/KnowledgeIndex.json); the broker is its own the same way, at `spec.messaging.external` in [`KnowledgeBase.json`](../../../specs/src/stack/KnowledgeBase.json).
+3. **Use its own stores.** In `index.yaml`, give the graph and the vector store `external` in place of `image` and `resources`. What `external` holds for each is in [`KnowledgeIndex.json`](../../../protocol/specs/src/stack/KnowledgeIndex.json); the broker is its own the same way, at `spec.messaging.external` in [`KnowledgeBase.json`](../../../protocol/specs/src/stack/KnowledgeBase.json).
 4. **Keep the images the documents name, or name its own.**
 
 The launcher runs documents like these too, and starts only what is left for it to run. On a platform with no launcher, the services' JSON documents are what you deliver: see [Deploying Semiont](DEPLOYMENT.md#what-your-platform-provides).
 
 ## Secrets in a document
 
-A document never holds a secret. It names one with a [`SecretRef`](../../../specs/src/stack/SecretRef.json), the environment variable the service is handed: `apiKey: { fromEnv: ANTHROPIC_API_KEY }`.
+A document never holds a secret. It names one with a [`SecretRef`](../../../protocol/specs/src/stack/SecretRef.json), the environment variable the service is handed: `apiKey: { fromEnv: ANTHROPIC_API_KEY }`.
 
 - **`semiont start` refuses** when a variable that something it starts reads is set neither in your environment nor by a source registered with `semiont settings secret set`. A variable the documents name where nothing reads it is not asked for.
 - **A service is handed only the variables its own document names.** The Anthropic key reaches the librarian and the worker and no other service.
@@ -240,13 +240,13 @@ The launcher reads its own:
 |---|---|
 | `SEMIONT_ROOT` | The knowledge base to act on, instead of the one found by walking up from the current directory |
 
-`semiont start --help` lists the others a start reads. What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway, the dispatcher and the Archivist in [`variables.json`](../../../specs/src/service-environment/variables.json).
+`semiont start --help` lists the others a start reads. What a service reads from its environment is in [Secrets](../services/SECRETS.md), and for the gateway, the dispatcher and the Archivist in [`variables.json`](../../../protocol/specs/src/service-environment/variables.json).
 
 ## What each service is given
 
 No service reads a stack document:
 
-- **The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, that the launcher writes from the stack's documents and from `.semiont/config.yaml`. Their schemas are [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json). A document names a credential by the variable that holds it, never by value. The worker's document lists the engines it runs, each with the jobs it does with that engine, so a worker started some other way is given the same document and reads nothing of the knowledge base.
+- **The gateway, the dispatcher, the archivist, the worker, the weaver, the smelter and the librarian** each read a JSON document, at `/etc/semiont/gateway.json`, `/etc/semiont/dispatcher.json`, `/etc/semiont/archivist.json`, `/etc/semiont/worker.json`, `/etc/semiont/weaver.json`, `/etc/semiont/smelter.json` and `/etc/semiont/librarian.json`, that the launcher writes from the stack's documents and from `.semiont/config.yaml`. Their schemas are [`GatewayConfig`](../../../protocol/specs/src/components/schemas/GatewayConfig.json), [`DispatcherConfig`](../../../protocol/specs/src/components/schemas/DispatcherConfig.json), [`ArchivistConfig`](../../../protocol/specs/src/components/schemas/ArchivistConfig.json), [`WorkerConfig`](../../../protocol/specs/src/components/schemas/WorkerConfig.json), [`WeaverConfig`](../../../protocol/specs/src/components/schemas/WeaverConfig.json), [`SmelterConfig`](../../../protocol/specs/src/components/schemas/SmelterConfig.json) and [`LibrarianConfig`](../../../protocol/specs/src/components/schemas/LibrarianConfig.json). A document names a credential by the variable that holds it, never by value. The worker's document lists the engines it runs, each with the jobs it does with that engine, so a worker started some other way is given the same document and reads nothing of the knowledge base.
 - **The librarian's document** names the engine each of its two actors asks, from the Inference document's `spec.engines.actors`, with the address of that engine's provider and the variable that holds its key. It states two bounds, from the KnowledgeIndex's `spec.librarian`: `gather.settleTimeoutMs`, how long a gather waits for the smelter, and `search.semanticFloor`, the least similarity a hit by meaning must have. `semiont init` writes 15000 milliseconds and 0.6. The librarian defaults neither.
 
 On your own platform, these files are what you deliver ([Deployment](DEPLOYMENT.md#what-your-platform-provides)).

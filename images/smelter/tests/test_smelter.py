@@ -1,4 +1,4 @@
-"""The Smelter through a rig, rule by rule of `docs/protocol/SMELTER.md`.
+"""The Smelter through a rig, rule by rule of `protocol/contract/SMELTER.md`.
 
 The sections here are the page's, in its order, and each test is named for
 the rule it holds. The Smelter is a real one (`rig.Rig`), over a transport a

@@ -13,7 +13,7 @@ service that cannot start says so while an operator is watching it boot: one
 line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
-It starts in the order `docs/protocol/SMELTER.md` § Boot states: it signs in
+It starts in the order `protocol/contract/SMELTER.md` § Boot states: it signs in
 as its account, reaches its vector index, which asks its provider how wide a
 vector is where the index has to be made, makes the index again where it was
 made by another model or cut another way, and forgets its cursors where it
@@ -111,7 +111,7 @@ async def _reached(index: VectorStore, stamp: IndexStamp) -> bool:
 
 
 def _health_of(smelter: Smelter, transport: HttpTransport, *, stamp: IndexStamp, made_anew: bool) -> dict[str, JsonValue]:
-    """What the health endpoint answers (`docs/protocol/SMELTER.md` § Health).
+    """What the health endpoint answers (`protocol/contract/SMELTER.md` § Health).
 
     It answers for this Smelter alone, from what the Smelter holds: nothing
     is asked of the gateway, of the embedding provider or of the index's

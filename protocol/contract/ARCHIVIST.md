@@ -1,0 +1,664 @@
+# The Archivist
+
+This document specifies the Archivist as it is implemented: the files it keeps and their formats,
+the commands it records, the reads it answers, the facts it publishes, its HTTP surface, and how it
+boots. It describes current behaviour. Behaviour that is a known defect is not stated as a rule
+anywhere below; it is listed under [Known defects](#known-defects), and a rule section that touches
+one says what happens and links there.
+
+Channel payloads are named in [the registry](../specs/src/bus/registry.json); the bus conventions
+this document relies on (`_userId`, `correlationId`, scopes, audiences) are in
+[EVENT-BUS.md](EVENT-BUS.md). The HTTP surface's shapes are in
+[its OpenAPI document](../specs/src/archivist/openapi.json). The job-lifecycle commands the
+Archivist records are sent by the dispatcher and the workers, as [JOBS.md](JOBS.md) describes.
+
+## The Archivist
+
+**The Archivist keeps the knowledge base's record.** It has five jobs:
+
+1. **Append events** to the event log, the system of record.
+2. **Write content** to the working tree.
+3. **Stage change** where a person can commit it.
+4. **Keep the materialized views up to date** with the log.
+5. **Serve browse requests** from the views, the log and the content.
+
+It is the only process that mounts the knowledge base's working tree, and the only writer of the
+log, the content and the views. It dials one thing, the gateway, for the bus. It holds no graph, no
+vector store and no model: finding things is the Librarian's.
+
+The Librarian reads the view files and the profiles projection. The Smelter keeps the anchored-text
+store through the Archivist's HTTP surface, and mounts none of it. Those formats are schemas in the
+spec, named where each file is described below.
+
+## Configuration
+
+**The Archivist reads one document, named by its `--config` flag,** and defaults nothing. The
+document is an [`ArchivistConfig`](../specs/src/components/schemas/ArchivistConfig.json): the
+gateway's URL, the issuer, the working tree's root, the state volume, the anchored-text store's
+directory, the engine
+for each job and each actor, the port of its HTTP surface, whether to skip the boot rebuild, the staging
+bounds, and its log level and format. Its image passes `--config /etc/semiont/archivist.json`, and
+the launcher writes the document there, from the knowledge base's stack documents. Started without
+`--config`, or with a path that names no file, no JSON, or a document the schema refuses, the
+Archivist writes the reason to stderr and exits with status 1 before it serves.
+
+The document carries no secret. The Archivist's own account at the issuer is the pair
+`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`; without both it does not start.
+
+**What the knowledge base says of itself is read from the tree,** not from the document: the
+committed project file, `<root>/.semiont/config.yaml`, held to
+[`ProjectConfig`](../specs/src/kb-identity/ProjectConfig.json). The Archivist reads three of its
+keys:
+
+| Key | Meaning |
+|---|---|
+| `project.name` | The knowledge base's name; it names the state directory |
+| `site.domain` | The knowledge base's identity: its DID is `did:web:<domain>`, and the audience of the tokens it accepts is `https://<domain>` with each `:` written `/` |
+| `git.sync` | Whether changes are staged with git |
+
+A project file that is not YAML, or does not hold to its schema, is refused, each place named, and
+the Archivist does not start. A tree with no project file is named by its directory, stages nothing,
+and declares no identity, so the Archivist does not start on it either.
+
+**The engines** are the provider and model each job is done with when software does it, and each
+Librarian actor asks, behind `browse:engines-requested`: for a `mark` job of each of the five
+motivations, for a `yield` job, and for the two actors that call a model (`gatherer`, `matcher`),
+a provider and a model, or nothing. The Archivist applies no fallback, and the launcher applies
+none either: the knowledge base's Inference document states the engines whole, and the launcher
+writes them into the document as they stand. It writes the same engines into a worker's document
+as the engines it runs, and into the Librarian's as its two actors' engines. An engine is not a
+principal: whichever worker claims a job does it, under its own account.
+
+## The record on disk
+
+Three trees:
+
+| Tree | Where | Holds |
+|---|---|---|
+| The working tree | `root` | The content, and under `.semiont/events/` the event log. Committed by people |
+| The state directory | `<stateHome>/semiont/<name>/` | The views and projections. Rebuilt from the log; never committed |
+| The anchored-text store | `anchoredTextDir` | Text extracted from content, with where each word is. Written by the Archivist, from what the Smelter stores over HTTP |
+
+### Identifiers and shards
+
+A resource id is 1 to 128 characters of `A-Z`, `a-z`, `0-9`, `_` and `-`. An id is checked against
+that rule wherever it becomes a file or directory name, and a name that fails it is refused. The
+Archivist mints resource ids and annotation ids as 32 lowercase hex digits.
+
+Files are spread over two levels of directories, `<ab>/<cd>`, by the **shard** of a key: a 16-bit
+number written as four lowercase hex digits and split in two. It is computed over the key's UTF-16
+code units: start at 0; for each unit, multiply by 31 and add the unit, keeping the low 32 bits as a
+signed integer; take the absolute value; take it modulo 65536.
+`shard-cases.json` ([protocol/specs/src/archivist](../specs/src/archivist/shard-cases.json)) is the table
+every implementation runs.
+
+| File | Key |
+|---|---|
+| A resource's event stream | the resource id |
+| A resource's view | the resource id |
+| A storage-uri index entry | the URI |
+| An anchored-text entry | the content checksum |
+
+### The event log
+
+Each resource has a stream, a directory `<root>/.semiont/events/<ab>/<cd>/<resourceId>/`. Events
+about the knowledge base itself, which name no resource, are in the stream
+`<root>/.semiont/events/__system__/`, which is not sharded.
+
+A stream is a sequence of files named `events-NNNNNN.jsonl`, numbered from `000001` in six decimal
+digits. A file holds at most 10,000 events; the next event opens the next file. The first file is
+created, empty, with the directory.
+
+**A stored event is one line:** compact JSON in UTF-8, ended by a single newline. Its keys are the
+event as the Archivist built it, then `id`, `timestamp` and `metadata`:
+
+```
+{"type":"mark:removed","resourceId":"<id>","userId":"did:web:…","version":1,"payload":{"annotationId":"<id>"},"id":"<uuid>","timestamp":"2026-01-01T00:00:00.000Z","metadata":{"sequenceNumber":7}}
+```
+
+| Key | Value |
+|---|---|
+| `type` | The event type |
+| `resourceId` | The resource, for a resource's event. Absent from a `__system__` event |
+| `userId` | The DID of whoever sent the command |
+| `version` | `1` |
+| `payload` | The event's payload, as the registry names it for the type |
+| `id` | A version 4 UUID, lowercase with hyphens |
+| `timestamp` | When the event was appended: UTC, to the millisecond, `YYYY-MM-DDTHH:mm:ss.sssZ` |
+| `metadata` | `{"sequenceNumber": n}` |
+
+A payload key whose value is absent is not written. A command's correlation id is never written: the
+log stores facts, not routing.
+
+**Sequence numbers** count from 1 within a stream, one per event, in the order appended. After a
+restart a stream's next number follows its last event. A last line that was cut short, with no
+newline, is ended with one before the next event is appended.
+
+**Reading.** A stream is read file by file in file-number order. Blank lines are skipped. A line is
+an event when it is a JSON object with a string `type` at its top level. A line that is anything
+else is logged and skipped: it is in no view, in no replay, and its sequence number, if it carries
+one, is not counted. A read that fails for any reason but a missing file reports the path it was
+reading.
+
+### The views
+
+**A resource's view** is the file `resources/<ab>/<cd>/<resourceId>.json` in the state directory, a
+[`ResourceView`](../specs/src/components/schemas/ResourceView.json): the resource's descriptor,
+its annotations (a [`ResourceAnnotations`](../specs/src/components/schemas/ResourceAnnotations.json)),
+and `lastSequence`, the sequence number of the last event applied. It is written as JSON indented by
+two spaces, to a temporary file beside it that is then renamed onto the path, so a reader sees a
+whole document or none. A view file that is not JSON is logged and read as missing; it is left in
+place for the next write to replace.
+
+**Three projections hold what the `__system__` stream adds up to,** in
+`projections/__system__/` in the state directory, each JSON indented by two spaces:
+
+| File | Schema | Holds |
+|---|---|---|
+| `entitytypes.json` | [`EntityTypesProjection`](../specs/src/components/schemas/EntityTypesProjection.json) | Every entity type added, each once, in dictionary order |
+| `tagschemas.json` | [`TagSchemasProjection`](../specs/src/components/schemas/TagSchemasProjection.json) | Every tag schema added, in dictionary order of `id` |
+| `profiles.json` | [`ProfilesProjection`](../specs/src/components/schemas/ProfilesProjection.json) | Each principal's current name and since when, by DID |
+
+A projection file that is absent reads as empty. Each is written as a view is: to a temporary file,
+renamed onto the path.
+
+**Dictionary order** compares two names by their letters, whatever their accents and their case;
+then puts an unaccented letter before an accented one; then a small letter before its capital. It
+is the same in any locale.
+
+**The storage-uri index** answers which resource's content is at a place in the working tree. An
+entry is the file `projections/storage-uri/<ab>/<cd>/<h>.json` in the state directory, where `<h>` is
+the SHA-256 of the URI's UTF-8 bytes in lowercase hex. It is a
+[`StorageUriEntry`](../specs/src/components/schemas/StorageUriEntry.json), `uri` first, JSON
+indented by two spaces, written as a view is.
+
+### How each event changes the views
+
+Every event of a resource's stream adds 1 to the view's `annotations.version`, sets
+`annotations.updatedAt` to the event's timestamp, and raises `lastSequence` to the event's sequence
+number. An event type not in this table changes nothing else.
+
+| Event | Change |
+|---|---|
+| `yield:created` | The descriptor gains `name`, `entityTypes`, `dateCreated` (the event's timestamp), `wasAttributedTo` (the payload's, or else the sender alone), `isDraft`, and one representation: `mediaType` (the payload's `format`), `checksum`, `byteSize`, `rel` `original`, `language`, `storageUri`. `wasDerivedFrom` is the source resource when the payload names one; `generator` is the payload's when it has one. A storage-uri entry is written for `storageUri` |
+| `yield:cloned` | As `yield:created` for `name`, `entityTypes`, `dateCreated`, `wasAttributedTo` and the representation; `sourceResourceId` is the payload's `parentResourceId`. A storage-uri entry is written |
+| `yield:updated` | The first representation's `checksum` and `byteSize` become the payload's; `dateModified` becomes the event's timestamp |
+| `yield:moved` | The first representation's `storageUri` becomes `toUri`; `dateModified` becomes the event's timestamp. The storage-uri entry for `fromUri` is removed and one for `toUri` written |
+| `yield:representation-added` | The payload's representation is added, unless one with its `checksum` is held |
+| `yield:representation-removed` | Every representation with the payload's `checksum` is removed |
+| `mark:added` | The payload's annotation is added to the annotations, unless one with its `id` is held: the first recorded stands |
+| `mark:removed` | The annotation with the payload's `annotationId` is removed |
+| `mark:body-updated` | The named annotation's `body` becomes a list, and each operation is applied in order: `add` appends the item unless the body holds it; `remove` takes out the first item that matches; `replace` puts `newItem` in place of the first item matching `oldItem`. `modified` becomes the event's timestamp. Two items match when they have the same `type` and the same `source` (a `SpecificResource`) or `value` (a `TextualBody`), and the same `purpose` when the item asked for names one. An annotation the view does not hold is left alone |
+| `mark:entity-tag-added` | The payload's `entityType` is added to the descriptor's `entityTypes`, once |
+| `mark:entity-tag-removed` | It is removed |
+| `mark:archived` | `archived` becomes `true`. The storage-uri entry stays |
+| `mark:unarchived` | `archived` becomes `false` |
+| `job:started`, `job:assigned`, `job:completed`, `job:failed` | Nothing but the three counters above |
+| `frame:entity-type-added` | `entitytypes.json` gains the payload's `entityType`, once, and is sorted |
+| `frame:tag-schema-added` | `tagschemas.json` gains the payload's `schema`, in place of one with the same `id` if it holds one, and is sorted by `id` |
+| `principal:profiled` | `profiles.json` records the sender's DID as `{name, since}`: the payload's `name` and the event's timestamp |
+
+**An append is four steps in order:** write the line; change the views; attach the annotation to the
+event if its type calls for it ([Enrichment](#enrichment)); queue its fact for publishing
+([Facts](#facts)). The changes to one resource's view are applied one event at a time.
+
+When a resource has no view, the view is built from every event of its stream, in sequence order.
+A read that builds a view this way does not write it.
+
+### The working tree
+
+A resource's content is a file in the working tree, named by a **storage URI**: `file://` followed
+by the file's path relative to the root. A URI that does not begin `file://` is refused:
+`Invalid storage URI (must start with file://): <uri>`. So is one that names a place outside the
+working tree: `Invalid storage URI (must name a file inside the working tree): <uri>`.
+
+A **checksum** is the SHA-256 of the content's bytes, in lowercase hex.
+
+- **Storing** content streams it to a temporary file beside the target, hashing and counting as it
+  goes, and renames it onto the target. Directories above the target are created.
+- **Registering** content reads the file already at a URI, hashes it, and refuses it if it is not
+  the checksum expected: `Checksum mismatch for <uri>: expected <8 characters>... but got <8
+  characters>...`, followed by a second line saying the file differs from the recorded checksum. It
+  then stages the file.
+- **Moving** renames the file, creating directories above the destination.
+- **Removing** deletes the file, unless told to keep it. A file already gone is not an error.
+
+### Staging
+
+Staging records the working tree's changes where a person can commit them. When the knowledge base
+syncs git, that is the git index; when it does not, nothing is staged and no git runs.
+
+- **At boot,** the Archivist asks git whether the root is inside a work tree. If git cannot be run or
+  answers no, the Archivist refuses to start: `The knowledge base's project file says git.sync is
+  true, and <root> is not a git checkout (<why>). Make it one (git init), or set git.sync to false.`
+- **A stage is queued,** and its caller has already succeeded. Pending paths are staged together,
+  each once, by one `git add`, after `staging.flushMs` with no new change and never more than
+  `staging.maxWaitMs` after the oldest pending change. Staged: a registered content file, a new
+  stream's directory, and the log file after each append.
+- **A batch that fails is a degradation, not an error:** it is logged and counted, and nothing is
+  told to the caller. A batch that failed because git's index was locked is queued again.
+- **git runs one command at a time per repository.** A command that finds the index locked is tried
+  again after 50, 100, 200, 400, 800 and 1600 milliseconds.
+- **A move and a remove wait for everything pending,** then change the file, then tell git: a move
+  unstages the old path and stages the new; a remove unstages the path. If git cannot be run or
+  finds no repository, the move or remove fails with the boot refusal's message; any other failure
+  of git is a degradation.
+- **The current branch** is read from git when asked. It is none when the knowledge base does not
+  sync git, and none in a checkout with no commit.
+
+The views and projections are outside the working tree and are never staged.
+
+### The anchored-text store
+
+The store holds, for content that is not plain text, the text extracted from it and where each word
+is on the page. The Smelter derives it and sends it over the HTTP surface; the Archivist writes it,
+and is the only process that mounts it.
+
+An entry is the file `<ab>/<cd>/<checksum>.json` in the store, keyed by the checksum of the content
+it was extracted from. It is an
+[`AnchoredTextEntry`](../specs/src/components/schemas/AnchoredTextEntry.json), compact JSON with
+`v` and `stamp` first: either the text with its lines and how it was extracted, or a decline naming
+why nothing was extracted. It is written whole, beside its name and moved onto it, and replaces what
+was there.
+
+**The stamp is the Smelter's.** It names the PDF reader and the OCR engine that derived an entry.
+The Smelter states its stamp over the HTTP surface when it starts (`PUT /anchored-text/stamp`), and
+the Archivist keeps it, followed by a newline, in the file `STAMP` at the store's root, where it
+outlasts a restart. An entry is taken only when its `v` is 3 and its `stamp` is the one stated, by
+every read and by the listing. With no stamp stated, with an entry under another stamp, with no
+file, or with a file that is not an entry, the read is a miss. Nothing deletes an entry: those of
+an older stamp stay until the store is cleared.
+
+## Commands
+
+The Archivist records what it is told on these channels. Every command carries `_userId`, the DID of
+its sender, which the gateway sets. A reply carries the command's correlation id. A reply whose JSON
+is larger than a bus message may be, `POST /bus/emit`'s `x-semiont-limits.maxBodyBytes` in the
+gateway's [API](../specs/src/paths/bus_emit.json), is not sent: the operation's failure channel
+is answered at once, with `{message}`, `The answer could not be sent: it is <n> bytes, and a bus
+message may be <maxBodyBytes>`. Any other reply that cannot be sent, as one within that size whose
+frame is not, is answered there once the transport gives up, with `The answer could not be sent: `
+and why. A failure that cannot be sent is logged.
+
+| Command | Reply | On failure | Appends |
+|---|---|---|---|
+| `yield:create` | `yield:create-ok` `{resourceId}` | `yield:create-failed` | `yield:created`, then `mark:body-updated` when the command names both the source resource and the source annotation |
+| `yield:clone-persist` | `yield:clone-persist-ok` `{resourceId}` | `yield:clone-persist-failed` | `yield:cloned` |
+| `yield:update` | `yield:update-ok` `{resourceId}` | `yield:update-failed` | `yield:updated` |
+| `mark:create-request` | `mark:create-ok` `{annotationId}` | `mark:create-failed` | `mark:added` |
+| `mark:commit` | `mark:commit-ok` `{persisted, annotationIds}` | `mark:commit-failed` | `mark:added`, one per new annotation |
+| `mark:delete` | `mark:delete-ok` `{annotationId}` | `mark:delete-failed` | `mark:removed` |
+| `mark:update-body` | none | `mark:body-update-failed` | `mark:body-updated` |
+| `bind:update-body` | `bind:body-updated` | `bind:body-update-failed` | `mark:body-updated` |
+| `mark:archive` | `mark:archive-ok` | `mark:archive-failed` | `mark:archived` |
+| `mark:unarchive` | `mark:unarchive-ok` | `mark:unarchive-failed` | `mark:unarchived` |
+| `mark:update-entity-types` | `mark:update-entity-types-ok` | `mark:update-entity-types-failed` | `mark:entity-tag-added` per type added, then `mark:entity-tag-removed` per type removed |
+| `frame:add-entity-type` | `frame:entity-type-add-ok` | `frame:entity-type-add-failed` | `frame:entity-type-added` |
+| `frame:add-tag-schema` | `frame:tag-schema-add-ok` | `frame:tag-schema-add-failed` | `frame:tag-schema-added` |
+| `principal:profile` | none | none | `principal:profiled`, when the name is new |
+| `job:start` | none | none | `job:started` |
+| `job:assign` | none | none | `job:assigned` |
+| `job:complete` | none | none | `job:completed` |
+| `job:fail` | none | none | `job:failed` |
+
+A failure reply is `{message}`, the reason in words. Commands on one channel are handled one at a
+time, in the order they arrive; commands on different channels are not ordered against each other.
+Appends never interleave: one event is written, its views changed and its fact queued before the
+next is begun, whichever channels they came on. A command that carries no `_userId` is refused, or
+dropped when its channel has no reply.
+
+### Attribution
+
+Every recorded resource and annotation says who is behind it. The **requester** is who asked; the
+**executor** is who sent the command. They differ when a worker sends a command to fulfil a job:
+the requester is then whoever the job was assigned for.
+
+- `creator` is the requester, as an agent.
+- `generator` is the executor, when the executor is software (a DID of the form
+  `did:web:<domain>:agents:<subject>`). A command may supply the generator, to say more
+  about it — the engine it ran — and it must be the executor: `attribution: generator <id> is not the executor <did>`, and
+  `attribution: a generator was supplied, but the executor <did> is not software`.
+- `wasAttributedTo` is the executor alone when it is also the requester, otherwise the creator then
+  the executor.
+
+**A command that cites a job** (`jobId`) is checked against the log of the resource it writes on,
+or, for `yield:create`, of the resource it names in `generatedFrom.resourceId`. Either:
+
+- the log holds a `job:assigned` for that job, and its `holder` is the sender. The requester is
+  that event's `requester`; or
+- the job made the resource: the log's first event is a `yield:created` that cites the job in its
+  `jobId`, and that event's sender is this command's. The requester is that event's `creator`.
+
+Otherwise: `refused: cites job <id>, but the log of <resourceId> holds no assignment of it, and
+the job did not make it`, or `refused: job <id>'s recorded holder is <did>, not the writer <did>`,
+where the holder is the assignment's `holder` or the sender of the `yield:created`.
+
+### Resources
+
+**`yield:create`** records a resource whose content is already in the working tree at `storageUri`.
+
+- A sender holding the worker role must cite its job: `yield:create refused: a worker-role emitter
+  must cite the job it fulfils in \`jobId\``. A create that cites a job must name the resource the
+  job was assigned on: `yield:create refused: a create citing a job must name the source resource
+  its job was assigned on (generatedFrom.resourceId)`.
+- A list of generators is refused: `yield:create refused: a multi-agent generator is not supported;
+  derivation binds one generator to the executor`.
+- The content is registered against the command's checksum.
+- The event's payload is `name`, `format`, `contentChecksum`, `contentByteSize`, `storageUri`,
+  `entityTypes` (empty when none), `language` when given, `isDraft` (`false` when not given),
+  `jobId` when the command cites a job, `generatedFrom` when the command names the source resource
+  (with `annotationId` when it names the source annotation too), `generationPrompt` when given, `generator` when there is one, `creator`, `wasAttributedTo`.
+- When the command names both the source resource and the source annotation, the new resource is
+  then linked from that annotation: a `mark:body-updated` adding a `SpecificResource` whose `source`
+  is the new resource, with `purpose` `linking`. The link is recorded before the reply is sent. If
+  it cannot be recorded, the Archivist logs
+  `A generated resource was not linked from its annotation` and still replies `yield:create-ok`.
+
+**`yield:clone-persist`** records a copy: as `yield:create`, without the job rules and with
+`parentResourceId` in place of the generation fields. The requester is the sender.
+
+**`yield:update`** registers the content at `storageUri` and records its checksum and size.
+
+**`mark:archive`** removes the file at `storageUri`, when the command names one, keeping the file
+itself when `keepFile` is set, and records the archive. **`mark:unarchive`** requires the file at
+`storageUri`, when the command names one: `Cannot unarchive: file not found at <uri>`.
+
+**`mark:update-entity-types`** carries the resource's current types and the types it should have.
+Every type to add must be in the vocabulary: `Entity type not registered: <types>`. Nothing is
+recorded when one is not.
+
+### Annotations
+
+An annotation is recorded as sent, with `creator`, `generator` and `wasAttributedTo` set by
+[attribution](#attribution). An annotation that arrives with a `creator` is refused: `<channel>
+refused: \`creator\` on annotation <id> is derived by the knowledge base, never sent`. One with a
+list of generators is refused: `<channel> refused: annotation <id> carries a multi-agent generator;
+derivation binds one generator to the executor`.
+
+**`mark:create-request`** carries the parts of an annotation, and the Archivist assembles it: a new
+id, `created` and `modified` at the time of assembly, and the request's motivation, target and body.
+The target's resource must have content that can be annotated: `"<media type>" cannot be annotated`.
+The reply follows the append.
+
+**`mark:commit`** records a batch. An annotation whose id the resource's view already holds is
+skipped, so a batch sent twice records once. A sender holding the worker role must cite its job:
+`mark:commit refused: a worker-role emitter must cite the job it fulfils in \`jobId\``. The reply's
+`persisted` and `annotationIds` are the batch as sent, whether or not each was new.
+
+**`mark:delete`** and **`mark:update-body`** record the removal or the body operations as sent.
+
+**`bind:update-body`** is `mark:update-body` with a reply: `bind:body-updated` once the event is
+recorded.
+
+### Vocabulary, profiles and jobs
+
+**`frame:add-entity-type`** and **`frame:add-tag-schema`** record the type or the schema in the
+`__system__` stream.
+
+**`principal:profile`** records the sender's name in the `__system__` stream, unless it is the name the
+stream last recorded for them.
+
+**`job:start`**, **`job:assign`**, **`job:complete`** and **`job:fail`** record the lifecycle of a
+job in the stream of the resource it runs on. Payloads: `job:started` `{jobId, jobType,
+annotationId?}`; `job:assigned` `{jobId, jobType, resourceId, holder, requester}`; `job:completed`
+`{jobId, jobType, annotationId?, result, attempt?, durability?}`; `job:failed` `{jobId, jobType,
+annotationId?, error, attempt?, failureClass?, willRetry?, durability?}`.
+
+A completion is its verb's. A `job:complete` whose `jobType` is not the one the stream records for
+that job, in the first `job:assigned` or `job:started` that names it, is not recorded: the
+Archivist logs `job:complete of another verb than the job's`, the words the dispatcher logs for the
+same completion. A completion of a job the stream records neither of is recorded.
+
+### Clone tokens
+
+A clone token lets its holder copy one resource for fifteen minutes. It is `clone_` followed by 32
+lowercase hex digits, and is kept in memory: a restart forgets every token.
+
+| Command | Does | Refusals | Appends |
+|---|---|---|---|
+| `yield:clone-token-requested` `{resourceId}` | Issues a token for a resource whose content is in the working tree. Replies `yield:clone-token-generated` `{token, expiresAt, resource}` | `Resource not found`; `Resource content not found` | none |
+| `yield:clone-resource-requested` `{token}` | Replies `yield:clone-resource-result` `{sourceResource, expiresAt}`. The token stays valid | `Invalid or expired token`; `Token expired`; `Source resource not found` | none |
+| `yield:clone-create` | Records the copy as `yield:clone-persist` does, with the source's entity types, then archives the source when `archiveOriginal` is set and it is not archived. Replies `yield:clone-created` `{resourceId}`. The token is spent | Those of `yield:clone-resource-requested`, and those of `yield:clone-persist` | `yield:cloned`, then `mark:archived` when it archives the source |
+
+Failures are on `yield:clone-token-failed`, `yield:clone-resource-failed` and
+`yield:clone-create-failed`.
+
+## Browse
+
+The Archivist answers these reads. Each replies on the channel's `-result`, or on its `-failed` with
+`{message}`; one whose answer cannot be sent is answered as a command's is. Requests are answered
+concurrently, in no particular order. A resource's annotations are no bus read: their number
+follows the document's, and they are read over HTTP (§ The HTTP surface).
+
+**Names.** A reply that mentions principals names them from `profiles.json`: every object of type
+`Person` or `Software`, a person or an agent, whose DID has a profile carries that profile's name, as
+[`naming-cases.json`](../specs/src/principals/naming-cases.json) states. If the projection cannot
+be read, the reply names no one.
+
+| Request | Answers |
+|---|---|
+| `browse:resource-requested` `{resourceId}` | `{resource, lastSequence}` from the view, built from the log if there is none: the descriptor, and the sequence number of the resource's last event. A resource with no events fails with `code` `not-found` and message `Resource not found` |
+| `browse:resources-requested` `{archived?, entityType?, offset?, limit?}` | `{resources, total, offset, limit}`: the descriptors that match, newest `dateCreated` first and by id among equals, from `offset` (0 when absent) for `limit` (50 when absent). `total` counts every match |
+| `browse:annotation-requested` `{annotationId, resourceId}` | `{annotation, resource, resolvedResource}`: the annotation, its resource's descriptor, and the descriptor of the resource its body links to, if any. `Annotation not found` |
+| `browse:annotation-history-requested` `{annotationId, resourceId}` | `{events, total, annotationId, resourceId}`: the resource's events about that annotation, in sequence order. The annotation must be in the view: `Annotation not found` |
+| `browse:events-requested` `{resourceId, type?, userId?, limit?}` | `{events, total, resourceId}`: the resource's events in log order, filtered, then the first `limit`. Each event carries `agent`, its sender as an agent |
+| `browse:entity-types-requested` | `{entityTypes}` from `entitytypes.json` |
+| `browse:tag-schemas-requested` | `{tagSchemas}` from `tagschemas.json` |
+| `browse:engines-requested` | `{engines}`: the knowledge base's engines; see below |
+| `browse:profiles-requested` `{dids}` | `{profiles}`: the profile of each DID asked after that has one, keyed by DID, from the profiles projection. A DID with no profile is left out. At most 500 DIDs are asked at once |
+| `browse:kb-requested` | `{name, domain, gitBranch?}`, the domain and the branch read when asked |
+| `browse:directory-requested` `{path, sort?}` | `{path, entries}`: the directories and regular files at a path of the working tree, without names that begin `.`. A file that is a resource's content, by its storage URI, is `tracked` and carries the resource's id, entity types, annotation count and creator. Sorted by `name` in dictionary order (the default), by `mtime` newest first, or by `annotationCount` highest first. A path outside the root: `path escapes project root`. No such path: `path not found` |
+
+**Anchored text** is not read on the bus. An answer is as large as its document, and a frame has a
+size limit, so it is a route of [the HTTP surface](#the-http-surface).
+
+**The engines.** The answer lists each engine once, in the order it first appears: for a `mark`
+job of each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), for a
+`yield` job, then for the actors `gatherer`, `matcher`. An entry is
+[`{engine, jobs?}`](../specs/src/components/schemas/EngineEntry.json): the engine is
+`{provider, model}`, with no identity of its own, and `jobs` lists the jobs it is used for, each a
+[`JobFilter`](../specs/src/components/schemas/JobFilter.json) as a claim would name it
+(`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an engine only
+actors ask.
+
+## Enrichment
+
+A published `mark:added` or `mark:body-updated` carries `annotation` beside its payload: the
+annotation as the view holds it once the event is applied. An event whose annotation the view does
+not hold is published without one. The line in the log is never enriched.
+
+## Facts
+
+**Every appended event is published on the bus,** on the channel named by its type, to the gateway.
+A resource's event is published twice: once with no scope, and once scoped to its resource. A
+`__system__` event is published once, with no scope. Facts carry no correlation id.
+
+Events are published one at a time, in the order they were appended; the two publishes of one event
+go together. A command is answered, and an upload too, once its events are appended and their facts
+queued: the answer may arrive before the facts are published, and a subscriber who joins a
+resource's scope after the answer may still receive them. A publish that fails, after the
+transport's own retries, is logged and not tried again: the services that follow the record read
+what they missed from the log, by position (`GET /events/{resourceId}`). The number of events waiting to be published is reported as a gauge.
+
+## The HTTP surface
+
+The Archivist serves these routes on its port. Every route but `/health` requires `Authorization:
+Bearer <token>`: a token of the knowledge base's issuer, for the knowledge base's audience, whose
+flat `roles` claim includes `semiont-service`. Every refusal is `401` with body
+`{"error":"unauthorized"}` and a `WWW-Authenticate` header: `Bearer error="invalid_token"` when a
+token was presented, `Bearer` when none was.
+
+| Route | Answers |
+|---|---|
+| `GET` `/health` | `200` `{"status":"ok","actors":["stower","browser","cloneTokenManager"]}`. It answers once the Archivist has booted |
+| `GET` `/events` | `200` `{"streams":[{"resourceId":…,"lastSequence":n},…]}`: every stream of the log, `__system__` among them, each with the sequence number of its last event (0 for a stream with none), in no order. A failed read: `500` `{"error":"stream listing failed"}` |
+| `GET` `/events/{resourceId}`, with `?fromSequence=N` | `200` `{"events":[…],"lastSequence":n}`: the stream's stored events from sequence `N` on, in log order, at most the operation's `x-semiont-limits.maxEvents` of them, and the sequence number of the stream's last event (0 for a stream with none). A reader that wants more asks again from the sequence after the last event it was given, until it has the last. The id `__system__` reads the knowledge base's own stream. A stream that is not there has no events. Only the files that hold events from `N` on are read. `N` must be an integer of at least 1, in decimal digits, and the id an id: `400` `{"error":"resourceId path segment and integer fromSequence >= 1 are required"}`. A failed read: `500` `{"error":"event read failed"}` |
+| `GET` `/resources/{id}/content` | `200` with the content streamed, and `Content-Type` the media type recorded. A file missing from the tree: `500` `{"error":"content read failed"}`. No view: `404` `{"error":"Resource not found: <id>","code":"resource"}`. A view with no storage URI: `404` `{"error":"Resource representation not found: no storageUri for <id>","code":"representation"}` |
+| `GET` `/resources/{id}/jsonld` | `200`, `Content-Type: application/ld+json; charset=utf-8`: `{resource, annotations}` from the view, built from the log if there is none, principals named. `404` `{"error":"Resource not found"}` |
+| `GET` `/resources/{id}/annotations` | `200`, `Content-Type: application/json`: `{annotations, total}` in the view's order, principals named. No view, or an id that is not one: `404` `{"error":"Resource not found"}` |
+| `GET` `/resources/{id}/anchored-text` | `200`, `Content-Type: application/json`: the resource's anchored text, or why there is none; see below. A failed read: `500` `{"error":"anchored-text read failed"}` |
+| `PUT` `/resources/{id}/anchored-text` | Stores an entry for the resource's content; see below. The Smelter's |
+| `GET` `/resources/{id}/anchored-text/stored`, with `?contentChecksum=` | `200` with the entry stored for the resource's content, as stored, under the stamp stated, at once and never waiting for the Smelter. A `contentChecksum` missing or not 64 lowercase hex digits: `400`. No view, or an id that is not one: `404` `{"error":"Resource not found"}`. Content of another checksum, or none: `409`, as for the write. No entry: `404` `{"error":"No entry is stored for this content"}`. The Smelter's |
+| `GET` `/anchored-text/entries` | `200` `{"checksums":[…]}`: the checksum of every entry stored under the stamp stated, in no order. The Smelter's |
+| `PUT` `/anchored-text/stamp` | States the stamp, an [`AnchoredTextStamp`](../specs/src/components/schemas/AnchoredTextStamp.json): `204`. A body that is not one: `400`. The Smelter's |
+| `POST` `/resources` | Stores content and records it; see below |
+
+A body larger than its operation's `x-semiont-limits.maxBodyBytes` in the
+[API](../specs/src/archivist/openapi.json) is `413`: refused unread when its `Content-Length`
+says so, and otherwise once more than that has arrived.
+
+Any other request is `404` with no body.
+
+**`GET /resources/{id}/anchored-text`** answers one
+[`AnchoredTextAnswer`](../specs/src/components/schemas/AnchoredTextAnswer.json), and the answer
+is the whole body, with nothing around it. No answer is too large: one larger than the largest
+frame the bus carries is answered whole.
+
+The answer is decided from the resource's first representation, in this order:
+
+1. `{"kind":"unknown"}` when the resource has no view or no checksum, or when the path's id is not
+   an id. That there is no resource is an answer here, and never a `404`.
+2. `{"kind":"no-map"}` when the media type is not one whose text is derived by reading its
+   content. The [media-type table](../specs/src/media-types/registry.json) says which are: the
+   types whose `textSource` is `pdf-text-layer`. A type whose text is its own bytes decoded
+   (`decode`), one that has no text (`none`) and one the table does not have are each answered
+   `no-map` at once, with nothing read from the store and no wait. Such a resource has no anchored
+   text, and asking again does not change that.
+3. The stored entry for the checksum, when the store has one: the extracted text with each word's
+   place, or the decline.
+4. With no entry, the Archivist waits up to 15 seconds for the Smelter to say on the bus that it
+   has settled that content (`smelt:settled`, naming the resource and the checksum), and then
+   reads the entry again. If there is still none, or the wait runs out: `{"kind":"not-yet"}`,
+   whether the Smelter said it indexed the content or skipped it. The Smelter stores what deriving
+   a text came to, a decline included, so settled content with no entry is content whose entry was
+   lost, and the Smelter derives it again when it next starts.
+
+**`PUT /resources/{id}/anchored-text`** takes an
+[`AnchoredTextWrite`](../specs/src/components/schemas/AnchoredTextWrite.json): the checksum of the
+content the entry was derived from, and the entry. The whole body is read before anything is
+answered.
+
+- A body that is not one: `400` `{"error":"The body is no AnchoredTextWrite: …"}`. One larger than
+  the operation's `maxBodyBytes`: `413`.
+- No view of the resource, or an id that is not one: `404` `{"error":"Resource not found"}`.
+- The resource's first representation has another checksum, or none: `409`, whose `error` names the
+  checksum it has. Content that changed while the Smelter read it is derived again from what it is.
+- Otherwise the entry is written under the checksum, with `v` and `stamp` first, and the answer is
+  `204`. Every resource with that content has it from then on.
+
+A wait ends when the Archivist is told to stop: every read it is holding is answered
+`{"kind":"not-yet"}` at once, and the process does not wait the reads out before it exits.
+
+The Archivist remembers the latest `smelt:settled` for each resource for five minutes, so a request
+that follows the signal does not wait.
+
+**`POST /resources`** takes `multipart/form-data` with a `file` part and the fields of a
+[`ResourceUpload`](../specs/src/components/schemas/ResourceUpload.json).
+
+1. The `Semiont-Principal` header names who the resource is attributed to; without it: `400`
+   `{"error":"Semiont-Principal is required: the record attributes every resource to someone"}`.
+   `Semiont-Roles` lists that principal's roles, separated by commas.
+2. A body that is not multipart: `400` `{"error":"The body is not multipart/form-data"}`. Fields
+   the schema refuses: `400` with the schema's reasons. A `format` whose media type is not one
+   Semiont knows: `400` `{"error":"Unsupported media type: <type>"}`. `entityTypes` must be a JSON
+   list of names, and `generator` a JSON agent.
+3. The file is stored at `storageUri`.
+4. With a `cloneToken`, the copy is recorded as `yield:clone-create` does. Otherwise the resource is
+   recorded as `yield:create` does, with the principal as the sender.
+5. `200` `{"resourceId":"<id>"}`. A record that is refused: `500` `{"error":"<the refusal>"}`.
+
+## Boot and shutdown
+
+The Archivist boots in this order, and a failure at any step ends the process with status 1:
+
+1. Read and validate the configuration document.
+2. Read the project file ([Configuration](#configuration)).
+3. Refuse to start without a `site.domain`.
+4. Sign in: its own account's token at the issuer, which is its bearer on the bus; the gateway
+   names it by that account, as an agent, and answers its DID at `GET /api/users/me`. The token is
+   renewed before it expires.
+5. Ask staging whether it can work ([Staging](#staging)).
+6. **Rebuild the views from the log,** unless `skipRebuild` is set: replay the `__system__` stream
+   into its three projections, each begun empty; then, with the storage-uri index begun empty, for
+   every stream, build the view from its events and write it, and replay its events into the
+   index. A stream that fails is logged and skipped, and the rest are rebuilt. A directory of the
+   log that is not a stream is noted and passed over. Then **reap:** delete every view whose
+   resource has no stream.
+7. **Seed the vocabulary:** for each default entity type the `__system__` stream has not recorded —
+   `Person`, `Organization`, `Location`, `Event`, `Concept`, `Product`, `Technology`, `Date`,
+   `Author` — add it, as the knowledge base itself (`did:web:<domain>`).
+8. Subscribe to its channels on the bus, publish its facts, the seeded vocabulary's first, and
+   serve its HTTP surface.
+
+On `SIGTERM` or `SIGINT` it closes its HTTP surface, stages everything pending, and exits with
+status 0.
+
+## Telemetry
+
+The Archivist exports as `semiont-archivist`, under the resource the table's
+`resource` rows list for it: its name, its version, and `semiont.kb`, the DID
+of the knowledge base its committed project file's `site.domain` names. Its spans and metrics are the rows
+[`protocol/specs/src/service-telemetry/telemetry.json`](../specs/src/service-telemetry/telemetry.json)
+lists for it, and those
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json) lists for
+the transport it reaches the bus through. Its own:
+
+| Signal | Name | Meaning |
+|---|---|---|
+| Span | `bus.recv:<channel>`, `bus.emit:<channel>` | One frame received from or sent to the gateway. A reply is in the trace of the request it answers |
+| Gauge | `semiont.archivist.fact_pump.depth` | Events appended and not yet published |
+| Histogram | `semiont.git.duration` | How long each git command took, by `git.command` |
+| Counter | `semiont.git.staging.failures` | Staging degradations, by `reason`: `index-lock` or `other` |
+
+## Known defects
+
+What follows is behaviour as it is, and none of it is a rule of the protocol. A conforming
+implementation need not reproduce any of it.
+
+**Appending**
+
+- When the views cannot be changed after the line is written, or the annotation cannot be attached,
+  the command is answered as failed, the event stays in the log, and it is not published. The view
+  then counts later events without it until the next rebuild.
+- No command checks that its resource exists: a command naming an unknown id begins a stream for it.
+  `mark:delete` does not check that the annotation exists.
+- `mark:archive` and the upload change the working tree before the event is recorded. A record that
+  then fails leaves the tree changed.
+- `yield:create` and `yield:clone-persist` record the size the command states, not the size of the
+  file. `yield:update` records the command's checksum and size after checking the checksum, and an
+  update with no size removes the size recorded.
+- `mark:commit` records the annotations before the one it refuses, and replies failed.
+- `job:started` does not record the command's `attempt`.
+
+**Views and projections**
+
+- When two resources have been at one storage URI, which of them the index names after a rebuild is
+  the one whose stream is read last. `yield:moved` removes the entry for `fromUri` whichever
+  resource it names.
+
+**The working tree and staging**
+
+- The upload replaces a file already at the URI before the record is made, and leaves the new bytes
+  when the record is refused.
+- The upload is held in memory whole before it is written. No size is refused.
+- Asking git whether the tree is a checkout, and which branch it is on, does not wait for the git
+  command in progress.
+- Pending paths are given to `git add` with nothing to mark where the paths begin, so a path that
+  begins `-` is read as an option.
+- A batch that failed on a locked index and was queued again after the driver was told to stop is
+  not staged.
+- In a move, when git refuses to unstage the old path, the new path is not staged.
+
+**Browse and the HTTP surface**
+
+- Only `browse:resource-requested` gives `not-found` as a `code`; the other reads give the message
+  alone.
+- `browse:events-requested` reads a `limit` of 0 as no limit, and its `total` counts after the
+  limit.
+- A history cannot be read for an annotation that has been removed.
+- Content carries no `Content-Length` and no range support.
+
+**Clone tokens**
+
+- A token never presented is never forgotten until a restart.
+- Archiving the source of a clone does not remove its file.

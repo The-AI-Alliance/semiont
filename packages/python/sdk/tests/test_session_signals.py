@@ -1,4 +1,4 @@
-"""The session's signals: what their cases in `specs/src/client/state-units.json` cannot state.
+"""The session's signals: what their cases in `protocol/specs/src/client/state-units.json` cannot state.
 
 Their behaviour is the table's, run by `tests/test_state_cases.py`. Here are the
 axioms, and that a notice raised again is told again, which the table cannot

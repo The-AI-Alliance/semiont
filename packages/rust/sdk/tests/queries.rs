@@ -2,9 +2,9 @@
 //! and the reopening of a dropped stream, asks again for; what an event
 //! writes and what it ends; the windows refetches fold into; the scopes
 //! watching holds; and what a returning client is shown
-//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B16–B20). The same
+//! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B16–B20). The same
 //! behaviour, against a real gateway, is the live layer of
-//! packages/conformance/sdk.
+//! protocol/conformance/sdk.
 
 use semiont::cache::CacheState;
 use semiont::cached::Observed;

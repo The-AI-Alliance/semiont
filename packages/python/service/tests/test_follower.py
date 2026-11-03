@@ -1,6 +1,6 @@
 """The follower beyond its table: the stream it watches, a record that does not answer, a log taken again, and the file of its cursors.
 
-How a follower takes each log is `specs/src/follower/follow-cases.json`'s,
+How a follower takes each log is `protocol/specs/src/follower/follow-cases.json`'s,
 run by `test_follow_cases.py`. Here is what the table does not state: that
 the stream's first opening starts it and each opening after a drop sweeps; that
 a sweep the record does not answer is tried again; that a log the record has

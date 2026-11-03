@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Go SDK's client timing from specs/src/client/timing.json: one
+// Generate the Go SDK's client timing from protocol/specs/src/client/timing.json: one
 // field of `Timing` per entry, and `DefaultTiming`, the table's values.
 //
 //   packages/go/sdk/timing_gen.go
@@ -17,7 +17,7 @@ import { readClientTiming } from './client-timing-table.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/client/timing.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/client/timing.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/timing_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -63,7 +63,7 @@ const values = entries.map(({ name, value }) => {
   return `\t\t${`${field(name)}:`.padEnd(width)} ${stated},`;
 });
 
-const text = `// Code generated from specs/src/client/timing.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/client/timing.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-client-timing-go.mjs
 // The TypeScript and Python constants are generated from the same table, and
@@ -75,7 +75,7 @@ import "time"
 
 // Timing is the timing a Semiont client keeps: its deadlines, its retry
 // budgets, the cadence of its stream, and what it keeps count of, as
-// specs/src/client/timing.json states them for every SDK. It holds one field
+// protocol/specs/src/client/timing.json states them for every SDK. It holds one field
 // per entry, under the entry's name. DefaultTiming is the table's values; a
 // caller that wants another sets that field.
 type Timing struct {

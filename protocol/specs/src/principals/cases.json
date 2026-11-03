@@ -1,0 +1,111 @@
+{
+  "$comment": "How the gateway names the principals it acts for, under the knowledge base's domain (its committed `site.domain`). Every principal is named by the subject its issuer asserted, under the kind its token says it is: an agent's account carries the claim `kind` holding `agent`, and any other is a person's. A person is `did:web:{domain}:users:{subject}` and an agent `did:web:{domain}:agents:{subject}`, where the subject is the value of the claim `identity.subjectClaim` names. Every part of a DID after the domain is percent-encoded as ECMAScript's encodeURIComponent does: each UTF-8 byte of a character other than A–Z a–z 0–9 - _ . ! ~ * ' ( ) becomes %XX in uppercase hex; the domain is written as it is. Every implementation that names these principals runs every case and fails on a difference, and a running gateway is held to every case too.",
+  "runBy": {
+    "rust": [
+      "packages/rust/sdk/tests/tables.rs"
+    ],
+    "python": [
+      "packages/python/sdk/tests/test_identity.py"
+    ],
+    "go": [
+      "packages/go/sdk/identity_test.go"
+    ],
+    "conformance": [
+      "protocol/conformance/gateway/tokens.test.ts"
+    ],
+    "kotlin": [
+      "packages/kotlin/sdk/src/test/kotlin/semiont/identity/IdentityTest.kt"
+    ]
+  },
+  "absent": {
+    "typescript": "No TypeScript code names a principal: the gateway, in Rust, mints every DID it acts for."
+  },
+  "notYetReached": {
+    "csharp": "C# is still to implement and run the shared principals/cases.json cases.",
+    "swift": "The Swift SDK's names of the principals the gateway acts for."
+  },
+  "person": "did:web:{domain}:users:{subject}",
+  "people": [
+    {
+      "why": "a subject of letters and digits is itself",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "alice",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:alice"
+    },
+    {
+      "why": "a UUID subject is itself",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "3f1c2e0a-9b7d-4c1e-8a2f-6d5b4c3a2e10",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:3f1c2e0a-9b7d-4c1e-8a2f-6d5b4c3a2e10"
+    },
+    {
+      "why": "an email-shaped subject encodes its @",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "alice@example.org",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:alice%40example.org"
+    },
+    {
+      "why": "a colon in the subject is encoded, so it cannot split the DID",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "google-oauth2:104859221",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:google-oauth2%3A104859221"
+    },
+    {
+      "why": "a slash in the subject is encoded",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "tenant/alice",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:tenant%2Falice"
+    },
+    {
+      "why": "a space is %20",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "Alice Smith",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:Alice%20Smith"
+    },
+    {
+      "why": "a character outside ASCII is its UTF-8 bytes, each percent-encoded",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "josé",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:jos%C3%A9"
+    },
+    {
+      "why": "the characters encodeURIComponent leaves alone stay as they are",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "a-b_c.d!e~f*g'h(i)j",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:a-b_c.d!e~f*g'h(i)j"
+    }
+  ],
+  "agent": "did:web:{domain}:agents:{subject}",
+  "agents": [
+    {
+      "why": "a subject of letters, digits and hyphens is itself",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "semiont-worker-local",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:semiont-worker-local"
+    },
+    {
+      "why": "a UUID subject, as an issuer names a client's own account, is itself",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "7c1f3d2a-5b6e-4f80-9a1b-2c3d4e5f6a7b",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:7c1f3d2a-5b6e-4f80-9a1b-2c3d4e5f6a7b"
+    },
+    {
+      "why": "a colon in the subject is encoded, so it cannot split the DID",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "service-account:worker",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:service-account%3Aworker"
+    },
+    {
+      "why": "an email-shaped subject encodes its @",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "worker@example.org",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:worker%40example.org"
+    },
+    {
+      "why": "a slash in the subject is encoded",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "tenant/worker",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:tenant%2Fworker"
+    }
+  ]
+}

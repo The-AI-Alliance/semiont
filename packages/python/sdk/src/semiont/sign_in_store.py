@@ -1,4 +1,4 @@
-"""The sign-ins `semiont login` keeps (`specs/src/sign-in-store`).
+"""The sign-ins `semiont login` keeps (`protocol/specs/src/sign-in-store`).
 
 One sign-in serves the launcher's verbs and an application built on this SDK.
 
@@ -19,7 +19,7 @@ reader that only reads takes no lock: the file is replaced whole, so every
 document read is a whole one. Under the lock, the file's directory is kept to
 its owner, as the launcher keeps its state home: the mode, and on Windows the
 access list, which what is made in it inherits, that
-`specs/src/sign-in-store/owner-only.json` states.
+`protocol/specs/src/sign-in-store/owner-only.json` states.
 
 This module reads no environment. An application reads its own and says what
 it found: `state_dir(this_system(), home=..., xdg_state_home=..., local_app_data=...)`.

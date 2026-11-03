@@ -1,5 +1,5 @@
 //! The Archivist: it keeps the knowledge base's record, as
-//! docs/protocol/ARCHIVIST.md states it. It boots from the document its
+//! protocol/contract/ARCHIVIST.md states it. It boots from the document its
 //! `--config` names, signs in as its service account, makes its views what
 //! its log says, and then answers its channels over the gateway's bus,
 //! publishes every event it appends, and serves its HTTP surface.

@@ -18,7 +18,7 @@
  *                         and streaming characteristics.
  *
  * The behavioral guarantees every implementation must honor are documented
- * in `docs/protocol/TRANSPORT-CONTRACT.md`.
+ * in `protocol/contract/TRANSPORT-CONTRACT.md`.
  */
 
 import type { Observable } from 'rxjs';
@@ -226,7 +226,7 @@ export interface ITransport {
  * SemiontClient cleanly omits `client.auth` / `client.system`.
  *
  * Implementations should map their native error codes to
- * `TransportErrorCode` (specs/src/errors/codes.json) so the routing layer
+ * `TransportErrorCode` (protocol/specs/src/errors/codes.json) so the routing layer
  * (`SemiontBrowser`) stays transport-neutral.
  */
 export interface IGatewayOperations {

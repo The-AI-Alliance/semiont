@@ -5,7 +5,7 @@ import semiont.types.ResourceDescriptor
 import semiont.types.ResourceDescriptorRepresentations
 
 /*
- * Reading a resource's description (specs/src/resources/reader-cases.json): a
+ * Reading a resource's description (protocol/specs/src/resources/reader-cases.json): a
  * resource's representations are one representation or a list of them, and
  * its entity types may be left out. These read each, so that nothing that
  * reads a resource narrows those shapes by hand.

@@ -1,9 +1,9 @@
 /**
  * What text a resource's bytes are, held to the two tables every reader of a
- * resource's text runs. specs/src/text/decode-cases.json is written by hand:
+ * resource's text runs. protocol/specs/src/text/decode-cases.json is written by hand:
  * what is said of a content type, of a label, of a byte-order mark, of
  * malformed UTF-8 and UTF-16, and of a media type whose text is not its
- * bytes. specs/src/text/encoding-cases.json is generated: every label of the
+ * bytes. protocol/specs/src/text/encoding-cases.json is generated: every label of the
  * Encoding Standard, and every byte of each of its single-byte encodings.
  *
  * The first table is run through `decodeRepresentation`, which refuses a
@@ -24,8 +24,8 @@ import { decodeWithCharset } from '../text-encoding';
 interface Case { why: string; contentType: string; bytes: string; text?: string; refused?: string }
 interface EncodingCase { encoding: string; labels: string[]; everyByte?: string; bytes?: string; text?: string; refused?: true }
 
-const DECODE = 'specs/src/text/decode-cases.json';
-const ENCODINGS = 'specs/src/text/encoding-cases.json';
+const DECODE = 'protocol/specs/src/text/decode-cases.json';
+const ENCODINGS = 'protocol/specs/src/text/encoding-cases.json';
 const decode: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', DECODE), 'utf8'));
 const encodings: { cases: EncodingCase[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', ENCODINGS), 'utf8'));
 
@@ -52,7 +52,7 @@ function refused(reading: () => string, named: string): void {
   expect(refusal.message).toContain(named);
 }
 
-describe('what text a resource\'s bytes are (specs/src/text/decode-cases.json)', () => {
+describe('what text a resource\'s bytes are (protocol/specs/src/text/decode-cases.json)', () => {
   it('has cases of a text and of a refusal, and each case is one or the other', () => {
     expect(decode.cases.length).toBeGreaterThanOrEqual(90);
     for (const stated of decode.cases) {
@@ -77,7 +77,7 @@ describe('what text a resource\'s bytes are (specs/src/text/decode-cases.json)',
   });
 });
 
-describe('every label of the Encoding Standard, and every byte of its single-byte encodings (specs/src/text/encoding-cases.json)', () => {
+describe('every label of the Encoding Standard, and every byte of its single-byte encodings (protocol/specs/src/text/encoding-cases.json)', () => {
   it('has cases of each kind', () => {
     expect(encodings.cases.filter((stated) => stated.everyByte !== undefined).length).toBeGreaterThanOrEqual(29);
     expect(encodings.cases.some((stated) => stated.text !== undefined)).toBe(true);

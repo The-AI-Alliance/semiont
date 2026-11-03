@@ -16,7 +16,7 @@ A knowledge base is built up in layers, each one made from the layers under it. 
 | 4. Edges | How the nodes relate: who is whose parent, which party is the counterparty | [`semiont-relate`](semiont-relate/SKILL.md) |
 | 5. Aggregates | Resources composed from the layers below, written to be read: a report, a timeline, a memo | [`semiont-aggregate`](semiont-aggregate/SKILL.md) |
 
-In verbs: [yield](../../protocol/flows/YIELD.md) the documents, [mark](../../protocol/flows/MARK.md) them, [gather](../../protocol/flows/GATHER.md), [match](../../protocol/flows/MATCH.md) and [bind](../../protocol/flows/BIND.md) each mention to its node, and yield again what the knowledge base can now say. [Frame](../../protocol/flows/FRAME.md) declares the vocabulary every layer uses.
+In verbs: [yield](../../../protocol/contract/flows/YIELD.md) the documents, [mark](../../../protocol/contract/flows/MARK.md) them, [gather](../../../protocol/contract/flows/GATHER.md), [match](../../../protocol/contract/flows/MATCH.md) and [bind](../../../protocol/contract/flows/BIND.md) each mention to its node, and yield again what the knowledge base can now say. [Frame](../../../protocol/contract/flows/FRAME.md) declares the vocabulary every layer uses.
 
 ## Running Semiont, and scripts that stay up
 

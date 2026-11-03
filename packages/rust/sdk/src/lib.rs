@@ -1,7 +1,7 @@
 //! Semiont's Rust SDK: a client of a knowledge base (`client`), with a
 //! namespace per flow of the protocol (`namespaces`), over any transport.
 //! Under it: the protocol's types, channels, error codes and timing, as
-//! specs/ states them; the transport contract and the bus client over it; a
+//! protocol/specs/ states them; the transport contract and the bus client over it; a
 //! client's own bus; the shapes a namespace's methods return (`running`,
 //! `cached`), the cache its queries answer from and what refreshes it
 //! (`cache`, `refresh`), where a client keeps what must outlive it

@@ -1,11 +1,11 @@
 """The score of one candidate of a reference search: its terms, its reason, and the one way a score is rounded.
 
 A reference search answers what a reference could refer to
-(`docs/protocol/LIBRARIAN.md` § The score, § The model's score). Each
+(`protocol/contract/LIBRARIAN.md` § The score, § The model's score). Each
 candidate has a score, which is a sum of terms, and a reason, which says in
 words what the sum was made of. Both are worked out here, from the candidate,
 what the search was made with, and a moment it is handed: nothing here reads
-a store, a model or a clock. `specs/src/librarian/score-cases.json` states
+a store, a model or a clock. `protocol/specs/src/librarian/score-cases.json` states
 each term by a search that shows it.
 
 The terms are added in the order the page states them, one at a time: a sum

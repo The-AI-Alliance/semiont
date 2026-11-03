@@ -1,6 +1,6 @@
 """The agent at one knowledge base: what its stream names, how it is confirmed there, and what ends its work there.
 
-`docs/protocol/WORKER-SERVICE.md` § The agent, § Knowledge bases and
+`protocol/contract/WORKER-SERVICE.md` § The agent, § Knowledge bases and
 § Stopping state it, and the worker service's conformance suite holds a
 started service to them. Here is what that suite cannot make happen, a held
 job that stalls, and the claiming itself over the SDK's doubles

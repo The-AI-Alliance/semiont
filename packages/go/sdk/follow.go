@@ -1,6 +1,6 @@
 package semiont
 
-// Following a job from its creation to its end (docs/protocol/JOBS.md §
+// Following a job from its creation to its end (protocol/contract/JOBS.md §
 // Following a job).
 //
 // A job's progress and its end reach the client that created it as passing

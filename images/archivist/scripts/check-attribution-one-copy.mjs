@@ -37,7 +37,7 @@
  * when a reply is READ, from the profiles projection: what each principal last
  * said it is called. Two services read it, the Librarian in Python and the
  * Archivist in Rust (`images/archivist/src/naming.rs`), and
- * `specs/src/principals/naming-cases.json` holds both to one rule. A second
+ * `protocol/specs/src/principals/naming-cases.json` holds both to one rule. A second
  * place that names a principal is a second answer to "what is this principal
  * called", and the one that wins would be whichever ran last. The Librarian's
  * resolver is Python and the rest of the tree's readers are TypeScript and

@@ -31,7 +31,7 @@ pub struct Generation<'a> {
     /// With a path, only the roots are generated, and every other schema they
     /// reach is named as `<path>::<Name>`: the crate that owns it.
     pub elsewhere: Option<&'a str>,
-    /// The schemas that are kinds of id (specs/src/identifiers/kinds.json).
+    /// The schemas that are kinds of id (protocol/specs/src/identifiers/kinds.json).
     /// Each is a type of its own and not an alias, and a value of it is made
     /// only by a constructor that holds it to the schema's pattern.
     pub identifiers: &'a [&'a str],
@@ -54,8 +54,9 @@ pub fn generate(definitions: &Value, generation: &Generation<'_>) -> String {
     for root in generation.roots {
         types.named(root);
     }
-    let mut out =
-        String::from("// Generated from the component schemas in specs/src; do not edit.\n");
+    let mut out = String::from(
+        "// Generated from the component schemas in protocol/specs/src; do not edit.\n",
+    );
     for code in types.written.values() {
         out.push_str(code);
     }

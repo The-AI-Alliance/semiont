@@ -27,7 +27,7 @@ whose whole name is one a credential goes by (`token`, `password`,
 `apiKey` and the rest of a short list) as `[withheld]`, wherever in a
 payload the member is; everything else of a payload is written as it is.
 The list and the rule are one table,
-[`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json),
+[`protocol/specs/src/bus/log-cases.json`](../../../protocol/specs/src/bus/log-cases.json),
 which every bus log runs.
 
 Cost when disabled: a single truthy check, zero allocations.

@@ -1,4 +1,4 @@
-"""The client's surface against `specs/src/client/surface.json`.
+"""The client's surface against `protocol/specs/src/client/surface.json`.
 
 Every method the table lists is called as each of its cases states, and what
 the call did first is held to the row. A row with no call here fails, and so

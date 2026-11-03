@@ -13,7 +13,7 @@ import java.security.MessageDigest
 import java.util.Base64
 
 /*
- * The id of an annotation a builder makes (specs/src/annotations/id-cases.json).
+ * The id of an annotation a builder makes (protocol/specs/src/annotations/id-cases.json).
  * It is not minted: it is worked out from what the annotation is, so the same
  * annotation built again, by any worker in any language, has the same id, and
  * writing it a second time changes nothing.

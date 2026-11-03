@@ -1,6 +1,6 @@
 package launcher
 
-// workerdoc.go — the worker's configuration document: WorkerConfig in specs/,
+// workerdoc.go — the worker's configuration document: WorkerConfig in protocol/specs/,
 // the Go type generated from it (packages/go/sdk). The launcher writes it for
 // the one shared worker from the knowledge bases on its list
 // (workerkbs.go), every address a literal (placement), keeps it with the

@@ -1,6 +1,6 @@
 """The origin of a knowledge base's gateway, from its HTTP endpoint.
 
-One table, specs/src/session/gateway-url-cases.json, run by every SDK.
+One table, protocol/specs/src/session/gateway-url-cases.json, run by every SDK.
 """
 
 from typing import Final

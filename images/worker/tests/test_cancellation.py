@@ -1,6 +1,6 @@
 """A job that is cancelled: where it stops, what it has done by then, and what it says and does not say.
 
-`docs/protocol/WORKER-SERVICE.md` § Cancellation states it (Q1 to Q5). A
+`protocol/contract/WORKER-SERVICE.md` § Cancellation states it (Q1 to Q5). A
 held job says whether a cancellation has named it (`HeldJob.cancelled`, the
 SDK's), and everything here that stops for one is handed that and reads it:
 the walk over a text's pieces before each cut, a detection before it says

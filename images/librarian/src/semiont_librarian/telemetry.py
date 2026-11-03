@@ -1,6 +1,6 @@
 """What the Librarian tells OpenTelemetry of its own work: the gathers that went without something.
 
-`docs/protocol/LIBRARIAN.md` § The two waits states the counter,
+`protocol/contract/LIBRARIAN.md` § The two waits states the counter,
 `semiont.gather.degraded`, and the three values of its `projection`: `graph`
 and `vectors`, the two waits that ran out, and `suggestions`, a summary a
 model failed to give.

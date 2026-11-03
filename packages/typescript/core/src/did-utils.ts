@@ -4,7 +4,7 @@
  *
  * Nothing here names a person or an agent: the gateway, in Rust, mints every
  * principal's DID, and the record reads them
- * (`specs/src/principals/cases.json`, `specs/src/principals/kind-cases.json`).
+ * (`protocol/specs/src/principals/cases.json`, `protocol/specs/src/principals/kind-cases.json`).
  */
 
 /**

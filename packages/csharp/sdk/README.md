@@ -29,7 +29,7 @@ diagnostic. The xUnit suite checks valid code that must remain accepted. The tes
 make a run with no tests fail. Linux CI uploads Cobertura coverage under `csharp-sdk`;
 Windows CI builds, tests, and checks formatting as well.
 
-The incremental generator reads `specs/src` as compiler additional files. It emits sealed
+The incremental generator reads `protocol/specs/src` as compiler additional files. It emits sealed
 records, closed record unions, wire enums, and checked identifier structs. Unknown schema
 keywords fail compilation with `SEMGEN001`. Generated code is not checked in.
 

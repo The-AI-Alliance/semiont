@@ -1,6 +1,6 @@
 /**
  * The origin of a knowledge base's gateway, from its HTTP endpoint: one table,
- * specs/src/session/gateway-url-cases.json, run by every SDK.
+ * protocol/specs/src/session/gateway-url-cases.json, run by every SDK.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,7 +16,7 @@ interface GatewayUrlCase {
   origin: string | null;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../specs/src/session/gateway-url-cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/gateway-url-cases.json');
 const { cases } = JSON.parse(readFileSync(TABLE, 'utf-8')) as { cases: GatewayUrlCase[] };
 
 describe("a gateway's origin, as the shared table states it", () => {

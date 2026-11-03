@@ -13,7 +13,7 @@ context did not show cites nothing, and a warning says so. Nor is a source
 named that the context named only by its id.
 
 A position here is an offset: it counts the text's code points, as a Python
-string's own index does. `specs/src/worker/citation-cases.json` holds the
+string's own index does. `protocol/specs/src/worker/citation-cases.json` holds the
 rule.
 """
 

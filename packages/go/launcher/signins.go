@@ -2,7 +2,7 @@ package launcher
 
 // signins.go — the sign-in store, `semiont login`'s sessions by stack key, in
 // the launcher's state home: the Go SDK's store (semiont.SignInStore,
-// specs/src/sign-in-store), which every program that keeps a sign-in there
+// protocol/specs/src/sign-in-store), which every program that keeps a sign-in there
 // shares, under its lock.
 
 import (

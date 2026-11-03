@@ -18,7 +18,7 @@ as a `FrameRefusal`, and the frames after it follow.
 channel is the registry's name and a payload a JSON object: for what relays
 frames it does not read, or is told its channels at run time.
 
-A request (`docs/protocol/TRANSPORT-CONTRACT.md` § Requests) is one emit that
+A request (`protocol/contract/TRANSPORT-CONTRACT.md` § Requests) is one emit that
 carries a correlation id of this client's making
 beside its payload, answered on its operation's result channel or its failure
 channel. It is not sent before the stream that carries its reply is open. Its

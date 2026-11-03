@@ -11,7 +11,7 @@
 //! No line holds a credential. The value of a member whose whole name is one
 //! a credential goes by (`token`, which is what a payload names the token a
 //! resource is cloned by, and the rest of `CREDENTIALS` below) is written as
-//! `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
+//! `[withheld]`, as every bus log writes it (protocol/specs/src/bus/log-cases.json).
 
 use serde_json::Value;
 use std::io::Write;
@@ -24,7 +24,7 @@ static TRACE_ID: OnceLock<fn() -> Option<String>> = OnceLock::new();
 const WITHHELD: &str = "[withheld]";
 
 /// The names of the members whose value is one: the list
-/// specs/src/bus/log-cases.json states for every bus log, which this file's
+/// protocol/specs/src/bus/log-cases.json states for every bus log, which this file's
 /// tests hold this one to.
 const CREDENTIALS: [&str; 16] = [
     "token",
@@ -178,7 +178,7 @@ mod tests {
     }
 
     /// What a bus log shows of a payload is one table,
-    /// specs/src/bus/log-cases.json, which every bus log runs.
+    /// protocol/specs/src/bus/log-cases.json, which every bus log runs.
     fn table() -> Value {
         serde_json::from_str(include_str!("../specs/bus/log-cases.json"))
             .expect("the table is JSON")

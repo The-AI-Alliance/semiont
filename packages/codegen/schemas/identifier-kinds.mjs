@@ -1,4 +1,4 @@
-// identifier-kinds.mjs — the one reading of specs/src/identifiers/kinds.json
+// identifier-kinds.mjs — the one reading of protocol/specs/src/identifiers/kinds.json
 // and each kind's schema that every generator of the id types shares: a kind
 // is named, and its schema is a string with a pattern and a description.
 

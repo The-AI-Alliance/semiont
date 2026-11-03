@@ -8,7 +8,7 @@
 //!
 //! It is asked in two places: by the dispatcher, choosing the next job a
 //! claim takes, and by a party checking an announcement (`job:queued`)
-//! against its own claim before it asks. specs/src/jobs/filter-cases.json
+//! against its own claim before it asks. protocol/specs/src/jobs/filter-cases.json
 //! holds every implementation to one answer, and this crate's tests run it.
 
 use crate::types::JobFilter;

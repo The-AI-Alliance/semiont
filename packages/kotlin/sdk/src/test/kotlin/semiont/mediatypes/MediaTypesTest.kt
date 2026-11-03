@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import semiont.Spec
 
-/** The rules read from the media types a knowledge base admits, as every SDK reads them (specs/src/media-types/cases.json). */
+/** The rules read from the media types a knowledge base admits, as every SDK reads them (protocol/specs/src/media-types/cases.json). */
 class MediaTypesTest {
     private val table = Spec.read("media-types/cases.json").jsonObject
     private val registry = Spec.read("media-types/registry.json").jsonObject

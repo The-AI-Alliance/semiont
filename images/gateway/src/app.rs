@@ -178,7 +178,7 @@ async fn run(
     if !mismatches.is_empty() {
         let lines: Vec<String> = mismatches.iter().map(|m| format!("  - {m}")).collect();
         return Err(format!(
-            "The gateway's routes are not its spec's operations:\n{}\nThe spec is the route table: declare a route in specs/src before serving it, and serve every operation it declares.",
+            "The gateway's routes are not its spec's operations:\n{}\nThe spec is the route table: declare a route in protocol/specs/src before serving it, and serve every operation it declares.",
             lines.join("\n")
         ));
     }

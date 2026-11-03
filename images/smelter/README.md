@@ -16,8 +16,8 @@ on the bus, in the index and in the anchored-text store. The launcher starts it 
 | Port | 24101 (`/health`, and nothing else: everything it does is on the bus, in the index and in the anchored-text store) |
 | Command | `python -P -m semiont_smelter --config /etc/semiont/smelter.json` |
 | Code | Python, in this directory: [`src/semiont_smelter`](./src/semiont_smelter/) |
-| Specification | [docs/protocol/SMELTER.md](../../docs/protocol/SMELTER.md) |
-| Judged by | [packages/conformance/smelter](../../packages/conformance/smelter/README.md) |
+| Specification | [protocol/contract/SMELTER.md](../../protocol/contract/SMELTER.md) |
+| Judged by | [protocol/conformance/smelter](../../protocol/conformance/smelter/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -111,18 +111,18 @@ minute ends the start.
 ## Configuration
 
 It reads one document, the protocol's
-[`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json), at the path
+[`SmelterConfig`](../../protocol/specs/src/components/schemas/SmelterConfig.json), at the path
 `--config` names. The launcher writes it for the Smelter it starts, resolved, and mounts it at
 `/etc/semiont/smelter.json`. Whoever starts a Smelter another way writes the same document.
 
 | Member | |
 | --- | --- |
-| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../protocol/specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | where the Archivist listens: the host and the port it reads bytes from, and keeps the anchored-text store at |
-| `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, where it is reached, and, for a provider that takes a key, the name of the variable that holds it |
-| `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind, and where it is reached |
+| `embedding` | the embedding provider ([`EmbeddingConfig`](../../protocol/specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, where it is reached, and, for a provider that takes a key, the name of the variable that holds it |
+| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind, and where it is reached |
 | `chunking` | the two numbers a text is cut by: a chunk's size, and how much of it the next repeats |
 | `pdfsAtOnce` | how many PDFs it works on at once |
 | `cursorsPath` | the file its cursors are kept in, on the container's own disk |
@@ -146,7 +146,7 @@ at least one.
 the knowledge base it serves by its DID (`semiont.kb`): what every service says of its own
 process, how many points its index holds (`semiont.vector.index.size`), and a span for each
 frame it sends and receives on the bus
-([SMELTER.md § Telemetry](../../docs/protocol/SMELTER.md#telemetry)). The launcher sets the
+([SMELTER.md § Telemetry](../../protocol/contract/SMELTER.md#telemetry)). The launcher sets the
 endpoint for a stack it runs. Without it the Smelter exports nothing, unless
 `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the
 trace and the span they were written in.
@@ -187,14 +187,14 @@ The code is in [`src/semiont_smelter`](./src/semiont_smelter/).
 | --- | --- |
 | `service.py`, `config.py` | The process: what it is started with, what it refuses to start on, the order it starts in, how it stops |
 | `smelter.py` | The Smelter: how it takes a run of a resource's events, what each does to the index, the one place a resource is declined, the decision it signals, reconcile, the rebuild command |
-| `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states it |
+| `reconcile.py` | The work a start plans, as [`reconcile-cases.json`](../../protocol/specs/src/smelter/reconcile-cases.json) states it |
 | `index_stamp.py` | What made the index, which the index states: an index made by another model, or cut another way, is made again when the Smelter starts |
 | `telemetry.py` | The number of points the index holds, as the gauge of it reads it |
 | `record.py` | What it reads of the record over the bus: the catalog and a resource's description |
-| `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states it |
-| `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json) states it |
+| `chunking.py` | How a text is cut, as [`chunk-cases.json`](../../protocol/specs/src/text/chunk-cases.json) states it |
+| `extraction.py`, `anchoring.py`, `tables.py`, `ocr_text.py` | A PDF's text by its class, as [`extraction-cases.json`](../../protocol/specs/src/smelter/extraction-cases.json) states it |
 | `pdf_reader.py`, `pdfium.py`; `ocr_engine.py`, `tesseract.py`; `scripted.py` | What reads a PDF and what reads a scanned page, each behind a protocol whose second implementation answers what a test states |
-| `anchored_text_store.py`, `stamp.py` | The Archivist's anchored-text store as the Smelter keeps it, each entry as its [schema](../../specs/src/components/schemas/AnchoredTextEntry.json) states it |
+| `anchored_text_store.py`, `stamp.py` | The Archivist's anchored-text store as the Smelter keeps it, each entry as its [schema](../../protocol/specs/src/components/schemas/AnchoredTextEntry.json) states it |
 
 How it follows the record, what reads a resource's bytes and its annotations, the reader that
 asks the Archivist for them and for the record by position, and what white space is are every
@@ -206,7 +206,7 @@ uv sync --locked
 uv run pytest        # needs the `tesseract` program, with its English data
 ```
 
-The tests read the PDFs in [`specs/src/smelter/fixtures`](../../specs/src/smelter/fixtures/),
+The tests read the PDFs in [`protocol/specs/src/smelter/fixtures`](../../protocol/specs/src/smelter/fixtures/),
 which [`make-pdf-fixtures.py`](./tools/fixtures/scripts/make-pdf-fixtures.py) writes.
 
 ## Building it
@@ -225,8 +225,8 @@ checks what a built one promises.
 
 ## Related
 
-- [SMELTER.md](../../docs/protocol/SMELTER.md) — what a Smelter does, rule by rule
-- [smelter conformance suite](../../packages/conformance/smelter/README.md) — holds a Smelter to
+- [SMELTER.md](../../protocol/contract/SMELTER.md) — what a Smelter does, rule by rule
+- [smelter conformance suite](../../protocol/conformance/smelter/README.md) — holds a Smelter to
   each rule, as a process behind a real gateway, a real Archivist and a real Qdrant, with an
   embedding provider the suite plays
 - [`semiont-vectors`](../../packages/python/vectors/) — the vector stores and the embedding

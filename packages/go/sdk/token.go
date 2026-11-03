@@ -1,7 +1,7 @@
 package semiont
 
 // How a token is held: what its claims say, when it expires, and when it is
-// renewed (specs/src/session/cases.json, refreshSchedule and tokenExpiry).
+// renewed (protocol/specs/src/session/cases.json, refreshSchedule and tokenExpiry).
 // Nothing here checks a signature: a client reads a token it was given only to
 // know when to renew it and whom it names.
 

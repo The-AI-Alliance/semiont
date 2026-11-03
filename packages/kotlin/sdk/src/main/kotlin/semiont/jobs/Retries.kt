@@ -19,6 +19,6 @@ private fun retried(failureClass: FailureClass?): Boolean = when (failureClass) 
  * queue retries and the job has retries left, on the record before the
  * failure is applied. The dispatcher's queue acts on it, and a held job
  * reports it on `job:fail` as `willRetry`, so the two never disagree:
- * specs/src/jobs/retry-cases.json is the table both answer alike.
+ * protocol/specs/src/jobs/retry-cases.json is the table both answer alike.
  */
 public fun willRetryAfter(retryCount: Long, maxRetries: Long, failureClass: FailureClass?): Boolean = retried(failureClass) && retryCount < maxRetries

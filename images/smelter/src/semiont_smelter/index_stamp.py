@@ -7,7 +7,7 @@ So an index states what made it (`semiont_vectors.store.IndexStamp`), and a
 Smelter that starts compares that with what it is configured to make one by.
 Where they differ, or the index states nothing, the index is made again,
 empty, and the reconcile that follows fills it whole
-(`docs/protocol/SMELTER.md` § Boot).
+(`protocol/contract/SMELTER.md` § Boot).
 
 The stamp states the embedding provider's type and its model, and the two
 numbers a text is cut by. It does not state where the model is served, which

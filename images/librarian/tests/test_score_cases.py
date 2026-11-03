@@ -1,4 +1,4 @@
-"""A reference search, held to `specs/src/librarian/score-cases.json`.
+"""A reference search, held to `protocol/specs/src/librarian/score-cases.json`.
 
 It is the table every Librarian runs, so that the candidates a search
 answers, their scores and their reasons are stated once and not once for each
@@ -37,7 +37,7 @@ from spec import ROOT, JsonObject, number, objects, only, read, strings, text, t
 from semiont_librarian.reads import Described, GraphReads, Record
 from semiont_librarian.reference_search import search
 
-TABLE = read(ROOT / "specs/src/librarian/score-cases.json")
+TABLE = read(ROOT / "protocol/specs/src/librarian/score-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 ANSWERED = [case for case in CASES if "results" in case]
 FAILED = [case for case in CASES if "results" not in case]

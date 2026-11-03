@@ -22,7 +22,7 @@ func TestTheStagingDirIsReachableOnlyByItsOwner(t *testing.T) {
 }
 
 // The site name is a label the shared identity table does not carry
-// (specs/src/kb-identity/cases.json); this pins that the reader takes it from
+// (protocol/specs/src/kb-identity/cases.json); this pins that the reader takes it from
 // site.siteName.
 func TestTheProjectFileNamesTheSite(t *testing.T) {
 	committed := "project:\n  name: Example Knowledge Base\n  version: 0.1.0\ngit:\n  sync: true\nsite:\n  domain: example.org:kb\n  siteName: The Example Site\n"

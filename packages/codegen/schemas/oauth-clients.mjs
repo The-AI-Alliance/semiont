@@ -1,4 +1,4 @@
-// oauth-clients.mjs — read and check specs/src/session/oauth.json: the client
+// oauth-clients.mjs — read and check protocol/specs/src/session/oauth.json: the client
 // ids a Semiont client signs in as, and the scope a sign-in asks for.
 //
 // One place for the checks, shared by every generator that reads the file

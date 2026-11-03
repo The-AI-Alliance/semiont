@@ -1,4 +1,4 @@
-"""The annotation readers, held to `specs/src/annotations/reader-cases.json`: the table every SDK's readers run."""
+"""The annotation readers, held to `protocol/specs/src/annotations/reader-cases.json`: the table every SDK's readers run."""
 
 from collections.abc import Callable
 from typing import Final

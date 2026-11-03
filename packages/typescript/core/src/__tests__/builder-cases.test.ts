@@ -1,5 +1,5 @@
 /**
- * The annotation builders, held to specs/src/annotations/builder-cases.json:
+ * The annotation builders, held to protocol/specs/src/annotations/builder-cases.json:
  * the table every SDK's builders run, so that a span found in a resource, and
  * a resource as a whole, are built into the same annotation whoever builds it.
  */
@@ -43,16 +43,16 @@ const table: {
   cases: SpanCase[];
   resources: ResourceCase[];
 } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/builder-cases.json', import.meta.url), 'utf8'),
 );
 
 /**
  * Every refusal a builder can give: the `spanRefusal` codes of
- * specs/src/errors/codes.json, which `SpanRefusal`, the type of a refusal's
+ * protocol/specs/src/errors/codes.json, which `SpanRefusal`, the type of a refusal's
  * `code`, is generated from.
  */
 const REFUSALS: string[] = (
-  JSON.parse(readFileSync(new URL('../../../../../specs/src/errors/codes.json', import.meta.url), 'utf8')) as {
+  JSON.parse(readFileSync(new URL('../../../../../protocol/specs/src/errors/codes.json', import.meta.url), 'utf8')) as {
     spanRefusal: { codes: Array<{ code: string }> };
   }
 ).spanRefusal.codes.map((entry) => entry.code);
@@ -78,7 +78,7 @@ function thrownBy(build: () => unknown): unknown {
   throw new Error('the builder refused nothing');
 }
 
-describe('the annotation builders (specs/src/annotations/builder-cases.json)', () => {
+describe('the annotation builders (protocol/specs/src/annotations/builder-cases.json)', () => {
   it('are the ones the table names, and the module has nothing else but the error a refused span is', () => {
     expect(Object.keys(builders).sort()).toEqual([...table.builders, 'SpanRefusedError'].sort());
   });

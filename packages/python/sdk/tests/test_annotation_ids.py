@@ -1,4 +1,4 @@
-"""The id of an annotation a builder makes, held to `specs/src/annotations/id-cases.json`: the table every SDK's id runs."""
+"""The id of an annotation a builder makes, held to `protocol/specs/src/annotations/id-cases.json`: the table every SDK's id runs."""
 
 from typing import Annotated, Final
 

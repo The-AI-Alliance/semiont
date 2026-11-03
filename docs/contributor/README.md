@@ -4,7 +4,7 @@
 
 Start with [CONTRIBUTING.md](../../CONTRIBUTING.md) for branches, pull requests and review.
 The [architecture](../architecture/README.md) explains the system; the
-[protocol](../protocol/README.md) defines what its implementations agree on.
+[protocol](../../protocol/README.md) defines what its implementations agree on.
 
 ## Build with Make
 

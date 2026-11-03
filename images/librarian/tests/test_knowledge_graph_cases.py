@@ -1,4 +1,4 @@
-"""The knowledge graph built for one resource, held to `specs/src/librarian/knowledge-graph-cases.json`.
+"""The knowledge graph built for one resource, held to `protocol/specs/src/librarian/knowledge-graph-cases.json`.
 
 It is the table every Librarian runs, so that what the graph store and the
 views answer gives one graph, or one failure, in any language. A case is run

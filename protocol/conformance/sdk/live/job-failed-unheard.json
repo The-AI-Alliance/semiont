@@ -1,0 +1,114 @@
+{
+  "about": "a job that fails while nothing reaches the client that follows it: the follower, hearing nothing for jobSilenceMs, asks for the job's status, and a status of failed ends it as the frame would have, under the code every SDK reports it by and with the class the status states",
+  "source": "protocol/contract/JOBS.md § Following a job; protocol/specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/specs/src/errors/codes.json job",
+  "tier": "parity",
+  "steps": [
+    {
+      "backend": "listen",
+      "with": {
+        "channels": [
+          "job:create",
+          "job:status-requested"
+        ]
+      }
+    },
+    {
+      "driver": "open",
+      "with": {
+        "timing": {
+          "busRequestTimeoutMs": 5000,
+          "invalidationWindowMs": 100,
+          "reconnectMs": 50,
+          "lazyRemoveMs": 50,
+          "lingerMs": 50,
+          "jobSilenceMs": 500,
+          "jobStatusPollMs": 60000
+        }
+      }
+    },
+    {
+      "state": "open"
+    },
+    {
+      "driver": "markDelegate",
+      "with": {
+        "observer": "job",
+        "resource": {
+          "$var": "r1"
+        },
+        "params": {
+          "motivation": "highlighting"
+        }
+      }
+    },
+    {
+      "fetch": "job:create",
+      "payload": {
+        "jobType": "mark",
+        "resourceId": {
+          "$var": "r1"
+        },
+        "params": {
+          "motivation": "highlighting"
+        }
+      },
+      "as": "c1"
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:created",
+        "correlationId": {
+          "$var": "c1"
+        },
+        "payload": {
+          "response": {
+            "jobId": "job-1"
+          }
+        }
+      }
+    },
+    {
+      "fetch": "job:status-requested",
+      "payload": {
+        "jobId": "job-1"
+      },
+      "as": "s1"
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:status-result",
+        "correlationId": {
+          "$var": "s1"
+        },
+        "payload": {
+          "response": {
+            "jobId": "job-1",
+            "type": "mark",
+            "status": "failed",
+            "userId": {
+              "$var": "client"
+            },
+            "created": "2026-01-01T00:00:00.000Z",
+            "error": "the worker gave up",
+            "failureClass": "withheld"
+          }
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "failed",
+        "error": {
+          "code": "job.failed",
+          "failureClass": "withheld"
+        }
+      }
+    },
+    {
+      "quiet": 300
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 // Package protocol is what the Go SDK's conformance drivers share
-// (packages/conformance/sdk/README.md, § The driver protocol): a driver is a
+// (protocol/conformance/sdk/README.md, § The driver protocol): a driver is a
 // process that reads one operation per line on stdin and writes what it did,
 // and what it saw, one line at a time on stdout.
 package protocol

@@ -9,7 +9,7 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 
 # --- bus registry drift gate ---
 #
-# specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
+# protocol/specs/src/bus/registry.json is the AUTHORITY for the event bus: channels,
 # payload shapes, and the request/reply operations. BOTH languages are
 # generated from it — packages/typescript/core/src/bus-protocol.ts + bus-operations.ts
 # (TypeScript) and packages/go/sdk/bus/*_gen.go — so an edit to one language's
@@ -24,13 +24,13 @@ banner "DRIFT AND LOCKFILE GATES"
 if ! run_logged "the bus registry and both generated languages agree" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:bus:check; then
-  fail "Generated bus files are STALE (or were hand-edited) — they must match specs/src/bus/registry.json."
+  fail "Generated bus files are STALE (or were hand-edited) — they must match protocol/specs/src/bus/registry.json."
   echo ""
   echo -e "  Regenerate both languages and commit:"
   echo ""
   echo -e "    ${BOLD}npm run generate:bus${RESET}   (packages/typescript/core/src/bus-protocol.ts, bus-operations.ts; packages/go/sdk/bus/*_gen.go)"
   echo ""
-  echo -e "  Channels and operations are edited in ${BOLD}specs/src/bus/registry.json${RESET}, never in the generated files."
+  echo -e "  Channels and operations are edited in ${BOLD}protocol/specs/src/bus/registry.json${RESET}, never in the generated files."
   echo ""
   exit 1
 fi
@@ -39,28 +39,28 @@ fi
 #
 # The two gates below both read it.
 
-# specs/openapi.json is a BUILD ARTIFACT bundled from specs/src/. With the
+# protocol/specs/openapi.json is a BUILD ARTIFACT bundled from protocol/specs/src/. With the
 # gates running before the package builds, the copy a prior build left may be
 # stale or absent — bundle fresh first. Version pinned to the repo's
 # devDependency, same as CI.
-if ! run_logged "specs/src bundled into specs/openapi.json" \
+if ! run_logged "protocol/specs/src bundled into protocol/specs/openapi.json" \
     $RT run --rm -v "$REPO_ROOT":/workspace -v "$NPM_CACHE_DIR":/root/.npm -w /workspace "$NODE_IMAGE" \
-    npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json; then
+    npx --yes @redocly/cli@2.34.0 bundle protocol/specs/src/openapi.json -o protocol/specs/openapi.json; then
   fail "Could not bundle the OpenAPI spec (redocly says why, above)."
   exit 1
 fi
 
 # --- Python SDK drift gate ---
 #
-# The Python SDK has no build: what it holds of specs/src is generated and
+# The Python SDK has no build: what it holds of protocol/specs/src is generated and
 # COMMITTED (packages/python/sdk/src/semiont), so a spec change can leave it
 # stale. Node generators write the tables and the bus vocabulary; the models
 # (types.py) are written by a Python tool pinned in the package's lockfile.
 
-if ! run_logged "the Python SDK's generated tables match specs/src" \
+if ! run_logged "the Python SDK's generated tables match protocol/specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:python:check; then
-  fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
+  fail "The Python SDK's generated tables are STALE (or were hand-edited) — they must match protocol/specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
@@ -132,7 +132,7 @@ fi
 # (packages/python/graph), the vector stores (packages/python/vectors), the
 # service package (packages/python/service) and every Python image under
 # images/ are Python projects with a
-# lockfile each and nothing generated from specs/src, so what can go stale in
+# lockfile each and nothing generated from protocol/specs/src, so what can go stale in
 # them is the lockfile: a manifest changed without `uv lock`, in the project
 # or in a package of the repository it takes. CI's job for each refuses that first
 # (`uv sync --locked`), and so does a service image's build, minutes into a
@@ -193,17 +193,17 @@ ok "the lockfiles of the $(echo $PYTHON_PROJECTS | wc -w | tr -d ' ') Python pro
 
 # --- sdk-go drift gate ---
 #
-# packages/go/sdk/api/client_gen.go is GENERATED from specs/openapi.json and
+# packages/go/sdk/api/client_gen.go is GENERATED from protocol/specs/openapi.json and
 # COMMITTED (see packages/go/sdk/README.md). Nothing regenerates it
 # automatically, so a spec change can leave it stale. This gate regenerates
 # to a scratch path inside the container (never the working tree — builds
 # don't mutate source) and diffs: byte-identical or fail. Deterministic
 # because the generator version is pinned.
 
-if ! run_logged "the Go SDK's generated tables match specs/src" \
+if ! run_logged "the Go SDK's generated tables match protocol/specs/src" \
     $RT run --rm -v "$REPO_ROOT":/workspace -w /workspace "$NODE_IMAGE" \
     npm run generate:go:check; then
-  fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match specs/src."
+  fail "The Go SDK's generated tables are STALE (or were hand-edited) — they must match protocol/specs/src."
   echo ""
   echo -e "  Regenerate and commit:"
   echo ""
@@ -264,7 +264,7 @@ run_drift_check() {
     "$GO_IMAGE" \
     sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
              -config packages/go/sdk/oapi-codegen.yaml \
-             -o /tmp/client_gen.check.go specs/openapi.json || exit 3
+             -o /tmp/client_gen.check.go protocol/specs/openapi.json || exit 3
            diff -q /tmp/client_gen.check.go packages/go/sdk/api/client_gen.go >/dev/null || exit 4' \
     > "$DRIFT_LOG" 2>&1 \
     || DRIFT_RC=$?
@@ -297,7 +297,7 @@ fi
 
 case "$DRIFT_RC" in
   0)
-    ok "packages/go/sdk/api/client_gen.go matches specs/openapi.json"
+    ok "packages/go/sdk/api/client_gen.go matches protocol/specs/openapi.json"
     rm -f "$DRIFT_LOG"
     ;;
   4)

@@ -1,9 +1,9 @@
 """What text a resource's bytes are, held to the two tables every reader of a resource's text runs.
 
-`specs/src/text/decode-cases.json` is written by hand: what is said of a
+`protocol/specs/src/text/decode-cases.json` is written by hand: what is said of a
 content type, of a media type whose text is not its bytes, of a label, of a
 byte-order mark and of malformed UTF-8 and UTF-16.
-`specs/src/text/encoding-cases.json` is generated: every label of the
+`protocol/specs/src/text/encoding-cases.json` is generated: every label of the
 Encoding Standard, and every byte of each of its single-byte encodings.
 
 A worker reads a resource's text with `browse.resource_content` and counts its

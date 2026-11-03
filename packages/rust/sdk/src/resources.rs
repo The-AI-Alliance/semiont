@@ -5,12 +5,12 @@
 //! [`primary_media_type`] and [`resource_entity_types`] read each, so that
 //! nothing that reads a resource's description tells one shape from the
 //! other by hand. Every SDK has them, and
-//! specs/src/resources/reader-cases.json holds each to one answer for one
+//! protocol/specs/src/resources/reader-cases.json holds each to one answer for one
 //! resource: this crate's tests run it.
 //!
 //! [`decode_representation`] gives a representation's bytes as the text they
 //! are, by the rule every reader of a resource's text keeps
-//! (docs/protocol/W3C-SELECTORS.md, "The text of a resource"). It is what
+//! (protocol/contract/W3C-SELECTORS.md, "The text of a resource"). It is what
 //! `browse.resource_content` reads with, and an offset counts the code
 //! points of the text it gives. It reads the bytes of a media type whose
 //! text they are and refuses any other by name: a PDF's text is derived by
@@ -190,7 +190,7 @@ fn bytes_are_text(media_type: &str) -> Result<(), String> {
 
 /// A representation's bytes as the text they are, for a media type whose
 /// bytes are its text, by the rule every reader of a resource's text keeps
-/// (docs/protocol/W3C-SELECTORS.md, "The text of a resource"): the MIME
+/// (protocol/contract/W3C-SELECTORS.md, "The text of a resource"): the MIME
 /// Sniffing Standard's reading of the content type and the Encoding
 /// Standard's reading of the bytes, as a browser follows the two.
 /// `media_type` is the content type the bytes came with, parameters and all.
@@ -266,8 +266,8 @@ fn utf8_alone(label: Option<&str>, bytes: &[u8]) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     //! What text a resource's bytes are is two tables every reader runs,
-    //! specs/src/text/decode-cases.json and
-    //! specs/src/text/encoding-cases.json, and tests/decode_cases.rs runs
+    //! protocol/specs/src/text/decode-cases.json and
+    //! protocol/specs/src/text/encoding-cases.json, and tests/decode_cases.rs runs
     //! them through a client, whose reader in this crate's tests is
     //! `encoding_rs`. Here is the reader a build without the `charsets`
     //! feature has, which no client of these tests reaches: it decodes UTF-8

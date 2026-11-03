@@ -34,7 +34,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
 
-/// The waits a client keeps, each the value of specs/src/client/timing.json
+/// The waits a client keeps, each the value of protocol/specs/src/client/timing.json
 /// unless a caller that must not wait it out states another.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ClientTiming {

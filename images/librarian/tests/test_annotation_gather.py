@@ -1,4 +1,4 @@
-"""Gathering around an annotation (`docs/protocol/LIBRARIAN.md` § Gathering around an annotation), over fakes of what it reads by.
+"""Gathering around an annotation (`protocol/contract/LIBRARIAN.md` § Gathering around an annotation), over fakes of what it reads by.
 
 The graph around the resource is built, and the lists are read off it, by
 the Librarian's own code: only the stores, the provider and the model are

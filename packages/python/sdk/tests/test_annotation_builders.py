@@ -1,4 +1,4 @@
-"""The annotation builders, held to `specs/src/annotations/builder-cases.json`: the table every SDK's builders run.
+"""The annotation builders, held to `protocol/specs/src/annotations/builder-cases.json`: the table every SDK's builders run.
 
 `reconcile` has a table of its own (`test_reconcile.py`). Here are the two that
 build: an annotation of a span (`cases`) and one of a resource as a whole
@@ -161,7 +161,7 @@ def test_a_span_that_is_not_the_text_s_is_refused_by_the_name_the_table_gives(ca
 
 
 def test_the_refusals_the_table_states_are_the_vocabulary_of_the_error_codes_and_no_other() -> None:
-    # `specs/src/errors/codes.json` names the refusals, and `semiont.error_codes` is generated from it.
+    # `protocol/specs/src/errors/codes.json` names the refusals, and `semiont.error_codes` is generated from it.
     assert sorted({case.refused for case in REFUSED if case.refused is not None}) == sorted(error_codes.SPAN_REFUSALS)
     # What the builders' module offers is that vocabulary and its failure, and no copy of either.
     assert annotations.SpanRefusal is error_codes.SpanRefusal

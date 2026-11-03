@@ -1,6 +1,6 @@
 // ⚠ GENERATED FILE — do not edit.
 //
-// Authority:   specs/src/bus/registry.json  (channels, payloads, operations)
+// Authority:   protocol/specs/src/bus/registry.json  (channels, payloads, operations)
 // Regenerate:  node packages/codegen/bus/generate-ts.mjs
 // Go counterpart: node packages/codegen/bus/generate-go.mjs → packages/go/sdk/bus
 //

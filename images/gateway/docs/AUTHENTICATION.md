@@ -4,7 +4,7 @@ How the gateway authenticates a request, and where each part of it lives. For
 the whole bearer-only model — the issuer, sign-in, rotation — read the
 [System Authentication Architecture](../../../docs/operator/administration/AUTHENTICATION.md)
 first; the `bearerAuth` and `mediaToken` schemes in
-[specs/src/openapi.json](../../../specs/src/openapi.json) are the contract.
+[protocol/specs/src/openapi.json](../../../protocol/specs/src/openapi.json) are the contract.
 
 ## The model
 
@@ -21,7 +21,7 @@ first; the `bearerAuth` and `mediaToken` schemes in
   no route answers 403; a refusal is always a 401.
 - **The spec decides what is public.** Four operations are: `GET /api/health`,
   `GET /`, `GET /api/openapi.json`, `GET /.well-known/oauth-protected-resource`.
-  The [conformance suite](../../../packages/conformance/gateway/README.md) probes
+  The [conformance suite](../../../protocol/conformance/gateway/README.md) probes
   every declared operation without a credential and with a bad one.
 
 ## Where it lives
@@ -32,7 +32,7 @@ first; the `bearerAuth` and `mediaToken` schemes in
 | Which token it is, and the principal it names | [src/principal.rs](../src/principal.rs) |
 | The issuer's keys: discovery, the key set, when it is fetched | [issuer.rs](../../../packages/rust/http-service/src/issuer.rs), in the crate the Rust services that serve HTTP share |
 | The key ring and media tokens | [src/tokens.rs](../src/tokens.rs) |
-| How a person and an agent are named | the `semiont` crate's [identity.rs](../../../packages/rust/sdk/src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
+| How a person and an agent are named | the `semiont` crate's [identity.rs](../../../packages/rust/sdk/src/identity.rs), held to [protocol/specs/src/principals/cases.json](../../../protocol/specs/src/principals/cases.json) |
 | The role names, and the claim that marks an agent's account | the `semiont` crate's [roles.rs](../../../packages/rust/sdk/src/roles.rs), held to the launcher's by `npm run lint:service-role` |
 
 A protected handler takes `Authenticated` (or `MediaOrBearer`), which runs
@@ -53,7 +53,7 @@ before its body is read, so an unauthenticated request never reaches a parser.
    `agent`, which the issuer stamps on every agent's account, and a person,
    `did:web:<domain>:users:<subject>`, otherwise. An `email` is optional; when
    present, `email_verified` must not be `false`. Either DID is a `UserId`
-   ([specs/src/identifiers/kinds.json](../../../specs/src/identifiers/kinds.json)):
+   ([protocol/specs/src/identifiers/kinds.json](../../../protocol/specs/src/identifiers/kinds.json)):
    a token whose claims do not make one names no principal.
 
 Any failure is `401 {"error":"Invalid token"}` with the `invalid_token`
@@ -63,7 +63,7 @@ challenge; the reason goes to the log (`auth_failed`), never to the caller.
 
 The gateway holds the key set the issuer publishes, and fetches it on three
 occasions. Their timings are the `bearerAuth` scheme's `x-semiont-limits` in
-[specs/src/openapi.json](../../../specs/src/openapi.json):
+[protocol/specs/src/openapi.json](../../../protocol/specs/src/openapi.json):
 
 - **None is held**, or the one held is `keySetMaxAgeSeconds` old.
 - **A token names a `kid` the set lacks**, and the set is

@@ -1,4 +1,4 @@
-# Generated from specs/src/sdk-telemetry/telemetry.json; do not edit.
+# Generated from protocol/specs/src/sdk-telemetry/telemetry.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-sdk-telemetry-python.mjs
 
 """The telemetry a Semiont SDK's transports export, when the process they run

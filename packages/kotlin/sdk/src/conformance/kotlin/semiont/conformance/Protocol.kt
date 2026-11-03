@@ -78,7 +78,7 @@ internal interface Driver {
 }
 
 /**
- * Serve the driver protocol (packages/conformance/sdk/README.md, The driver
+ * Serve the driver protocol (protocol/conformance/sdk/README.md, The driver
  * protocol): say ready, run each operation as it comes, and answer each once:
  * one the driver answers in turn before the next line is read, any other
  * beside what follows it. An operation the driver does not have is answered

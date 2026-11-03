@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * lint:state-unit-cases — specs/src/client/state-units.json, the cases every
+ * lint:state-unit-cases — protocol/specs/src/client/state-units.json, the cases every
  * SDK runs against its state units, says only what its runners can read.
  *
  * Each SDK's runner reads the table as its `$comment` states it, and a case
  * a runner cannot read fails there late, in one SDK, or passes for the wrong
  * reason. So this fails on:
  *
- * - a case of a unit specs/src/client/surface.json's `stateUnits` does not
+ * - a case of a unit protocol/specs/src/client/surface.json's `stateUnits` does not
  *   name, a case named twice, or a key a case does not have;
  * - a transport, a unit's making, or a step of a form the table does not
  *   define, or that names a unit the case did not make;
@@ -17,7 +17,7 @@
  *   queued response on a channel that is not an operation's; a reply that is
  *   not the result or the failure of the request it answers; a frame heard on
  *   a channel the case does not listen to;
- * - a duration that names no timing of specs/src/client/timing.json, or comes
+ * - a duration that names no timing of protocol/specs/src/client/timing.json, or comes
  *   to less than nothing;
  * - a search answered or its queries checked in a case that is not a search
  *   pipeline's;
@@ -33,13 +33,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const TABLE = 'specs/src/client/state-units.json';
+const TABLE = 'protocol/specs/src/client/state-units.json';
 const read = (path) => JSON.parse(readFileSync(join(ROOT, path), 'utf8'));
 
 const table = read(TABLE);
-const surface = read('specs/src/client/surface.json');
-const registry = read('specs/src/bus/registry.json');
-const timing = new Map(read('specs/src/client/timing.json').timing.map((entry) => [entry.name, entry.value]));
+const surface = read('protocol/specs/src/client/surface.json');
+const registry = read('protocol/specs/src/bus/registry.json');
+const timing = new Map(read('protocol/specs/src/client/timing.json').timing.map((entry) => [entry.name, entry.value]));
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -91,7 +91,7 @@ function duration(value, where) {
   }
   const base = timing.get(value.timing);
   if (typeof base !== 'number' || !value.timing.endsWith('Ms')) {
-    fail(`${where}: ${value.timing} is no duration of specs/src/client/timing.json`);
+    fail(`${where}: ${value.timing} is no duration of protocol/specs/src/client/timing.json`);
     return;
   }
   const times = value.times ?? 1;
@@ -114,7 +114,7 @@ for (const [index, c] of (table.cases ?? []).entries()) {
   const strays = Object.keys(c).filter((key) => !['unit', 'case', 'transport', 'made', 'listen', 'steps'].includes(key));
   if (strays.length > 0) fail(`${where} states ${strays.join(', ')}, which a case does not have`);
   const members = rows.get(c.unit);
-  if (!members) fail(`${where}: ${c.unit} is no row of \`stateUnits\` in specs/src/client/surface.json`);
+  if (!members) fail(`${where}: ${c.unit} is no row of \`stateUnits\` in protocol/specs/src/client/surface.json`);
   if (typeof c.case !== 'string' || c.case === '') fail(`${where} does not say what it is (\`case\`)`);
   if (caseNames.has(`${c.unit}: ${c.case}`)) fail(`${where} is named twice`);
   caseNames.add(`${c.unit}: ${c.case}`);
@@ -279,8 +279,8 @@ for (const [index, c] of (table.cases ?? []).entries()) {
 
 // The mark unit reads a job's motivation off its parameters, whichever member of
 // MarkJobParams they are: its cases delegate a job of every motivation the spec tells apart.
-const toldApart = Object.keys(read('specs/src/components/schemas/MarkJobParams.json').discriminator?.mapping ?? {});
-if (toldApart.length === 0) fail('specs/src/components/schemas/MarkJobParams.json tells its members apart by no mapping this lint can read');
+const toldApart = Object.keys(read('protocol/specs/src/components/schemas/MarkJobParams.json').discriminator?.mapping ?? {});
+if (toldApart.length === 0) fail('protocol/specs/src/components/schemas/MarkJobParams.json tells its members apart by no mapping this lint can read');
 const delegated = new Set(
   (table.cases ?? [])
     .filter((c) => c.unit === 'mark')

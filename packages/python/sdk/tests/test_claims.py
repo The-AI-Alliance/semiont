@@ -1,7 +1,7 @@
 """`job.claim`: a worker's claims and the jobs it comes to hold.
 
-The rules are docs/protocol/WORKER-CONTRACT.md's, and the worker conformance
-suite (packages/conformance/worker) holds them on the wire. These are the same
+The rules are protocol/contract/WORKER-CONTRACT.md's, and the worker conformance
+suite (protocol/conformance/worker) holds them on the wire. These are the same
 rules over a transport the test answers by hand: the stand-in dispatcher
 below answers each `job:claim` with what a test offered, refused, or with
 nothing pending, and the stand-in record answers each commit and each
@@ -303,7 +303,7 @@ async def having_committed(*observed: DurabilityEvidence) -> AsyncGenerator[tupl
 
 
 class FilterCase(BaseModel):
-    """A row of specs/src/jobs/filter-cases.json."""
+    """A row of protocol/specs/src/jobs/filter-cases.json."""
 
     why: str
     filter: JsonObject
@@ -312,7 +312,7 @@ class FilterCase(BaseModel):
 
 
 class RetryCase(BaseModel):
-    """A row of specs/src/jobs/retry-cases.json."""
+    """A row of protocol/specs/src/jobs/retry-cases.json."""
 
     why: str
     retry_count: int = Field(alias="retryCount")

@@ -1,6 +1,6 @@
 """The Librarian: what takes each request of the bus that needs the graph, the index or a model, and answers it.
 
-`docs/protocol/LIBRARIAN.md` states what it does, rule by rule. Held with
+`protocol/contract/LIBRARIAN.md` states what it does, rule by rule. Held with
 `async with`: it takes frames from the way in to the way out. It reads
 through what it is handed and through nothing else: it knows no address, no
 directory and no database. What it reads of the record and of the profiles of

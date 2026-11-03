@@ -1,7 +1,7 @@
 """The lists read off a knowledge graph for one resource: what it is connected to, what cites it, and its siblings' entity types.
 
 A knowledge graph holds resources and annotations as nodes
-(`docs/protocol/LIBRARIAN.md` § The lists read off a graph). A citation of a
+(`protocol/contract/LIBRARIAN.md` § The lists read off a graph). A citation of a
 resource is a linking annotation: a node with an `annotation-of` edge to the
 resource it is on, and a `cites` edge to the resource it cites. So what cites
 a resource is found through that pair of edges, and a connection between two

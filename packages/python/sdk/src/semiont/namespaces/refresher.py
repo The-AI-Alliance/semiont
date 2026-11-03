@@ -1,4 +1,4 @@
-"""What keeps a client's queries true: `specs/src/client/refresh.json` (`semiont.refresh`), applied to the client's caches.
+"""What keeps a client's queries true: `protocol/specs/src/client/refresh.json` (`semiont.refresh`), applied to the client's caches.
 
 Each event on the bus, and the reopening of a dropped stream, asks again for
 the queries its row names, writes the ones whose new value the event carries,
@@ -11,7 +11,7 @@ or a query added to the table does not pass a type checker until it is
 answered here.
 
 An event acts only on a key its cache holds, and the refetches one key is
-asked for inside a window are one refetch (`docs/protocol/CACHE-SEMANTICS.md`
+asked for inside a window are one refetch (`protocol/contract/CACHE-SEMANTICS.md`
 B12 to B13b, B19, B20).
 """
 

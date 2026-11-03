@@ -1,5 +1,5 @@
 //! A process that installed its own OpenTelemetry. Every row of the SDK
-//! telemetry table (specs/src/sdk-telemetry/telemetry.json) is what one of
+//! telemetry table (protocol/specs/src/sdk-telemetry/telemetry.json) is what one of
 //! this crate's functions records, of the row's kind and with its attributes,
 //! and nothing else is recorded under a row's name: a row added to the table
 //! with no function here fails this. Its own binary, because what a process

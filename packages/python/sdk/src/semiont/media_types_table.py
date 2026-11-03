@@ -1,4 +1,4 @@
-# Generated from specs/src/media-types/registry.json; do not edit.
+# Generated from protocol/specs/src/media-types/registry.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-media-types-python.mjs
 
 """The media types a knowledge base admits, with what this SDK reads of each."""

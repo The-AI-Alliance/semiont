@@ -1,6 +1,6 @@
 package state_test
 
-// What the units' cases in specs/src/client/state-units.json cannot state:
+// What the units' cases in protocol/specs/src/client/state-units.json cannot state:
 // the state-unit axioms, each unit's; how often a state wakes a reader,
 // which differs by language; that a search the pipeline abandons is let go;
 // and that what a unit's method takes is what the namespace it calls takes.

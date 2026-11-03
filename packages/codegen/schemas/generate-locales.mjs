@@ -1,4 +1,4 @@
-// Generate the locale table from specs/src/locales/registry.json: the languages
+// Generate the locale table from protocol/specs/src/locales/registry.json: the languages
 // Semiont supports, and what each is called.
 //
 // The registry is the authority. The interface is read in one of its languages
@@ -22,7 +22,7 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/locales/registry.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/locales/registry.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/locales.ts'));
 
 function refuse(message) {
@@ -57,7 +57,7 @@ writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
 //
-// Source:    specs/src/locales/registry.json (the AUTHORITY)
+// Source:    protocol/specs/src/locales/registry.json (the AUTHORITY)
 // Generator: packages/codegen/schemas/generate-locales.mjs
 // Regen:     npm run generate:locales --workspace=@semiont/core
 

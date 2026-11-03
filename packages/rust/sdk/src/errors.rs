@@ -1,5 +1,5 @@
 //! What a client reports when something fails, under the codes every SDK
-//! shares (specs/src/errors/codes.json, generated here): a transport's failure,
+//! shares (protocol/specs/src/errors/codes.json, generated here): a transport's failure,
 //! which is a server's refusal or a request the gateway never answered; a bus
 //! request's, which is the peer's own failure or a fact only this side knows;
 //! a followed job's, which failed for good or went silent; and the three
@@ -218,7 +218,7 @@ pub enum SemiontError {
 }
 
 impl SemiontError {
-    /// The code, as specs/src/errors/codes.json lists it.
+    /// The code, as protocol/specs/src/errors/codes.json lists it.
     pub fn code(&self) -> &'static str {
         match self {
             SemiontError::Bus(error) => error.code.as_str(),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-python.mjs — generate the Python SDK's bus vocabulary from
-// specs/src/bus/registry.json, the same file the TypeScript and Go generators
+// protocol/specs/src/bus/registry.json, the same file the TypeScript and Go generators
 // read.
 //
 //   packages/python/sdk/src/semiont/channels.py    every channel, typed by its payload, and the field a
@@ -26,7 +26,7 @@ import { writeOrCheck } from '../lib/committed-source.mjs';
 import { pyBanner, pyComment, pyConstant, pyString } from '../lib/python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
+const REGISTRY = resolve(ROOT, 'protocol/specs/src/bus/registry.json');
 const OUT_DIR = resolve(ROOT, 'packages/python/sdk/src/semiont');
 const CHECK = process.argv.includes('--check');
 
@@ -86,7 +86,7 @@ const declaration = (p) =>
     : `${p.constant}: Final = ${scoped.includes(p.channel) ? 'ScopedChannel' : 'RecordedChannel'}[${p.type}, ${p.recorded}](${pyString(p.channel)}, ${p.type}, ${p.recorded})`;
 const schemaNames = [...new Set(payloads.flatMap((p) => p.names))].sort();
 
-const channelsPy = `${pyBanner('specs/src/bus/registry.json', SCRIPT)}
+const channelsPy = `${pyBanner('protocol/specs/src/bus/registry.json', SCRIPT)}
 """Every channel of the bus, typed by the payload it carries.
 
 A constant names its channel and holds its payload's type, so a function that
@@ -160,7 +160,7 @@ ${names(scoped)}
 )
 
 # The channels of the events of the record, each named for the event it carries: every event the event log
-# holds. A follower of the record receives each of them (docs/protocol/TRANSPORT-CONTRACT.md § What repairs
+# holds. A follower of the record receives each of them (protocol/contract/TRANSPORT-CONTRACT.md § What repairs
 # a passing frame).
 PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
 ${names(reg.channels.filter((c) => c.event).map((c) => c.channel))}
@@ -182,7 +182,7 @@ if (new Set(limitsOperations.map(shapeOf)).size !== 1) {
   throw new Error(`registry: the limits operations do not all ask and answer the same: ${limitsOperations.map((o) => `${o.request} (${shapeOf(o)})`).join('; ')}`);
 }
 
-const operationsPy = `${pyBanner('specs/src/bus/registry.json', SCRIPT)}
+const operationsPy = `${pyBanner('protocol/specs/src/bus/registry.json', SCRIPT)}
 """Every request of the bus, with the two channels it is answered on.
 
 An operation is named for its request channel. Its type says what is sent and

@@ -1,8 +1,8 @@
 /**
  * The TypeScript live driver for the SDK conformance suite
- * (packages/conformance/sdk): the client, its live queries and their cache,
+ * (protocol/conformance/sdk): the client, its live queries and their cache,
  * driven one operation per line on stdin, reporting each observer's states on
- * stdout. packages/conformance/sdk/README.md is the protocol.
+ * stdout. protocol/conformance/sdk/README.md is the protocol.
  *
  * It reaches the SDK only as an application does, through what `@semiont/sdk`
  * and `@semiont/core` export. Node runs this file as it is (types stripped);

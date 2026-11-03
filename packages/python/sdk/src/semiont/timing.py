@@ -1,4 +1,4 @@
-# Generated from specs/src/client/timing.json; do not edit.
+# Generated from protocol/specs/src/client/timing.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-client-timing-python.mjs
 
 """The timing a Semiont client keeps: its deadlines, its retry budgets, the
@@ -81,17 +81,17 @@ EMIT_RETRY: Final = RetryPolicy(attempts=4, initial_delay_ms=1000, max_delay_ms=
 # issuer that accepts a connection and never answers holds a session's start, and every renewal
 # after it, for as long as the process lives. An upload has no deadline: how long it takes is
 # how large the resource is. A read of anchored text may be held by the Archivist while the
-# Smelter reads the content, for the time docs/protocol/ARCHIVIST.md states, and this deadline
-# is longer than that wait.
+# Smelter reads the content, for the time protocol/contract/ARCHIVIST.md states, and this
+# deadline is longer than that wait.
 HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 
 # The wait before an HTTP request that is neither the stream nor an emit is made a second time.
 # It is made again when the gateway answered it with a status that promises recovery, or did not
 # answer at all, on a method that cannot cause a second effect (`transport` in
-# specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when
-# that is longer. A request whose credential was refused is renewed and sent again at once,
-# without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made
-# again.
+# protocol/specs/src/retry/cases.json); once, after this wait, or after a refusal's
+# `Retry-After` when that is longer. A request whose credential was refused is renewed and sent
+# again at once, without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`)
+# is not made again.
 REQUEST_RETRY_PAUSE_MS: Final = 300
 
 # How long a client waits for the gateway to answer the request that opens its stream (POST

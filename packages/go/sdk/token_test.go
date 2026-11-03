@@ -1,7 +1,7 @@
 package semiont
 
 // How a token is held, by the session table every SDK runs
-// (specs/src/session/cases.json): reading a token's expiry, and how long to
+// (protocol/specs/src/session/cases.json): reading a token's expiry, and how long to
 // wait before renewing it.
 
 import (
@@ -30,7 +30,7 @@ type sessionTables struct {
 
 func readSessionTables(t *testing.T) sessionTables {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "session", "cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "session", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

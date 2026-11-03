@@ -3,7 +3,7 @@
 Every service's own readings, and where telemetry goes, are
 `semiont_service.observability`'s. This is the one number that is the
 Smelter's alone (`semiont.vector.index.size` in
-`specs/src/service-telemetry/telemetry.json`).
+`protocol/specs/src/service-telemetry/telemetry.json`).
 """
 
 from semiont_vectors.store import VectorStore

@@ -2,8 +2,8 @@ package semiont
 
 // Job.Claim: a worker's claims and the jobs it comes to hold.
 //
-// The rules are docs/protocol/WORKER-CONTRACT.md's, and the worker
-// conformance suite (packages/conformance/worker) holds them on the wire. These
+// The rules are protocol/contract/WORKER-CONTRACT.md's, and the worker
+// conformance suite (protocol/conformance/worker) holds them on the wire. These
 // are the same rules over a transport the test answers by hand: the stand-in
 // dispatcher below answers each job:claim with what a test offered, refused,
 // or with nothing pending, and the stand-in record answers each commit and
@@ -370,7 +370,7 @@ func finish(t *testing.T, job HeldJob) {
 
 func specCases(t *testing.T, path string) []json.RawMessage {
 	t.Helper()
-	text, err := os.ReadFile("../../../specs/src/" + path)
+	text, err := os.ReadFile("../../../protocol/specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func TestEveryFailureClassAndEveryObservationTheSpecNamesIsAnswered(t *testing.T
 	}
 	for schema, answered := range map[string][]string{"FailureClass": classes, "DurabilityEvidence": evidence} {
 		slices.Sort(answered)
-		text, err := os.ReadFile("../../../specs/src/components/schemas/" + schema + ".json")
+		text, err := os.ReadFile("../../../protocol/specs/src/components/schemas/" + schema + ".json")
 		if err != nil {
 			t.Fatal(err)
 		}

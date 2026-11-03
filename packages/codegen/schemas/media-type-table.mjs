@@ -1,4 +1,4 @@
-// The media-type registry (specs/src/media-types/registry.json), read and
+// The media-type registry (protocol/specs/src/media-types/registry.json), read and
 // checked once for every generator that takes it: TypeScript
 // (generate-media-types.mjs), Go (generate-media-types-go.mjs) and Python
 // (generate-media-types-python.mjs). A registry

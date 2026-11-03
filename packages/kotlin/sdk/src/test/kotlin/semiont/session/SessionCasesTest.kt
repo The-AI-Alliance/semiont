@@ -23,7 +23,7 @@ import semiont.errors.TransportError
 
 /**
  * How a client holds a session, held to the cases every SDK runs
- * (specs/src/session/cases.json): when it renews a token, a token's expiry,
+ * (protocol/specs/src/session/cases.json): when it renews a token, a token's expiry,
  * what it does at its start with the credential it finds kept, and what it
  * does when the gateway refuses a running session's token.
  */

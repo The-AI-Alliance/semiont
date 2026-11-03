@@ -291,7 +291,7 @@ func (h *FrameHub) Close() {
 // made with it and held until a listener takes it, because the stream opens
 // before the transport's constructor returns: a failure reported before anyone
 // has asked to hear failures is not lost to the first who does
-// (docs/protocol/TRANSPORT-CONTRACT.md § Failures).
+// (protocol/contract/TRANSPORT-CONTRACT.md § Failures).
 type failureStream struct {
 	b     *broadcast[*TransportError]
 	mu    sync.Mutex

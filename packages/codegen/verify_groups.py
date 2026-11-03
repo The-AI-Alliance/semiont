@@ -13,7 +13,7 @@ OUTPUTS = {
     "stack-go": "packages/go/launcher/stack/types_gen.go",
     "mcp-tools-go": "packages/go/launcher/verbs/mcp_tools_gen.go",
     "discovery-go": "packages/go/launcher/discovery_types_gen.go",
-    "encoding-cases": "specs/src/text/encoding-cases.json",
+    "encoding-cases": "protocol/specs/src/text/encoding-cases.json",
     "model-catalogue": "packages/python/inference/tests/catalogue/model-catalogue.json",
 }
 

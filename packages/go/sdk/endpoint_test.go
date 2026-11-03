@@ -1,7 +1,7 @@
 package semiont_test
 
 // A knowledge base's gateway, made from its HTTP endpoint as every SDK makes
-// it (specs/src/session/gateway-url-cases.json).
+// it (protocol/specs/src/session/gateway-url-cases.json).
 
 import (
 	"encoding/json"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestTheGatewaysOriginIsTheTables(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "session", "gateway-url-cases.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "session", "gateway-url-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

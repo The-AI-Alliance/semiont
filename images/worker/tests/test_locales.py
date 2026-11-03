@@ -1,4 +1,5 @@
-"""What a model is told a language is called, held to the registry of the languages Semiont supports (`specs/src/locales/registry.json`)."""
+"""What a model is told a language is called, held to the registry of the languages Semiont supports
+(`protocol/specs/src/locales/registry.json`)."""
 
 from typing import Annotated, Final
 

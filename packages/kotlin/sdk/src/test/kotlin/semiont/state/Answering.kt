@@ -44,7 +44,7 @@ private val JOBS = Respond { operation, payload ->
 private val NOBODY = Respond { _, _ -> null as JsonElement? }
 
 /**
- * The transport a case of specs/src/client/state-units.json states, on the
+ * The transport a case of protocol/specs/src/client/state-units.json states, on the
  * case's clock: a `FaultyTransport` whose stream carries what a client's does,
  * the replies and the broadcasts and never the requests, answering as
  * `answers` says, `delayMs` after each request when the case says so.

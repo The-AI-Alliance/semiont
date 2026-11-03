@@ -1,4 +1,4 @@
-"""The live driver: this SDK's client, its live queries and their cache, as `packages/conformance/sdk/live` drives it.
+"""The live driver: this SDK's client, its live queries and their cache, as `protocol/conformance/sdk/live` drives it.
 
 It reaches the SDK only as an application does, through what `semiont`
 exports, so what the suite observes is what a caller of the SDK gets.
@@ -75,7 +75,7 @@ def _state(state: CacheState[_Shown]) -> dict[str, JsonValue]:
 
 
 def _named(query: Arguments) -> CacheQuery:
-    """The live query of `specs/src/client/refresh.json` a case names."""
+    """The live query of `protocol/specs/src/client/refresh.json` a case names."""
     name = text(query, "query")
     for known in CACHE_QUERIES:
         if known == name:
@@ -140,7 +140,7 @@ def _query(client: SemiontClient[HttpTransport], query: Arguments) -> Cached[_Sh
 
 
 def _timings(stated: Arguments) -> tuple[Timing, ClientTiming]:
-    """The timing a case states, each entry by its name in `specs/src/client/timing.json`."""
+    """The timing a case states, each entry by its name in `protocol/specs/src/client/timing.json`."""
     wire, client = Timing(), ClientTiming()
     reconnect_ms, lazy_remove_ms, linger_ms = wire.reconnect_ms, wire.lazy_remove_ms, wire.linger_ms
     bus_request_ms, invalidation_window_ms = client.bus_request_ms, client.invalidation_window_ms

@@ -5,7 +5,7 @@ package annotations
 // An annotation of a PDF is anchored by rectangles on its pages, so a span of
 // the PDF's anchored text is located: one rectangle for each line it touches,
 // each written as an RFC 3778 fragment.
-// specs/src/annotations/pdf-locate-cases.json holds the rule, for this and for
+// protocol/specs/src/annotations/pdf-locate-cases.json holds the rule, for this and for
 // every other SDK.
 //
 // A span's offsets and an item's count code points. Coordinates are PDF points

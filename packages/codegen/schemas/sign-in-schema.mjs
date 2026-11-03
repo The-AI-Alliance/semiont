@@ -1,7 +1,7 @@
-// sign-in-schema.mjs — read and check specs/src/sign-in-store/SignIn.json: one
+// sign-in-schema.mjs — read and check protocol/specs/src/sign-in-store/SignIn.json: one
 // entry of the sign-in store, as every program that reads and writes
 // <stateDir>/tokens.json must hold it. And any schema of its form: the stored
-// session of specs/src/session/stored.json is one.
+// session of protocol/specs/src/session/stored.json is one.
 //
 // One place for the checks, shared by every generator that reads such a schema
 // (generate-sign-in-go.mjs for the launcher, generate-sign-in-python.mjs and

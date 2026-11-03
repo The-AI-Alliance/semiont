@@ -1,4 +1,4 @@
-"""The rules read from the media types a knowledge base admits, as every SDK reads them (`specs/src/media-types/cases.json`)."""
+"""The rules read from the media types a knowledge base admits, as every SDK reads them (`protocol/specs/src/media-types/cases.json`)."""
 
 from typing import get_args
 

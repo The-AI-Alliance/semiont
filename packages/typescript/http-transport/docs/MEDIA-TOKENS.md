@@ -70,4 +70,4 @@ Media tokens are intentionally not in the browse namespace's Observable caches. 
 
 ## OpenAPI spec
 
-`POST /api/tokens/media` is specified in `specs/src/paths/api_tokens_media.json`. The request schema is `MediaTokenRequest` (`{ resourceId: string }`) and the response is `MediaTokenResponse` (`{ token: string }`).
+`POST /api/tokens/media` is specified in `protocol/specs/src/paths/api_tokens_media.json`. The request schema is `MediaTokenRequest` (`{ resourceId: string }`) and the response is `MediaTokenResponse` (`{ token: string }`).

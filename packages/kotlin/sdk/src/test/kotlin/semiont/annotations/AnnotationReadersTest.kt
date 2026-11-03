@@ -48,7 +48,7 @@ private val READERS: Map<String, (Annotation) -> JsonElement> = mapOf(
     "tagSchemaId" to { a -> said(tagSchemaId(a)) },
 )
 
-/** The readers of an annotation, held to specs/src/annotations/reader-cases.json. */
+/** The readers of an annotation, held to protocol/specs/src/annotations/reader-cases.json. */
 class AnnotationReadersTest {
     private val table = Spec.read("annotations/reader-cases.json").jsonObject
     private val readers = table.getValue("readers").jsonArray.map { it.jsonPrimitive.content }

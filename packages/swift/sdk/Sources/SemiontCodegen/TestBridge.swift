@@ -4,7 +4,7 @@ import Foundation
 package func testBridge(definitions: [String: JSONValue], identifiers: Set<String>) throws -> String
 {
   var out = """
-    // Generated from specs/src; do not edit.
+    // Generated from protocol/specs/src; do not edit.
     import Foundation
     import Testing
     @testable import Semiont

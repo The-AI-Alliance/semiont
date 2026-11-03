@@ -1,7 +1,7 @@
 """Where the process's telemetry goes, and the readings the process takes of itself.
 
 The environment says whether anything is exported, and where (§ Environment
-of the service's page of `docs/protocol`). With a collector's endpoint, spans
+of the service's page of `protocol/contract`). With a collector's endpoint, spans
 and metrics are exported there over OTLP/HTTP. With the console exporter
 instead, they are written to the process's output. With neither, or with the
 SDK disabled, nothing is installed: every span and every count the process's

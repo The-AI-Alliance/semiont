@@ -6,7 +6,7 @@
  * carry it; the gateway's reply filter, which writes a correlated reply only
  * to its owner's connections, is what reads it.
  *
- * Asserted against `specs/src/components/schemas/` rather than the generated
+ * Asserted against `protocol/specs/src/components/schemas/` rather than the generated
  * types because the schema is the authority — the TS types, the Go client and
  * the Ajv validators are all derived from it, so a check on any one of them
  * would be a check on a derivation.
@@ -17,7 +17,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/components/schemas');
+const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../../../protocol/specs/src/components/schemas');
 
 function schema(name: string): { properties?: Record<string, unknown>; required?: string[] } {
   return JSON.parse(readFileSync(join(SCHEMA_DIR, `${name}.json`), 'utf-8'));

@@ -3,7 +3,7 @@ package semiont
 // A session with a knowledge base: the token its transport sends, renewed on
 // the schedule every Semiont client keeps and whenever the gateway refuses it,
 // and who that token is. How it starts and how it answers a refusal are the
-// session table's (specs/src/session/cases.json, startup and refusal): it asks
+// session table's (protocol/specs/src/session/cases.json, startup and refusal): it asks
 // the gateway at most twice and renews at most once at its start, and one
 // refusal costs at most one renewal and one ask. A token the issuer has just
 // issued and the gateway refuses ends it, as session.credential-refused;

@@ -1,6 +1,6 @@
 // The identifier spec gate.
 //
-// The protocol names four kinds of id (`specs/src/identifiers/kinds.json`),
+// The protocol names four kinds of id (`protocol/specs/src/identifiers/kinds.json`),
 // each a schema whose `pattern` is the rule a value of that kind is held to.
 // A gateway validates a payload against its schema, so a property that
 // carries an id and does not refer to its kind is an id nothing checks. The
@@ -25,7 +25,7 @@ import { basename, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const SPEC = resolve(REPO, 'specs/src');
+const SPEC = resolve(REPO, 'protocol/specs/src');
 const SCHEMAS = resolve(SPEC, 'components/schemas');
 const KINDS = resolve(SPEC, 'identifiers/kinds.json');
 const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
@@ -42,7 +42,7 @@ const declared = read(resolve(SPEC, 'openapi.json')).components.schemas;
 for (const kind of kinds) {
   const path = resolve(SCHEMAS, `${kind.schema}.json`);
   if (!existsSync(path)) {
-    fail(`${kind.schema} has no schema: specs/src/components/schemas/${kind.schema}.json`);
+    fail(`${kind.schema} has no schema: protocol/specs/src/components/schemas/${kind.schema}.json`);
     continue;
   }
   const schema = read(path);
@@ -52,7 +52,7 @@ for (const kind of kinds) {
     continue;
   }
   if (declared[kind.schema]?.$ref !== `components/schemas/${kind.schema}.json`) {
-    fail(`specs/src/openapi.json does not declare ${kind.schema} among its schemas`);
+    fail(`protocol/specs/src/openapi.json does not declare ${kind.schema} among its schemas`);
   }
   const rule = new RegExp(schema.pattern, 'u');
   for (const { id, why } of kind.accepts) {
@@ -115,7 +115,7 @@ function walk(node, file) {
       } else if (expected === undefined && otherProperties.has(name) && actual !== undefined) {
         fail(`${file}: ${name} is among \`others\` and refers to ${actual}`);
       } else if (expected === undefined && !otherProperties.has(name) && namedLikeAnId(name)) {
-        fail(`${file}: ${name} is named like an id and is classified nowhere: name it for a kind, or among \`others\`, in specs/src/identifiers/kinds.json`);
+        fail(`${file}: ${name} is named like an id and is classified nowhere: name it for a kind, or among \`others\`, in protocol/specs/src/identifiers/kinds.json`);
       }
     }
   }
@@ -140,7 +140,7 @@ function files(directory) {
 for (const path of files(SPEC)) walk(read(path), relative(REPO, path));
 
 for (const property of [...kindOfProperty.keys(), ...otherProperties.keys()]) {
-  if (!seen.has(property)) fail(`specs/src/identifiers/kinds.json names ${property}, which no schema of the spec has`);
+  if (!seen.has(property)) fail(`protocol/specs/src/identifiers/kinds.json names ${property}, which no schema of the spec has`);
 }
 
 if (failures.length > 0) {
