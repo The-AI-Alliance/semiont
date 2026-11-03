@@ -1,6 +1,6 @@
 /**
  * The telemetry the gateway exports, which dashboards and alerts are built on:
- * the spans and metrics specs/src/service-telemetry/telemetry.json lists for it,
+ * the spans and metrics protocol/specs/src/service-telemetry/telemetry.json lists for it,
  * exported over OTLP to the endpoint the standard OpenTelemetry environment
  * names, and the trace context carried onto bus frames (protocol/contract/EVENT-BUS.md
  * § Trace context). Each plane exports to a receiver of its own, and its last

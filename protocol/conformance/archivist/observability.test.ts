@@ -1,6 +1,6 @@
 /**
  * The telemetry the Archivist exports: the spans and metrics
- * specs/src/service-telemetry/telemetry.json lists for it, exported over OTLP
+ * protocol/specs/src/service-telemetry/telemetry.json lists for it, exported over OTLP
  * to the endpoint the standard OpenTelemetry environment names. Its last case
  * holds everything the receiver got to the table, in both directions.
  */

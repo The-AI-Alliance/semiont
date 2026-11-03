@@ -124,7 +124,7 @@ A document just uploaded has no text until the Smelter has read it. A read
 that comes sooner waits at the Archivist and is answered as soon as the
 Smelter has read the content; past that wait it answers `not-yet`. The viewer
 asks again once `anchoredTextReaskMs` has passed
-(`specs/src/client/timing.json`), and goes on asking at that one wait. It
+(`protocol/specs/src/client/timing.json`), and goes on asking at that one wait. It
 listens for nothing else: the held read is how it learns the text is there.
 
 An image is asked about as a PDF is. Its answer is `no-map`, given at once,

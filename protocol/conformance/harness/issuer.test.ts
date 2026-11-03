@@ -2,7 +2,7 @@
  * The harness's issuer admits a key account as an issuer does: an assertion
  * signed with the registered key, for this token endpoint and not expired, is
  * answered once; one signed by another key, expired, addressed elsewhere or
- * sent a second time is refused (specs/src/session/client-assertion-cases.json).
+ * sent a second time is refused (protocol/specs/src/session/client-assertion-cases.json).
  * A grant a case tells it to fail is answered 503, or not answered at all.
  */
 import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';

@@ -9,7 +9,7 @@
  * each option makes and which it leaves out, what a failing model costs, what
  * is read of another resource, and that two gathers for one resource are
  * answered one after the other. The text of a prompt, the cut of a window and
- * the build of a graph are the tables' (specs/src/librarian).
+ * the build of a graph are the tables' (protocol/specs/src/librarian).
  *
  * The stand-in embedding provider gives two texts that differ two vectors
  * that have nothing to do with each other, so a passage is near another only

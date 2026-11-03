@@ -25,15 +25,15 @@ Archivist, records through the Archivist, plays its embedding provider, and
 reads the index back from a real database: the same cases judge every
 implementation. A path names a test. Some are runners of a case table, which
 every implementation runs through its own code:
-[`specs/src/vectors/payload-cases.json`](../../specs/src/vectors/payload-cases.json)
+[`protocol/specs/src/vectors/payload-cases.json`](../specs/src/vectors/payload-cases.json)
 and
-[`specs/src/vectors/store-cases.json`](../../specs/src/vectors/store-cases.json),
+[`protocol/specs/src/vectors/store-cases.json`](../specs/src/vectors/store-cases.json),
 what a point of the index is and what the index answers;
-[`specs/src/smelter/reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json),
+[`protocol/specs/src/smelter/reconcile-cases.json`](../specs/src/smelter/reconcile-cases.json),
 the work a start plans;
-[`specs/src/smelter/extraction-cases.json`](../../specs/src/smelter/extraction-cases.json),
+[`protocol/specs/src/smelter/extraction-cases.json`](../specs/src/smelter/extraction-cases.json),
 what each kind of PDF becomes; and
-[`specs/src/text/chunk-cases.json`](../../specs/src/text/chunk-cases.json),
+[`protocol/specs/src/text/chunk-cases.json`](../specs/src/text/chunk-cases.json),
 how a text is cut. The others are tests of Semiont's own Smelter. A rule
 marked "Held by no case" is one nothing checks.
 `npm run lint:transport-contract` fails when a case or a test named here does
@@ -47,20 +47,20 @@ cleared, and a Smelter that starts afterwards fills it again.
 ## Settings
 
 A Smelter reads its settings from a configuration document, the protocol's
-[`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json), at
+[`SmelterConfig`](../specs/src/components/schemas/SmelterConfig.json), at
 the path its `--config` flag names. The document is resolved: every address in
 it is literal, every credential is named by the variable that holds it, and the
-Smelter defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the
+Smelter defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the
 gateway's URL; the issuer the Smelter's service account signs in at; where
 the Archivist is, for a resource's bytes; the embedding provider
-([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json):
+([`EmbeddingConfig`](../specs/src/components/schemas/EmbeddingConfig.json):
 its kind, its model and where it is reached, with the name of the environment
 variable that holds its key, for a provider that takes one); the vector index
-([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json): its
+([`VectorsConfig`](../specs/src/components/schemas/VectorsConfig.json): its
 kind, and what that kind needs to be reached); the two numbers a text is cut
 by, a chunk's size and how far one chunk overlaps the next; how many PDFs it
 works on at once; the file it keeps its cursors in
-([`CursorsPath`](../../specs/src/components/schemas/CursorsPath.json): a file
+([`CursorsPath`](../specs/src/components/schemas/CursorsPath.json): a file
 of its own disk, never of the knowledge base); the port its health answers
 on; and how it logs.
 Whoever starts a Smelter writes it: the launcher for the Smelter it starts,
@@ -190,7 +190,7 @@ entity types from its description as the Archivist answers it then.
   anything,** so that whatever it decides is said of those bytes.
   *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **The resource's media type says where its text comes from**
-  ([`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)):
+  ([`protocol/specs/src/media-types/registry.json`](../specs/src/media-types/registry.json)):
   decoded from the bytes, derived from a PDF ([A PDF's text](#a-pdfs-text)),
   or nowhere. A `text/` type the registry does not list is decoded.
   *Held by `images/smelter/tests/test_smelter.py` and `smelter/index`.*
@@ -198,7 +198,7 @@ entity types from its description as the Archivist answers it then.
   ([W3C-SELECTORS.md](./W3C-SELECTORS.md#the-text-of-a-resource)).
   *Held by `packages/python/sdk/tests/test_decode_cases.py`, for the reader the Smelter decodes with.*
 - **The text is cut into chunks as
-  [`chunk-cases.json`](../../specs/src/text/chunk-cases.json) states,** by
+  [`chunk-cases.json`](../specs/src/text/chunk-cases.json) states,** by
   the two numbers of its settings.
   *Held by `images/smelter/tests/test_chunk_cases.py` and `smelter/index`.*
 - **Every chunk is embedded before any point is written.** A resource whose
@@ -210,7 +210,7 @@ entity types from its description as the Archivist answers it then.
 - **Each point carries the chunk's text and its place among the chunks, the
   checksum of the bytes and the media type they were read as, the resource's
   entity types, and a mark when the text was read from pixels,** as
-  [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
+  [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states.
   The media type is the one the Archivist answered the bytes with, as it is
   written, with whatever parameters it states.
   *Held by `packages/python/vectors/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
@@ -222,7 +222,7 @@ entity types from its description as the Archivist answers it then.
 - **An annotation's point is the embedding of the text its target quotes,**
   with the annotation's id, its resource, its motivation, its entity types
   and that text, as
-  [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states.
+  [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states.
   *Held by `packages/python/vectors/tests/test_payload_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
 - **An annotation that quotes no text, or only white space, has no point.**
   *Held by `images/smelter/tests/test_reconcile_cases.py`, `images/smelter/tests/test_smelter.py` and `smelter/index`.*
@@ -320,7 +320,7 @@ and says so.
 ## A PDF's text
 
 A PDF's text is derived, and comes with where each run of it is on a page.
-[`extraction-cases.json`](../../specs/src/smelter/extraction-cases.json)
+[`extraction-cases.json`](../specs/src/smelter/extraction-cases.json)
 states what each kind of document becomes.
 
 - **A document with a text layer of its own is read from that layer,** run by
@@ -361,7 +361,7 @@ states what each kind of document becomes.
   *Held by `images/smelter/tests/test_anchored_text_store.py` and `smelter/pdf`.*
 - **What deriving a PDF's text came to is stored under the checksum of the
   bytes, a decline as well as a text,** as an
-  [`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json).
+  [`AnchoredTextEntry`](../specs/src/components/schemas/AnchoredTextEntry.json).
   *Held by `images/smelter/tests/test_anchored_text_store.py`, `images/smelter/tests/test_smelter.py` and `smelter/pdf`.*
 - **The entry is stored before the decision is signalled,** so whoever hears
   that content was settled finds its entry.
@@ -388,7 +388,7 @@ states what each kind of document becomes.
 - **The index is two collections of points,** one of resources' chunks and one
   of annotations, searched by cosine similarity, **and a third that is never
   searched,** which holds what is remembered of each skipped resource.
-  [`payload-cases.json`](../../specs/src/vectors/payload-cases.json) states
+  [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
   *Held by `packages/python/vectors/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/python/vectors/tests/qdrant_live.py`.*
 - **A collection that is searched is as wide as the embedding model's
@@ -403,7 +403,7 @@ states what each kind of document becomes.
   index whose two state different things states nothing.
   *Held by `images/smelter/tests/test_index_stamp.py` and `packages/python/vectors/tests/store_contract.py`, and for a Qdrant by `packages/python/vectors/tests/qdrant_live.py`.*
 - **What a search of the index answers is what
-  [`store-cases.json`](../../specs/src/vectors/store-cases.json) states.**
+  [`store-cases.json`](../specs/src/vectors/store-cases.json) states.**
   *Held by `packages/python/vectors/tests/store_contract.py`, for the in-memory store and for a Qdrant.*
 
 ## The embedding provider
@@ -487,7 +487,7 @@ what the index holds, what the catalog says the knowledge base holds, and
 which bytes the anchored-text store has an entry for. What its stream missed
 within a life it never needs to find: the record has it, and the Smelter
 reads it there ([What it follows](#what-it-follows)).
-[`reconcile-cases.json`](../../specs/src/smelter/reconcile-cases.json) states
+[`reconcile-cases.json`](../specs/src/smelter/reconcile-cases.json) states
 the work it plans for each difference, and is the rule; this section says it
 in prose.
 
@@ -662,9 +662,9 @@ every resource had a cursor at its start.
 
 - **A Smelter started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
   `semiont-smelter`, exactly what
-  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  [`protocol/specs/src/service-telemetry/telemetry.json`](../specs/src/service-telemetry/telemetry.json)
   lists for the smelter, and the rows of
-  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  [`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json)
   the first names for it under `sdk`.** Those are what every service says of
   its own process (when it started, how late its loop runs, its memory), how
   many points its index holds, a span for each frame it sends and each it

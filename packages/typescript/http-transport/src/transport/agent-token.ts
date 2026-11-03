@@ -50,7 +50,7 @@ export interface AgentSignIn {
  * gateway names it by.
  *
  * Each request is bounded by `httpRequestTimeoutMs`
- * (specs/src/client/timing.json). A sign-in is tried again with backoff
+ * (protocol/specs/src/client/timing.json). A sign-in is tried again with backoff
  * (`STARTUP_FETCH_RETRY`) when the gateway or the issuer could not be
  * reached, did not answer by that deadline, or said "not now" (the statuses
  * of `RETRY_RULES.boot`): either may be starting when this process does, and

@@ -370,7 +370,7 @@ func finish(t *testing.T, job HeldJob) {
 
 func specCases(t *testing.T, path string) []json.RawMessage {
 	t.Helper()
-	text, err := os.ReadFile("../../../specs/src/" + path)
+	text, err := os.ReadFile("../../../protocol/specs/src/" + path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func TestEveryFailureClassAndEveryObservationTheSpecNamesIsAnswered(t *testing.T
 	}
 	for schema, answered := range map[string][]string{"FailureClass": classes, "DurabilityEvidence": evidence} {
 		slices.Sort(answered)
-		text, err := os.ReadFile("../../../specs/src/components/schemas/" + schema + ".json")
+		text, err := os.ReadFile("../../../protocol/specs/src/components/schemas/" + schema + ".json")
 		if err != nil {
 			t.Fatal(err)
 		}

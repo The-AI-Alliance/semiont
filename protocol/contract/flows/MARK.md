@@ -81,11 +81,11 @@ An annotation's `motivation` says why it was made, and decides its body:
 | `language` | The language the annotations' own text is written in. BCP 47 |
 | `sourceLanguage` | The language of the resource being read. BCP 47 |
 
-The authority for both tables is [`MarkJobParams`](../../../specs/src/components/schemas/MarkJobParams.json) and the five schemas it names.
+The authority for both tables is [`MarkJobParams`](../../specs/src/components/schemas/MarkJobParams.json) and the five schemas it names.
 
 A job given a param its motivation does not take is refused when it is created, and so is one whose `entityTypes`, `categories` or `schemaId` is empty. A schema and the entity types must already be in the knowledge base's vocabulary, which is [Frame](FRAME.md)'s; a job that names one that is not is refused too. See [`job:create`](../JOBS.md#jobcreate).
 
-A `mark` job's result is one of two ([`MarkJobResult`](../../../specs/src/components/schemas/MarkJobResult.json)). A job that did its work reports its counts, the same whatever its motivation: `found`, what the model proposed; `persisted`, what the log holds; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A job whose resource could not be read reports a decline, with the reason.
+A `mark` job's result is one of two ([`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json)). A job that did its work reports its counts, the same whatever its motivation: `found`, what the model proposed; `persisted`, what the log holds; and `errors`, how many of the proposed could not be anchored in the text, absent when none. A job whose resource could not be read reports a decline, with the reason.
 
 The whole document is read: a long one is processed in pieces sized to the model's limits, never truncated. How detection is done is the worker's: see [Detection](../WORKER-SERVICE.md#detection) and [the five kinds of mark job](../WORKER-SERVICE.md#the-five-kinds-of-mark-job).
 
@@ -126,4 +126,4 @@ From the launcher: `semiont mark --delegate <resourceId> --motivation linking --
 - What records the events: [the Archivist](../ARCHIVIST.md), in [images/archivist/src/commands.rs](../../../images/archivist/src/commands.rs)
 - The Worker service, which runs the detections: [images/worker](../../../images/worker/README.md), held to [WORKER-SERVICE.md](../WORKER-SERVICE.md)
 - The launcher verb: [packages/go/launcher/verbs/mark.go](../../../packages/go/launcher/verbs/mark.go)
-- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)
+- The channels and their payloads: [protocol/specs/src/bus/registry.json](../../specs/src/bus/registry.json)

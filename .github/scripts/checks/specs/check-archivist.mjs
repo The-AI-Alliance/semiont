@@ -1,6 +1,6 @@
 // The Archivist spec gate.
 //
-// What the Archivist keeps and how it is started is stated in specs/ for a
+// What the Archivist keeps and how it is started is stated in protocol/specs/ for a
 // second implementation to read instead of the code. The check fails when a
 // part of that statement is missing, or when two parts that restate one fact
 // disagree:
@@ -25,7 +25,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const SCHEMAS = resolve(REPO, 'specs/src/components/schemas');
+const SCHEMAS = resolve(REPO, 'protocol/specs/src/components/schemas');
 const read = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const schema = (name) => read(resolve(SCHEMAS, `${name}.json`));
 
@@ -45,16 +45,16 @@ const RECORD_SCHEMAS = [
   'AnchoredTextDeclinedEntry',
 ];
 const CONFIG_SCHEMAS = ['ArchivistConfig', 'ArchivistEngines', 'Engine'];
-const TABLES = ['specs/src/archivist/shard-cases.json'];
+const TABLES = ['protocol/specs/src/archivist/shard-cases.json'];
 const PROTOCOL = 'protocol/contract/ARCHIVIST.md';
 
-const components = read(resolve(REPO, 'specs/src/openapi.json')).components.schemas;
+const components = read(resolve(REPO, 'protocol/specs/src/openapi.json')).components.schemas;
 const present = [];
 for (const name of [...RECORD_SCHEMAS, ...CONFIG_SCHEMAS]) {
   if (!existsSync(resolve(SCHEMAS, `${name}.json`))) {
-    fail(`${name} has no schema in specs/src/components/schemas`);
+    fail(`${name} has no schema in protocol/specs/src/components/schemas`);
   } else if (components[name]?.$ref !== `components/schemas/${name}.json`) {
-    fail(`${name} is not a component of specs/src/openapi.json`);
+    fail(`${name} is not a component of protocol/specs/src/openapi.json`);
   } else {
     present.push(name);
   }
@@ -116,13 +116,13 @@ if (!existsSync(resolve(REPO, PROTOCOL))) {
   const named = (what, term) => { if (!protocol.includes(term)) fail(`${PROTOCOL} does not name ${what} ${term}`); };
   for (const name of [...RECORD_SCHEMAS.filter((name) => !/^AnchoredText.+Entry$/.test(name)), 'ArchivistConfig']) named('the schema', name);
   for (const path of TABLES) named('the table', path.split('/').pop());
-  const registry = read(resolve(REPO, 'specs/src/bus/registry.json'));
+  const registry = read(resolve(REPO, 'protocol/specs/src/bus/registry.json'));
   const persisted = registry.channels
     .filter((channel) => channel.shape === 'storedEvent')
     .map((channel) => channel.channel);
   if (persisted.length === 0) fail('the bus registry names no persisted event: the check has lost what it reads');
   for (const type of persisted) named('the persisted event', `\`${type}\``);
-  const surface = read(resolve(REPO, 'specs/src/archivist/openapi.json'));
+  const surface = read(resolve(REPO, 'protocol/specs/src/archivist/openapi.json'));
   for (const path of Object.keys(surface.paths)) named('the route', `\`${path}\``);
 }
 

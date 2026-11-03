@@ -125,7 +125,7 @@ def test_a_path_that_names_no_file_is_refused_saying_where_it_looked_and_who_wri
         read(absent)
     said = str(refused.value)
     assert said.startswith(f"Cannot read the worker's configuration document at {absent} (")
-    assert said.endswith("). The launcher writes it; a worker started another way is given one (WorkerConfig in specs/).")
+    assert said.endswith("). The launcher writes it; a worker started another way is given one (WorkerConfig in protocol/specs/).")
 
 
 def test_what_is_not_json_is_refused_as_that_naming_the_file(tmp_path: Path) -> None:
@@ -289,7 +289,9 @@ def test_a_refusal_is_worded_for_the_service_and_the_shape_the_document_was_read
     with pytest.raises(Refused) as unread:
         read_config("weaver", WeaverConfig, absent)
     assert str(unread.value).startswith(f"Cannot read the weaver's configuration document at {absent} (")
-    assert str(unread.value).endswith("). The launcher writes it; a weaver started another way is given one (WeaverConfig in specs/).")
+    assert str(unread.value).endswith(
+        "). The launcher writes it; a weaver started another way is given one (WeaverConfig in protocol/specs/)."
+    )
 
     # The Worker's document is no Weaver's.
     path = written(tmp_path, DOCUMENT)

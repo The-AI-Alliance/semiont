@@ -5,8 +5,8 @@ them only where the rest of Semiont does: on the bus, through a real gateway;
 at their HTTP surface, as a service; and in the files they keep, which other
 processes read. It checks what they do against
 [protocol/contract/ARCHIVIST.md](../../contract/ARCHIVIST.md), the schemas
-`specs/` gives every channel and every file, and the Archivist's
-[API](../../../specs/src/archivist/openapi.json). It imports nothing from the
+`protocol/specs/` gives every channel and every file, and the Archivist's
+[API](../../specs/src/archivist/openapi.json). It imports nothing from the
 Archivist: what names an implementation is `archivist` in the run's
 [implementations file](../README.md#the-implementations-file): in Semiont's, the Rust binary
 `target/release/semiont-archivist`.
@@ -90,16 +90,16 @@ what its schema says; and a case fails otherwise, whatever it was about.
   and kept as it was left, is rebuilt from its log into the very views it was
   left with, byte for byte, served as recorded, and gone on from.
 - **Environment** (`environment.test.ts`): what each variable
-  [`specs/src/service-environment/variables.json`](../../../specs/src/service-environment/variables.json)
+  [`protocol/specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json)
   lists for the Archivist changes, and that a reply continues its request's
   trace.
 - **Telemetry** (`observability.test.ts`): the `bus.recv` and `bus.emit` spans
   its frames make, the depth of what is waiting to be published, each git
   command measured and a staging degradation counted, and, last, everything
   exported held, in both directions, to the rows of
-  [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  [`protocol/specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
   that list the Archivist and the rows of
-  [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
+  [`protocol/specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
   for the SDK transport it reaches the bus through, and to the table's
   `resource`: exported under exactly the keys it lists for the Archivist,
   with `semiont.kb` the DID of the `site.domain` its tree commits.

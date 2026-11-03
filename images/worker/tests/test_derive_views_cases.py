@@ -1,4 +1,4 @@
-"""The views a generation prompt reads off a gathered graph, held to `specs/src/librarian/derive-views-cases.json`.
+"""The views a generation prompt reads off a gathered graph, held to `protocol/specs/src/librarian/derive-views-cases.json`.
 
 It is the table every reader of a gathered knowledge graph runs, so that one
 graph gives one set of connections, citations and sibling entity types in any

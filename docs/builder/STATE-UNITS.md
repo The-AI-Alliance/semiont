@@ -276,7 +276,7 @@ The structural contract — `dispose()` exists — is the only part the **type s
 
 That is the TypeScript harness. Rust's (`semiont::testing::axioms`), Python's (`semiont.testing.axioms`), Go's (`semionttest.AssertStateUnitAxioms`) and Kotlin's (its tests' `assertStateUnitAxioms`, in `src/test/kotlin/semiont/state/Axioms.kt`) hold their units under the same ids; the last column says which rules they hold too.
 
-What a unit does is held apart from the axioms. [`specs/src/client/state-units.json`](../../specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` and `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt`.
+What a unit does is held apart from the axioms. [`protocol/specs/src/client/state-units.json`](../../protocol/specs/src/client/state-units.json) states it case by case, and every SDK runs each case of the units it has: `packages/typescript/sdk/src/__tests__/state-cases.test.ts`, `packages/rust/sdk/tests/state_cases.rs`, `packages/python/sdk/tests/test_state_cases.py`, `packages/go/sdk/state/cases_test.go` and `packages/kotlin/sdk/src/test/kotlin/semiont/state/StateUnitCasesTest.kt`.
 
 Five enforcement tiers:
 

@@ -35,7 +35,7 @@ private val CONTENT_STREAM = AttributeKey.booleanKey("content.stream")
 private val RESOURCE_ID = AttributeKey.stringKey("resource.id")
 
 /**
- * What this SDK's transports tell OpenTelemetry (specs/src/sdk-telemetry/telemetry.json).
+ * What this SDK's transports tell OpenTelemetry (protocol/specs/src/sdk-telemetry/telemetry.json).
  *
  * It takes OpenTelemetry's API and nothing more, so every OpenTelemetry choice
  * is the application's: every call here does nothing until the process

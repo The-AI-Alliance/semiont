@@ -1,7 +1,7 @@
 """What every store answers, whichever index it asks: the two tables a `VectorStore` is held to.
 
-`specs/src/vectors/store-cases.json` states histories of writes and what each
-read then answers, and `specs/src/vectors/payload-cases.json` states what a
+`protocol/specs/src/vectors/store-cases.json` states histories of writes and what each
+read then answers, and `protocol/specs/src/vectors/payload-cases.json` states what a
 point is. Every history is run here, and so are the stored parts of the
 payload table, by what a store answers after the write: the stamp, each
 point's result by a search with the point's own embedding, an annotation's

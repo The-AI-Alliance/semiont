@@ -1,4 +1,4 @@
-// cache-refresh-table.mjs — the one reading of specs/src/client/refresh.json
+// cache-refresh-table.mjs — the one reading of protocol/specs/src/client/refresh.json
 // that every generator of it shares: the queries, and what each trigger does
 // to them, held to the registry, the gateway's API and how each trigger is
 // delivered.

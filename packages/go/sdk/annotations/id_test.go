@@ -1,7 +1,7 @@
 package annotations
 
 // The id an annotation builder derives, held to
-// specs/src/annotations/id-cases.json: the derivation every SDK's builders
+// protocol/specs/src/annotations/id-cases.json: the derivation every SDK's builders
 // use.
 
 import (
@@ -13,7 +13,7 @@ import (
 )
 
 func TestTheIdOfAnAnnotationIsTheTablesForWhatItIs(t *testing.T) {
-	text, err := os.ReadFile("../../../../specs/src/annotations/id-cases.json")
+	text, err := os.ReadFile("../../../../protocol/specs/src/annotations/id-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

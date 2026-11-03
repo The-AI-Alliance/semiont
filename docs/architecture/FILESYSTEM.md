@@ -83,7 +83,7 @@ the last event applied. It is derived from the event log and can be rebuilt at a
 
 None of it is on this filesystem. The job queue is the dispatcher's, and it keeps job state in the
 broker — a durable stream for delivery and lease, a key-value bucket for each job's record — in the
-layout [specs/src/jobs/storage.json](../../specs/src/jobs/storage.json) states. See
+layout [protocol/specs/src/jobs/storage.json](../../protocol/specs/src/jobs/storage.json) states. See
 [protocol/contract/JOBS.md](../../protocol/contract/JOBS.md).
 
 ## Who reaches these paths

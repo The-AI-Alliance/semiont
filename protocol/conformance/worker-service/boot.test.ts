@@ -70,7 +70,7 @@ eachWorkerService("the worker's boot", (world) => {
     expect(refusal.code).toBe(1);
     const said = fatal(refusal.stderr);
     expect(said).toHaveLength(1);
-    expect(said[0]).toMatch(new RegExp(`^\\[fatal\\] Cannot read the worker's configuration document at ${escaped(absent)} \\(.+\\)\\. The launcher writes it; a worker started another way is given one \\(WorkerConfig in specs/\\)\\.$`));
+    expect(said[0]).toMatch(new RegExp(`^\\[fatal\\] Cannot read the worker's configuration document at ${escaped(absent)} \\(.+\\)\\. The launcher writes it; a worker started another way is given one \\(WorkerConfig in protocol/specs/\\)\\.$`));
     expect(await dialled(world())).toEqual(before);
   });
 

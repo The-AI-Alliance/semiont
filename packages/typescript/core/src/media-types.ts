@@ -2,7 +2,7 @@
  * Media-type registry for Semiont
  *
  * One supported-types list, capability-tiered, keyed by the spec's
- * SupportedMediaType enum. The rows are specs/src/media-types/registry.json's,
+ * SupportedMediaType enum. The rows are protocol/specs/src/media-types/registry.json's,
  * generated; this module is the questions asked of them. Admission (registry
  * membership) is the create/yield gate: every member is storable, nameable,
  * and uploadable.
@@ -62,7 +62,7 @@ export interface MediaTypeCapabilities {
 }
 
 /**
- * The registry: specs/src/media-types/registry.json, which every SDK
+ * The registry: protocol/specs/src/media-types/registry.json, which every SDK
  * generates from. `satisfies Record<SupportedMediaType, …>` holds the table to
  * the spec's enum in this language too: a type in one and not the other is a
  * compile error here, as it is a refusal in the generator.

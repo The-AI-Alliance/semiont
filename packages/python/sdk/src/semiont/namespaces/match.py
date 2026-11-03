@@ -14,7 +14,7 @@ from semiont.types import GatheredContext, MatchResourcesResponse, MatchSearchRe
 __all__ = ["MatchNamespace"]
 
 # What a caller that states nothing is given. Every SDK asks for as many: the
-# cases of specs/src/client/surface.json hold each to it.
+# cases of protocol/specs/src/client/surface.json hold each to it.
 _CANDIDATES: Final = 10
 _LIST_LIMIT: Final = 100
 

@@ -32,7 +32,7 @@ import (
 )
 
 // timing is the client's timing, with what the case overrides, each entry by
-// its name in specs/src/client/timing.json: the transport's, and a worker's.
+// its name in protocol/specs/src/client/timing.json: the transport's, and a worker's.
 func timing(args protocol.Arguments) (semiont.Timing, error) {
 	timing := semiont.DefaultTiming()
 	if _, given := args["timing"]; !given {

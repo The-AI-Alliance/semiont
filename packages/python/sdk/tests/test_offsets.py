@@ -1,4 +1,4 @@
-"""What a text offset counts, held to `specs/src/text/offset-cases.json`: Unicode code points from the start of the text.
+"""What a text offset counts, held to `protocol/specs/src/text/offset-cases.json`: Unicode code points from the start of the text.
 
 A Python `str` is indexed by code point, so an offset is a string's own index
 and this package converts nothing. The table is run to show it: each span is

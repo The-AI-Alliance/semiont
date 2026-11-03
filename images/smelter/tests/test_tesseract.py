@@ -24,7 +24,7 @@ from semiont_smelter.pdf_reader import Pixels
 from semiont_smelter.pdfium import PdfiumReader
 from semiont_smelter.tesseract import TesseractEngine
 
-SCAN: Final = ROOT / "specs/src/smelter/fixtures/legible-scan.pdf"
+SCAN: Final = ROOT / "protocol/specs/src/smelter/fixtures/legible-scan.pdf"
 
 COLUMNS: Final = "level|page_num|block_num|par_num|line_num|word_num|left|top|width|height|conf|text"
 """The first row the program prints, with `|` where it prints a tab."""

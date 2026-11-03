@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// Registry-level invariants for specs/src/bus/registry.json.
+// Registry-level invariants for protocol/specs/src/bus/registry.json.
 //
 // TypeScript's `satisfies` clauses catch violations of the bus's
 // classification rules at `tsc` time — but only AFTER generation, pointing
@@ -35,7 +35,7 @@ export function validateRegistryFormat(raw) {
   const canonical = `${JSON.stringify(JSON.parse(raw), null, 2)}\n`;
   if (raw === canonical) return;
   throw new Error(
-    `specs/src/bus/registry.json is not in canonical form.\n\n` +
+    `protocol/specs/src/bus/registry.json is not in canonical form.\n\n` +
       `  Its CONTENT may be fine — this is about how the bytes are spelled ` +
       `(escaping, indentation, trailing newline).\n` +
       `  Left alone it lands as a whole-file diff that conflicts with every ` +
@@ -49,7 +49,7 @@ function fail(problems) {
   if (problems.length === 0) return;
   const lines = problems.map((p) => `  - ${p}`).join('\n');
   throw new Error(
-    `specs/src/bus/registry.json violates ${problems.length} bus invariant(s):\n${lines}\n\n` +
+    `protocol/specs/src/bus/registry.json violates ${problems.length} bus invariant(s):\n${lines}\n\n` +
       `These are the cross-list rules the event bus depends on; see protocol/contract/EVENT-BUS.md.`,
   );
 }
@@ -330,19 +330,19 @@ export function validateRegistry(reg) {
 // generator that silently reformatted its own input would be the surprise
 // this gate exists to prevent.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const registry = resolve(dirname(fileURLToPath(import.meta.url)), '../../specs/src/bus/registry.json');
+  const registry = resolve(dirname(fileURLToPath(import.meta.url)), '../../../protocol/specs/src/bus/registry.json');
   const raw = readFileSync(registry, 'utf8');
   if (process.argv.includes('--fix')) {
     const canonical = `${JSON.stringify(JSON.parse(raw), null, 2)}\n`;
     if (raw === canonical) {
-      console.log('specs/src/bus/registry.json is already canonical.');
+      console.log('protocol/specs/src/bus/registry.json is already canonical.');
     } else {
       writeFileSync(registry, canonical);
-      console.log('specs/src/bus/registry.json rewritten in canonical form.');
+      console.log('protocol/specs/src/bus/registry.json rewritten in canonical form.');
     }
   } else {
     validateRegistryFormat(raw);
     validateRegistry(JSON.parse(raw));
-    console.log('specs/src/bus/registry.json is canonical and satisfies every bus invariant.');
+    console.log('protocol/specs/src/bus/registry.json is canonical and satisfies every bus invariant.');
   }
 }

@@ -35,13 +35,13 @@ from the start of the text, exactly as it was decoded
 states: the size of a piece, a cursor, the context around a span, the tokens
 of a prompt. A character outside the Basic Multilingual Plane is one code
 point, where a string of UTF-16 code units has two for it.
-[`specs/src/text/offset-cases.json`](../../specs/src/text/offset-cases.json)
+[`protocol/specs/src/text/offset-cases.json`](../specs/src/text/offset-cases.json)
 holds the count.
 
 ## Configuration
 
 - **B1.** A Worker service reads one document, a
-  [`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json),
+  [`WorkerConfig`](../specs/src/components/schemas/WorkerConfig.json),
   from the path its `--config` flag names: `--config <path>` or
   `--config=<path>`. It defaults nothing the document leaves out, and reads no
   other configuration. Started without the flag, or with no path after it, it
@@ -65,7 +65,7 @@ holds the count.
   its issuer holds the key's public half on (`knowledgeBases[<k>].identity`'s
   `clientId`): the service's account there. Each sign-in carries an assertion
   signed with the key (RFC 7523, `private_key_jwt`;
-  `specs/src/session/client-assertion-cases.json`), and no secret. With the key
+  `protocol/specs/src/session/client-assertion-cases.json`), and no secret. With the key
   unset or empty it writes `[fatal] SEMIONT_OIDC_CLIENT_KEY is not set in the
   worker's environment: a worker signs in as a service account` and exits with
   status 1. With a key it cannot read it writes `[fatal]
@@ -180,7 +180,7 @@ again), `working` (confirmed, its engines claiming), or `refused`.
   service does not sign in there again. A knowledge base is refused when its
   issuer refuses the sign-in, and when its gateway refuses to name the agent,
   in the answers the SDK's sign-in does not try again
-  ([`specs/src/retry/cases.json`](../../specs/src/retry/cases.json), the
+  ([`protocol/specs/src/retry/cases.json`](../specs/src/retry/cases.json), the
   `refresh` rule: the same account gets the same answer); when a claim there
   is refused as `unauthorized` ([P3](#stopping)); and as R1 says. The service
   says each refusal once in its log, at `error`, as `Knowledge base refused
@@ -199,7 +199,7 @@ again), `working` (confirmed, its engines claiming), or `refused`.
   ([WORKER-CONTRACT L8](./WORKER-CONTRACT.md#the-lifecycle)), and closes its
   stream; starting it again signs in afresh. The first start again waits the
   SDK's `reconnectMs`, and each further one twice the one before, up to
-  `maxReconnectMs` ([`specs/src/client/timing.json`](../../specs/src/client/timing.json));
+  `maxReconnectMs` ([`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json));
   a knowledge base confirmed again starts its next trouble from `reconnectMs`.
   The service says each in its log, at `warn`, as `Knowledge base in trouble —
   starting it again`, with `domain`, `error`, why in words, and `waitMs`, how
@@ -222,7 +222,7 @@ again), `working` (confirmed, its engines claiming), or `refused`.
 - **H1.** The service answers `GET /health` on the document's `port`, with no
   token asked, once a knowledge base is confirmed ([R4](#knowledge-bases)):
   `200`, `application/json`, and a
-  [`WorkerHealth`](../../specs/src/components/schemas/WorkerHealth.json):
+  [`WorkerHealth`](../specs/src/components/schemas/WorkerHealth.json):
   `{"status": "ok", "knowledgeBases": [...]}`.
   `knowledgeBases` has one entry for each of the document's, in its order:
   its `domain` and its `state` ([Knowledge bases](#knowledge-bases)), and, for
@@ -288,7 +288,7 @@ each of its models can take.
   media type is the `mediaType` of the description's first representation.
   *Held by `worker-service/highlighting`.*
 - **J2.** Where the text comes from follows the media type's `textSource` in
-  the [media-type registry](../../specs/src/media-types/registry.json). For
+  the [media-type registry](../specs/src/media-types/registry.json). For
   `decode`, the text is the resource's bytes, read from the gateway (`GET
   /resources/{id}`, under the agent's token) and decoded as
   [W3C-SELECTORS.md](W3C-SELECTORS.md#the-text-of-a-resource) says. For
@@ -417,7 +417,7 @@ job is one unit for each of its `categories`.
   ([D15](#committing-and-where-a-job-stands)). A proposal that is not an
   object with a string `exact`, and the other members its kind requires, is
   no proposal: it is neither committed nor counted.
-  *Held by `worker-service/highlighting`, `worker-service/linking`, `worker-service/commenting`, `worker-service/anchoring`, `specs/src/annotations/reconcile-cases.json`.*
+  *Held by `worker-service/highlighting`, `worker-service/linking`, `worker-service/commenting`, `worker-service/anchoring`, `protocol/specs/src/annotations/reconcile-cases.json`.*
 - **D9.** A span on text is anchored by two selectors: a
   `TextPositionSelector`, the offsets of its first code point and of the one
   after its last; and a `TextQuoteSelector`, its `exact`, with `prefix` and
@@ -450,9 +450,9 @@ job is one unit for each of its `categories`.
   states no `modified`: `created` is the moment it was built, and what
   becomes of it afterwards is the record's to say too. It is the annotation
   of a span that
-  [`builder-cases.json`](../../specs/src/annotations/builder-cases.json)
+  [`builder-cases.json`](../specs/src/annotations/builder-cases.json)
   states, as every SDK's `annotationOfSpan` builds one.
-  *Held by `worker-service/highlighting`, `specs/src/annotations/builder-cases.json`.*
+  *Held by `worker-service/highlighting`, `protocol/specs/src/annotations/builder-cases.json`.*
 - **D12.** Its `id` is what the annotation is, hashed
   ([WORKER-CONTRACT A2](./WORKER-CONTRACT.md#committing-annotations)): the
   first 21 characters of the base64url SHA-256 of the canonical JSON of
@@ -461,7 +461,7 @@ job is one unit for each of its `categories`.
   the model was asked about, in code points, for a PDF as for any other.
   Canonical JSON has the members of every object in order of their names by
   code point, arrays in their own order, and no white space
-  ([`id-cases.json`](../../specs/src/annotations/id-cases.json)).
+  ([`id-cases.json`](../specs/src/annotations/id-cases.json)).
   *Held by `worker-service/highlighting`, `worker-service/commenting`, `worker-service/assessing`, `worker-service/linking`, `worker-service/tagging`, `worker-service/pdf`, `worker-service/code-points`.*
 
 ### Committing, and where a job stands
@@ -670,7 +670,7 @@ deterministic, so that no attempt is spent on them again.
   text, the failure's class when the service knows one, and `willRetry` as
   the claimed record's budget and that class make it. The class is
   `transient`, `deterministic` or `withheld`, as
-  [`failure-class-cases.json`](../../specs/src/worker/failure-class-cases.json)
+  [`failure-class-cases.json`](../specs/src/worker/failure-class-cases.json)
   gives each failure its own, and a failure the table gives none has no
   class. After it the service claims again.
   *Held by `worker-service/failures`.*
@@ -683,7 +683,7 @@ deterministic, so that no attempt is spent on them again.
   *Held by `worker-service/failures`.*
 - **F3.** A generation the provider refuses fails the job in the class its
   status gives, as
-  [`failure-class-cases.json`](../../specs/src/worker/failure-class-cases.json)
+  [`failure-class-cases.json`](../specs/src/worker/failure-class-cases.json)
   states it: transient for a status the job rule retries (408, 429, and every
   status from 500 up), and deterministic for any other status of 400 or more.
   The error says what the provider said: its status and its body. On an
@@ -868,12 +868,12 @@ stopping place, and not at once.
 ## Generation
 
 A `yield` job makes a resource. Its params are a
-[`GenerationJobParams`](../../specs/src/components/schemas/GenerationJobParams.json):
+[`GenerationJobParams`](../specs/src/components/schemas/GenerationJobParams.json):
 what to write, where to store it, and the context gathered for it, which is
 focused on a resource or on an annotation.
 
 - **Y1.** A job for an `outputMediaType` the
-  [media-type registry](../../specs/src/media-types/registry.json) does not
+  [media-type registry](../specs/src/media-types/registry.json) does not
   mark `generatable` fails as deterministic, before anything is asked of the
   model. With none stated, the job writes `text/markdown`.
   *Held by `worker-service/yield`.*
@@ -901,7 +901,7 @@ focused on a resource or on an annotation.
   exactly that name. In Markdown, and in the Typst a PDF is compiled from,
   the name's ASCII punctuation is written after a backslash, so that none of
   it is read as markup. Nothing is guessed.
-  [`citation-cases.json`](../../specs/src/worker/citation-cases.json) states
+  [`citation-cases.json`](../specs/src/worker/citation-cases.json) states
   both. An id the context did not show makes none, and neither does a mark
   without a claim whose source the context named only by its id: it is taken
   out with the spaces and tabs before it.
@@ -916,7 +916,7 @@ focused on a resource or on an annotation.
 - **Y6.** A job focused on a resource then commits, on that resource, one
   annotation that links it to what was made. It is an annotation of the
   resource as a whole, as
-  [`builder-cases.json`](../../specs/src/annotations/builder-cases.json)
+  [`builder-cases.json`](../specs/src/annotations/builder-cases.json)
   states one and every SDK's `annotationOfResource` builds it: `@context`,
   `type`, `generator` and `created` as [D11](#the-annotation) states them,
   and no `modified`; `motivation` `linking`; a `target` that is
@@ -965,9 +965,9 @@ focused on a resource or on an annotation.
   `resource` rows list for the worker: its name and its version. It serves
   several knowledge bases, so its resource names none
   ([T4](#telemetry)). It exports exactly what
-  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  [`protocol/specs/src/service-telemetry/telemetry.json`](../specs/src/service-telemetry/telemetry.json)
   lists for the worker, and the rows of
-  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  [`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json)
   the first names for it under `sdk`, the read of a resource's anchored text
   (`content.get_anchored_text`) among them. Every span and metric it exports
   is one of those rows, of the row's kind, carrying only the row's
@@ -1065,7 +1065,7 @@ its own, such as a proxy and the certificates it trusts.
 
 - **O1.** Every line a service that has started writes is a log line, on
   stdout, in the form its document's `logFormat` names
-  ([`LogFormat`](../../specs/src/components/schemas/LogFormat.json)): what it
+  ([`LogFormat`](../specs/src/components/schemas/LogFormat.json)): what it
   reads of a model's answer and what it cannot anchor are log lines like any
   other. It writes nothing to stderr. Beside its log it writes only what
   [E5, E6 and E9](#environment) have it write.

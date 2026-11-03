@@ -1,7 +1,7 @@
 """A knowledge base's gateway as its HTTP endpoint names it.
 
 Its origin is what a session sends its requests to and opens its stream at,
-and every SDK makes it alike (specs/src/session/gateway-url-cases.json).
+and every SDK makes it alike (protocol/specs/src/session/gateway-url-cases.json).
 """
 
 import re

@@ -5,7 +5,7 @@ package verbs
 // into the SDK's generated types after its input schema has held them, and
 // each is passed on as it was given: one the caller left out is left out, and
 // the SDK's own rule for it applies, as the client surface states it
-// (specs/src/client/surface.json) for every SDK.
+// (protocol/specs/src/client/surface.json) for every SDK.
 
 import (
 	"context"

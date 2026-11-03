@@ -1,6 +1,6 @@
 /**
  * The kinds of id, held to the cases every SDK runs
- * (specs/src/identifiers/kinds.json): each string a kind accepts makes a value
+ * (protocol/specs/src/identifiers/kinds.json): each string a kind accepts makes a value
  * of its type and each it refuses throws. The constructors are generated from
  * the same table and each kind's schema, so nothing here or in core states
  * the rule a second time.
@@ -24,7 +24,7 @@ import {
   type components,
 } from '../index';
 
-const SPEC = resolve(__dirname, '../../../../../specs/src');
+const SPEC = resolve(__dirname, '../../../../../protocol/specs/src');
 
 interface Kind {
   schema: string;

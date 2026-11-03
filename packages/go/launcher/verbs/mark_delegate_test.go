@@ -2,7 +2,7 @@ package verbs
 
 // The delegated form of mark: the stack's worker reads a resource and
 // annotates it. What a client sends for each motivation is the spec's to say
-// (the `mark.delegate` row of specs/src/client/surface.json, which the
+// (the `mark.delegate` row of protocol/specs/src/client/surface.json, which the
 // TypeScript, Rust and Python SDKs run too), so these tests read it from
 // there.
 
@@ -24,7 +24,7 @@ import (
 
 func specFile(t *testing.T, path ...string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "..", "specs", "src"}, path...)...))
+	b, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "..", "protocol", "specs", "src"}, path...)...))
 	if err != nil {
 		t.Fatal(err)
 	}

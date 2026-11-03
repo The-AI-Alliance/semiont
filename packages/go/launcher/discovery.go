@@ -8,10 +8,10 @@ package launcher
 // staging paths) — and never a secret or credential: endpoints only, login
 // stays the Browser's per-KB business.
 //
-// SCHEMA AUTHORITY: specs/src/discovery/DiscoveryDocument.json (and
+// SCHEMA AUTHORITY: protocol/specs/src/discovery/DiscoveryDocument.json (and
 // DiscoveredKB.json) — the multi-language contract of record: a standalone
 // contract directory in specs (per-directory ref-closure by rule, so binding
-// it never drags in the API surface; see specs/src/discovery/README.md). TypeScript
+// it never drags in the API surface; see protocol/specs/src/discovery/README.md). TypeScript
 // consumers get their types from @semiont/core (the OpenAPI pipeline); THIS
 // side gets discovery_types_gen.go from the same files via the go:generate
 // below — the Go equivalent of core's generated types.ts, so schema drift is
@@ -19,7 +19,7 @@ package launcher
 // regenerate both sides. version is the compatibility gate: consumers must
 // ignore documents they do not understand.
 
-//go:generate sh -c "cd ../../.. && container run --rm -v $(pwd):/w -w /w golang:$(packages/go/scripts/go-toolchain.sh) go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o packages/go/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json"
+//go:generate sh -c "cd ../../.. && container run --rm -v $(pwd):/w -w /w golang:$(packages/go/scripts/go-toolchain.sh) go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o packages/go/launcher/discovery_types_gen.go protocol/specs/src/discovery/DiscoveryDocument.json"
 
 import (
 	"encoding/json"

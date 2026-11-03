@@ -39,13 +39,13 @@ that:
 - says it claimed a job, was refused, saw a cancellation or stalled when the
   case does not expect it to;
 - reports a failure with a code
-  [`specs/src/errors/codes.json`](../../../specs/src/errors/codes.json) does
+  [`protocol/specs/src/errors/codes.json`](../../specs/src/errors/codes.json) does
   not list.
 
 A case that states `telemetry` runs the worker exporting, as an SDK case does
 ([sdk/README.md § A case](../sdk/README.md#a-case)), and once the driver has
 exited holds what it exported to the rows of
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
 for the bus, which is all a worker reaches. It also holds the worker to a
 trace of its own for each job, read from the trace each of its claims was
 sent under and from the spans its driver opened around the jobs it was
@@ -120,7 +120,7 @@ with no `job:fail`, and a driver that failed one there would fail the case.
 
 `open`'s `timing` overrides `jobClaimTimeoutMs`, `heldJobStallMs`,
 `heldJobStallCheckMs` and `markCommitTimeoutMs` of
-[`specs/src/client/timing.json`](../../../specs/src/client/timing.json)
+[`protocol/specs/src/client/timing.json`](../../specs/src/client/timing.json)
 beside the transport's `reconnectMs`, `lazyRemoveMs` and `lingerMs`, so a
 case does not wait out ten seconds or fifteen minutes.
 

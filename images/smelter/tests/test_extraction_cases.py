@@ -1,4 +1,5 @@
-"""What deriving a PDF's text comes to, held to `specs/src/smelter/extraction-cases.json` with the reader and the engine the Smelter runs.
+"""What deriving a PDF's text comes to, held to `protocol/specs/src/smelter/extraction-cases.json`
+with the reader and the engine the Smelter runs.
 
 The table is the one every Smelter runs: a document is sorted into the same
 class, read the same way and declined by the same name, whoever reads it.
@@ -29,7 +30,7 @@ from semiont_smelter.extraction import LARGEST_PDF_BYTES, PdfExtractor
 from semiont_smelter.pdfium import PdfiumReader
 from semiont_smelter.tesseract import TesseractEngine
 
-TABLE = read(ROOT / "specs/src/smelter/extraction-cases.json")
+TABLE = read(ROOT / "protocol/specs/src/smelter/extraction-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 FIXTURES = ROOT / text(TABLE["fixtures"], "fixtures")
 

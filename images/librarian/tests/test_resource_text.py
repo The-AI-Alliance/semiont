@@ -3,7 +3,7 @@
 The rule is `protocol/contract/LIBRARIAN.md`'s (§ Gathering around an
 annotation, "A resource's text is"): bytes decoded, read from the Archivist;
 the anchored text, asked of the gateway; or nothing. What a preview is, is
-held by the cases of `specs/src/librarian/search-cases.json`, which
+held by the cases of `protocol/specs/src/librarian/search-cases.json`, which
 `test_search_cases.py` runs.
 """
 

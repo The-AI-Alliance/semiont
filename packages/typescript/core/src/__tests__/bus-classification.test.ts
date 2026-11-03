@@ -65,7 +65,7 @@ describe('channel classification (generated)', () => {
   test('a recorded event has a position only when it is delivered on a scope — pinned by the six that are not', () => {
     // Recorded, and heard by every client on no scope: nothing replays these
     // to a client whose stream was down. A client asks again for what they
-    // feed when its stream reopens (specs/src/client/refresh.json, `reopened`).
+    // feed when its stream reopens (protocol/specs/src/client/refresh.json, `reopened`).
     const passingAndBridged = allChannels.filter(
       (ch) => attrs(ch).recorded && attrs(ch).delivery === 'passing' && (BRIDGED_CHANNELS as readonly string[]).includes(ch),
     );

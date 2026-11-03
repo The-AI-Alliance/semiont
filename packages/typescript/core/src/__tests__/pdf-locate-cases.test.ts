@@ -1,6 +1,6 @@
 /**
  * Locating a span of a PDF's text, held to the `cases` of
- * specs/src/annotations/pdf-locate-cases.json: the table every implementation
+ * protocol/specs/src/annotations/pdf-locate-cases.json: the table every implementation
  * runs, so that a span is anchored to the same rectangles and written as the
  * same selectors, whoever does it. The table's `claims` are the rule of
  * Semiont's worker alone, and are run there.
@@ -27,10 +27,10 @@ interface LocateCase {
 }
 
 const table: { cases: LocateCase[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/pdf-locate-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/pdf-locate-cases.json', import.meta.url), 'utf8'),
 );
 
-describe('locating a span of a PDF (specs/src/annotations/pdf-locate-cases.json)', () => {
+describe('locating a span of a PDF (protocol/specs/src/annotations/pdf-locate-cases.json)', () => {
   it('has cases', () => {
     expect(table.cases.length).toBeGreaterThan(0);
   });

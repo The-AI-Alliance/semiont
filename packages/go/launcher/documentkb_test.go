@@ -13,11 +13,11 @@ import (
 )
 
 // namesItsKB: whether a service's document names the knowledge base it serves —
-// whether its schema, specs/src/components/schemas/<Service>Config.json, has a
+// whether its schema, protocol/specs/src/components/schemas/<Service>Config.json, has a
 // `kb`.
 func namesItsKB(t *testing.T, svc string) bool {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "components", "schemas", strings.ToUpper(svc[:1])+svc[1:]+"Config.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "components", "schemas", strings.ToUpper(svc[:1])+svc[1:]+"Config.json"))
 	if err != nil {
 		t.Fatalf("the %s's document has no schema: %v", svc, err)
 	}

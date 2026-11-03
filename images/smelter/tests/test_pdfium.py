@@ -1,4 +1,4 @@
-"""The PDFium reader, with the real PDFium under it, over the fixtures in `specs/src/smelter/fixtures`.
+"""The PDFium reader, with the real PDFium under it, over the fixtures in `protocol/specs/src/smelter/fixtures`.
 
 What is held here is what PDFium hands over of a real file, which no
 scripted reader can say: the words it finds and where a line ends, where a
@@ -25,7 +25,7 @@ from spec import ROOT
 from semiont_smelter.pdf_reader import Matrix, PdfDocument, PdfEncrypted, PdfUnreadable, Pixels, PlacedImage, Run
 from semiont_smelter.pdfium import PdfiumReader
 
-FIXTURES: Final = ROOT / "specs/src/smelter/fixtures"
+FIXTURES: Final = ROOT / "protocol/specs/src/smelter/fixtures"
 
 DRAWN: Final[dict[str, list[list[str]]]] = {
     "single-line.pdf": [["known", "phrase", "from", "fixture"]],

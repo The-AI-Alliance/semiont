@@ -11,7 +11,7 @@ from typing import Final
 
 # About four code points to a token, rounded up. The Python worker cuts a text
 # by the same rule, stated in its own
-# code and held by specs/src/text/chunk-cases.json. This one is held by the
+# code and held by protocol/specs/src/text/chunk-cases.json. This one is held by the
 # drivers' tests of what they send and refuse.
 _CODE_POINTS_PER_TOKEN: Final = 4
 

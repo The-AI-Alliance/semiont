@@ -1,6 +1,6 @@
 {
   "about": "an event on an observed resource makes the client ask again for what is observed, which keeps its value until the new one arrives; what nobody has observed is not asked for, and an event on a resource nobody observes never reaches the client (B7)",
-  "source": "protocol/contract/CACHE-SEMANTICS.md B7; specs/src/client/refresh.json",
+  "source": "protocol/contract/CACHE-SEMANTICS.md B7; protocol/specs/src/client/refresh.json",
   "tier": "fleet",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotation-requested", "browse:events-requested", "gather:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},

@@ -1,4 +1,4 @@
-# Generated from specs/src/bus/registry.json; do not edit.
+# Generated from protocol/specs/src/bus/registry.json; do not edit.
 # Regenerate: node packages/codegen/bus/generate-python.mjs
 
 """Every channel of the bus, typed by the payload it carries.

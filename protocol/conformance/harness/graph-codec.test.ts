@@ -1,6 +1,6 @@
 /**
  * The harness's reading of the graph, held to
- * specs/src/graph/codec-cases.json: the table every implementation of the
+ * protocol/specs/src/graph/codec-cases.json: the table every implementation of the
  * graph's codecs runs, the Weaver's among them. It is what makes
  * harness/graph-codec.ts a reader a Weaver can be judged by.
  *

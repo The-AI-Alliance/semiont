@@ -81,4 +81,4 @@ From the launcher: `semiont bind <resourceId> <annotationId> <targetResourceId>`
 
 - The SDK namespace: [packages/typescript/sdk/src/namespaces/bind.ts](../../../packages/typescript/sdk/src/namespaces/bind.ts)
 - How body operations are applied: [the Archivist's specification](../ARCHIVIST.md), and [images/archivist/record/src/view.rs](../../../images/archivist/record/src/view.rs)
-- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)
+- The channels and their payloads: [protocol/specs/src/bus/registry.json](../../specs/src/bus/registry.json)

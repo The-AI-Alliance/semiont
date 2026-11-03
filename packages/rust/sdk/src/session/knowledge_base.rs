@@ -15,7 +15,7 @@
 //! `NewKnowledgeBase`, `KnowledgeBase`, `KbRead`, and `KbEndpoint` with its
 //! two kinds, `HttpEndpoint` and `LocalEndpoint`. What is here is made from
 //! them: the gateway's origin, which every SDK makes alike
-//! (specs/src/session/gateway-url-cases.json), and what a client asks of an
+//! (protocol/specs/src/session/gateway-url-cases.json), and what a client asks of an
 //! entry.
 
 use crate::rfc3339;
@@ -149,7 +149,7 @@ mod tests {
     use serde_json::Value;
     use std::time::{Duration, UNIX_EPOCH};
 
-    /// specs/src/session/gateway-url-cases.json: the origin every SDK makes
+    /// protocol/specs/src/session/gateway-url-cases.json: the origin every SDK makes
     /// of a gateway's endpoint.
     const GATEWAY_URL_CASES: &str = include_str!("../../specs/session/gateway-url-cases.json");
 

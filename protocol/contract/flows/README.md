@@ -63,7 +63,7 @@ Behind the bus, the knowledge base's own services answer: the archivist records 
 
 ## What every verb shares
 
-- The channels each verb uses, and what each carries, are declared in [`specs/src/bus/registry.json`](../../../specs/src/bus/registry.json). The registry marks every channel a client can emit as a write or a read, and the grouping above is that mark.
-- The methods an SDK gives each verb, and what each returns, are declared in [`specs/src/client/surface.json`](../../../specs/src/client/surface.json). Every SDK is held to it.
+- The channels each verb uses, and what each carries, are declared in [`protocol/specs/src/bus/registry.json`](../../specs/src/bus/registry.json). The registry marks every channel a client can emit as a write or a read, and the grouping above is that mark.
+- The methods an SDK gives each verb, and what each returns, are declared in [`protocol/specs/src/client/surface.json`](../../specs/src/client/surface.json). Every SDK is held to it.
 - How frames are named, stamped with identity, correlated and delivered is in [the event-bus protocol](../EVENT-BUS.md).
 - Work an agent is delegated runs as a job: [Jobs](../JOBS.md).

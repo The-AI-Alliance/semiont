@@ -83,20 +83,20 @@ a status other than 0.
 ## Configuration
 
 It reads one document, the protocol's
-[`LibrarianConfig`](../../specs/src/components/schemas/LibrarianConfig.json), at the path
+[`LibrarianConfig`](../../protocol/specs/src/components/schemas/LibrarianConfig.json), at the path
 `--config` names. Whoever starts a Librarian writes it, resolved, and mounts it where the
 image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults nothing in it.
 
 | Member | |
 | --- | --- |
-| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../protocol/specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | the Archivist's host and port |
-| `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
-| `vectors` | the vector index ([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
-| `embedding` | the embedding provider ([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
-| `matcher`, `gatherer` | each actor's engine ([`LibrarianEngineConfig`](../../specs/src/components/schemas/LibrarianEngineConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
+| `graph` | the graph database ([`GraphConfig`](../../protocol/specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
+| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
+| `embedding` | the embedding provider ([`EmbeddingConfig`](../../protocol/specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
+| `matcher`, `gatherer` | each actor's engine ([`LibrarianEngineConfig`](../../protocol/specs/src/components/schemas/LibrarianEngineConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
 | `modelCatalogue` | the path of the model catalogue: what each model of `google`, `openai` and `together` can take, which those providers' APIs do not say. It is read only where an actor's model is one of theirs |
 | `gather.settleTimeoutMs` | how long a gather around a resource waits for the Smelter |
 | `search.semanticFloor` | the least similarity a hit by meaning must have |

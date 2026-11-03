@@ -2,12 +2,12 @@ package semiont_test
 
 // What text a resource's bytes are, and what the readers of a resource's
 // description answer, held to the tables every SDK runs:
-// specs/src/text/decode-cases.json (written by hand: what is said of a content
+// protocol/specs/src/text/decode-cases.json (written by hand: what is said of a content
 // type, of a media type whose text is not its bytes, of a label, of a
 // byte-order mark and of malformed UTF-8 and UTF-16),
-// specs/src/text/encoding-cases.json (generated: every label of the Encoding
+// protocol/specs/src/text/encoding-cases.json (generated: every label of the Encoding
 // Standard, every byte of each of its single-byte encodings, and some bytes of
-// each other) and specs/src/resources/reader-cases.json. A text case is read
+// each other) and protocol/specs/src/resources/reader-cases.json. A text case is read
 // through a client, from bytes its content transport serves with the case's
 // content type, as the Python and Rust runners read it.
 
@@ -43,7 +43,7 @@ func strictly(t *testing.T, data []byte, into any) {
 
 func readSpec(t *testing.T, path ...string) []byte {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "specs", "src"}, path...)...))
+	data, err := os.ReadFile(filepath.Join(append([]string{"..", "..", "..", "protocol", "specs", "src"}, path...)...))
 	if err != nil {
 		t.Fatal(err)
 	}

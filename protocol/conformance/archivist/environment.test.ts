@@ -1,5 +1,5 @@
 /**
- * What each variable specs/src/service-environment/variables.json lists for
+ * What each variable protocol/specs/src/service-environment/variables.json lists for
  * the Archivist changes, seen from outside. Each case runs an Archivist world
  * of its own with the environment it is about, and makes the Archivist answer
  * one request: a `browse:kb-requested`. Its service account,

@@ -1,4 +1,4 @@
-"""The knowledge bases a launcher manages, as the launcher publishes them (`specs/src/discovery`).
+"""The knowledge bases a launcher manages, as the launcher publishes them (`protocol/specs/src/discovery`).
 
 What the document says, read whole or not at all, and what changed since it
 was last read.

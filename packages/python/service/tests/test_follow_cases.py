@@ -1,4 +1,4 @@
-"""The follower of the record, held to `specs/src/follower/follow-cases.json`.
+"""The follower of the record, held to `protocol/specs/src/follower/follow-cases.json`.
 
 The table is the one every implementation of a follower runs: a case is a
 record, the cursors a follower starts with and what happens to it, and what it

@@ -288,11 +288,11 @@ is what a worker promises the dispatcher.
   `getEntityTypes`, `isStubReference`, `getTagCategory` and their siblings read an
   annotation whose target is an id or an object, whose selector is one or a list, and whose
   body is absent, one item or a list, so a script checks none of that itself. One table,
-  `specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
+  `protocol/specs/src/annotations/reader-cases.json`, holds every SDK's readers to the same answers.
 - **Annotation builders** — `reconcile`, `annotationOfSpan` and `annotationOfResource` turn
   the words a model quoted into annotations to commit: where the text has the words, the
   selectors of the span, and an id derived from what the annotation is. Every SDK has the
-  three, and `specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
+  three, and `protocol/specs/src/annotations/builder-cases.json` and `reconcile-cases.json` hold them
   to the same answers.
 - **A worker's side of the job queue** — `job.claim`, the held jobs it hands out,
   `startAgentSession` and `privateKeyFromPem` for a worker's sign-in, and

@@ -19,7 +19,7 @@ import semiont.types.ResourceDescriptor
 import semiont.types.ResourceDescriptorRepresentations
 import semiont.types.wireJson
 
-/** The readers of a resource, held to specs/src/resources/reader-cases.json: the table every SDK's readers run. */
+/** The readers of a resource, held to protocol/specs/src/resources/reader-cases.json: the table every SDK's readers run. */
 class ResourceReadersTest {
     private val cases: List<JsonObject> = Spec.read("resources/reader-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 

@@ -18,7 +18,7 @@ No line holds a credential. The value of a member whose whole name is one a
 credential goes by (`token`, which is what the spec names the token a
 resource is cloned by, and the rest of `_CREDENTIALS` below) is not written,
 wherever in a payload it is: `[withheld]` is written in its place, as every
-bus log writes it (`specs/src/bus/log-cases.json`).
+bus log writes it (`protocol/specs/src/bus/log-cases.json`).
 """
 
 import json
@@ -57,7 +57,7 @@ _CREDENTIALS: Final = frozenset(
 )
 """The names of the members whose value is one.
 
-The list `specs/src/bus/log-cases.json` states for every bus log, which this
+The list `protocol/specs/src/bus/log-cases.json` states for every bus log, which this
 package's tests hold this one to.
 """
 

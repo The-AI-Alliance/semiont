@@ -82,7 +82,7 @@ globally, and once scoped to its resource when it names one. See [EVENT-BUS.md](
 | `GET /events` | every stream of the event log, `__system__` among them, each with the sequence number of its last event | a service that follows the record, when it starts and each time its stream opens again |
 | `GET /events/:resourceId?fromSequence=N` | one stream's events from a sequence number, at most `maxEvents` of them, and the sequence number of its last event; `__system__` is the knowledge base's own stream | the gateway, when a client resumes its subscription with a `lastEventId`; a service that follows the record, for what its stream did not deliver |
 
-The contract is [specs/src/archivist/openapi.json](../../specs/src/archivist/openapi.json): every
+The contract is [protocol/specs/src/archivist/openapi.json](../../protocol/specs/src/archivist/openapi.json): every
 status each route answers and its body — a missing resource's bytes are a 404 whose `code` is
 `resource` or `representation` — and the headers. The Archivist's conformance suite checks every
 reply against it, and the gateway's holds its stand-in Archivist to it.
@@ -131,7 +131,7 @@ which is what makes that ordering enforceable.
 ## Configuration
 
 It reads one configuration document, an
-[`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json), from the path its
+[`ArchivistConfig`](../../protocol/specs/src/components/schemas/ArchivistConfig.json), from the path its
 `--config` flag names; the image passes `/etc/semiont/archivist.json`. The document names the
 gateway, the issuer, the knowledge base's root, the state volume, the anchored-text store, the
 engine for each job and each Librarian actor, the port, and the staging bounds. Mount the knowledge base, the state volume and

@@ -11,7 +11,7 @@ set -euo pipefail
 # because the two setups disagree, not because the payload is right.
 #
 # A6 — no package configures Ajv against the OpenAPI spec. The validators are
-#      generated from `specs/openapi.json` into `@semiont/core/openapi` by
+#      generated from `protocol/specs/openapi.json` into `@semiont/core/openapi` by
 #      packages/codegen/schemas/generate-validators.mjs, which is the only place that may
 #      construct an Ajv instance over spec schemas. The `nullable` conversion
 #      is packages/codegen/schemas/openapi-schema.mjs's alone, which every generator that

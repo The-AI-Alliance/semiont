@@ -1,7 +1,7 @@
 /**
  * Where a span a model proposes is in the text (WORKER-SERVICE.md
  * § Anchoring): a quote the text does not have character for character is
- * looked for again, more loosely, as specs/src/annotations/reconcile-cases.json
+ * looked for again, more loosely, as protocol/specs/src/annotations/reconcile-cases.json
  * states; what is found is committed as the text's own words at the text's
  * offsets, and what is not is counted and not committed.
  */

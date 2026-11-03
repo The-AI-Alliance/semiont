@@ -1,7 +1,7 @@
 /**
  * The locale registry's generator refuses a registry that cannot be meant.
  *
- * specs/src/locales/registry.json is the authority for which languages Semiont
+ * protocol/specs/src/locales/registry.json is the authority for which languages Semiont
  * supports and what each is called, so a generated row cannot drift from it.
  * What is left to hold is the registry itself: each case hands the generator
  * the committed one with one fault and expects a refusal that names it.
@@ -17,7 +17,7 @@ import { LOCALES, LOCALE_CODES } from '../locales';
 
 const at = (path: string): string => fileURLToPath(new URL(`../../../../../${path}`, import.meta.url));
 const GENERATOR = at('packages/codegen/schemas/generate-locales.mjs');
-const TABLE = at('specs/src/locales/registry.json');
+const TABLE = at('protocol/specs/src/locales/registry.json');
 
 interface Row {
   code: string;

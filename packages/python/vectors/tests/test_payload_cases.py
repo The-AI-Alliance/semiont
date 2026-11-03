@@ -1,4 +1,4 @@
-"""What a point of the index is, held to `specs/src/vectors/payload-cases.json` with no store.
+"""What a point of the index is, held to `protocol/specs/src/vectors/payload-cases.json` with no store.
 
 The table is the one every implementation of the stores runs. Here
 `semiont_vectors.payload` alone is held to all of it: the id a point is kept

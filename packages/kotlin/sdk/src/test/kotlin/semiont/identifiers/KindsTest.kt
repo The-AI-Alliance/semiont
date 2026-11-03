@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test
 import semiont.Spec
 import semiont.types.wireJson
 
-/** Each kind of id holds what specs/src/identifiers/kinds.json says it accepts and refuses, made, parsed and decoded alike. */
+/** Each kind of id holds what protocol/specs/src/identifiers/kinds.json says it accepts and refuses, made, parsed and decoded alike. */
 class KindsTest {
     private val kinds = Spec.read("identifiers/kinds.json").jsonObject.getValue("kinds").jsonArray.map { it.jsonObject }
 

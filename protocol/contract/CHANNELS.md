@@ -2,7 +2,7 @@
 
 Every channel on the bus, by what kind of channel it is. The rules behind the kinds (naming, identity, correlation, delivery) are in [EVENT-BUS.md](./EVENT-BUS.md).
 
-The authority is [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json). It declares every channel, the payload it carries, and the class it belongs to, and each SDK's channel tables are generated from it. Where this page and the registry disagree, the registry is right.
+The authority is [`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json). It declares every channel, the payload it carries, and the class it belongs to, and each SDK's channel tables are generated from it. Where this page and the registry disagree, the registry is right.
 
 ## How a channel is classed
 
@@ -85,4 +85,4 @@ Published on a client's own bus only. They are the Browser's interface: `nav:*`,
 - [The eight verbs](./flows/README.md): what each family of channels is for
 - [JOBS.md](./JOBS.md): the job channels and what the dispatcher does with each
 - [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md): what a transport promises about delivery
-- [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json): the authority
+- [`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json): the authority

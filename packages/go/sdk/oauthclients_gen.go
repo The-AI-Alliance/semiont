@@ -1,4 +1,4 @@
-// Code generated from specs/src/session/oauth.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/session/oauth.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-oauth-clients-go.mjs
 // The TypeScript (packages/typescript/core/src/generated/oauth-clients.ts), Rust

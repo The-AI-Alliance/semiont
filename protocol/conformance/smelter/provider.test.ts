@@ -20,7 +20,7 @@ const SLICE = 128;
 /**
  * How long a text is that is cut into more chunks than one request carries.
  * The world's Smelter cuts by a chunk size of 512 and an overlap of 64, which
- * specs/src/text/chunk-cases.json counts in code points, four to one: a chunk
+ * protocol/specs/src/text/chunk-cases.json counts in code points, four to one: a chunk
  * is taken from a window of 2,048, and the next begins 256 before where it
  * was cut. A cut after a sentence's full stop may be one past its window, so
  * no chunk begins more than 1,793 after the one before, and the last begins

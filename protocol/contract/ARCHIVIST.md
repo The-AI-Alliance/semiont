@@ -6,10 +6,10 @@ boots. It describes current behaviour. Behaviour that is a known defect is not s
 anywhere below; it is listed under [Known defects](#known-defects), and a rule section that touches
 one says what happens and links there.
 
-Channel payloads are named in [the registry](../../specs/src/bus/registry.json); the bus conventions
+Channel payloads are named in [the registry](../specs/src/bus/registry.json); the bus conventions
 this document relies on (`_userId`, `correlationId`, scopes, audiences) are in
 [EVENT-BUS.md](EVENT-BUS.md). The HTTP surface's shapes are in
-[its OpenAPI document](../../specs/src/archivist/openapi.json). The job-lifecycle commands the
+[its OpenAPI document](../specs/src/archivist/openapi.json). The job-lifecycle commands the
 Archivist records are sent by the dispatcher and the workers, as [JOBS.md](JOBS.md) describes.
 
 ## The Archivist
@@ -33,7 +33,7 @@ spec, named where each file is described below.
 ## Configuration
 
 **The Archivist reads one document, named by its `--config` flag,** and defaults nothing. The
-document is an [`ArchivistConfig`](../../specs/src/components/schemas/ArchivistConfig.json): the
+document is an [`ArchivistConfig`](../specs/src/components/schemas/ArchivistConfig.json): the
 gateway's URL, the issuer, the working tree's root, the state volume, the anchored-text store's
 directory, the engine
 for each job and each actor, the port of its HTTP surface, whether to skip the boot rebuild, the staging
@@ -47,7 +47,7 @@ The document carries no secret. The Archivist's own account at the issuer is the
 
 **What the knowledge base says of itself is read from the tree,** not from the document: the
 committed project file, `<root>/.semiont/config.yaml`, held to
-[`ProjectConfig`](../../specs/src/kb-identity/ProjectConfig.json). The Archivist reads three of its
+[`ProjectConfig`](../specs/src/kb-identity/ProjectConfig.json). The Archivist reads three of its
 keys:
 
 | Key | Meaning |
@@ -89,7 +89,7 @@ Files are spread over two levels of directories, `<ab>/<cd>`, by the **shard** o
 number written as four lowercase hex digits and split in two. It is computed over the key's UTF-16
 code units: start at 0; for each unit, multiply by 31 and add the unit, keeping the low 32 bits as a
 signed integer; take the absolute value; take it modulo 65536.
-`shard-cases.json` ([specs/src/archivist](../../specs/src/archivist/shard-cases.json)) is the table
+`shard-cases.json` ([protocol/specs/src/archivist](../specs/src/archivist/shard-cases.json)) is the table
 every implementation runs.
 
 | File | Key |
@@ -143,8 +143,8 @@ reading.
 ### The views
 
 **A resource's view** is the file `resources/<ab>/<cd>/<resourceId>.json` in the state directory, a
-[`ResourceView`](../../specs/src/components/schemas/ResourceView.json): the resource's descriptor,
-its annotations (a [`ResourceAnnotations`](../../specs/src/components/schemas/ResourceAnnotations.json)),
+[`ResourceView`](../specs/src/components/schemas/ResourceView.json): the resource's descriptor,
+its annotations (a [`ResourceAnnotations`](../specs/src/components/schemas/ResourceAnnotations.json)),
 and `lastSequence`, the sequence number of the last event applied. It is written as JSON indented by
 two spaces, to a temporary file beside it that is then renamed onto the path, so a reader sees a
 whole document or none. A view file that is not JSON is logged and read as missing; it is left in
@@ -155,9 +155,9 @@ place for the next write to replace.
 
 | File | Schema | Holds |
 |---|---|---|
-| `entitytypes.json` | [`EntityTypesProjection`](../../specs/src/components/schemas/EntityTypesProjection.json) | Every entity type added, each once, in dictionary order |
-| `tagschemas.json` | [`TagSchemasProjection`](../../specs/src/components/schemas/TagSchemasProjection.json) | Every tag schema added, in dictionary order of `id` |
-| `profiles.json` | [`ProfilesProjection`](../../specs/src/components/schemas/ProfilesProjection.json) | Each principal's current name and since when, by DID |
+| `entitytypes.json` | [`EntityTypesProjection`](../specs/src/components/schemas/EntityTypesProjection.json) | Every entity type added, each once, in dictionary order |
+| `tagschemas.json` | [`TagSchemasProjection`](../specs/src/components/schemas/TagSchemasProjection.json) | Every tag schema added, in dictionary order of `id` |
+| `profiles.json` | [`ProfilesProjection`](../specs/src/components/schemas/ProfilesProjection.json) | Each principal's current name and since when, by DID |
 
 A projection file that is absent reads as empty. Each is written as a view is: to a temporary file,
 renamed onto the path.
@@ -169,7 +169,7 @@ is the same in any locale.
 **The storage-uri index** answers which resource's content is at a place in the working tree. An
 entry is the file `projections/storage-uri/<ab>/<cd>/<h>.json` in the state directory, where `<h>` is
 the SHA-256 of the URI's UTF-8 bytes in lowercase hex. It is a
-[`StorageUriEntry`](../../specs/src/components/schemas/StorageUriEntry.json), `uri` first, JSON
+[`StorageUriEntry`](../specs/src/components/schemas/StorageUriEntry.json), `uri` first, JSON
 indented by two spaces, written as a view is.
 
 ### How each event changes the views
@@ -256,7 +256,7 @@ and is the only process that mounts it.
 
 An entry is the file `<ab>/<cd>/<checksum>.json` in the store, keyed by the checksum of the content
 it was extracted from. It is an
-[`AnchoredTextEntry`](../../specs/src/components/schemas/AnchoredTextEntry.json), compact JSON with
+[`AnchoredTextEntry`](../specs/src/components/schemas/AnchoredTextEntry.json), compact JSON with
 `v` and `stamp` first: either the text with its lines and how it was extracted, or a decline naming
 why nothing was extracted. It is written whole, beside its name and moved onto it, and replaces what
 was there.
@@ -274,7 +274,7 @@ an older stamp stay until the store is cleared.
 The Archivist records what it is told on these channels. Every command carries `_userId`, the DID of
 its sender, which the gateway sets. A reply carries the command's correlation id. A reply whose JSON
 is larger than a bus message may be, `POST /bus/emit`'s `x-semiont-limits.maxBodyBytes` in the
-gateway's [API](../../specs/src/paths/bus_emit.json), is not sent: the operation's failure channel
+gateway's [API](../specs/src/paths/bus_emit.json), is not sent: the operation's failure channel
 is answered at once, with `{message}`, `The answer could not be sent: it is <n> bytes, and a bus
 message may be <maxBodyBytes>`. Any other reply that cannot be sent, as one within that size whose
 frame is not, is answered there once the transport gives up, with `The answer could not be sent: `
@@ -432,7 +432,7 @@ follows the document's, and they are read over HTTP (§ The HTTP surface).
 
 **Names.** A reply that mentions principals names them from `profiles.json`: every object of type
 `Person` or `Software`, a person or an agent, whose DID has a profile carries that profile's name, as
-[`naming-cases.json`](../../specs/src/principals/naming-cases.json) states. If the projection cannot
+[`naming-cases.json`](../specs/src/principals/naming-cases.json) states. If the projection cannot
 be read, the reply names no one.
 
 | Request | Answers |
@@ -455,9 +455,9 @@ size limit, so it is a route of [the HTTP surface](#the-http-surface).
 **The engines.** The answer lists each engine once, in the order it first appears: for a `mark`
 job of each motivation (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`), for a
 `yield` job, then for the actors `gatherer`, `matcher`. An entry is
-[`{engine, jobs?}`](../../specs/src/components/schemas/EngineEntry.json): the engine is
+[`{engine, jobs?}`](../specs/src/components/schemas/EngineEntry.json): the engine is
 `{provider, model}`, with no identity of its own, and `jobs` lists the jobs it is used for, each a
-[`JobFilter`](../../specs/src/components/schemas/JobFilter.json) as a claim would name it
+[`JobFilter`](../specs/src/components/schemas/JobFilter.json) as a claim would name it
 (`{jobType: "mark", params: {motivation}}` or `{jobType: "yield"}`), absent for an engine only
 actors ask.
 
@@ -500,17 +500,17 @@ token was presented, `Bearer` when none was.
 | `PUT` `/resources/{id}/anchored-text` | Stores an entry for the resource's content; see below. The Smelter's |
 | `GET` `/resources/{id}/anchored-text/stored`, with `?contentChecksum=` | `200` with the entry stored for the resource's content, as stored, under the stamp stated, at once and never waiting for the Smelter. A `contentChecksum` missing or not 64 lowercase hex digits: `400`. No view, or an id that is not one: `404` `{"error":"Resource not found"}`. Content of another checksum, or none: `409`, as for the write. No entry: `404` `{"error":"No entry is stored for this content"}`. The Smelter's |
 | `GET` `/anchored-text/entries` | `200` `{"checksums":[…]}`: the checksum of every entry stored under the stamp stated, in no order. The Smelter's |
-| `PUT` `/anchored-text/stamp` | States the stamp, an [`AnchoredTextStamp`](../../specs/src/components/schemas/AnchoredTextStamp.json): `204`. A body that is not one: `400`. The Smelter's |
+| `PUT` `/anchored-text/stamp` | States the stamp, an [`AnchoredTextStamp`](../specs/src/components/schemas/AnchoredTextStamp.json): `204`. A body that is not one: `400`. The Smelter's |
 | `POST` `/resources` | Stores content and records it; see below |
 
 A body larger than its operation's `x-semiont-limits.maxBodyBytes` in the
-[API](../../specs/src/archivist/openapi.json) is `413`: refused unread when its `Content-Length`
+[API](../specs/src/archivist/openapi.json) is `413`: refused unread when its `Content-Length`
 says so, and otherwise once more than that has arrived.
 
 Any other request is `404` with no body.
 
 **`GET /resources/{id}/anchored-text`** answers one
-[`AnchoredTextAnswer`](../../specs/src/components/schemas/AnchoredTextAnswer.json), and the answer
+[`AnchoredTextAnswer`](../specs/src/components/schemas/AnchoredTextAnswer.json), and the answer
 is the whole body, with nothing around it. No answer is too large: one larger than the largest
 frame the bus carries is answered whole.
 
@@ -519,7 +519,7 @@ The answer is decided from the resource's first representation, in this order:
 1. `{"kind":"unknown"}` when the resource has no view or no checksum, or when the path's id is not
    an id. That there is no resource is an answer here, and never a `404`.
 2. `{"kind":"no-map"}` when the media type is not one whose text is derived by reading its
-   content. The [media-type table](../../specs/src/media-types/registry.json) says which are: the
+   content. The [media-type table](../specs/src/media-types/registry.json) says which are: the
    types whose `textSource` is `pdf-text-layer`. A type whose text is its own bytes decoded
    (`decode`), one that has no text (`none`) and one the table does not have are each answered
    `no-map` at once, with nothing read from the store and no wait. Such a resource has no anchored
@@ -534,7 +534,7 @@ The answer is decided from the resource's first representation, in this order:
    lost, and the Smelter derives it again when it next starts.
 
 **`PUT /resources/{id}/anchored-text`** takes an
-[`AnchoredTextWrite`](../../specs/src/components/schemas/AnchoredTextWrite.json): the checksum of the
+[`AnchoredTextWrite`](../specs/src/components/schemas/AnchoredTextWrite.json): the checksum of the
 content the entry was derived from, and the entry. The whole body is read before anything is
 answered.
 
@@ -553,7 +553,7 @@ The Archivist remembers the latest `smelt:settled` for each resource for five mi
 that follows the signal does not wait.
 
 **`POST /resources`** takes `multipart/form-data` with a `file` part and the fields of a
-[`ResourceUpload`](../../specs/src/components/schemas/ResourceUpload.json).
+[`ResourceUpload`](../specs/src/components/schemas/ResourceUpload.json).
 
 1. The `Semiont-Principal` header names who the resource is attributed to; without it: `400`
    `{"error":"Semiont-Principal is required: the record attributes every resource to someone"}`.
@@ -598,9 +598,9 @@ status 0.
 The Archivist exports as `semiont-archivist`, under the resource the table's
 `resource` rows list for it: its name, its version, and `semiont.kb`, the DID
 of the knowledge base its committed project file's `site.domain` names. Its spans and metrics are the rows
-[`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+[`protocol/specs/src/service-telemetry/telemetry.json`](../specs/src/service-telemetry/telemetry.json)
 lists for it, and those
-[`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json) lists for
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json) lists for
 the transport it reaches the bus through. Its own:
 
 | Signal | Name | Meaning |

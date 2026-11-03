@@ -44,7 +44,7 @@ import kotlinx.serialization.json.longOrNull
 internal class Generation(
     /** The schemas generated, with every schema they reach. */
     val roots: Set<String>,
-    /** The schemas that are kinds of id (specs/src/identifiers/kinds.json). */
+    /** The schemas that are kinds of id (protocol/specs/src/identifiers/kinds.json). */
     val identifiers: Set<String>,
 )
 
@@ -105,7 +105,7 @@ internal fun generate(definitions: JsonObject, generation: Generation): Generate
 
 /** A file's start: what it is, the opt-ins its declarations need, its package and its imports. */
 internal fun header(pkg: String, kinds: Set<String>): String = buildString {
-    append("// Generated from the component schemas in specs/src; do not edit.\n")
+    append("// Generated from the component schemas in protocol/specs/src; do not edit.\n")
     append("@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class, kotlin.ExperimentalStdlibApi::class)\n\n")
     append("package $pkg\n\n")
     for (import in IMPORTED) append("import $import\n")

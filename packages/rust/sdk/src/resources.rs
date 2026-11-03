@@ -5,7 +5,7 @@
 //! [`primary_media_type`] and [`resource_entity_types`] read each, so that
 //! nothing that reads a resource's description tells one shape from the
 //! other by hand. Every SDK has them, and
-//! specs/src/resources/reader-cases.json holds each to one answer for one
+//! protocol/specs/src/resources/reader-cases.json holds each to one answer for one
 //! resource: this crate's tests run it.
 //!
 //! [`decode_representation`] gives a representation's bytes as the text they
@@ -266,8 +266,8 @@ fn utf8_alone(label: Option<&str>, bytes: &[u8]) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     //! What text a resource's bytes are is two tables every reader runs,
-    //! specs/src/text/decode-cases.json and
-    //! specs/src/text/encoding-cases.json, and tests/decode_cases.rs runs
+    //! protocol/specs/src/text/decode-cases.json and
+    //! protocol/specs/src/text/encoding-cases.json, and tests/decode_cases.rs runs
     //! them through a client, whose reader in this crate's tests is
     //! `encoding_rs`. Here is the reader a build without the `charsets`
     //! feature has, which no client of these tests reaches: it decodes UTF-8

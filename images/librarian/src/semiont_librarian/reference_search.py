@@ -7,8 +7,9 @@ resources the context's graph connects the reference's resource to, and the
 vector index. A resource is one candidate however many of them found it, and
 the reference's own resource is none. Each candidate is scored
 (`semiont_librarian.score`), a model is asked to score the twenty of the
-highest scores, and the answer is the candidates by score, the highest first. `specs/src/librarian/score-cases.json` states each search as
-what every source answers and the candidates that follow.
+highest scores, and the answer is the candidates by score, the highest first.
+`protocol/specs/src/librarian/score-cases.json` states each search as what
+every source answers and the candidates that follow.
 
 `search` answers the reply, or raises. What it raises is the failure, and its
 words are the message of `match:search-failed`. A listing that fails raises.

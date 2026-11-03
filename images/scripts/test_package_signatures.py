@@ -35,7 +35,7 @@ class PackageSignaturesTest(unittest.TestCase):
         self.root = Path(self.temporary.name)
         for path, text in {
             "version.json": '{"version": "0.0.0"}\n',
-            "specs/src/openapi.json": "{}\n",
+            "protocol/specs/src/openapi.json": "{}\n",
             "packages/codegen/bus/generate-ts.mjs": "export {};\n",
             "packages/rust/Cargo.toml": "[workspace]\n",
             "packages/typescript/core/package.json": '{"name": "@semiont/core"}\n',

@@ -1,4 +1,4 @@
-# Generated from specs/src/client/refresh.json; do not edit.
+# Generated from protocol/specs/src/client/refresh.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-cache-refresh-python.mjs
 
 """What a Semiont client asks again for, and when.

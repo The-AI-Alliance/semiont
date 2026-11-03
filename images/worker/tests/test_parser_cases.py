@@ -1,4 +1,4 @@
-"""What the worker reads from a model's reply, held to `specs/src/worker/parser-cases.json`.
+"""What the worker reads from a model's reply, held to `protocol/specs/src/worker/parser-cases.json`.
 
 It is the table every worker runs, so that one reply is read into the same
 items, or refused the same way, whichever language read it. A case is one
@@ -104,7 +104,8 @@ class Mentions(Stated, frozen=True):
 
 
 class Refusal(Stated, frozen=True):
-    """A failure, described as `specs/src/worker/failure-class-cases.json` describes one: its name, and its stop reason where it has one."""
+    """A failure, described as `protocol/specs/src/worker/failure-class-cases.json` describes one: its name, and its
+    stop reason where it has one."""
 
     name: str
     stop_reason: Annotated[str | None, Field(alias="stopReason")] = None

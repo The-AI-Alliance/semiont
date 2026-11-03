@@ -28,7 +28,7 @@
  * reports what the gateway did, and this is the caller's own doing.
  *
  * An upload has no deadline (`httpRequestTimeoutMs` in
- * `specs/src/client/timing.json`): how long it takes is how large it is.
+ * `protocol/specs/src/client/timing.json`): how long it takes is how large it is.
  */
 
 import type { AccessToken, AnchoredTextAnswer, ResourceId, PutBinaryOptions, PutBinaryProgress, components } from '@semiont/core';

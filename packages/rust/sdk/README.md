@@ -303,7 +303,7 @@ annotation again, on a retry or after another worker's attempt, gives it the
 same id, and committing it a second time changes nothing. An offset counts
 Unicode code points from the start of the text, as the wire's do, and the
 text is given as the `&str` it is. The tables under
-[`specs/src/annotations`](../../../specs/src/annotations) hold every SDK's
+[`protocol/specs/src/annotations`](../../../protocol/specs/src/annotations) hold every SDK's
 builders to the same answers.
 
 - **Its stream names `JOB_CLAIM_CHANNELS`**, and the reply channels of
@@ -406,7 +406,7 @@ every Semiont SDK shares for it.
 A resource, an annotation, a job and whoever did something are each named by
 an id of its own type: `ResourceId`, `AnnotationId`, `JobId`, `UserId`
 (`semiont::types`). The rule each is held to is the spec's
-([`specs/src/identifiers/kinds.json`](../../../specs/src/identifiers/kinds.json)):
+([`protocol/specs/src/identifiers/kinds.json`](../../../protocol/specs/src/identifiers/kinds.json)):
 the first three are a name of 1 to 128 letters, digits, `_` and `-`, never a
 URI or a path, and the last is a DID.
 
@@ -453,7 +453,7 @@ What must outlive a client is kept in a `SessionStorage`
 `Box<dyn std::error::Error + Send + Sync>`; a cache's save that fails is a
 warning through the `log` facade, and the cache goes on as it was.
 `semiont::sign_in_store` is the sign-ins
-`semiont login` keeps ([sign-in store](../../../specs/src/sign-in-store/README.md)),
+`semiont login` keeps ([sign-in store](../../../protocol/specs/src/sign-in-store/README.md)),
 as a `SessionStorage`, so one sign-in serves the launcher and an application
 built on this SDK.
 
@@ -540,7 +540,7 @@ assert!(refused.is_err());
 ## From the TypeScript SDK
 
 The two SDKs have the same namespaces, methods and behaviour: both are held
-to [`specs/src/client/surface.json`](../../../specs/src/client/surface.json)
+to [`protocol/specs/src/client/surface.json`](../../../protocol/specs/src/client/surface.json)
 and the same case tables. What differs is how each language says "later".
 
 | TypeScript | Rust | |
@@ -568,7 +568,7 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `types` | The protocol's types, generated from the spec when the crate is built: the ids, and every request, response and event |
 | `channels` | The bus's channels, one type each, naming its payload. A channel the protocol does not have, or a payload that is not that channel's, does not compile. Each is `Scoped`, carried by a resource's scope, or `Unscoped`. |
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
-| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../../specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../../specs/src/annotations/builder-cases.json). |
+| `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../../protocol/specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../../protocol/specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../../protocol/specs/src/annotations/builder-cases.json). |
 | `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../../protocol/contract/WORKER-CONTRACT.md) |
 | `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
 | `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |
@@ -576,11 +576,11 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `cache`, `refresh`, `resume` | The cache queries answer from, what each event does to it, and where a stream resumes after a restart |
 | `transport` | The contract a transport implements: `Transport`, `ContentTransport`, `GatewayOperations` |
 | `bus`, `event_bus` | The typed client of the bus over a transport, and a client's own in-process bus. A client hands out its bus over its transport as `client.wire()`. `bus.frames::<C>()` reads a channel of no scope. A resource's channel is read for the resource, `bus.frames_of::<MarkAdded>(&resource)`, which holds that resource's scope until it is dropped; read with no resource, it does not compile. |
-| `media_types` | The media types a knowledge base admits, and what the system can do with each. Of any media type: where its text comes from (`text_source_of`), whether that text has places on a page (`yields_geometry_of`), and whether it is derived by reading the bytes, where a decoded text is the bytes themselves (`derives_text_of`). [`cases.json`](../../../specs/src/media-types/cases.json) holds every SDK's rules to the same answers. |
-| `resources` | The readers of a resource's description: its first representation (`primary_representation`), that representation's media type (`primary_media_type`), and its entity types (`resource_entity_types`). Its representations are one or a list, and these read either. [`reader-cases.json`](../../../specs/src/resources/reader-cases.json) holds every SDK's readers to the same answers. And `decode_representation(bytes, media_type)`, a representation's bytes as the text they are, which `browse.resource_content` reads with. It refuses by name a media type whose text is not its bytes, and a charset it does not decode. |
+| `media_types` | The media types a knowledge base admits, and what the system can do with each. Of any media type: where its text comes from (`text_source_of`), whether that text has places on a page (`yields_geometry_of`), and whether it is derived by reading the bytes, where a decoded text is the bytes themselves (`derives_text_of`). [`cases.json`](../../../protocol/specs/src/media-types/cases.json) holds every SDK's rules to the same answers. |
+| `resources` | The readers of a resource's description: its first representation (`primary_representation`), that representation's media type (`primary_media_type`), and its entity types (`resource_entity_types`). Its representations are one or a list, and these read either. [`reader-cases.json`](../../../protocol/specs/src/resources/reader-cases.json) holds every SDK's readers to the same answers. And `decode_representation(bytes, media_type)`, a representation's bytes as the text they are, which `browse.resource_content` reads with. It refuses by name a media type whose text is not its bytes, and a charset it does not decode. |
 | `discovery` | The knowledge bases a launcher manages |
 | `identity`, `roles` | How a knowledge base names its principals, persons and agents, and its engines, and the realm's roles |
-| `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per read or upload of content. A line shows the frame's payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of the list in [`specs/src/bus/log-cases.json`](../../../specs/src/bus/log-cases.json)) is written as `[withheld]` |
+| `bus_log` | With `SEMIONT_BUS_LOG` set, one line on stderr per frame the process sends or receives, and per read or upload of content. A line shows the frame's payload, and never a credential in it: the value of a member whose name is one a credential goes by (`token`, `password`, `apiKey` and the rest of the list in [`protocol/specs/src/bus/log-cases.json`](../../../protocol/specs/src/bus/log-cases.json)) is written as `[withheld]` |
 | `testing` | The doubles and harnesses, behind the `testing` feature |
 
 `SEMIONT_BUS_LOG` is the only environment variable the crate reads.

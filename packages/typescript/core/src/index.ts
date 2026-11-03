@@ -138,7 +138,7 @@ export { busLog, busLogEnabled, setBusLogTraceIdProvider, type BusOp } from './b
 
 // The annotation builders: what a worker turns a model's words into
 // annotations with. Every SDK has the three, and
-// specs/src/annotations/builder-cases.json holds them to one answer.
+// protocol/specs/src/annotations/builder-cases.json holds them to one answer.
 export { reconcile, annotationOfSpan, annotationOfResource, SpanRefusedError } from './annotation-builders';
 export type { QuotedText, TextSpan, ReconciledSpan, AnchorMethod } from './annotation-builders';
 
@@ -225,14 +225,14 @@ export {
 export { replyChannelsFor, BusRequestError } from './bus-request';
 export { Bus, FrameRefusal, asDeclared, type BusPrimitive, type Delivered, type Heard } from './bus';
 // The client's deadlines, retry budgets and stream cadence, generated from
-// specs/src/client/timing.json — the table every SDK generates from.
+// protocol/specs/src/client/timing.json — the table every SDK generates from.
 export * from './generated/client-timing';
 
 // What each event on the bus refreshes in a client's cache, generated from
-// specs/src/client/refresh.json — the table every SDK generates from.
+// protocol/specs/src/client/refresh.json — the table every SDK generates from.
 export * from './generated/cache-refresh';
 // The client error vocabularies and their classifiers, generated from
-// specs/src/errors/codes.json — the table every SDK generates from.
+// protocol/specs/src/errors/codes.json — the table every SDK generates from.
 export {
   transportErrorCodeForStatus,
   type BusRequestErrorCode,

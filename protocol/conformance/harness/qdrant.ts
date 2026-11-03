@@ -4,7 +4,7 @@
  * judges, so nothing here is a Smelter's code, or the code a Smelter shares
  * with the index's readers.
  *
- * What the index is, specs/src/vectors/payload-cases.json states: two
+ * What the index is, protocol/specs/src/vectors/payload-cases.json states: two
  * collections that are searched, one of resources' chunks and one of
  * annotations, with what a point's payload holds, and whatever else an index
  * keeps beside them. The collections' names are read from that table, and
@@ -64,7 +64,7 @@ const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, TABLE), 'utf8')
 /** The name the table gives a collection. */
 function named(collection: Collection): string {
   const stated = isObject(table) && isObject(table['collections']) ? table['collections'][collection] : undefined;
-  if (!isObject(stated) || typeof stated['name'] !== 'string') throw new Error(`specs/src/${TABLE} states no collection of ${collection}`);
+  if (!isObject(stated) || typeof stated['name'] !== 'string') throw new Error(`protocol/specs/src/${TABLE} states no collection of ${collection}`);
   return stated['name'];
 }
 
@@ -75,7 +75,7 @@ function everyCollection(): string[] {
     const name = isObject(one) ? one['name'] : undefined;
     return typeof name === 'string' ? [name] : [];
   });
-  if (names.length < 2) throw new Error(`specs/src/${TABLE} states no collections of an index`);
+  if (names.length < 2) throw new Error(`protocol/specs/src/${TABLE} states no collections of an index`);
   return names;
 }
 
@@ -98,7 +98,7 @@ function statedPayloads(collection: Collection): Record<string, unknown>[] {
 function member(collection: Collection, name: string): string {
   const payloads = statedPayloads(collection);
   if (payloads.length === 0 || !payloads.every((payload) => name in payload)) {
-    throw new Error(`specs/src/${TABLE} does not state ${name} in the payload of every point of the ${collection}`);
+    throw new Error(`protocol/specs/src/${TABLE} does not state ${name} in the payload of every point of the ${collection}`);
   }
   return name;
 }

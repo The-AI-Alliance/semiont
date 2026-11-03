@@ -160,7 +160,7 @@ gh workflow run publish-crates.yml --ref v<version>
 gh workflow run publish-crates.yml --field dry_run=true
 ```
 
-The SDK's build script reads the spec through `packages/rust/sdk/specs`, a link to `specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
+The SDK's build script reads the spec through `packages/rust/sdk/specs`, a link to `protocol/specs/src` that cargo follows when it packages, so the published crate carries the spec files it is generated from.
 
 Cargo packages only what is under a crate's directory, so each published crate's directory holds `LICENSE`, a link to the repository's, and each `.crate` carries the file at `<crate>-<version>/LICENSE`.
 

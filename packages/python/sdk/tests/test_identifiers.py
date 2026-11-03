@@ -1,4 +1,4 @@
-"""The kinds of id, held to the cases every SDK runs (`specs/src/identifiers/kinds.json`).
+"""The kinds of id, held to the cases every SDK runs (`protocol/specs/src/identifiers/kinds.json`).
 
 Each string a kind accepts makes a value of its type, and each it refuses does
 not, by every way a value is made: the constructor, `parse`, and decoding. The

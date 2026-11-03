@@ -10,7 +10,7 @@ it.
 If the code deviates from what is written here, the code is wrong, or this
 document is wrong and is corrected deliberately. There is no third option.
 
-The OpenAPI document ([specs/src/openapi.json](../../specs/src/openapi.json))
+The OpenAPI document ([protocol/specs/src/openapi.json](../specs/src/openapi.json))
 is the other half, and the half a machine reads: every route, every status
 each answers and its body, the headers, the stream's messages and id
 formats, the limits (`x-semiont-limits`, `maxItems`), and the claims a
@@ -162,13 +162,13 @@ is its mechanism over HTTP.
 
 - **Schema validation.** Every inbound payload is validated against the
   schema the registry names for its channel
-  ([specs/src/bus/registry.json](../../specs/src/bus/registry.json)): a
+  ([protocol/specs/src/bus/registry.json](../specs/src/bus/registry.json)): a
   channel with a named schema must match it, or 400; a channel the
   registry gives no schema is not validated; a channel not in the registry
   is a 400.
 - **Ids.** The spec names four kinds of id, each a schema whose pattern is
   the rule a value of that kind is held to
-  ([specs/src/identifiers/kinds.json](../../specs/src/identifiers/kinds.json)).
+  ([protocol/specs/src/identifiers/kinds.json](../specs/src/identifiers/kinds.json)).
   A resource's, an annotation's and a job's id is a name: 1 to 128 letters,
   digits, `_` and `-`, never a URI or a path. Whoever did something is
   named by a DID. Every property that carries an id refers to its kind, so
@@ -302,7 +302,7 @@ recovered; its request has timed out long before.
 
 What a client does so that the contract holds over a connection that can
 drop. The timing named here is
-[`specs/src/client/timing.json`](../../specs/src/client/timing.json).
+[`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json).
 
 ### Connection lifecycle
 
@@ -421,7 +421,7 @@ client delivers a frame only if its id is not among the last
   limit (429), by a gateway that says it will recover (503, 504), or
   unanswered at its deadline is made again inside `emitRetry`, no sooner
   than a refusal's `Retry-After`; any other refusal is final
-  ([`specs/src/retry/cases.json`](../../specs/src/retry/cases.json)).
+  ([`protocol/specs/src/retry/cases.json`](../specs/src/retry/cases.json)).
   *Held by `sdk/wire/emit-rate-limited`, `sdk/wire/emit-budget-spent`, `sdk/wire/emit-refused`, `sdk/wire/unreachable`.*
 - An attempt whose credential is refused (a 401, or a 429 `refusal-rate`)
   is neither of those: the token is renewed once and the emit sent again
@@ -491,7 +491,7 @@ with more than one tenant.
 
 - `images/gateway/src/routes/bus.rs`, `images/gateway/src/routes/stream.rs` —
   the `/bus/emit` and `/bus/subscribe` routes.
-- `specs/src/bus/registry.json` — the authority: channels, payloads,
+- `protocol/specs/src/bus/registry.json` — the authority: channels, payloads,
   operations.
 - `packages/typescript/http-transport/src/transport/http-transport.ts` — the
   reference client's `ITransport`.

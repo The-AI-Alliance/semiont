@@ -1,6 +1,6 @@
 {
   "about": "a request its caller abandons reports nothing more: what it sent stays sent, the client stops asking the gateway for its reply, and a reply that comes anyway settles nothing",
-  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Requests; specs/src/client/timing.json busRequestTimeoutMs",
+  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Requests; protocol/specs/src/client/timing.json busRequestTimeoutMs",
   "steps": [
     {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "r", "name": "r", "representations": []}, "lastSequence": 1}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},

@@ -3,7 +3,7 @@
  *
  * The rule is protocol: protocol/contract/W3C-SELECTORS.md states it ("The text
  * of a resource"), and the two tables every reader runs hold it,
- * specs/src/text/decode-cases.json and specs/src/text/encoding-cases.json. It
+ * protocol/specs/src/text/decode-cases.json and protocol/specs/src/text/encoding-cases.json. It
  * is the MIME Sniffing Standard's reading of the content type and the
  * Encoding Standard's reading of the bytes, as a browser follows the two. An
  * offset counts the code points of this text, so every reader makes the same

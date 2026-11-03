@@ -6,7 +6,7 @@
  *
  * An account proves itself by its client secret, or by an assertion signed
  * with the key whose public half the account registers (RFC 7523,
- * `private_key_jwt`; specs/src/session/client-assertion-cases.json), checked
+ * `private_key_jwt`; protocol/specs/src/session/client-assertion-cases.json), checked
  * here as an issuer checks one: its signature, its issuer and subject, its
  * audience (this token endpoint), its expiry, and a `jti` it has not seen.
  */

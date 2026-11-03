@@ -33,7 +33,7 @@ from pathlib import Path
 MANIFESTS = {"package.json": "typescript", "Cargo.toml": "rust", "pyproject.toml": "python", "go.mod": "go", "build.gradle.kts": "kotlin", "Package.swift": "swift"}
 # A .NET solution is named for what it builds.
 SOLUTION = ".slnx"
-EVERY_PACKAGE = ("version.json", "specs/src/", "packages/codegen/")
+EVERY_PACKAGE = ("version.json", "protocol/specs/src/", "packages/codegen/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
     "rust": ("packages/rust/Cargo.toml", "packages/rust/Cargo.lock", "packages/rust/rust-toolchain.toml"),

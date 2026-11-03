@@ -45,7 +45,7 @@ Every SDK. The behaviors are numbered so that each can be tested by name:
 - The SDK conformance suite's live cases put each SDK through them against a
   real gateway ([protocol/conformance/sdk](../conformance/sdk/README.md)).
 - What a bus event refreshes is not prose at all: it is
-  [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json), from
+  [`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json), from
   which each SDK's handlers are generated.
 - The TypeScript SDK's own suites pin the behaviors one by one
   ([Test-parity](#test-parity)).
@@ -399,7 +399,7 @@ cache durable, per-KB rehydration:
    so neither does the persisted document; a previously-failed key
    rehydrates as absent and refetches on first observation.
 4. **Saves are debounced** (`saveDebounceMs` in
-   [`specs/src/client/timing.json`](../../specs/src/client/timing.json)) and
+   [`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json)) and
    **`dispose()` flushes a pending save synchronously before going inert** —
    the flush is part of the disposal act, so a KB switch cannot lose the last
    write; nothing may save after disposal (B16 extends to the persister). A
@@ -451,7 +451,7 @@ constraint is:
 
 Adding a new bus event → invalidation mapping MUST NOT change the
 effect of any existing mapping. This is a structural rule: a mapping
-is a row of `specs/src/client/refresh.json`, and
+is a row of `protocol/specs/src/client/refresh.json`, and
 `BrowseNamespace.subscribeToEvents()` gives each channel one handler,
 which applies the row for its event and nothing else. Debugging becomes
 tractable only if we can read one row at a time and understand its
@@ -598,7 +598,7 @@ what is shown.
 
 ## What refreshes what
 
-[`specs/src/client/refresh.json`](../../specs/src/client/refresh.json)
+[`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json)
 is the authority: a row per trigger, saying which live queries it acts on.
 A trigger is a channel of the bus, or `reopened`, the stream open again
 after a drop (B13). `BrowseNamespace` applies the table generated from it

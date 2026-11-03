@@ -85,7 +85,7 @@ class GenerationTest(unittest.TestCase):
 
     def test_typescript_drift_is_checked_in_an_isolated_tree(self):
         root = self.cache / "repository"
-        for directory in ("specs", "packages/codegen", "packages/typescript/core"):
+        for directory in ("protocol/specs", "packages/codegen", "packages/typescript/core"):
             (root / directory).mkdir(parents=True)
         (root / "package.json").write_text("{}")
         generated = root / "packages/typescript/core/generated.ts"

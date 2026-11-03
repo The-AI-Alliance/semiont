@@ -1,7 +1,7 @@
 /**
  * The telemetry a Smelter exports (SMELTER.md § Telemetry): everything
- * specs/src/service-telemetry/telemetry.json lists for it, and the rows of
- * specs/src/sdk-telemetry/telemetry.json it names there, exported over OTLP
+ * protocol/specs/src/service-telemetry/telemetry.json lists for it, and the rows of
+ * protocol/specs/src/sdk-telemetry/telemetry.json it names there, exported over OTLP
  * to the endpoint the standard OpenTelemetry environment names; and nothing
  * else. And what its gauge of the index says: the number of points the index
  * holds.

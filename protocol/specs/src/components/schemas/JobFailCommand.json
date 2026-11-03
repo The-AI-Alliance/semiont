@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "description": "Command to mark a job as failed",
+  "properties": {
+    "_userId": {
+      "allOf": [{ "$ref": "./UserId.json" }],
+      "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "resourceId": {
+      "$ref": "./ResourceId.json"
+    },
+    "jobId": {
+      "$ref": "./JobId.json"
+    },
+    "jobType": {
+      "$ref": "./JobType.json"
+    },
+    "attempt": {
+      "type": "integer",
+      "description": "Which attempt produced this event, 1-based (a first run is 1). ALWAYS present: the queue re-runs a failed job silently, so an operator reading progress or a terminal record has no other way to tell a re-run from a first run \u2014 and provider spend, already counted in semiont_inference_tokens_total, cannot be attributed to a repeated document without it. Stated rather than inferred from absence, because 'attempt 1' is a fact the emitter always knows."
+    },
+    "annotationId": {
+      "allOf": [{ "$ref": "./AnnotationId.json" }],
+      "description": "Annotation this job is attached to, when applicable. Lets the UI route failure feedback (error toast, revert state) to a specific annotation."
+    },
+    "error": {
+      "type": "string"
+    },
+    "completedUnits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Entity-type units whose annotations were fully emitted before this failure (checkpointed resume). The queue records them on the retried job's metadata; a retried claim skips them so completed work is neither redone nor duplicated."
+    },
+    "unitCursors": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "./UnitCursor.json"
+      },
+      "description": "The furthest each unit begun got, keyed by unit, with what it had counted there \u2014 the grain `completedUnits` cannot express. A unit named in `completedUnits` is stated here too, by the cursor it ended at: a later attempt skips it whole and counts it by that cursor. A cursor never says a unit is finished; only `completedUnits` does. Merged monotonically per unit, finished or not: a stale snapshot must never move a cursor backward."
+    },
+    "failureClass": {
+      "$ref": "./FailureClass.json"
+    },
+    "willRetry": {
+      "type": "boolean",
+      "description": "Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME rule the queue applies when it takes the failure (protocol/specs/src/jobs/retry-cases.json, which every SDK and the dispatcher run) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt \u2014 the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one."
+    },
+    "durability": {
+      "$ref": "./DurabilityEvidence.json"
+    }
+  },
+  "required": [
+    "resourceId",
+    "jobId",
+    "jobType",
+    "error"
+  ]
+}

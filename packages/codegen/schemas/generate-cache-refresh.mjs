@@ -1,4 +1,4 @@
-// Generate the client's cache-refresh table from specs/src/client/refresh.json:
+// Generate the client's cache-refresh table from protocol/specs/src/client/refresh.json:
 // which live queries each event on the bus, and the reopening of a dropped
 // stream, asks again for, writes, or removes.
 //
@@ -23,7 +23,7 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/refresh.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/client/refresh.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/cache-refresh.ts'));
 
 function refuse(message) {
@@ -31,7 +31,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, WHEN } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), resolve(ROOT, 'specs/src/openapi.json'), refuse);
+const { queries, refresh, whens, WHEN } = readCacheRefresh(TABLE, resolve(ROOT, 'protocol/specs/src/bus/registry.json'), resolve(ROOT, 'protocol/specs/src/openapi.json'), refuse);
 
 const list = (values) => `[${values.map((v) => `'${v}'`).join(', ')}]`;
 const doc = (text) => `/** ${text.replaceAll('*/', '*\\/')} */`;
@@ -49,7 +49,7 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/src/client/refresh.json → packages/codegen/schemas/generate-cache-refresh.mjs
+// Source: protocol/specs/src/client/refresh.json → packages/codegen/schemas/generate-cache-refresh.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 
 /** The live queries a client's cache answers. */

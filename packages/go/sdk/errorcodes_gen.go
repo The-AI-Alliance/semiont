@@ -1,4 +1,4 @@
-// Code generated from specs/src/errors/codes.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/errors/codes.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-error-codes-go.mjs
 // The TypeScript and Python vocabularies are generated from the same table,
@@ -211,7 +211,7 @@ const (
 
 // Why no annotation was built of a span: the span is not the text's, or, for
 // a PDF, is nowhere on its pages, or the PDF's anchored text does not hold
-// together. specs/src/annotations/builder-cases.json holds when each is
+// together. protocol/specs/src/annotations/builder-cases.json holds when each is
 // given.
 type SpanRefusal string
 

@@ -1,6 +1,6 @@
 /**
  * The credentials the gateway accepts and mints — the `bearerAuth` and
- * `mediaToken` schemes in specs/src/openapi.json. One kind of bearer, the
+ * `mediaToken` schemes in protocol/specs/src/openapi.json. One kind of bearer, the
  * issuer's, for people and agents alike; the one token the gateway mints is a
  * media token.
  */

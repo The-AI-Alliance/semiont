@@ -35,7 +35,7 @@ function canonical(value: unknown): string {
 
 /**
  * The id of an annotation, derived from what it is as
- * specs/src/annotations/id-cases.json states: for an annotation whose resource
+ * protocol/specs/src/annotations/id-cases.json states: for an annotation whose resource
  * a case learns only as it runs, and so cannot state its id beforehand. `body`
  * is left out for an annotation that has none. worker-service/yield.test.ts
  * holds this to every case of that table.

@@ -303,7 +303,7 @@ async def having_committed(*observed: DurabilityEvidence) -> AsyncGenerator[tupl
 
 
 class FilterCase(BaseModel):
-    """A row of specs/src/jobs/filter-cases.json."""
+    """A row of protocol/specs/src/jobs/filter-cases.json."""
 
     why: str
     filter: JsonObject
@@ -312,7 +312,7 @@ class FilterCase(BaseModel):
 
 
 class RetryCase(BaseModel):
-    """A row of specs/src/jobs/retry-cases.json."""
+    """A row of protocol/specs/src/jobs/retry-cases.json."""
 
     why: str
     retry_count: int = Field(alias="retryCount")

@@ -17,7 +17,7 @@
  * No line holds a credential. The value of a member whose whole name is one
  * a credential goes by (`token`, which is what a payload names the token a
  * resource is cloned by, and the rest of `CREDENTIALS` below) is written as
- * `[withheld]`, as every bus log writes it (specs/src/bus/log-cases.json).
+ * `[withheld]`, as every bus log writes it (protocol/specs/src/bus/log-cases.json).
  *
  * Cost when disabled: one property read per call, zero allocations.
  *
@@ -65,7 +65,7 @@ const WITHHELD = '[withheld]';
 
 /**
  * The names of the members whose value is one: the list
- * specs/src/bus/log-cases.json states for every bus log, which this
+ * protocol/specs/src/bus/log-cases.json states for every bus log, which this
  * package's tests hold this one to.
  */
 const CREDENTIALS: ReadonlySet<string> = new Set([

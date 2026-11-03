@@ -16,7 +16,7 @@ import semiont.types.AnchoredText
 import semiont.types.PdfTextItem
 import semiont.types.wireJson
 
-/** Where a span of a PDF's text is on its pages, held to the `cases` of specs/src/annotations/pdf-locate-cases.json. */
+/** Where a span of a PDF's text is on its pages, held to the `cases` of protocol/specs/src/annotations/pdf-locate-cases.json. */
 class PdfLocateTest {
     private val cases: List<JsonObject> = Spec.read("annotations/pdf-locate-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 

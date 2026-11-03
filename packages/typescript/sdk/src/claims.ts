@@ -136,7 +136,7 @@ const RETRIED: Record<FailureClass, boolean> = {
  * Two places need the answer and they must never disagree: the dispatcher's
  * queue acts on it, and the worker reports it on `job:fail` as `willRetry`,
  * so a follower of the job knows whether the failure it just saw is the end.
- * Each language has one implementation, and specs/src/jobs/retry-cases.json
+ * Each language has one implementation, and protocol/specs/src/jobs/retry-cases.json
  * is the table all of them answer alike. The worker reads the budget off the
  * record it claimed, and `retryCount` changes only when the dispatcher fails
  * the attempt, so the two evaluations see the same numbers.
@@ -160,7 +160,7 @@ export interface ClaimOptions {
   accepts: JobFilter[];
   /**
    * `jobClaimTimeoutMs`, `heldJobStallMs`, `heldJobStallCheckMs` and
-   * `markCommitTimeoutMs` of specs/src/client/timing.json, for a caller that
+   * `markCommitTimeoutMs` of protocol/specs/src/client/timing.json, for a caller that
    * must not wait them out: a test, or the conformance driver. Absent, the
    * table's values stand.
    */

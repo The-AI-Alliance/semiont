@@ -76,7 +76,7 @@ fn filters(query: &Arguments) -> Result<ResourceFilters, Ended> {
     Ok(filters)
 }
 
-/// The live query of specs/src/client/refresh.json a case names.
+/// The live query of protocol/specs/src/client/refresh.json a case names.
 fn named(query: &Arguments) -> Result<CacheQuery, Ended> {
     let name = text(query, "query")?;
     CacheQuery::ALL

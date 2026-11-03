@@ -2,7 +2,7 @@ package semiont.mediatypes
 
 /*
  * The rules read from the media types a knowledge base admits, as every SDK
- * reads them (specs/src/media-types/cases.json): the format a clone takes,
+ * reads them (protocol/specs/src/media-types/cases.json): the format a clone takes,
  * the name content is stored under, and where a type's text comes from, with
  * what follows from that. The table is media-types/registry.json's.
  */

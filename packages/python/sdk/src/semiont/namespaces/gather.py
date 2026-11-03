@@ -23,7 +23,7 @@ from semiont.types import (
 __all__ = ["GatherNamespace"]
 
 # What a caller that states nothing is given. Every SDK sends the same: the
-# cases of specs/src/client/surface.json hold each to it.
+# cases of protocol/specs/src/client/surface.json hold each to it.
 _CONTEXT_WINDOW: Final = 2000
 _DEPTH: Final = 2
 _MAX_RESOURCES: Final = 10

@@ -47,7 +47,7 @@ Apache-2.0
 ## Generation tooling
 
 [codegen/](codegen/README.md) holds shared bus and schema generators across languages.
-Their declarative inputs and fixtures stay in `specs/`. Language-wide build and
+Their declarative inputs and fixtures stay in `protocol/specs/`. Language-wide build and
 release helpers live under each language's `scripts/` directory; tooling for one
 package lives with that package.
 

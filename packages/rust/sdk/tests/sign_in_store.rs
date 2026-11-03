@@ -1,8 +1,8 @@
 //! The sign-ins `semiont login` keeps, as a storage
-//! (specs/src/sign-in-store): where the file is, a launcher's entry as a
+//! (protocol/specs/src/sign-in-store): where the file is, a launcher's entry as a
 //! session and a session as an entry, and two writers that lose nothing of
 //! each other's. Where the file is, is the `cases` of
-//! specs/src/sign-in-store/cases.json; its `renewals` are run where the
+//! protocol/specs/src/sign-in-store/cases.json; its `renewals` are run where the
 //! renewal is, in semiont-http-transport's tests/sign_in.rs.
 
 use base64::Engine;

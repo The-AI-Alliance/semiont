@@ -4,7 +4,7 @@ Every Semiont SDK writes it, in one form, so that the lines of several
 processes read as one timeline (`protocol/contract/EVENT-BUS.md` § Wire format).
 The form is held here, and so is each place a transport writes one. A line
 never holds a credential: what a line shows of a payload is the table every
-bus log runs (`specs/src/bus/log-cases.json`), which lists the names a
+bus log runs (`protocol/specs/src/bus/log-cases.json`), which lists the names a
 credential is withheld under.
 """
 

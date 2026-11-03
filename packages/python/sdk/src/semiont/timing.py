@@ -1,4 +1,4 @@
-# Generated from specs/src/client/timing.json; do not edit.
+# Generated from protocol/specs/src/client/timing.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-client-timing-python.mjs
 
 """The timing a Semiont client keeps: its deadlines, its retry budgets, the
@@ -88,7 +88,7 @@ HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 # The wait before an HTTP request that is neither the stream nor an emit is made a second time.
 # It is made again when the gateway answered it with a status that promises recovery, or did not
 # answer at all, on a method that cannot cause a second effect (`transport` in
-# specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when
+# protocol/specs/src/retry/cases.json); once, after this wait, or after a refusal's `Retry-After` when
 # that is longer. A request whose credential was refused is renewed and sent again at once,
 # without this wait, and one unanswered at its deadline (`httpRequestTimeoutMs`) is not made
 # again.

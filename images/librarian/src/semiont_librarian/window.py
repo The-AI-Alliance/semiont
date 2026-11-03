@@ -2,7 +2,7 @@
 
 A Librarian cuts a text around an annotation in two places
 (`protocol/contract/LIBRARIAN.md` § Gathering around an annotation, § An
-annotation's summary), and `specs/src/librarian/window-cases.json` states
+annotation's summary), and `protocol/specs/src/librarian/window-cases.json` states
 both. The cut is one, and so is the rule for where: a target's position
 selector, wherever among its selectors it is, and otherwise its quote
 selector, found in the text as every SDK finds a quote

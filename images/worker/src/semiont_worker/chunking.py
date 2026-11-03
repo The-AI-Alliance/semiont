@@ -3,7 +3,7 @@
 Every length and every position here counts Unicode code points, as a text
 offset does: a piece's size, the overlap, where a cut is made and where the
 next one starts. A Python string is indexed by code points, so an offset is a
-string's own index. `specs/src/text/chunk-cases.json` holds the rule.
+string's own index. `protocol/specs/src/text/chunk-cases.json` holds the rule.
 """
 
 import math

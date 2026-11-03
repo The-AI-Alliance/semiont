@@ -94,18 +94,18 @@ them.
 ## Configuration
 
 It reads one document, the protocol's
-[`WeaverConfig`](../../specs/src/components/schemas/WeaverConfig.json), at the path `--config`
+[`WeaverConfig`](../../protocol/specs/src/components/schemas/WeaverConfig.json), at the path `--config`
 names. The launcher writes it for the Weaver it starts, resolved, and mounts it at
 `/etc/semiont/weaver.json`. Whoever starts a Weaver another way writes the same document.
 
 | Member | |
 | --- | --- |
-| `kb` | the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json)): its name and its domain |
+| `kb` | the knowledge base it serves ([`KbIdentity`](../../protocol/specs/src/components/schemas/KbIdentity.json)): its name and its domain |
 | `gatewayUrl` | the gateway: its route to the bus |
 | `identity.issuer` | where its service account signs in |
 | `archivist` | where the Archivist listens: it reads the record by position there, and a resource's annotations |
-| `graph` | the graph database ([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
-| `cursorsPath` | the file it keeps its cursors in ([`CursorsPath`](../../specs/src/components/schemas/CursorsPath.json)) |
+| `graph` | the graph database ([`GraphConfig`](../../protocol/specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
+| `cursorsPath` | the file it keeps its cursors in ([`CursorsPath`](../../protocol/specs/src/components/schemas/CursorsPath.json)) |
 | `port` | the port `/health` answers on |
 | `logLevel`, `logFormat` | how it logs |
 
@@ -181,7 +181,7 @@ uv run pytest        # CI adds --cov --cov-report=xml: what the badge reports
 uv run mypy && uv run pyright && uv run ruff check && uv run ruff format --check
 ```
 
-The tests run the fold's case table ([`fold-cases.json`](../../specs/src/weaver/fold-cases.json))
+The tests run the fold's case table ([`fold-cases.json`](../../protocol/specs/src/weaver/fold-cases.json))
 and the Weaver over a scripted transport and a graph in the process. They start no service and
 reach no database: the Weaver as a process is the conformance suite's.
 

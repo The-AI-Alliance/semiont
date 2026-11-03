@@ -8,7 +8,7 @@
 import { fileURLToPath } from 'node:url';
 import { repositoryFiles } from './repository-files.mjs';
 
-/** The parts of the spec, by who honours them, each the entries of specs/src it holds. */
+/** The parts of the spec, by who honours them, each the entries of protocol/specs/src it holds. */
 export const SPEC_PARTS = {
   protocol: ['openapi.json', 'components', 'paths', 'bus', 'identifiers', 'principals', 'jobs', 'media-types', 'locales'],
   sdk: ['client', 'session', 'retry', 'resources', 'errors', 'sdk-telemetry'],
@@ -27,7 +27,7 @@ const APPS = new Set(
  * The label of what `path` is in, or null for a path in none. A path is in an
  * app, an image, a test suite or an SDK when it is below its directory
  * (apps/<x>/, images/<x>/, tests/<x>/ or packages/<language>/sdk/), and in a part
- * of the spec when it is an entry of specs/src or below one. An app's libraries,
+ * of the spec when it is an entry of protocol/specs/src or below one. An app's libraries,
  * packages/<language>/<app>/, are in the app. A directory is written with its
  * trailing slash: it is in what everything below it is in.
  */
@@ -35,11 +35,13 @@ export function pathLabel(path) {
   path = path.replace(/^\/+/, '');
   const suites = { 'images/e2e/': 'e2e', 'images/tests/stack/': 'stack', 'docs/checks/doc-snippets/': 'doc-snippets', 'protocol/conformance/': 'conformance' };
   for (const [prefix, suite] of Object.entries(suites)) if (path.startsWith(prefix)) return `tests:${suite}`;
-  const [top, owner, ...below] = path.replace(/^\/+/, '').split('/');
-  if (top === 'specs' && owner === 'src') {
-    const part = Object.keys(SPEC_PARTS).find((name) => SPEC_PARTS[name].includes(below[0]));
+  const SPEC_SOURCE = 'protocol/specs/src/';
+  if (path.startsWith(SPEC_SOURCE)) {
+    const [entry] = path.slice(SPEC_SOURCE.length).split('/');
+    const part = Object.keys(SPEC_PARTS).find((name) => SPEC_PARTS[name].includes(entry));
     return part === undefined ? null : `spec:${part}`;
   }
+  const [top, owner, ...below] = path.replace(/^\/+/, '').split('/');
   if (owner === undefined || owner === '' || below.length === 0) return null;
   if (top === 'apps') return `app:${owner}`;
   if (top === 'images') return ['scripts', 'shared', 'e2e', 'tests'].includes(owner) ? null : `image:${owner}`;

@@ -65,7 +65,7 @@ class _Waits:
 
 
 def _timings(stated: Arguments) -> tuple[Timing, _Waits]:
-    """The timing a case states, each entry by its name in `specs/src/client/timing.json`: the transport's, and a worker's."""
+    """The timing a case states, each entry by its name in `protocol/specs/src/client/timing.json`: the transport's, and a worker's."""
     known = Timing()
     reconnect_ms, lazy_remove_ms, linger_ms = known.reconnect_ms, known.lazy_remove_ms, known.linger_ms
     waits = _Waits()

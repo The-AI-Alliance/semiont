@@ -21,7 +21,7 @@ package semiont
 // No line holds a credential. The value of a member whose whole name is one a
 // credential goes by is not written, wherever in a payload it is: [withheld]
 // is written in its place, as every bus log writes it
-// (specs/src/bus/log-cases.json).
+// (protocol/specs/src/bus/log-cases.json).
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ import (
 const withheld = "[withheld]"
 
 // credentials is the names of the members whose value is one: the list
-// specs/src/bus/log-cases.json states for every bus log, which this package's
+// protocol/specs/src/bus/log-cases.json states for every bus log, which this package's
 // tests hold this one to.
 var credentials = map[string]bool{
 	"token":          true,

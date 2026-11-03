@@ -4,7 +4,7 @@
  * The searches a quote is put through when a text does not have it character
  * for character: without regard to white space and to the form of quotation
  * marks and dashes, without regard to letter case, and by edit distance.
- * specs/src/annotations/reconcile-cases.json holds the rule.
+ * protocol/specs/src/annotations/reconcile-cases.json holds the rule.
  *
  * A position in a text is an offset: it counts Unicode code points from the
  * start of the text, and so does every length a rule here states (the

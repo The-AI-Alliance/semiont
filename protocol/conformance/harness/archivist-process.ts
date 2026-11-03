@@ -5,7 +5,7 @@
  * environment. The document is the spec's `ArchivistConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
  * hand-edited rendering. The environment holds what
- * specs/src/service-environment/variables.json lists for the Archivist, and
+ * protocol/specs/src/service-environment/variables.json lists for the Archivist, and
  * PATH, which finds its command and git; nothing else from the developer's
  * shell.
  */
@@ -32,7 +32,7 @@ function checkEnvironment(env: ArchivistEnvironment): void {
   const listed = new Set([...serviceEnvironment('archivist'), 'PATH']);
   const strays = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
   if (strays.length > 0) {
-    throw new Error(`the suite set ${strays.join(', ')}, which specs/src/service-environment/variables.json does not list for the Archivist`);
+    throw new Error(`the suite set ${strays.join(', ')}, which protocol/specs/src/service-environment/variables.json does not list for the Archivist`);
   }
 }
 

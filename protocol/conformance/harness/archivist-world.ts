@@ -95,7 +95,7 @@ export function unstamped<T extends Record<string, unknown>>(payload: T): T {
 /** The persisted channels: the facts. */
 export const FACTS: readonly string[] = registry().channels.filter((c) => c.shape === 'storedEvent').map((c) => c.channel);
 
-/** The two-level shard of a key, as specs/src/archivist/shard-cases.json states the arithmetic. */
+/** The two-level shard of a key, as protocol/specs/src/archivist/shard-cases.json states the arithmetic. */
 export function shardOf(key: string): string {
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (Math.imul(hash, 31) + key.charCodeAt(i)) | 0;

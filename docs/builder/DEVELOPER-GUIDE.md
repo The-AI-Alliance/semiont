@@ -163,7 +163,7 @@ for (const ann of annotations) {
 
 The Rust, Python, Go and Kotlin SDKs have the same readers (`semiont::annotations`,
 `semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and one
-table, [`reader-cases.json`](../../specs/src/annotations/reader-cases.json), holds all five to
+table, [`reader-cases.json`](../../protocol/specs/src/annotations/reader-cases.json), holds all five to
 the same answer for the same annotation.
 
 Live subscriptions are how you get real-time updates: **freshness follows observation** —
@@ -403,8 +403,8 @@ tolerance for a misquote; a span found another way is built the same.
 
 The Rust, Python, Go and Kotlin SDKs have the same three (`semiont::annotations`,
 `semiont.annotations`, the Go package `annotations`, Kotlin's `semiont.annotations`), and two
-tables, [`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json) and
-[`builder-cases.json`](../../specs/src/annotations/builder-cases.json), hold all five to
+tables, [`reconcile-cases.json`](../../protocol/specs/src/annotations/reconcile-cases.json) and
+[`builder-cases.json`](../../protocol/specs/src/annotations/builder-cases.json), hold all five to
 the same answer.
 
 ## 10. Find link candidates (semantic search)

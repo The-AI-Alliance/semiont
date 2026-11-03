@@ -8,7 +8,7 @@ so an entry that is not taken costs deriving it again, and nothing else.
 
 The Archivist keeps the store, and no other process mounts it
 (`protocol/contract/ARCHIVIST.md` § The anchored-text store). The Smelter reaches
-it on the Archivist's own surface (`specs/src/archivist/openapi.json`), as
+it on the Archivist's own surface (`protocol/specs/src/archivist/openapi.json`), as
 its service account, at the address its document names:
 
 - an entry is written for a resource's bytes by

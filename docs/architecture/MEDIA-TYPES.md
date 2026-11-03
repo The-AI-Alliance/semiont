@@ -11,7 +11,7 @@ the only type that exercises every axis at its hardest setting.
 
 ## The declaration
 
-[`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)
+[`protocol/specs/src/media-types/registry.json`](../../protocol/specs/src/media-types/registry.json)
 holds one row per supported type. Every SDK generates its table from it:
 TypeScript's is `MEDIA_TYPES` in `packages/typescript/core/src/media-types.ts`, Rust's is
 `semiont::media_types`, Python's is `MEDIA_TYPES` in
@@ -42,7 +42,7 @@ build. That is why behavior can be described by reading one table.
 
 The rules read from the table that more than one SDK applies (the format a
 clone takes, the name content is stored under) are stated as cases in
-[`specs/src/media-types/cases.json`](../../specs/src/media-types/cases.json),
+[`protocol/specs/src/media-types/cases.json`](../../protocol/specs/src/media-types/cases.json),
 and each SDK runs them.
 
 | Media type | `render` | `anchoring` | `textSource` |
@@ -105,7 +105,7 @@ textual — and everything else is `none`. The Rust, Python, Go and Kotlin SDKs
 read the column from their own generated tables and answer the same, a registry
 miss included (`text_source_of` in Rust's and Python's `media_types`,
 `TextSourceOf` in Go's `mediatypes`, `textSourceOf` within Kotlin's
-`semiont.mediatypes`); the case table `specs/src/media-types/cases.json` holds
+`semiont.mediatypes`); the case table `protocol/specs/src/media-types/cases.json` holds
 the five to one answer.
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
@@ -113,8 +113,8 @@ the five to one answer.
   [the text of a resource](../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource)
   states it, as a browser reads a content type and the bytes behind it, and
   two tables every reader runs hold it
-  ([`decode-cases.json`](../../specs/src/text/decode-cases.json) and
-  [`encoding-cases.json`](../../specs/src/text/encoding-cases.json)). An offset
+  ([`decode-cases.json`](../../protocol/specs/src/text/decode-cases.json) and
+  [`encoding-cases.json`](../../protocol/specs/src/text/encoding-cases.json)). An offset
   is counted in that text, so a reader that made another text of the same
   bytes would put its annotations somewhere else.
 - **`pdf-text-layer`** — parse the content stream, and where a page has no
@@ -226,7 +226,7 @@ exists because of one of those three declarations.
    recognition pass for the lifetime of those bytes.
 6. **It lands in the anchored-text store, at `{ab}/{cd}/{checksum}.json`**,
    filed by the arithmetic the event log files a resource's events by
-   ([`shard-cases.json`](../../specs/src/archivist/shard-cases.json)). The store
+   ([`shard-cases.json`](../../protocol/specs/src/archivist/shard-cases.json)). The store
    is a directory the deployment supplies, kept per knowledge base, so it
    survives a restart and `semiont clean --store anchored-text` can reclaim it.
 7. **Smelter chunks, embeds, and writes vectors.**
@@ -288,7 +288,7 @@ What the viewer does with each:
 - **`not-yet`, no answer yet, or an ask that failed.** It holds nothing.
   Annotating is off, the viewer says it is waiting for the text, and it asks
   again each time `anchoredTextReaskMs` has passed
-  (`specs/src/client/timing.json`).
+  (`protocol/specs/src/client/timing.json`).
 - **A stored decline, or `unknown`.** It holds nothing and never will.
   Annotating is off for good, the viewer says the text could not be read, and
   it does not ask again.

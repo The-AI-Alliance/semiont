@@ -3472,7 +3472,7 @@ func TestYieldUploadsFile(t *testing.T) {
 }
 
 // The format an upload states comes from the media-type registry
-// (specs/src/media-types/registry.json), through the Go SDK: every extension
+// (protocol/specs/src/media-types/registry.json), through the Go SDK: every extension
 // a row states, the registry's aliases, and its rule that a shared extension
 // is the first row's. An extension no row states uploads as octet-stream; the
 // gateway's create route stays the validator of record.

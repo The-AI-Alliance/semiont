@@ -1,5 +1,5 @@
 //! The gateway's calls onto the Archivist's HTTP surface
-//! (specs/src/archivist/openapi.json): an upload is stored and recorded there,
+//! (protocol/specs/src/archivist/openapi.json): an upload is stored and recorded there,
 //! bytes, a resource's JSON-LD description, its annotations and its anchored text are read
 //! back, and a scope's persisted events are read for a replay. The gateway
 //! parses none of it; it forwards, and maps the answer onto its own

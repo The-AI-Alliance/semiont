@@ -261,7 +261,7 @@ Create the client yourself. It is the same client:
 - **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
 - **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, a **`kind`** of `agent`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
 
-The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
+The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`protocol/specs/src/session/client-assertion-cases.json`](../../../protocol/specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
 
 To revoke, delete the client.
 
@@ -322,7 +322,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 - Every route requires a bearer token unless the spec declares it public (`security: []`).
 - What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits). A request whose token is refused is limited per holder the token names, and those that name none together: see the same table. Limits per address are an ingress's to apply.
-- Every JSON body is validated against its schema in `specs/`.
+- Every JSON body is validated against its schema in `protocol/specs/`.
 
 ## Troubleshooting
 

@@ -6,7 +6,7 @@
  * again. With it, what it signals of a PDF it has decided on, one it indexed
  * and one it declined (§ What it decides).
  *
- * What each kind of PDF becomes is specs/src/smelter/extraction-cases.json,
+ * What each kind of PDF becomes is protocol/specs/src/smelter/extraction-cases.json,
  * which every implementation runs through its own reader. The documents here
  * are a few lines of ASCII (support.ts), and a case looks for whole words of
  * them: never for a page's text as a whole, nor for where a space falls
@@ -21,7 +21,7 @@ import { NOT_A_PDF, pdfOf } from './support';
 
 const PDF = 'application/pdf';
 
-/** Two members of a point's payload, as specs/src/vectors/payload-cases.json names them: a chunk's text, and the mark of text that was read from pixels. */
+/** Two members of a point's payload, as protocol/specs/src/vectors/payload-cases.json names them: a chunk's text, and the mark of text that was read from pixels. */
 const TEXT = 'text';
 const MACHINE_READ = 'machineRead';
 
@@ -40,7 +40,7 @@ function storedText(world: SmelterWorld, checksum: string): StoredText {
 /**
  * The pages a stored text has a word on. A word is on a page when a run of the
  * text that is placed on that page has the word in it, which is what
- * specs/src/smelter/extraction-cases.json says of `onPage`. A run's offsets
+ * protocol/specs/src/smelter/extraction-cases.json says of `onPage`. A run's offsets
  * count code points, and these documents are ASCII, where a string's own
  * positions are the same.
  */

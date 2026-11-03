@@ -56,7 +56,7 @@ import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-/** The timing a transport keeps: specs/src/client/timing.json's, unless a caller that must not wait it out says otherwise. */
+/** The timing a transport keeps: protocol/specs/src/client/timing.json's, unless a caller that must not wait it out says otherwise. */
 public data class Timing @JvmOverloads constructor(
     public val reconnectMs: Long = Timings.RECONNECT_MS,
     public val lazyRemoveMs: Long = Timings.LAZY_REMOVE_MS,

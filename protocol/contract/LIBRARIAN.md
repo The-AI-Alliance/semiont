@@ -25,21 +25,21 @@ Archivist, beside a Weaver and a Smelter that write the graph and the index it
 reads, and plays its models and its embedding provider: the same cases judge
 every implementation. A path names a test. Eight are runners of a case table,
 which every implementation runs through its own code:
-[`score-cases.json`](../../specs/src/librarian/score-cases.json), what a
+[`score-cases.json`](../specs/src/librarian/score-cases.json), what a
 reference search answers;
-[`search-cases.json`](../../specs/src/librarian/search-cases.json), what a
+[`search-cases.json`](../specs/src/librarian/search-cases.json), what a
 search by text answers;
-[`knowledge-graph-cases.json`](../../specs/src/librarian/knowledge-graph-cases.json),
+[`knowledge-graph-cases.json`](../specs/src/librarian/knowledge-graph-cases.json),
 the graph built around a resource;
-[`derive-views-cases.json`](../../specs/src/librarian/derive-views-cases.json),
+[`derive-views-cases.json`](../specs/src/librarian/derive-views-cases.json),
 the lists read off that graph;
-[`window-cases.json`](../../specs/src/librarian/window-cases.json), the text
+[`window-cases.json`](../specs/src/librarian/window-cases.json), the text
 cut around a selection;
-[`prompt-cases.json`](../../specs/src/librarian/prompt-cases.json), the five
+[`prompt-cases.json`](../specs/src/librarian/prompt-cases.json), the five
 prompts;
-[`reply-cases.json`](../../specs/src/librarian/reply-cases.json), what is read
+[`reply-cases.json`](../specs/src/librarian/reply-cases.json), what is read
 from a model's reply; and
-[`naming-cases.json`](../../specs/src/principals/naming-cases.json), how
+[`naming-cases.json`](../specs/src/principals/naming-cases.json), how
 principals are named, which the Archivist runs too. The runner of each is the file named for it in
 `images/librarian/tests`, such as `test_score_cases.py`. The others are tests of
 Semiont's own Librarian and of the packages it is built on. A rule marked
@@ -57,22 +57,22 @@ the vector index no collection, no payload index and no point.
 ## Settings
 
 A Librarian reads its settings from a configuration document, the protocol's
-[`LibrarianConfig`](../../specs/src/components/schemas/LibrarianConfig.json),
+[`LibrarianConfig`](../specs/src/components/schemas/LibrarianConfig.json),
 at the path its `--config` flag names. The document is resolved: every address
 in it is literal, every credential is named by the variable that holds it, and
 the Librarian defaults nothing it leaves out. It states
-the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's URL; the issuer the Librarian's service account signs in at;
+the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's URL; the issuer the Librarian's service account signs in at;
 the Archivist's host and port, for a resource's bytes; the graph database
-([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
+([`GraphConfig`](../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the
 environment variable that holds its password); the vector index
-([`VectorsConfig`](../../specs/src/components/schemas/VectorsConfig.json));
+([`VectorsConfig`](../specs/src/components/schemas/VectorsConfig.json));
 the embedding provider
-([`EmbeddingConfig`](../../specs/src/components/schemas/EmbeddingConfig.json):
+([`EmbeddingConfig`](../specs/src/components/schemas/EmbeddingConfig.json):
 its kind, its model and where it is reached, with the name of the variable
 that holds its key, for a provider that takes one); a model for each of its
 two actors, the Matcher and the Gatherer
-([`LibrarianEngineConfig`](../../specs/src/components/schemas/LibrarianEngineConfig.json):
+([`LibrarianEngineConfig`](../specs/src/components/schemas/LibrarianEngineConfig.json):
 its engine, a provider and a model; the address the provider is reached at, and the name
 of the variable that holds its key, for a provider that takes one); the
 settle bound, which is how long a gather of a resource waits for the Smelter,
@@ -102,7 +102,7 @@ The Librarian supplies no value.
   one that, with the 875 milliseconds a gather can wait for the graph
   ([The knowledge graph](#the-knowledge-graph)), is not less than the time
   after which a held job is called stalled**
-  ([`heldJobStallMs`](../../specs/src/client/timing.json)). The refusal names
+  ([`heldJobStallMs`](../specs/src/client/timing.json)). The refusal names
   `gather.settleTimeoutMs`. *Held by `images/librarian/tests/test_config.py` and `librarian/boot`.*
 - **Its service account is `SEMIONT_OIDC_CLIENT_ID` and
   `SEMIONT_OIDC_CLIENT_SECRET` in its environment** ([Environment](#environment)).
@@ -198,7 +198,7 @@ anchored text from the gateway's `GET /resources/{id}/anchored-text`.
 `match:search-requested` asks what a reference could refer to. The request
 carries the reference's resource, the reference, and the gathered context
 around it ([Gathering around an annotation](#gathering-around-an-annotation)).
-[`score-cases.json`](../../specs/src/librarian/score-cases.json) states each
+[`score-cases.json`](../specs/src/librarian/score-cases.json) states each
 search as what every source answers and the candidates that follow, and is the
 rule; this section says it in prose.
 
@@ -314,11 +314,11 @@ A candidate's score is the sum of these terms, added in this order.
 - **The scores are asked for as elements:** an array whose every element
   the model's provider holds to a schema, a candidate's number as
   `candidate` and its score as `score`
-  ([`prompt-cases.json`](../../specs/src/librarian/prompt-cases.json) states
+  ([`prompt-cases.json`](../specs/src/librarian/prompt-cases.json) states
   the schema). No text of a reply is read.
   *Held by `images/librarian/tests/test_prompt_cases.py` and `images/librarian/tests/test_reference_search.py`, and by `librarian/search`, for a request that states a schema.*
 - **An element gives a score, as
-  [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states,**
+  [`reply-cases.json`](../specs/src/librarian/reply-cases.json) states,**
   when its `candidate` is the whole number of a candidate that was shown and
   its `score` is a number from 0 to 1. Every other element gives nothing,
   and is no error: a provider holds a reply to a shape, and not to these.
@@ -335,7 +335,7 @@ A candidate's score is the sum of these terms, added in this order.
 `match:resources-requested` asks which resources a text finds. The request
 carries the text, and may carry `archived`, one `entityType`, an `offset` and
 a `limit`.
-[`search-cases.json`](../../specs/src/librarian/search-cases.json) states each
+[`search-cases.json`](../specs/src/librarian/search-cases.json) states each
 search as what each store answers and the page that follows, and is the rule.
 
 - **The text is searched without the white space before and after it, which
@@ -411,7 +411,7 @@ search as what each store answers and the page that follows, and is the rule.
 
 Both gathers build the graph around one resource, from the graph database and
 the views, to a depth.
-[`knowledge-graph-cases.json`](../../specs/src/librarian/knowledge-graph-cases.json)
+[`knowledge-graph-cases.json`](../specs/src/librarian/knowledge-graph-cases.json)
 states each build as what the stores answer and the graph that follows, or the
 failure, and is the rule.
 
@@ -481,7 +481,7 @@ failure, and is the rule.
 
 ### The lists read off a graph
 
-[`derive-views-cases.json`](../../specs/src/librarian/derive-views-cases.json)
+[`derive-views-cases.json`](../specs/src/librarian/derive-views-cases.json)
 states what is read off a knowledge graph for a main resource: what it is
 connected to, what cites it, and the entity types of the other annotations on
 it. The reference search reads the first two from the context it is given,
@@ -584,17 +584,17 @@ order of the rules below.
   its media type says its bytes are its text; its anchored text, read from
   the gateway, where its text is derived; and nothing where the media type
   has no text**
-  ([`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)).
+  ([`protocol/specs/src/media-types/registry.json`](../specs/src/media-types/registry.json)).
   A read of bytes that fails fails the gather.
   *Held by `images/librarian/tests/test_resource_text.py`, and by `librarian/gather`, for a text and for a PDF.*
 - **The cut is the selection, and `contextWindow` of text before it and after
   it, counted in Unicode code points,** as
-  [`window-cases.json`](../../specs/src/librarian/window-cases.json) states.
+  [`window-cases.json`](../specs/src/librarian/window-cases.json) states.
   The selection is where the target's first position selector says, wherever
   among its selectors that is: from its `start` to its `end`. A target with
   none is placed by its first quote selector, whose `exact` words are found
   in the text as every SDK finds a quote
-  ([`reconcile-cases.json`](../../specs/src/annotations/reconcile-cases.json)):
+  ([`reconcile-cases.json`](../specs/src/annotations/reconcile-cases.json)):
   where the text has them more than once, at the place the selector's
   `prefix` and `suffix` fit; and where it does not have them as written,
   where a looser search finds them. Words the text has nowhere, a target
@@ -676,7 +676,7 @@ order of the rules below.
   Where `includeSummary` is false the model is asked nothing.
   *Held by `images/librarian/tests/test_resource_gather.py` and `librarian/gather`.*
 - **The suggestions are asked for as elements, and read as
-  [`reply-cases.json`](../../specs/src/librarian/reply-cases.json) states:**
+  [`reply-cases.json`](../specs/src/librarian/reply-cases.json) states:**
   an array whose every element the provider holds to a schema, one
   suggestion as `suggestion`. The first three that have anything in them
   are read, each without the white space at its two ends. A reply that gives
@@ -725,7 +725,7 @@ order of the rules below.
 - **The text is cut around what the annotation selects, 200 code points on
   each side,** by the rule a gather places an annotation by
   ([Gathering around an annotation](#gathering-around-an-annotation)), as
-  [`window-cases.json`](../../specs/src/librarian/window-cases.json) states.
+  [`window-cases.json`](../specs/src/librarian/window-cases.json) states.
   *Held by `images/librarian/tests/test_window_cases.py`.*
 - **The Gatherer's model is asked for the summary** (the annotation-summary
   prompt). A model that fails fails the request.
@@ -788,7 +788,7 @@ projection, and answers the profiles of the principals a reader names
   `name` set to the name stated there, in place of any it carried. A
   principal whose `@id` the projection does not hold is left as it is,
   whatever text the `@id` is. Nothing else of the reply changes, as
-  [`naming-cases.json`](../../specs/src/principals/naming-cases.json) states.
+  [`naming-cases.json`](../specs/src/principals/naming-cases.json) states.
   *Held by `images/librarian/tests/test_naming_cases.py` and `images/librarian/tests/test_reference_search.py`, and by `librarian/search`, for a text search's lexical page, its semantic one, and a candidate of a reference.*
 - **The principals are asked for once for each reply, by the DIDs it
   mentions,** and a reply that mentions no one asks nothing. A principal the
@@ -880,7 +880,7 @@ In every row, a vector index with no such collection fails the request.
 ## The prompts
 
 A Librarian sends a model five prompts.
-[`prompt-cases.json`](../../specs/src/librarian/prompt-cases.json) states what
+[`prompt-cases.json`](../specs/src/librarian/prompt-cases.json) states what
 each is made from and its text to the last character, and is the rule. Two
 of them, `score` and `reference-suggestions`, are asked for elements, an
 array a provider holds to a schema the table states; the other three are
@@ -999,9 +999,9 @@ requests; opens its health port.
 
 - **A Librarian started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
   `semiont-librarian`, exactly what
-  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  [`protocol/specs/src/service-telemetry/telemetry.json`](../specs/src/service-telemetry/telemetry.json)
   lists for the librarian, and the rows of
-  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  [`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json)
   the first names for it under `sdk`.** Those are what every service says of
   its own process (when it started, how late its loop runs, its memory); a
   span for each frame it sends and each it receives on the bus, and a count

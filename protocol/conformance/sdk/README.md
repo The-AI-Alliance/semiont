@@ -37,7 +37,7 @@ fails a client that:
   every stream as the gateway wrote it, so what a driver says it delivered is
   held to what it was sent, not believed;
 - reports a failure with no code, or with one
-  [`specs/src/errors/codes.json`](../../../specs/src/errors/codes.json) does
+  [`protocol/specs/src/errors/codes.json`](../../specs/src/errors/codes.json) does
   not list;
 - reports anything on its error stream that the case does not expect;
 - settles an operation twice.
@@ -90,10 +90,10 @@ concurrently; each is answered once, whenever it settles, by one of:
 | `{"id": 7, "unsupported": true}` | this driver has no such operation. It says so at once, before it reads its next operation |
 | `{"id": 7, "misuse": "..."}` | the suite's arguments made no sense: the suite's mistake, never the SDK's |
 
-A failure's `code` is the SDK's own, from `specs/src/errors/codes.json`.
+A failure's `code` is the SDK's own, from `protocol/specs/src/errors/codes.json`.
 `status` is the HTTP status when a server stated one, and absent otherwise.
 `failureClass` is a job failure's class
-([`FailureClass`](../../../specs/src/components/schemas/FailureClass.json))
+([`FailureClass`](../../specs/src/components/schemas/FailureClass.json))
 when it has one, and absent otherwise.
 `detail` is the SDK's words, for a person; nothing compares it.
 
@@ -159,7 +159,7 @@ A `query` names what is observed: `{"query": "resource", "resource": id}`,
 and likewise `annotations`, `events`, `referencedBy`; `annotation` with
 `resource` and `annotation`; `resources` with optional `filters`;
 `matchedResources` with `search` and optional `filters`; `entityTypes`;
-`tagSchemas`; `engines`. Each is a query of specs/src/client/refresh.json, by
+`tagSchemas`; `engines`. Each is a query of protocol/specs/src/client/refresh.json, by
 its name there.
 
 A job's follower is reported as an observer is: each event it is given is a
@@ -189,7 +189,7 @@ Its `timing` overrides `busRequestTimeoutMs`, `invalidationWindowMs`,
 `lazyRemoveMs` and `lingerMs`.
 
 `open`'s `timing` overrides entries of
-[`specs/src/client/timing.json`](../../../specs/src/client/timing.json) by
+[`protocol/specs/src/client/timing.json`](../../specs/src/client/timing.json) by
 name, so a case does not wait out a production delay. The wire cases override
 `reconnectMs`, `lazyRemoveMs`, `lingerMs` and `emitRetry`; a driver must honour
 all four, and answers `misuse` to a name it cannot override.
@@ -216,7 +216,7 @@ format and runs them with this runner, adding four steps of its own.
 `planes` is given only when the case holds on one signal plane; absent, it
 runs on both. `telemetry` runs the client exporting to a receiver, and once
 the driver has exited holds what it exported to
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json):
 every row arrived, of its kind, with every attribute not marked `only`, and
 whatever arrived under a row's name carries only that row's attributes. What
 no row names is the driver's process, not the SDK, and is not judged. [case.schema.json](case.schema.json) is the format, and every
@@ -317,7 +317,7 @@ no other.
 
 ## Cases built from a table
 
-[`specs/src/client/refresh.json`](../../../specs/src/client/refresh.json)
+[`protocol/specs/src/client/refresh.json`](../../specs/src/client/refresh.json)
 says what each event on the bus, and the reopening of a dropped stream, does
 to a client's cache. [refresh-cases.ts](refresh-cases.ts) builds a live case
 from each row, named `refresh-<trigger>`, and `live.test.ts` runs them beside

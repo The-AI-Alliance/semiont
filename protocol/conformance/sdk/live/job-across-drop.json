@@ -1,6 +1,6 @@
 {
   "about": "a job's end reaches the client that follows it as a passing frame, which a dropped stream loses: the follower, hearing nothing for jobSilenceMs, asks for the job's status and reports the end it was not sent",
-  "source": "specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/contract/JOBS.md § job:status-requested",
+  "source": "protocol/specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/contract/JOBS.md § job:status-requested",
   "tier": "parity",
   "steps": [
     {"backend": "listen", "with": {"channels": ["job:create", "job:status-requested"]}},

@@ -1,6 +1,6 @@
 """What the worker reads of a media type for itself, held to the registry of the media types a knowledge base admits.
 
-The registry is `specs/src/media-types/registry.json`, and the SDK's table of
+The registry is `protocol/specs/src/media-types/registry.json`, and the SDK's table of
 it carries whether a type can be generated. The worker reads that from the
 table, so what it lists is held here to the registry itself. Where a type's
 text comes from is the SDK's rule, and the SDK's tests hold it.

@@ -4,7 +4,7 @@ The check that a reply was not cut off; the cursor a piece leaves; and what a
 descent tells as it goes: its caller of each count and each piece kept though
 under-reported, whoever reads the service's log, and OpenTelemetry of every
 call it makes (the `semiont.detection.call*` rows of
-`specs/src/service-telemetry/telemetry.json`).
+`protocol/specs/src/service-telemetry/telemetry.json`).
 """
 
 import asyncio

@@ -10,7 +10,7 @@
  *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md, WORKER-SERVICE.md, WEAVER.md,
  *   SMELTER.md, LIBRARIAN.md and W3C-SELECTORS.md names cases
  *   that exist: `sdk/wire/<case>`, `sdk/live/<case>` (a file, or a case built
- *   from a row of specs/src/client/refresh.json), `worker/<case>`,
+ *   from a row of protocol/specs/src/client/refresh.json), `worker/<case>`,
  *   `worker-service/<case>`, `weaver/<case>`, `smelter/<case>`,
  *   `librarian/<case>`,
  *   `gateway/<file>`, `dispatcher/<file>`, or a path
@@ -61,7 +61,7 @@ const worker = jsonIn(WORKER);
 const serviceCases = new Map(
   SERVICE_SUITES.map((suite) => [suite.token, readdirSync(join(ROOT, suite.dir)).filter((f) => f.endsWith('.test.ts')).map((f) => f.slice(0, -'.test.ts'.length))]),
 );
-const built = JSON.parse(read('specs/src/client/refresh.json')).refresh.map(
+const built = JSON.parse(read('protocol/specs/src/client/refresh.json')).refresh.map(
   (row) => `refresh-${row.on.replaceAll(':', '-')}${row.when === undefined ? '' : `-${row.when}`}`,
 );
 
@@ -147,7 +147,7 @@ const sectionsCited = (said, doc, where, what) => {
   }
   return cited;
 };
-const timing = new Set(JSON.parse(read('specs/src/client/timing.json')).timing.map((entry) => entry.name));
+const timing = new Set(JSON.parse(read('protocol/specs/src/client/timing.json')).timing.map((entry) => entry.name));
 
 /** Each corpus: where its cases are, the token a rule names one by, and whether a case and a rule must point at each other. */
 const CORPORA = [
@@ -176,9 +176,9 @@ for (const corpus of CORPORA) {
         for (const [, clause] of said.matchAll(/\b(B\d+[a-z]?)\b/g)) {
           if (!headingsOf(path).some((heading) => heading.startsWith(`${clause} —`))) failures.push(`${where}: its source names ${path} ${clause}, which is not a clause there`);
         }
-      } else if (path === 'specs/src/client/timing.json') {
+      } else if (path === 'protocol/specs/src/client/timing.json') {
         for (const entry of said.split(',').map((s) => s.trim()).filter(Boolean)) {
-          if (!timing.has(entry)) failures.push(`${where}: its source names ${entry}, which specs/src/client/timing.json does not have`);
+          if (!timing.has(entry)) failures.push(`${where}: its source names ${entry}, which protocol/specs/src/client/timing.json does not have`);
         }
       }
     }

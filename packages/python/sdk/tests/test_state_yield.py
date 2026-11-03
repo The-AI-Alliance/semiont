@@ -1,4 +1,4 @@
-"""The yield unit: what its cases in `specs/src/client/state-units.json` cannot state.
+"""The yield unit: what its cases in `protocol/specs/src/client/state-units.json` cannot state.
 
 Its behaviour is the table's, run by `tests/test_state_cases.py`. Here are the
 axioms, and the gate that holds what `generate` takes after its parameters to

@@ -1,4 +1,4 @@
-//! What keeps a client's queries true: specs/src/client/refresh.json
+//! What keeps a client's queries true: protocol/specs/src/client/refresh.json
 //! (`crate::refresh`), applied to the caches of the namespaces that hold
 //! queries. Each event on the bus, and the reopening of a dropped stream,
 //! asks again for the queries its row names, writes the ones whose new value

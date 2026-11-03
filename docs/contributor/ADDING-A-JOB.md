@@ -12,11 +12,11 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 
 | | Step | Where | What fails when it is left out |
 |---|---|---|---|
-| 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `protocol/conformance/worker-service/telemetry.test.ts` |
+| 1 | [State the job](#1-state-the-job-in-the-spec) | `protocol/specs/src/components/schemas`, `protocol/specs/src/openapi.json`, `protocol/specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `protocol/conformance/worker-service/telemetry.test.ts` |
 | 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/typescript/core`, `packages/go/sdk`, `packages/python/sdk` | CI's `generated-artifacts` job |
 | 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `protocol/conformance/dispatcher/create.test.ts` |
 | 4 | [Do it](#4-do-it-the-worker) | `images/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `images/worker` |
-| 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
+| 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `protocol/specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
 | 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `protocol/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
 | 7 | [Write the rule](#7-write-the-rule) | `protocol/contract/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
 | 8 | [Give it an engine](#8-give-it-an-engine) | a knowledge base's Inference document; nothing in the launcher | `TestEveryEngineJobHasAFilter`, in `packages/go/launcher` |
@@ -26,24 +26,24 @@ The numbers are the order the change reaches each part, and not the order to wri
 
 ## 1. State the job in the spec
 
-A job description is the spec's, so the job starts there, in [`specs/src/components/schemas`](../../specs/src/components/schemas):
+A job description is the spec's, so the job starts there, in [`protocol/specs/src/components/schemas`](../../protocol/specs/src/components/schemas):
 
-- [`Motivation.json`](../../specs/src/components/schemas/Motivation.json) lists the motivation.
-- A schema states what the job takes, beside the other five, as [`TaggingJobParams.json`](../../specs/src/components/schemas/TaggingJobParams.json) does: closed, with `motivation` required and of its one value.
-- [`MarkJobParams.json`](../../specs/src/components/schemas/MarkJobParams.json) gains it as a member and in its mapping, and [`specs/src/openapi.json`](../../specs/src/openapi.json) names it among its `components.schemas`.
-- [`ArchivistEngines.json`](../../specs/src/components/schemas/ArchivistEngines.json) gains the motivation under `jobs.mark`, so that a knowledge base can say which engine software does the job with.
+- [`Motivation.json`](../../protocol/specs/src/components/schemas/Motivation.json) lists the motivation.
+- A schema states what the job takes, beside the other five, as [`TaggingJobParams.json`](../../protocol/specs/src/components/schemas/TaggingJobParams.json) does: closed, with `motivation` required and of its one value.
+- [`MarkJobParams.json`](../../protocol/specs/src/components/schemas/MarkJobParams.json) gains it as a member and in its mapping, and [`protocol/specs/src/openapi.json`](../../protocol/specs/src/openapi.json) names it among its `components.schemas`.
+- [`ArchivistEngines.json`](../../protocol/specs/src/components/schemas/ArchivistEngines.json) gains the motivation under `jobs.mark`, so that a knowledge base can say which engine software does the job with.
 
 `npm run lint:spec-jobs` holds `MarkJobParams` to `Motivation`: its members are the schemas its mapping names, the mapping names one for each motivation and for nothing else, each member's `motivation` is the one value that selects it, and each member is closed. `npm run lint:spec-archivist` holds the engines' motivations to the same list. A step left out fails one of the two.
 
 What the job needs no schema of its own for:
 
-- **A result.** Every `mark` job completes with a [`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json): its counts ([`MarkJobDone`](../../specs/src/components/schemas/MarkJobDone.json)) or a decline. A count only one job has is an optional member of the counts, as tagging's `byCategory` is.
-- **Progress.** Every job reports one shape, [`JobProgress`](../../specs/src/components/schemas/JobProgress.json), whose `message` is a code with its values and never a sentence ([`JobProgressMessage`](../../specs/src/components/schemas/JobProgressMessage.json)). A job's last report, `complete-created`, states its motivation. A code of the job's own, as tagging's `analyzing-tags` and `creating-tag-annotations` are, is a member added to that union, and words for it in each client ([step 9](#9-word-it-in-each-client)).
-- **A filter.** A claim names `mark` jobs by motivation ([`MarkJobFilter`](../../specs/src/components/schemas/MarkJobFilter.json)), and the motivation there is `Motivation`.
+- **A result.** Every `mark` job completes with a [`MarkJobResult`](../../protocol/specs/src/components/schemas/MarkJobResult.json): its counts ([`MarkJobDone`](../../protocol/specs/src/components/schemas/MarkJobDone.json)) or a decline. A count only one job has is an optional member of the counts, as tagging's `byCategory` is.
+- **Progress.** Every job reports one shape, [`JobProgress`](../../protocol/specs/src/components/schemas/JobProgress.json), whose `message` is a code with its values and never a sentence ([`JobProgressMessage`](../../protocol/specs/src/components/schemas/JobProgressMessage.json)). A job's last report, `complete-created`, states its motivation. A code of the job's own, as tagging's `analyzing-tags` and `creating-tag-annotations` are, is a member added to that union, and words for it in each client ([step 9](#9-word-it-in-each-client)).
+- **A filter.** A claim names `mark` jobs by motivation ([`MarkJobFilter`](../../protocol/specs/src/components/schemas/MarkJobFilter.json)), and the motivation there is `Motivation`.
 
-What the dispatcher adds to a job it hands over is stated in [`JobParams.json`](../../specs/src/components/schemas/JobParams.json): the job's `resourceId`, and for a tagging job `schema`, the tag schema its `schemaId` names. Something added for the new job is a property there.
+What the dispatcher adds to a job it hands over is stated in [`JobParams.json`](../../protocol/specs/src/components/schemas/JobParams.json): the job's `resourceId`, and for a tagging job `schema`, the tag schema its `schemaId` names. Something added for the new job is a property there.
 
-The worker's telemetry is the spec's too. [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json) lists the values of `job.motivation` on the worker's three rows of a job, and of `detection.label` on its rows of a detection, where the label is the worker's own word for the kind (`tag`). The Worker service's suite holds the first to `MarkJobParams` (`telemetry.test.ts`), and the worker's tests the second to the labels its code has (`images/worker/tests/test_chunk_plan.py`).
+The worker's telemetry is the spec's too. [`protocol/specs/src/service-telemetry/telemetry.json`](../../protocol/specs/src/service-telemetry/telemetry.json) lists the values of `job.motivation` on the worker's three rows of a job, and of `detection.label` on its rows of a detection, where the label is the worker's own word for the kind (`tag`). The Worker service's suite holds the first to `MarkJobParams` (`telemetry.test.ts`), and the worker's tests the second to the labels its code has (`images/worker/tests/test_chunk_plan.py`).
 
 ## 2. Regenerate the types
 
@@ -54,8 +54,8 @@ No language's types of the protocol are written by hand. The spec is bundled fir
 | TypeScript | `npm run generate:openapi --workspace=@semiont/core`, then `npm run build --workspace=@semiont/core` | `@semiont/core`'s types, and with the build `MARK_MOTIVATIONS`, the list a client words its copy by |
 | Go | `go generate ./...` in `packages/go/sdk` | [`api/client_gen.go`](../../packages/go/sdk/api/client_gen.go), which is committed |
 | Python | `uv run --project packages/python/sdk --locked python packages/python/sdk/scripts/generate_models.py` | [`types.py`](../../packages/python/sdk/src/semiont/types.py), which is committed |
-| Rust | nothing to run | `semiont::types`, made from `specs/src` by the SDK's build script when the crate is built |
-| Kotlin | nothing to run | `semiont.types`, made from `specs/src` by the SDK's Gradle build before every compile |
+| Rust | nothing to run | `semiont::types`, made from `protocol/specs/src` by the SDK's build script when the crate is built |
+| Kotlin | nothing to run | `semiont.types`, made from `protocol/specs/src` by the SDK's Gradle build before every compile |
 
 CI's `generated-artifacts` job fails on a committed file that is not what the spec generates ([Testing](TESTING.md#continuous-integration)).
 
@@ -94,7 +94,7 @@ There is no class for a kind of job, and nothing to register. A new `mark` job i
 A processor reads nothing and sends nothing itself. It is handed the text, a provider, the job's description, and what it needs of whoever holds the job, and every processor keeps to the same few things:
 
 - **It commits a piece at a time, and never answers annotations for someone else to write.** Each piece's annotations go to `on_chunk_complete` with the cursor that piece leaves its unit at. That call is awaited, and nothing of the piece is counted until it returns, so a cursor never states more than the record holds and a later attempt takes the unit up where it stood.
-- **It builds an annotation only with `build_annotation`.** The builder it is handed knows the resource, the agent, and how a span is anchored for the resource's media type, and refuses a span that is not the text's. The body is the processor's to give, one body or a list of them, as the spec states one ([`AnnotationBodies`](../../specs/src/components/schemas/AnnotationBodies.json)). An annotation's `id` is worked out from what it is, so the same span found twice is one annotation.
+- **It builds an annotation only with `build_annotation`.** The builder it is handed knows the resource, the agent, and how a span is anchored for the resource's media type, and refuses a span that is not the text's. The body is the processor's to give, one body or a list of them, as the spec states one ([`AnnotationBodies`](../../protocol/specs/src/components/schemas/AnnotationBodies.json)). An annotation's `id` is worked out from what it is, so the same span found twice is one annotation.
 - **It names its units.** A unit is the grain a job checkpoints at: the job's motivation for a job of one unit, an entity type for linking, a category for tagging. Its counts begin at the cursor the job was claimed with, so a resumed job's result is the whole text's.
 - **It stops for a cancellation after the piece it is on,** answers the units it had finished, and reports nothing more.
 - **It reports with `on_progress`,** which is not awaited: a percentage and a code. What describes the whole job is said again in every report, because whoever follows a job holds only the last one.
@@ -105,9 +105,9 @@ A processor is tested with no bus, no session and no queue: `images/worker/tests
 
 ## 5. State how its reply is read
 
-What a worker does to a text and to a model's reply is stated in tables every worker runs, in whatever language it is written. A new `mark` job adds its cases to [`specs/src/worker/parser-cases.json`](../../specs/src/worker/parser-cases.json): for one reply to one piece, what is read of it, what is passed over, and what is refused. Its runner, `images/worker/tests/test_parser_cases.py`, reads a case by its `motivation` and fails on one it cannot read.
+What a worker does to a text and to a model's reply is stated in tables every worker runs, in whatever language it is written. A new `mark` job adds its cases to [`protocol/specs/src/worker/parser-cases.json`](../../protocol/specs/src/worker/parser-cases.json): for one reply to one piece, what is read of it, what is passed over, and what is refused. Its runner, `images/worker/tests/test_parser_cases.py`, reads a case by its `motivation` and fails on one it cannot read.
 
-The tables beside it hold what every kind shares, and a new kind adds to one only where it changes the rule: where a text is cut ([`chunk-cases.json`](../../specs/src/text/chunk-cases.json)), how its pieces are planned ([`chunk-plan-cases.json`](../../specs/src/worker/chunk-plan-cases.json)), and how a failure is classed ([`failure-class-cases.json`](../../specs/src/worker/failure-class-cases.json)).
+The tables beside it hold what every kind shares, and a new kind adds to one only where it changes the rule: where a text is cut ([`chunk-cases.json`](../../protocol/specs/src/text/chunk-cases.json)), how its pieces are planned ([`chunk-plan-cases.json`](../../protocol/specs/src/worker/chunk-plan-cases.json)), and how a failure is classed ([`failure-class-cases.json`](../../protocol/specs/src/worker/failure-class-cases.json)).
 
 `npm run lint:spec-case-tables` fails on a table whose runner does not name it, and on a `*-cases.json` file added beside these that the gate does not list.
 
@@ -138,7 +138,7 @@ Three other documents say something of each kind of job: [JOBS.md § `job:create
 
 A knowledge base's Inference document says which engine, a provider and a model, software does a job with, in its `engines`, keyed as a job is described ([Configuration § Inference](../operator/administration/CONFIGURATION.md#inference)): a `mark` job of a motivation is done with `jobs.mark.<motivation>`, and a `yield` job with `jobs.yield`. A job with no engine there is done by no software worker. Which principal does a job is not configured: whoever holds the worker role and claims it.
 
-A Worker service reads no document of a knowledge base. The launcher writes the engines, as the Inference document states them, into two documents: the Archivist's, which answers the knowledge base's engines, and the worker's ([`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json)), in which each engine's `jobs` are the filters of the jobs the worker does with it. The worker claims with those filters and no other.
+A Worker service reads no document of a knowledge base. The launcher writes the engines, as the Inference document states them, into two documents: the Archivist's, which answers the knowledge base's engines, and the worker's ([`WorkerConfig`](../../protocol/specs/src/components/schemas/WorkerConfig.json)), in which each engine's `jobs` are the filters of the jobs the worker does with it. The worker claims with those filters and no other.
 
 Nothing in the launcher is written for a new motivation. The filters it writes are derived from the generated engines ([`archivistdoc.go`](../../packages/go/launcher/archivistdoc.go), [`workerdoc.go`](../../packages/go/launcher/workerdoc.go)), so they follow step 1's engines and step 2's `client_gen.go`. `TestEveryEngineJobHasAFilter` holds that every job the engines have is given a filter that names it.
 
@@ -155,16 +155,16 @@ A new progress code is words in both: the launcher's `progressText` ([`job.go`](
 
 ## A job of another verb
 
-A job of a verb that has none today is a new value of [`JobType.json`](../../specs/src/components/schemas/JobType.json), and more of the spec is told apart by that value. `npm run lint:spec-jobs` holds each of these to it:
+A job of a verb that has none today is a new value of [`JobType.json`](../../protocol/specs/src/components/schemas/JobType.json), and more of the spec is told apart by that value. `npm run lint:spec-jobs` holds each of these to it:
 
-- [`JobCreateCommand`](../../specs/src/components/schemas/JobCreateCommand.json), the description a job is asked for with;
-- [`JobQueuedEvent`](../../specs/src/components/schemas/JobQueuedEvent.json), the announcement, which carries the description less the job's input;
-- [`JobFilter`](../../specs/src/components/schemas/JobFilter.json), by which a claim names the verb's jobs;
-- [`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json), which carries the verb's result. The results every verb reports are together [`JobResult`](../../specs/src/components/schemas/JobResult.json), each closed, with no member that says which it is and no required member in common with another.
+- [`JobCreateCommand`](../../protocol/specs/src/components/schemas/JobCreateCommand.json), the description a job is asked for with;
+- [`JobQueuedEvent`](../../protocol/specs/src/components/schemas/JobQueuedEvent.json), the announcement, which carries the description less the job's input;
+- [`JobFilter`](../../protocol/specs/src/components/schemas/JobFilter.json), by which a claim names the verb's jobs;
+- [`JobCompleteCommand`](../../protocol/specs/src/components/schemas/JobCompleteCommand.json), which carries the verb's result. The results every verb reports are together [`JobResult`](../../protocol/specs/src/components/schemas/JobResult.json), each closed, with no member that says which it is and no required member in common with another.
 
 `npm run lint:spec-archivist` holds the engines' job types to `JobType`, so `ArchivistEngines` gains the verb under `jobs`. The dispatcher's admission says what resource the job is recorded under and what its retry budget is.
 
-A verb's job is also written into each SDK, where a motivation's is not. The claiming of the TypeScript, the Rust, the Python and the Kotlin SDK hands a worker a held job of its verb, which completes with that verb's result (`claims.ts`, `claims.rs`, `claims.py`, `Claims.kt`), and the verb's namespace has the `delegate` that asks for the job and follows it. [`specs/src/client/surface.json`](../../specs/src/client/surface.json) states the method, and `npm run lint:client-surface` holds each SDK to it.
+A verb's job is also written into each SDK, where a motivation's is not. The claiming of the TypeScript, the Rust, the Python and the Kotlin SDK hands a worker a held job of its verb, which completes with that verb's result (`claims.ts`, `claims.rs`, `claims.py`, `Claims.kt`), and the verb's namespace has the `delegate` that asks for the job and follows it. [`protocol/specs/src/client/surface.json`](../../protocol/specs/src/client/surface.json) states the method, and `npm run lint:client-surface` holds each SDK to it.
 
 The rest is the path above: the worker's processor and its branch, the suite's file, the rules, the job's engine (`spec.engines.jobs.<jobType>` in an Inference document) and each client's words.
 

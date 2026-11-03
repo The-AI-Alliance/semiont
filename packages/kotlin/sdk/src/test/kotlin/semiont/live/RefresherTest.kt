@@ -78,7 +78,7 @@ private suspend fun watched(world: KbWorld, queries: List<Cached<*>>): List<Watc
 }
 
 /**
- * What keeps a client's queries true: each row of specs/src/client/refresh.json,
+ * What keeps a client's queries true: each row of protocol/specs/src/client/refresh.json,
  * and the rules every row is applied under. Each runs on a clock only the test
  * moves: when one of its waits ends, everything due by then has run.
  */

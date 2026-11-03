@@ -6,7 +6,7 @@
 //! without regard to letter case, and by edit distance within an allowance.
 //! A place found in any of these ways is a span of the text itself, and so
 //! is the context taken around it. `reconcile` is what chooses among the
-//! places, and specs/src/annotations/reconcile-cases.json holds the rule
+//! places, and protocol/specs/src/annotations/reconcile-cases.json holds the rule
 //! through it.
 //!
 //! Every position and every length here counts Unicode code points.

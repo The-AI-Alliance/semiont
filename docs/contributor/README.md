@@ -26,7 +26,7 @@ To run tools directly on your machine instead, the versions are:
 
 ## Toolchains, one spec
 
-The repository holds code in seven languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
+The repository holds code in seven languages, and none of them depends on another. What they agree on is in `protocol/specs/`, and each generates its types from it.
 
 - **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `docs/checks/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
 - **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
@@ -42,7 +42,7 @@ The repository holds code in seven languages, and none of them depends on anothe
 
 ```text
 semiont/
-├── specs/                  # The spec every implementation is built against
+├── protocol/specs/                  # The spec every implementation is built against
 │   └── src/                #   OpenAPI paths and schemas, the bus registry, and the
 │                           #   shared case tables (principals, retry, media types, …)
 ├── images/
@@ -60,7 +60,7 @@ semiont/
 │   ├── desktop/            # Native chat client (Electron)
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
-│   ├── codegen/            # Shared bus and schema generators; specs/ holds their inputs
+│   ├── codegen/            # Shared bus and schema generators; protocol/specs/ holds their inputs
 │   ├── conformance/        # Independent shared black-box service and SDK suites
 │   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
 │   │   ├── core/           # Generated types, typed ids, the bus protocol

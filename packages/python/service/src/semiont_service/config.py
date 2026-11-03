@@ -105,7 +105,7 @@ def read_config[C: WireModel](service: str, shape: type[C], path: str) -> C:
     except OSError as unread:
         raise Refused(
             f"Cannot read the {service}'s configuration document at {path} ({unread}). "
-            f"The launcher writes it; a {service} started another way is given one ({shape.__name__} in specs/)."
+            f"The launcher writes it; a {service} started another way is given one ({shape.__name__} in protocol/specs/)."
         ) from unread
     try:
         return shape.model_validate_json(written, strict=True, by_alias=True, by_name=False)

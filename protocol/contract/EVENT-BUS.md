@@ -9,7 +9,7 @@ If you only want to *use* the protocol from a script, you don't need this doc �
 - Debugging a bus-mediated round-trip with the [bus log](../../images/e2e/docs/bus-logging.md)
 - Adding a new channel to the EventMap
 
-The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go and Rust equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
+The authority is **[`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json)**; [`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go and Rust equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
 
 ## What rides the bus, and the six things that deliberately do not
 
@@ -34,7 +34,7 @@ not an oversight.
 API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.
 
 What may live on the Archivist's HTTP surface at all is stated once, in
-[the Archivist's API](../../specs/src/archivist/README.md): its own OpenAPI document, which the
+[the Archivist's API](../specs/src/archivist/README.md): its own OpenAPI document, which the
 Archivist and the gateway are each held to. This
 table is the system-level view; that document is the gate.
 
@@ -80,7 +80,7 @@ Each channel falls into one of five payload categories. The category tells you w
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:requested` |
 | **SSE infrastructure** | OpenAPI schema | no | no | `bus:resume-gap` |
 
-`CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, inline wrapper types such as `{ response: T }`). The gateway's `/bus/emit` route validates against the same registry entries and rejects payloads that don't validate.
+`CHANNEL_SCHEMAS` — declared in [the registry](../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, inline wrapper types such as `{ response: T }`). The gateway's `/bus/emit` route validates against the same registry entries and rejects payloads that don't validate.
 
 ### Wire unions discriminate
 
@@ -174,7 +174,7 @@ Two declarations make this work, and together they rule out a whole bug class (a
 
 ## Trace context on a relayed frame
 
-Distributed traces ride on a relayed frame's payload, in the field the bus registry names: `trace` in [`specs/src/bus/registry.json`](../../specs/src/bus/registry.json) states the field and what it carries, and the gateway and every SDK are generated from it. It carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
+Distributed traces ride on a relayed frame's payload, in the field the bus registry names: `trace` in [`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json) states the field and what it carries, and the gateway and every SDK are generated from it. It carries the W3C `traceparent` (and optional `tracestate`) so spans started by handlers become children of the originating span:
 
 ```ts
 interface TraceCarrier {
@@ -262,7 +262,7 @@ With the bus log switched on, every cross-transport event prints one grep-friend
 
 A line is the operation, the channel (`content` for an upload or a read of content), and then `scope=` (the resource a frame is about), `cid=` (the first eight characters of the correlation id) and `trace=` (the first eight of the active trace's id), each written only where there is one. The payload is the last thing on it.
 
-**No line holds a credential.** Every bus log writes the value of a member whose whole name is one a credential goes by as `[withheld]`, wherever in a payload the member is and whatever its value is. The names are a short list, the `names` of [`specs/src/bus/log-cases.json`](../../specs/src/bus/log-cases.json). One is `token`, which is what the bus's own payloads name the one credential they declare: the token a resource is cloned by (`yield:clone-resource-requested`, `yield:clone-create`, and the `response` of `yield:clone-token-generated`). The rest are the names a credential has elsewhere (`password`, `apiKey`, `refreshToken` and `authorization` among them): some payloads take any member, and a credential put in one is withheld under such a name too. A name is matched whole and in the same case, so a member whose name only contains one (`maxTokens`, `apiKeyEnv`) is written as it is, and so is everything else. That table is the rule, and each implementation's tests run it.
+**No line holds a credential.** Every bus log writes the value of a member whose whole name is one a credential goes by as `[withheld]`, wherever in a payload the member is and whatever its value is. The names are a short list, the `names` of [`protocol/specs/src/bus/log-cases.json`](../specs/src/bus/log-cases.json). One is `token`, which is what the bus's own payloads name the one credential they declare: the token a resource is cloned by (`yield:clone-resource-requested`, `yield:clone-create`, and the `response` of `yield:clone-token-generated`). The rest are the names a credential has elsewhere (`password`, `apiKey`, `refreshToken` and `authorization` among them): some payloads take any member, and a credential put in one is withheld under such a name too. A name is matched whole and in the same case, so a member whose name only contains one (`maxTokens`, `apiKeyEnv`) is written as it is, and so is everything else. That table is the rule, and each implementation's tests run it.
 
 Five implementations write the log. Each is switched on for a whole process, and each writes to its own place:
 
@@ -309,7 +309,7 @@ The paths are documented end-to-end (with code shapes and call-site examples) in
 ## The registry is the authority; every language is generated
 
 `bus-protocol.ts` and `bus-operations.ts` are **generated files** — do not edit
-them. The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**:
+them. The authority is **[`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json)**:
 every channel, the payload it carries, and the request/reply operation triples.
 Two generators read it:
 
@@ -323,7 +323,7 @@ Two generators read it:
 ```sh
 npm run generate:bus          # regenerate TypeScript and Go
 npm run generate:bus:check    # verify without writing (what CI runs)
-npm run generate:python       # regenerate every module the Python SDK takes from specs/, these two among them
+npm run generate:python       # regenerate every module the Python SDK takes from protocol/specs/, these two among them
 npm run generate:python:check # verify without writing (what CI runs)
 ```
 
@@ -428,13 +428,13 @@ with the registry, naming the command to run.
 
 The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
-1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload: a `shape` (`schema`, `envelope`, `storedEvent`, `void` or `empty`) and the OpenAPI schema it names (`schema`, or `payload` for a stored event — one that mutates an annotation also takes `"enriched": true`, and one that belongs to no resource `"system": true`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree, and `validate-registry.mjs` refuses a payload stated any other way.
+1. **The registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json)) — add the channel with its payload: a `shape` (`schema`, `envelope`, `storedEvent`, `void` or `empty`) and the OpenAPI schema it names (`schema`, or `payload` for a stored event — one that mutates an annotation also takes `"enriched": true`, and one that belongs to no resource `"system": true`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree, and `validate-registry.mjs` refuses a payload stated any other way.
 2. **The routing**, for SSE delivery: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is declared **`audience: everyone`** in the registry (and one that should reach only viewers of a resource, `audience: scoped`). You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
 
 Then for the OpenAPI schema:
 
-3. Add the schema file to `specs/src/components/schemas/`.
-4. Reference it from the right path file under `specs/src/paths/` (if the channel has an HTTP entry point too).
+3. Add the schema file to `protocol/specs/src/components/schemas/`.
+4. Reference it from the right path file under `protocol/specs/src/paths/` (if the channel has an HTTP entry point too).
 5. Run `npm run generate:openapi --workspace=@semiont/core` to bundle and regenerate types.
 6. Rebuild `@semiont/core`.
 
@@ -451,7 +451,7 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 - **[JOBS.md](./JOBS.md)** — the job protocol: the job record and its states, the `job:*` channels the dispatcher answers, claims, retries, cancellation.
 - **[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees every transport must honor.
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format; the `/bus/emit` and `/bus/subscribe` contract.
-- **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority: channels, payloads, operations.
+- **[`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json)** — the authority: channels, payloads, operations.
 - **[`packages/typescript/core/src/bus-protocol.ts`](../../packages/typescript/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`.
 - **`packages/go/sdk/bus/`** — GENERATED Go channels, each a value typed by its payload, the operations with their replies, and the bridged and scoped lists; `typed.go` holds the types they are values of.
 - **[`packages/typescript/core/src/event-bus.ts`](../../packages/typescript/core/src/event-bus.ts)** — the in-process `EventBus` and `ScopedEventBus` implementation.

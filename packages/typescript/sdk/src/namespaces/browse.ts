@@ -52,7 +52,7 @@ const ENGINES_KEY = '_';
 type EngineLimits = components['schemas']['EngineLimits'];
 
 /**
- * The live queries of specs/src/client/refresh.json this namespace answers.
+ * The live queries of protocol/specs/src/client/refresh.json this namespace answers.
  * `client.ts` holds the namespaces to answering every one between them.
  */
 export const BROWSE_QUERIES = [
@@ -159,7 +159,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     options?: {
       busTimeoutMs?: number;
       /**
-       * B19's window, `invalidationWindowMs` of specs/src/client/timing.json,
+       * B19's window, `invalidationWindowMs` of protocol/specs/src/client/timing.json,
        * for a caller that must not wait it out: a test, or the conformance
        * driver. Absent, the table's value stands.
        */
@@ -585,7 +585,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── What the bus, and the stream itself, do to the cache ────────────────
   //
-  // specs/src/client/refresh.json says what each trigger does; the refresher
+  // protocol/specs/src/client/refresh.json says what each trigger does; the refresher
   // applies its rows to these.
 
   private refreshActs(): Record<BrowseQuery, QueryActs> {

@@ -168,7 +168,7 @@ announceAnnotationCreated(annotation); // 'Highlight created', 'Comment created'
 
 The registry holds every per-motivation fact, but supporting another motivation takes more than a registry entry. It touches:
 
-- `specs/src/components/schemas/Motivation.json` — the `Motivation` enum must admit it (then regenerate the types in `@semiont/core`), and a type guard in `@semiont/core` recognizes it
+- `protocol/specs/src/components/schemas/Motivation.json` — the `Motivation` enum must admit it (then regenerate the types in `@semiont/core`), and a type guard in `@semiont/core` recognizes it
 - [`@semiont/react-ui/src/lib/annotation-registry.ts`](../../../packages/typescript/react-ui/src/lib/annotation-registry.ts) — its annotator
 - `packages/typescript/react-ui/src/types/annotation-props.ts` and `packages/typescript/react-ui/src/lib/annotation-groups.ts` — `AnnotationsCollection` and the grouping that fills it have one bucket per motivation
 - `packages/typescript/react-ui/src/components/resource/panels/UnifiedAnnotationsPanel.tsx` — its tab, and a panel for it

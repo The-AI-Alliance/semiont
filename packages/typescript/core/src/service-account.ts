@@ -147,7 +147,7 @@ export class ServiceToken {
    * answer is an `UnansweredError`.
    *
    * Both requests, the issuer's discovery and the grant, are bounded by
-   * `httpRequestTimeoutMs` (specs/src/client/timing.json): an issuer that
+   * `httpRequestTimeoutMs` (protocol/specs/src/client/timing.json): an issuer that
    * accepts a connection and never answers would otherwise hold a process's
    * start, and every renewal after it, for as long as the process lives. Both
    * are sent with the `fetch` this was made with, or the runtime's own.

@@ -1,7 +1,7 @@
 package annotations_test
 
 // The annotation a worker commits, held to
-// specs/src/annotations/builder-cases.json: the table every SDK's builders
+// protocol/specs/src/annotations/builder-cases.json: the table every SDK's builders
 // run. AnnotationOfSpan runs its `cases`, and AnnotationOfResource its
 // `resources`.
 

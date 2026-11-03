@@ -4,7 +4,7 @@
  * decides): what a text becomes in it when it is recorded, updated, archived
  * and unarchived, and an annotation when it is added, has its body changed
  * and is removed; what each point holds, as
- * specs/src/vectors/payload-cases.json states it; what the Smelter says it
+ * protocol/specs/src/vectors/payload-cases.json states it; what the Smelter says it
  * decided of a resource, and of which bytes; and what it leaves as it was
  * when it cannot read a resource's bytes or have its text embedded. With it,
  * that an event it could not apply does not keep it from the next (§ Order).
@@ -45,7 +45,7 @@ const embeds = (point: Point | undefined, text: string): boolean => point?.vecto
 
 /**
  * A text comfortably longer than two chunks of the default size, 512. A chunk's size counts tokens, and a token is
- * four code points (specs/src/text/chunk-cases.json): two chunks are 4,096 code points, and this is more than 5,600
+ * four code points (protocol/specs/src/text/chunk-cases.json): two chunks are 4,096 code points, and this is more than 5,600
  * whatever it is about. No two of its sentences are the same, so no two of its chunks are.
  */
 const longText = (about: string): string => Array.from({ length: 120 }, (_, n) => `Sentence ${n + 1} of ${about} is one of a hundred and twenty.`).join(' ');

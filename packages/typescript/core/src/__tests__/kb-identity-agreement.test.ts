@@ -1,7 +1,7 @@
 /**
  * A knowledge base's did and resource identifier are computed from its domain
  * the same way in every language: every case of
- * specs/src/kb-identity/cases.json that declares a domain, run through
+ * protocol/specs/src/kb-identity/cases.json that declares a domain, run through
  * `kbDid` and `kbResource`. The launcher runs the whole table in Go
  * (packages/go/launcher/kbidentity_agreement_test.go), reading the
  * domain from the knowledge base's config as well. Together they gate a
@@ -20,7 +20,7 @@ interface IdentityCase {
   resource: string | null;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../specs/src/kb-identity/cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../protocol/specs/src/kb-identity/cases.json');
 const { cases } = JSON.parse(readFileSync(TABLE, 'utf-8')) as { cases: IdentityCase[] };
 
 const declared = cases.flatMap((c) => (c.domain === null ? [] : [{ why: c.why, domain: c.domain, did: c.did, resource: c.resource }]));

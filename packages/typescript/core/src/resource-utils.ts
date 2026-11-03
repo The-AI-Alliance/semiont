@@ -32,7 +32,7 @@ function isRepresentation(value: unknown): value is Representation {
  * undefined for an empty list, or for no resource. A resource that states no
  * `representations`, or one that is neither one representation nor a list of
  * them, is no ResourceDescriptor and is refused, as the Rust and Python SDKs
- * refuse it when they decode it (specs/src/resources/reader-cases.json).
+ * refuse it when they decode it (protocol/specs/src/resources/reader-cases.json).
  */
 export function getPrimaryRepresentation(resource: ResourceDescriptor | undefined): Representation | undefined {
   if (resource === undefined) return undefined;

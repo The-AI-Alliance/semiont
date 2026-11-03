@@ -57,11 +57,11 @@ Each verb's contract is in **[flows/](flows/README.md)**.
 
 ## One authority, generated clients
 
-The bus is not defined in prose. **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, who receives each, and the payload field a relayed frame's trace rides in. [CHANNELS.md](CHANNELS.md) is the readable inventory.
+The bus is not defined in prose. **[`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json)** is the machine-readable authority: every channel, the schema of what it carries, the request and reply channels of every operation, which channels are events of the record, who receives each, and the payload field a relayed frame's trace rides in. [CHANNELS.md](CHANNELS.md) is the readable inventory.
 
 The TypeScript, Rust, Go, Python and Kotlin clients each *generate* their channel tables from that file. Five implementations in five languages derive from one artifact, which is the practical answer to "is this a protocol or just a TypeScript library."
 
-The same holds one level up. **[`specs/src/client/surface.json`](../../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns, and the members of what a worker is handed: its claims, and a job it holds. Every SDK is held to it: a lint checks each SDK's methods and those members against the table, and each SDK's own tests run the table's cases.
+The same holds one level up. **[`protocol/specs/src/client/surface.json`](../specs/src/client/surface.json)** declares every method an SDK gives each verb and the shape of what it returns, and the members of what a worker is handed: its claims, and a job it holds. Every SDK is held to it: a lint checks each SDK's methods and those members against the table, and each SDK's own tests run the table's cases.
 
 ## Speaking the protocol
 
@@ -114,4 +114,4 @@ For product framing and getting a knowledge base running, see the **[project REA
 | [RBAC.md](RBAC.md) | Roles: the one authorization decision, and the two roles that mark services |
 | [W3C-WEB-ANNOTATION.md](W3C-WEB-ANNOTATION.md), [W3C-SELECTORS.md](W3C-SELECTORS.md) | The annotation model, and which selectors apply to which media |
 
-The machine-readable half is [`specs/`](../../specs/README.md): the OpenAPI document, the bus registry, the SDK surface, and the shared case tables every implementation runs.
+The machine-readable half is [`protocol/specs/`](../specs/README.md): the OpenAPI document, the bus registry, the SDK surface, and the shared case tables every implementation runs.

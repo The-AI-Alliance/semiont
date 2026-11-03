@@ -3,7 +3,7 @@
  * attributes of the resource it was exported under, and for each metric the
  * instrument it arrived as, the attributes and values its data points
  * carried and the resources it arrived under, so a case can hold the service
- * to the telemetry the spec lists (specs/src/service-telemetry/telemetry.json,
+ * to the telemetry the spec lists (protocol/specs/src/service-telemetry/telemetry.json,
  * by telemetry.ts). It reads either encoding OTLP/HTTP has, by
  * `Content-Type`, as a collector does.
  */

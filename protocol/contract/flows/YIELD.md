@@ -41,7 +41,7 @@ Each of these is appended to the event log and delivered to clients:
 
 **A generated resource records what it was derived from.** That provenance is part of `yield:created` and is permanent.
 
-**`job:complete` is the outcome, not `yield:create-ok`.** A generation is finished when the job says so. `job:complete` is announced to everyone, after every citation the generation produced has been attached to the new resource. Its result is a `yield` job's ([`YieldJobResult`](../../../specs/src/components/schemas/YieldJobResult.json)): the new resource's id, or a decline. A link built from that id opens a resource whose citations have landed. See [Jobs](../JOBS.md).
+**`job:complete` is the outcome, not `yield:create-ok`.** A generation is finished when the job says so. `job:complete` is announced to everyone, after every citation the generation produced has been attached to the new resource. Its result is a `yield` job's ([`YieldJobResult`](../../specs/src/components/schemas/YieldJobResult.json)): the new resource's id, or a decline. A link built from that id opens a resource whose citations have landed. See [Jobs](../JOBS.md).
 
 **A generation that asks for citations gets annotations, not inline links.** With `cite` set, each claim the model ties to a source becomes a linking annotation on the generated resource, pointing at the passage it came from. A citation of something that was not in the context is dropped.
 
@@ -49,7 +49,7 @@ Each of these is appended to the event log and delivered to clients:
 
 ## Media types
 
-What can be uploaded, authored and generated is declared per media type in [`specs/src/media-types/registry.json`](../../../specs/src/media-types/registry.json). Any listed type can be uploaded. Generation targets the types the registry marks `generatable`. See [Media Types](../../../docs/architecture/MEDIA-TYPES.md).
+What can be uploaded, authored and generated is declared per media type in [`protocol/specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json). Any listed type can be uploaded. Generation targets the types the registry marks `generatable`. See [Media Types](../../../docs/architecture/MEDIA-TYPES.md).
 
 ## Example
 
@@ -81,4 +81,4 @@ From the launcher: `semiont yield --upload <file>`, and `semiont yield --help` f
 - What records the events: [the Archivist](../ARCHIVIST.md), in [images/archivist/src/commands.rs](../../../images/archivist/src/commands.rs)
 - The Worker service, which runs the generation: [images/worker](../../../images/worker/README.md), held to [WORKER-SERVICE.md](../WORKER-SERVICE.md#generation)
 - The launcher verb: [packages/go/launcher/verbs/yield.go](../../../packages/go/launcher/verbs/yield.go)
-- The channels and their payloads: [specs/src/bus/registry.json](../../../specs/src/bus/registry.json)
+- The channels and their payloads: [protocol/specs/src/bus/registry.json](../../specs/src/bus/registry.json)

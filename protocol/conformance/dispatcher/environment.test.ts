@@ -1,5 +1,5 @@
 /**
- * What each variable specs/src/service-environment/variables.json lists for the
+ * What each variable protocol/specs/src/service-environment/variables.json lists for the
  * dispatcher changes, seen from outside. Each case runs a dispatcher world of
  * its own with the environment it is about, and makes the dispatcher answer one
  * request: a `job:status-requested` for a job it does not have. Its service

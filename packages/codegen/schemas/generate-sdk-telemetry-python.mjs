@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generate the Python SDK's telemetry table from
-// specs/src/sdk-telemetry/telemetry.json: every span and metric its transports
+// protocol/specs/src/sdk-telemetry/telemetry.json: every span and metric its transports
 // export, by name, kind and the attributes each carries.
 //
 //   packages/python/sdk/src/semiont/telemetry_table.py
@@ -15,7 +15,7 @@ import { pyBanner, pyComment, pyConstant, pyString } from '../lib/python-source.
 import { CHANNEL, readSdkTelemetry } from './sdk-telemetry-table.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/sdk-telemetry/telemetry.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/sdk-telemetry/telemetry.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/telemetry_table.py');
 const CHECK = process.argv.includes('--check');
 
@@ -38,7 +38,7 @@ if (new Set(constants).size !== constants.length) refuse('two rows would be the 
 const tuple = (keys) => (keys.length === 1 ? `(${pyString(keys[0])},)` : `(${keys.map(pyString).join(', ')})`);
 const literal = (values) => `Literal[${[...new Set(values)].sort().map(pyString).join(', ')}]`;
 
-const text = `${pyBanner('specs/src/sdk-telemetry/telemetry.json', 'packages/codegen/schemas/generate-sdk-telemetry-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/sdk-telemetry/telemetry.json', 'packages/codegen/schemas/generate-sdk-telemetry-python.mjs')}
 """The telemetry a Semiont SDK's transports export, when the process they run
 in exports at all: every span and metric, its kind, and the attributes it
 carries.

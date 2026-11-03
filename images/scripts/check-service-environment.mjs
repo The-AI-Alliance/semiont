@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * lint:service-environment — each Rust service reads exactly the environment
- * specs/src/service-environment/variables.json lists for it.
+ * protocol/specs/src/service-environment/variables.json lists for it.
  *
  * For each service in SERVICES:
  *
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { withoutComments } from '../../.github/scripts/checks/source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
-const TABLE = 'specs/src/service-environment/variables.json';
+const TABLE = 'protocol/specs/src/service-environment/variables.json';
 const BOOT_GOLDEN = 'packages/go/launcher/testdata/golden/start-default-boot.argv';
 const SUPERVISOR = 'images/shared/supervise.sh';
 

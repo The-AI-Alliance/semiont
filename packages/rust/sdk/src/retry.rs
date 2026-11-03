@@ -6,8 +6,8 @@
 //! the middle of a job is worth another attempt, where the same `500` in a
 //! boot pass replays whatever broke it. A `RetryPolicy` answers the second: a
 //! budget of attempts and the backoff between them. Every implementation
-//! answers the first as specs/src/retry/cases.json states, which this crate's
-//! tests run; the budgets a client keeps are specs/src/client/timing.json's
+//! answers the first as protocol/specs/src/retry/cases.json states, which this crate's
+//! tests run; the budgets a client keeps are protocol/specs/src/client/timing.json's
 //! (`crate::timing`).
 
 use std::future::Future;

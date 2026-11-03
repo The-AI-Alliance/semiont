@@ -17,7 +17,7 @@ connection of its own ([harness/weaver-world.ts](../harness/weaver-world.ts)),
 and its own reading of each row
 ([harness/graph-codec.ts](../harness/graph-codec.ts)). What a store holds is
 stated by
-[`specs/src/graph/codec-cases.json`](../../../specs/src/graph/codec-cases.json),
+[`protocol/specs/src/graph/codec-cases.json`](../../specs/src/graph/codec-cases.json),
 the case table the Weaver's codec is held to, and the harness's reader is held
 to the same table (`harness/graph-codec.test.ts`, which the gateway project
 runs with the harness's other tests of itself). So the suite judges a Weaver

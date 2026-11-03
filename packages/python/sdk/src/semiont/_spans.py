@@ -2,7 +2,7 @@
 
 A model asked to mark a text quotes it, and nothing it says is trusted.
 `reconcile` finds the quoted words in the text and answers a span that is the
-text's own, or nothing. `specs/src/annotations/reconcile-cases.json` holds the
+text's own, or nothing. `protocol/specs/src/annotations/reconcile-cases.json` holds the
 rule, for this and for every other SDK.
 
 An offset counts Unicode code points from the start of the text, and so does

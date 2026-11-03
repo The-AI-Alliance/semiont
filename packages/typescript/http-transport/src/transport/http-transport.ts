@@ -82,7 +82,7 @@ export interface HttpTransportConfig {
   channels?: readonly (keyof EventMap)[];
   /**
    * `reconnectMs`, `streamOpenTimeoutMs`, `lazyRemoveMs`, `lingerMs`,
-   * `emitRetry` and `seenEventIdsCount` of specs/src/client/timing.json, for
+   * `emitRetry` and `seenEventIdsCount` of protocol/specs/src/client/timing.json, for
    * a caller that must not wait them out: a test, or the conformance driver.
    * Absent, the table's values stand.
    */

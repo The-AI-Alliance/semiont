@@ -79,7 +79,7 @@ def _sent_under(carried: JsonValue) -> TraceContext | None:
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Timing:
-    """The timing a transport keeps: `specs/src/client/timing.json`'s, unless a caller that must not wait it out says otherwise."""
+    """The timing a transport keeps: `protocol/specs/src/client/timing.json`'s, unless a caller that must not wait it out says otherwise."""
 
     reconnect_ms: int = RECONNECT_MS
     lazy_remove_ms: int = LAZY_REMOVE_MS

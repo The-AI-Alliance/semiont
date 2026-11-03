@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// generate-encoding-cases.mjs — generate specs/src/text/encoding-cases.json:
+// generate-encoding-cases.mjs — generate protocol/specs/src/text/encoding-cases.json:
 // every label of the Encoding Standard with the encoding it names, every byte
 // of each of the standard's single-byte encodings, and some bytes of each of
 // its other encodings, as cases every reader of a resource's text runs.
@@ -32,7 +32,7 @@ import { writeOrCheck } from '../lib/committed-source.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const PACKAGE = '@exodus/bytes';
 const LABELS = 'fallback/encoding.labels.js';
-const OUT = resolve(ROOT, 'specs/src/text/encoding-cases.json');
+const OUT = resolve(ROOT, 'protocol/specs/src/text/encoding-cases.json');
 const CHECK = process.argv.includes('--check');
 
 /** The encodings that are not single-byte ones, by the standard's own headings. Everything else the standard names is. */

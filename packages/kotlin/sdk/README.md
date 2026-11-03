@@ -80,7 +80,7 @@ System.out.println("made " + done.getResult());
 
 ## Watching live
 
-The client's reads of what changes are live queries (`Cached`): `client.browse.annotations(resource)`, `client.browse.entityTypes()` and the rest of specs/src/client/surface.json's `cache` rows. Collected, a query is its state now and each state after it, until the client is closed: `CacheState.Pending`, `CacheState.Ready` with its value, or `CacheState.Failed` with its error. A failure is a state, never a throw, and the next act on the query tries again. While a query of a resource is collected, the client holds that resource's scope, so the events that keep it true reach it. `fresh()` is the one-shot read, and `invalidate()` asks again while the value is shown.
+The client's reads of what changes are live queries (`Cached`): `client.browse.annotations(resource)`, `client.browse.entityTypes()` and the rest of protocol/specs/src/client/surface.json's `cache` rows. Collected, a query is its state now and each state after it, until the client is closed: `CacheState.Pending`, `CacheState.Ready` with its value, or `CacheState.Failed` with its error. A failure is a state, never a throw, and the next act on the query tries again. While a query of a resource is collected, the client holds that resource's scope, so the events that keep it true reach it. `fresh()` is the one-shot read, and `invalidate()` asks again while the value is shown.
 
 <!-- readme: watching-live -->
 ```kotlin
@@ -141,7 +141,7 @@ What a worker promises is protocol/contract/WORKER-CONTRACT.md, and the worker c
 
 ## The protocol's types
 
-Every component schema of the spec is a type of `semiont.types`, and each kind of id a value class of `semiont.identifiers`. The build generates them from `specs/src` (the `generate` task, run before every compile); nothing generated is committed.
+Every component schema of the spec is a type of `semiont.types`, and each kind of id a value class of `semiont.identifiers`. The build generates them from `protocol/specs/src` (the `generate` task, run before every compile); nothing generated is committed.
 
 - An id is made only through its kind's check: `ResourceId("res-1")` throws `InvalidIdentifier` for text the rule refuses, and `ResourceId.parse(text)` gives `null` instead. Decoding goes through the same check.
 - A model is immutable, and written back as it was read: a property left out stays left out, and text the spec gives a format (a time, a URI) stays the text it was. A property that is optional and may be null is a `Stated`: `Absent`, `Null` or `Value`.
@@ -172,7 +172,7 @@ Five interfaces are implemented in Kotlin, not in Java, since their members susp
 ## Signing in
 
 - **The sign-in store** (`semiont.signin`): `SignInStore` is the launcher's `tokens.json`, so a program and `semiont login` share their sign-ins. `stateDir` says where it is from the directories the application hands in; the SDK reads no environment variable for it. `MemorySignIn` keeps a sign-in for the life of the process. `renewKept` renews a kept sign-in at its issuer against what is kept then, so another program's renewal or sign-out in between stands.
-- **Its lock:** every writer of the store takes `flock` on `tokens.lock`, and on Windows `LockFileEx` on its one byte (specs/src/sign-in-store/README.md). The JDK's own file lock does not exclude `flock` on Linux, so the store calls `flock` through the foreign-function API. An application that uses the store enables native access for it, or the JVM warns when it is first taken:
+- **Its lock:** every writer of the store takes `flock` on `tokens.lock`, and on Windows `LockFileEx` on its one byte (protocol/specs/src/sign-in-store/README.md). The JDK's own file lock does not exclude `flock` on Linux, so the store calls `flock` through the foreign-function API. An application that uses the store enables native access for it, or the JVM warns when it is first taken:
 
   ```bash
   java --enable-native-access=ALL-UNNAMED -jar app.jar
@@ -186,7 +186,7 @@ Five interfaces are implemented in Kotlin, not in Java, since their members susp
 
 The SDK installs nothing and reads no setting of its own but `SEMIONT_BUS_LOG`. What it can use, the application turns on:
 
-- **Telemetry:** the SDK tells OpenTelemetry's API what specs/src/sdk-telemetry/telemetry.json lists. Until the application installs its own OpenTelemetry as the global one, every call does nothing, and one installed after the SDK has begun is still told.
+- **Telemetry:** the SDK tells OpenTelemetry's API what protocol/specs/src/sdk-telemetry/telemetry.json lists. Until the application installs its own OpenTelemetry as the global one, every call does nothing, and one installed after the SDK has begun is still told.
 - **The sign-in store's lock** needs native access: `java --enable-native-access=ALL-UNNAMED`.
 - **The JVM's network settings**, below.
 

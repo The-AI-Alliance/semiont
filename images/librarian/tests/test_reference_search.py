@@ -1,4 +1,4 @@
-"""A reference search, where `specs/src/librarian/score-cases.json` holds none of it.
+"""A reference search, where `protocol/specs/src/librarian/score-cases.json` holds none of it.
 
 The table states what a search answers (`test_score_cases.py`). Here is what
 no case of it rests on: the half a score is rounded at, a date that is no

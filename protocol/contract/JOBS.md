@@ -10,7 +10,7 @@ The client side of the two job types is in the flow documents: [Yield](flows/YIE
 `yield` job makes a resource, and [Mark](flows/MARK.md), whose `mark` job annotates one. What a
 worker promises is [WORKER-CONTRACT.md](WORKER-CONTRACT.md), and how one is built is in the
 [`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md). Channel payloads
-are named in [the registry](../../specs/src/bus/registry.json); the bus conventions this document
+are named in [the registry](../specs/src/bus/registry.json); the bus conventions this document
 relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md). The
 [dispatcher conformance suite](../conformance/dispatcher/README.md) checks a running
 dispatcher against this document.
@@ -44,7 +44,7 @@ subscriber, not as one member of a competing group, so a second dispatcher would
 ## Configuration
 
 **The dispatcher reads one document, named by its `--config` flag,** and defaults nothing. The
-document is a [`DispatcherConfig`](../../specs/src/components/schemas/DispatcherConfig.json): the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by), the
+document is a [`DispatcherConfig`](../specs/src/components/schemas/DispatcherConfig.json): the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by), the
 gateway's URL, the issuer its service account signs in at, the broker holding the queue, the port it
 answers `/health` on, the queue's clocks, and its log level and format. Its image passes
 `--config /etc/semiont/dispatcher.json`, and the launcher writes the document there, from the
@@ -55,7 +55,7 @@ it serves.
 The document carries no secret. A broker credential is named, as the environment variable that holds
 it (`queue.userEnv`, `queue.passwordEnv`), and a named variable that is unset is refused at boot. The
 dispatcher's other inputs are the environment variables
-[specs/src/service-environment/variables.json](../../specs/src/service-environment/variables.json) lists
+[protocol/specs/src/service-environment/variables.json](../specs/src/service-environment/variables.json) lists
 for it: its service account, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, the bus log, and
 the telemetry variables.
 
@@ -72,7 +72,7 @@ A job is one record, keyed by its id.
 |---|---|---|
 | `status` | always | `pending`, `running`, `complete`, `failed` or `cancelled` |
 | `metadata.id` | always | `job-` followed by 32 lowercase hexadecimal digits, minted at admission |
-| `metadata.type` | always | the [`JobType`](../../specs/src/components/schemas/JobType.json): `mark` or `yield` |
+| `metadata.type` | always | the [`JobType`](../specs/src/components/schemas/JobType.json): `mark` or `yield` |
 | `metadata.userId` | always | the requester: the `_userId` the gateway stamped on the `job:create` |
 | `metadata.created` | always | ISO-8601 time of admission |
 | `metadata.retryCount` | always | attempts re-queued so far; `0` at admission |
@@ -144,10 +144,10 @@ What holds for all nine:
   `_userId` and `_roles` the emitter wrote with the verified principal's DID and roles.
 - **A frame that does not decode changes no job.** One that did not pass a gateway may not be its
   channel's payload: a field missing or of another type, or an id its kind refuses
-  ([`ResourceId`](../../specs/src/components/schemas/ResourceId.json),
-  [`JobId`](../../specs/src/components/schemas/JobId.json),
-  [`UserId`](../../specs/src/components/schemas/UserId.json),
-  [`AnnotationId`](../../specs/src/components/schemas/AnnotationId.json)), an empty one included.
+  ([`ResourceId`](../specs/src/components/schemas/ResourceId.json),
+  [`JobId`](../specs/src/components/schemas/JobId.json),
+  [`UserId`](../specs/src/components/schemas/UserId.json),
+  [`AnnotationId`](../specs/src/components/schemas/AnnotationId.json)), an empty one included.
   The dispatcher decodes a frame before it reads any of it, so such a frame is never acted on in
   part. For the four operations the reply is the failure channel, with no code and the message
   `a <channel> that is not a <payload schema>: <what did not decode>`, before the queue is
@@ -174,15 +174,15 @@ What holds for all nine:
 ### `job:create`
 
 Admits a new job. Reads the job description and `_userId`
-([`JobCreateCommand`](../../specs/src/components/schemas/JobCreateCommand.json)).
+([`JobCreateCommand`](../specs/src/components/schemas/JobCreateCommand.json)).
 
 **A job description is its `jobType` and its params.** `jobType` is the verb that asks for the job:
 `mark` annotates a resource, `yield` makes one.
 
 | `jobType` | Its resource | `params` |
 |---|---|---|
-| `mark` | the command's `resourceId` | [`MarkJobParams`](../../specs/src/components/schemas/MarkJobParams.json): one of five schemas, told apart by `motivation` (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`). Each motivation takes its own params and no others; [Mark](flows/MARK.md#delegation) lists them |
-| `yield` | none of its own: the one its context focuses on | [`GenerationJobParams`](../../specs/src/components/schemas/GenerationJobParams.json): what to make, and the gathered `context` to make it from. `title`, `storageUri` and `context` are required |
+| `mark` | the command's `resourceId` | [`MarkJobParams`](../specs/src/components/schemas/MarkJobParams.json): one of five schemas, told apart by `motivation` (`highlighting`, `commenting`, `assessing`, `linking`, `tagging`). Each motivation takes its own params and no others; [Mark](flows/MARK.md#delegation) lists them |
+| `yield` | none of its own: the one its context focuses on | [`GenerationJobParams`](../specs/src/components/schemas/GenerationJobParams.json): what to make, and the gathered `context` to make it from. `title`, `storageUri` and `context` are required |
 
 **The gateway refuses what is not a job description,** with `400`, in the schema check every channel
 gets. So the dispatcher is never sent:
@@ -215,7 +215,7 @@ The dispatcher refuses it (check 4).
 `params.context.focus`: when `focus.kind` is `"resource"`, the resource is `focus.resource["@id"]`;
 when it is `"annotation"`, it is `focus.sourceResource["@id"]`, the resource the focal annotation is
 on. A focus of any other kind, or an `@id` that is not a
-[`ResourceId`](../../specs/src/components/schemas/ResourceId.json), is not a `JobCreateCommand`. For a
+[`ResourceId`](../specs/src/components/schemas/ResourceId.json), is not a `JobCreateCommand`. For a
 `mark` job the resource is the command's `resourceId`.
 
 **The two reads** ask the Archivist over the bus, as the dispatcher's own requests:
@@ -230,7 +230,7 @@ neither read is admitted without the Archivist.
 
 **The record.** On admission the dispatcher builds the record — a new id, `retryCount: 0`,
 `maxRetries` by type, `created` now, `userId` the requester — and holds the job's params as they
-came, with what it adds ([`JobParams`](../../specs/src/components/schemas/JobParams.json)):
+came, with what it adds ([`JobParams`](../specs/src/components/schemas/JobParams.json)):
 `resourceId`, the resource derived above, and for a tagging job `schema`, the tag schema its
 `schemaId` names, so the worker needs no registry of its own. Nothing the caller sent is changed or
 removed: `schemaId` stays beside `schema`.
@@ -242,7 +242,7 @@ the reply, so the order of `job:created` and `job:queued` is not fixed.
 ### `job:claim`
 
 Hands the caller the next pending job its claim matches. Reads `accepts`, `_roles` and
-`_userId` ([`JobClaimCommand`](../../specs/src/components/schemas/JobClaimCommand.json)).
+`_userId` ([`JobClaimCommand`](../specs/src/components/schemas/JobClaimCommand.json)).
 
 1. **The caller must be a worker.** `_roles` must contain `semiont-worker`, the role the gateway
    stamps from the caller's token. Otherwise the reply is `job:claim-failed`,
@@ -250,12 +250,12 @@ Hands the caller the next pending job its claim matches. Reads `accepts`, `_role
    `job:claim refused: the caller is not a worker for this knowledge base`. This is checked before
    the queue is consulted, so a refused caller learns nothing about pending work.
 2. **The claim names the jobs it takes, and is atomic.** `accepts` is a list of
-   [`JobFilter`](../../specs/src/components/schemas/JobFilter.json), at least one. A filter is a
+   [`JobFilter`](../specs/src/components/schemas/JobFilter.json), at least one. A filter is a
    partial job description: `{ jobType: "mark", params: { motivation } }` for the `mark` jobs of one
    motivation, or `{ jobType: "yield" }`. A job matches a filter when every field the filter states
    equals the job's at the same path; what the filter leaves out is not compared. The job is compared
    as it is announced ([`job:queued`](#jobqueued)), and
-   [`filter-cases.json`](../../specs/src/jobs/filter-cases.json) is the table every implementation
+   [`filter-cases.json`](../specs/src/jobs/filter-cases.json) is the table every implementation
    answers alike. The gateway refuses a claim with no filter, a `mark` filter with no motivation, and
    a filter that states any other field. The dispatcher moves one pending job that matches any of the
    filters to `running`. Of any
@@ -285,15 +285,15 @@ claim carries the checkpoint its earlier attempts left, which is how a retry res
 ### `job:complete`
 
 Concludes a running job. Reads `jobId`, `jobType` and `result`
-([`JobCompleteCommand`](../../specs/src/components/schemas/JobCompleteCommand.json)).
+([`JobCompleteCommand`](../specs/src/components/schemas/JobCompleteCommand.json)).
 
 **A completion is its verb's.** `JobCompleteCommand` is one of two, told apart by `jobType`, and
 each carries the result its verb reports:
 
 | `jobType` | `result` |
 |---|---|
-| `mark` | [`MarkJobResult`](../../specs/src/components/schemas/MarkJobResult.json): the job's counts (`found`, `persisted`, and `errors` when some of what was proposed could not be anchored in the text), or a decline |
-| `yield` | [`YieldJobResult`](../../specs/src/components/schemas/YieldJobResult.json): the resource the job made, or a decline |
+| `mark` | [`MarkJobResult`](../specs/src/components/schemas/MarkJobResult.json): the job's counts (`found`, `persisted`, and `errors` when some of what was proposed could not be anchored in the text), or a decline |
+| `yield` | [`YieldJobResult`](../specs/src/components/schemas/YieldJobResult.json): the resource the job made, or a decline |
 
 The gateway refuses, with `400`, a completion whose result is the other verb's: it is not the
 schema. A completion that is well formed for one verb and names a running job of the other has no
@@ -304,7 +304,7 @@ resource's stream holds the job's `job:assigned` or `job:started`
 `annotationId`, the annotation its context was focused on; a `mark` completion names none.
 
 **What is stored is any verb's.** The job moves to `complete`, and its record holds the result as a
-[`JobResult`](../../specs/src/components/schemas/JobResult.json): one of the three, with no field
+[`JobResult`](../specs/src/components/schemas/JobResult.json): one of the three, with no field
 that says which. The record's `metadata.type` says which job it answers, and the three share no
 member. `result` absent is stored as `{}`. `resourceId`, `attempt`, `annotationId`, `durability` and
 `_userId` are not read. No reply, nothing emitted.
@@ -312,7 +312,7 @@ member. `result` absent is stored as `{}`. `resourceId`, `attempt`, `annotationI
 ### `job:fail`
 
 Concludes an attempt that failed. Reads `jobId`, `error`, `completedUnits`, `unitCursors` and
-`failureClass` ([`JobFailCommand`](../../specs/src/components/schemas/JobFailCommand.json)). The
+`failureClass` ([`JobFailCommand`](../specs/src/components/schemas/JobFailCommand.json)). The
 checkpoint in the payload is merged into the record ([Checkpoints](#checkpoints)), then the job is
 retried or failed ([Retries](#retries)). The payload's `willRetry` is not read; the dispatcher
 decides for itself, with the predicate the worker used to compute it. `attempt`, `resourceId`,
@@ -321,7 +321,7 @@ decides for itself, with the predicate the worker used to compute it. `attempt`,
 ### `job:report-progress`
 
 Records progress on a running job. Reads `jobId`, `progress` and `percentage`
-([`JobReportProgressCommand`](../../specs/src/components/schemas/JobReportProgressCommand.json));
+([`JobReportProgressCommand`](../specs/src/components/schemas/JobReportProgressCommand.json));
 the record's `progress` is replaced by the payload's `progress`, or by `{ percentage }` when
 `progress` is absent. Reports are throttled per job: one arriving within 5 seconds of the last one the
 dispatcher accepted for that job is dropped, not deferred, and a dropped report does not refresh the
@@ -331,13 +331,13 @@ job's liveness. No reply, nothing emitted.
 
 Records a running job's finished units as they finish, so a worker that dies without a `job:fail`
 still leaves them. Reads `jobId`, `completedUnits` and `unitCursors`
-([`JobCheckpointCommand`](../../specs/src/components/schemas/JobCheckpointCommand.json)) and merges
+([`JobCheckpointCommand`](../specs/src/components/schemas/JobCheckpointCommand.json)) and merges
 them into the record ([Checkpoints](#checkpoints)). Never throttled. No reply, nothing emitted.
 
 ### `job:cancel-requested`
 
 Asks for one job to be cancelled, named by its id. Reads `jobId`
-([`JobCancelRequest`](../../specs/src/components/schemas/JobCancelRequest.json)). A cancellation
+([`JobCancelRequest`](../specs/src/components/schemas/JobCancelRequest.json)). A cancellation
 selects no other way: a request that names no job is not a `JobCancelRequest`, and the gateway
 refuses it at its door.
 
@@ -349,26 +349,26 @@ refuses it at its door.
 | terminal | none | `false` |
 
 **Reply:** `job:cancel-ok` with `{ response: { cancelled } }`
-([`JobCancelResult`](../../specs/src/components/schemas/JobCancelResult.json)): whether the
+([`JobCancelResult`](../specs/src/components/schemas/JobCancelResult.json)): whether the
 dispatcher acted on the job, which for a running one means accepted, not stopped. A store error is
 `job:cancel-failed` with the store's message and no code.
 
 ### `job:cancel`
 
 A worker's confirmation that it stopped the job. Reads `jobId` only
-([`JobCancelCommand`](../../specs/src/components/schemas/JobCancelCommand.json)). A `pending` or
+([`JobCancelCommand`](../specs/src/components/schemas/JobCancelCommand.json)). A `pending` or
 `running` job moves to `cancelled`. The payload's `completedUnits` and `unitCursors` are not read
 ([Known defects](#known-defects)). No reply, nothing emitted.
 
 ### `job:status-requested`
 
 Reads one job. Reads `jobId`
-([`JobStatusRequest`](../../specs/src/components/schemas/JobStatusRequest.json)).
+([`JobStatusRequest`](../specs/src/components/schemas/JobStatusRequest.json)).
 
 - No record: `job:status-failed`, message `Job not found`, no code.
 - A store error: `job:status-failed` with the store's message, no code.
 - Otherwise `job:status-result` with `{ response }`
-  ([`JobStatusResponse`](../../specs/src/components/schemas/JobStatusResponse.json)):
+  ([`JobStatusResponse`](../specs/src/components/schemas/JobStatusResponse.json)):
 
 | Field | Present when |
 |---|---|
@@ -381,14 +381,14 @@ Reads one job. Reads `jobId`
 | `result` | `complete` |
 
 `result` is the record's: a result of any verb, or `{}`
-([`JobStoredResult`](../../specs/src/components/schemas/JobStoredResult.json)). The response's `type`
+([`JobStoredResult`](../specs/src/components/schemas/JobStoredResult.json)). The response's `type`
 says which verb's it is. `retryCount`, `maxRetries`, the checkpoint and `params` are not exposed. A
 record is readable until retention deletes it.
 
 #### Following a job
 
 A follower says first what the queue answered its `job:create` with: the job's id
-([`JobCreatedResult`](../../specs/src/components/schemas/JobCreatedResult.json)). It says so before
+([`JobCreatedResult`](../specs/src/components/schemas/JobCreatedResult.json)). It says so before
 anything else of the job, a frame that reached the client ahead of the reply among them. The id is
 how the follower's caller names the job from then on: to `job:cancel-requested` and to
 `job:status-requested`.
@@ -401,7 +401,7 @@ it ([TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md#delivery)).
 of a job it follows for `jobSilenceMs` asks for the job's status, and asks again every
 `jobStatusPollMs` until the job says something or its status is an end; a status of `complete` or
 `failed` is that end, reported as the frame would have been
-([`specs/src/client/timing.json`](../../specs/src/client/timing.json)). So is a status of
+([`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json)). So is a status of
 `cancelled`, which no frame announces: a follower learns of a cancellation here and nowhere else.
 *Held by `sdk/live/job-across-drop`, `sdk/live/job-failed-unheard`, `sdk/live/job-cancelled`.*
 
@@ -411,7 +411,7 @@ that verb's. A completion that is another verb's is not this job's. The follower
 error, and does not report the job as failed.
 
 A follower reports how its job ended under the codes every SDK shares
-([`specs/src/errors/codes.json`](../../specs/src/errors/codes.json), `job`). A `job:fail` whose
+([`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json), `job`). A `job:fail` whose
 `willRetry` is `true` is not an end, of a `mark` job or of a `yield` job: the follower reports the
 setback and keeps following, and does not ask for the status of the attempt that died. Any other
 `job:fail`, and a status of `failed`, end it as `job.failed`, with the worker's message; a status of
@@ -430,11 +430,11 @@ among them: the attempt that follows one has the whole deadline to say something
 reserves nothing: a claim names what it takes and no job, so the job a worker receives may differ
 from the one announced, and a job may be announced any number of times.
 
-Payload ([`JobQueuedEvent`](../../specs/src/components/schemas/JobQueuedEvent.json)): `jobId`,
+Payload ([`JobQueuedEvent`](../specs/src/components/schemas/JobQueuedEvent.json)): `jobId`,
 `jobType`, `resourceId` (the job's `params.resourceId`), `userId`, the requester, and `params`: the
 job description less the job's input. A `mark` job's params are announced whole, as it was created. A
 `yield` job's are announced without its `context`
-([`GenerationJobRequest`](../../specs/src/components/schemas/GenerationJobRequest.json)). Nothing the
+([`GenerationJobRequest`](../specs/src/components/schemas/GenerationJobRequest.json)). Nothing the
 dispatcher added to the params is announced, so a tagging job's carry no `schema`. An announcement
 is what a claim's filters are compared with, so the first-party worker checks one against its own
 claim and asks only when it would be handed something. Registry kind
@@ -456,7 +456,7 @@ is what un-parks it.
 
 The dispatcher's own record of an accepted claim, emitted immediately after each `job:claimed`,
 under the dispatcher's identity. Payload
-([`JobAssignCommand`](../../specs/src/components/schemas/JobAssignCommand.json)): `jobId`, `jobType`,
+([`JobAssignCommand`](../specs/src/components/schemas/JobAssignCommand.json)): `jobId`, `jobType`,
 `resourceId` (the job's `params.resourceId`), `holder` (the claimant's `_userId`) and `requester`
 (the record's `metadata.userId`). Registry kind `command`, audience `declared`. The Stower records it
 as `job:assigned` on the resource's log, which is what lets a later write citing the job be checked
@@ -501,7 +501,7 @@ It has two parts, merged differently ([`checkpoint.rs`](../../images/dispatcher/
   once recorded stays recorded. `completedUnits` is what says a unit is finished: a cursor never
   says so, wherever it stands.
 - **`unitCursors` is merged monotonically per unit.** A cursor
-  ([`UnitCursor`](../../specs/src/components/schemas/UnitCursor.json)) is the furthest a unit got,
+  ([`UnitCursor`](../specs/src/components/schemas/UnitCursor.json)) is the furthest a unit got,
   and what it had counted when it got there. For each unit, the incoming cursor replaces the stored
   one only when its `next` is strictly greater; otherwise the stored one stays. A cursor is replaced
   whole — `next`, `size`, `found`, `emitted` and `errors` are one observation and never mixed across
@@ -542,7 +542,7 @@ failureClass is neither "deterministic" nor "withheld"  and  retryCount < maxRet
 ```
 
 evaluated on the record before the failure is applied. `failureClass` is the worker's claim about
-the failure ([`FailureClass`](../../specs/src/components/schemas/FailureClass.json)), one of three:
+the failure ([`FailureClass`](../specs/src/components/schemas/FailureClass.json)), one of three:
 
 | `failureClass` | The claim | Retried |
 |---|---|---|
@@ -564,7 +564,7 @@ the record it claimed, to set `willRetry` on its `job:fail`: `willRetryAfter` in
 ([`claims.rs`](../../packages/rust/sdk/src/claims.rs)) and the Python SDK
 ([`claims.py`](../../packages/python/sdk/src/semiont/claims.py)), which a held job's `fail` applies. The
 dispatcher's own is the Rust SDK's. Every implementation answers
-[`retry-cases.json`](../../specs/src/jobs/retry-cases.json) alike. With the budgets set at admission, a `yield` job is never retried and a
+[`retry-cases.json`](../specs/src/jobs/retry-cases.json) alike. With the budgets set at admission, a `yield` job is never retried and a
 `mark` job is retried at most once.
 
 A retried job is `pending` again with `retryCount` one higher, its checkpoint merged, and no
@@ -581,10 +581,10 @@ transition needs, and writes only if nobody wrote in between; on a conflict it r
 times, and then fails the operation with `Job <jobId> transition failed after 20 CAS attempts`.
 Admission is the one write that is not a compare-and-swap: it creates the record, failing if the id
 exists, and then publishes the job's message, on the subject of its type. The exact layout — bucket, stream, subjects, consumer
-and record encoding — is specified machine-readably in [`specs/src/jobs/storage.json`](../../specs/src/jobs/storage.json).
+and record encoding — is specified machine-readably in [`protocol/specs/src/jobs/storage.json`](../specs/src/jobs/storage.json).
 
 **A stored record that does not decode** — not a
-[`JobRecord`](../../specs/src/components/schemas/JobRecord.json), an id its kind refuses included —
+[`JobRecord`](../specs/src/components/schemas/JobRecord.json), an id its kind refuses included —
 fails an operation that names its job, with `job <jobId>'s record: <why>`. A pass over every record
 goes on past it: a claim's search, the tick's re-announcement, the dead-worker
 sweep, retention and the queue's counts each log `A stored job record that does not decode` with its id and reason, and
@@ -608,7 +608,7 @@ dead-worker sweep's.
 
 The dispatcher answers a request for exactly `/health`, any method, on the document's `port` (24105
 as deployed) with `200`, `Content-Type: application/json` and `{"status":"ok","queue":"jetstream"}`
-([`DispatcherHealth`](../../specs/src/components/schemas/DispatcherHealth.json)). Any other path is
+([`DispatcherHealth`](../specs/src/components/schemas/DispatcherHealth.json)). Any other path is
 `404` with an empty body.
 
 It begins answering only after its boot has done everything else, in this order: authenticate as its

@@ -544,7 +544,7 @@ fn then_ends_as_stated(why: &str, later: &Value, world: &World, session: &Semion
 }
 
 /// What a session does with the credential it finds stored, as
-/// specs/src/session/cases.json states it for every SDK: each row scripts
+/// protocol/specs/src/session/cases.json states it for every SDK: each row scripts
 /// the gateway and the issuer, and says how often each is asked and how the
 /// session ends.
 #[tokio::test(start_paused = true)]
@@ -676,7 +676,7 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
 }
 
 /// What a running session does when the gateway refuses its token, as
-/// specs/src/session/cases.json states it for every SDK (`refusal`).
+/// protocol/specs/src/session/cases.json states it for every SDK (`refusal`).
 #[tokio::test(start_paused = true)]
 async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_states() {
     let table: Value = serde_json::from_str(include_str!("../specs/session/cases.json"))

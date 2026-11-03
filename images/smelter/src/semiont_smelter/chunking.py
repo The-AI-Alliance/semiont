@@ -3,7 +3,7 @@
 Every length and every position here counts Unicode code points, as a text
 offset does: a piece's size, the overlap, where a cut is made and where the
 next one starts. A Python string is indexed by code points, so an offset is a
-string's own index. `specs/src/text/chunk-cases.json` holds the rule.
+string's own index. `protocol/specs/src/text/chunk-cases.json` holds the rule.
 
 How a text is cut decides what the index holds, and is the Smelter's own
 choice. The Worker cuts a text for a model by the same rule, and each of the

@@ -14,7 +14,7 @@ how a scanned page gets one at all, is
 - [Anchoring](../../docs/architecture/ANCHORING.md) - How a coordinate map is derived, stored and turned into a selector
 - [W3C Web Annotation Implementation](./W3C-WEB-ANNOTATION.md) - Complete annotation architecture
 - [Semiont Protocol](./README.md) - The eight verbs and the bus these annotations travel on
-- [OpenAPI Specification](../../specs/src/openapi.json) - Machine-readable API spec
+- [OpenAPI Specification](../specs/src/openapi.json) - Machine-readable API spec
 - [Media Types](../../docs/architecture/MEDIA-TYPES.md) - What each media type declares, and what that changes
 - [@semiont/core Utilities](../../packages/typescript/core/docs/Utilities.md) - Implementation aids: fuzzy anchoring, SVG selector parsing, position validation
 
@@ -70,7 +70,7 @@ mathematical letter, some CJK) is one code point, where a JavaScript string
 has two UTF-16 code units for it, so an offset is a string's own position only
 up to the first such character. `textOffsets` in `@semiont/core` converts
 between the two, and
-[`specs/src/text/offset-cases.json`](../../specs/src/text/offset-cases.json)
+[`protocol/specs/src/text/offset-cases.json`](../specs/src/text/offset-cases.json)
 holds the count for every implementation.
 
 **W3C Specification:** [§4.2.1 TextPositionSelector](https://www.w3.org/TR/annotation-model/#text-position-selector)
@@ -139,7 +139,7 @@ hold it, which every reader runs.
   not allow there. A content type the standard does not parse, such as one
   with no subtype, has no parameters. Where no charset is stated, or the one
   stated is empty, the charset is UTF-8.
-  *Held by `specs/src/text/decode-cases.json`.*
+  *Held by `protocol/specs/src/text/decode-cases.json`.*
 - **T2. The charset is a label of the Encoding Standard**, matched as the
   standard gets an encoding: ASCII white space around it is dropped, and its
   ASCII case is not read. The label names the encoding the standard gives it:
@@ -148,7 +148,7 @@ hold it, which every reader runs.
   a label of the standard's `replacement` encoding. The refusal names the
   charset, and is made whatever the bytes are: no mark decides for a charset
   the standard lacks.
-  *Held by `specs/src/text/decode-cases.json`, and for every label of the standard by `specs/src/text/encoding-cases.json`.*
+  *Held by `protocol/specs/src/text/decode-cases.json`, and for every label of the standard by `protocol/specs/src/text/encoding-cases.json`.*
 - **T3. A byte-order mark decides, and is not part of the text**, as in the
   standard's `decode`. Bytes that begin `EF BB BF` are UTF-8, bytes that begin
   `FE FF` are UTF-16BE, and bytes that begin `FF FE` are UTF-16LE, whatever
@@ -156,7 +156,7 @@ hold it, which every reader runs.
   encoding is the one stated, or UTF-8. A mark anywhere else is U+FEFF, a
   character of the text like any other, and so is a second mark after the
   first.
-  *Held by `specs/src/text/decode-cases.json`.*
+  *Held by `protocol/specs/src/text/decode-cases.json`.*
 - **T4. The bytes are decoded by the standard's decoder for the encoding, in
   replacement mode.** What the encoding does not have becomes U+FFFD: as many
   as the standard's decoder emits, and no more. In UTF-8 a sequence cut short
@@ -166,12 +166,12 @@ hold it, which every reader runs.
   the one the standard's index gives it, and U+FFFD only where the index
   gives it none: the bytes windows-1252 leaves unassigned are the controls of
   the same number.
-  *Held by `specs/src/text/decode-cases.json` for UTF-8 and UTF-16, and by `specs/src/text/encoding-cases.json` for every byte of every single-byte encoding, x-user-defined among them.*
+  *Held by `protocol/specs/src/text/decode-cases.json` for UTF-8 and UTF-16, and by `protocol/specs/src/text/encoding-cases.json` for every byte of every single-byte encoding, x-user-defined among them.*
 - **T5. A refusal is the reader's own failure, of the kind its other failures
   are**: in an SDK, a transport's failure whose code is `error`. No reader
   fails from inside a decoder, and none reads a charset it refuses as another
   one. The bytes are still there to read, as the resource's representation.
-  *Held by `specs/src/text/decode-cases.json`.*
+  *Held by `protocol/specs/src/text/decode-cases.json`.*
 - **T6. A reader may decode fewer encodings than the standard has.** It
   refuses, as T5 says and by name, a resource whose stated charset is a label
   of an encoding it does not decode, and bytes whose mark is of one. What it
@@ -191,18 +191,18 @@ hold it, which every reader runs.
   standard reads). Each but Rust's differs from the standard's in the
   characters of some rarer sequences and in what it makes of a fault.
   *Held, for some bytes of each that every reader reads alike and by every
-  label, by [`encoding-cases.json`](../../specs/src/text/encoding-cases.json);
+  label, by [`encoding-cases.json`](../specs/src/text/encoding-cases.json);
   where they differ, by no case.*
 - **T8. Only a media type whose bytes are its text is read.** The media type
   is the content type without its parameters, in lower case. The
-  [media-type registry](../../specs/src/media-types/registry.json) says where
+  [media-type registry](../specs/src/media-types/registry.json) says where
   a type's text comes from: a type it lists is read where that is `decode`,
   and a type it does not list is read where it is a `text/` type. Any other
   is refused, as T5 says and by its media type, before its charset is read
   (T1) and whatever its bytes are: a PDF, whose text is derived from its
   bytes ([PDF selectors](#pdf-selectors)), and an image, which has none. No
   reader makes a text of bytes that were never one.
-  *Held by `specs/src/text/decode-cases.json`.*
+  *Held by `protocol/specs/src/text/decode-cases.json`.*
 
 ## PDF selectors
 

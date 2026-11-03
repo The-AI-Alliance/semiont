@@ -65,7 +65,7 @@ pub trait TokenRefresher: Send + Sync + 'static {
     fn refresh(&self) -> BoxFuture<'_, Option<String>>;
 }
 
-/// The timing a transport keeps, from specs/src/client/timing.json unless a
+/// The timing a transport keeps, from protocol/specs/src/client/timing.json unless a
 /// caller that must not wait it out (a test, a conformance driver) says
 /// otherwise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

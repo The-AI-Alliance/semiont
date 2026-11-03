@@ -1355,8 +1355,8 @@ describe('job.claim — each job has a trace of its own', () => {
 
 // Two consumers must never disagree about whether a failure is the end: the
 // queue ACTS on the answer, and the worker REPORTS it on `job:fail` as
-// `willRetry`. Every implementation runs specs/src/jobs/retry-cases.json.
-describe('willRetryAfter (specs/src/jobs/retry-cases.json)', () => {
+// `willRetry`. Every implementation runs protocol/specs/src/jobs/retry-cases.json.
+describe('willRetryAfter (protocol/specs/src/jobs/retry-cases.json)', () => {
   interface RetryCase {
     why: string;
     retryCount: number;
@@ -1364,7 +1364,7 @@ describe('willRetryAfter (specs/src/jobs/retry-cases.json)', () => {
     failureClass?: NonNullable<JobFailure['failureClass']>;
     retries: boolean;
   }
-  const { cases } = JSON.parse(readFileSync(new URL('../../../../../specs/src/jobs/retry-cases.json', import.meta.url), 'utf8')) as { cases: RetryCase[] };
+  const { cases } = JSON.parse(readFileSync(new URL('../../../../../protocol/specs/src/jobs/retry-cases.json', import.meta.url), 'utf8')) as { cases: RetryCase[] };
 
   it('has cases to run', () => {
     expect(cases.length).toBeGreaterThan(0);

@@ -1,7 +1,7 @@
 package annotations_test
 
 // Finding the words a model quoted, held to
-// specs/src/annotations/reconcile-cases.json: the table every SDK's Reconcile
+// protocol/specs/src/annotations/reconcile-cases.json: the table every SDK's Reconcile
 // runs.
 
 import (

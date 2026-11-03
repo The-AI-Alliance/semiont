@@ -1,5 +1,5 @@
 /**
- * What a text offset counts, held to specs/src/text/offset-cases.json: the
+ * What a text offset counts, held to protocol/specs/src/text/offset-cases.json: the
  * table every implementation that makes or applies an offset runs.
  *
  * A JavaScript string is indexed in UTF-16 code units. An offset on the wire
@@ -15,7 +15,7 @@ import { occurrencesOf, textOffsets } from '../text-offsets';
 interface Span { exact: string; occurrence: number; start: number; end: number }
 interface Case { why: string; text: string; codePoints: number; spans: Span[] }
 
-const TABLE = 'specs/src/text/offset-cases.json';
+const TABLE = 'protocol/specs/src/text/offset-cases.json';
 const table: { cases: Case[] } = JSON.parse(readFileSync(resolve(__dirname, '../../../../..', TABLE), 'utf8'));
 
 /** Where the string holds the n-th occurrence of `exact`, in the string's own count. */
@@ -28,7 +28,7 @@ function found(text: string, exact: string, occurrence: number): number {
   return at;
 }
 
-describe('a text offset counts code points (specs/src/text/offset-cases.json)', () => {
+describe('a text offset counts code points (protocol/specs/src/text/offset-cases.json)', () => {
   it('has cases, and one at least with a character outside the basic plane', () => {
     expect(table.cases.length).toBeGreaterThan(0);
     expect(table.cases.some(({ text }) => /[\u{10000}-\u{10FFFF}]/u.test(text))).toBe(true);

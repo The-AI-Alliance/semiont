@@ -1,5 +1,5 @@
 //! Whether a failed request is worth another attempt is one table,
-//! specs/src/retry/cases.json, which every implementation runs: here through
+//! protocol/specs/src/retry/cases.json, which every implementation runs: here through
 //! this crate's rules and its reading of `Retry-After`.
 
 use semiont::retry::{RETRY_RULES, RetryFacts, retry_after};

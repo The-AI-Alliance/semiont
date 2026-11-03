@@ -2,7 +2,7 @@
 
 Black-box suites for Semiont's services, its SDKs and the workers written on them. Each one starts
 processes, meets them only where the protocol says a client meets them, and
-checks what they do against `specs/` and `protocol/contract/`. None imports
+checks what they do against `protocol/specs/` and `protocol/contract/`. None imports
 anything from the implementation it checks (the weaver suite reads the graph
 by its own Cypher and its own reading of a row, and says why; the smelter
 suite reads the vector index by its own calls to Qdrant, and the librarian
@@ -31,8 +31,8 @@ and a stand-in Anthropic, a stand-in embedding provider, a reader of the graph, 
 `npm test` runs all nine.
 
 A case is here because checking it needs something running. A case a language
-checks by calling one of its own functions is a case table in `specs/`
-([the rule](../../specs/README.md#case-tables)).
+checks by calling one of its own functions is a case table in `protocol/specs/`
+([the rule](../specs/README.md#case-tables)).
 
 ## The implementations file
 
@@ -86,7 +86,7 @@ npm ci
 npm test
 ```
 
-The spec is bundled from `specs/src` at the start of every run, so a suite
+The spec is bundled from `protocol/specs/src` at the start of every run, so a suite
 never checks against a stale bundle.
 
 Every process a suite starts is given the run's environment

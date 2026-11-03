@@ -7,8 +7,8 @@ makes a text of the bytes of a resource whose bytes are its text: it is what
 `client.browse.resource_content` reads with.
 
 Every SDK has these. The case tables hold each to one answer:
-`specs/src/resources/reader-cases.json` the readers, and
-`specs/src/text/decode-cases.json` with `specs/src/text/encoding-cases.json`
+`protocol/specs/src/resources/reader-cases.json` the readers, and
+`protocol/specs/src/text/decode-cases.json` with `protocol/specs/src/text/encoding-cases.json`
 the text. This package's tests run them.
 """
 
@@ -58,14 +58,14 @@ _ASCII_LOWER: Final = str.maketrans(string.ascii_uppercase, string.ascii_lowerca
 _MARKS: Final = ((b"\xef\xbb\xbf", "utf-8"), (b"\xfe\xff", "utf-16-be"), (b"\xff\xfe", "utf-16-le"))
 
 # The encodings Python's own decoders read as the standard's do, malformed
-# input included: specs/src/text/decode-cases.json holds them to it.
+# input included: protocol/specs/src/text/decode-cases.json holds them to it.
 _PYTHONS_OWN: Final = {"utf-8": "utf-8", "utf-16be": "utf-16-be", "utf-16le": "utf-16-le"}
 
 # The standard's legacy multi-byte encodings, each by Python's codec of the
 # decoder the standard names for it: GBK's is gb18030's, and each other is the
 # superset of what its name says that the standard reads (Big5-HKSCS,
 # windows-949, windows-31j). Every label of each is the encoding's, whatever
-# codec Python would look the label up as. specs/src/text/encoding-cases.json
+# codec Python would look the label up as. protocol/specs/src/text/encoding-cases.json
 # holds every label of each.
 _LEGACY_MULTI_BYTE: Final = {
     "big5": "big5hkscs",

@@ -1,4 +1,4 @@
-"""What keeps a client's queries true: `specs/src/client/refresh.json` (`semiont.refresh`), applied to the client's caches.
+"""What keeps a client's queries true: `protocol/specs/src/client/refresh.json` (`semiont.refresh`), applied to the client's caches.
 
 Each event on the bus, and the reopening of a dropped stream, asks again for
 the queries its row names, writes the ones whose new value the event carries,

@@ -15,7 +15,7 @@ implementation joins by adding its entry, and every case runs against every
 entry.
 
 A Smelter is given its settings as the protocol's configuration document,
-[`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json),
+[`SmelterConfig`](../../specs/src/components/schemas/SmelterConfig.json),
 at the path its `--config` flag names. The harness writes the document
 ([harness/smelter-process.ts](../harness/smelter-process.ts)) into a home of
 the process's own. A refusal to start names the member of the document that
@@ -28,7 +28,7 @@ before a run: `uv sync --locked --no-dev --project images/smelter`.
 The index is read and changed by the suite's own calls to Qdrant's REST
 interface ([harness/qdrant.ts](../harness/qdrant.ts)), and never through the
 store a Smelter writes with. What a point holds is stated by
-[`specs/src/vectors/payload-cases.json`](../../../specs/src/vectors/payload-cases.json);
+[`protocol/specs/src/vectors/payload-cases.json`](../../specs/src/vectors/payload-cases.json);
 the collections' names, and the payload members a point is found by, are read
 from that table. The other suites' type check leaves this suite's cases and
 its world out (`tsconfig.json`), so an error in one of them is this suite's
@@ -139,7 +139,7 @@ A case about what happens while the reconcile runs starts the Smelter to
   resource, until the Smelter next starts.
 - **What it exports** (`telemetry.test.ts`): told where to export, a Smelter
   exports under its own name every row
-  [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  [`protocol/specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
   lists for it that its traffic can make, and nothing the table does not
   list, all of it under the resource the table lists for it, with
   `semiont.kb` the DID of the knowledge base its document names; and its

@@ -1,7 +1,7 @@
 # Gateway conformance suite
 
 A black-box suite for the gateway. It starts gateway processes, talks to them
-over HTTP, and checks what they answer against the protocol as `specs/`
+over HTTP, and checks what they answer against the protocol as `protocol/specs/`
 states it — the OpenAPI document, the bus registry — and as
 [protocol/contract/TRANSPORT-HTTP.md](../../contract/TRANSPORT-HTTP.md)
 states the semantics a schema cannot hold. It imports nothing from the
@@ -32,7 +32,7 @@ configured another way).
   as `text/event-stream`, and every message on it must be a `BusStreamMessage`
   with the id format its frame calls for ([harness/stream.ts](../harness/stream.ts)).
   Behind the gateway, every request it sends the Archivist must be an operation
-  the Archivist's spec (`specs/src/archivist/`) declares, with the parameters
+  the Archivist's spec (`protocol/specs/src/archivist/`) declares, with the parameters
   that operation requires, and every reply the stand-in Archivist gives must
   match its declaration ([harness/archivist.ts](../harness/archivist.ts)).
   A violation fails the case whatever it was about.
@@ -62,16 +62,16 @@ configured another way).
   receiver — which reads OTLP/HTTP as JSON or protobuf, as a collector does,
   held to OpenTelemetry's own serializers by `harness/otlp.test.ts` — and its
   last case holds everything received to
-  the rows of [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  the rows of [`protocol/specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
   that list the gateway, in both directions — every span and metric a listed row of the listed kind,
   carrying listed attributes, and every row the cases' traffic can produce arrived; and every one
   exported under exactly the keys the table's `resource` lists for the gateway, with `semiont.kb`
   the DID of the knowledge base its document names.
 - **Principals** (`tokens.test.ts`): every person and agent case in
-  [`specs/src/principals/cases.json`](../../../specs/src/principals/cases.json), named
+  [`protocol/specs/src/principals/cases.json`](../../specs/src/principals/cases.json), named
   exactly by a running gateway; every DID the suite expects comes from that table.
 - **The environment** (`environment.test.ts`): what each variable
-  [`specs/src/service-environment/variables.json`](../../../specs/src/service-environment/variables.json)
+  [`protocol/specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json)
   lists changes, and the document's `logFormat`. The harness refuses to start a
   gateway with a variable that table does not list or the document does not
   name, so no case can lean on one the spec does not state.
@@ -94,5 +94,5 @@ npm ci
 npm run test:gateway
 ```
 
-The spec is bundled from `specs/src` at the start of every run, so the suite
+The spec is bundled from `protocol/specs/src` at the start of every run, so the suite
 never checks against a stale bundle.

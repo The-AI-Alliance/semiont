@@ -24,7 +24,7 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 // a table that changes fails the case that restates it rather than leaving it
 // to agree with a client about a stale value.
 describe('the corpus against the tables it restates', () => {
-  it('failure-codes answers with every code a failure can carry, and expects of each the client code specs/src/errors/codes.json gives it', () => {
+  it('failure-codes answers with every code a failure can carry, and expects of each the client code protocol/specs/src/errors/codes.json gives it', () => {
     const { busRequest } = table<{ busRequest: { unrecognizedFailure: string; codes: Array<{ code: string; wire?: string }> } }>('errors/codes.json');
     const wireCodes = table<{ properties: { code: { enum: string[] } } }>('components/schemas/CommandError.json').properties.code.enum;
     const expected = (wire: unknown): string => busRequest.codes.find((entry) => entry.wire !== undefined && entry.wire === wire)?.code ?? busRequest.unrecognizedFailure;
@@ -46,7 +46,7 @@ describe('the corpus against the tables it restates', () => {
     expect(answered.some((code) => typeof code === 'string' && !wireCodes.includes(code)), 'a failure stating a code the wire does not declare').toBe(true);
   });
 
-  it('emit-budget-spent refuses as many attempts as specs/src/client/timing.json gives one emit', () => {
+  it('emit-budget-spent refuses as many attempts as protocol/specs/src/client/timing.json gives one emit', () => {
     const { timing } = table<{ timing: Array<{ name: string; value: unknown }> }>('client/timing.json');
     const budget = timing.find((entry) => entry.name === 'emitRetry')?.value as { attempts: number };
     const steps = named('emit-budget-spent').steps;
@@ -56,7 +56,7 @@ describe('the corpus against the tables it restates', () => {
     expect(scripted && 'with' in scripted ? scripted.with?.['times'] : undefined).toBe(budget.attempts);
   });
 
-  it('dedup-window has the new stream replay as many events as specs/src/client/timing.json has a client remember', () => {
+  it('dedup-window has the new stream replay as many events as protocol/specs/src/client/timing.json has a client remember', () => {
     const { timing } = table<{ timing: Array<{ name: string; value: unknown }> }>('client/timing.json');
     const remembered = timing.find((entry) => entry.name === 'seenEventIdsCount')?.value;
     const steps = named('dedup-window').steps;

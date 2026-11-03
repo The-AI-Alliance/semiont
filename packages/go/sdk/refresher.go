@@ -1,6 +1,6 @@
 package semiont
 
-// What keeps a client's queries true: specs/src/client/refresh.json
+// What keeps a client's queries true: protocol/specs/src/client/refresh.json
 // (refresh_gen.go), applied to the client's caches. Each event on the bus,
 // and the reopening of a dropped stream, asks again for the queries its row
 // names, writes the ones whose new value the event carries, and ends the ones

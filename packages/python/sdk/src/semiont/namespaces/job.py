@@ -101,7 +101,7 @@ class JobNamespace:
         settles once (protocol/contract/WORKER-CONTRACT.md). The transport's
         stream must name `semiont.claims.JOB_CLAIM_CHANNELS`, and
         `semiont.claims.JOB_COMMIT_CHANNELS` for a worker that commits. The
-        four waits are the values of specs/src/client/timing.json unless a
+        four waits are the values of protocol/specs/src/client/timing.json unless a
         caller that must not wait them out states others.
         """
         return Claims(

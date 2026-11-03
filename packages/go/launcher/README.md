@@ -10,7 +10,7 @@ which says what the launcher does and how to use it.
 | Package | What it is |
 |---|---|
 | `launcher` (this directory) | The engine: `init`, `start`, `stop`, `status`, codespaces, identity and custody, each command's work planned before it is run |
-| `stack` | Reads a knowledge base's documents, `.semiont/stack/` and `.semiont/config.yaml`, each held to its schema in `specs/src/stack` |
+| `stack` | Reads a knowledge base's documents, `.semiont/stack/` and `.semiont/config.yaml`, each held to its schema in `protocol/specs/src/stack` |
 | `provenance` | Decides whether an image is one a release built: its digest, an attestation of that digest, and a signature a trusted root vouches for |
 | `images` | Reads what a Semiont service image declares about itself |
 | `verbs` | The verbs, on the command line and over MCP, on the [Go SDK](../sdk/README.md) |

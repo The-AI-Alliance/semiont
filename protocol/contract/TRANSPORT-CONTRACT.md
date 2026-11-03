@@ -31,7 +31,7 @@ goes: its `channel`; a `scope`, when it belongs to one resource; a
 `correlationId`, when it is a request or the reply to one. The payload is
 the channel's own type and carries no routing.
 
-The **registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json))
+The **registry** ([`protocol/specs/src/bus/registry.json`](../specs/src/bus/registry.json))
 is the authority for channels. It classifies each on independent axes:
 whether it is half of an operation (a request, its result, its failure);
 otherwise its kind (a command or an event); its audience (every client, the
@@ -177,7 +177,7 @@ repairs a drop by asking:
   passing events feed and it holds, and asks for nothing after a handover or
   at the first open
   ([CACHE-SEMANTICS B13](CACHE-SEMANTICS.md), from
-  the `reopened` row of [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json)).
+  the `reopened` row of [`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json)).
   *Held by `sdk/live/missed-while-down`, `sdk/live/refresh-reopened`, `sdk/live/reconnect`, `sdk/live/first-open`.*
 - **A job's follower** asks for the job's status when the job has been
   silent ([JOBS.md](./JOBS.md#following-a-job)).
@@ -207,7 +207,7 @@ repairs a drop by asking:
     the log's last event as it was before. A log first met after the start
     is a new one, and is taken from its first event.
 
-  *Held by `specs/src/follower/follow-cases.json`, run by `packages/python/service/tests/test_follow_cases.py`.*
+  *Held by `protocol/specs/src/follower/follow-cases.json`, run by `packages/python/service/tests/test_follow_cases.py`.*
 
 A row of the refresh table whose trigger is a passing channel may only
 refetch, and `reopened` refetches whatever it does: the table's generator
@@ -254,14 +254,14 @@ subscriber is given the present state at once.
 - **`closed`** is terminal: the client was disposed.
   *Held by `sdk/wire/request-closed`.*
 
-The timing a client keeps is [`specs/src/client/timing.json`](../../specs/src/client/timing.json),
+The timing a client keeps is [`protocol/specs/src/client/timing.json`](../specs/src/client/timing.json),
 from which every SDK generates its constants.
 
 ### Failures
 
 Everything a server refused, and every request the gateway never answered,
 is reported on the error stream as it is thrown to its caller, under a code
-from [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json).
+from [`protocol/specs/src/errors/codes.json`](../specs/src/errors/codes.json).
 
 - **A listener taken as soon as the client is made hears every failure**,
   from the transport's first request on, even when that request was refused
@@ -374,7 +374,7 @@ result and failure channels are the registry's.
   wherever the member is missing: the request fails as `error`, saying the
   payload is not its channel's and naming the member by the members it is
   within.
-  *Held by `specs/src/resources/reader-cases.json`, `packages/go/sdk/replies_test.go`, `packages/typescript/core/src/__tests__/bus-request.test.ts`.*
+  *Held by `protocol/specs/src/resources/reader-cases.json`, `packages/go/sdk/replies_test.go`, `packages/typescript/core/src/__tests__/bus-request.test.ts`.*
 - **A request nobody is there to answer** fails as `peer-unavailable` when
   the gateway can tell, and as a timeout when it cannot.
   *Held by `sdk/wire/request-unanswerable`, `gateway/emit.test.ts`.*
@@ -467,7 +467,7 @@ Bytes do not ride the bus.
 ## Telemetry
 
 A client that exports telemetry exports the spans and the count
-[`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+[`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json)
 lists, each of its kind and with its attributes, and nothing else under
 their names.
 *Held by `sdk/wire/telemetry`.*
@@ -506,7 +506,7 @@ takes four things from the transport, and nothing else:
 4. **A reopened stream refreshes what the cache holds** of what passing
    events feed.
 
-Which event refreshes what is [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json).
+Which event refreshes what is [`protocol/specs/src/client/refresh.json`](../specs/src/client/refresh.json).
 
 ## What this document is not
 

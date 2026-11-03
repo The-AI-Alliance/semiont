@@ -245,7 +245,7 @@ private val calls: Map<String, Call> = mapOf(
 private fun channelNamed(name: String): Channel<*> = Channels::class.java.fields.map { it.get(null) }.filterIsInstance<Channel<*>>().single { it.name == name }
 
 /**
- * The client's surface against specs/src/client/surface.json: every method the
+ * The client's surface against protocol/specs/src/client/surface.json: every method the
  * table lists is called as each of its cases states, and what the call did
  * first is held to the row. A row with no call here fails, and so does a call
  * here with no row: the table and this SDK list the same methods.

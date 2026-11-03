@@ -71,7 +71,7 @@ function failure(error: unknown): { code?: string; status?: number; detail: stri
   return { code: error.code, ...(typeof status === 'number' && status > 0 ? { status } : {}), detail };
 }
 
-/** The entries of specs/src/client/timing.json this driver can override: the transport's, and a worker's. */
+/** The entries of protocol/specs/src/client/timing.json this driver can override: the transport's, and a worker's. */
 const TRANSPORT_TIMING = ['reconnectMs', 'lazyRemoveMs', 'lingerMs'] as const;
 const WORKER_TIMING = ['jobClaimTimeoutMs', 'heldJobStallMs', 'heldJobStallCheckMs', 'markCommitTimeoutMs'] as const;
 

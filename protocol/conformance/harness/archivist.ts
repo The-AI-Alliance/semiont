@@ -1,6 +1,6 @@
 /**
  * A stand-in Archivist: the knowledge base's record and bytes, over the HTTP
- * surface the Archivist serves (`specs/src/archivist/openapi.json`) — the
+ * surface the Archivist serves (`protocol/specs/src/archivist/openapi.json`) — the
  * recording upload, byte reads by resource, the linked-data description, a
  * resource's annotations, its anchored text, and the sequence-ranged event
  * read that backs replay. It checks the caller's

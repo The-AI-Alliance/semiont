@@ -3,7 +3,7 @@
 Its caller is promised that an outcome written is the outcome read, that a
 miss of any kind is `None` and never a failure, that a write that returns
 has been kept, and that a listing names the keys a read would answer for.
-The Archivist is played here over real HTTP, as `specs/src/archivist/openapi.json`
+The Archivist is played here over real HTTP, as `protocol/specs/src/archivist/openapi.json`
 states its four operations of the store: it keeps what it is sent, and
 answers it back as it was sent. What the Archivist's own reader requires of
 an entry is required here of every entry sent (`taken`); that it keeps and

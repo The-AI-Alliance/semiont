@@ -66,7 +66,7 @@ def _answered(answer: WireModel) -> JsonValue:
 
 
 def _timing(stated: Arguments) -> Timing:
-    """The timing a case states, each entry by its name in `specs/src/client/timing.json`."""
+    """The timing a case states, each entry by its name in `protocol/specs/src/client/timing.json`."""
     known = Timing()
     reconnect_ms, lazy_remove_ms, linger_ms = known.reconnect_ms, known.lazy_remove_ms, known.linger_ms
     emit_retry, seen_event_ids_count = known.emit_retry, known.seen_event_ids_count

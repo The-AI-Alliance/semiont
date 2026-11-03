@@ -5,7 +5,7 @@ A resource's media type decides where its text comes from
 text is"): its bytes decoded, read from the Archivist, where its bytes are
 its text; its anchored text, asked of the gateway, where its text is derived
 from its bytes; and nothing where the type has no text
-(`specs/src/media-types/registry.json`). A preview (§ Text search) is the
+(`protocol/specs/src/media-types/registry.json`). A preview (§ Text search) is the
 start of the text of a resource whose bytes are its text, and the empty
 string for every other.
 

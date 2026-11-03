@@ -100,7 +100,7 @@ package struct TableGenerator {
     }
   }
   package func generate() throws -> String {
-    var out = "// Generated from specs/src tables; do not edit.\nimport Foundation\n"
+    var out = "// Generated from protocol/specs/src tables; do not edit.\nimport Foundation\n"
     let timing = try required(table("client/timing.json"), "timing").array
     out +=
       "internal struct RetryBudget: Sendable { let attempts: Int; let initialDelayMs: Int; let maxDelayMs: Int }\ninternal enum Timings {\n"

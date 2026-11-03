@@ -2,7 +2,7 @@
  * The trusted issuer's key set as the gateway fetches it: the deadline one
  * fetch is given, and what a fetch that fails costs the requests after it.
  * The timings are the `bearerAuth` scheme's `x-semiont-limits` in
- * specs/src/openapi.json, whose description states the rule.
+ * protocol/specs/src/openapi.json, whose description states the rule.
  *
  * Plane-independent, and slow: each world waits out a deadline or a cooldown.
  * Each has a world of its own, because the gateway holds the keys it fetched.

@@ -1,5 +1,5 @@
 //! The bus's channels as a client meets them, generated from the registry
-//! (specs/src/bus/registry.json).
+//! (protocol/specs/src/bus/registry.json).
 //!
 //! - Which channels a client hears globally, and which a resource's scope
 //!   carries. The two are disjoint: a channel in both would reach a client

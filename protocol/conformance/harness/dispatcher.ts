@@ -5,7 +5,7 @@
  * environment. The document is the spec's `DispatcherConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
  * hand-edited rendering. The environment holds what
- * specs/src/service-environment/variables.json lists for the dispatcher and the
+ * protocol/specs/src/service-environment/variables.json lists for the dispatcher and the
  * variables its document names, and nothing from the developer's shell but PATH.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -77,7 +77,7 @@ function checkEnvironment(env: DispatcherEnvironment, settings: DispatcherSettin
   const listed = new Set([...serviceEnvironment('dispatcher'), ...named, 'PATH']);
   const strays = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
   if (strays.length > 0) {
-    throw new Error(`the suite set ${strays.join(', ')}, which specs/src/service-environment/variables.json does not list for the dispatcher and the document does not name`);
+    throw new Error(`the suite set ${strays.join(', ')}, which protocol/specs/src/service-environment/variables.json does not list for the dispatcher and the document does not name`);
   }
 }
 

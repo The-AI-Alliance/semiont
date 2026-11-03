@@ -12,7 +12,7 @@
 //!   settled when the job ends, and redelivered after the acknowledgement
 //!   window when the dispatcher that held it stops.
 //!
-//! The layout — stream, subjects, consumer, bucket — is specs/src/jobs/storage.json's.
+//! The layout — stream, subjects, consumer, bucket — is protocol/specs/src/jobs/storage.json's.
 
 #![forbid(unsafe_code)]
 

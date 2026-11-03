@@ -1,6 +1,6 @@
 package api_test
 
-// The kinds of id, held to specs/src/identifiers/kinds.json as every SDK's
+// The kinds of id, held to protocol/specs/src/identifiers/kinds.json as every SDK's
 // checked constructors are: each kind takes every id the table accepts and
 // refuses every one it refuses, by its constructor and by decoding, and a wire
 // type that carries the kind decodes through the same rule.
@@ -65,7 +65,7 @@ var kinds = map[string]kind{
 
 func table(t *testing.T) []kindRow {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "identifiers", "kinds.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "identifiers", "kinds.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

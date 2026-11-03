@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * lint:client-surface — every SDK's client has the surface
- * specs/src/client/surface.json states, and no other.
+ * protocol/specs/src/client/surface.json states, and no other.
  *
  * The table lists each namespace's methods with the shape of what each
  * returns. This reads the signatures each SDK declares and fails on:
@@ -214,8 +214,8 @@ import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const REPOSITORY = repositoryFiles(ROOT);
-const TABLE = 'specs/src/client/surface.json';
-const REGISTRY = 'specs/src/bus/registry.json';
+const TABLE = 'protocol/specs/src/client/surface.json';
+const REGISTRY = 'protocol/specs/src/bus/registry.json';
 const TS_INTERFACES = 'packages/typescript/sdk/src/namespaces/types.ts';
 const RUST_NAMESPACES = 'packages/rust/sdk/src/namespaces';
 const PYTHON_NAMESPACES = 'packages/python/sdk/src/semiont/namespaces';
@@ -232,7 +232,7 @@ const KOTLIN_SDK = 'packages/kotlin/sdk/src/main/kotlin/semiont';
 const KOTLIN_NAMESPACES = `${KOTLIN_SDK}/namespaces`;
 const CSHARP_SDK = 'packages/csharp/sdk/src/Semiont';
 const CSHARP_NAMESPACES = `${CSHARP_SDK}/Namespaces`;
-const SCHEMAS = 'specs/src/components/schemas';
+const SCHEMAS = 'protocol/specs/src/components/schemas';
 /** Each SDK as a message names it. */
 const LANGUAGES = { typescript: 'TypeScript', rust: 'Rust', python: 'Python', go: 'Go', kotlin: 'Kotlin', swift: 'Swift', csharp: 'C#' };
 

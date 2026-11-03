@@ -113,7 +113,7 @@ When a job does fail, the service classes the failure:
 ## What it reports
 
 With `OTEL_EXPORTER_OTLP_ENDPOINT` set it exports, as `semiont-worker`, the rows
-[`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+[`protocol/specs/src/service-telemetry/telemetry.json`](../../protocol/specs/src/service-telemetry/telemetry.json)
 lists for the worker: a span and an outcome for every job, every generation, and every
 detection call with its items, tokens and anchoring outcomes (the `semiont.detection.*`
 metrics), so a run's cost, yield and precision can be queried. Its own spans and metrics
@@ -125,7 +125,7 @@ inventory and where the metrics flow.
 ## Configuration
 
 A JSON document, named by `--config` (the image passes `/etc/semiont/worker.json`), whose
-schema is [`WorkerConfig`](../../specs/src/components/schemas/WorkerConfig.json). The worker
+schema is [`WorkerConfig`](../../protocol/specs/src/components/schemas/WorkerConfig.json). The worker
 defaults nothing in it.
 
 | Member | |
@@ -158,7 +158,7 @@ anything: one line on stderr that begins `[fatal] ` and says which, and exit sta
 services.
 
 `GET /health` answers once a knowledge base is confirmed, with a
-[`WorkerHealth`](../../specs/src/components/schemas/WorkerHealth.json):
+[`WorkerHealth`](../../protocol/specs/src/components/schemas/WorkerHealth.json):
 `{"status": "ok", "knowledgeBases": [...]}`, each knowledge base in the document's order with
 its `domain` and `state` (`starting`, `working` or `refused`), and, while it is `working`, the
 agent's `did` there and its `engines`. Each engine is its `engine` (`provider` and `model`),
@@ -186,7 +186,7 @@ image is built with every extra, so it is not rebuilt to be pointed at another p
 
 **The service can be configured for any of the seven providers the protocol names:**
 `anthropic`, `google`, `llamacpp`, `ollama`, `openai`, `together` and `vllm`. An engine of its
-document ([`WorkerEngineConfig`](../../specs/src/components/schemas/WorkerEngineConfig.json))
+document ([`WorkerEngineConfig`](../../protocol/specs/src/components/schemas/WorkerEngineConfig.json))
 names one of them, and a document that names another is refused when the service starts. A
 model of `google`, `openai` or `together` is asked with what the model catalogue says of it,
 which the image carries at `/usr/share/semiont/model-catalogue.json` and the document names

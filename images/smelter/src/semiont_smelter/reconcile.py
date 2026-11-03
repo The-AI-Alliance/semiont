@@ -1,6 +1,6 @@
 """The work a Smelter plans when it starts: what its index and its anchored-text store hold, held to what the catalog says they should.
 
-`specs/src/smelter/reconcile-cases.json` is the rule, and
+`protocol/specs/src/smelter/reconcile-cases.json` is the rule, and
 `protocol/contract/SMELTER.md` § Reconcile says it in prose. A plan is worked out
 from what it is handed and from nothing else: it reads nothing, waits on
 nothing and logs nothing. The reads are the Smelter's, and so is doing the

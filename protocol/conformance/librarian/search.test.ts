@@ -8,7 +8,7 @@
  * mentions; and the limits it reports of each actor's engine.
  *
  * The scores, the prompt's text and the arithmetic of a page are the case
- * tables' (specs/src/librarian): these cases hold what crosses the bus, the
+ * tables' (protocol/specs/src/librarian): these cases hold what crosses the bus, the
  * stores and the providers.
  *
  * The stand-in embedding provider gives a text a vector worked out from the

@@ -1,4 +1,4 @@
-# Generated from specs/openapi.json, the bundled spec; do not edit.
+# Generated from protocol/specs/openapi.json, the bundled spec; do not edit.
 # Regenerate: uv run python scripts/generate_models.py (in packages/python/sdk)
 
 from __future__ import annotations
@@ -828,7 +828,7 @@ class BusEmitAccepted(WireModel, frozen=True):
 
 class BusEmitRequest(WireModel, frozen=True):
     """
-    One event for the bus. `channel` names a channel of the bus registry (specs/src/bus/registry.json) and `payload` must match the schema the registry's `validate` names for it. `scope` publishes a resource-bound broadcast to that resource's subscribers only; everything else is unscoped. `clientId` and `correlationId` are routing facts beside the payload, never inside it.
+    One event for the bus. `channel` names a channel of the bus registry (protocol/specs/src/bus/registry.json) and `payload` must match the schema the registry's `validate` names for it. `scope` publishes a resource-bound broadcast to that resource's subscribers only; everything else is unscoped. `clientId` and `correlationId` are routing facts beside the payload, never inside it.
     """
 
     channel: Annotated[str, Field(description="A channel of the bus registry.", min_length=1)]
@@ -2172,7 +2172,7 @@ class BusFrame(WireModel, frozen=True, extra="forbid"):
     channel: Annotated[
         str,
         Field(
-            description="A channel of the bus registry (specs/src/bus/registry.json).",
+            description="A channel of the bus registry (protocol/specs/src/bus/registry.json).",
             min_length=1,
         ),
     ]
@@ -2236,7 +2236,7 @@ type ReplyEventId = Annotated[
 
 class KbIdentity(WireModel, frozen=True, extra="forbid"):
     """
-    A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, specs/src/service-telemetry/telemetry.json).
+    A knowledge base's committed identity (`project.name` and `site.domain` in its .semiont/config.yaml), as a service's document names the knowledge base it serves. Its telemetry names it by its DID (`semiont.kb`, protocol/specs/src/service-telemetry/telemetry.json).
     """
 
     name: Annotated[
@@ -3419,7 +3419,7 @@ class DispatcherConfigIdentity(WireModel, frozen=True, extra="forbid"):
 
 class DispatcherConfigQueue(WireModel, frozen=True, extra="forbid"):
     """
-    The JetStream broker holding the job queue, whose layout is specs/src/jobs/storage.json.
+    The JetStream broker holding the job queue, whose layout is protocol/specs/src/jobs/storage.json.
     """
 
     servers: Annotated[
@@ -4240,7 +4240,7 @@ class JobFailCommand(WireModel, frozen=True):
         bool | None,
         Field(
             alias="willRetry",
-            description="Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME rule the queue applies when it takes the failure (specs/src/jobs/retry-cases.json, which every SDK and the dispatcher run) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.",
+            description="Whether the queue will re-queue this job for another attempt. Computed by the worker from the SAME rule the queue applies when it takes the failure (protocol/specs/src/jobs/retry-cases.json, which every SDK and the dispatcher run) using the retry budget carried on the claimed record. FALSE (or absent) means this failure is TERMINAL: a client's job-watch stream ends here. TRUE means the work continues on a fresh attempt — the failure is an event, not the end, and a stream that terminated on it would report a recovering run as a failed one.",
         ),
     ] = None
     durability: DurabilityEvidence | None = None
@@ -4452,7 +4452,7 @@ class JobAssignedPayload(WireModel, frozen=True):
 
 class HttpEndpoint(WireModel, frozen=True):
     """
-    A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (specs/src/session/gateway-url-cases.json).
+    A knowledge base reached through its gateway, over HTTP. The gateway's origin is the protocol, the host in lowercase and the port; a host that is not a host's name is refused before it is put into a URL (protocol/specs/src/session/gateway-url-cases.json).
     """
 
     kind: Annotated[
@@ -5142,7 +5142,7 @@ class JobComplete(WireModel, frozen=True, extra="forbid"):
 
 class DispatcherConfig(WireModel, frozen=True, extra="forbid"):
     """
-    Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
+    Everything the dispatcher reads at boot: nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the knowledge base's stack documents, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.
     """
 
     kb: KbIdentity
@@ -5796,7 +5796,7 @@ class UpdateAnnotationBodyRequest(WireModel, frozen=True):
 
 class GatewayConfig(WireModel, frozen=True, extra="forbid"):
     """
-    Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
+    Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
     """
 
     kb: KbIdentity
@@ -6486,7 +6486,7 @@ type Job = Annotated[
 
 class JobRecord(WireModel, frozen=True, extra="forbid"):
     """
-    One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, specs/src/jobs/storage.json.
+    One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, protocol/specs/src/jobs/storage.json.
     """
 
     job: Job
@@ -6788,7 +6788,7 @@ class WorkerHealth(WireModel, frozen=True, extra="forbid"):
 
 class ArchivistConfig(WireModel, frozen=True, extra="forbid"):
     """
-    Everything the Archivist reads at boot: nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the knowledge base's stack documents, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `site.domain` and its `git.sync` are read from the committed `.semiont/config.yaml` of the tree at `root`. The Archivist's other inputs are the environment variables specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
+    Everything the Archivist reads at boot: nothing in it is defaulted by the Archivist. The launcher writes it for the Archivist it starts, from the knowledge base's stack documents, and the Archivist reads it from the path its `--config` flag names (its image passes `/etc/semiont/archivist.json`). Started without `--config`, or with a path that names no file, the Archivist refuses to start and says which. No secret is a value here. What the knowledge base says of itself is not here either: its name, its `site.domain` and its `git.sync` are read from the committed `.semiont/config.yaml` of the tree at `root`. The Archivist's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it. A document that does not validate is refused at boot, naming each failing field.
     """
 
     gateway_url: Annotated[

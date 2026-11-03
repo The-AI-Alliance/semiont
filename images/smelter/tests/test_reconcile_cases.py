@@ -1,4 +1,4 @@
-"""The work a start plans, held to `specs/src/smelter/reconcile-cases.json`.
+"""The work a start plans, held to `protocol/specs/src/smelter/reconcile-cases.json`.
 
 It is the table every Smelter runs, so that one index, one catalog and one
 anchored-text store come to the same work whoever plans it. A case is run

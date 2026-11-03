@@ -66,7 +66,7 @@ matches one of them, or with `none-pending`.
 - **C5.** A `job:queued` that matches none of the worker's filters causes
   no claim. The worker compares an announcement with its filters as the
   dispatcher compares a job with a claim, and
-  [`filter-cases.json`](../../specs/src/jobs/filter-cases.json) is the table
+  [`filter-cases.json`](../specs/src/jobs/filter-cases.json) is the table
   both answer alike.
   *Held by `worker/claim-on-announcement`, `packages/typescript/core/src/__tests__/job-filter.test.ts`.*
 - **C6.** `none-pending` is not a fault. The worker waits for its next idle
@@ -84,7 +84,7 @@ matches one of them, or with `none-pending`.
   run. The worker goes on claiming.
   *Held by `worker/malformed-reply`.*
 - **C10.** A claim waits `jobClaimTimeoutMs`
-  ([`timing.json`](../../specs/src/client/timing.json)) for its answer. One
+  ([`timing.json`](../specs/src/client/timing.json)) for its answer. One
   not answered by then is reported as a refusal.
   *Held by `worker/claim-timeout`.*
 
@@ -131,7 +131,7 @@ matches one of them, or with `none-pending`.
   [JOBS.md § Retries](./JOBS.md#retries)); the checkpoint, when there is
   one, as a `job:checkpoint` states one ([L2](#the-lifecycle)); and
   `willRetry`, which is what
-  [`retry-cases.json`](../../specs/src/jobs/retry-cases.json) answers for
+  [`retry-cases.json`](../specs/src/jobs/retry-cases.json) answers for
   the claimed record's retry budget and that class. The dispatcher applies
   the same table, so a follower told `willRetry` is told what the queue
   will do.
@@ -220,7 +220,7 @@ worker stops.
   *Held by `worker/vitals`.*
 - **V2.** A held job that shows no activity for `heldJobStallMs` is stalled.
   A worker looks every `heldJobStallCheckMs`
-  ([`timing.json`](../../specs/src/client/timing.json)) and reports a stall
+  ([`timing.json`](../specs/src/client/timing.json)) and reports a stall
   when it finds one; what its host does then is the host's. An idle worker
   is never stalled, and neither is a job that keeps reporting, however long
   it runs. A worker too wedged to look is caught by the dispatcher's own
@@ -231,7 +231,7 @@ worker stops.
 
 A worker that exports telemetry sends each message in the trace of the work
 that sent it, and receives each frame in the trace it was sent under
-([`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)).
+([`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json)).
 A dispatcher that exports answers a claim in the trace of the claim
 ([`dispatcher/environment.test.ts`](../conformance/dispatcher/environment.test.ts)).
 

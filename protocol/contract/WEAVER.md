@@ -21,9 +21,9 @@ which starts a Weaver as a process behind a real gateway and a real Archivist,
 records through the Archivist, and reads the graph back from a real database:
 the same cases judge every implementation. A path names a runner of one of the
 two case tables,
-[`specs/src/weaver/fold-cases.json`](../../specs/src/weaver/fold-cases.json)
+[`protocol/specs/src/weaver/fold-cases.json`](../specs/src/weaver/fold-cases.json)
 and
-[`specs/src/graph/codec-cases.json`](../../specs/src/graph/codec-cases.json),
+[`protocol/specs/src/graph/codec-cases.json`](../specs/src/graph/codec-cases.json),
 which every implementation runs through its own code. A rule marked "Held by
 no case" is one nothing checks. `npm run lint:transport-contract` fails when a
 case named here does not exist, and when a case of the suite is named by no
@@ -40,16 +40,16 @@ table states.
 ## Settings
 
 A Weaver reads its settings from a configuration document, the protocol's
-[`WeaverConfig`](../../specs/src/components/schemas/WeaverConfig.json), at the
+[`WeaverConfig`](../specs/src/components/schemas/WeaverConfig.json), at the
 path its `--config` flag names. The document is resolved: every address in it
 is literal, every credential is named by the variable that holds it, and the
-Weaver defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's
+Weaver defaults nothing it leaves out. It states the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's
 URL; the issuer the Weaver's service account signs in at; the graph database
-([`GraphConfig`](../../specs/src/components/schemas/GraphConfig.json): its
+([`GraphConfig`](../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the environment
 variable that holds its password); where the Archivist listens; the file the
 Weaver keeps its cursors in
-([`CursorsPath`](../../specs/src/components/schemas/CursorsPath.json)), on its
+([`CursorsPath`](../specs/src/components/schemas/CursorsPath.json)), on its
 own disk; the port its health answers on; and how it logs. Whoever starts a Weaver writes
 it: the launcher for the Weaver it starts, and anyone else to the same schema.
 
@@ -97,7 +97,7 @@ Archivist's own surface.
 ## The fold
 
 Each event the fold applies changes the graph in one way.
-[`fold-cases.json`](../../specs/src/weaver/fold-cases.json) states each as a
+[`fold-cases.json`](../specs/src/weaver/fold-cases.json) states each as a
 history and the graph it leaves, and is the rule; this section says it in
 prose.
 
@@ -148,7 +148,7 @@ second fold, which shares nothing with it, says the record leaves.
 
 ### What the graph holds
 
-[`codec-cases.json`](../../specs/src/graph/codec-cases.json) states what is
+[`codec-cases.json`](../specs/src/graph/codec-cases.json) states what is
 stored of an annotation and of a resource, what each stored thing is called,
 which are required, and what is refused.
 
@@ -301,9 +301,9 @@ holds what the Weaver once applied to it.
 
 - **A Weaver started with `OTEL_EXPORTER_OTLP_ENDPOINT` exports, as
   `semiont-weaver`, exactly what
-  [`specs/src/service-telemetry/telemetry.json`](../../specs/src/service-telemetry/telemetry.json)
+  [`protocol/specs/src/service-telemetry/telemetry.json`](../specs/src/service-telemetry/telemetry.json)
   lists for the weaver, and the rows of
-  [`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+  [`protocol/specs/src/sdk-telemetry/telemetry.json`](../specs/src/sdk-telemetry/telemetry.json)
   the first names for it under `sdk`.** Those are what every service says of
   its own process (when it started, how late its loop runs, its memory), a
   span for each frame it sends and each it receives on the bus, and a count

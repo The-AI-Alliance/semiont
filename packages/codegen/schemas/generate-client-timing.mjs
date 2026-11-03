@@ -1,4 +1,4 @@
-// Generate the client's constants from specs/src/client/timing.json: its
+// Generate the client's constants from protocol/specs/src/client/timing.json: its
 // deadlines, its retry budgets, the cadence of its stream, and what it keeps
 // count of.
 //
@@ -23,7 +23,7 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/client/timing.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/client/timing.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/client-timing.ts'));
 
 function refuse(message) {
@@ -47,7 +47,7 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/src/client/timing.json → packages/codegen/schemas/generate-client-timing.mjs
+// Source: protocol/specs/src/client/timing.json → packages/codegen/schemas/generate-client-timing.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 
 import type { RetryPolicy } from '../retry';

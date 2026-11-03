@@ -119,12 +119,12 @@ async def as_me(kb: KbTarget, home: str) -> None:
   token, keeps the sign-in, says why (`session.auth-failed` at its start,
   `session.refresh-exhausted` after), and renews it on the reconnect backoff
   or when a request is refused. What a session does at its start and when it is refused is
-  [`specs/src/session/cases.json`][session-cases], row for row.
+  [`protocol/specs/src/session/cases.json`][session-cases], row for row.
 - **A renewal spends its refresh token once.** Renewals asked for together are
   one request of the issuer, a renewal the issuer did not refuse is tried
   again inside a bounded budget, and one under way runs to its end whoever
   stops waiting for it.
-- **The store is the launcher's** ([`specs/src/sign-in-store`][sign-in-store]):
+- **The store is the launcher's** ([`protocol/specs/src/sign-in-store`][sign-in-store]):
   the same file and the same lock, on macOS, Linux and Windows. A sign-in made
   here serves the launcher's verbs, and one it renewed serves this session.
   A renewal another program made meanwhile stands, and a stack it signed out
@@ -232,7 +232,7 @@ Where to go from here:
 A client is eleven namespaces over one transport: the
 [eight verbs](#eight-verbs), one per [flow of the protocol][protocol], and
 `job`, `auth` and `system` beside them. Each method is a
-row of [`specs/src/client/surface.json`][surface], the table every Semiont SDK
+row of [`protocol/specs/src/client/surface.json`][surface], the table every Semiont SDK
 is held to. `HttpTransport` is the transport this package ships: it reaches a
 knowledge base's gateway, and sends the token it is given.
 
@@ -326,7 +326,7 @@ Why the shapes are these eight, in every SDK, is
 ## Live queries
 
 A query is one of ten reads
-([`specs/src/client/refresh.json`][refresh] names them) that answer from the
+([`protocol/specs/src/client/refresh.json`][refresh] names them) that answer from the
 client's cache. Read once, it asks the knowledge base now. Held with
 `async with`, it is watched: its state now, and each state after it, until
 the client closes.
@@ -430,7 +430,7 @@ async def show_hover(beckon: BeckonStateUnit) -> None:
 ```
 
 What every SDK's units do is one table,
-[`specs/src/client/state-units.json`][state-units-cases], which this
+[`protocol/specs/src/client/state-units.json`][state-units-cases], which this
 package's tests run. The ideas behind them are in [State Units][state-units].
 
 ## A worker
@@ -900,7 +900,7 @@ async def read(origin: str, token: str, resource: ResourceId) -> None:
   and each thing it becomes. A dropped stream is a state, never an error, and
   opens again by itself.
 - **Failures** are `SemiontError`s under the codes of
-  [`specs/src/errors/codes.json`][codes]. What a server refused is also on
+  [`protocol/specs/src/errors/codes.json`][codes]. What a server refused is also on
   `transport.failures()`.
 - **The token** is a value the transport watches: when it changes, the next
   request carries the new one. The gateway refuses a token with a `401`, or
@@ -990,7 +990,7 @@ print(command.model_dump(mode="json", exclude_unset=True))
 
 The SDK takes OpenTelemetry's API and installs nothing: it does nothing until
 the application it runs in installs a provider. With one, it exports what
-[`specs/src/sdk-telemetry/telemetry.json`][telemetry] lists, as every Semiont
+[`protocol/specs/src/sdk-telemetry/telemetry.json`][telemetry] lists, as every Semiont
 SDK does: a span for each frame sent and each received, a span for each upload
 and each read, and a count of the emits sent. A request carries the trace it
 is made in, and a frame continues the trace it was sent under (`frame.trace`).
@@ -1083,21 +1083,21 @@ Apache-2.0. See [LICENSE][license].
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md
 [sdk-kotlin]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/kotlin/sdk/README.md
 [launcher]: https://github.com/The-AI-Alliance/semiont/blob/main/apps/launcher/README.md
-[specs]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/README.md
-[surface]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/surface.json
-[refresh]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/refresh.json
-[codes]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/errors/codes.json
-[session-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/session/cases.json
-[reconcile-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/reconcile-cases.json
-[builder-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/builder-cases.json
-[id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
+[specs]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/README.md
+[surface]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/client/surface.json
+[refresh]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/client/refresh.json
+[codes]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/errors/codes.json
+[session-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/session/cases.json
+[reconcile-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/annotations/reconcile-cases.json
+[builder-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/annotations/builder-cases.json
+[id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/annotations/id-cases.json
 [resource-text]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource
-[sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
-[stored-keys]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/session/stored.json
-[telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
+[sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/sign-in-store/README.md
+[stored-keys]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/session/stored.json
+[telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/sdk-telemetry/telemetry.json
 [bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/EVENT-BUS.md#wire-format-the-bus-log
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
 [testing]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/contributor/TESTING.md
 [state-units]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md
-[state-units-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/client/state-units.json
+[state-units-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/client/state-units.json
 [license]: https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE

@@ -1,4 +1,4 @@
-"""The readers of a resource, held to `specs/src/resources/reader-cases.json`: the table every SDK's readers run."""
+"""The readers of a resource, held to `protocol/specs/src/resources/reader-cases.json`: the table every SDK's readers run."""
 
 from typing import Annotated, Final, Literal
 

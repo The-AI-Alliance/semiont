@@ -1,4 +1,4 @@
-// Code generated from specs/src/media-types/registry.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/media-types/registry.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-media-types-go.mjs
 // The TypeScript side (packages/typescript/core/src/generated/media-types.ts) and the

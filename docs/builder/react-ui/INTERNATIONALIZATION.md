@@ -41,7 +41,7 @@ function App() {
 }
 ```
 
-`locale` is a `LocaleCode` from `@semiont/core`: the code of one of the languages `specs/src/locales/registry.json` names. The list is not restated here.
+`locale` is a `LocaleCode` from `@semiont/core`: the code of one of the languages `protocol/specs/src/locales/registry.json` names. The list is not restated here.
 
 ### 2. Custom Translation Implementation
 
@@ -471,7 +471,7 @@ The library loads every built-in locale with a dynamic import:
 
 To add support for another locale:
 
-1. Add the language's row to `specs/src/locales/registry.json`; `@semiont/core` generates `LOCALE_CODES` from it
+1. Add the language's row to `protocol/specs/src/locales/registry.json`; `@semiont/core` generates `LOCALE_CODES` from it
 2. Add the translation file, `translations/<code>.json`, with every namespace and key
 3. `npm run lint:translations` fails until every language the registry names has a file, and no file exists for a language it does not name
 4. The locale will be dynamically loaded when used

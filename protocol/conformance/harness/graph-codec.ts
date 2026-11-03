@@ -4,7 +4,7 @@
  * annotation the record holds.
  *
  * This suite reads the graph with a reader of its own, held to the same case
- * table the Weaver's codec is held to (specs/src/graph/codec-cases.json, run
+ * table the Weaver's codec is held to (protocol/specs/src/graph/codec-cases.json, run
  * by graph-codec.test.ts), so that it judges a Weaver by something other than
  * the Weaver's own code. The other way would be for `semiont_graph` to offer
  * a small command that prints a resource's rows, decoded, as JSON, which the

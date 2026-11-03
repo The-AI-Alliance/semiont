@@ -1,6 +1,6 @@
 {
   "about": "a job that fails while nothing reaches the client that follows it: the follower, hearing nothing for jobSilenceMs, asks for the job's status, and a status of failed ends it as the frame would have, under the code every SDK reports it by and with the class the status states",
-  "source": "protocol/contract/JOBS.md § Following a job; specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; specs/src/errors/codes.json job",
+  "source": "protocol/contract/JOBS.md § Following a job; protocol/specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/specs/src/errors/codes.json job",
   "tier": "parity",
   "steps": [
     {

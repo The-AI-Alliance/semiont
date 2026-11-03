@@ -23,7 +23,7 @@ runs against every entry.
 Each file runs its cases in a world of its own
 ([harness/worker-service-world.ts](../harness/worker-service-world.ts)). Its
 knowledge base, which every case's service serves, is the suite's own
-identity in [`kb-identity/cases.json`](../../../specs/src/kb-identity/cases.json),
+identity in [`kb-identity/cases.json`](../../specs/src/kb-identity/cases.json),
 and a case of a service of two knowledge bases has it serve the world's
 second beside it, another case of that table. Each knowledge base has:
 
@@ -116,7 +116,7 @@ the Archivist's spec.
   otherwise the service's own. The annotations a `yield` job commits are on,
   or point at, a resource the case learns of only as it runs, so a case works
   their ids out from what they are, by the rule of
-  [`id-cases.json`](../../../specs/src/annotations/id-cases.json).
+  [`id-cases.json`](../../specs/src/annotations/id-cases.json).
 - **Messages a service waits on** (the claim, `job:start`, the read of the
   description and of the bytes or the anchored text, each commit and each
   checkpoint, the settle, the next claim) are compared in the order the

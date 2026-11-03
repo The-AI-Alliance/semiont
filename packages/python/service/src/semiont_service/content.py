@@ -2,7 +2,7 @@
 
 A service reads the bytes of a resource's stored representation as they are
 stored, with the content type they are stored under
-(`specs/src/archivist/openapi.json`). A checksum the record states is of
+(`protocol/specs/src/archivist/openapi.json`). A checksum the record states is of
 exactly those bytes, so whatever reads them changes none.
 
 What reads them is behind this protocol. A service is handed a reader, and

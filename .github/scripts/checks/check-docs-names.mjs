@@ -358,7 +358,7 @@ for (const doc of DOCS) {
       if (BUS_NAMESPACES.has(m[1].split(':')[0]) && !CHANNELS.has(m[1])) report(doc, line, 'channel', m[1]);
     }
     for (const m of t.matchAll(/npm run ([\w:.-]+)/g)) if (!SCRIPTS.has(m[1])) report(doc, line, 'script', m[1]);
-    for (const m of t.matchAll(/(?:^|[\s`(['"])((?:packages|apps|images|scripts|specs|tests|docs|\.github)\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
+    for (const m of t.matchAll(/(?:^|[\s`(['"])((?:packages|apps|images|scripts|specs|protocol|tests|docs|\.github)\/[\w.\-/[\]@]+\.[a-z]{2,5})(?=[\s`)'",:;]|$)/g)) {
       // A path is the repository's, or its document's own package's: a
       // README's `docs/TESTING.md` is the one beside it. The react-ui builder
       // docs live under docs/builder and still name react-ui's files.

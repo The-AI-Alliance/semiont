@@ -48,7 +48,8 @@ CONTEXT: Final[JsonValue] = {
 
 
 class LargestPdf(BaseModel, frozen=True, extra="ignore", strict=True):
-    """The most bytes a Smelter reads of a PDF, as `specs/src/smelter/extraction-cases.json` states it: all the worker reads there."""
+    """The most bytes a Smelter reads of a PDF, as `protocol/specs/src/smelter/extraction-cases.json` states it: all
+    the worker reads there."""
 
     largest_pdf_bytes: Annotated[int, Field(alias="largestPdfBytes")]
 

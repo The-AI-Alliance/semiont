@@ -53,7 +53,7 @@ Three things, and nothing else:
   resource's stream), and for `job:queued`, the queue's own broadcast that wakes parked
   workers.
 - **The messaging broker (NATS JetStream), directly**, for the queue itself. Job state lives
-  in JetStream, in the layout [specs/src/jobs/storage.json](../../specs/src/jobs/storage.json)
+  in JetStream, in the layout [protocol/specs/src/jobs/storage.json](../../protocol/specs/src/jobs/storage.json)
   states, so the dispatcher holds no state tree and mounts nothing.
 - **The Archivist, over the bus**, for the two validations `job:create` makes: the knowledge
   base's registered entity types (`browse:entity-types-requested`) and tag schemas
@@ -97,7 +97,7 @@ concurrent workers never share a job.
 
 ## Configuration
 
-One document, `DispatcherConfig` in [specs/](../../specs/src/components/schemas/DispatcherConfig.json),
+One document, `DispatcherConfig` in [protocol/specs/](../../protocol/specs/src/components/schemas/DispatcherConfig.json),
 at the path `--config` names. The launcher writes it, resolved, and mounts it where the image's
 `CMD` passes it: `/etc/semiont/dispatcher.json`. Started without `--config`, or with a path that
 names no file, the dispatcher refuses to start and says which; a document that does not validate
@@ -105,7 +105,7 @@ is refused naming each failing field. **Secrets are never values in it:** a fiel
 names the environment variable holding it.
 
 Every other variable it reads, what sets it and what it changes, is in
-[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json).
+[`protocol/specs/src/service-environment/variables.json`](../../protocol/specs/src/service-environment/variables.json).
 Among them:
 
 - **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — this process's own service

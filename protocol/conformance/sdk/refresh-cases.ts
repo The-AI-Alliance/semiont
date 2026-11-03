@@ -1,5 +1,5 @@
 /**
- * The live cases built from specs/src/client/refresh.json: one per row. Each
+ * The live cases built from protocol/specs/src/client/refresh.json: one per row. Each
  * has a client observe every live query the table names, of one resource, and
  * a second resource and an annotation of it, which no event of the case names;
  * causes the row's trigger; and expects exactly what the row says of the cache:
@@ -207,14 +207,14 @@ function cause(row: Row, all: Row[], holding: Held[]): Step[] {
     case 'frame:tag-schema-added':
       return [record(row.on)];
     default:
-      throw new Error(`specs/src/client/refresh.json has a row for ${row.on}, which refresh-cases.ts cannot cause`);
+      throw new Error(`protocol/specs/src/client/refresh.json has a row for ${row.on}, which refresh-cases.ts cannot cause`);
   }
 }
 
 function built(row: Row, all: Row[], queries: Query[]): Case {
   const holding = held();
   const unheld = queries.filter((query) => !holding.some((key) => key.query === query.name));
-  if (unheld.length > 0) throw new Error(`refresh-cases.ts observes no ${unheld.map((query) => query.name).join(', ')}, which specs/src/client/refresh.json names`);
+  if (unheld.length > 0) throw new Error(`refresh-cases.ts observes no ${unheld.map((query) => query.name).join(', ')}, which protocol/specs/src/client/refresh.json names`);
   for (const key of holding) {
     const query = queries.find((stated) => stated.name === key.query)!;
     const first = key.asks[0]!;
@@ -254,7 +254,7 @@ function built(row: Row, all: Row[], queries: Query[]): Case {
   const label = row.when === undefined ? row.on : `${row.on}, ${row.when}`;
   return caseOf(`refresh-${row.on.replaceAll(':', '-')}${row.when === undefined ? '' : `-${row.when}`}`, {
     about: `${label}: ${row.docs.charAt(0).toLowerCase()}${row.docs.slice(1)}`,
-    source: 'specs/src/client/refresh.json',
+    source: 'protocol/specs/src/client/refresh.json',
     tier: 'parity',
     steps,
   });

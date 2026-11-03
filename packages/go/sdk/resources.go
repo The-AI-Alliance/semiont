@@ -8,8 +8,8 @@ package semiont
 // text of the bytes of a resource whose bytes are its text.
 //
 // Every SDK has these. The case tables hold each to one answer:
-// specs/src/resources/reader-cases.json the readers, and
-// specs/src/text/decode-cases.json with specs/src/text/encoding-cases.json the
+// protocol/specs/src/resources/reader-cases.json the readers, and
+// protocol/specs/src/text/decode-cases.json with protocol/specs/src/text/encoding-cases.json the
 // text. This package's tests run them.
 
 import (

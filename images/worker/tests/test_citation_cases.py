@@ -1,4 +1,4 @@
-"""The citation resolver, held to `specs/src/worker/citation-cases.json`.
+"""The citation resolver, held to `protocol/specs/src/worker/citation-cases.json`.
 
 It is the table every worker's resolver runs, so that one generated text
 yields one resolved text and one set of citations whichever language resolved

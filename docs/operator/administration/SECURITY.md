@@ -8,7 +8,7 @@ What Semiont enforces, what it leaves to the issuer and to your platform, and wh
 
 **There is one authorization decision: authenticated, or 401.** No gateway route returns 403, and none reads a human role. Every authenticated caller can read and write all content in the knowledge base. Two roles exist, and both mark services, not people: `semiont-service` admits a service's account to the archivist, and `semiont-worker` admits a worker's claim on a job. See [RBAC.md](../../../protocol/contract/RBAC.md).
 
-**Every body is validated.** Each JSON body is checked against its schema in `specs/` and bounded by its operation's size limit.
+**Every body is validated.** Each JSON body is checked against its schema in `protocol/specs/` and bounded by its operation's size limit.
 
 **Every principal is limited.** The streams one principal holds and the emits it makes are bounded, for people and agents alike, and so are the bytes and connections one gateway process holds. A refusal is a 429 or a 503 with `Retry-After`: see [Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits).
 

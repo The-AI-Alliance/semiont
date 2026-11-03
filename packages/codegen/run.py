@@ -132,7 +132,7 @@ class Generation:
         # Run it on an isolated tree and compare only the repository's committed files.
         with tempfile.TemporaryDirectory(dir=self.cache) as directory:
             temp = Path(directory)
-            for relative in ("specs", "packages/codegen", "packages/typescript/core"):
+            for relative in ("protocol/specs", "packages/codegen", "packages/typescript/core"):
                 shutil.copytree(
                     ROOT / relative,
                     temp / relative,

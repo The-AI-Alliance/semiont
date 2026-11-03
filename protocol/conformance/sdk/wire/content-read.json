@@ -1,6 +1,6 @@
 {
   "about": "a resource's bytes are read unchanged with their media type, whole or as a stream; its description is what the gateway answers; its annotations are what the gateway answers; its anchored text is what the gateway answers, the text or that there is none yet; a resource that is not there fails as not-found; and a read of anchored text the gateway refuses fails as a refused read of a description does",
-  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Content and the gateway's own operations; specs/src/paths/resources_{id}.json, resources_{id}_jsonld.json, resources_{id}_annotations.json, resources_{id}_anchored-text.json",
+  "source": "protocol/contract/TRANSPORT-CONTRACT.md § Content and the gateway's own operations; protocol/specs/src/paths/resources_{id}.json, resources_{id}_jsonld.json, resources_{id}_annotations.json, resources_{id}_anchored-text.json",
   "steps": [
     {"let": {"graph": {"resource": {"@context": "https://schema.org/", "@id": "described", "name": "Described", "representations": []}, "annotations": []}}},
     {"let": {"annotations": {"annotations": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}], "total": 1}}},

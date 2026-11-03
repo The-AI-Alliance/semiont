@@ -36,4 +36,4 @@ export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
  */
 export const MODEL_CATALOGUE = join(REPO_ROOT, 'packages/python/inference/tests/catalogue/model-catalogue.json');
 
-export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');
+export const SPEC_SOURCE = join(REPO_ROOT, 'protocol/specs/src');

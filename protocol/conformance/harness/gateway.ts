@@ -5,7 +5,7 @@
  * fields a case may delete made optional; `writeConfiguration` renders it into
  * the file the gateway reads, and a case that needs a broken configuration
  * edits the settings, never the rendering. The environment holds only what
- * specs/src/service-environment/variables.json lists.
+ * protocol/specs/src/service-environment/variables.json lists.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -53,7 +53,7 @@ function writeConfiguration(dir: string, s: GatewaySettings): string {
 
 /**
  * The suite sets nothing a gateway does not read: every variable it passes is
- * listed in specs/src/service-environment/variables.json or named by the
+ * listed in protocol/specs/src/service-environment/variables.json or named by the
  * document, except PATH, which finds the gateway's command.
  */
 function checkEnvironment(env: GatewayEnvironment, settings: GatewaySettings, unlisted: Record<string, string>): void {
@@ -61,7 +61,7 @@ function checkEnvironment(env: GatewayEnvironment, settings: GatewaySettings, un
   const listed = new Set([...serviceEnvironment('gateway'), ...named, 'PATH']);
   const strays = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
   if (strays.length > 0) {
-    throw new Error(`the suite set ${strays.join(', ')}, which specs/src/service-environment/variables.json does not list for the gateway and the document does not name`);
+    throw new Error(`the suite set ${strays.join(', ')}, which protocol/specs/src/service-environment/variables.json does not list for the gateway and the document does not name`);
   }
   const read = Object.keys(unlisted).filter((name) => listed.has(name));
   if (read.length > 0) {

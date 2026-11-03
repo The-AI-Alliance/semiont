@@ -44,7 +44,7 @@ const REQUEST = {
 };
 
 // The ids the cases below work out are worked out by the table's rule: the suite's own reckoning is held to every case of it.
-it('works out the id of an annotation as specs/src/annotations/id-cases.json states it, case for case', () => {
+it('works out the id of an annotation as protocol/specs/src/annotations/id-cases.json states it, case for case', () => {
   const table = JSON.parse(readFileSync(join(SPEC_SOURCE, 'annotations/id-cases.json'), 'utf8')) as { cases: Array<{ resourceId: string; motivation: string; anchor: string; body?: unknown; id: string }> };
   expect(table.cases.length).toBeGreaterThan(0);
   for (const { resourceId, motivation, anchor, body, id } of table.cases) {

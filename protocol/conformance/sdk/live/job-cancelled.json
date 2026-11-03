@@ -1,6 +1,6 @@
 {
   "about": "a job somebody cancels: nothing announces a cancellation, so its follower, hearing nothing for jobSilenceMs, asks for the job's status, and a status of cancelled ends it, under the code every SDK reports it by",
-  "source": "protocol/contract/JOBS.md § Following a job; specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; specs/src/errors/codes.json job",
+  "source": "protocol/contract/JOBS.md § Following a job; protocol/specs/src/client/timing.json jobSilenceMs, jobStatusPollMs; protocol/specs/src/errors/codes.json job",
   "tier": "parity",
   "steps": [
     {
