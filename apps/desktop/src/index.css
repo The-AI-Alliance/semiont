@@ -944,6 +944,43 @@ body.resizing {
   min-height: 0;
   overflow: auto;
 }
+.rview__zoom-canvas {
+  min-width: 100%;
+  min-height: 100%;
+}
+.rview__zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--field);
+}
+.rview__zoom-controls button {
+  min-width: 1.7rem;
+  padding: 0.2rem 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+.rview__zoom-controls button:not(:disabled):hover {
+  background: var(--surface);
+}
+.rview__zoom-controls button:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.rview__zoom-controls .rview__zoom-level {
+  min-width: 3rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
 .rview__status {
   margin: 0;
   padding: 2rem 1.25rem;
