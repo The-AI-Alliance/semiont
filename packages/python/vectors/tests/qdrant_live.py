@@ -6,8 +6,8 @@ whose HTTP API is asked on port 6333. A run without it fails and says why. It
 is not skipped: a store nothing ran against a database is a store nothing is
 known of.
 
-The three collections are deleted before each case. Point it at no Qdrant
-that holds anything to keep.
+Every collection of the Qdrant is deleted before each case. Point it at no
+Qdrant that holds anything to keep.
 
 The store asks a Qdrant by requests of its own making, and nothing but a
 Qdrant says whether they are requests Qdrant takes, and whether it answers
@@ -17,10 +17,13 @@ only a Qdrant shows is here too, read back by this module's own requests and
 never through the store: that each point
 `protocol/specs/src/vectors/payload-cases.json` states is kept under its `qdrantId`
 with exactly its `payload`, the point that remembers a decline among them;
-that the collections are as that table's `collections` states them; and that
-an index made anew is as wide as the provider's vectors are then, and states
-its stamp in the metadata of the two collections that are searched, where
-another store reads it, and states none once the two differ.
+that the collections are as that table's `collections` states them, and are
+named for their knowledge base as its `collectionsNamed` cases state; that
+the stores of two knowledge bases on one Qdrant each keep to their own
+collections; and that an index made anew is as wide as the provider's
+vectors are then, and states its stamp in the metadata of the two
+collections that are searched, where another store reads it, and states none
+once the two differ.
 
 The Qdrant reader is held here too: that connecting it makes no collection,
 by the collections the Qdrant then says it has; that a search of a
@@ -37,12 +40,20 @@ import httpx
 import pytest
 from aio import run
 from pydantic import JsonValue, TypeAdapter
-from semiont.identifiers import AnnotationId, ResourceId
+from semiont.identifiers import AnnotationId, ResourceId, UserId
 from spec import SPEC, JsonObject, objects, read, text, thing
 from store_contract import StoreContract, decline_resource, part, put_annotation, put_resource, width_of
 
 from semiont_vectors.qdrant import QdrantVectorReader, QdrantVectorStore
-from semiont_vectors.store import AnnotationPayload, AnnotationStamp, CollectionAbsent, EmbeddingChunk, SearchOptions, VectorStore
+from semiont_vectors.store import (
+    AnnotationPayload,
+    AnnotationStamp,
+    CollectionAbsent,
+    Declined,
+    EmbeddingChunk,
+    SearchOptions,
+    VectorStore,
+)
 
 PORT: Final = 6333
 
@@ -52,9 +63,22 @@ TABLE: Final = read(SPEC / "vectors/payload-cases.json")
 COLLECTIONS: Final = {role: thing(stated, role) for role, stated in thing(TABLE["collections"], "collections").items()}
 """What the table states of each collection: of resources' chunks, of annotations, and of what is remembered of each declined resource."""
 
-RESOURCES: Final = text(COLLECTIONS["resources"]["name"], "name")
-ANNOTATIONS: Final = text(COLLECTIONS["annotations"]["name"], "name")
-DECLINED: Final = text(COLLECTIONS["declined"]["name"], "name")
+NAMED: Final = [
+    thing(case["collectionsNamed"], "collectionsNamed") for case in objects(TABLE["cases"], "cases") if "collectionsNamed" in case
+]
+"""Each knowledge base the table names the collections of, with their names. The first two are the knowledge bases of these cases."""
+
+KB: Final = UserId(text(NAMED[0]["kb"], "kb"))
+NAMES: Final = {word: text(name, word) for word, name in thing(NAMED[0]["names"], "names").items()}
+"""The knowledge base every store and reader here is of, and the names of its collections, by their words."""
+
+OTHER_KB: Final = UserId(text(NAMED[1]["kb"], "kb"))
+OTHER_NAMES: Final = {word: text(name, word) for word, name in thing(NAMED[1]["names"], "names").items()}
+"""Another knowledge base, on the same Qdrant, and the names of its collections."""
+
+RESOURCES: Final = NAMES["resources"]
+ANNOTATIONS: Final = NAMES["annotations"]
+DECLINED: Final = NAMES["declined"]
 
 STAMP: Final[JsonObject] = {"model": "a-model", "revision": 1}
 OTHER_STAMP: Final[JsonObject] = {"model": "another-model", "revision": 2}
@@ -81,13 +105,20 @@ def answered(response: httpx.Response) -> JsonObject:
     return thing(_OBJECT.validate_json(response.content)["result"], "result")
 
 
-async def cleared() -> None:
-    """Delete every collection, by this module's own requests: a store that connects afterwards finds an index nobody has made."""
+async def collections() -> list[str]:
+    """The name of every collection the Qdrant itself says it has."""
     async with qdrant() as http:
-        for name in (RESOURCES, ANNOTATIONS, DECLINED):
+        listed = answered(await http.get("/collections"))
+    return sorted(text(each["name"], "name") for each in objects(listed["collections"], "collections"))
+
+
+async def cleared() -> None:
+    """Delete every collection, of every knowledge base, by this module's own requests: as a Qdrant whose volume was wiped is."""
+    async with qdrant() as http:
+        for name in await collections():
             response = await http.delete(f"/collections/{name}")
-            # A collection that was not there is as gone as one that was deleted.
-            assert response.status_code in (200, 404), f"deleting {name} answered {response.status_code}: {response.text}"
+            assert response.is_success, f"deleting {name} answered {response.status_code}: {response.text}"
+    assert await collections() == []
 
 
 def answering(width: int) -> Callable[[], Awaitable[int]]:
@@ -106,7 +137,7 @@ async def never_asked() -> int:
 async def emptied(width: int) -> QdrantVectorStore:
     """A connected store of a Qdrant that holds nothing, its collections made for vectors of `width` numbers."""
     await cleared()
-    store = QdrantVectorStore(host=host(), port=PORT, dimensions=answering(width))
+    store = QdrantVectorStore(host=host(), port=PORT, kb=KB, dimensions=answering(width))
     await store.connect()
     return store
 
@@ -127,7 +158,7 @@ async def made(collection: str) -> JsonObject:
     vectors = thing(thing(thing(info["config"], "config")["params"], "params")["vectors"], "vectors")
     schema = thing(info["payload_schema"], "payload_schema")
     indexes: JsonObject = {member: thing(index, member)["data_type"] for member, index in schema.items()}
-    return {"name": collection, "size": vectors["size"], "distance": vectors["distance"], "indexes": indexes}
+    return {"size": vectors["size"], "distance": vectors["distance"], "indexes": indexes}
 
 
 async def stated_stamp(collection: str) -> JsonValue:
@@ -202,9 +233,10 @@ def test_the_collections_are_as_the_table_states_and_as_wide_as_the_provider_say
         try:
             # A collection the table grows is one the store must make: this names the three it makes.
             assert sorted(COLLECTIONS) == ["annotations", "declined", "resources"]
-            for stated in COLLECTIONS.values():
+            assert await collections() == sorted(NAMES.values())
+            for word, stated in COLLECTIONS.items():
                 # The table states how wide a collection is only where that is fixed: any other is as wide as the provider says.
-                assert await made(text(stated["name"], "name")) == {"size": 5, **stated}
+                assert await made(NAMES[word]) == {"size": 5, **stated}
         finally:
             await store.disconnect()
 
@@ -216,12 +248,12 @@ def test_connecting_to_collections_that_are_there_asks_nobody_how_wide_a_vector_
         first = await emptied(3)
         await first.disconnect()
         # Each index is asked for a second time, which a Qdrant takes as no failure.
-        second = QdrantVectorStore(host=host(), port=PORT, dimensions=never_asked)
+        second = QdrantVectorStore(host=host(), port=PORT, kb=KB, dimensions=never_asked)
         await second.connect()
         try:
             assert await second.count() == 0
-            for stated in COLLECTIONS.values():
-                assert await made(text(stated["name"], "name")) == {"size": 3, **stated}
+            for word, stated in COLLECTIONS.items():
+                assert await made(NAMES[word]) == {"size": 3, **stated}
         finally:
             await second.disconnect()
 
@@ -238,16 +270,16 @@ def test_an_index_made_anew_is_as_wide_as_the_providers_vectors_are_then() -> No
 
     async def whole() -> None:
         await cleared()
-        store = QdrantVectorStore(host=host(), port=PORT, dimensions=dimensions)
+        store = QdrantVectorStore(host=host(), port=PORT, kb=KB, dimensions=dimensions)
         await store.connect()
         try:
-            for stated in COLLECTIONS.values():
-                assert await made(text(stated["name"], "name")) == {"size": 2, **stated}
+            for word, stated in COLLECTIONS.items():
+                assert await made(NAMES[word]) == {"size": 2, **stated}
             # The provider's model is changed for one whose vectors are wider, and the width is asked for again.
             widths.append(3)
             await store.make_anew(STAMP)
-            for stated in COLLECTIONS.values():
-                assert await made(text(stated["name"], "name")) == {"size": 3, **stated}
+            for word, stated in COLLECTIONS.items():
+                assert await made(NAMES[word]) == {"size": 3, **stated}
             await store.upsert_resource_vectors(ResourceId("res-a"), [of_three], "sum-a", [], machine_read=False, media_type="text/plain")
             found = await store.search_resources([1.0, 0.0, 0.0], FIVE)
             assert [(str(each.resource_id), each.text) for each in found] == [("res-a", "of three numbers")]
@@ -269,7 +301,7 @@ def test_a_store_that_connects_to_an_index_another_made_anew_reads_the_stamp_it_
         assert await stated_stamp(RESOURCES) == STAMP
         assert await stated_stamp(ANNOTATIONS) == STAMP
         assert await stated_stamp(DECLINED) is None
-        second = QdrantVectorStore(host=host(), port=PORT, dimensions=never_asked)
+        second = QdrantVectorStore(host=host(), port=PORT, kb=KB, dimensions=never_asked)
         await second.connect()
         try:
             assert await second.index_stamp() == STAMP
@@ -323,19 +355,107 @@ def test_a_listing_reads_every_page_of_a_scroll() -> None:
     run(whole())
 
 
+# ── Knowledge bases ────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("given", part("collectionsNamed"))
+def test_a_knowledge_bases_collections_are_named_as_the_table_states(given: JsonObject) -> None:
+    names = thing(given["names"], "names")
+
+    async def whole() -> None:
+        await cleared()
+        store = QdrantVectorStore(host=host(), port=PORT, kb=UserId(text(given["kb"], "kb")), dimensions=answering(2))
+        await store.connect()
+        try:
+            assert await collections() == sorted(text(name, "name") for name in names.values())
+        finally:
+            await store.disconnect()
+
+    run(whole())
+
+
+def test_the_stores_of_two_knowledge_bases_on_one_qdrant_each_keep_to_their_own_collections() -> None:
+    # One resource of the same id in both. The second is made anew at another width and with another stamp, writes,
+    # deletes and lists; the first is as it was, and none of either's points answers the other.
+    shared = ResourceId("res-1")
+    unread = ResourceId("res-2")
+    quoted = AnnotationPayload(
+        annotation_id=AnnotationId("ann-1"),
+        resource_id=shared,
+        motivation="highlighting",
+        entity_types=[],
+        exact_text="some words",
+    )
+    firsts = EmbeddingChunk(chunk_index=0, text="the first's", embedding=[1.0, 0.0])
+    seconds = EmbeddingChunk(chunk_index=0, text="the second's", embedding=[1.0, 0.0, 0.0])
+
+    async def whole() -> None:
+        await cleared()
+        first = QdrantVectorStore(host=host(), port=PORT, kb=KB, dimensions=answering(2))
+        second = QdrantVectorStore(host=host(), port=PORT, kb=OTHER_KB, dimensions=answering(3))
+        await first.connect()
+        await second.connect()
+        try:
+            await first.make_anew(STAMP)
+            await first.upsert_resource_vectors(shared, [firsts], "sum-1", ["Person"], machine_read=False, media_type="text/plain")
+            await first.upsert_annotation_vector([0.0, 1.0], quoted)
+            await first.decline_resource(unread, Declined(content_checksum="sum-2", media_type="image/png", reason="no text in it"))
+            listed = (
+                await first.count(),
+                await first.list_resource_stamps(),
+                await first.list_annotation_stamps(),
+                await first.list_declined(),
+            )
+            found = await first.search_resources([1.0, 0.0], FIVE)
+            assert [each.text for each in found] == ["the first's"]
+
+            await second.make_anew(OTHER_STAMP)
+            await second.upsert_resource_vectors(shared, [seconds], "sum-x", [], machine_read=False, media_type="text/plain")
+            await second.upsert_annotation_vector([0.0, 1.0, 0.0], quoted)
+            await second.decline_resource(unread, Declined(content_checksum="sum-y", media_type="image/png", reason="unreadable"))
+            assert await second.count() == 2
+            assert [each.text for each in await second.search_resources([1.0, 0.0, 0.0], FIVE)] == ["the second's"]
+            await second.delete_resource_vectors(shared)
+            await second.delete_annotation_vectors_for_resource(shared)
+            assert await second.count() == 0
+            assert await second.list_resource_stamps() == {}
+            assert await second.list_annotation_stamps() == {}
+            assert await second.list_declined() == {unread: Declined(content_checksum="sum-y", media_type="image/png", reason="unreadable")}
+            assert await second.search_resources([1.0, 0.0, 0.0], FIVE) == []
+            assert await second.index_stamp() == OTHER_STAMP
+
+            assert (
+                await first.count(),
+                await first.list_resource_stamps(),
+                await first.list_annotation_stamps(),
+                await first.list_declined(),
+            ) == listed
+            assert await first.search_resources([1.0, 0.0], FIVE) == found
+            assert await first.index_stamp() == STAMP
+            # A reader of the first knowledge base reads its collections alone, as its store does.
+            reading = reader()
+            await reading.connect()
+            try:
+                assert await reading.search_resources([1.0, 0.0], FIVE) == found
+                assert await reading.get_resource_stamp(shared) == (await first.list_resource_stamps())[shared]
+            finally:
+                await reading.disconnect()
+            for word, stated in COLLECTIONS.items():
+                assert await made(NAMES[word]) == {"size": 2, **stated}
+                assert await made(OTHER_NAMES[word]) == {"size": 3, **stated}
+        finally:
+            await second.disconnect()
+            await first.disconnect()
+
+    run(whole())
+
+
 # ── The reader ─────────────────────────────────────────────────────────
 
 
-async def collections() -> list[str]:
-    """The name of every collection the Qdrant itself says it has."""
-    async with qdrant() as http:
-        listed = answered(await http.get("/collections"))
-    return sorted(text(each["name"], "name") for each in objects(listed["collections"], "collections"))
-
-
 def reader() -> QdrantVectorReader:
-    """A reader of the Qdrant, not yet connected."""
-    return QdrantVectorReader(host=host(), port=PORT)
+    """A reader of the knowledge base's index in the Qdrant, not yet connected."""
+    return QdrantVectorReader(host=host(), port=PORT, kb=KB)
 
 
 def test_a_reader_that_connects_makes_no_collection() -> None:
@@ -432,7 +552,7 @@ def test_a_search_that_fails_for_another_reason_is_raised_as_qdrant_answered_it(
         reading = reader()
         try:
             await reading.connect()
-            with pytest.raises(RuntimeError, match=r"Qdrant answered \d+ to POST /collections/resources/points/query"):
+            with pytest.raises(RuntimeError, match=rf"Qdrant answered \d+ to POST /collections/{RESOURCES}/points/query"):
                 await reading.search_resources([1.0, 0.0, 0.0], FIVE)
         finally:
             await reading.disconnect()

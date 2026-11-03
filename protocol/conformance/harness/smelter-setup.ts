@@ -6,14 +6,15 @@
  * The run is told where its Qdrant is, in QDRANT_HOST. It starts none: the
  * database is a server, and a run inside a container cannot start another. A
  * run without the variable fails here and says so. It is not skipped. The
- * suite CLEARS the index of the database it is given, so it is given one of
- * its own (`packages/go/launcher/scripts/qdrant-image.sh` prints the image to start).
+ * suite CLEARS every collection of the database it is given, so it is given
+ * one of its own (`packages/go/launcher/scripts/qdrant-image.sh` prints the
+ * image to start).
  */
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
 import type { Implementations } from './implementations';
-import { QDRANT_PORT, vectorIndex } from './qdrant';
+import { collectionsAt, QDRANT_PORT } from './qdrant';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -50,6 +51,6 @@ export default async function setup(project: TestProject): Promise<void> {
     );
   }
   // Asked once here, so a database that is not there reads as that.
-  await vectorIndex(host).collections();
+  await collectionsAt(host);
   project.provide('vectorDatabase', { host });
 }

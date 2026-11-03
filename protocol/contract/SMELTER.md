@@ -391,6 +391,15 @@ states what each kind of document becomes.
   [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states
   what a point of each holds, and what is indexed for a filter.
   *Held by `packages/python/vectors/tests/test_payload_cases.py`, and for the collections a Qdrant then has by `packages/python/vectors/tests/qdrant_live.py`.*
+- **Each knowledge base's index is collections of its own.** A Smelter
+  makes, writes, reads, lists, counts and makes again only the collections of
+  the knowledge base its document names, each named by the SHA-256 of that
+  knowledge base's DID, a hyphen and the collection's word, as
+  [`payload-cases.json`](../specs/src/vectors/payload-cases.json) states. So
+  knowledge bases share one Qdrant, and none reads, purges or empties
+  another's: a reconcile reads its own collections alone, and so purges
+  nothing of another's, and an index made again is its own.
+  *Held by `packages/python/vectors/tests/qdrant_live.py`, against a Qdrant, and `smelter/kb-index`.*
 - **A collection that is searched is as wide as the embedding model's
   vectors,** which the Smelter learns by asking the provider to embed once,
   each time it makes the collections: where there are none when it connects,

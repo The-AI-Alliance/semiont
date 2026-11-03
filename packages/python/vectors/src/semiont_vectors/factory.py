@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 from typing import assert_never
 
+from semiont.identifiers import UserId
 from semiont.types import (
     EmbeddingConfig,
     MemoryVectorsConfig,
@@ -22,11 +23,13 @@ from semiont_vectors.voyage import VoyageEmbeddingProvider
 __all__ = ["create_embedding_provider", "create_vector_reader", "create_vector_store"]
 
 
-def create_vector_store(config: VectorsConfig, *, dimensions: Callable[[], Awaitable[int]]) -> VectorStore:
-    """The store of the vector index `config` names. Nothing is dialled: a store reaches its index when it is connected.
+def create_vector_store(config: VectorsConfig, *, kb: UserId, dimensions: Callable[[], Awaitable[int]]) -> VectorStore:
+    """The store of the vector index `config` names, of the knowledge base whose DID is `kb`. Nothing is dialled until it is connected.
 
     `config` is the protocol's `VectorsConfig`, as a service's configuration
-    document states it. `dimensions` answers how wide the embedding model's
+    document states it. A Qdrant store keeps to the collections of `kb`, and
+    a store in memory is one knowledge base's index and names nothing.
+    `dimensions` answers how wide the embedding model's
     vectors are, and is a provider's own `dimensions`: a store that has to
     make its index asks it then, and again whenever it is told to make the
     index anew, and one that finds its index made asks nobody. A store in
@@ -34,25 +37,26 @@ def create_vector_store(config: VectorsConfig, *, dimensions: Callable[[], Await
     """
     match config:
         case QdrantVectorsConfig():
-            return QdrantVectorStore(host=config.host, port=config.port, dimensions=dimensions)
+            return QdrantVectorStore(host=config.host, port=config.port, kb=kb, dimensions=dimensions)
         case MemoryVectorsConfig():
             return MemoryVectorStore()
         case _:
             assert_never(config)
 
 
-def create_vector_reader(config: VectorsConfig) -> VectorReader:
-    """The reader of the vector index `config` names. Nothing is dialled: a reader reaches its index when it is connected.
+def create_vector_reader(config: VectorsConfig, *, kb: UserId) -> VectorReader:
+    """The reader of the vector index `config` names, of the knowledge base whose DID is `kb`. Nothing is dialled until it is connected.
 
     `config` is the protocol's `VectorsConfig`, as a service's configuration
-    document states it. A reader makes nothing in its index, so it is told
+    document states it. A Qdrant reader reads the collections of `kb` alone.
+    A reader makes nothing in its index, so it is told
     no width. A reader in memory is an index of its own, held in the
     process, that nothing has written to: it answers every search with
     nothing.
     """
     match config:
         case QdrantVectorsConfig():
-            return QdrantVectorReader(host=config.host, port=config.port)
+            return QdrantVectorReader(host=config.host, port=config.port, kb=kb)
         case MemoryVectorsConfig():
             return MemoryVectorStore()
         case _:

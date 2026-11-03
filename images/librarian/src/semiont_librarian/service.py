@@ -161,8 +161,8 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     # A reader of the graph: connecting it makes no constraint and no index there.
     graph = create_graph_reader(config.graph, password=graph_password_of(config, environment))
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
-    # A reader of the index: it is told no width, because it makes nothing there.
-    vectors = create_vector_reader(config.vectors)
+    # A reader of the knowledge base's index: it is told no width, because it makes nothing there.
+    vectors = create_vector_reader(config.vectors, kb=kb_did(config.kb.domain))
     matcher = _client_of("matcher", config, environment)
     gatherer = _client_of("gatherer", config, environment)
     return _Started(
