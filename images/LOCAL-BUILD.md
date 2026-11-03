@@ -41,6 +41,11 @@ Other images build from source without a registry. It is not a prerequisite-awar
 
 Use `FORCE=1` to rebuild every selected package/image, `FANOUT=0` to leave images only in the
 building engine, and `CONTAINER_RUNTIME=container|docker|podman` to choose that engine.
+Automatic selection tries Apple `container`, Docker and Podman in that order and uses the
+first responding engine. An explicit `CONTAINER_RUNTIME` is checked without falling back;
+a stopped or unreachable engine fails before build work, with startup instructions. Each
+readiness probe allows five seconds. Commands never start engines or VMs automatically.
+
 `LAYER_CACHE=directory` enables the Docker Rust layer cache used by Stack Smoke. `make plan`
 reads package signatures and reports image build/skip decisions from content and the selected
 runtime’s image store without building, publishing or updating build state. npm-backed image
@@ -122,7 +127,9 @@ Desktop is not part of `local-build`.
 ## Verification and implementation
 
 `make smoke SMOKE_TAG=local` runs [the real-stack smoke](tests/stack/smoke-stack.sh) and its
-e2e tier. This boots services and requires the selected images and the checkout's launcher.
+e2e tier. It uses the same `CONTAINER_RUNTIME` selection and readiness check as the build.
+Apple `container` runs Playwright through the existing localhost bridge; Docker and Podman
+use host networking. This boots services and requires the selected images and the checkout's launcher.
 Stack Smoke CI calls `make local-build` with TypeScript selection, fan-out disabled and a
 Docker layer cache. Existing native CI build and release publication commands remain direct.
 

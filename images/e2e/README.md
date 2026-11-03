@@ -189,14 +189,14 @@ nor `gemma3:1b` answered them correctly within their timeouts.
 [`images/tests/stack/smoke-stack.sh <images> --e2e`](../tests/stack/smoke-stack.sh),
 nightly on `main`, on dispatch, and on a pull request that changes the
 workflow or its script. The script boots a new knowledge base's stack on
-docker, with the inference and embedding models `semiont init` names, and,
+the runtime selected by `CONTAINER_RUNTIME` (or the first responding engine), with the inference and embedding models `semiont init` names, and,
 after its own checks and before it stops the stack:
 
 - makes the suite's user with `semiont useradd`, a password generated for the
   run, and passes both as `E2E_EMAIL` and `E2E_PASSWORD`;
 - runs `npm ci && npm test` here, in `mcr.microsoft.com/playwright:v<version>-noble`,
-  `<version>` read from `package.json`, with `--network host`, so the
-  `localhost` defaults reach the stack;
+  `<version>` read from `package.json`, with `--network host` on Docker/Podman
+  or the existing localhost bridge on Apple `container`, so the `localhost` defaults reach the stack;
 - adds a JSON report to the list and HTML ones, at
   `test-results/report.json`.
 
@@ -204,9 +204,11 @@ A failing suite fails the job, prints the stack's container logs, and still
 stops the stack. Whatever the result, `playwright-report/` and
 `test-results/` are kept as the run's `e2e-report` artifact for 30 days, and a
 table of the specs with the tier's wall time is written to the run's summary.
-On a laptop with docker, `images/tests/stack/smoke-stack.sh local --e2e` does the
-same; Apple's `container` has no `--network host`, so there it refuses, and
-the [Quick start](#quick-start) is the way.
+On a laptop, `make smoke` does the same against `:local` images, including on Apple
+`container`. Use `CONTAINER_RUNTIME=container make smoke` to select it explicitly.
+A selected runtime that is not responding fails with startup instructions; nothing is
+started automatically. The [Quick start](#quick-start) runs the suite alone against a stack
+that is already up.
 
 ## Running against a freshly-built stack
 

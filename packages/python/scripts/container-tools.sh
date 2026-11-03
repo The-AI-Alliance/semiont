@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 # One disposable Python environment per local operation; never a host Python command.
-detect_container_runtime() {
-  if [[ -n "${CONTAINER_RUNTIME:-}" ]]; then printf '%s\n' "$CONTAINER_RUNTIME"; return; fi
-  local candidate
-  for candidate in container docker podman; do
-    if command -v "$candidate" >/dev/null 2>&1; then printf '%s\n' "$candidate"; return; fi
-  done
-  echo 'Install a container runtime or set CONTAINER_RUNTIME.' >&2
-  return 1
-}
+source "$REPO_ROOT/images/scripts/container-runtime.sh"
 
 start_python_tools() {
   PYTHON_TOOLS_NAME="semiont-python-tools-$$"

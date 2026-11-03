@@ -23,13 +23,8 @@ if [[ "$TARGET" == mac && "$HOST_OS" != Darwin ]]; then
   echo "macOS installer packaging requires a macOS host (hdiutil)." >&2
   exit 1
 fi
-RT="${CONTAINER_RUNTIME:-}"
-if [[ -z "$RT" ]]; then
-  for candidate in container docker podman; do
-    if command -v "$candidate" >/dev/null 2>&1; then RT="$candidate"; break; fi
-  done
-fi
-[[ -n "$RT" ]] || { echo "A container runtime is required" >&2; exit 1; }
+source "$REPO_ROOT/images/scripts/container-runtime.sh"
+RT=$(detect_container_runtime)
 
 NODE_MAJOR="$("$REPO_ROOT/packages/typescript/scripts/node-version.sh")"
 
