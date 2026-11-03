@@ -30,7 +30,7 @@ func mustPlan(t *testing.T, st *stack.Stack) *launchPlan {
 // mustPlanWith: mustPlan, on the issuer's document a test changed.
 func mustPlanWith(t *testing.T, st *stack.Stack, issuer *issuerDocument) *launchPlan {
 	t.Helper()
-	plan, err := derivePlan(st, issuer, fixtureKB(t).key(), 0)
+	plan, err := derivePlan(st, issuer, vectorStoreFor(t, st), fixtureKB(t).key(), 0)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
 	}
@@ -51,7 +51,7 @@ func mustRefuse(t *testing.T, st *stack.Stack, want ...string) {
 // mustRefuseWith: mustRefuse, on the issuer's document a test changed.
 func mustRefuseWith(t *testing.T, st *stack.Stack, issuer *issuerDocument, want ...string) {
 	t.Helper()
-	plan, err := derivePlan(st, issuer, fixtureKB(t).key(), 0)
+	plan, err := derivePlan(st, issuer, vectorStoreFor(t, st), fixtureKB(t).key(), 0)
 	if err == nil {
 		t.Fatalf("derivePlan accepted documents the stack cannot run: %+v", plan.Roles)
 	}
@@ -73,7 +73,7 @@ func asSomebodyElses(st *stack.Stack, issuer *issuerDocument, role string) {
 		g.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.example.com:9999", Password: stack.SecretRef{FromEnv: "EXT_GRAPH_PASSWORD"}}
 	case "vectors":
 		v := &st.KnowledgeIndex.Spec.Vectors
-		v.Image, v.Resources = nil, nil
+		v.Shared, v.Image, v.Resources = nil, nil, nil
 		v.External = &stack.HostPort{Host: "vectors.example.com", Port: 6334}
 	case "identity-store":
 		d := &issuer.spec.Database
@@ -137,8 +137,8 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				User: "neo4j", Env: []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"},
 			})
 			checkRole(t, plan, "vectors", rolePlan{
-				Presence: presenceLauncher, Driver: "qdrant",
-				Image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", Memory: "1G", Port: 6333,
+				Presence: presenceShared, Driver: "qdrant",
+				Image: "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", Memory: "1G", Port: 6330,
 			})
 			// embedding: with ollama engines, the inference role runs the
 			// Ollama and embedding rides along (external, sharing it). With
@@ -516,7 +516,7 @@ func TestPlanRunsAWorkerOnlyWhenAJobHasAnEngine(t *testing.T) {
 	} {
 		st := fixtureStack(t, "anthropic")
 		c.engines(&st.Inference.Spec.Engines)
-		plan, err := derivePlan(st, issuerFor(t, st), fixtureKB(t).key(), 0)
+		plan, err := derivePlan(st, issuerFor(t, st), vectorStoreFor(t, st), fixtureKB(t).key(), 0)
 		if err != nil {
 			t.Fatalf("%s: %v", c.why, err)
 		}

@@ -7,7 +7,7 @@ package launcher
 // command as the way out. The root's realm at the shared issuer goes with it,
 // through Keycloak's admin API: the PostgreSQL that keeps every realm here is
 // the machine's, and one root's clean leaves it. `--shared` removes that
-// PostgreSQL's store instead (cleanissuer.go).
+// PostgreSQL's store, or the shared Qdrant's, instead (cleanshared.go).
 //
 // An UNSCOPED clean also deletes every secret the launcher keeps for the root
 // (custody.go), through the store that keeps them: the accounts the
@@ -48,6 +48,11 @@ stack signs in at the shared issuer and its server is stopped (semiont stop
 --group issuer). The issuer's passwords stay, so its next boot reuses them,
 and each knowledge base's next start creates its realm afresh.
 
+semiont clean --shared --store vectors removes the shared Qdrant's store,
+and the index of every knowledge base naming it, once no recorded stack
+keeps its index there and the shared Qdrant is stopped (semiont stop
+--service vectors). Each knowledge base's next start indexes it afresh.
+
 Options:
   --store <role>   Remove one store only: identity-store (the knowledge
                    base's realm at the shared issuer; the PostgreSQL that
@@ -61,8 +66,8 @@ Options:
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)
   --shared         The machine's shared state instead of a root's: the
-                   shared issuer's, with --store identity-store. Not with
-                   --root
+                   shared issuer's, with --store identity-store, or the
+                   shared Qdrant's, with --store vectors. Not with --root
   --dry-run        Show what would be removed and its size; remove nothing
   --help           Show this help
 `
@@ -169,7 +174,7 @@ func Clean(args []string) int {
 	}
 	// A store the machine keeps for every knowledge base is not this root's to
 	// remove.
-	scopedHere := store != "" && !sharedRole(stateStores[store].owner)
+	scopedHere := store != "" && !stateStores[store].machine
 	var targets []target
 	switch {
 	case scopedHere:

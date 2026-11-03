@@ -293,7 +293,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowDepRole(x, "graph", fc, addr); code != 0 {
 		return code
 	}
-	if code := flowDepRole(x, "vectors", fc, addr); code != 0 {
+	if code := flowVectors(x, fc, addr, false); code != 0 {
 		return code
 	}
 	if code := flowInferenceRole(x, fc, addr); code != 0 {
@@ -645,7 +645,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	case presenceLauncher:
 		// Persistent state rides the run argv: roles in stateStores mount
 		// their per-root dir.
-		extra, ok := x.stateMounts(role, rp.Image, fc.kb)
+		extra, ok := x.stateMounts(role, storeAt(role, fc.plan), rp.Image, fc.kb)
 		if !ok {
 			return 1
 		}
@@ -1029,7 +1029,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	state, ok := x.stateMounts("state", fc.plan.Images["archivist"], fc.kb)
+	state, ok := x.stateMounts("state", stateStores["state"], fc.plan.Images["archivist"], fc.kb)
 	if !ok {
 		return 1
 	}
@@ -1173,11 +1173,11 @@ func flowService(x executor, fc flowCtx, m groupMember) int {
 		return 0
 	}
 
-	// The shared containers are handled entirely by their own flows (their
+	// The machine's containers are handled entirely by their own flows (their
 	// own stop, ports and run) — and their ports must NEVER enter the STACK's
-	// recorded claims: stop verifies stack-port release while the shared
+	// recorded claims: stop verifies stack-port release while the machine's
 	// containers deliberately keep running on theirs.
-	if !contains(sharedRoles, svc) {
+	if !contains(sharedRoles, svc) && fc.plan.Roles[svc].Presence != presenceShared {
 		ports := servicePortNeeds(svc, fc.plan, fc.browser, x.exposure(""))
 		if x.stopRm(roleContainer(svc, fc.kb.key())) {
 			x.say(sayLog, "Removed prior %s container", svc)
@@ -1229,11 +1229,18 @@ func flowService(x executor, fc flowCtx, m groupMember) int {
 		if code := flowTraces(x, fc, addr); code != 0 {
 			return code
 		}
-	case "graph", "vectors", "messaging":
+	case "graph", "messaging":
 		// The same flow a full start walks — one implementation, so a
 		// dependency started alone cannot differ from one started with the
 		// stack.
 		if code := flowDepRole(x, svc, fc, addr); code != 0 {
+			return code
+		}
+	case "vectors":
+		// The machine's Qdrant is restarted when the start names it alone, and
+		// kept when it starts because something, or the knowledge base's
+		// group, needs it: it serves every knowledge base naming it.
+		if code := flowVectors(x, fc, addr, m.because == "" && fc.opts.group.name == ""); code != 0 {
 			return code
 		}
 	case "identity-store":

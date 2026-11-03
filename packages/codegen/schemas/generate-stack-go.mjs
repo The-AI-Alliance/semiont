@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // generate-stack-go.mjs — the launcher's types for its documents (a knowledge
-// base's, and the machine's Browser's and worker's), and the schemas it reads
-// them against, from protocol/specs/src/stack/ and protocol/specs/src/kb-identity/ProjectConfig.json.
+// base's, and the machine's Browser's, worker's, issuer's and vector store's),
+// and the schemas it reads them against, from protocol/specs/src/stack/ and
+// protocol/specs/src/kb-identity/ProjectConfig.json.
 //
 //   packages/go/launcher/stack/types_gen.go    a Go type for each kind of
 //                                                document, and for each object
@@ -34,6 +35,7 @@ const KINDS = [
   'protocol/specs/src/stack/KnowledgeBase.json',
   'protocol/specs/src/stack/KnowledgeIndex.json',
   'protocol/specs/src/stack/Issuer.json',
+  'protocol/specs/src/stack/VectorStore.json',
   'protocol/specs/src/stack/WorkerPool.json',
   'protocol/specs/src/stack/Inference.json',
   'protocol/specs/src/stack/Browser.json',
@@ -133,7 +135,8 @@ function objectType(schema, from, name) {
     return description ? `${goComment(description, '\t')}\n${field}` : field;
   });
   if (!schema.description) refuse(from, `${name} is an object with no description`);
-  types.set(name, `${goComment(`${name}: ${schema.description}`)}\ntype ${name} struct {\n${fields.join('\n\n')}\n}\n`);
+  const body = fields.length > 0 ? ` {\n${fields.join('\n\n')}\n}` : '{}';
+  types.set(name, `${goComment(`${name}: ${schema.description}`)}\ntype ${name} struct${body}\n`);
   return name;
 }
 

@@ -90,7 +90,7 @@ func runIssuerStore(x executor, fc flowCtx, addr string, restart bool) (code int
 			if !x.portChecks(needs) {
 				return 1
 			}
-			extra, ok := x.stateMounts("identity-store", rp.Image, fc.kb)
+			extra, ok := x.stateMounts("identity-store", stateStores["identity-store"], rp.Image, fc.kb)
 			if !ok {
 				return 1
 			}

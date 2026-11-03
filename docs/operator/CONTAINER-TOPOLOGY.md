@@ -9,13 +9,13 @@ For what each container needs (its port, configuration, mounts and health check)
 A stack the launcher runs, on the documents `semiont init` writes, is, in the groups `semiont status` reads it by ([What runs](LOCAL-SEMIONT.md#what-runs)):
 
 - **its record**: the gateway, the dispatcher, the archivist and NATS;
-- **its index**: the librarian, the smelter, the weaver, Neo4j and Qdrant;
+- **its index**: the librarian, the smelter, the weaver, Neo4j and Qdrant, which is the machine's: one serves every knowledge base here, each one's index in collections of its own;
 - **the issuer**: Keycloak and its PostgreSQL, where every knowledge base here has a realm of its own;
 - **the knowledge workers**: the Browser and the worker;
 - **the providers**: Ollama (none when one is installed on the computer, or when every model is a hosted provider's);
 - **the telemetry**: the OpenTelemetry Collector, Jaeger and Prometheus. `--no-observe` leaves out the last two; the collector still runs.
 
-The first two are the knowledge base's own, and its containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. The last four are shared: one of each serves every knowledge base here, named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
+The first two are the knowledge base's own, Qdrant aside, and its containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. Qdrant and the last four are shared: one of each serves every knowledge base here, named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
 
 Semiont's eight are published images that a stack pulls and configures at run time. Nothing about a knowledge base is built into them ([Container Images](administration/IMAGES.md)).
 
@@ -126,7 +126,7 @@ graph TB
         WEAVE["semiont-&lt;kb&gt;-weaver<br/>Weaver — graph pipeline"]
         SMELT["semiont-&lt;kb&gt;-smelter<br/>Smelter — vector pipeline"]
         NEO["semiont-&lt;kb&gt;-neo4j<br/>Neo4j — graph projection"]
-        QD["semiont-&lt;kb&gt;-qdrant<br/>Qdrant — vector index"]
+        QD["semiont-qdrant<br/>Qdrant — every KB's vector index"]
     end
 
     LIB["semiont-&lt;kb&gt;-librarian<br/>Gatherer · Matcher"]

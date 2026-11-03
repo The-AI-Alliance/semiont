@@ -102,7 +102,8 @@ type admitter interface {
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
 // database a launcher-run PostgreSQL must already carry.
 type storer interface {
-	stateMounts(role, image string, kb kbRoot) ([]string, bool)   // persistent-state run args; !ok = refuse (data written by another image)
+	// persistent-state run args; !ok = refuse (data written by another image)
+	stateMounts(store string, spec stateStoreSpec, image string, kb kbRoot) ([]string, bool)
 	stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) // the same mounts for a store no image stamps
 	resolveStoreStamps(fc flowCtx) bool                           // preflight: every store's mismatch refuse/clear, before the first container run
 	createDatabase(user, name string) bool                        // a database on the launcher-run PostgreSQL, if absent
@@ -1061,12 +1062,12 @@ func (x *liveExec) ensureModels(base string, models []modelNeed) {
 }
 
 // resolveStoreStamp is THE decider for existing store data vs the launching
-// image: refuse for the system of record (identity-store — user rows), clear
-// CONTENTS for projections (rebuildable from the log). Never unlinks the
-// store dir: an attached share survives a contents-clear and is orphaned
-// forever by delete-and-recreate.
-func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
-	spec := stateStores[role]
+// image: refuse for the system of record (identity-store — user rows) and for
+// a store the machine keeps, which every knowledge base here reads; clear
+// CONTENTS for a knowledge base's projections (rebuildable from its log).
+// Never unlinks the store dir: an attached share survives a contents-clear
+// and is orphaned forever by delete-and-recreate.
+func (x *liveExec) resolveStoreStamp(role string, spec stateStoreSpec, image, key string) bool {
 	dir := spec.home(key)
 	sd := spec.storeDir(key)
 	meta := loadRootMeta(dir)
@@ -1075,9 +1076,9 @@ func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
 		return true
 	}
 	if storeDirNonEmpty(sd) {
-		if !spec.projection {
+		if !spec.projection || spec.machine {
 			x.u.Fail("%s state at %s was written by %s; this start launches %s.", role, sd, prev, stamp)
-			if sharedRole(spec.owner) {
+			if spec.machine {
 				fmt.Fprintf(os.Stderr, "  That data is not auto-deleted. It is every knowledge base's here; to start afresh: semiont clean --shared --store %s\n", role)
 				return false
 			}
@@ -1109,42 +1110,43 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 		}
 		var img string
 		if rp, ok := fc.plan.Roles[spec.owner]; ok {
-			if rp.Presence != presenceLauncher {
+			if rp.Presence != presenceLauncher && rp.Presence != presenceShared {
 				continue // remote or absent: this boot mounts no such store
 			}
 			img = rp.Image
 		} else {
 			img = fc.plan.Images[spec.owner]
 		}
-		if !x.resolveStoreStamp(role, img, fc.kb.key()) {
+		if !x.resolveStoreStamp(role, storeAt(role, fc.plan), img, fc.kb.key()) {
 			return false
 		}
 	}
 	return true
 }
 
-// stateMounts prepares a role's persistent state dir and returns the run
-// args that mount it. The image-mismatch split lives in resolveStoreStamp:
-// identity-store data is user rows — refuse, fix-it names the clean command;
-// projections (vectors/graph) auto-clean and rebuild.
-func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
+// stateMounts prepares the persistent state dir of the store named store,
+// kept as spec says (storeAt), and returns the run args that mount it. The
+// image-mismatch split lives in resolveStoreStamp: identity-store data is
+// user rows, and the machine's stores are every knowledge base's — refuse,
+// fix-it names the clean command; a knowledge base's projections
+// (vectors/graph) auto-clean and rebuild.
+func (x *liveExec) stateMounts(role string, spec stateStoreSpec, image string, kb kbRoot) ([]string, bool) {
 	key := kb.key()
-	args := stateMountArgs(role, key)
+	args := spec.mountArgs(key)
 	if len(args) == 0 {
 		return nil, true
 	}
-	spec := stateStores[role]
 	dir := spec.home(key)
 	meta := loadRootMeta(dir)
 	// A full start has already resolved the stamp in preflight (this re-check
 	// no-ops on the emptied dir); single-service starts resolve here.
-	if !x.resolveStoreStamp(role, image, key) {
+	if !x.resolveStoreStamp(role, spec, image, key) {
 		return nil, false
 	}
 	if !x.openStoreDirs(spec, key) {
 		return nil, false
 	}
-	if !sharedRole(spec.owner) {
+	if !spec.machine {
 		meta.KBRoot = kb.dir
 		meta.Did = kb.ident.didWeb()
 	}
@@ -1159,7 +1161,7 @@ func (x *liveExec) stateMounts(role, image string, kb kbRoot) ([]string, bool) {
 // line is what happened whichever image wrote it, so no image change clears
 // either; the bind is the one stateMounts makes, without the stamp.
 func (x *liveExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) {
-	args := stateMountArgs(role, kb.key())
+	args := stateStores[role].mountArgs(kb.key())
 	if len(args) == 0 {
 		return nil, true
 	}
@@ -1554,18 +1556,18 @@ func (x *planExec) ensureModels(base string, models []modelNeed) {
 // --dry-run computes the real state path (it is derivation, not effect) but
 // creates nothing and never refuses — the image-mismatch check reads disk,
 // a runtime fact the plan only names.
-func (x *planExec) stateMounts(role, _ string, kb kbRoot) ([]string, bool) {
-	args := stateMountArgs(role, kb.key())
+func (x *planExec) stateMounts(role string, spec stateStoreSpec, _ string, kb kbRoot) ([]string, bool) {
+	args := spec.mountArgs(kb.key())
 	if len(args) > 0 {
 		x.c("%s state: %s (created if absent; reused across restarts)",
-			role, stateStores[role].storeDir(kb.key()))
+			role, spec.storeDir(kb.key()))
 	}
 	return args, true
 }
 
 func (x *planExec) stateMountsUnstamped(role string, kb kbRoot) ([]string, bool) {
 	x.c("mount %s state (no image stamps it: an image change clears nothing)", role)
-	return stateMountArgs(role, kb.key()), true
+	return stateStores[role].mountArgs(kb.key()), true
 }
 
 func (x *planExec) resolveStoreStamps(flowCtx) bool {

@@ -35,7 +35,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	meta.Stores["state"] = storeMeta{Image: "img:old"}
 	saveRootMeta(dir, meta)
 
-	if !x.resolveStoreStamp("state", "img:new", key) {
+	if !x.resolveStoreStamp("state", stateStores["state"], "img:new", key) {
 		t.Fatal("a projection mismatch must resolve, not refuse")
 	}
 	if got := loadRootMeta(dir).Stores["state"].Image; got != "img:new" {
@@ -62,7 +62,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	saveRootMeta(pgHome, meta)
 
 	for _, asking := range []string{key, rootKey("did:web:owner.github.io:other-kb", "")} {
-		if x.resolveStoreStamp("identity-store", "pg:new", asking) {
+		if x.resolveStoreStamp("identity-store", stateStores["identity-store"], "pg:new", asking) {
 			t.Fatalf("an identity-store mismatch must refuse, whichever knowledge base asks (%s)", asking)
 		}
 	}

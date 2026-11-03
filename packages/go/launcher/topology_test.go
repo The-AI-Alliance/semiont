@@ -27,7 +27,7 @@ func externalIssuer(st *stack.Stack) {
 func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	placedByLauncher := []string{
 		"graph: bolt://192.168.64.1:17687",
-		"vectors: 192.168.64.1:6333",
+		"vectors: 192.168.64.1:6330",
 		"identity-store: 192.168.64.1:5432",
 		"messaging: 192.168.64.1:4222",
 		"identity: http://192.168.64.1:8080/realms/example.github.io-test-kb",
@@ -39,7 +39,7 @@ func TestTheLauncherPlacesEveryDaemonItRuns(t *testing.T) {
 	} {
 		p := placed(t, fixtureStack(t, inference))
 		for _, role := range []string{"graph", "vectors", "identity-store", "messaging", "identity"} {
-			if p.plan.Roles[role].Presence != presenceLauncher {
+			if !p.placed(role) {
 				t.Errorf("%s: the launcher does not run the %s its documents leave to it", inference, role)
 			}
 		}
@@ -66,7 +66,7 @@ func TestADocumentsExternalIsSomebodyElsesDaemon(t *testing.T) {
 			func(p placement) string { return p.graphURI() }, "bolt://graph.internal:7687"},
 		{"vectors", "qdrant.internal", func(st *stack.Stack, _ *issuerDocument) {
 			v := &st.KnowledgeIndex.Spec.Vectors
-			v.Image, v.Resources = nil, nil
+			v.Shared = nil
 			v.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
 		}, func(p placement) string { host, port := p.vectors(); return fmt.Sprintf("%s:%d", host, port) }, "qdrant.internal:7000"},
 		{"identity-store", "pg.internal", func(_ *stack.Stack, issuer *issuerDocument) {

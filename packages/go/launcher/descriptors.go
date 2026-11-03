@@ -432,8 +432,8 @@ func driversFor(role string) []string {
 }
 
 // containerName: the container d's driver runs for the knowledge base whose
-// state is keyed key (rootKey). A shared role's is the shared one,
-// semiont-<name>, serving every knowledge base here; a stack role's is
+// state is keyed key (rootKey). A shared role's is the machine's
+// (machineContainer), serving every knowledge base here; a stack role's is
 // semiont-<key>-<name>, so each knowledge base's stack runs under names of its
 // own. "" when the driver runs none.
 func (d serviceDescriptor) containerName(key string) string {
@@ -441,11 +441,18 @@ func (d serviceDescriptor) containerName(key string) string {
 	case d.name == "":
 		return ""
 	case sharedRole(d.role):
-		return "semiont-" + d.name
+		return d.machineContainer()
 	case key == "":
 		panic("the " + d.role + " container is named for a knowledge base, and none was named")
 	}
 	return "semiont-" + key + "-" + d.name
+}
+
+// machineContainer: the container d's driver runs once for every knowledge
+// base here, semiont-<name>: a shared role's, or the vector store's for the
+// knowledge bases that name it shared (machineServedRoles).
+func (d serviceDescriptor) machineContainer() string {
+	return "semiont-" + d.name
 }
 
 // containersForRole: every container a driver of role could run for the
@@ -483,12 +490,12 @@ func runsContainer(role string) bool {
 	return false
 }
 
-// sharedContainer: the shared container for one of sharedRoles.
+// sharedContainer: the machine's container for one of machineRoles.
 func sharedContainer(role string) string {
-	if !sharedRole(role) {
-		panic(role + " is no shared role: its container is a knowledge base's")
+	if !contains(machineRoles, role) {
+		panic(role + " is served by no machine container: its container is a knowledge base's")
 	}
-	return roleContainer(role, "")
+	return descriptorFor(role, probeDriver(role)).machineContainer()
 }
 
 // sharedRole: whether role's container is shared, run once for every
@@ -518,14 +525,15 @@ func stackPortNeeds(role string) []portNeed {
 	return out
 }
 
-// sharedRoleByContainer inverts the shared containers (name → role).
-// Container-less drivers must not be indexed: mapping "" would hand a role
-// back for every unmatched lookup.
+// sharedRoleByContainer inverts the machine's containers (name → role): the
+// shared roles' and the ones machineServedRoles name. Container-less drivers
+// must not be indexed: mapping "" would hand a role back for every unmatched
+// lookup.
 var sharedRoleByContainer = func() map[string]string {
 	m := map[string]string{}
 	for _, d := range serviceDescriptors {
-		if c := d.name; c != "" && sharedRole(d.role) {
-			m[d.containerName("")] = d.role
+		if c := d.name; c != "" && contains(machineRoles, d.role) {
+			m[d.machineContainer()] = d.role
 		}
 	}
 	return m
@@ -646,6 +654,18 @@ var telemetryRoles = []string{"collector", "metrics", "traces"}
 // in; the telemetry; the machine's Ollama; the Browser. Neither sweep names
 // them; each is kept, replaced and stopped from its own record.
 var sharedRoles = slices.Concat([]string{"worker", "identity", "identity-store"}, telemetryRoles, []string{"inference", "browser"})
+
+// machineServedRoles: the roles of a knowledge base's stack that the
+// machine's container serves when its documents name it shared, and its own
+// container serves otherwise — the vector store. The machine's is kept,
+// replaced and stopped from its own record, as a shared role's is, and a
+// knowledge base's record says which serves it (Provided).
+var machineServedRoles = []string{"vectors"}
+
+// machineRoles: every role a machine container serves, in the order a bare
+// stop of the last stack stops them: the shared roles', then the vector
+// store's.
+var machineRoles = slices.Concat(sharedRoles, machineServedRoles)
 
 // stackContainers: every container of the knowledge base keyed key's stack,
 // in teardown order — what a start's preflight and a stop sweep. The

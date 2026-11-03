@@ -159,7 +159,7 @@ Neither is optional at start: the Weaver and the Librarian each connect to the g
 ```bash
 semiont logs --service graph
 curl -s http://localhost:7474                  # On port block 1: 7484
-curl -s http://192.168.64.1:6333/readyz        # On port block 1: 6343. Under Docker or Podman: localhost
+curl -s http://192.168.64.1:6330/readyz        # The shared Qdrant. A knowledge base's own: 6333, on port block 1 6343. Under Docker or Podman: localhost
 ```
 
 ### Inference failures
@@ -215,6 +215,16 @@ semiont start
 ```
 
 The issuer's passwords stay, so its next boot reuses them. Each knowledge base's next start creates its realm afresh, with no accounts in it; add them again with `semiont useradd`.
+
+The shared Qdrant's store is the other one every knowledge base here shares: a start that names another Qdrant image than the one that wrote it is refused. Its clean is refused until no knowledge base that names it runs and it is stopped; each one's next start indexes its resources again:
+
+```bash
+semiont stop                     # In each knowledge base that names the shared Qdrant
+semiont stop --service vectors   # The shared Qdrant itself, when another knowledge base runs
+semiont clean --shared --store vectors --dry-run
+semiont clean --shared --store vectors
+semiont start
+```
 
 ## Emergency procedures
 

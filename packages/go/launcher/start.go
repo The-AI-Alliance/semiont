@@ -356,7 +356,11 @@ func Start(args []string) int {
 		if !ok {
 			return 1
 		}
-		if plan, err = derivePlan(st, issuer, kb.key(), block); err != nil {
+		vectors, ok := vectorStoreOf(u, st, opts.dryRun)
+		if !ok {
+			return 1
+		}
+		if plan, err = derivePlan(st, issuer, vectors, kb.key(), block); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}

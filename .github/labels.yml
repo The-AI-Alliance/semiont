@@ -132,8 +132,8 @@
   description: "An OCaml SDK, not yet written"
 
 # stack: one for each kind of document the launcher reads: those in a knowledge
-# base's .semiont/stack/, and the machine's (the Browser's, the worker's and the
-# issuer's), in the launcher's state home.
+# base's .semiont/stack/, and the machine's (the Browser's, the worker's, the
+# issuer's and the vector store's), in the launcher's state home.
 - name: "stack:knowledge-base"
   color: "c2ece8"
   description: "KnowledgeBase: the Gateway, the Dispatcher, the Archivist, the broker, the issuer trusted"
@@ -143,6 +143,9 @@
 - name: "stack:issuer"
   color: "c2ece8"
   description: "Issuer: the machine's issuer the launcher runs, and the database of every KB's realm"
+- name: "stack:vector-store"
+  color: "c2ece8"
+  description: "VectorStore: the machine's Qdrant, every KB's index naming it shared, its image, memory and port"
 - name: "stack:worker-pool"
   color: "c2ece8"
   description: "WorkerPool: the machine's worker document (image, memory, log level)"

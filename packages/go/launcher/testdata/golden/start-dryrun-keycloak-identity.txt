@@ -30,7 +30,7 @@ container rm semiont-example.github.io-test-kb-gateway
 container stop semiont-example.github.io-test-kb-nats
 container rm semiont-example.github.io-test-kb-nats
 # remove staged configs: <home>/tmp/semiont-config.example.github.io-test-kb.*
-# require free ports: 7474 7687 17687 6333 4222 4000 14000 24101 24102 24103 24104 24105
+# require free ports: 7474 7687 17687 4222 4000 14000 24101 24102 24103 24104 24105
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
 # write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
 # write <config-stage>/archivist.json (the Archivist's configuration document: ArchivistConfig, resolved)
@@ -39,7 +39,7 @@ container rm semiont-example.github.io-test-kb-nats
 # write <config-stage>/librarian.json (the Librarian's configuration document: LibrarianConfig, resolved)
 # write into each document the addresses this start places, as literals (launcher-placed topology):
 #   graph: bolt://<host-addr>:17687
-#   vectors: <host-addr>:6333
+#   vectors: <host-addr>:6330
 #   identity-store: <host-addr>:5432
 #   messaging: <host-addr>:4222
 #   identity: http://<host-addr>:8080/realms/example.github.io-test-kb
@@ -121,9 +121,14 @@ container run -d --name semiont-example.github.io-test-kb-gateway --publish 127.
 # graph state: <data-home>/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
 container run -d --name semiont-example.github.io-test-kb-neo4j --memory 2G -p 127.0.0.1:7474:7474 -p 127.0.0.1:7687:7687 -p <host-addr>:17687:7687 -v <data-home>/roots/example.github.io-test-kb/neo4j/data:/data -v <data-home>/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes -e NEO4J_AUTH neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357
 # wait: http://localhost:7474 (30s)
-# vectors state: <data-home>/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
-container run -d --name semiont-example.github.io-test-kb-qdrant --memory 1G -p <host-addr>:6333:6333 -v <data-home>/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
-# wait: http://<host-addr>:6333/readyz (15s)
+# vectors: keep semiont-qdrant if its record says http://<host-addr>:6330/readyz under container with 1G and it runs qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10; else stop/rm it, then run it
+# else:
+container stop semiont-qdrant
+container rm semiont-qdrant
+# require free ports: 6330
+# vectors state: <data-home>/shared/qdrant (created if absent; reused across restarts)
+container run -d --name semiont-qdrant --memory 1G -p <host-addr>:6330:6333 -v <data-home>/shared/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
+# wait: http://<host-addr>:6330/readyz (15s)
 # ollama: keep the shared Ollama if its record says http://<host-addr>:11434 under container and it runs ollama/ollama:0.40.10@sha256:4c5b27871a3239a717048f9b93057680a51b60c8119a7016aebb57f938e25e35; else stop/rm it, then reuse a host Ollama or run the container
 # ensure inference, embedding models present at http://<host-addr>:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:

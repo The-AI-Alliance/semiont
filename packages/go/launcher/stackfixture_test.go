@@ -62,6 +62,38 @@ func issuerFor(t *testing.T, st *stack.Stack) *issuerDocument {
 	return fixtureIssuer(t)
 }
 
+// fixtureVectorStore: the vector store's document the launcher's tests plan
+// with, testdata/vectors.yaml, read as a start reads the state home's. Each
+// call is a fresh copy, for a test to change before it plans.
+func fixtureVectorStore(t *testing.T) *vectorStoreDocument {
+	t.Helper()
+	path := filepath.Join("testdata", stack.VectorStoreFile)
+	read, err := stack.Read[stack.VectorStore](path, "VectorStore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &vectorStoreDocument{path: path, spec: read.Spec}
+}
+
+// vectorStoreFor: the vector store's document a start plans st with — the
+// fixture's when st names the shared vector store, and none when its vector
+// store is its own or somebody else's.
+func vectorStoreFor(t *testing.T, st *stack.Stack) *vectorStoreDocument {
+	t.Helper()
+	if st.KnowledgeIndex.Spec.Vectors.Shared == nil {
+		return nil
+	}
+	return fixtureVectorStore(t)
+}
+
+// ownVectors: st running a Qdrant of its own, at the catalog's image and
+// memory, rather than the machine's.
+func ownVectors(st *stack.Stack) {
+	qdrant := descriptorFor("vectors", "qdrant")
+	resources := limits(qdrant.mem)
+	st.KnowledgeIndex.Spec.Vectors = stack.KnowledgeIndexVectors{Type: "qdrant", Image: &qdrant.image, Resources: &resources}
+}
+
 // placed: a start's placement of st — the plan derivePlan makes of it, its
 // worker run as the catalog's worker document says, on the runtime and at the
 // host address the scenarios use.
@@ -91,10 +123,10 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	issuer := fixtureIssuer(t)
+	issuer, vectors := fixtureIssuer(t), fixtureVectorStore(t)
 	if kb.Spec.Messaging.Image == nil || kb.Spec.Messaging.Resources == nil || index.Spec.Graph.Image == nil || index.Spec.Graph.Resources == nil ||
-		index.Spec.Vectors.Image == nil || index.Spec.Vectors.Resources == nil || issuer.spec.Database.Image == nil || issuer.spec.Database.Resources == nil {
-		t.Fatal("the fixture runs every daemon itself, so each states its image and its resources")
+		index.Spec.Vectors.Shared == nil || issuer.spec.Database.Image == nil || issuer.spec.Database.Resources == nil {
+		t.Fatal("the fixture runs every daemon itself, its vector store the machine's, so each states its image and its resources")
 	}
 
 	for _, c := range []struct {
@@ -110,7 +142,7 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 		{"the weaver", index.Spec.Weaver.Image, index.Spec.Weaver.Resources.Limits.Memory, semiontImage("weaver", "latest"), semiontDescriptor("weaver").mem},
 		{"the broker", *kb.Spec.Messaging.Image, kb.Spec.Messaging.Resources.Limits.Memory, descriptorFor("messaging", "jetstream").image, descriptorFor("messaging", "jetstream").mem},
 		{"the graph store", *index.Spec.Graph.Image, index.Spec.Graph.Resources.Limits.Memory, descriptorFor("graph", "neo4j").image, descriptorFor("graph", "neo4j").mem},
-		{"the vector store", *index.Spec.Vectors.Image, index.Spec.Vectors.Resources.Limits.Memory, descriptorFor("vectors", "qdrant").image, descriptorFor("vectors", "qdrant").mem},
+		{"the vector store", vectors.spec.Image, vectors.spec.Resources.Limits.Memory, descriptorFor("vectors", "qdrant").image, descriptorFor("vectors", "qdrant").mem},
 		{"the issuer", issuer.spec.Image, issuer.spec.Resources.Limits.Memory, descriptorFor("identity", "keycloak").image, descriptorFor("identity", "keycloak").mem},
 		{"the issuer's database", *issuer.spec.Database.Image, issuer.spec.Database.Resources.Limits.Memory, descriptorFor("identity-store", "postgres").image, descriptorFor("identity-store", "postgres").mem},
 	} {
