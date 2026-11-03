@@ -77,8 +77,8 @@ public sealed class Issuer : IDisposable
             }
             return (access.GetString() ?? throw Failure("The issuer answered without an access token", status), refresh);
         }
-        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested) { throw Failure("The issuer did not answer before the deadline", status); }
-        catch (HttpRequestException error) { throw Failure("The issuer did not answer", status, error); }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested) { throw Failure("The issuer did not answer before the deadline", null); }
+        catch (HttpRequestException error) { throw Failure("The issuer did not answer", null, error); }
         catch (JsonException error) { throw Failure("The issuer answered with invalid JSON", status, error); }
     }
 

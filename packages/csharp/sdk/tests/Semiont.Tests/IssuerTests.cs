@@ -150,12 +150,44 @@ public sealed class IssuerTests
         Assert.Equal("rotated", (await kept.HeldAsync())?.Refresh);
     }
 
+    [Fact]
+    public async Task HeadersWithoutABodyAreNoIssuerVerdict()
+    {
+        var clock = new Clock();
+        var calls = 0;
+        using var handler = new Handler((_, _) => Task.FromResult(++calls == 1
+            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new UnansweredContent() }
+            : Answer(200, "{\"access_token\":\"new\"}")));
+        using var client = new HttpClient(handler);
+        using var issuer = new Issuer(client, clock, new ZeroRandom());
+        var renewal = issuer.RenewAsync(new MemorySignIn(Held()), "old");
+        var deadline = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("httpRequestTimeoutMs").GetDouble());
+        await clock.WaitForAsync(deadline);
+        clock.Advance(deadline);
+        var pause = TimeSpan.FromMilliseconds(ProtocolFacts.Timing("refreshRetry").GetProperty("initialDelayMs").GetDouble() / 2);
+        await clock.WaitForAsync(pause);
+        clock.Advance(pause);
+        Assert.Equal("new", await renewal);
+        Assert.Equal(2, calls);
+    }
+
     private static HttpResponseMessage Answer(int status, string body) => new((HttpStatusCode)status) { Content = new StringContent(body) };
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> answer) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => answer(request, cancellationToken);
     }
     private sealed class ZeroRandom : Random { public override double NextDouble() => 0; }
+    private sealed class UnansweredContent : HttpContent
+    {
+        protected override async Task<Stream> CreateContentReadStreamAsync(CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("An infinite wait returned");
+        }
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) => throw new InvalidOperationException("A cancellable read is required");
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+    }
     private sealed class Clock : TimeProvider
     {
         private readonly FakeTimeProvider fake = new();
