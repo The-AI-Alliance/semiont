@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getSupportedShapes,
   mediaUrl,
@@ -77,10 +77,6 @@ export function ResourceView({
   // Per-document annotate mode — the pencil in the header (controlled prop on the viewer).
   const [annotate, setAnnotate] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const zoomStyle = {
-    zoom,
-    '--resource-zoom-inverse': String(1 / zoom),
-  } as CSSProperties;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -231,7 +227,7 @@ export function ResourceView({
         </p>
       )}
       <div className="rview__body" ref={bodyRef}>
-        <div className="rview__zoom-canvas" style={zoomStyle}>
+        <div className="rview__zoom-canvas">
           {error !== null ? (
             <p className="rview__status" role="alert">
               {error.message}
@@ -245,6 +241,7 @@ export function ResourceView({
               resource={resource}
               annotations={annotations}
               prefs={prefs}
+              zoom={zoom}
               annotate={annotate}
               onAnnotateModeChange={setAnnotate}
               shape={shape}
@@ -270,6 +267,7 @@ function LoadedDocument({
   resource,
   annotations,
   prefs,
+  zoom,
   annotate,
   onAnnotateModeChange,
   shape,
@@ -281,6 +279,7 @@ function LoadedDocument({
   resource: ResourceDescriptor;
   annotations: AnnotationsCollection;
   prefs: ViewerPrefs;
+  zoom: number;
   annotate: boolean;
   onAnnotateModeChange: (on: boolean) => void;
   shape: ShapeType;
@@ -323,6 +322,7 @@ function LoadedDocument({
       <ResourceViewer
         session={session}
         translationManager={translationManager}
+        zoom={zoom}
         showToolbar={false}
         resource={{ ...resource, content }}
         annotations={annotations}

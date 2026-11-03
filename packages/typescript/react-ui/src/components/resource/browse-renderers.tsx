@@ -27,6 +27,8 @@ const PdfAnnotationCanvas = lazy(() => import('../pdf-annotation/PdfAnnotationCa
 export interface MediaRendererProps {
   content: string;
   mimeType: string;
+  /** Resource zoom. The PDF renderer applies it to pages while keeping its page rail fixed. */
+  zoom?: number;
   resourceUri: ResourceId;
   annotations: Annotation[];
   /**
@@ -66,7 +68,7 @@ export function ImageBrowseRenderer({ content, resourceUri, annotations, session
   );
 }
 
-export function PdfBrowseRenderer({ content, resourceUri, annotations, session }: MediaRendererProps) {
+export function PdfBrowseRenderer({ content, resourceUri, annotations, session, zoom = 1 }: MediaRendererProps) {
   return (
     <Suspense fallback={<div className="semiont-browse-view__loading"><PdfViewerLoading /></div>}>
       <PdfAnnotationCanvas
@@ -77,6 +79,7 @@ export function PdfBrowseRenderer({ content, resourceUri, annotations, session }
         selectedMotivation={null}
         session={session}
         pageLayout="scroll"
+        zoom={zoom}
       />
     </Suspense>
   );

@@ -37,6 +37,8 @@ const PdfAnnotationCanvas = lazy(() =>
 export interface AnnotateMediaRendererProps {
   content: string;
   mimeType: string;
+  /** Resource zoom. The PDF renderer applies it to pages while keeping its page rail fixed. */
+  zoom?: number;
   resourceUri: ResourceId;
   annotations: Annotation[];
   /** Session for interaction routing — the canvases emit via `session.client`. */
@@ -134,6 +136,7 @@ export function PdfAnnotateRenderer({
   selectedMotivation,
   hoveredAnnotationId,
   hoverDelayMs = 150,
+  zoom = 1,
 }: AnnotateMediaRendererProps) {
   if (!content) return null;
   return (
@@ -148,6 +151,7 @@ export function PdfAnnotateRenderer({
         hoveredAnnotationId={hoveredAnnotationId || null}
         hoverDelayMs={hoverDelayMs}
         pageLayout="scroll"
+        zoom={zoom}
       />
     </Suspense>
   );

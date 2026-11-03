@@ -1210,6 +1210,26 @@ describe('PdfAnnotationCanvas', () => {
       expect(tick(5)).toHaveAttribute('aria-label', expect.stringContaining('5'));
     });
 
+    test('zoom scales PDF pages without scaling the numbered page rail', async () => {
+      const io = stubIntersectionObserver();
+      fivePageDoc();
+
+      renderInEnglish(
+        <PdfAnnotationCanvas resourceUri={resourceId("res-1")}
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+          zoom={1.75}
+        />
+      );
+      await waitFor(() => expect(io.observedPages()).toHaveLength(5));
+
+      const column = document.querySelector('.semiont-pdf-annotation-canvas__column') as HTMLElement;
+      const strip = document.querySelector('.semiont-pdf-annotation-canvas__strip') as HTMLElement;
+      expect(column.style.zoom).toBe('1.75');
+      expect(strip.style.zoom).toBe('');
+    });
+
 
     test('the column does not add a second scrollbar inside the scrolling pane', async () => {
       // The strip and a nested column scrollbar would be two controls for one

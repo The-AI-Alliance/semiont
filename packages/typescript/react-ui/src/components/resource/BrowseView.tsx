@@ -31,6 +31,8 @@ interface Props {
   mimeType: string;
   resourceUri: ResourceId;
   annotations: AnnotationsCollection;
+  /** Zoom the rendered resource content, leaving the browse toolbar at its normal size. */
+  zoom?: number;
   hoveredAnnotationId?: string | null;
   selectedClick?: ClickAction;
   annotateMode: boolean;
@@ -93,6 +95,7 @@ export const BrowseView = memo(function BrowseView(props: Props & TranslationSou
 function BrowseViewBody({
   content,
   mimeType,
+  zoom = 1,
   resourceUri,
   annotations,
   selectedClick = 'detail',
@@ -349,7 +352,9 @@ function BrowseViewBody({
       />
       )}
       <div ref={containerRef} className="semiont-browse-view__content" onClick={handleContentClick}>
-        <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} session={session} />
+        <div style={render === 'pdf' ? undefined : { zoom }}>
+          <Renderer content={content} mimeType={mimeType} resourceUri={resourceUri} annotations={allAnnotations} session={session} zoom={zoom} />
+        </div>
       </div>
     </div>
   );

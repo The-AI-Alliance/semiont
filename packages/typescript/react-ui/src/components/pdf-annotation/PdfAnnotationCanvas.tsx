@@ -78,6 +78,8 @@ interface PdfAnnotationCanvasProps {
   hoveredAnnotationId?: string | null;
   selectedAnnotationId?: string | null;
   hoverDelayMs?: number;
+  /** Scale rendered PDF pages without scaling the numbered page rail. */
+  zoom?: number;
   /** `paged` (default) or the virtualized `scroll` column. See `PageLayout`. */
   pageLayout?: PageLayout;
 }
@@ -95,6 +97,7 @@ export function PdfAnnotationCanvas({
   hoveredAnnotationId,
   selectedAnnotationId,
   hoverDelayMs = 150,
+  zoom = 1,
   pageLayout = 'paged'
 }: PdfAnnotationCanvasProps) {
   // PDF state
@@ -462,7 +465,7 @@ export function PdfAnnotationCanvas({
             ))}
           </div>
         )}
-        <div className="semiont-pdf-annotation-canvas__column" data-axis={SCROLL_AXIS} ref={columnRef}>
+        <div className="semiont-pdf-annotation-canvas__column" data-axis={SCROLL_AXIS} ref={columnRef} style={{ zoom }}>
           {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div
               key={page}
@@ -490,7 +493,9 @@ export function PdfAnnotationCanvas({
           // over one page and recorded against another, and an error that
           // never clears. Each page is a different thing; mounting it as one
           // resets all of it.
-          <PdfPageView key={pageNumber} doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
+          <div style={{ zoom }}>
+            <PdfPageView key={pageNumber} doc={pdfDoc} pageNumber={pageNumber} {...pageProps} />
+          </div>
         )
       )}
 

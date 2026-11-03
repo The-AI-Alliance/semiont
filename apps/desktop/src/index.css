@@ -948,10 +948,6 @@ body.resizing {
   min-width: 100%;
   min-height: 100%;
 }
-/* Keep the PDF's numbered page rail at its native size while its pages zoom. */
-.rview__zoom-canvas .semiont-pdf-annotation-canvas__strip {
-  zoom: var(--resource-zoom-inverse, 1);
-}
 .rview__zoom-controls {
   display: flex;
   align-items: center;
