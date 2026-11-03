@@ -33,6 +33,10 @@ export default function setup(project: TestProject): void {
   if (kotlin !== undefined && !existsSync(kotlin)) {
     throw new Error(`The Kotlin driver is not built: ${kotlin} does not exist. Run \`./gradlew installConformance\` in packages/kotlin/sdk.`);
   }
+  const swift = drivers['swift']?.wire?.[0];
+  if (swift !== undefined && !existsSync(swift)) {
+    throw new Error(`The Swift driver is not built: ${swift} does not exist. Run \`Scripts/install-driver.sh\` in packages/swift/sdk.`);
+  }
   if ('python' in drivers) makePythonSdkEnvironment();
   if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.

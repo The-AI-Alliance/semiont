@@ -79,6 +79,9 @@ export const KOTLIN_LIVE_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/con
 /** The Kotlin SDK's worker driver, written in Java over the SDK's Java surface. */
 export const KOTLIN_WORKER_DRIVER = join(REPO_ROOT, 'packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-worker-driver');
 
+/** The Swift wire driver, installed by Scripts/install-driver.sh in its package. */
+export const SWIFT_WIRE_DRIVER = join(REPO_ROOT, 'packages/swift/sdk/.build/conformance/semiont-swift-wire-driver');
+
 /** The Python SDK, and the interpreter of its locked environment, which the suite's setup makes. */
 export const PYTHON_SDK = join(REPO_ROOT, 'packages/python/sdk');
 const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
@@ -88,6 +91,9 @@ const PYTHON = join(PYTHON_SDK, '.venv/bin/python');
  * vitest.config.ts provides them as `sdkDrivers`.
  */
 export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
+  swift: {
+    wire: [SWIFT_WIRE_DRIVER],
+  },
   typescript: {
     wire: ['node', join(REPO_ROOT, 'packages/typescript/http-transport/conformance/driver.ts')],
     live: { command: ['node', join(REPO_ROOT, 'packages/typescript/sdk/conformance/driver.ts')], tier: 'parity' },
