@@ -39,6 +39,29 @@ func fixtureStack(t *testing.T, inference string) *stack.Stack {
 	return st
 }
 
+// fixtureIssuer: the issuer's document the launcher's tests plan with,
+// testdata/issuer.yaml, read as a start reads the state home's. Each call is
+// a fresh copy, for a test to change before it plans.
+func fixtureIssuer(t *testing.T) *issuerDocument {
+	t.Helper()
+	path := filepath.Join("testdata", stack.IssuerFile)
+	read, err := stack.Read[stack.Issuer](path, "Issuer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &issuerDocument{path: path, spec: read.Spec}
+}
+
+// issuerFor: the issuer's document a start plans st with — the fixture's when
+// st names the shared issuer, and none when it trusts somebody else's.
+func issuerFor(t *testing.T, st *stack.Stack) *issuerDocument {
+	t.Helper()
+	if st.KnowledgeBase.Spec.Issuer.Shared == nil {
+		return nil
+	}
+	return fixtureIssuer(t)
+}
+
 // placed: a start's placement of st — the plan derivePlan makes of it, its
 // worker run as the catalog's worker document says, on the runtime and at the
 // host address the scenarios use.
@@ -51,8 +74,9 @@ func placed(t *testing.T, st *stack.Stack) placement {
 // read.
 var catalogWorkerPoolDocument = workerPoolDocument{spec: catalogWorkerPool().Spec}
 
-// The fixture knowledge base's stack documents name every container's image
-// and memory, as a knowledge base's documents do, and they name the
+// The fixture knowledge base's stack documents, and the issuer's document the
+// tests plan with, name every container's image and memory, as a knowledge
+// base's documents and the state home's do, and they name the
 // launcher's own: each daemon at its descriptor's image (the broker's, which
 // TestBrokerPairIsReadByTheLaunchedBrokersParser holds to go.mod), each
 // Semiont service at latest, and each at its descriptor's memory. A copy of a
@@ -67,12 +91,9 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	issuer, err := stack.Read[stack.Issuer](filepath.Join(dir, "issuer.yaml"), "Issuer")
-	if err != nil {
-		t.Fatal(err)
-	}
+	issuer := fixtureIssuer(t)
 	if kb.Spec.Messaging.Image == nil || kb.Spec.Messaging.Resources == nil || index.Spec.Graph.Image == nil || index.Spec.Graph.Resources == nil ||
-		index.Spec.Vectors.Image == nil || index.Spec.Vectors.Resources == nil || issuer.Spec.Database.Image == nil || issuer.Spec.Database.Resources == nil {
+		index.Spec.Vectors.Image == nil || index.Spec.Vectors.Resources == nil || issuer.spec.Database.Image == nil || issuer.spec.Database.Resources == nil {
 		t.Fatal("the fixture runs every daemon itself, so each states its image and its resources")
 	}
 
@@ -90,8 +111,8 @@ func TestTheFixtureStackNamesTheDescriptorsImages(t *testing.T) {
 		{"the broker", *kb.Spec.Messaging.Image, kb.Spec.Messaging.Resources.Limits.Memory, descriptorFor("messaging", "jetstream").image, descriptorFor("messaging", "jetstream").mem},
 		{"the graph store", *index.Spec.Graph.Image, index.Spec.Graph.Resources.Limits.Memory, descriptorFor("graph", "neo4j").image, descriptorFor("graph", "neo4j").mem},
 		{"the vector store", *index.Spec.Vectors.Image, index.Spec.Vectors.Resources.Limits.Memory, descriptorFor("vectors", "qdrant").image, descriptorFor("vectors", "qdrant").mem},
-		{"the issuer", issuer.Spec.Image, issuer.Spec.Resources.Limits.Memory, descriptorFor("identity", "keycloak").image, descriptorFor("identity", "keycloak").mem},
-		{"the issuer's database", *issuer.Spec.Database.Image, issuer.Spec.Database.Resources.Limits.Memory, descriptorFor("identity-store", "postgres").image, descriptorFor("identity-store", "postgres").mem},
+		{"the issuer", issuer.spec.Image, issuer.spec.Resources.Limits.Memory, descriptorFor("identity", "keycloak").image, descriptorFor("identity", "keycloak").mem},
+		{"the issuer's database", *issuer.spec.Database.Image, issuer.spec.Database.Resources.Limits.Memory, descriptorFor("identity-store", "postgres").image, descriptorFor("identity-store", "postgres").mem},
 	} {
 		if c.image != c.wantImage {
 			t.Errorf("the fixture runs %s from %s, and the launcher's is %s", c.what, c.image, c.wantImage)

@@ -82,8 +82,10 @@ type startOptions struct {
 var startUsage = fmt.Sprintf(`Usage: semiont start [options]
 
 Start a local Semiont stack — the services and daemons the knowledge base's
-.semiont/stack/ documents describe, and the Browser its own document describes
-(semiont settings browser) — all in containers.
+.semiont/stack/ documents describe, the Browser its own document describes
+(semiont settings browser), and, for a knowledge base that names the shared
+issuer, the issuer its own document describes (semiont settings issuer), with
+the knowledge base's realm in it — all in containers.
 
 Options:
   --config <name>       The Inference document to use, .semiont/stack/inference/
@@ -155,15 +157,10 @@ Environment:
                         token already issued
   KC_BOOTSTRAP_ADMIN_PASSWORD
                         Keycloak's admin-console password, when the launcher
-                        runs the issuer (an Issuer document) (default:
-                        generated ONCE per KB root and kept — Keycloak creates
-                        the admin on its first boot only, so the value must
-                        outlive the stack). Console user: admin
-  KEYCLOAK_PORT         The port of the Keycloak the launcher runs. Default
-                        8080 on the KB's port block (8090 on block 1, and so
-                        on); a start that sets it records it for this KB, so
-                        later starts keep it. A codespace KB's laptop sets it
-                        over ssh when 8080 is taken there
+                        runs the shared issuer (default: generated ONCE for
+                        this machine and kept — Keycloak creates the admin on
+                        its first boot only, so the value must outlive it).
+                        Console user: admin
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -338,8 +335,6 @@ func Start(args []string) int {
 	}
 	var st *stack.Stack
 	var plan *launchPlan
-	var kcPort int
-	var kcFromEnv bool
 	// The knowledge base's port block, which its first start keeps.
 	block := portBlockOf(root)
 	if configNeeded {
@@ -357,21 +352,13 @@ func Start(args []string) int {
 			u.Fail("%v", err)
 			return 1
 		}
-		kcSource := ""
-		var kcOK bool
-		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
+		issuer, ok := issuerOf(u, st, opts.dryRun)
+		if !ok {
 			return 1
 		}
-		if plan, err = derivePlan(st, kb.key(), kcPort, block); err != nil {
+		if plan, err = derivePlan(st, issuer, kb.key(), block); err != nil {
 			u.Fail("%v", err)
 			return 1
-		}
-		if st.Issuer != nil {
-			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
-		} else if kcFromEnv {
-			// An ineffective setting is neither silent nor remembered.
-			u.Warn("KEYCLOAK_PORT=%d has no effect: %s trusts an issuer somebody else runs (spec.issuer.external).", kcPort, st.Files.KnowledgeBase)
-			kcFromEnv = false
 		}
 	}
 
@@ -633,9 +620,6 @@ func Start(args []string) int {
 		if opts.runtime != "" {
 			recordRuntimePref(opts.runtime)
 		}
-		if kcFromEnv {
-			recordKeycloakPort(root, kcPort)
-		}
 	}
 	return code
 }
@@ -775,7 +759,8 @@ func locallyBuilt(img string) bool {
 // roleDocument: the document that states a role as somebody else's, for a
 // message naming it. These are the roles a document can place elsewhere: the
 // daemons whose `external` it states, the issuer the knowledge base names,
-// and the remote providers. The launcher runs every other role itself.
+// the PostgreSQL the issuer's document names, and the remote providers. The
+// launcher runs every other role itself.
 func roleDocument(st *stack.Stack, role string) string {
 	switch role {
 	case "graph", "vectors", "embedding":
@@ -783,7 +768,7 @@ func roleDocument(st *stack.Stack, role string) string {
 	case "messaging", "identity":
 		return st.Files.KnowledgeBase
 	case "identity-store":
-		return st.Files.Issuer
+		return issuerDocumentPath()
 	case "inference":
 		return st.Files.Inference
 	}

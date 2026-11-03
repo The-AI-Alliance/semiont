@@ -63,8 +63,9 @@ type KnowledgeBaseSpec struct {
 	// from `image`, or somebody else's, at `external`.
 	Messaging KnowledgeBaseMessaging `json:"messaging"`
 
-	// The issuer the knowledge base trusts: an Issuer document the launcher
-	// runs, named by `ref`, or somebody else's, at `external`.
+	// The issuer the knowledge base trusts: the one the launcher runs for the
+	// knowledge bases on a machine, at `shared`, with the knowledge base's own
+	// realm in it, or somebody else's, at `external`.
 	Issuer KnowledgeBaseIssuer `json:"issuer"`
 }
 
@@ -187,12 +188,14 @@ type SecretRef struct {
 	FromEnv string `json:"fromEnv"`
 }
 
-// KnowledgeBaseIssuer: The issuer the knowledge base trusts: an Issuer
-// document the launcher runs, named by `ref`, or somebody else's, at
-// `external`.
+// KnowledgeBaseIssuer: The issuer the knowledge base trusts: the one the
+// launcher runs for the knowledge bases on a machine, at `shared`, with the
+// knowledge base's own realm in it, or somebody else's, at `external`.
 type KnowledgeBaseIssuer struct {
-	// The name of the Issuer document.
-	Ref *string `json:"ref,omitempty"`
+	// The issuer the launcher runs for the knowledge bases on a machine (the
+	// state home's Issuer document). The launcher creates the knowledge base's
+	// realm in it.
+	Shared *KnowledgeBaseIssuerShared `json:"shared,omitempty"`
 
 	// An issuer somebody else runs.
 	External *KnowledgeBaseIssuerExternal `json:"external,omitempty"`
@@ -200,6 +203,15 @@ type KnowledgeBaseIssuer struct {
 	// The claim a person's DID is built from: did:web:<site domain>:users:<its
 	// value>.
 	SubjectClaim string `json:"subjectClaim"`
+}
+
+// KnowledgeBaseIssuerShared: The issuer the launcher runs for the knowledge
+// bases on a machine (the state home's Issuer document). The launcher creates
+// the knowledge base's realm in it.
+type KnowledgeBaseIssuerShared struct {
+	// How long a token the realm mints stays valid, in seconds: the window in
+	// which a disabled account can still act.
+	AccessTokenLifespan int `json:"accessTokenLifespan"`
 }
 
 // KnowledgeBaseIssuerExternal: An issuer somebody else runs.
@@ -398,9 +410,12 @@ type KnowledgeIndexWeaver struct {
 	Resources Resources `json:"resources"`
 }
 
-// Issuer: An issuer the launcher runs, and the database it keeps its realm
-// in. A knowledge base trusts it by naming this document; one trusting
-// somebody else's issuer has no Issuer document.
+// Issuer: The issuer the launcher runs for the knowledge bases on a machine,
+// with a realm for each, and the database it keeps their realms in. It
+// belongs to no knowledge base, so its document is kept in the launcher's
+// state home, in `stack/issuer.yaml`, not in a knowledge base's repository. A
+// knowledge base trusts it by naming `shared`; one trusting somebody else's
+// issuer names it at `external`.
 type Issuer struct {
 	// The group and version of Semiont's kinds. The group names who defines a
 	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
@@ -413,11 +428,13 @@ type Issuer struct {
 	// one another by `name`.
 	Metadata Metadata `json:"metadata"`
 
-	// The issuer, and the database it keeps its realm in.
+	// The issuer, where it is published, and the database it keeps its realms
+	// in.
 	Spec IssuerSpec `json:"spec"`
 }
 
-// IssuerSpec: The issuer, and the database it keeps its realm in.
+// IssuerSpec: The issuer, where it is published, and the database it keeps
+// its realms in.
 type IssuerSpec struct {
 	// The issuer's driver: `keycloak`.
 	Type string `json:"type"`
@@ -429,20 +446,20 @@ type IssuerSpec struct {
 	// What a container is given, in Kubernetes' spelling.
 	Resources Resources `json:"resources"`
 
-	// How long a token the realm mints stays valid, in seconds: the window in
-	// which a disabled account can still act.
-	AccessTokenLifespan int `json:"accessTokenLifespan"`
+	// The port the issuer is published on, on this machine: the origin of every
+	// realm's `iss`, so the one number wherever the issuer is reached.
+	Port int `json:"port"`
 
-	// The database the issuer keeps its realm in.
+	// The database the issuer keeps its realms in.
 	Database IssuerDatabase `json:"database"`
 }
 
-// IssuerDatabase: The database the issuer keeps its realm in.
+// IssuerDatabase: The database the issuer keeps its realms in.
 type IssuerDatabase struct {
 	// The database's driver: `postgres`.
 	Type string `json:"type"`
 
-	// The database the issuer keeps its realm in: a lowercase PostgreSQL
+	// The database the issuer keeps its realms in: a lowercase PostgreSQL
 	// identifier, as PostgreSQL itself names an unquoted one. On a PostgreSQL
 	// the launcher runs, the launcher creates it; on one somebody else runs
 	// (`external`), it must already exist there.
@@ -457,6 +474,11 @@ type IssuerDatabase struct {
 
 	// What a container is given, in Kubernetes' spelling.
 	Resources *Resources `json:"resources,omitempty"`
+
+	// The port a PostgreSQL the launcher runs is published on, on this machine,
+	// where the issuer reaches it. One somebody else runs is reached at
+	// `external`.
+	Port *int `json:"port,omitempty"`
 
 	// A database somebody else runs.
 	External *IssuerDatabaseExternal `json:"external,omitempty"`

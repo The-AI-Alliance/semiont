@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,9 +20,9 @@ import (
 )
 
 // syncFixture readies `identity sync` against admin for the fixture knowledge
-// base, and returns its root. The issuer's port, the bootstrap admin password
-// and every service client's secret come from the environment the launcher
-// reads, so the verb reaches no custody store. The test is left in a
+// base, and returns its root. The issuer's port is in its document; the
+// bootstrap admin password and every service client's secret come from the
+// environment the launcher reads, so the verb reaches no custody store. The test is left in a
 // directory of its own: the verb enters the root, and the package's other
 // tests read the fixture by a relative path.
 func syncFixture(t *testing.T, admin *stubAdmin) string {
@@ -35,7 +36,13 @@ func syncFixture(t *testing.T, admin *stubAdmin) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("KEYCLOAK_PORT", origin.Port())
+	port, err := strconv.Atoi(origin.Port())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeIssuerPort(port); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "pw")
 	for _, svc := range secretClients {
 		t.Setenv(serviceClientSecretEnv(svc), secretForTest(svc))
@@ -276,11 +283,8 @@ func replaceIn(t *testing.T, path, old, new string) {
 func TestIdentityGrantAndRevokeSayWhatToDoAtAnIssuerTheLauncherDoesNotRun(t *testing.T) {
 	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
 	root := fixtureCopy(t, syncFixture(t, admin), func(dir string) {
-		replaceIn(t, filepath.Join(dir, "knowledge-base.yaml"), "    ref: issuer\n",
+		replaceIn(t, filepath.Join(dir, "knowledge-base.yaml"), "    shared:\n      accessTokenLifespan: 300\n",
 			"    external: { type: keycloak, url: https://login.example.com/realms/kb }\n")
-		if err := os.Remove(filepath.Join(dir, "issuer.yaml")); err != nil {
-			t.Fatal(err)
-		}
 	})
 	for _, c := range []struct {
 		args []string

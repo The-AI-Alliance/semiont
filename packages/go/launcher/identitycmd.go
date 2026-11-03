@@ -172,12 +172,11 @@ func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminReal
 		u.Fail("%v", err)
 		return adminRealm{}, false
 	}
-	kcPort, _, _, ok := keycloakPort(u, root)
+	issuer, ok := issuerOf(u, st, true)
 	if !ok {
 		return adminRealm{}, false
 	}
-	block := portBlockOf(root)
-	plan, err := derivePlan(st, kb.key(), kcPort, block)
+	plan, err := derivePlan(st, issuer, kb.key(), portBlockOf(root))
 	if err != nil {
 		u.Fail("%v", err)
 		return adminRealm{}, false

@@ -1,7 +1,8 @@
 package launcher
 
 // statehomedoc.go — the documents of what serves every knowledge base on a
-// machine: the Browser's (browserdoc.go) and the worker's (workerpooldoc.go).
+// machine: the Browser's (browserdoc.go), the worker's (workerpooldoc.go) and
+// the issuer's (issuerdoc.go).
 // Each belongs to no knowledge base, so it is kept in the launcher's state
 // home, not in a knowledge base's repository. The first command that needs
 // one and finds none writes it from the launcher's catalog and says where;
@@ -46,19 +47,27 @@ func loadStateHomeDocument[T any](file, kind, whose string, catalog T, preview b
 	if err != nil {
 		return read, path, true, err
 	}
-	// Vetted by the reader every later command reads it with, before it is
-	// written: a document the launcher writes is one it can read.
-	if read, err = stack.Parse[T](path, kind, text); err != nil || preview {
-		return read, path, true, err
+	read, err = writeStateHomeDocument[T](path, kind, text, preview)
+	return read, path, true, err
+}
+
+// writeStateHomeDocument writes text, a document of kind, to path, unless
+// preview, and gives it back as it reads. It is vetted by the reader every
+// later command reads it with, before it is written: a document the launcher
+// writes is one it can read.
+func writeStateHomeDocument[T any](path, kind string, text []byte, preview bool) (T, error) {
+	read, err := stack.Parse[T](path, kind, text)
+	if err != nil || preview {
+		return read, err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return read, path, true, err
+		return read, err
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, text, 0o644); err != nil {
-		return read, path, true, err
+		return read, err
 	}
-	return read, path, true, os.Rename(tmp, path)
+	return read, os.Rename(tmp, path)
 }
 
 // reportStateHomeDocument: what a command says of a document it loaded —

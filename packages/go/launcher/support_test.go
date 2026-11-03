@@ -89,9 +89,8 @@ func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 
 // The command line shows what the launcher injects and carries no credential.
 // The echo's allowlist is derived from injectedVars, not kept by hand: a
-// hand-kept one once hid an injected value an operator needed to see
-// (KEYCLOAK_PORT, after a codespace's issuer had moved). The credentials
-// themselves leave argv, for the runtime command's environment.
+// hand-kept one once hid an injected value an operator needed to see. The
+// credentials themselves leave argv, for the runtime command's environment.
 func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
 	const pemValue = "-----BEGIN PRIVATE KEY-----\nMIIEvQ==\n-----END PRIVATE KEY-----\n"
 	argv, env := offCommandLine([]string{"run",

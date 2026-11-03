@@ -54,9 +54,9 @@ const (
 	//
 	// Pinned rather than left to Keycloak's default so the window is a decision
 	// somebody made and can read back, not a value that moves with a Keycloak
-	// upgrade. `semiont init` writes it into the Issuer document's
-	// spec.accessTokenLifespan, where a knowledge base that wants a different
-	// one changes it.
+	// upgrade. `semiont init` writes it into the KnowledgeBase document's
+	// spec.issuer.shared.accessTokenLifespan, where a knowledge base that wants
+	// a different one changes it.
 	keycloakAccessTokenLifespan = 300
 )
 
@@ -544,7 +544,7 @@ func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 }
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
-// the database the Issuer document names, on the PostgreSQL it describes
+// the database the issuer's document names, on the PostgreSQL it describes
 // (created there when the launcher runs that PostgreSQL), and the bootstrap
 // admin password. The password is per root and
 // persisted: Keycloak creates the admin on its FIRST boot only, so a
@@ -553,7 +553,7 @@ func realmAccountsOf(x keeper, kb kbRoot) (realmAccounts, bool) {
 func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, realmAccounts, string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["identity-store"]
-	dbName := fc.stack.Issuer.Spec.Database.Name
+	dbName := db.Database
 	dbHost := db.Address
 	// Authority, not presence: an external PostgreSQL is somebody's shared
 	// server, and creating a database in it is a privileged persistent

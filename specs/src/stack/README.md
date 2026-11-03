@@ -1,4 +1,4 @@
-# stack — the documents that describe a knowledge base's stack, and the Browser and worker every knowledge base shares
+# stack — the documents that describe a knowledge base's stack, and the Browser, worker and issuer every knowledge base shares
 
 A knowledge base's repository commits its stack as documents in Kubernetes'
 resource format (`apiVersion`, `kind`, `metadata`, `spec`), one file for each
@@ -11,9 +11,8 @@ deployment elsewhere edits its own copy.
 
 | Kind | Schema | Holds |
 |---|---|---|
-| `KnowledgeBase` | [`KnowledgeBase.json`](KnowledgeBase.json) | the Gateway, the Dispatcher, the Archivist, the broker between them, and the issuer the knowledge base trusts |
+| `KnowledgeBase` | [`KnowledgeBase.json`](KnowledgeBase.json) | the Gateway, the Dispatcher, the Archivist, the broker between them, and the issuer the knowledge base trusts: the machine's (`shared`, with the lifespan of the knowledge base's realm), or somebody else's (`external`) |
 | `KnowledgeIndex` | [`KnowledgeIndex.json`](KnowledgeIndex.json) | the graph store, the vector store, the embedding model, and the Librarian, the Smelter and the Weaver |
-| `Issuer` | [`Issuer.json`](Issuer.json) | an issuer the launcher runs, and the database it keeps its realm in |
 | `Inference` | [`Inference.json`](Inference.json) | the providers a machine reaches, and the engine for each job and each Librarian actor ([`ArchivistEngines`](../components/schemas/ArchivistEngines.json)) |
 
 Every kind's `apiVersion` is [`ApiVersion.json`](ApiVersion.json)'s:
@@ -37,6 +36,7 @@ the file is what runs.
 |---|---|---|---|
 | `Browser` | [`Browser.json`](Browser.json) | `stack/browser.yaml` | the Browser: its image, its memory, and the port it is published on, on this computer's loopback |
 | `WorkerPool` | [`WorkerPool.json`](WorkerPool.json) | `stack/workers.yaml` | the worker: its image, its memory and its log level. A knowledge base's jobs are done when its Inference document gives a job an engine |
+| `Issuer` | [`Issuer.json`](Issuer.json) | `stack/issuer.yaml` | the issuer the launcher runs for every knowledge base that names `shared`, with a realm for each: its image, its memory, the port it is published on, and the database it keeps the realms in |
 
 ## The project file
 

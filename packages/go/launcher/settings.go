@@ -26,8 +26,9 @@ type setting struct {
 	scope string
 	// show: the value in effect and where it came from, one line per value.
 	show func(u *UI, kb kbRoot) []settingLine
-	// saves: where the setting is kept — the census's denominator
-	// (TestEverySavedPreferenceIsASetting).
+	// saves: the registry fields the setting is kept in — the census's
+	// denominator (TestEverySavedPreferenceIsASetting). A setting that writes
+	// a field of a document instead (keycloak-port) saves none.
 	saves []string
 	// set records a value, validated as a start would validate it, so a
 	// value a start would refuse is never recorded. unset returns the
@@ -65,6 +66,8 @@ var settingsTable = []setting{
 		set: setRuntime, unset: unsetRuntime},
 	{name: "browser", scope: scopeMachine, show: showBrowserDocument, changedBy: editBrowserDocument},
 	{name: "worker", scope: scopeMachine, show: showWorkerPoolDocument, changedBy: editWorkerPoolDocument},
+	{name: "issuer", scope: scopeMachine, show: showIssuerDocument, changedBy: editIssuerDocument},
+	{name: "keycloak-port", scope: scopeMachine, show: showKeycloakPort, set: setKeycloakPort, unset: unsetKeycloakPort},
 	{name: "network", scope: scopeMachine, show: showNetwork, saves: []string{"rootsRegistry.Network"},
 		set: setNetwork, unset: unsetNetwork},
 	{name: "secret", scope: scopeMachine, show: showSecretSources, saves: []string{"rootsRegistry.Secrets"},
@@ -73,8 +76,6 @@ var settingsTable = []setting{
 		saves: []string{"storeSettingsFile.Default"}, set: setDefaultSecretStore, unset: unsetDefaultSecretStore},
 	{name: "config", scope: scopeKB, show: showConfig, saves: []string{"rootEntry.Config"},
 		set: setConfig, unset: unsetConfig},
-	{name: "keycloak-port", scope: scopeKB, show: showKeycloakPort, saves: []string{"rootEntry.KeycloakPort"},
-		set: setKeycloakPort, unset: unsetKeycloakPort},
 	{name: "secret-store", scope: scopeKB, show: showSecretStoreSetting, saves: []string{"storeSettingsFile.Roots"},
 		set: setSecretStore, unset: unsetSecretStore, detail: showSecretStoreLocations},
 }
@@ -89,7 +90,7 @@ var registryBookkeeping = map[string]bool{
 }
 
 const settingsUsage = `Usage: semiont settings [<name> [<value> | --unset]] [--root <path|name>]
-       semiont settings browser|worker --path
+       semiont settings browser|worker|issuer --path
 
 Every setting the launcher keeps: its value, and where the value came from.
 Machine settings apply to every knowledge base on this machine; knowledge-base
@@ -102,6 +103,8 @@ settings to the one you are in, or the one --root names.
   semiont settings browser --path    print where the Browser's document is,
                                      and nothing else
   semiont settings worker --path     print where the worker's document is,
+                                     and nothing else
+  semiont settings issuer --path     print where the issuer's document is,
                                      and nothing else
 
 Settings:
@@ -119,6 +122,16 @@ Settings:
                                    the next start that runs a worker runs what
                                    it says. The first command that needs it
                                    writes it.
+  issuer          machine          The issuer's document: the image, memory,
+                                   port and PostgreSQL of the Keycloak this
+                                   machine runs for every knowledge base that
+                                   names spec.issuer.shared, each in a realm
+                                   of its own. Edit it; the next start runs
+                                   what it says. The first command that needs
+                                   it writes it.
+  keycloak-port   machine          The port in the issuer's document: the
+                                   one field of it a setting writes, keeping
+                                   the rest as it is
   network         machine          Who reaches a stack here: local, the
                                    default, this machine alone; or lan, where
                                    the network reaches its gateway and its
@@ -126,7 +139,6 @@ Settings:
                                    container only.
   config          knowledge base   Which Inference document in
                                    .semiont/stack/inference/ a start runs
-  keycloak-port   knowledge base   The port of this knowledge base's Keycloak
   secret-store    knowledge base   Where the values the launcher generates for
                                    the knowledge base are kept: op://<vault>,
                                    one 1Password item per knowledge base, or
@@ -182,7 +194,7 @@ func Settings(args []string) int {
 	}
 	if pathOnly {
 		if flag != "" || value != "" || unset {
-			u.Fail("--path takes nothing else: semiont settings browser|worker --path")
+			u.Fail("--path takes nothing else: semiont settings browser|worker|issuer --path")
 			return 1
 		}
 		switch name {
@@ -190,8 +202,10 @@ func Settings(args []string) int {
 			return browserDocumentPathCmd()
 		case "worker":
 			return workerPoolDocumentPathCmd()
+		case "issuer":
+			return issuerDocumentPathCmd()
 		}
-		u.Fail("--path is for the Browser's and the worker's documents: semiont settings browser|worker --path")
+		u.Fail("--path is for the Browser's, the worker's and the issuer's documents: semiont settings browser|worker|issuer --path")
 		return 1
 	}
 	rows := settingsTable
@@ -296,16 +310,15 @@ func showConfig(u *UI, kb kbRoot) []settingLine {
 }
 
 func showKeycloakPort(u *UI, kb kbRoot) []settingLine {
-	port, source, fromEnv, ok := keycloakPort(u, kb.dir)
-	switch {
-	case !ok:
-		return []settingLine{{os.Getenv("KEYCLOAK_PORT"), "KEYCLOAK_PORT in the environment is not a port"}}
-	case fromEnv:
-		return []settingLine{{strconv.Itoa(port), "KEYCLOAK_PORT in the environment, which wins over what is recorded"}}
-	case source != keycloakPortRecorded:
-		return []settingLine{{strconv.Itoa(port), "Keycloak's default, on this knowledge base's " + source}}
+	doc, err := loadIssuerDocument(false)
+	if err != nil {
+		return []settingLine{{issuerDocumentPath(), fmt.Sprintf("refused, and so is every start on the shared issuer: %v", err)}}
 	}
-	return []settingLine{{strconv.Itoa(port), "recorded by a start with KEYCLOAK_PORT, or semiont settings"}}
+	source := "spec.port of the issuer's document"
+	if doc.spec.Port == descriptorFor("identity", "keycloak").defaultPort {
+		source += ", Keycloak's default"
+	}
+	return []settingLine{{strconv.Itoa(doc.spec.Port), source}}
 }
 
 func showSecretStoreSetting(u *UI, kb kbRoot) []settingLine {
@@ -396,10 +409,15 @@ func loadRootStack(u *UI, kb kbRoot, name string) (*stack.Stack, bool) {
 		return nil, false
 	}
 	st, err := stack.Load(kb.dir, name)
-	if err == nil {
-		_, err = derivePlan(st, kb.key(), descriptorFor("identity", "keycloak").defaultPort, 0)
-	}
 	if err != nil {
+		u.Fail("%v", err)
+		return nil, false
+	}
+	issuer, ok := issuerOf(u, st, true)
+	if !ok {
+		return nil, false
+	}
+	if _, err := derivePlan(st, issuer, kb.key(), 0); err != nil {
 		u.Fail("%v", err)
 		return nil, false
 	}
@@ -439,6 +457,48 @@ func editBrowserDocument() string {
 // is none.
 func browserDocumentPathCmd() int {
 	doc, ok := readBrowserDocument(NewUI(true), false)
+	if !ok {
+		return 1
+	}
+	fmt.Println(doc.path)
+	return 0
+}
+
+// showIssuerDocument: where the issuer's document is, and what it says. It is
+// shown as a start reads it, so showing one where there is none writes it,
+// from the launcher's catalog, at the path the row names.
+func showIssuerDocument(u *UI, kb kbRoot) []settingLine {
+	doc, err := loadIssuerDocument(false)
+	if err != nil {
+		return []settingLine{{issuerDocumentPath(), fmt.Sprintf("refused, and so is every start on the shared issuer: %v", err)}}
+	}
+	db := doc.spec.Database
+	lines := []settingLine{
+		{doc.path, "the issuer's document: edit it, and the next start runs what it says"},
+		{doc.spec.Image, "spec.image"},
+		{doc.spec.Resources.Limits.Memory, "spec.resources.limits.memory"},
+		{fmt.Sprintf("http://localhost:%d", doc.spec.Port), "spec.port"},
+	}
+	if db.External != nil {
+		return append(lines, settingLine{fmt.Sprintf("%s:%d", db.External.Host, db.External.Port), "spec.database.external: a PostgreSQL somebody else runs"})
+	}
+	return append(lines,
+		settingLine{*db.Image, "spec.database.image"},
+		settingLine{db.Resources.Limits.Memory, "spec.database.resources.limits.memory"},
+		settingLine{strconv.Itoa(*db.Port), "spec.database.port"},
+	)
+}
+
+// editIssuerDocument: how the issuer's document is changed.
+func editIssuerDocument() string {
+	return "editing its document: " + issuerDocumentPath()
+}
+
+// issuerDocumentPathCmd: `semiont settings issuer --path` — the document's
+// path and nothing else, for a script that edits it; written first where
+// there is none.
+func issuerDocumentPathCmd() int {
+	doc, ok := readIssuerDocument(NewUI(true), false)
 	if !ok {
 		return 1
 	}
@@ -530,26 +590,9 @@ func setKeycloakPort(u *UI, kb kbRoot, value string) bool {
 		u.Fail("%q is not a port (1-65535).", value)
 		return false
 	}
-	// The start's own rule: a port no Keycloak the launcher runs takes changes
-	// nothing, and an ineffective setting is neither silent nor remembered.
-	name := configForRealm(kb.dir)
-	if name == "" {
-		name = defaultConfigName
-	}
-	st, ok := loadRootStack(u, kb, name)
-	if !ok {
-		return false
-	}
-	if st.Issuer == nil {
-		u.Fail("%s trusts an issuer somebody else runs (spec.issuer.external), so a port setting would change nothing.", st.Files.KnowledgeBase)
-		return false
-	}
-	if os.Getenv("KEYCLOAK_PORT") != "" {
-		u.Warn("KEYCLOAK_PORT is set in this environment, and wins over the setting while it is.")
-	}
-	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.KeycloakPort = port }))
+	return recorded(u, writeIssuerPort(port))
 }
 
 func unsetKeycloakPort(u *UI, kb kbRoot) bool {
-	return recorded(u, updateRootEntry(kb, func(e *rootEntry) { e.KeycloakPort = 0 }))
+	return recorded(u, writeIssuerPort(descriptorFor("identity", "keycloak").defaultPort))
 }

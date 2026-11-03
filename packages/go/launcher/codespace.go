@@ -2023,10 +2023,11 @@ func loopbackHost(host string) bool {
 }
 
 // restartRemoteStack reruns the codespace's own launcher with the issuer on
-// port — the env-wins shape: that launcher records it, so every resume's
-// post-start keeps it. Its sticky runtime and config are the post-start's.
+// port. That launcher writes the port into its issuer's document first, so
+// every resume's post-start keeps it. Its sticky runtime and config are the
+// post-start's.
 func restartRemoteStack(u *UI, name string, port int) int {
-	remote := fmt.Sprintf("cd /workspaces/* && KEYCLOAK_PORT=%d semiont start", port)
+	remote := fmt.Sprintf("cd /workspaces/* && semiont settings keycloak-port %d && semiont start", port)
 	u.EchoCmd("gh", "codespace", "ssh", "-c", name, "--", remote)
 	// Captured, not streamed: the inner launcher's summary is the codespace's
 	// own view, and its URLs (localhost:4000) are wrong from this machine,

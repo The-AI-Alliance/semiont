@@ -66,12 +66,11 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
-	kcPort, _, _, ok := keycloakPort(u, root)
+	issuer, ok := issuerOf(u, st, true)
 	if !ok {
 		return realmAdmin{}, false
 	}
-	block := portBlockOf(root)
-	plan, err := derivePlan(st, rootKey(did, root), kcPort, block)
+	plan, err := derivePlan(st, issuer, rootKey(did, root), portBlockOf(root))
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
