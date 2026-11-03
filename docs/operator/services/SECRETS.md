@@ -135,7 +135,14 @@ reject every login, so `semiont start` refuses and names the fix:
 ```bash
 semiont stop
 semiont clean --store graph           # Neo4j: a projection, rebuilt from the event log
-semiont clean --store identity-store  # PostgreSQL: Keycloak's accounts go with it
+semiont start
+```
+
+The issuer's PostgreSQL is every knowledge base's, and so is its clean. It is refused until no knowledge base here runs and the issuer is stopped:
+
+```bash
+semiont stop                                   # in each knowledge base here; the last stops the issuer
+semiont clean --shared --store identity-store  # every realm goes with it, and its accounts
 semiont start
 semiont useradd --email you@example.com --generate-password
 ```

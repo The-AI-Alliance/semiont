@@ -189,7 +189,7 @@ The first command that needs it (a start of a knowledge base that names `shared`
 
 - **`spec.image`** and **`spec.resources.limits.memory`**: Keycloak's image and memory ceiling.
 - **`spec.port`**: where Keycloak is published, on this machine: the origin of every realm's `iss`. It is on no knowledge base's port block ([Ports](../LOCAL-SEMIONT.md#ports)); `semiont settings keycloak-port` writes it. A start refuses to move a Keycloak another running knowledge base signs in at: their gateways name it where it is.
-- **`spec.database`**: the PostgreSQL Keycloak keeps every realm in, in the database `spec.database.name` names. With `image`, `resources` and `port`, the launcher runs it, and keeps its data under `shared/postgres` in its data home; with `external`, somebody else runs it, and the database must already exist there. The PostgreSQL is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)).
+- **`spec.database`**: the PostgreSQL Keycloak keeps every realm in, in the database `spec.database.name` names. With `image`, `resources` and `port`, the launcher runs it, and keeps its data under `shared/postgres` in its data home, which `semiont clean --shared --store identity-store` removes; with `external`, somebody else runs it, and the database must already exist there. The PostgreSQL is Keycloak's, and Semiont stores nothing in it ([Database](DATABASE.md)).
 
 A start keeps a running Keycloak and PostgreSQL that run what the document says, and restarts each that does not. The last knowledge base's `semiont stop` stops them, and so does `semiont stop --group issuer`.
 

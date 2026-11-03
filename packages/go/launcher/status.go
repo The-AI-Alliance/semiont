@@ -557,7 +557,7 @@ func issuerServerRow(ss *StackSet, views []stackView) (statusRow, []string) {
 	rec := ss.Shared[name]
 	var serves []string
 	for _, v := range views {
-		if v.st != nil && v.st.Services["identity"].Provided == providedShared {
+		if v.st != nil && v.st.signsInAtSharedIssuer() {
 			serves = append(serves, v.name)
 		}
 	}

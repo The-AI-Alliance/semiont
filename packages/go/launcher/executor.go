@@ -777,7 +777,7 @@ func (x *liveExec) retireIssuerProxy() { retireIssuerProxy(x.u) }
 func (x *liveExec) sharedIssuerRealms() []string {
 	var realms []string
 	for _, st := range localStacks(LoadStackSet()) {
-		if key := rootKey(st.KBDid, st.KBRoot); key != x.kb.key() && st.Services["identity"].Provided == providedShared {
+		if key := rootKey(st.KBDid, st.KBRoot); key != x.kb.key() && st.signsInAtSharedIssuer() {
 			realms = append(realms, key)
 		}
 	}
@@ -1078,7 +1078,7 @@ func (x *liveExec) resolveStoreStamp(role, image, key string) bool {
 		if !spec.projection {
 			x.u.Fail("%s state at %s was written by %s; this start launches %s.", role, sd, prev, stamp)
 			if sharedRole(spec.owner) {
-				fmt.Fprintf(os.Stderr, "  That data is not auto-deleted. It is every knowledge base's here; to start afresh, remove %s.\n", sd)
+				fmt.Fprintf(os.Stderr, "  That data is not auto-deleted. It is every knowledge base's here; to start afresh: semiont clean --shared --store %s\n", role)
 				return false
 			}
 			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)

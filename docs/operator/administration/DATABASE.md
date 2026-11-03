@@ -40,7 +40,11 @@ row of its own. What follows from that:
   and every knowledge base's realm. It loses no knowledge, and no Semiont state.
 - **One knowledge base's accounts go with its realm.** `semiont clean --store identity-store`
   deletes that knowledge base's realm from Keycloak, and leaves the database and every other realm
-  in it.
+  in it. With no Keycloak running, the clean runs one for the delete and stops it again.
+- **Every account goes with the database.** `semiont clean --shared --store identity-store`
+  removes `shared/postgres`, and every realm in it. It is refused while a knowledge base here runs,
+  or while the issuer does (`semiont stop --group issuer`). The issuer's passwords stay, so its
+  next boot reuses them, and each knowledge base's next start creates its realm afresh.
 
 ## Backup and recovery
 

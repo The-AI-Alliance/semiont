@@ -2856,9 +2856,26 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	mustContain(t, "refusal", stdout+stderr,
 		"postgres:14.9-alpine",  // what wrote the data
 		"postgres:15.18-alpine", // what the plan wants
-		"It is every knowledge base's here; to start afresh, remove "+filepath.Join(dir, "postgres")) // the way out
+		"It is every knowledge base's here; to start afresh: semiont clean --shared --store identity-store") // the way out
 	if _, err := os.Stat(filepath.Join(pg, "PG_VERSION")); err != nil {
 		t.Error("a refusal must not touch the data dir")
+	}
+	// The way out it names: the store goes, with its stamp, and the password
+	// it was initialized with stays for the next boot, which then starts.
+	if stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "identity-store"); code != 0 {
+		t.Fatalf("the shared clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "postgres")); !os.IsNotExist(err) {
+		t.Errorf("the shared clean left the store (%v)", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "postgres-password")); err != nil || string(b) != "kept-by-an-earlier-start\n" {
+		t.Errorf("the shared clean took the password the next boot reuses: %q, %v", b, err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, "meta.json")); err != nil || strings.Contains(string(b), "identity-store") {
+		t.Errorf("the shared clean left the store's stamp: %s, %v", b, err)
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the shared clean: exit %d\nstderr:\n%s", code, stderr)
 	}
 }
 
@@ -3278,11 +3295,16 @@ func TestCleanDeletesTheRealmAtTheSharedIssuer(t *testing.T) {
 	mustContain(t, "dry run", stdout, "would delete realm "+testKBKey)
 	realmOf(t, s, testKBKey)
 
+	before := s.argv(t)
 	stdout, stderr, code = s.run(t, "clean", "--store", "identity-store")
 	if code != 0 {
 		t.Fatalf("clean --store identity-store: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "clean", stdout, "Deleted realm "+testKBKey+" from the shared issuer.")
+	// The server that answers is the other knowledge base's too: left as it is.
+	if fresh := strings.TrimPrefix(s.argv(t), before); strings.Contains(fresh, "--name semiont-keycloak") || slices.Contains(argvStops(fresh), "semiont-keycloak") {
+		t.Errorf("a clean beside a running issuer ran or stopped it:\n%s", fresh)
+	}
 	if _, err := os.Stat(filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+"-"+testKBKey+".json")); !os.IsNotExist(err) {
 		t.Errorf("the realm is held after its clean (%v)", err)
 	}
@@ -3326,10 +3348,11 @@ func TestCleanDeletesTheRealmAtTheSharedIssuer(t *testing.T) {
 	}
 }
 
-// With every stack stopped no server is up to take a realm's delete, and a
-// clean that may find one refuses, saying why, and removes nothing. One whose
-// shared issuer has kept nothing yet has no realm to ask after.
-func TestCleanOfARealmRefusesWhileTheSharedIssuerIsDown(t *testing.T) {
+// With every stack stopped no server is up to take a realm's delete, so a
+// clean of the realm runs the shared issuer for it and stops what it ran,
+// recording no stack, whether the realm was there or not. A dry run runs
+// nothing, and a clean of another store asks after no realm.
+func TestCleanOfARealmRunsTheSharedIssuerForTheDelete(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
@@ -3337,22 +3360,203 @@ func TestCleanOfARealmRefusesWhileTheSharedIssuerIsDown(t *testing.T) {
 	if _, stderr, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
 	}
-	for _, args := range [][]string{{"clean"}, {"clean", "--store", "identity-store"}, {"clean", "--dry-run"}} {
+	realmFile := filepath.Join(s.fakertDir, "realm-"+containerOf("keycloak")+"-"+testKBKey+".json")
+	cleanRuns := func(args ...string) (stdout, argv string) {
+		t.Helper()
+		before := s.argv(t)
 		stdout, stderr, code := s.run(t, args...)
-		if code != 1 {
-			t.Fatalf("%v with the shared issuer down: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		if code != 0 {
+			t.Fatalf("%v with the shared issuer down: exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
 		}
-		mustContain(t, strings.Join(args, " "), stderr,
-			"The shared issuer is not running, so realm "+testKBKey+" can be neither asked for nor deleted.",
-			"Start another knowledge base that names it (spec.issuer.shared), then clean this one again.")
+		return stdout, strings.TrimPrefix(s.argv(t), before)
 	}
+	issuerLeftAsFound := func(label, argv string) {
+		t.Helper()
+		mustContain(t, label+"'s runtime calls", argv, "--name semiont-postgres", "--name semiont-keycloak")
+		if got := argvStops(argv); !slices.Contains(got, "semiont-keycloak") || !slices.Contains(got, "semiont-postgres") {
+			t.Errorf("%s left the issuer it ran running: %q", label, got)
+		}
+		// With nothing recorded there is no record to read.
+		if _, err := os.Stat(statePathFor(s.home)); os.IsNotExist(err) {
+			return
+		}
+		rec := readSharedRecords(t, s)
+		for _, name := range []string{"semiont-keycloak", "semiont-postgres"} {
+			if rec.Shared[name] != nil {
+				t.Errorf("%s left a record of %s", label, name)
+			}
+		}
+		if len(rec.Stacks) != 0 {
+			t.Errorf("%s recorded a stack: %v", label, rec.Stacks)
+		}
+	}
+
+	stdout, argv := cleanRuns("clean", "--store", "identity-store", "--dry-run")
+	mustContain(t, "the dry run", stdout, "would run the shared issuer, delete realm "+testKBKey+" if it holds it, and stop the issuer again")
+	mustNotContain(t, "the dry run's runtime calls", argv, "run -d")
 	realmOf(t, s, testKBKey)
-	if _, err := os.Stat(stateRootFor(s.home, testKBKey)); err != nil {
-		t.Errorf("a refused clean removed the root's state: %v", err)
+
+	_, argv = cleanRuns("clean", "--store", "vectors")
+	mustNotContain(t, "clean --store vectors's runtime calls", argv, "--name semiont-keycloak")
+
+	stdout, argv = cleanRuns("clean", "--store", "identity-store")
+	mustContain(t, "the clean", stdout,
+		"The shared issuer is not running: running it for the delete",
+		"Deleted realm "+testKBKey+" from the shared issuer.",
+		"Stopped semiont-keycloak and semiont-postgres, which this clean ran for the delete.")
+	issuerLeftAsFound("the clean", argv)
+	if _, err := os.Stat(realmFile); !os.IsNotExist(err) {
+		t.Errorf("the realm is held after its clean (%v)", err)
 	}
-	// A clean of the vectors alone asks after no realm.
-	if _, stderr, code := s.run(t, "clean", "--store", "vectors"); code != 0 {
-		t.Errorf("clean --store vectors with the shared issuer down: exit %d\n%s", code, stderr)
+	if _, err := os.Stat(filepath.Join(sharedStateFor(s.home), "postgres")); err != nil {
+		t.Errorf("a knowledge base's clean took the store every realm is kept in: %v", err)
+	}
+
+	stdout, argv = cleanRuns("clean", "--store", "identity-store")
+	mustContain(t, "a second clean", stdout, "No realm "+testKBKey+" at the shared issuer")
+	mustNotContain(t, "a second clean", stdout, "Deleted realm")
+	issuerLeftAsFound("a second clean", argv)
+
+	// An unscoped clean deletes the realm the next start creates afresh, and
+	// the rest.
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the clean: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, argv = cleanRuns("clean")
+	mustContain(t, "the unscoped clean", stdout, "Deleted realm "+testKBKey+" from the shared issuer.", "Removed "+stateRootFor(s.home, testKBKey))
+	issuerLeftAsFound("the unscoped clean", argv)
+	if _, err := os.Stat(realmFile); !os.IsNotExist(err) {
+		t.Errorf("the realm is held after an unscoped clean (%v)", err)
+	}
+}
+
+// A shared Keycloak recorded as running that does not answer may be another
+// knowledge base's issuer, so a clean of a realm refuses rather than run one in
+// its place, and names the stop after which it would.
+func TestCleanOfARealmRefusesAnIssuerRecordedAsRunningThatDoesNotAnswer(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-keycloak":{"container":"semiont-keycloak","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/realms/master"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "clean", "--store", "identity-store")
+	if code != 1 {
+		t.Fatalf("clean of a realm at an issuer that does not answer: exit %d, want 1\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "the refusal", stderr, "The shared issuer at http://127.0.0.1:9:",
+		"Once it is stopped (semiont stop --group issuer), this clean runs it for the delete.")
+	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-keycloak", "stop semiont-keycloak")
+	realmOf(t, s, testKBKey)
+}
+
+// `semiont clean --shared --store identity-store` removes the shared issuer's
+// PostgreSQL store, every realm in it, and its stamp, and keeps the issuer's
+// passwords for its next boot. It is refused beside --root, for any other
+// store, while a recorded stack signs in at the shared issuer, and while a
+// record says the issuer's server runs, removing nothing.
+func TestCleanSharedRemovesTheIssuersStore(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{[]string{"clean", "--shared", "--store", "identity-store", "--root", s.kb}, "--shared names the machine's shared state, and --root one root's: name one of them."},
+		{[]string{"clean", "--shared"}, "--shared names the shared issuer's state, and its one store is identity-store."},
+		{[]string{"clean", "--shared", "--store", "vectors"}, "--shared names the shared issuer's state, and its one store is identity-store."},
+	} {
+		_, stderr, code := s.run(t, tc.args...)
+		if code != 1 {
+			t.Errorf("%v: exit %d, want 1", tc.args, code)
+		}
+		mustContain(t, fmt.Sprintf("stderr for %v", tc.args), stderr, tc.want)
+	}
+
+	shared := sharedStateFor(s.home)
+	store := filepath.Join(shared, "postgres")
+	refused := func(label, want string) {
+		t.Helper()
+		stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "identity-store")
+		if code != 1 {
+			t.Fatalf("the shared clean %s: exit %d, want 1\nstdout:\n%s", label, code, stdout)
+		}
+		mustContain(t, "the shared clean "+label, stderr, want)
+		if _, err := os.Stat(store); err != nil {
+			t.Errorf("the shared clean %s removed the store: %v", label, err)
+		}
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	refused("beside a running stack", "A recorded stack signs in at the shared issuer")
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	// The issuer's PostgreSQL alone, as `stop --service identity` leaves it.
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-postgres":{"container":"semiont-postgres","provided":"launcher","runtime":"container"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	refused("beside the issuer's record", "Stop it first: semiont stop --group issuer")
+	if _, stderr, code := s.run(t, "stop", "--group", "issuer"); code != 0 {
+		t.Fatalf("stop --group issuer: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// What the issuer's PostgreSQL wrote.
+	if err := os.MkdirAll(filepath.Join(store, "pgdata"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(store, "pgdata", "PG_VERSION"), []byte("15\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	passwords := map[string][]byte{}
+	for _, name := range []string{"postgres-password", "keycloak-admin-password"} {
+		b, err := os.ReadFile(filepath.Join(shared, name))
+		if err != nil {
+			t.Fatalf("the start kept no %s: %v", name, err)
+		}
+		passwords[name] = b
+	}
+
+	stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "identity-store", "--dry-run")
+	if code != 0 {
+		t.Fatalf("the shared clean's dry run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "the dry run", stdout, "would remove "+store+" — ", "(dry-run; nothing removed)")
+	if _, err := os.Stat(filepath.Join(store, "pgdata", "PG_VERSION")); err != nil {
+		t.Errorf("the dry run removed the store: %v", err)
+	}
+
+	stdout, stderr, code = s.run(t, "clean", "--shared", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("the shared clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the shared clean", stdout, "Removed "+store+" — ")
+	if _, err := os.Stat(store); !os.IsNotExist(err) {
+		t.Errorf("the shared clean left the store (%v)", err)
+	}
+	for name, want := range passwords {
+		if b, err := os.ReadFile(filepath.Join(shared, name)); err != nil || string(b) != string(want) {
+			t.Errorf("the shared clean changed %s (%v)", name, err)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(shared, "meta.json")); err != nil || strings.Contains(string(b), "identity-store") {
+		t.Errorf("the shared clean left the store's stamp: %s, %v", b, err)
+	}
+	stdout, _, code = s.run(t, "clean", "--shared", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("a second shared clean: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "a second shared clean", stdout, "Nothing to remove: no identity-store state under "+shared)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the shared clean: exit %d\nstderr:\n%s", code, stderr)
 	}
 }
 

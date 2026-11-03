@@ -109,7 +109,7 @@ func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(key))
 		fmt.Fprintln(os.Stderr, "  It was initialized with a password the launcher does not have (a config's literal, or one whose file was lost),")
 		if sharedRole(role) {
-			fmt.Fprintf(os.Stderr, "  and the daemon would reject every login. It is every knowledge base's here; to start afresh, remove %s.\n", spec.storeDir(key))
+			fmt.Fprintf(os.Stderr, "  and the daemon would reject every login. It is every knowledge base's here; to start afresh: semiont clean --shared --store %s\n", role)
 			return "", false
 		}
 		fmt.Fprintln(os.Stderr, "  and the daemon would reject every login. Clear it — the launcher then generates and keeps a new one:")

@@ -508,61 +508,16 @@ func Start(args []string) int {
 			u.Log("Config: %s", u.Bold(opts.configName))
 		}
 	}
-	// User env vars (the variables the documents name, `fromEnv`) are
-	// demanded where something reads them: a service handed them, or the
-	// launcher reading them itself (secretsRead). The environment always wins;
-	// a registered secret source (semiont settings secret) is consulted only
-	// for vars the environment doesn't provide, with the reach announced
-	// BEFORE it happens. Dry-run reaches for nothing.
-	var userEnv []string
-	secrets := loadRoots().Secrets
 	// A role started alone reaches only for the variables it reads, so no
 	// provider prompt asks for a secret it never uses.
 	var vars []string
+	var serving workerServing
 	if st != nil {
-		vars = secretsRead(placement{st: st, plan: plan}, opts.includes)
+		vars, serving = secretsRead(placement{st: st, plan: plan}, opts.includes), plan.Serving
 	}
-	for _, v := range vars {
-		if opts.dryRun {
-			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
-			continue
-		}
-		val := os.Getenv(v)
-		if val == "" {
-			if ref, ok := secrets[v]; ok && custodyOwned(v) {
-				// A registration under a name custody owns.
-				// Resolving it would answer a provider prompt and then
-				// discard the answer, since custody appends its own value
-				// after this one.
-				u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
-				fmt.Fprintf(os.Stderr, "  Forget the source (semiont settings secret rm %s), or export %s yourself.\n", v, v)
-				return 1
-			} else if ok {
-				if !requireProviderBin(u, ref) {
-					return 1
-				}
-				u.Log("%s: reading from %s (%s) %s", u.Bold(v),
-					secretProviders[ref.Provider].display, refCommand(ref),
-					u.Dim("— expect an authorization prompt"))
-				var err error
-				if val, err = resolveSecret(ref); err != nil {
-					u.Fail("%s: %v.", v, err)
-					fmt.Fprintf(os.Stderr, "  Fix the source (semiont settings secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
-					return 1
-				}
-			}
-		}
-		if val == "" {
-			if kb, ok := plan.Serving.keyNamer(v); ok && !contains(ownVars, v) {
-				u.Fail("%s, which the shared worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
-				fmt.Fprintf(os.Stderr, "  Export it, register a secret source once (semiont settings secret set %s), or stop serving it (semiont worker kb remove %s).\n", v, kb)
-				return 1
-			}
-			u.Fail("The knowledge base's documents name the variable %s (fromEnv), and it is not set in the environment.", v)
-			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
-			return 1
-		}
-		userEnv = append(userEnv, "--env", v+"="+val)
+	userEnv, ok := resolveUserEnv(u, vars, opts.dryRun, serving, ownVars)
+	if !ok {
+		return 1
 	}
 
 	if opts.dryRun {
@@ -689,6 +644,63 @@ func runningFor(u *UI, kb kbRoot, rt string, plan *launchPlan) (func(role string
 		}
 		return readRow(v, role, ss.Shared).healthy
 	}, true
+}
+
+// resolveUserEnv: the --env pairs of the user variables vars (the variables
+// the documents name, `fromEnv`), demanded where something reads them: a
+// service handed them, or the launcher reading them itself (secretsRead). The
+// environment always wins; a registered secret source (semiont settings
+// secret) is consulted only for vars the environment doesn't provide, with the
+// reach announced BEFORE it happens. A dry run reaches for nothing. serving is
+// the worker's list a start leaves, and ownVars the variables the knowledge
+// base's own documents name: a variable only another on the list names is
+// refused as that one's.
+func resolveUserEnv(u *UI, vars []string, dryRun bool, serving workerServing, ownVars []string) ([]string, bool) {
+	var userEnv []string
+	secrets := loadRoots().Secrets
+	for _, v := range vars {
+		if dryRun {
+			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+			continue
+		}
+		val := os.Getenv(v)
+		if val == "" {
+			if ref, ok := secrets[v]; ok && custodyOwned(v) {
+				// A registration under a name custody owns.
+				// Resolving it would answer a provider prompt and then
+				// discard the answer, since custody appends its own value
+				// after this one.
+				u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
+				fmt.Fprintf(os.Stderr, "  Forget the source (semiont settings secret rm %s), or export %s yourself.\n", v, v)
+				return nil, false
+			} else if ok {
+				if !requireProviderBin(u, ref) {
+					return nil, false
+				}
+				u.Log("%s: reading from %s (%s) %s", u.Bold(v),
+					secretProviders[ref.Provider].display, refCommand(ref),
+					u.Dim("— expect an authorization prompt"))
+				var err error
+				if val, err = resolveSecret(ref); err != nil {
+					u.Fail("%s: %v.", v, err)
+					fmt.Fprintf(os.Stderr, "  Fix the source (semiont settings secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
+					return nil, false
+				}
+			}
+		}
+		if val == "" {
+			if kb, ok := serving.keyNamer(v); ok && !contains(ownVars, v) {
+				u.Fail("%s, which the shared worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
+				fmt.Fprintf(os.Stderr, "  Export it, register a secret source once (semiont settings secret set %s), or stop serving it (semiont worker kb remove %s).\n", v, kb)
+				return nil, false
+			}
+			u.Fail("The knowledge base's documents name the variable %s (fromEnv), and it is not set in the environment.", v)
+			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
+			return nil, false
+		}
+		userEnv = append(userEnv, "--env", v+"="+val)
+	}
+	return userEnv, true
 }
 
 // startNetwork: this Mac's address on the network when the start is `network

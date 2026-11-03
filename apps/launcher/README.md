@@ -1091,10 +1091,15 @@ whose KB directory no longer exists). It refuses while a recorded stack is
 using the state — stop first. The knowledge base's realm goes with its
 identity store: an unscoped clean, or `--store identity-store`, deletes it
 from the shared issuer through Keycloak's admin API, and keeps the
-PostgreSQL every other realm here is in. With the issuer not running there
-is no deleting it, so the clean refuses and says so; start another
-knowledge base on it, then clean again. `stop` itself never touches state;
-stopping and restarting is exactly the round trip persistence exists for.
+PostgreSQL every other realm here is in. With the issuer not running, the
+clean runs it for the delete and stops it again, recording no stack.
+`semiont clean --shared --store identity-store` removes that PostgreSQL's
+store, and every realm in it, once no recorded stack signs in at the issuer
+and its server is stopped (`semiont stop --group issuer`); the issuer's
+passwords stay, so its next boot reuses them, and each knowledge base's next
+start creates its realm afresh. `--shared` and `--root` are refused together.
+`stop` itself never touches state; stopping and restarting is exactly the
+round trip persistence exists for.
 
 **Two homes, not one.** Per-root stores live under the launcher's *data* home.
 The view every KB shares — the discovery document the Browser mounts — lives

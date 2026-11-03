@@ -40,18 +40,30 @@ func flowIssuer(x executor, fc flowCtx, addr string) int {
 	return flowRealm(x, fc, addr, password)
 }
 
-// flowIssuerStore: the shared issuer's PostgreSQL. One the launcher runs is
-// kept when its record says it runs under this start's runtime, is reached
-// where this start would probe it, and has the memory and the image the
-// issuer's document gives it, unless restart. Otherwise it is stopped
-// wherever its record says it runs and run afresh on the machine's store;
-// restarted says so. One somebody else runs is verified as any daemon
-// somebody else runs is.
+// flowIssuerStore: the shared issuer's PostgreSQL, for the knowledge base's
+// stack: one the launcher runs (runIssuerStore), served to the stack by it,
+// or one somebody else runs, verified as any daemon somebody else runs is.
+// restarted says the launcher ran it afresh.
 func flowIssuerStore(x executor, fc flowCtx, addr string, restart bool) (code int, restarted bool) {
 	rp := fc.plan.Roles["identity-store"]
 	if rp.Presence != presenceLauncher {
 		return flowDepRole(x, "identity-store", fc, addr), false
 	}
+	if code, restarted = runIssuerStore(x, fc, addr, restart); code != 0 {
+		return code, restarted
+	}
+	x.servedByShared("identity-store", sharedContainer("identity-store"), healthEndpoint("identity-store", rp.Driver, fc.plan, x.exposure(addr)), rp.Driver)
+	return 0, restarted
+}
+
+// runIssuerStore: the PostgreSQL the launcher runs for the shared issuer, kept
+// when its record says it runs under this start's runtime, is reached where
+// this start would probe it, and has the memory and the image the issuer's
+// document gives it, unless restart. Otherwise it is stopped wherever its
+// record says it runs and run afresh on the machine's store; restarted says
+// so. Its record is the machine's, and no knowledge base's stack is touched.
+func runIssuerStore(x executor, fc flowCtx, addr string, restart bool) (code int, restarted bool) {
+	rp := fc.plan.Roles["identity-store"]
 	disp := driverDisplay("identity-store", rp.Driver)
 	x.banner(roleBanner(fc, depRoleTitles["identity-store"]+" ("+disp+")"))
 	name := sharedContainer("identity-store")
@@ -107,11 +119,7 @@ func flowIssuerStore(x executor, fc flowCtx, addr string, restart bool) (code in
 			x.recordShared(ServiceState{Container: name, ID: id, Image: rp.Image, Endpoint: health, Memory: rp.Memory, Ports: portNumbers(needs)})
 			return 0
 		})
-	if code != 0 {
-		return code, restarted
-	}
-	x.servedByShared("identity-store", name, health, rp.Driver)
-	return 0, restarted
+	return code, restarted
 }
 
 // flowIssuerServer: the shared Keycloak. It is kept when its record says it

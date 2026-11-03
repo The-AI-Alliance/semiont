@@ -540,6 +540,45 @@ func planErr(file, field, format string, a ...any) error {
 	return fmt.Errorf("%s: %s %s", file, field, fmt.Sprintf(format, a...))
 }
 
+// issuerRoles: the shared issuer's two roles as its document describes them,
+// the PostgreSQL that keeps every realm here and the Keycloak that serves
+// them, before any knowledge base's realm: what a start of a knowledge base
+// that names it runs, and what a clean runs for a realm's delete.
+func issuerRoles(issuer *issuerDocument) (store, server rolePlan, err error) {
+	is := issuer.spec
+	d := is.Database
+	if _, ok := lookupDescriptor("identity-store", d.Type); !ok {
+		return store, server, planErr(issuer.path, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("identity-store"))
+	}
+	if is.Type != "keycloak" {
+		return store, server, planErr(issuer.path, "spec.type", `is %q: the issuer the launcher runs is "keycloak"`, is.Type)
+	}
+	store = rolePlan{Role: "identity-store", Driver: d.Type, Database: d.Name}
+	if d.External != nil {
+		store.Presence, store.Address, store.Port = presenceExternal, d.External.Host, d.External.Port
+	} else {
+		store.Presence, store.Image, store.Memory, store.Port = presenceLauncher, *d.Image, d.Resources.Limits.Memory, *d.Port
+		store.Env = []string{"POSTGRES_DB=" + d.Name}
+		// POSTGRES_USER only when it departs from the image's own.
+		if d.User != "postgres" {
+			store.Env = append(store.Env, "POSTGRES_USER="+d.User)
+		}
+	}
+	server = rolePlan{
+		Role: "identity", Driver: "keycloak", Port: is.Port, Presence: presenceLauncher,
+		Image: is.Image, Memory: is.Resources.Limits.Memory,
+		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=" + d.User,
+			"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser},
+	}
+	// A launcher-run PostgreSQL's password is kept by the launcher and handed
+	// to Keycloak at launch; an external one's is read from the variable its
+	// document names.
+	if d.External != nil {
+		server.ExternalDBPassword = d.External.Password.FromEnv
+	}
+	return store, server, nil
+}
+
 // derivePlan maps a knowledge base's documents to each role's presence.
 // issuer is the issuer's document (issuerOf) for a knowledge base that names
 // the shared issuer, and nil for one that trusts somebody else's. realm is the
@@ -632,26 +671,15 @@ func derivePlan(st *stack.Stack, issuer *issuerDocument, realm string, block int
 	if (issuer == nil) != (kb.Issuer.Shared == nil) {
 		panic("derivePlan: a knowledge base naming the shared issuer is planned with its document, and only one")
 	}
+	var issuerServer rolePlan
 	if issuer == nil {
 		plan.Roles["identity-store"] = rolePlan{Role: "identity-store", Presence: presenceAbsent}
 	} else {
-		d := issuer.spec.Database
-		_, ok := lookupDescriptor("identity-store", d.Type)
-		if !ok {
-			return nil, planErr(issuer.path, "spec.database.type", "is %q, which no driver runs (known drivers: %s)", d.Type, knownDrivers("identity-store"))
+		store, server, err := issuerRoles(issuer)
+		if err != nil {
+			return nil, err
 		}
-		rp := rolePlan{Role: "identity-store", Driver: d.Type, Database: d.Name}
-		if d.External != nil {
-			rp.Presence, rp.Address, rp.Port = presenceExternal, d.External.Host, d.External.Port
-		} else {
-			rp.Presence, rp.Image, rp.Memory, rp.Port = presenceLauncher, *d.Image, d.Resources.Limits.Memory, *d.Port
-			rp.Env = []string{"POSTGRES_DB=" + d.Name}
-			// POSTGRES_USER only when it departs from the image's own.
-			if d.User != "postgres" {
-				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
-			}
-		}
-		plan.Roles["identity-store"] = rp
+		plan.Roles["identity-store"], issuerServer = store, server
 	}
 
 	// messaging — the one broker: the dispatcher's queue is JetStream, and a
@@ -696,24 +724,9 @@ func derivePlan(st *stack.Stack, issuer *issuerDocument, realm string, block int
 	// spec.issuer.external is an issuer somebody else runs, verified, never
 	// launched.
 	if shared := kb.Issuer.Shared; shared != nil {
-		is := issuer.spec
-		if is.Type != "keycloak" {
-			return nil, planErr(issuer.path, "spec.type", `is %q: the issuer the launcher runs is "keycloak"`, is.Type)
-		}
-		rp := rolePlan{
-			Role: "identity", Driver: "keycloak", Port: is.Port, Presence: presenceLauncher,
-			Issuer:              fmt.Sprintf("http://localhost:%d/realms/%s", is.Port, realm),
-			AccessTokenLifespan: shared.AccessTokenLifespan,
-			Image:               is.Image, Memory: is.Resources.Limits.Memory,
-			Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=" + is.Database.User,
-				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser},
-		}
-		// A launcher-run PostgreSQL's password is kept by the launcher and
-		// handed to Keycloak at launch; an external one's is read from the
-		// variable its document names.
-		if external := is.Database.External; external != nil {
-			rp.ExternalDBPassword = external.Password.FromEnv
-		}
+		rp := issuerServer
+		rp.Issuer = fmt.Sprintf("http://localhost:%d/realms/%s", rp.Port, realm)
+		rp.AccessTokenLifespan = shared.AccessTokenLifespan
 		plan.Roles["identity"] = rp
 	} else {
 		external := kb.Issuer.External

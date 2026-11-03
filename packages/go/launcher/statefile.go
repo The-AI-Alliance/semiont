@@ -393,6 +393,12 @@ func forgetShared(name string) {
 	})
 }
 
+// signsInAtSharedIssuer: whether the stack's knowledge base signs in at the
+// shared issuer, as its start recorded it.
+func (st *StackState) signsInAtSharedIssuer() bool {
+	return st.Services["identity"].Provided == providedShared
+}
+
 // recordService updates one service's entry and saves. provided says who
 // provides the role, and container which container does, when one the
 // launcher runs does; endpoint is the health probe status should use.
