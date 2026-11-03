@@ -26,6 +26,22 @@ fi
 source "$REPO_ROOT/images/scripts/container-runtime.sh"
 RT=$(detect_container_runtime)
 
+# Successful npm and packaging commands are very chatty. Keep one temporary log
+# so normal builds show only the stage and artifact, while failures retain the
+# complete diagnostics that would otherwise be hidden.
+BUILD_LOG="$(mktemp -t semiont-desktop-build.XXXXXX)"
+trap 'rm -f "$BUILD_LOG"' EXIT
+
+run_logged() {
+  : > "$BUILD_LOG"
+  local status=0
+  "$@" >"$BUILD_LOG" 2>&1 || status=$?
+  if [[ "$status" -ne 0 ]]; then
+    cat "$BUILD_LOG" >&2
+  fi
+  return "$status"
+}
+
 NODE_MAJOR="$("$REPO_ROOT/packages/typescript/scripts/node-version.sh")"
 
 # Install and build the workspace in the same Linux container so native Node
@@ -42,7 +58,7 @@ if [[ "$TARGET" == "linux" ]]; then
     CONTAINER_ARCH=(--platform linux/amd64)
   fi
   echo "Building Semiont Desktop Linux x64 .deb in $NODE_IMAGE..."
-  "$RT" run --rm "${CONTAINER_ARCH[@]}" \
+  run_logged "$RT" run --rm "${CONTAINER_ARCH[@]}" \
     -v "$REPO_ROOT":/workspace \
     -w /workspace \
     -m 8g \
@@ -57,7 +73,7 @@ fi
 
 NODE_IMAGE="node:${NODE_MAJOR}-alpine"
 echo "Building Semiont Desktop sources in $NODE_IMAGE..."
-"$RT" run --rm \
+run_logged "$RT" run --rm \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \
   -m 8g \
@@ -79,6 +95,7 @@ elif [[ -e "$APP_DIR/Applications" ]]; then
 else
   ln -s /Applications "$APP_DIR/Applications"
 fi
-hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -ov -format UDZO "$DMG"
+echo "Creating macOS disk image..."
+run_logged hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -ov -format UDZO "$DMG"
 echo "Build complete. Installer(s):"
 printf '%s\n' "$DMG"
