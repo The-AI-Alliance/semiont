@@ -104,8 +104,34 @@
               "$ref": "./Resources.json"
             },
             "external": {
-              "$ref": "./HostPort.json",
-              "description": "A vector store somebody else runs."
+              "type": "object",
+              "description": "A vector store somebody else runs, with the token each service presents to it: the Smelter's may make, write and delete this knowledge base's collections, and the Librarian's may read them.",
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "A host name or address the stack's containers can reach."
+                },
+                "port": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535,
+                  "description": "The port its REST API listens on."
+                },
+                "smelterToken": {
+                  "$ref": "./SecretRef.json"
+                },
+                "librarianToken": {
+                  "$ref": "./SecretRef.json"
+                }
+              },
+              "required": [
+                "host",
+                "port",
+                "smelterToken",
+                "librarianToken"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [

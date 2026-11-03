@@ -14,7 +14,7 @@ from semiont.timing import HELD_JOB_STALL_MS
 from semiont.types import KbIdentity, LibrarianConfig
 from semiont_service.config import Refused
 
-from semiont_librarian.config import SERVICE, api_key_of, embedding_key_of, graph_password_of, read_librarian_config
+from semiont_librarian.config import SERVICE, api_key_of, embedding_key_of, graph_password_of, read_librarian_config, vectors_token_of
 
 NEO4J: Final[dict[str, JsonValue]] = {
     "type": "neo4j",
@@ -24,7 +24,7 @@ NEO4J: Final[dict[str, JsonValue]] = {
     "database": "neo4j",
 }
 JANUSGRAPH: Final[dict[str, JsonValue]] = {"type": "janusgraph", "host": "127.0.0.1", "port": 1}
-QDRANT: Final[dict[str, JsonValue]] = {"type": "qdrant", "host": "127.0.0.1", "port": 1}
+QDRANT: Final[dict[str, JsonValue]] = {"type": "qdrant", "host": "127.0.0.1", "port": 1, "tokenEnv": "QDRANT_TOKEN"}
 OLLAMA: Final[dict[str, JsonValue]] = {"type": "ollama", "model": "nomic-embed-text", "baseUrl": "http://127.0.0.1:1"}
 VOYAGE: Final[dict[str, JsonValue]] = {
     "type": "voyage",
@@ -137,6 +137,17 @@ def test_the_embedding_providers_key_is_read_from_the_variable_the_document_name
     assert str(refusal.value) == "embedding.apiKeyEnv names VOYAGE_API_KEY, which is not set in the librarian's environment"
     # An Ollama's part of the document names no variable, and none is read for it.
     assert embedding_key_of(stating(), {}) is None
+
+
+def test_the_token_of_the_vector_index_is_read_from_the_variable_the_document_names() -> None:
+    assert vectors_token_of(stating(), {"QDRANT_TOKEN": "a-token"}) == "a-token"
+    unset: list[dict[str, str]] = [{}, {"QDRANT_TOKEN": ""}]
+    for environment in unset:
+        with pytest.raises(Refused) as refusal:
+            vectors_token_of(stating(), environment)
+        assert str(refusal.value) == "vectors.tokenEnv names QDRANT_TOKEN, which is not set in the librarian's environment"
+    # An index in memory names no variable, and none is read for it. The Librarian refuses one before anything is read.
+    assert vectors_token_of(stating(vectors={"type": "memory"}), {}) is None
 
 
 def test_each_actors_key_is_read_from_the_variable_its_part_of_the_document_names() -> None:

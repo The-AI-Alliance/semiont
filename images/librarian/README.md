@@ -94,7 +94,7 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 | `identity.issuer` | where its service account signs in |
 | `archivist` | the Archivist's host and port |
 | `graph` | the graph database ([`GraphConfig`](../../protocol/specs/src/components/schemas/GraphConfig.json)): its kind, where it is reached, and the name of the variable that holds its password |
-| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind and where it is |
+| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind, where it is, and, for a Qdrant, the name of the variable that holds the token the Librarian presents to it |
 | `embedding` | the embedding provider ([`EmbeddingConfig`](../../protocol/specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, and where it is reached |
 | `matcher`, `gatherer` | each actor's engine ([`LibrarianEngineConfig`](../../protocol/specs/src/components/schemas/LibrarianEngineConfig.json)): a provider and a model, the provider's address, and the name of the variable that holds its key, where it takes one |
 | `modelCatalogue` | the path of the model catalogue: what each model of `google`, `openai` and `together` can take, which those providers' APIs do not say. It is read only where an actor's model is one of theirs |
@@ -105,9 +105,17 @@ image's command looks: `/etc/semiont/librarian.json`. The Librarian defaults not
 
 Its environment is its service account, **`SEMIONT_OIDC_CLIENT_ID`** and
 **`SEMIONT_OIDC_CLIENT_SECRET`**, and each variable its document names: for the graph
-database's password, for the embedding provider's key, and for the key of each actor's
-model. It signs in as itself, and the gateway names it by its account:
+database's password, for the embedding provider's key, for the vector index's token, and for
+the key of each actor's model. It signs in as itself, and the gateway names it by its account:
 `did:web:<the knowledge base's domain>:agents:<its subject at the issuer>`.
+
+**Its token only reads its own index.** The token it presents to its Qdrant may read its
+knowledge base's three collections and nothing else: Qdrant refuses it every write, and every
+request of another knowledge base's collections.
+[The token cases](../../protocol/specs/src/vectors/token-cases.json) state what it says. The
+launcher mints it from the key it keeps for a Qdrant it runs, and for one somebody else runs
+is handed it in the variable the stack's `KnowledgeIndex` names
+(`spec.vectors.external.librarianToken`).
 
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-librarian`, naming
 the knowledge base it serves by its DID (`semiont.kb`): what every Python service says of its

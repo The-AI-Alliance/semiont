@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LibrarianSettings } from '../harness/librarian-process';
 import { eachLibrarian } from '../harness/librarian-world';
 import { SPEC_SOURCE } from '../harness/paths';
+import { VECTORS_TOKEN } from '../harness/qdrant';
 
 /** How long a held job may show no activity before its holder calls it stalled: the bound a gather's waits must end under. */
 function heldJobStallMs(): number {
@@ -81,6 +82,12 @@ eachLibrarian('a Librarian, as a process', (world) => {
       const { code, output } = await world().refused({ env: { ...world().launch().env, NEO4J_PASSWORD: undefined } });
       expect(code).not.toBe(0);
       expect(output).toContain('NEO4J_PASSWORD');
+    });
+
+    it('refuses to start without its token for the vector index, and names the variable its settings name', async () => {
+      const { code, output } = await world().refused({ env: { ...world().launch().env, [VECTORS_TOKEN]: undefined } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(VECTORS_TOKEN);
     });
 
     it('gives up, and exits saying where it was told the gateway is, when the gateway does not answer', async () => {

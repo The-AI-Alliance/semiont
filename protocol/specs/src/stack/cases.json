@@ -176,10 +176,19 @@
       "patch": {
         "spec": {
           "graph": { "image": null, "resources": null, "external": { "uri": "bolt://graph.example.com:7687", "password": { "fromEnv": "NEO4J_PASSWORD" } } },
-          "vectors": { "shared": null, "external": { "host": "vectors.example.com", "port": 6333 } }
+          "vectors": { "shared": null, "external": { "host": "vectors.example.com", "port": 6333, "smelterToken": { "fromEnv": "VECTORS_SMELTER_TOKEN" }, "librarianToken": { "fromEnv": "VECTORS_LIBRARIAN_TOKEN" } } }
         }
       },
       "verdict": "accepted"
+    },
+    {
+      "why": "a vector store somebody else runs, with no token for the Librarian",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null, "external": { "host": "vectors.example.com", "port": 6333, "smelterToken": { "fromEnv": "VECTORS_SMELTER_TOKEN" } } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors/external/librarianToken",
+      "reason": "missing-required"
     },
     {
       "why": "a vector store of the knowledge base's own, which the launcher runs",
@@ -201,7 +210,7 @@
       "why": "the shared vector store and somebody else's at once",
       "schema": "KnowledgeIndex",
       "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
-      "patch": { "spec": { "vectors": { "external": { "host": "vectors.example.com", "port": 6333 } } } },
+      "patch": { "spec": { "vectors": { "external": { "host": "vectors.example.com", "port": 6333, "smelterToken": { "fromEnv": "VECTORS_SMELTER_TOKEN" }, "librarianToken": { "fromEnv": "VECTORS_LIBRARIAN_TOKEN" } } } } },
       "verdict": "refused",
       "at": "/spec/vectors",
       "reason": "exactly-one"

@@ -67,7 +67,7 @@ func TestADocumentsExternalIsSomebodyElsesDaemon(t *testing.T) {
 		{"vectors", "qdrant.internal", func(st *stack.Stack, _ *issuerDocument) {
 			v := &st.KnowledgeIndex.Spec.Vectors
 			v.Shared = nil
-			v.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
+			v.External = &stack.KnowledgeIndexVectorsExternal{Host: "qdrant.internal", Port: 7000, SmelterToken: stack.SecretRef{FromEnv: "VECTORS_SMELTER_TOKEN"}, LibrarianToken: stack.SecretRef{FromEnv: "VECTORS_LIBRARIAN_TOKEN"}}
 		}, func(p placement) string { host, port := p.vectors(); return fmt.Sprintf("%s:%d", host, port) }, "qdrant.internal:7000"},
 		{"identity-store", "pg.internal", func(_ *stack.Stack, issuer *issuerDocument) {
 			d := &issuer.spec.Database
@@ -114,10 +114,10 @@ func TestNoAddressTravelsInAnEnvironment(t *testing.T) {
 	builders := map[string][]string{
 		"gateway":    gatewayArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, "secret", "jwt", "latest", semiontDescriptor("gateway").mem, 4000, nil, nil),
 		"worker":     workerArgs("/state/shared/worker.json", exposure{rt: "docker", addr: addr}, "key", "latest", semiontDescriptor("worker").mem, nil, nil),
-		"smelter":    smelterArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("smelter").ports[0].port, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil),
+		"smelter":    smelterArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("smelter").ports[0].port, "secret", "latest", semiontDescriptor("smelter").mem, nil, nil, []string{"--env", vectorsTokenVar + "=token"}),
 		"weaver":     weaverArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("weaver").ports[0].port, "secret", "latest", semiontDescriptor("weaver").mem, nil, nil),
 		"archivist":  archivistArgs("kb", "/kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("archivist").ports[0].port, "secret", "latest", semiontDescriptor("archivist").mem, nil, nil),
-		"librarian":  librarianArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("librarian").ports[0].port, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil),
+		"librarian":  librarianArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("librarian").ports[0].port, "secret", "latest", semiontDescriptor("librarian").mem, nil, nil, []string{"--env", vectorsTokenVar + "=token"}),
 		"dispatcher": dispatcherArgs("kb", "/stage", exposure{rt: "docker", addr: addr}, semiontDescriptor("dispatcher").ports[0].port, "secret", "latest", semiontDescriptor("dispatcher").mem, nil, nil),
 	}
 	handed := map[string]bool{}

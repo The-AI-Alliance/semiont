@@ -17,8 +17,10 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -2344,6 +2346,141 @@ func TestTwoKnowledgeBasesShareOneQdrant(t *testing.T) {
 	}
 }
 
+// The shared Qdrant runs with the API key the launcher keeps for the machine
+// and its JWT access control on. Each start hands its Smelter and its
+// Librarian a token signed with that key, off the command line, with the
+// claims protocol/specs/src/vectors/token-cases.json states for its knowledge
+// base: the table's first two cases are two knowledge bases on one Qdrant, and
+// the second's start mints from the key the first's ran it with.
+func TestEachServiceIsHandedItsOwnTokenToTheSharedQdrant(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, plainDomain)
+	withGatewayPort(t, other, 4010)
+	claims := tokenClaimsByKB(t)
+	for _, kb := range []struct{ root, did, key string }{
+		{s.kb, arxivDid, arxivKey},
+		{other, plainDid, "example.github.io-plain-kb"},
+	} {
+		s.kb = kb.root
+		if _, stderr, code := s.run(t, "start"); code != 0 {
+			t.Fatalf("%s's start: exit %d\nstderr:\n%s", kb.did, code, stderr)
+		}
+		kept, err := os.ReadFile(filepath.Join(sharedStateFor(s.home), "qdrant-api-key"))
+		if err != nil {
+			t.Fatalf("the machine keeps no key for the shared Qdrant: %v", err)
+		}
+		key := strings.TrimSpace(string(kept))
+		if got, _ := s.containerEnv(t, "semiont-qdrant", "QDRANT__SERVICE__API_KEY"); key == "" || got != key {
+			t.Fatalf("after %s's start the shared Qdrant runs with another key than the machine keeps", kb.did)
+		}
+		if got, _ := s.containerEnv(t, "semiont-qdrant", "QDRANT__SERVICE__JWT_RBAC"); got != "true" {
+			t.Errorf("the shared Qdrant runs with QDRANT__SERVICE__JWT_RBAC=%q, want true", got)
+		}
+		argv := s.argv(t)
+		mustNotContain(t, "the runtime calls", argv, key)
+		for _, svc := range []string{"smelter", "librarian"} {
+			container := "semiont-" + kb.key + "-" + svc
+			token, ok := s.containerEnv(t, container, "QDRANT_TOKEN")
+			if !ok {
+				t.Fatalf("%s is handed no QDRANT_TOKEN", container)
+			}
+			mustNotContain(t, "the runtime calls", argv, token)
+			if got, want := qdrantTokenClaims(t, key, token), claims[kb.did][svc]; got != want {
+				t.Errorf("%s's token claims %s, want %s", container, got, want)
+			}
+		}
+	}
+}
+
+// tokenClaimsByKB: the claims protocol/specs/src/vectors/token-cases.json
+// states each service's token carries, by knowledge base and service, as
+// compact JSON.
+func tokenClaimsByKB(t *testing.T) map[string]map[string]string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "protocol", "specs", "src", "vectors", "token-cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Cases []struct {
+			KB     string                     `json:"kb"`
+			Claims map[string]json.RawMessage `json:"claims"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(b, &table); err != nil {
+		t.Fatal(err)
+	}
+	byKB := map[string]map[string]string{}
+	for _, c := range table.Cases {
+		byKB[c.KB] = map[string]string{}
+		for svc, raw := range c.Claims {
+			var compact bytes.Buffer
+			if err := json.Compact(&compact, raw); err != nil {
+				t.Fatal(err)
+			}
+			byKB[c.KB][svc] = compact.String()
+		}
+	}
+	return byKB
+}
+
+// qdrantTokenClaims: the claims of token, which must be a JWT signed by HS256
+// with key.
+func qdrantTokenClaims(t *testing.T, key, token string) string {
+	t.Helper()
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		t.Fatalf("the token is no JWT: %d parts", len(parts))
+	}
+	header, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || string(header) != `{"alg":"HS256","typ":"JWT"}` {
+		t.Fatalf("the token's header is %q (%v)", header, err)
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(parts[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(parts[0] + "." + parts[1]))
+	if !hmac.Equal(signature, mac.Sum(nil)) {
+		t.Fatal("the token is not signed with the shared Qdrant's key")
+	}
+	claims, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(claims)
+}
+
+// A knowledge base's own Qdrant runs with a key its root keeps, not the
+// machine's, and its services' tokens are signed with that.
+func TestAnOwnQdrantIsKeyedFromItsRoot(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	withOwnVectors(t, s.kb)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	kept, err := os.ReadFile(filepath.Join(stateRootFor(s.home, arxivKey), "qdrant-api-key"))
+	if err != nil {
+		t.Fatalf("the root keeps no key for its Qdrant: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(sharedStateFor(s.home), "qdrant-api-key")); !os.IsNotExist(err) {
+		t.Errorf("the machine keeps a key for a Qdrant it does not run (%v)", err)
+	}
+	key := strings.TrimSpace(string(kept))
+	qdrant := "semiont-" + arxivKey + "-qdrant"
+	if got, _ := s.containerEnv(t, qdrant, "QDRANT__SERVICE__API_KEY"); key == "" || got != key {
+		t.Fatalf("%s runs with another key than its root keeps", qdrant)
+	}
+	token, _ := s.containerEnv(t, "semiont-"+arxivKey+"-librarian", "QDRANT_TOKEN")
+	if got, want := qdrantTokenClaims(t, key, token), tokenClaimsByKB(t)[arxivDid]["librarian"]; got != want {
+		t.Errorf("the librarian's token claims %s, want %s", got, want)
+	}
+}
+
 // `semiont stop --service vectors` stops the shared Qdrant alone, and
 // `semiont clean --shared --store vectors` removes its store and its stamp.
 // The clean is refused while a recorded stack keeps its index there, and
@@ -3874,27 +4011,45 @@ func TestCleanOfAnIndexRunsTheSharedQdrantForTheDelete(t *testing.T) {
 // A shared Qdrant recorded as running that does not answer keeps, as far as
 // the launcher knows, every other knowledge base's index, so a clean of an
 // index refuses rather than run one in its place, and names the stop after
-// which it would.
+// which it would. So does one the launcher keeps no key for, which it cannot
+// ask.
 func TestCleanOfAnIndexRefusesAQdrantRecordedAsRunningThatDoesNotAnswer(t *testing.T) {
-	s := newScenario(t, "container")
-	withDomain(t, s.kb, arxivDomain)
-	ours := plantIndex(t, s, arxivDid)
-	if err := os.MkdirAll(stateHomeFor(s.home), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-qdrant":{"container":"semiont-qdrant","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/readyz"}}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	before := s.argv(t)
-	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
-	if code != 1 {
-		t.Fatalf("clean of an index at a Qdrant that does not answer: exit %d, want 1\nstdout:\n%s", code, stdout)
-	}
-	mustContain(t, "the refusal", stderr, "The shared Qdrant at http://127.0.0.1:9:",
-		"Once it is stopped (semiont stop --service vectors), this clean runs it for the delete.")
-	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant", "stop semiont-qdrant")
-	if !indexHeld(t, s, ours) {
-		t.Error("the refused clean deleted the index")
+	for _, c := range []struct {
+		why, key, says string
+	}{
+		{"one that does not answer", "the-machines-key", "/collections"},
+		{"one the launcher keeps no key for", "", "the launcher keeps no API key for it"},
+	} {
+		t.Run(c.why, func(t *testing.T) {
+			s := newScenario(t, "container")
+			withDomain(t, s.kb, arxivDomain)
+			ours := plantIndex(t, s, arxivDid)
+			if err := os.MkdirAll(stateHomeFor(s.home), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-qdrant":{"container":"semiont-qdrant","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/readyz"}}}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if c.key != "" {
+				if err := os.MkdirAll(sharedStateFor(s.home), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(sharedStateFor(s.home), "qdrant-api-key"), []byte(c.key+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := s.argv(t)
+			stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
+			if code != 1 {
+				t.Fatalf("clean of an index at %s: exit %d, want 1\nstdout:\n%s", c.why, code, stdout)
+			}
+			mustContain(t, "the refusal", stderr, "The shared Qdrant at http://127.0.0.1:9: ", c.says,
+				"Once it is stopped (semiont stop --service vectors), this clean runs it for the delete.")
+			mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant", "stop semiont-qdrant")
+			if !indexHeld(t, s, ours) {
+				t.Error("the refused clean deleted the index")
+			}
+		})
 	}
 }
 

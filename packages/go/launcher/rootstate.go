@@ -261,13 +261,21 @@ func (spec stateStoreSpec) home(key string) string {
 }
 
 // storeAt: the store named store as a start of the knowledge base planned as
-// plan mounts it — the machine's when the machine's container serves its
-// owner (presenceShared).
+// plan mounts it — the machine's when the machine keeps its owner's
+// (machineKeeps).
 func storeAt(store string, plan *launchPlan) stateStoreSpec {
-	if plan.Roles[stateStores[store].owner].Presence == presenceShared {
+	if plan.machineKeeps(stateStores[store].owner) {
 		return machineStore(store)
 	}
 	return stateStores[store]
+}
+
+// machineKeeps: whether the machine keeps role's store and credential, for
+// every knowledge base here, and not this knowledge base's root: a shared
+// role's always, and one the machine's container serves this knowledge base
+// (presenceShared).
+func (p *launchPlan) machineKeeps(role string) bool {
+	return sharedRole(role) || p.Roles[role].Presence == presenceShared
 }
 
 // machineStore: the store named store as the machine keeps it, for every

@@ -65,7 +65,15 @@ from semiont_vectors.embedding import EmbeddingProvider
 from semiont_vectors.factory import create_embedding_provider, create_vector_reader
 from semiont_vectors.store import VectorReader
 
-from semiont_librarian.config import SERVICE, Actor, api_key_of, embedding_key_of, graph_password_of, read_librarian_config
+from semiont_librarian.config import (
+    SERVICE,
+    Actor,
+    api_key_of,
+    embedding_key_of,
+    graph_password_of,
+    read_librarian_config,
+    vectors_token_of,
+)
 from semiont_librarian.librarian import Librarian, words_of
 from semiont_librarian.log import LOG
 from semiont_librarian.progress import SmeltProgress, WeaveProgress
@@ -162,7 +170,7 @@ def boot(arguments: Sequence[str], environment: Mapping[str, str]) -> _Started:
     graph = create_graph_reader(config.graph, password=graph_password_of(config, environment))
     embedding = create_embedding_provider(config.embedding, api_key=embedding_key_of(config, environment))
     # A reader of the knowledge base's index: it is told no width, because it makes nothing there.
-    vectors = create_vector_reader(config.vectors, kb=kb_did(config.kb.domain))
+    vectors = create_vector_reader(config.vectors, kb=kb_did(config.kb.domain), token=vectors_token_of(config, environment))
     matcher = _client_of("matcher", config, environment)
     gatherer = _client_of("gatherer", config, environment)
     return _Started(

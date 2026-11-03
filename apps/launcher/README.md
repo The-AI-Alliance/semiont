@@ -180,6 +180,12 @@ semiont stop
   stack, as `stop --group index` does; `semiont stop --service vectors`
   stops it alone. A KnowledgeIndex naming `image` and `resources` runs a
   Qdrant of the KB's own instead, `semiont-<kb>-qdrant` on its block.
+  Either runs with an API key the launcher generates and keeps
+  (`qdrant-api-key`, the machine's for the shared Qdrant, the KB's for its
+  own) and its JWT access control on. Each start signs the smelter a token
+  that may do anything and the librarian one that reads its KB's three
+  collections, and hands each its own in `QDRANT_TOKEN`; the key itself
+  reaches Qdrant and the clean alone.
 - **The telemetry is shared too**: one OTel collector takes every
   KB's signals, each labelled with the KB that sent it, with Jaeger and
   Prometheus behind it. Their records live beside the stacks, as the
@@ -1119,8 +1125,8 @@ PostgreSQL every other realm here is in. With the issuer not running, the
 clean runs it for the delete and stops it again, recording no stack. The
 index of a knowledge base naming the shared Qdrant goes the same way: an
 unscoped clean, or `--store vectors`, deletes its three collections there,
-named by its DID, through Qdrant's API, and leaves every other knowledge
-base's; with the shared Qdrant not running, the clean runs it for the delete
+named by its DID, through Qdrant's API with the machine's key, and leaves
+every other knowledge base's; with the shared Qdrant not running, the clean runs it for the delete
 and stops it again. A shared Keycloak or Qdrant recorded as running that does
 not answer is refused rather than run in its place.
 `semiont clean --shared --store identity-store` removes that PostgreSQL's

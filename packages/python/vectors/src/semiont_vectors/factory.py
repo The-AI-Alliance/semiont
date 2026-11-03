@@ -23,7 +23,7 @@ from semiont_vectors.voyage import VoyageEmbeddingProvider
 __all__ = ["create_embedding_provider", "create_vector_reader", "create_vector_store"]
 
 
-def create_vector_store(config: VectorsConfig, *, kb: UserId, dimensions: Callable[[], Awaitable[int]]) -> VectorStore:
+def create_vector_store(config: VectorsConfig, *, kb: UserId, token: str | None, dimensions: Callable[[], Awaitable[int]]) -> VectorStore:
     """The store of the vector index `config` names, of the knowledge base whose DID is `kb`. Nothing is dialled until it is connected.
 
     `config` is the protocol's `VectorsConfig`, as a service's configuration
@@ -34,29 +34,39 @@ def create_vector_store(config: VectorsConfig, *, kb: UserId, dimensions: Callab
     make its index asks it then, and again whenever it is told to make the
     index anew, and one that finds its index made asks nobody. A store in
     memory holds vectors as wide as it is handed, and never asks.
+
+    A token is never in the document: the document names the environment
+    variable that holds one, and whoever reads the environment hands the
+    token here. It is `None` for an index that takes none. A Qdrant takes
+    one, and is refused without it.
     """
     match config:
         case QdrantVectorsConfig():
-            return QdrantVectorStore(host=config.host, port=config.port, kb=kb, dimensions=dimensions)
+            if token is None or token == "":
+                raise ValueError("a token is required for the qdrant store")
+            return QdrantVectorStore(host=config.host, port=config.port, kb=kb, token=token, dimensions=dimensions)
         case MemoryVectorsConfig():
             return MemoryVectorStore()
         case _:
             assert_never(config)
 
 
-def create_vector_reader(config: VectorsConfig, *, kb: UserId) -> VectorReader:
+def create_vector_reader(config: VectorsConfig, *, kb: UserId, token: str | None) -> VectorReader:
     """The reader of the vector index `config` names, of the knowledge base whose DID is `kb`. Nothing is dialled until it is connected.
 
     `config` is the protocol's `VectorsConfig`, as a service's configuration
     document states it. A Qdrant reader reads the collections of `kb` alone.
-    A reader makes nothing in its index, so it is told
+    `token` is as `create_vector_store` takes it: a Qdrant reader is refused
+    without one. A reader makes nothing in its index, so it is told
     no width. A reader in memory is an index of its own, held in the
     process, that nothing has written to: it answers every search with
     nothing.
     """
     match config:
         case QdrantVectorsConfig():
-            return QdrantVectorReader(host=config.host, port=config.port, kb=kb)
+            if token is None or token == "":
+                raise ValueError("a token is required for the qdrant reader")
+            return QdrantVectorReader(host=config.host, port=config.port, kb=kb, token=token)
         case MemoryVectorsConfig():
             return MemoryVectorStore()
         case _:

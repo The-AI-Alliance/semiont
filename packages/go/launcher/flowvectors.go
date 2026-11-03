@@ -32,8 +32,8 @@ func flowSharedVectors(x executor, fc flowCtx, addr string, restart bool) int {
 // start's runtime, is reached where this start would probe it, and has the
 // memory and the image the vector store's document gives it, unless restart.
 // Otherwise it is stopped wherever its record says it runs and run afresh on
-// the machine's store. Its record is the machine's. health is where it is
-// probed.
+// the machine's store, with the machine's key (withDaemonCredentials). Its
+// record is the machine's. health is where it is probed.
 func runSharedVectors(x executor, fc flowCtx, addr string, restart bool) (health string, code int) {
 	rp := fc.plan.Roles["vectors"]
 	disp := driverDisplay("vectors", rp.Driver)
@@ -65,6 +65,12 @@ func runSharedVectors(x executor, fc flowCtx, addr string, restart bool) (health
 			if !ok {
 				return 1
 			}
+			creds, err := daemonLaunchEnv(fc, "vectors", rp)
+			if err != nil {
+				x.say(sayFail, "%v", err)
+				return 1
+			}
+			rp.Env = append(append([]string{}, rp.Env...), creds...)
 			id, ok := x.runDetached(providedRunArgs(e, fc.plan, rp, fc.kb.key(), extra...))
 			if !ok {
 				x.say(sayFail, "vectors (%s) failed to start.", disp)

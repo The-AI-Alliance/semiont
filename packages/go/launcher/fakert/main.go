@@ -2541,8 +2541,13 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 				// Qdrant's collections, as far as a clean deleting a knowledge
 				// base's needs them: the listing (collectionsHeld) and the
 				// delete (deleteCollection), each answered in Qdrant's
-				// envelope.
-				if product(container) == "qdrant" {
+				// envelope, and only to the API key the container was run
+				// with, as Qdrant answers a request with no key or another.
+				if product(container) == "qdrant" && strings.HasPrefix(r.URL.Path, "/collections") {
+					if want := containerEnv(container, "QDRANT__SERVICE__API_KEY"); want == "" || r.Header.Get("api-key") != want {
+						jsonOut(http.StatusUnauthorized, map[string]any{"status": map[string]any{"error": "Must provide an API key or an Authorization bearer token"}, "time": 0})
+						return
+					}
 					name, one := strings.CutPrefix(r.URL.Path, "/collections/")
 					switch {
 					case r.URL.Path == "/collections" && r.Method == http.MethodGet:

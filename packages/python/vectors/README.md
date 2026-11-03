@@ -54,17 +54,30 @@ async def index_and_ask(
     return await store.search_resources(await provider.embed_query(question), SearchOptions(limit=5))
 ```
 
-A Qdrant store is told where its Qdrant is, whose index it is, and how to
-learn how wide its vectors are. Whose index it is, is a knowledge base's
-DID: the store makes, writes and reads that knowledge base's collections
-and no other's, so the stores of several knowledge bases share one Qdrant.
-Each collection is named by the SHA-256 of the DID, a hyphen and the
-collection's word, as [the payload cases][payload-cases] state. A store asks
-how wide its vectors are only when it has to make a collection, so a store
-that connects to collections that exist asks no provider anything. A store
-told to make its index anew asks again.
+A Qdrant store is told where its Qdrant is, whose index it is, the token
+it presents, and how to learn how wide its vectors are. Whose index it is,
+is a knowledge base's DID: the store makes, writes and reads that knowledge
+base's collections and no other's, so the stores of several knowledge bases
+share one Qdrant. Each collection is named by the SHA-256 of the DID, a
+hyphen and the collection's word, as [the payload cases][payload-cases]
+state. A store asks how wide its vectors are only when it has to make a
+collection, so a store that connects to collections that exist asks no
+provider anything. A store told to make its index anew asks again.
+
+The Qdrant is run with an API key and its JWT access control on, and asks
+every request for a token, which the store and the reader present in the
+`api-key` header. A token is a JSON Web Token signed with the Qdrant's key,
+and says what of the Qdrant its holder may read and write, as
+[the token cases][token-cases] state for each service. Whoever starts the
+service mints it, and hands it over in the environment variable the
+service's configuration document names (`tokenEnv`): this package mints
+none. A store makes and deletes collections, which Qdrant allows a token of
+global manage alone, so a store's token may do anything. A reader's may only
+read its knowledge base's three collections.
 
 ```python
+import os
+
 from semiont.identity import kb_did
 
 from semiont_vectors.ollama import OllamaEmbeddingProvider
@@ -74,7 +87,7 @@ from semiont_vectors.qdrant import QdrantVectorStore
 async def connected() -> QdrantVectorStore:
     provider = OllamaEmbeddingProvider(model="nomic-embed-text", base_url="http://localhost:11434")
     kb = kb_did("example.github.io:my-kb")
-    store = QdrantVectorStore(host="localhost", port=6333, kb=kb, dimensions=provider.dimensions)
+    store = QdrantVectorStore(host="localhost", port=6333, kb=kb, token=os.environ["QDRANT_TOKEN"], dimensions=provider.dimensions)
     await store.connect()
     return store
 ```
@@ -87,6 +100,8 @@ search of a collection that nobody has made yet fails, and says the
 collection is not there.
 
 ```python
+import os
+
 from semiont.identity import kb_did
 
 from semiont_vectors.qdrant import QdrantVectorReader
@@ -94,7 +109,7 @@ from semiont_vectors.store import SearchOptions, VectorReader, VectorSearchResul
 
 
 async def reading() -> VectorReader:
-    reader = QdrantVectorReader(host="localhost", port=6333, kb=kb_did("example.github.io:my-kb"))
+    reader = QdrantVectorReader(host="localhost", port=6333, kb=kb_did("example.github.io:my-kb"), token=os.environ["QDRANT_TOKEN"])
     await reader.connect()
     return reader
 
@@ -139,6 +154,9 @@ exports nothing.
   knowledge base whose DID they are handed, and the provider, that a
   service's configuration document names
   ([`VectorsConfig`][vectors-config], [`EmbeddingConfig`][embedding-config]).
+  Each is handed the secret its kind takes, read from the variable the
+  document names: a Qdrant's token, a Voyage's key. One whose kind takes a
+  secret is refused without it.
 
 ## What the index holds
 
@@ -203,13 +221,20 @@ uv run pytest                        # needs no server
 uv run pytest tests/qdrant_live.py   # against a real Qdrant
 ```
 
-The second run is told where a Qdrant is by `QDRANT_HOST`. It deletes every
+The second run is told where a Qdrant is by `QDRANT_HOST`, and the API key
+it was started with by `QDRANT_API_KEY`. It is a Qdrant started as the
+launcher starts one: the image
+[`qdrant-image.sh`](../../go/launcher/scripts/qdrant-image.sh) prints, with
+`QDRANT__SERVICE__API_KEY` set to the key and `QDRANT__SERVICE__JWT_RBAC`
+to `true`. The run mints each service's token from the key, as the launcher
+does, and holds what the Qdrant allows each and refuses it. It deletes every
 collection of that Qdrant before each case, and fails, and is not skipped,
-without the variable.
+without either variable.
 
 [semiont]: https://github.com/The-AI-Alliance/semiont
 [sdk-python]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
 [payload-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/vectors/payload-cases.json
 [store-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/vectors/store-cases.json
+[token-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/vectors/token-cases.json
 [vectors-config]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/components/schemas/VectorsConfig.json
 [embedding-config]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/specs/src/components/schemas/EmbeddingConfig.json

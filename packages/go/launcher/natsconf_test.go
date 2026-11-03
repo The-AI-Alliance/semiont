@@ -26,7 +26,7 @@ func TestBrokerReadsItsKeptPairAsText(t *testing.T) {
 		"a quote and a backslash": `pass "word" \ more`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			fc := flowCtx{userEnv: []string{"--env", daemonPasswords["messaging"].env + "=" + kept}}
+			fc := flowCtx{userEnv: []string{"--env", daemonCredentials["messaging"].env + "=" + kept}}
 			env, err := daemonLaunchEnv(fc, "messaging", rolePlan{})
 			if err != nil {
 				t.Fatal(err)

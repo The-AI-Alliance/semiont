@@ -149,6 +149,7 @@ def test_every_module_states_its_public_names_and_has_each() -> None:
         "embedding_key_of",
         "graph_password_of",
         "read_librarian_config",
+        "vectors_token_of",
     ]
     assert importlib.import_module("semiont_librarian.log").__all__ == ["LOG"]
     assert importlib.import_module("semiont_librarian.service").__all__ == ["CHANNELS", "boot", "health", "main"]

@@ -188,7 +188,7 @@ func (u *UI) Stamp(event string) {
 // anyone diagnosing an authentication failure wants. A census
 // (TestInjectedCredentialsAreClassified) makes a credential-looking injected
 // name fail until it is classified here.
-var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true, "SEMIONT_OIDC_CLIENT_KEY": true}
+var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true, "SEMIONT_OIDC_CLIENT_KEY": true, vectorsTokenVar: true}
 
 // publicEnv: launcher-set variables whose values are not secrets — paths,
 // switches, database and user names — beyond the injected client id.
@@ -198,13 +198,14 @@ var publicEnv = map[string]bool{
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "SEMIONT_SUPERVISE": true,
 	"PGDATA": true, "POSTGRES_DB": true, "POSTGRES_USER": true,
 	"KC_DB": true, "KC_DB_URL": true, "KC_DB_USERNAME": true, "KC_BOOTSTRAP_ADMIN_USERNAME": true, "KC_HOSTNAME": true,
-	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true,
+	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true, "QDRANT__SERVICE__JWT_RBAC": true,
 }
 
 // injectedVars: the variables the launcher sets in a service's environment
 // itself, so it neither demands nor forwards them from the user's.
 var injectedVars = map[string]bool{
 	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true, "SEMIONT_OIDC_CLIENT_KEY": true,
+	vectorsTokenVar: true,
 }
 
 // onCommandLine: whether a variable's value may ride a container's command

@@ -67,12 +67,12 @@ func TestLibrarianDocumentStatesWhatThePlacementDecides(t *testing.T) {
 		Uri:         "bolt://192.168.64.1:17687",
 		Username:    "neo4j",
 		Database:    "neo4j",
-		PasswordEnv: daemonPasswords["graph"].env,
+		PasswordEnv: daemonCredentials["graph"].env,
 	}
 	if got := shapeOf[api.Neo4jGraphConfig](t, doc.Graph); got != wantGraph {
 		t.Errorf("graph = %+v, want %+v", got, wantGraph)
 	}
-	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6330}
+	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6330, TokenEnv: vectorsTokenVar}
 	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
@@ -175,6 +175,21 @@ func TestLibrarianDocumentNamesItsSecrets(t *testing.T) {
 	}
 }
 
+// Somebody else's Qdrant is asked with the token its operator names for the
+// Librarian, which the Librarian is handed among the user's variables, and
+// not with the Smelter's.
+func TestLibrarianDocumentNamesItsTokenToSomebodyElsesQdrant(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	externalVectors(st)
+	p := placed(t, st)
+	if got := shapeOf[api.QdrantVectorsConfig](t, librarianDocumentOf(t, p).Vectors).TokenEnv; got != "VECTORS_LIBRARIAN_TOKEN" {
+		t.Errorf("vectors.tokenEnv = %q, want the variable the KnowledgeIndex names for the Librarian", got)
+	}
+	if handed := librarianSecrets(p); !contains(handed, "VECTORS_LIBRARIAN_TOKEN") || contains(handed, "VECTORS_SMELTER_TOKEN") {
+		t.Errorf("the Librarian is handed %v, want its own token to somebody else's Qdrant and not the Smelter's", handed)
+	}
+}
+
 // An actor's engine's provider is reached where the worker's engine of that
 // provider is: one decider, so an engine the worker and the Librarian share is
 // at one address.
@@ -257,7 +272,7 @@ func TestLibrarianDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	doc := librarianDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma")))
 
-	args := strings.Join(librarianArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil), " ")
+	args := strings.Join(librarianArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("librarian").ports[0].port, "client-secret", "v", semiontDescriptor("librarian").mem, []string{"--env", "NEO4J_PASSWORD", "--env", "ANTHROPIC_API_KEY"}, nil, nil), " ")
 	if want := "/stage/" + librarianDocumentFile + ":" + librarianDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Librarian's document is not mounted onto %s:\n%s", librarianDocumentTarget, args)
 	}
@@ -297,7 +312,7 @@ func TestTheLibrarianIsHandedOnlyWhatItsDocumentNames(t *testing.T) {
 	externalBroker(st)
 	p := placed(t, st)
 	handed := strings.Join(withDaemonCredentialVars(serviceSecrets(p), p.plan, true)["librarian"], " ")
-	if want := "VOYAGE_API_KEY ANTHROPIC_API_KEY " + daemonPasswords["graph"].env; handed != want {
+	if want := "VOYAGE_API_KEY ANTHROPIC_API_KEY " + daemonCredentials["graph"].env; handed != want {
 		t.Errorf("the Librarian is handed %q, want the variables its document names, %q", handed, want)
 	}
 	if got, want := strings.Join(secretsRead(p, startOptions{starts: []groupMember{{role: "librarian"}}}.includes), " "), "ANTHROPIC_API_KEY VOYAGE_API_KEY"; got != want {
@@ -306,7 +321,7 @@ func TestTheLibrarianIsHandedOnlyWhatItsDocumentNames(t *testing.T) {
 
 	externalGraph(st)
 	p = placed(t, st)
-	if handed := withDaemonCredentialVars(serviceSecrets(p), p.plan, true)["librarian"]; contains(handed, daemonPasswords["graph"].env) {
+	if handed := withDaemonCredentialVars(serviceSecrets(p), p.plan, true)["librarian"]; contains(handed, daemonCredentials["graph"].env) {
 		t.Errorf("for somebody else's Neo4j the Librarian is handed the launcher's password: %v", handed)
 	}
 }
