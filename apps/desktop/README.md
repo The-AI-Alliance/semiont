@@ -1,6 +1,6 @@
-# Semiont Desktop
+# Semiont
 
-Semiont Desktop is the Electron chat client for Semiont knowledge bases. Add the URL of an
+Semiont is the Electron chat client for Semiont knowledge bases. Add the URL of an
 existing knowledge base gateway, sign in through its issuer in your system browser, then
 browse resources and work with them in chat. The app is a client; it does not run a gateway
 or keep a copy of the knowledge base.
@@ -16,7 +16,7 @@ The [`publish-desktop.yml`](../../.github/workflows/publish-desktop.yml) workflo
 installers to Semiont's [GitHub Releases](https://github.com/The-AI-Alliance/semiont/releases).
 It builds these targets:
 
-- **macOS Apple Silicon:** unsigned `.dmg`. Open the disk image and move Semiont Desktop to
+- **macOS Apple Silicon:** unsigned `.dmg`. Open the disk image and move Semiont to
   Applications. Because the app is unsigned, macOS may ask you to confirm its first launch.
 - **Linux x64:** `.deb` for Debian-based systems. The package declares Electron's required
   system libraries. Package creation has been verified; installation and launch on a Linux

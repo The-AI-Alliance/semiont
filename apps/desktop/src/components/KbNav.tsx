@@ -106,11 +106,11 @@ function SemiontMenu({ onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpe
     <div className="nav__footer" ref={menuRef}>
       {open && (
         <div className="semiont-menu" role="menu" aria-label="Semiont menu">
-          <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}>Theme</button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}>Telemetry</button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}>Container runtime</button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenGit)}>Git</button>
-          <button type="button" role="menuitem" onClick={() => choose(onOpenLauncherStatus)}>Launcher status</button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}><ThemeIcon /><span>Theme</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}><TelemetryIcon /><span>Telemetry</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}><ContainerIcon /><span>Container runtime</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenGit)}><GitIcon /><span>Git</span></button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenLauncherStatus)}><StatusIcon /><span>Status</span></button>
         </div>
       )}
       <button
@@ -404,6 +404,51 @@ const ICON_PROPS = {
   strokeLinejoin: 'round',
   'aria-hidden': true,
 } as const;
+
+function ThemeIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
+    </svg>
+  );
+}
+
+function TelemetryIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <path d="M3 3v18h18M8 16v-4m5 4V7m5 9V4" />
+    </svg>
+  );
+}
+
+function ContainerIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <path d="m12 3 9 5v8l-9 5-9-5V8l9-5Zm0 10 9-5M12 13 3 8m9 5v8M7.5 5.5l9 5" />
+    </svg>
+  );
+}
+
+function GitIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <circle cx="6" cy="5" r="2" />
+      <circle cx="6" cy="19" r="2" />
+      <circle cx="18" cy="5" r="2" />
+      <path d="M6 7v10m12-10a8 8 0 0 1-8 8H6" />
+    </svg>
+  );
+}
+
+function StatusIcon() {
+  return (
+    <svg width="18" height="18" {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M4 12h4l2-4 4 8 2-4h4" />
+    </svg>
+  );
+}
 
 function Chevron({ open }: { open: boolean }) {
   return (

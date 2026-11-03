@@ -10,7 +10,7 @@ export interface AppManifest {
 }
 
 const DEFAULTS: AppManifest = {
-  title: 'Semiont Desktop',
+  title: 'Semiont',
 };
 
 /** Parse `app.toml` (or fall back to defaults when absent or partial). Pure. */

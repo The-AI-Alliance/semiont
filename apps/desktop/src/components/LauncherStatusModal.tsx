@@ -34,7 +34,7 @@ export function LauncherStatusModal({
         onClick={(event) => event.stopPropagation()}
       >
         <header className="config__head">
-          <h1 id="launcher-status-title">Launcher status</h1>
+          <h1 id="launcher-status-title">Status</h1>
           <button type="button" className="config__close" onClick={onClose} aria-label="Close launcher status">
             ×
           </button>
