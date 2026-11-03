@@ -61,7 +61,7 @@ APP_VERSION="$("$RT" run --rm \
   -w /workspace \
   "$NODE_IMAGE" \
   node -p 'JSON.parse(require("node:fs").readFileSync("apps/desktop/package.json", "utf8")).version')"
-LAUNCHER_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
+LAUNCHER_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || printf 'unknown')"
 LAUNCHER_BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 LAUNCHER_LDFLAGS="-s -w -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildVersion=${APP_VERSION} -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildCommit=${LAUNCHER_COMMIT} -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildDate=${LAUNCHER_BUILD_DATE}"
 LAUNCHER_BIN="$SCRIPT_DIR/.build/launcher/semiont"
@@ -74,10 +74,9 @@ run_logged "$RT" run --rm \
   -e GOOS="$LAUNCHER_GOOS" \
   -e GOARCH="$LAUNCHER_GOARCH" \
   -e CGO_ENABLED=0 \
+  -e LAUNCHER_LDFLAGS="$LAUNCHER_LDFLAGS" \
   "$GO_IMAGE" \
-  go build -buildvcs=false -trimpath -ldflags "$LAUNCHER_LDFLAGS" -o /workspace/apps/desktop/.build/launcher/semiont .
-chmod 755 "$LAUNCHER_BIN"
-[[ -x "$LAUNCHER_BIN" ]] || { echo "Launcher sidecar was not built at $LAUNCHER_BIN" >&2; exit 1; }
+  sh -c 'go build -buildvcs=false -trimpath -ldflags "$LAUNCHER_LDFLAGS" -o /workspace/apps/desktop/.build/launcher/semiont . && chmod 755 /workspace/apps/desktop/.build/launcher/semiont && test -x /workspace/apps/desktop/.build/launcher/semiont'
 
 # Install and build the workspace in the same Linux container so native Node
 # bindings match that build environment. The monorepo workspace supplies every
