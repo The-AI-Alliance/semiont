@@ -82,8 +82,10 @@ type startOptions struct {
 var startUsage = fmt.Sprintf(`Usage: semiont start [options]
 
 Start a local Semiont stack — the services and daemons the knowledge base's
-.semiont/stack/ documents describe, and the Browser its own document describes
-(semiont settings browser) — all in containers.
+.semiont/stack/ documents describe, the Browser its own document describes
+(semiont settings browser), and, for a knowledge base that names the shared
+issuer, the issuer its own document describes (semiont settings issuer), with
+the knowledge base's realm in it — all in containers.
 
 Options:
   --config <name>       The Inference document to use, .semiont/stack/inference/
@@ -155,15 +157,10 @@ Environment:
                         token already issued
   KC_BOOTSTRAP_ADMIN_PASSWORD
                         Keycloak's admin-console password, when the launcher
-                        runs the issuer (an Issuer document) (default:
-                        generated ONCE per KB root and kept — Keycloak creates
-                        the admin on its first boot only, so the value must
-                        outlive the stack). Console user: admin
-  KEYCLOAK_PORT         The port of the Keycloak the launcher runs. Default
-                        8080 on the KB's port block (8090 on block 1, and so
-                        on); a start that sets it records it for this KB, so
-                        later starts keep it. A codespace KB's laptop sets it
-                        over ssh when 8080 is taken there
+                        runs the shared issuer (default: generated ONCE for
+                        this machine and kept — Keycloak creates the admin on
+                        its first boot only, so the value must outlive it).
+                        Console user: admin
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -338,8 +335,6 @@ func Start(args []string) int {
 	}
 	var st *stack.Stack
 	var plan *launchPlan
-	var kcPort int
-	var kcFromEnv bool
 	// The knowledge base's port block, which its first start keeps.
 	block := portBlockOf(root)
 	if configNeeded {
@@ -357,21 +352,13 @@ func Start(args []string) int {
 			u.Fail("%v", err)
 			return 1
 		}
-		kcSource := ""
-		var kcOK bool
-		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
+		issuer, ok := issuerOf(u, st, opts.dryRun)
+		if !ok {
 			return 1
 		}
-		if plan, err = derivePlan(st, kb.key(), kcPort, block); err != nil {
+		if plan, err = derivePlan(st, issuer, kb.key(), block); err != nil {
 			u.Fail("%v", err)
 			return 1
-		}
-		if st.Issuer != nil {
-			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
-		} else if kcFromEnv {
-			// An ineffective setting is neither silent nor remembered.
-			u.Warn("KEYCLOAK_PORT=%d has no effect: %s trusts an issuer somebody else runs (spec.issuer.external).", kcPort, st.Files.KnowledgeBase)
-			kcFromEnv = false
 		}
 	}
 
@@ -521,61 +508,16 @@ func Start(args []string) int {
 			u.Log("Config: %s", u.Bold(opts.configName))
 		}
 	}
-	// User env vars (the variables the documents name, `fromEnv`) are
-	// demanded where something reads them: a service handed them, or the
-	// launcher reading them itself (secretsRead). The environment always wins;
-	// a registered secret source (semiont settings secret) is consulted only
-	// for vars the environment doesn't provide, with the reach announced
-	// BEFORE it happens. Dry-run reaches for nothing.
-	var userEnv []string
-	secrets := loadRoots().Secrets
 	// A role started alone reaches only for the variables it reads, so no
 	// provider prompt asks for a secret it never uses.
 	var vars []string
+	var serving workerServing
 	if st != nil {
-		vars = secretsRead(placement{st: st, plan: plan}, opts.includes)
+		vars, serving = secretsRead(placement{st: st, plan: plan}, opts.includes), plan.Serving
 	}
-	for _, v := range vars {
-		if opts.dryRun {
-			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
-			continue
-		}
-		val := os.Getenv(v)
-		if val == "" {
-			if ref, ok := secrets[v]; ok && custodyOwned(v) {
-				// A registration under a name custody owns.
-				// Resolving it would answer a provider prompt and then
-				// discard the answer, since custody appends its own value
-				// after this one.
-				u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
-				fmt.Fprintf(os.Stderr, "  Forget the source (semiont settings secret rm %s), or export %s yourself.\n", v, v)
-				return 1
-			} else if ok {
-				if !requireProviderBin(u, ref) {
-					return 1
-				}
-				u.Log("%s: reading from %s (%s) %s", u.Bold(v),
-					secretProviders[ref.Provider].display, refCommand(ref),
-					u.Dim("— expect an authorization prompt"))
-				var err error
-				if val, err = resolveSecret(ref); err != nil {
-					u.Fail("%s: %v.", v, err)
-					fmt.Fprintf(os.Stderr, "  Fix the source (semiont settings secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
-					return 1
-				}
-			}
-		}
-		if val == "" {
-			if kb, ok := plan.Serving.keyNamer(v); ok && !contains(ownVars, v) {
-				u.Fail("%s, which the shared worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
-				fmt.Fprintf(os.Stderr, "  Export it, register a secret source once (semiont settings secret set %s), or stop serving it (semiont worker kb remove %s).\n", v, kb)
-				return 1
-			}
-			u.Fail("The knowledge base's documents name the variable %s (fromEnv), and it is not set in the environment.", v)
-			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
-			return 1
-		}
-		userEnv = append(userEnv, "--env", v+"="+val)
+	userEnv, ok := resolveUserEnv(u, vars, opts.dryRun, serving, ownVars)
+	if !ok {
+		return 1
 	}
 
 	if opts.dryRun {
@@ -598,7 +540,10 @@ func Start(args []string) int {
 			needs = append(needs, servicePortNeeds(m.role, plan, browser, exposure{rt: rt, lan: lan})...) // nil-plan-safe (browser, traces)
 		}
 	} else {
-		needs = planPortChecks(plan, exposure{rt: rt, lan: lan}) // full start always has a plan
+		// The stack's, and the shared issuer's, which a full start (it always
+		// has a plan) claims when it runs the server rather than keeping it.
+		e := exposure{rt: rt, lan: lan}
+		needs = slices.Concat(planPortChecks(plan, e), rolePortNeeds(plan, "identity-store", e), rolePortNeeds(plan, "identity", e))
 	}
 	if refuseOtherStacks(u, LoadStackSet(), kb, st, plan, needs) {
 		return 1
@@ -632,9 +577,6 @@ func Start(args []string) int {
 		}
 		if opts.runtime != "" {
 			recordRuntimePref(opts.runtime)
-		}
-		if kcFromEnv {
-			recordKeycloakPort(root, kcPort)
 		}
 	}
 	return code
@@ -689,14 +631,76 @@ func runningFor(u *UI, kb kbRoot, rt string, plan *launchPlan) (func(role string
 		return nil, false
 	}
 	return func(role string) bool {
-		if _, nothing := nothingToLaunch(plan, role); nothing {
+		rp, nothing := nothingToLaunch(plan, role)
+		switch {
+		case nothing:
 			return true
-		}
-		if v.st == nil && !sharedRole(role) && runsContainer(role) {
+		case role == "identity":
+			// The knowledge base's realm: the shared server answering for
+			// another knowledge base is not it.
+			return roleHealthy(role, healthEndpoint(role, rp.Driver, plan, v.at))
+		case v.st == nil && !sharedRole(role) && runsContainer(role):
 			return false
 		}
 		return readRow(v, role, ss.Shared).healthy
 	}, true
+}
+
+// resolveUserEnv: the --env pairs of the user variables vars (the variables
+// the documents name, `fromEnv`), demanded where something reads them: a
+// service handed them, or the launcher reading them itself (secretsRead). The
+// environment always wins; a registered secret source (semiont settings
+// secret) is consulted only for vars the environment doesn't provide, with the
+// reach announced BEFORE it happens. A dry run reaches for nothing. serving is
+// the worker's list a start leaves, and ownVars the variables the knowledge
+// base's own documents name: a variable only another on the list names is
+// refused as that one's.
+func resolveUserEnv(u *UI, vars []string, dryRun bool, serving workerServing, ownVars []string) ([]string, bool) {
+	var userEnv []string
+	secrets := loadRoots().Secrets
+	for _, v := range vars {
+		if dryRun {
+			userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+			continue
+		}
+		val := os.Getenv(v)
+		if val == "" {
+			if ref, ok := secrets[v]; ok && custodyOwned(v) {
+				// A registration under a name custody owns.
+				// Resolving it would answer a provider prompt and then
+				// discard the answer, since custody appends its own value
+				// after this one.
+				u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
+				fmt.Fprintf(os.Stderr, "  Forget the source (semiont settings secret rm %s), or export %s yourself.\n", v, v)
+				return nil, false
+			} else if ok {
+				if !requireProviderBin(u, ref) {
+					return nil, false
+				}
+				u.Log("%s: reading from %s (%s) %s", u.Bold(v),
+					secretProviders[ref.Provider].display, refCommand(ref),
+					u.Dim("— expect an authorization prompt"))
+				var err error
+				if val, err = resolveSecret(ref); err != nil {
+					u.Fail("%s: %v.", v, err)
+					fmt.Fprintf(os.Stderr, "  Fix the source (semiont settings secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
+					return nil, false
+				}
+			}
+		}
+		if val == "" {
+			if kb, ok := serving.keyNamer(v); ok && !contains(ownVars, v) {
+				u.Fail("%s, which the shared worker serves, names the variable %s for an engine's key (fromEnv), and it is not set in the environment.", kb, v)
+				fmt.Fprintf(os.Stderr, "  Export it, register a secret source once (semiont settings secret set %s), or stop serving it (semiont worker kb remove %s).\n", v, kb)
+				return nil, false
+			}
+			u.Fail("The knowledge base's documents name the variable %s (fromEnv), and it is not set in the environment.", v)
+			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
+			return nil, false
+		}
+		userEnv = append(userEnv, "--env", v+"="+val)
+	}
+	return userEnv, true
 }
 
 // startNetwork: this Mac's address on the network when the start is `network
@@ -745,7 +749,7 @@ func printLANReach(u *UI, lan string, plan *launchPlan, e exposure) {
 	fmt.Printf("  %s\n", u.Wrap(AnsiBold+AnsiYellow, "Answering the network at "+lan+" (semiont settings network lan):"))
 	fmt.Printf("  Semiont KB         http://%s:%d\n", lan, plan.GatewayPort)
 	if rp := plan.Roles["identity"]; rp.Presence == presenceLauncher {
-		fmt.Printf("  Issuer             %s   %s\n", identityEndpoint(rp, e), u.Dim("(its realm alone, through the issuer proxy)"))
+		fmt.Printf("  Issuer             %s   %s\n", identityEndpoint(rp, e), u.Dim("(through the issuer proxy, which passes the realms of the knowledge bases running here alone)"))
 	}
 	fmt.Printf("  %s\n", u.Dim("Plain HTTP: passwords at sign-in and every token cross the network unencrypted."))
 	fmt.Printf("  %s\n", u.Dim("Another machine runs its own Browser and adds this knowledge base at the address above."))
@@ -775,7 +779,8 @@ func locallyBuilt(img string) bool {
 // roleDocument: the document that states a role as somebody else's, for a
 // message naming it. These are the roles a document can place elsewhere: the
 // daemons whose `external` it states, the issuer the knowledge base names,
-// and the remote providers. The launcher runs every other role itself.
+// the PostgreSQL the issuer's document names, and the remote providers. The
+// launcher runs every other role itself.
 func roleDocument(st *stack.Stack, role string) string {
 	switch role {
 	case "graph", "vectors", "embedding":
@@ -783,7 +788,7 @@ func roleDocument(st *stack.Stack, role string) string {
 	case "messaging", "identity":
 		return st.Files.KnowledgeBase
 	case "identity-store":
-		return st.Files.Issuer
+		return issuerDocumentPath()
 	case "inference":
 		return st.Files.Inference
 	}

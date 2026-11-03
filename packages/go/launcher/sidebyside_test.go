@@ -185,3 +185,15 @@ func TestACodespaceForwardSkipsEveryLocalStacksPorts(t *testing.T) {
 		t.Errorf("a codespace forward was given %d, which a local stack claims", got)
 	}
 }
+
+// A codespace's issuer forward skips the shared Keycloak's ports, which no
+// stack's record holds: it serves them all.
+func TestACodespaceForwardSkipsTheSharedIssuersPorts(t *testing.T) {
+	ss := &StackSet{
+		Stacks: map[string]*StackState{"local:a": {KBRoot: "/kb/a", KBDid: "did:web:a", Ports: []int{4000}}},
+		Shared: map[string]*ServiceState{sharedContainer("identity"): {Container: sharedContainer("identity"), Ports: []int{8080, 18080}}},
+	}
+	if got := allocatePort(ss, "o/n", 8080); got == 8080 || got == 18080 {
+		t.Errorf("a codespace's issuer forward was given %d, which the shared Keycloak claims", got)
+	}
+}

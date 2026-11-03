@@ -55,15 +55,12 @@ func edit(t *testing.T, root, file, old, new string) {
 	}
 }
 
-// The fixture knowledge base loads whole: each document, the Issuer its
-// KnowledgeBase names, and the Inference document asked for.
+// The fixture knowledge base loads whole: each document, and the Inference
+// document asked for.
 func TestLoadReadsEveryDocument(t *testing.T) {
 	st, err := Load(fixtureCopy(t), "anthropic")
 	if err != nil {
 		t.Fatal(err)
-	}
-	if st.Issuer == nil {
-		t.Fatalf("the Issuer was not read: %+v", st)
 	}
 	if st.Inference.Metadata.Name != "anthropic" || st.Files.Inference != filepath.Join(Dir, InferenceDir, "anthropic.yaml") {
 		t.Errorf("the Inference document read is %q, from %s", st.Inference.Metadata.Name, st.Files.Inference)
@@ -72,7 +69,7 @@ func TestLoadReadsEveryDocument(t *testing.T) {
 
 // A knowledge base without a document it needs is refused, naming the file.
 func TestLoadRefusesADocumentThatIsNotThere(t *testing.T) {
-	for _, missing := range []string{KnowledgeBaseFile, KnowledgeIndexFile, IssuerFile} {
+	for _, missing := range []string{KnowledgeBaseFile, KnowledgeIndexFile} {
 		t.Run(missing, func(t *testing.T) {
 			root := fixtureCopy(t)
 			if err := os.Remove(filepath.Join(root, Dir, missing)); err != nil {
@@ -88,17 +85,13 @@ func TestLoadRefusesADocumentThatIsNotThere(t *testing.T) {
 	}
 }
 
-// Each name one document gives another must name the document there, and a
-// knowledge base cannot both trust somebody else's issuer and describe one of
-// its own.
+// Each name one document gives another must name the document there.
 func TestLoadRefusesANameThatDoesNotHold(t *testing.T) {
 	for _, c := range []struct {
 		why, file, old, new, refusal string
 	}{
 		{"the index names another knowledge base", KnowledgeIndexFile, "knowledgeBase: knowledge-base", "knowledgeBase: elsewhere", "index.yaml: spec.knowledgeBase names \"elsewhere\""},
-		{"the knowledge base names another issuer", KnowledgeBaseFile, "ref: issuer", "ref: elsewhere", "knowledge-base.yaml: spec.issuer.ref names \"elsewhere\""},
 		{"the Inference document is named otherwise than its file", filepath.Join(InferenceDir, "anthropic.yaml"), "name: anthropic", "name: elsewhere", "an Inference document is named by its file"},
-		{"an external issuer beside an Issuer document", KnowledgeBaseFile, "ref: issuer", "external: { type: oidc, url: https://issuer.example.org }", "delete one of the two"},
 	} {
 		t.Run(c.why, func(t *testing.T) {
 			root := fixtureCopy(t)
@@ -110,20 +103,26 @@ func TestLoadRefusesANameThatDoesNotHold(t *testing.T) {
 	}
 }
 
-// A knowledge base that trusts somebody else's issuer, and describes none,
-// loads without one.
-func TestLoadReadsNoIssuerForAnExternalOne(t *testing.T) {
-	root := fixtureCopy(t)
-	edit(t, root, filepath.Join(Dir, KnowledgeBaseFile), "ref: issuer", "external: { type: oidc, url: https://issuer.example.org }")
-	if err := os.Remove(filepath.Join(root, Dir, IssuerFile)); err != nil {
-		t.Fatal(err)
-	}
-	st, err := Load(root, "anthropic")
+// The issuer the launcher runs is the machine's: a knowledge base holding an
+// Issuer document of its own, whichever issuer it names, is refused by the
+// file's name, and told where the machine keeps one.
+func TestLoadRefusesAnIssuerDocumentOfItsOwn(t *testing.T) {
+	issuer, err := os.ReadFile(filepath.Join(repository, "packages", "go", "launcher", "testdata", IssuerFile))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Issuer != nil {
-		t.Errorf("a knowledge base trusting an external issuer has one of its own: %+v", st.Issuer)
+	for _, names := range []string{"shared: { accessTokenLifespan: 300 }", "external: { type: oidc, url: https://issuer.example.org }"} {
+		t.Run(names, func(t *testing.T) {
+			root := fixtureCopy(t)
+			edit(t, root, filepath.Join(Dir, KnowledgeBaseFile), "shared:\n      accessTokenLifespan: 300", names)
+			if err := os.WriteFile(filepath.Join(root, Dir, IssuerFile), issuer, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Load(root, "anthropic")
+			if err == nil || !strings.HasPrefix(err.Error(), filepath.Join(Dir, IssuerFile)+":") || !strings.Contains(err.Error(), filepath.Join(StateHomeDir, IssuerFile)) {
+				t.Errorf("a knowledge base holding %s loaded, or was refused without naming it and the state home's: %v", IssuerFile, err)
+			}
+		})
 	}
 }
 
@@ -147,6 +146,10 @@ func TestMarshalWritesADocumentThatReadsBack(t *testing.T) {
 	if st.KnowledgeBase.ApiVersion != APIVersion {
 		t.Errorf("the fixture states apiVersion %q, and APIVersion is %q", st.KnowledgeBase.ApiVersion, APIVersion)
 	}
+	issuer, err := Read[Issuer](filepath.Join(repository, "packages", "go", "launcher", "testdata", IssuerFile), "Issuer")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, c := range []struct {
 		kind     string
 		document any
@@ -154,7 +157,7 @@ func TestMarshalWritesADocumentThatReadsBack(t *testing.T) {
 	}{
 		{"KnowledgeBase", st.KnowledgeBase, func(text []byte) (any, error) { return Parse[KnowledgeBase]("kb", "KnowledgeBase", text) }},
 		{"KnowledgeIndex", st.KnowledgeIndex, func(text []byte) (any, error) { return Parse[KnowledgeIndex]("index", "KnowledgeIndex", text) }},
-		{"Issuer", *st.Issuer, func(text []byte) (any, error) { return Parse[Issuer]("issuer", "Issuer", text) }},
+		{"Issuer", issuer, func(text []byte) (any, error) { return Parse[Issuer]("issuer", "Issuer", text) }},
 		{"Inference", st.Inference, func(text []byte) (any, error) { return Parse[Inference]("inference", "Inference", text) }},
 	} {
 		t.Run(c.kind, func(t *testing.T) {
@@ -170,5 +173,48 @@ func TestMarshalWritesADocumentThatReadsBack(t *testing.T) {
 				t.Errorf("what Marshal wrote reads back otherwise:\n%s", text)
 			}
 		})
+	}
+}
+
+// SetScalar changes the one value it names: the document reads back with that
+// field changed and every other the same, and a person's comments stay where
+// they wrote them. A field the document does not have, or one that is not a
+// single value, is refused.
+func TestSetScalarChangesOneFieldAndKeepsComments(t *testing.T) {
+	path := filepath.Join(repository, "packages", "go", "launcher", "testdata", IssuerFile)
+	text, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text = append([]byte("# the issuer for this laptop\n"), text...)
+	text = []byte(strings.Replace(string(text), "  port: 8080\n", "  port: 8080 # where my browser expects it\n", 1))
+	before, err := Parse[Issuer]("issuer", "Issuer", text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := SetScalar(text, []string{"spec", "port"}, "8081")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := Parse[Issuer]("issuer", "Issuer", changed)
+	if err != nil {
+		t.Fatalf("what SetScalar wrote is refused: %v\n%s", err, changed)
+	}
+	if after.Spec.Port != 8081 {
+		t.Errorf("spec.port reads back as %d:\n%s", after.Spec.Port, changed)
+	}
+	after.Spec.Port = before.Spec.Port
+	if !reflect.DeepEqual(after, before) {
+		t.Errorf("SetScalar changed more than spec.port:\n%s", changed)
+	}
+	for _, comment := range []string{"# the issuer for this laptop\n", "port: 8081 # where my browser expects it\n"} {
+		if !strings.Contains(string(changed), comment) {
+			t.Errorf("SetScalar lost %q:\n%s", comment, changed)
+		}
+	}
+	for _, location := range [][]string{{"spec", "proxy"}, {"spec", "database"}, {"spec", "port", "number"}} {
+		if _, err := SetScalar(text, location, "1"); err == nil {
+			t.Errorf("SetScalar of %v is not refused", location)
+		}
 	}
 }

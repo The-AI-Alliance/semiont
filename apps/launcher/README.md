@@ -99,12 +99,13 @@ semiont stop
   row of `roots.json` (`portBlock`): its first successful start takes the
   lowest block no other row keeps, and `semiont forget` frees it. Block k
   publishes every port the launcher chooses for the stack at its block-0
-  port + 10k (PostgreSQL 5432, NATS 4222, Qdrant 6333, Neo4j 7474/7687,
-  Keycloak 8080, the Smelter, Weaver, Archivist, Librarian and Dispatcher
-  24101–24105); each container listens where it always does, and every
-  document the start stages names the published ports. The gateway's port
-  is its document's, Keycloak's is `KEYCLOAK_PORT` or the recorded one when
-  either is set, and the shared services keep theirs. A dry run plans
+  port + 10k (NATS 4222, Qdrant 6333, Neo4j 7474/7687, the Smelter, Weaver,
+  Archivist, Librarian and Dispatcher 24101–24105); each container listens
+  where it always does, and every document the start stages names the
+  published ports. The gateway's port is its document's, and the shared
+  services keep theirs: the issuer's Keycloak (8080) and PostgreSQL (5432)
+  are on the ports the issuer's document in the state home gives them
+  (`semiont settings keycloak-port` writes Keycloak's). A dry run plans
   on the block a start would take and keeps none. A stop with no record
   verifies every kept block's service and broker ports released.
 - **Several KBs run side by side.** Each KB's containers are named for it,
@@ -241,8 +242,10 @@ semiont stop
   The repo selection is a **union**, never a replacement, so pushing for one
   repo can't silently revoke the secret from others already using it.
 - **`semiont settings secret-store` says where a KB keeps the values the launcher
-  generates for it** — the token-signing key, Keycloak's admin password, the
-  service accounts' secrets, the daemons' passwords. `file` (the default) is
+  generates for it** — the token-signing key, the service accounts' secrets,
+  the passwords of its own daemons. What the launcher keeps for the machine
+  (the worker's key, the shared issuer's admin and PostgreSQL passwords) is
+  files under `shared/`, whichever store a KB names. `file` (the default) is
   one 0600 plain-text file per value under the KB's state dir — **not secure:
   for development only**, and every place the launcher names it says so;
   `op://<vault>` is one
@@ -293,8 +296,8 @@ semiont stop
   number on both ends because a token's `iss` must match the one URL the
   Browser signs in at: 8080 when free, else the lowest free above it. When
   the codespace's Keycloak is on another port, its own launcher restarts the
-  stack there with `KEYCLOAK_PORT=<N>`, which it records for every later
-  resume. A single browser's Knowledge Bases panel therefore works, and
+  stack there after `semiont settings keycloak-port <N>`, which writes it into
+  the codespace's issuer document for every later resume. A single browser's Knowledge Bases panel therefore works, and
   signs in to, N codespace KBs at once (Host localhost, Port 400x each;
   sidecars and infra stay inside the codespace). An issuer the codespace
   does not run is not forwarded. Forwards are recorded detached processes: `status`
@@ -457,16 +460,17 @@ semiont stop
   everything named `semiont-*` across every runtime it can see, and never
   signals anything else.)
 - **`semiont stop --group <name>` stops one group of services**, named as
-  `status` reads them. A knowledge base's group (`record`, `index`,
-  `issuer`) takes along each of that knowledge base's services that needs
-  one of its own, last-started first, and says which and why ("smelter
-  stops too: it needs the gateway"). So `--group index` stops the librarian,
-  the smelter, the weaver, the graph and the vectors and nothing else, and
-  `--group issuer` stops every service behind the gateway. The worker goes
-  with a knowledge base's group only when no other knowledge base's stack is
-  recorded, as with a bare stop. A shared group (`knowledge-workers`,
-  `providers`, `telemetry`) serves every knowledge base here, so it stops
-  alone, and each knowledge base goes on without it.
+  `status` reads them. A knowledge base's group (`record`, `index`) takes
+  along each of that knowledge base's services that needs one of its own,
+  last-started first, and says which and why ("smelter stops too: it needs
+  the gateway"). So `--group index` stops the librarian, the smelter, the
+  weaver, the graph and the vectors and nothing else. The worker goes with a
+  knowledge base's group only when no other knowledge base's stack is
+  recorded, as with a bare stop. A shared group (`issuer`,
+  `knowledge-workers`, `providers`, `telemetry`) serves every knowledge base
+  here, so it stops alone, and each knowledge base goes on without it:
+  `--group issuer` stops the Keycloak and the PostgreSQL every knowledge
+  base's realm is in, and their gateways stay up.
 - **`semiont start --group <name>` starts one group of services**, as
   `--service` starts one: each of the group's own (re)starts, in start
   order. Each service one of them needs that is not up starts first, and
@@ -492,8 +496,10 @@ semiont stop
   provides a container from that image and places it; `external` → somebody
   else runs it: the document states its address, and it is verified, never
   launched, skipped by stop and shown as "external" in status. The issuer is
-  the KnowledgeBase's `spec.issuer`: `ref` names the Issuer document of a
-  Keycloak the launcher runs, `external` an issuer somebody else runs. An
+  the KnowledgeBase's `spec.issuer`: `shared` is the one Keycloak the
+  launcher runs for every knowledge base here, each in a realm of its own,
+  as the issuer's document in the state home (`stack/issuer.yaml`)
+  describes it; `external` is an issuer somebody else runs. An
   `ollama` provider or embedding that states no address is the shared
   Ollama (host-process reuse, container fallback); a remote provider
   (Anthropic, Voyage) is somebody else's by its type.
@@ -1022,18 +1028,20 @@ XDG directories on Linux, and each other system's own equivalent:
 
 | What | macOS | Linux | Windows |
 |---|---|---|---|
-| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the launcher's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's and the worker's documents (`stack/browser.yaml`, `stack/workers.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
-| **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
+| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the launcher's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's, the worker's and the issuer's documents (`stack/browser.yaml`, `stack/workers.yaml`, `stack/issuer.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
+| **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets, and `shared/`, holding the issuer's PostgreSQL and the machine's kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
 | **Log**: `launcher.log` | `~/Library/Logs/semiont` | the state home | `logs\` in the state home |
 | **Staging**: the configs a running stack mounts | `/tmp/semiont-config.*` | `/tmp/semiont-config.*` | `%TEMP%\semiont-config.*` |
 
-A knowledge base's `roots/<key>/` holds one directory per store — `postgres/`
-(database), `neo4j/` (graph), `qdrant/` (vectors), `nats/` (job queue and
-signals), `state/` (views and projections), `anchored-text/`, `gateway/` and
-`librarian/` (each service's supervisor's events log) — and `logs/`,
-the container logs a start keeps before it removes the containers. Its kept
-secrets are files beside them, unless `semiont settings secret-store` names
-another store.
+A knowledge base's `roots/<key>/` holds one directory per store — `neo4j/`
+(graph), `qdrant/` (vectors), `nats/` (job queue and signals), `state/`
+(views and projections), `anchored-text/`, `gateway/` and `librarian/` (each
+service's supervisor's events log) — and `logs/`, the container logs a start
+keeps before it removes the containers. Its kept secrets are files beside
+them, unless `semiont settings secret-store` names another store. `shared/`
+holds `postgres/`, the database of the issuer every knowledge base here signs
+in at, each in its own realm, and the values the launcher keeps for the
+machine: the worker's key and the issuer's passwords, always files.
 
 This is none of the knowledge base itself, which is its root: the working tree
 you start from. `semiont status --verbose`, run from a root, prints that root,
@@ -1045,9 +1053,10 @@ Local-stack databases persist across restarts. Each local semiont root gets
 its own directory, `roots/<key>` under the launcher's data home, keyed by the
 KB's did:web when `.semiont/config.yaml` declares one (identity travels with the KB, so a moved
 clone keeps its state), else by a hash of the root path. `start`
-bind-mounts each store's subdir into its container: PostgreSQL rows —
-Keycloak's accounts and realms, which the event log does **not** record —
-survive `stop` and restart. A `meta.json` stamp records which image wrote each store; a
+bind-mounts each store's subdir into its container. The issuer's PostgreSQL
+is the machine's (`shared/postgres`): its rows — Keycloak's accounts and
+every knowledge base's realm, which no event log records — survive `stop`
+and restart. A `meta.json` stamp records which image wrote each store; a
 start whose Issuer document names a *different* database image over existing data
 refuses with a fix-it line rather than risk it (Postgres data is never
 auto-deleted). Keycloak manages its own schema on first boot; Semiont applies
@@ -1079,8 +1088,18 @@ scopes to one
 store; `--dry-run` shows what would go, with sizes; `--root <path|name|key>`
 targets another root — a literal key is how you remove *orphaned* state
 whose KB directory no longer exists). It refuses while a recorded stack is
-using the state — stop first. `stop` itself never touches state; stopping
-and restarting is exactly the round trip persistence exists for.
+using the state — stop first. The knowledge base's realm goes with its
+identity store: an unscoped clean, or `--store identity-store`, deletes it
+from the shared issuer through Keycloak's admin API, and keeps the
+PostgreSQL every other realm here is in. With the issuer not running, the
+clean runs it for the delete and stops it again, recording no stack.
+`semiont clean --shared --store identity-store` removes that PostgreSQL's
+store, and every realm in it, once no recorded stack signs in at the issuer
+and its server is stopped (`semiont stop --group issuer`); the issuer's
+passwords stay, so its next boot reuses them, and each knowledge base's next
+start creates its realm afresh. `--shared` and `--root` are refused together.
+`stop` itself never touches state; stopping and restarting is exactly the
+round trip persistence exists for.
 
 **Two homes, not one.** Per-root stores live under the launcher's *data* home.
 The view every KB shares — the discovery document the Browser mounts — lives

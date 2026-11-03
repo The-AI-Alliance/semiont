@@ -34,12 +34,18 @@ const kbRemotePort = 4000
 
 // allocatePort picks one of this stack's local ports — its KB (from 4000)
 // or its issuer (from 8080): base when free, else the lowest free port above
-// it. It skips every port a local stack claims, every forward other
-// codespace stacks hold, and live holders.
+// it. It skips every port a local stack claims, every port a shared container
+// claims (the shared Keycloak's among them), every forward other codespace
+// stacks hold, and live holders.
 func allocatePort(ss *StackSet, repo string, base int) int {
 	used := map[int]bool{}
 	for _, local := range localStacks(ss) {
 		for _, p := range local.Ports {
+			used[p] = true
+		}
+	}
+	for _, rec := range ss.Shared {
+		for _, p := range rec.Ports {
 			used[p] = true
 		}
 	}
@@ -2023,10 +2029,11 @@ func loopbackHost(host string) bool {
 }
 
 // restartRemoteStack reruns the codespace's own launcher with the issuer on
-// port — the env-wins shape: that launcher records it, so every resume's
-// post-start keeps it. Its sticky runtime and config are the post-start's.
+// port. That launcher writes the port into its issuer's document first, so
+// every resume's post-start keeps it. Its sticky runtime and config are the
+// post-start's.
 func restartRemoteStack(u *UI, name string, port int) int {
-	remote := fmt.Sprintf("cd /workspaces/* && KEYCLOAK_PORT=%d semiont start", port)
+	remote := fmt.Sprintf("cd /workspaces/* && semiont settings keycloak-port %d && semiont start", port)
 	u.EchoCmd("gh", "codespace", "ssh", "-c", name, "--", remote)
 	// Captured, not streamed: the inner launcher's summary is the codespace's
 	// own view, and its URLs (localhost:4000) are wrong from this machine,

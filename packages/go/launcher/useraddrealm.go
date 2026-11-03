@@ -66,12 +66,11 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
-	kcPort, _, _, ok := keycloakPort(u, root)
+	issuer, ok := issuerOf(u, st, true)
 	if !ok {
 		return realmAdmin{}, false
 	}
-	block := portBlockOf(root)
-	plan, err := derivePlan(st, rootKey(did, root), kcPort, block)
+	plan, err := derivePlan(st, issuer, rootKey(did, root), portBlockOf(root))
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
@@ -89,16 +88,10 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
-	adminPass, _, ok := keycloakAdminPassword(u, rootKey(did, root))
+	base, adminPass, _, ok := sharedKeycloakAdmin(u, LoadStackSet())
 	if !ok {
 		return realmAdmin{}, false
 	}
-	if adminPass == "" {
-		u.Fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
-		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")
-		return realmAdmin{}, false
-	}
-	base := keycloakBase(recordedExposure(rootKey(did, root)), rp.Port)
 	token, err := adminToken(base, keycloakAdminUser, adminPass)
 	if err != nil {
 		u.Fail("%v", err)

@@ -11,41 +11,48 @@ import (
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/harness"
 )
 
-// The proxy passes the realm's own paths and Keycloak's assets, and nothing
-// else: not the admin console or API, not the master realm, not another realm,
-// and not a path that walks out of the realm once cleaned (Keycloak's
-// reverse-proxy guide; LOCAL-ONLY-STACK D3b-A1).
-func TestIssuerProxyPassesTheRealmAlone(t *testing.T) {
-	for _, p := range []string{
-		"/realms/semiont",
-		"/realms/semiont/",
-		"/realms/semiont/.well-known/openid-configuration",
-		"/realms/semiont/protocol/openid-connect/auth",
-		"/realms/semiont/protocol/openid-connect/token",
-		"/realms/semiont/protocol/openid-connect/certs",
-		"/realms/semiont/login-actions/authenticate",
-		"/resources/abc12/login/keycloak.v2/css/styles.css",
-	} {
-		if !issuerPathAllowed("semiont", p) {
-			t.Errorf("the proxy refuses %s, which sign-in needs", p)
+// The proxy passes the paths of the realms it serves and Keycloak's assets,
+// and nothing else: not the admin console or API, not the master realm, not a
+// realm it does not serve, and not a path that walks out of a realm once
+// cleaned (Keycloak's reverse-proxy guide).
+func TestIssuerProxyPassesItsRealmsAlone(t *testing.T) {
+	realms := []string{"example.github.io-a", "example.github.io-b"}
+	for _, realm := range realms {
+		for _, p := range []string{
+			"/realms/" + realm,
+			"/realms/" + realm + "/",
+			"/realms/" + realm + "/.well-known/openid-configuration",
+			"/realms/" + realm + "/protocol/openid-connect/auth",
+			"/realms/" + realm + "/protocol/openid-connect/token",
+			"/realms/" + realm + "/protocol/openid-connect/certs",
+			"/realms/" + realm + "/login-actions/authenticate",
+		} {
+			if !issuerPathAllowed(realms, p) {
+				t.Errorf("the proxy refuses %s, which sign-in needs", p)
+			}
 		}
+	}
+	if !issuerPathAllowed(realms, "/resources/abc12/login/keycloak.v2/css/styles.css") {
+		t.Error("the proxy refuses Keycloak's assets, which its sign-in pages load")
 	}
 	for _, p := range []string{
 		"/",
 		"/admin/",
 		"/admin/master/console/",
-		"/admin/realms/semiont/users",
+		"/admin/realms/example.github.io-a/users",
 		"/realms/master/protocol/openid-connect/token",
-		"/realms/semiontx/protocol/openid-connect/token",
-		"/realms/semiont/../master/protocol/openid-connect/token",
-		"/realms/semiont/./protocol/openid-connect/token",
+		"/realms/example.github.io-c/protocol/openid-connect/token",
+		"/realms/example.github.io-ax/protocol/openid-connect/token",
+		"/realms/example.github.io-a/../master/protocol/openid-connect/token",
+		"/realms/example.github.io-a/../example.github.io-c/protocol/openid-connect/token",
+		"/realms/example.github.io-b/./protocol/openid-connect/token",
 		"/resources/../admin/master/console/",
 		"/resources",
 		"/metrics",
 		"/health",
 		"//admin/",
 	} {
-		if issuerPathAllowed("semiont", p) {
+		if issuerPathAllowed(realms, p) {
 			t.Errorf("the proxy passes %s", p)
 		}
 	}
@@ -69,7 +76,7 @@ func TestIssuerProxyKeepsTheHostItWasAskedAndPassesNothingElse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxy := httptest.NewServer(issuerProxyHandler(target, "semiont"))
+	proxy := httptest.NewServer(issuerProxyHandler(target, []string{"semiont"}))
 	defer proxy.Close()
 
 	ask := func(path string) *http.Response {

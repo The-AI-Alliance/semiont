@@ -6,10 +6,11 @@ spec:
   type: keycloak
   image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
   resources: { limits: { memory: 1G } }
-  accessTokenLifespan: 300
+  port: 8080
   database:
     type: postgres
     name: keycloak
     user: postgres
     image: postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
     resources: { limits: { memory: 1G } }
+    port: 5432

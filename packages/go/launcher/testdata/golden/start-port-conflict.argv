@@ -8,9 +8,7 @@ container logs semiont-example.github.io-test-kb-archivist
 container logs semiont-example.github.io-test-kb-qdrant
 container logs semiont-example.github.io-test-kb-neo4j
 container logs semiont-example.github.io-test-kb-gateway
-container logs semiont-example.github.io-test-kb-keycloak
 container logs semiont-example.github.io-test-kb-nats
-container logs semiont-example.github.io-test-kb-postgres
 container list -a
 lsof -nP -iTCP:7474 -sTCP:LISTEN
 ps -p 12345 -o comm=

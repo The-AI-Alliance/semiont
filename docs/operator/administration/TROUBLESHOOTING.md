@@ -78,13 +78,13 @@ semiont start
 
 A realm that does not list the Browser's origin refuses the token exchange from it: sign-in fails as `error=Verification` *after* a redirect that worked, because the Browser completes its exchange from its own origin and the realm returns no `Access-Control-Allow-Origin`. The preflight names this, and the same `sync` repairs it. Moving the Browser to another port in its document needs a `sync` too, because web origins carry the port ([The Browser](CONFIGURATION.md#the-browser)).
 
-Needs the bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one persisted for this root). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
+Needs the shared Keycloak running, and its bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one the launcher keeps for the machine). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
 
 ### `semiont start`, `semiont useradd` or `semiont identity sync` is refused at the admin login
 
 Each signs in to Keycloak's own admin, in its `master` realm, from this machine — `semiont start` only when it must create the knowledge base's realm. The error carries Keycloak's reason:
 
-- **`Invalid user credentials`** — the bootstrap admin password is not the one the realm's database was created with. Keycloak creates that admin on its first boot only; the launcher persists the password per root, and `$KC_BOOTSTRAP_ADMIN_PASSWORD` overrides it.
+- **`Invalid user credentials`** — the bootstrap admin password is not the one the realms' database was created with. Keycloak creates that admin on its first boot only; the launcher keeps the password for the machine, in `shared/keycloak-admin-password` under its data home, and `$KC_BOOTSTRAP_ADMIN_PASSWORD` overrides it.
 - **`HTTPS required`** — the master realm accepts plain HTTP only from an address it counts as private, and some runtimes deliver this machine's connections from one it does not (Docker Desktop does). `semiont start` lets the master realm answer plain HTTP, from inside the Keycloak container, every time it starts one, and warns when it cannot.
 
 ### A service never picks up work
@@ -117,8 +117,8 @@ If `semiont status` shows the stack green while emits still fail, the served-hea
 ### Database connection failures
 
 ```bash
-container ps --all | grep semiont-<kb>-postgres
-container exec semiont-<kb>-postgres pg_isready -U postgres
+container ps --all | grep semiont-postgres
+container exec semiont-postgres pg_isready -U postgres
 semiont logs --service identity-store
 semiont logs --service identity
 ```
@@ -128,7 +128,7 @@ The only thing that connects to this PostgreSQL is Keycloak, so a database failu
 Two cases where you *are* on your own:
 
 - **`semiont start --service gateway`** restarts one service without re-checking its dependencies. The gateway itself needs no database, but it does need the issuer: restart it while Keycloak is down and it cannot verify a token.
-- **A database somebody else runs** (`spec.database.external` in the Issuer document) is checked for reachability but never waited on. The launcher does not own its lifecycle.
+- **A database somebody else runs** (`spec.database.external` in the issuer's document) is checked for reachability but never waited on. The launcher does not own its lifecycle.
 
 Semiont keeps no schema of its own here — this PostgreSQL is Keycloak's. See the [Database Guide](DATABASE.md).
 
@@ -203,14 +203,18 @@ A projection that disagrees with the event log is a bug in the projection, not m
 
 ### An image-version mismatch on start
 
-`semiont start` refuses to bring up a database whose persisted state was written by a different image version, and names `semiont clean` as the way out. That refusal is protecting you from a corrupt store — read it before reaching for the workaround.
+`semiont start` refuses to bring up a database whose persisted state was written by a different image version, and names the `semiont clean` that clears it. That refusal is protecting you from a corrupt store — read it before reaching for the workaround.
+
+The issuer's PostgreSQL is the one it most often names, and it keeps every knowledge base's realm here. Its clean is refused until no knowledge base runs and the issuer is stopped, and says which is still running:
 
 ```bash
-semiont stop
-semiont clean --dry-run          # What would go, and how big
-semiont clean --store identity-store
+semiont stop                     # In each knowledge base here; the last stops the issuer
+semiont clean --shared --store identity-store --dry-run   # What would go, and how big
+semiont clean --shared --store identity-store
 semiont start
 ```
+
+The issuer's passwords stay, so its next boot reuses them. Each knowledge base's next start creates its realm afresh, with no accounts in it; add them again with `semiont useradd`.
 
 ## Emergency procedures
 
@@ -221,13 +225,15 @@ semiont stop
 semiont start
 ```
 
-Every store survives this by design. To discard them all, which also removes the issuer's accounts and the secrets the launcher kept:
+Every store survives this by design. To discard them all, which also removes the knowledge base's realm at the issuer, with its accounts, and the secrets the launcher kept:
 
 ```bash
 semiont stop
 semiont clean
 semiont start
 ```
+
+The realm is deleted through the shared Keycloak. While another knowledge base here runs, the clean uses that one. With none running, the clean runs Keycloak for the delete, which takes as long as its boot, and stops it again.
 
 Neither touches the event log.
 

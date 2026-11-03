@@ -172,9 +172,17 @@ func TestNetworkLANPlacesTheIssuerAtTheNetworkAddress(t *testing.T) {
 		t.Errorf("under lan a container dials the gateway at %s, want its side on the bridge address", got)
 	}
 	claimed := portNumbers(planPortChecks(plan, appleContainerLAN))
-	for _, port := range []int{8080, 18080, 4000, 14000} {
+	for _, port := range []int{4000, 14000} {
 		if !slices.Contains(claimed, port) {
 			t.Errorf("a lan start claims %v, without %d", claimed, port)
+		}
+	}
+	// The issuer's ports are claimed when the shared Keycloak is run, not by
+	// a start that keeps it.
+	issuer := portNumbers(rolePortNeeds(plan, "identity", appleContainerLAN))
+	for _, port := range []int{8080, 18080} {
+		if !slices.Contains(issuer, port) {
+			t.Errorf("running the shared Keycloak under lan claims %v, without %d", issuer, port)
 		}
 	}
 }

@@ -10,12 +10,12 @@ A stack the launcher runs, on the documents `semiont init` writes, is, in the gr
 
 - **its record**: the gateway, the dispatcher, the archivist and NATS;
 - **its index**: the librarian, the smelter, the weaver, Neo4j and Qdrant;
-- **its issuer**: Keycloak and its PostgreSQL;
+- **the issuer**: Keycloak and its PostgreSQL, where every knowledge base here has a realm of its own;
 - **the knowledge workers**: the Browser and the worker;
 - **the providers**: Ollama (none when one is installed on the computer, or when every model is a hosted provider's);
 - **the telemetry**: the OpenTelemetry Collector, Jaeger and Prometheus. `--no-observe` leaves out the last two; the collector still runs.
 
-The first three are the knowledge base's own, and its containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. The last three are shared: one of each serves every knowledge base here, named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
+The first two are the knowledge base's own, and its containers are named for it, `semiont-<kb>-<product>`, where `<kb>` is its did:web domain made safe for a name. The last four are shared: one of each serves every knowledge base here, named `semiont-<name>` ([the launcher's names](services/OVERVIEW.md#the-launchers-names)).
 
 Semiont's eight are published images that a stack pulls and configures at run time. Nothing about a knowledge base is built into them ([Container Images](administration/IMAGES.md)).
 
@@ -34,7 +34,7 @@ graph TB
 
     BROWSERC["semiont-browser<br/>static SPA server"]
     GW["semiont-&lt;kb&gt;-gateway<br/>bus hub · token verifier · content proxy"]
-    KC["semiont-&lt;kb&gt;-keycloak<br/>the issuer this KB trusts"]
+    KC["semiont-keycloak<br/>the issuer — this KB's realm in it"]
 
     subgraph SERVICES ["services — each its own service account"]
         LIB["semiont-&lt;kb&gt;-librarian<br/>Gatherer · Matcher"]
@@ -114,8 +114,8 @@ graph TB
     end
 
     subgraph G4 ["identity"]
-        KC["semiont-&lt;kb&gt;-keycloak<br/>identity — the issuer this KB trusts"]
-        PG["semiont-&lt;kb&gt;-postgres<br/>PostgreSQL — Keycloak's realm"]
+        KC["semiont-keycloak<br/>identity — a realm for each KB"]
+        PG["semiont-postgres<br/>PostgreSQL — every KB's realm"]
     end
 
     subgraph G2 ["knowledge system"]

@@ -100,15 +100,13 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 	}
 }
 
-// The issuer of the Keycloak the launcher runs is at the port this start gives
-// it — else the gateway advertises one issuer and the realm stamps another.
+// The issuer of the Keycloak the launcher runs is at the port its document
+// gives it — else the gateway advertises one issuer and the realm stamps
+// another.
 func TestGatewayDocumentNamesTheIssuerAtItsPort(t *testing.T) {
-	st := fixtureStack(t, "ollama-gemma")
-	plan, err := derivePlan(st, fixtureKB(t).key(), 8081, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := gatewayDocumentOf(t, placement{st: st, plan: plan, rt: "docker", addr: "172.17.0.1"})
+	st, issuer := fixtureStack(t, "ollama-gemma"), fixtureIssuer(t)
+	issuer.spec.Port = 8081
+	doc := gatewayDocumentOf(t, placement{st: st, plan: mustPlanWith(t, st, issuer), rt: "docker", addr: "172.17.0.1"})
 	if doc.Identity.Issuer != "http://keycloak.localhost:8081/realms/example.github.io-test-kb" {
 		t.Errorf("issuer %q, want the moved port", doc.Identity.Issuer)
 	}

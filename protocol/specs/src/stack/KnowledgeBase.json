@@ -165,12 +165,22 @@
         },
         "issuer": {
           "type": "object",
-          "description": "The issuer the knowledge base trusts: an Issuer document the launcher runs, named by `ref`, or somebody else's, at `external`.",
+          "description": "The issuer the knowledge base trusts: the one the launcher runs for the knowledge bases on a machine, at `shared`, with the knowledge base's own realm in it, or somebody else's, at `external`.",
           "properties": {
-            "ref": {
-              "type": "string",
-              "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
-              "description": "The name of the Issuer document."
+            "shared": {
+              "type": "object",
+              "description": "The issuer the launcher runs for the knowledge bases on a machine (the state home's Issuer document). The launcher creates the knowledge base's realm in it.",
+              "properties": {
+                "accessTokenLifespan": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "How long a token the realm mints stays valid, in seconds: the window in which a disabled account can still act."
+                }
+              },
+              "required": [
+                "accessTokenLifespan"
+              ],
+              "additionalProperties": false
             },
             "external": {
               "type": "object",
@@ -205,7 +215,7 @@
           "oneOf": [
             {
               "required": [
-                "ref"
+                "shared"
               ]
             },
             {
