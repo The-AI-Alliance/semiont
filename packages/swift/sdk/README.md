@@ -23,3 +23,24 @@ The HTTP transport uses the caller's AsyncHTTPClient `HTTPClient` for every requ
 `HttpTransport` exposes connection state, independent lossless `frames` sequences (several channels can share one ordered sequence), scoped holds, correlated requests, uploads and content reads. `dispose()` synchronously cancels owned work and finishes sequences. A second iterator on an events, upload or content stream throws `MultipleConsumers`. Incoming trace carriers are lifted out of payloads into `ReceivedFrame.trace`. OpenTelemetry's API is the library's only telemetry dependency; the application selects its provider and exporters.
 
 The concurrency primitives require macOS 15 or iOS 18; Linux is tested in the Swift container. `Scripts/install-driver.sh` builds the instrumented Linux wire driver and bundles its Swift runtime. The conformance application chooses OTLP/HTTP exporters when the harness supplies `OTEL_EXPORTER_OTLP_ENDPOINT`. Its runtime matches Ubuntu 26.04. `Scripts/conformance-coverage.sh` reports the library code the driver exercised, separately from Rust's LLVM profiles.
+
+Sign-in uses the same caller-owned HTTP client. `ServiceToken` supports a client
+secret or an RSA key (`CryptoExtras._RSA.Signing.PrivateKey`); `AgentToken` asks
+the gateway for its DID once and keeps its last token when a renewal fails.
+`signInDevice` shows the issuer’s device code through its callback and keeps the
+result in a `SignInKept`. `whoAmI` asks the gateway once without opening a stream.
+
+`SignInStore(path:)` reads the launcher’s `tokens.json`; `entry` selects a stack.
+Writes hold `flock` on the sibling `tokens.lock`, use owner-only modes generated
+from the contract, and rename a sibling temporary file. Unknown document members
+survive. `MemorySignIn` follows the same renewal rules. `stateDir` computes the
+launcher’s directory from values the application supplies; it reads no environment.
+
+`sessionFromKept` returns an `OpenedSession`, which owns the session and its HTTP
+transport. Dispose that owner before shutting down the HTTP client. The session’s
+`ready()` raises startup task failures; `errors()` reports session, transport and
+storage failures. Pass `onError` to hear diagnostics from the start of construction,
+including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
+network renewal keeps the stored sign-in for another attempt. Session token and
+user state are read-only, and their sequences finish on disposal. The client and
+registry surfaces arrive in later phases.

@@ -75,7 +75,7 @@ private func server<Value: Sendable>(
   try await server(.refusalWithoutBody) { base, http in
     let transport = HttpTransport(
       baseUrl: base, httpClient: http, token: "token", channels: [],
-      timing: TransportTiming(httpRequestMs: 20))
+      timing: TransportTiming(httpRequestMs: 100))
     defer { transport.dispose() }
     do {
       _ = try await within(1000) { try await transport.getCurrentUser() }

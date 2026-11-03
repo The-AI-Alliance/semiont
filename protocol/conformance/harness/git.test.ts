@@ -4,11 +4,11 @@
  * at once for anything else.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { gitByHand } from './git';
+import { gitByHand, holdGitIndex } from './git';
 
 let root: string;
 beforeEach(() => {
@@ -43,5 +43,33 @@ describe('git run by hand', () => {
 
   it('fails at once, with what git said, for anything but a locked index', async () => {
     await expect(gitByHand(root, 'checkout', '--quiet', 'no-such-branch')).rejects.toThrow(/pathspec 'no-such-branch' did not match/);
+  });
+});
+
+describe('holding the git index', () => {
+  it('waits for an existing writer without truncating or removing its lock', async () => {
+    const lock = join(root, '.git', 'index.lock');
+    const inFlight = 'an index still being written';
+    writeFileSync(lock, inFlight, { flag: 'wx' });
+    let acquired = false;
+    const pending = holdGitIndex(root).then((release) => {
+      acquired = true;
+      return release;
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 75));
+      expect(acquired).toBe(false);
+      expect(readFileSync(lock, 'utf8')).toBe(inFlight);
+    } finally {
+      unlinkSync(lock);
+    }
+    const release = await pending;
+    expect(existsSync(lock)).toBe(true);
+    release();
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it('fails immediately when the lock cannot be created for another reason', async () => {
+    await expect(holdGitIndex(join(root, 'missing'))).rejects.toThrow(/ENOENT/);
   });
 });

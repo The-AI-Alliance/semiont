@@ -6,6 +6,7 @@ let package = Package(
   platforms: [.macOS(.v15), .iOS(.v18)],
   products: [.library(name: "Semiont", targets: ["Semiont"])],
   dependencies: [
+    .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.3"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
     .package(url: "https://github.com/swift-server/async-http-client.git", from: "1.36.2"),
     .package(url: "https://github.com/open-telemetry/opentelemetry-swift-core.git", from: "2.6.0"),
@@ -24,6 +25,8 @@ let package = Package(
     .target(
       name: "Semiont",
       dependencies: [
+        .product(name: "Crypto", package: "swift-crypto"),
+        .product(name: "CryptoExtras", package: "swift-crypto"),
         .product(name: "NIOCore", package: "swift-nio"),
         .product(name: "AsyncHTTPClient", package: "async-http-client"),
         .product(name: "OpenTelemetryApi", package: "opentelemetry-swift-core"),
@@ -38,6 +41,7 @@ let package = Package(
     .testTarget(
       name: "SemiontTests",
       dependencies: [
+        .product(name: "CryptoExtras", package: "swift-crypto"),
         "Semiont",
         .product(name: "AsyncHTTPClient", package: "async-http-client"),
         .product(name: "NIOPosix", package: "swift-nio"),

@@ -4,10 +4,9 @@
  * to the endpoint the standard OpenTelemetry environment names. Its last case
  * holds everything the receiver got to the table, in both directions.
  */
-import { rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { withArchivist } from '../harness/archivist-world';
+import { holdGitIndex } from '../harness/git';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { metricName, spanName } from '../harness/spec';
@@ -68,14 +67,13 @@ withArchivist(
 
     it('semiont.git.staging.failures counts a batch that could not be staged, by why', async () => {
       const owner = await world().person('owner');
-      const lock = join(world().dirs.root, '.git', 'index.lock');
-      writeFileSync(lock, '');
+      const release = await holdGitIndex(world().dirs.root);
       try {
         await world().created(owner.did, { name: 'Unstaged', storageUri: 'file://observed/b.md', content: 'unstaged\n' });
         const failures = metricName('semiont.git.staging.failures');
         await eventually('a counted degradation', 20_000, () => (otlp().metrics.get(failures)?.attributes.get('reason')?.has('index-lock') ? true : undefined));
       } finally {
-        rmSync(lock, { force: true });
+        release();
       }
     });
 
