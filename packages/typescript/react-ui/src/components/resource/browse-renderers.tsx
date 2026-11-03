@@ -29,6 +29,8 @@ export interface MediaRendererProps {
   mimeType: string;
   /** Resource zoom. The PDF renderer applies it to pages while keeping its page rail fixed. */
   zoom?: number;
+  /** PDF-only: the renderer owns scrolling in pane views; inline hosts own it. */
+  ownsScrollport?: boolean;
   resourceUri: ResourceId;
   annotations: Annotation[];
   /**
@@ -69,7 +71,7 @@ export function ImageBrowseRenderer({ content, resourceUri, annotations, session
   );
 }
 
-export function PdfBrowseRenderer({ content, resourceUri, annotations, session, zoom = 1 }: MediaRendererProps) {
+export function PdfBrowseRenderer({ content, resourceUri, annotations, session, zoom = 1, ownsScrollport = true }: MediaRendererProps) {
   return (
     <Suspense fallback={<div className="semiont-browse-view__loading"><PdfViewerLoading /></div>}>
       <PdfAnnotationCanvas
@@ -81,6 +83,7 @@ export function PdfBrowseRenderer({ content, resourceUri, annotations, session, 
         session={session}
         pageLayout="scroll"
         zoom={zoom}
+        ownsScrollport={ownsScrollport}
       />
     </Suspense>
   );

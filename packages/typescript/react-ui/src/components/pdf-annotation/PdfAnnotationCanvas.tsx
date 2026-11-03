@@ -59,40 +59,21 @@ const SCROLL_AXIS: 'vertical' | 'horizontal' = 'vertical';
  * harness (or an exotic embedding host) is worse than one that simply does
  * not scroll.
  */
-function scrollElementIntoView(el: Element | null | undefined, options: ScrollIntoViewOptions): void {
-  if (typeof el?.scrollIntoView === 'function') el.scrollIntoView(options);
-}
-
-/** The viewer is embedded in different hosts, so its actual scrollport is the
- *  nearest ancestor that scrolls vertically (usually BrowseView's content).
- *  Keeping page navigation and visibility observation on that same element
- *  avoids scrolling the host pane and the viewer at once. */
-function findScrollport(el: Element | null): HTMLElement | null {
-  let parent = el?.parentElement ?? null;
-  while (parent) {
-    const { overflowY } = getComputedStyle(parent);
-    if (overflowY === 'auto' || overflowY === 'scroll') return parent;
-    parent = parent.parentElement;
-  }
-  return null;
-}
-
-/** Scroll only the viewer's scrollport. `scrollIntoView` can scroll every
- *  scrollable ancestor; that is ambiguous in an embedded viewer and becomes
- *  especially visible when the page column is zoomed. */
-function scrollPageIntoView(el: HTMLElement | null | undefined): void {
-  if (!el) return;
-  const scrollport = findScrollport(el);
-  if (scrollport && typeof scrollport.scrollTo === 'function') {
-    const pageTop = el.getBoundingClientRect().top;
-    const portTop = scrollport.getBoundingClientRect().top + scrollport.clientTop;
-    scrollport.scrollTo({
-      top: scrollport.scrollTop + pageTop - portTop,
-      behavior: 'instant',
-    });
+/** Scroll a target within the scrollport the PDF viewer owns. Avoid
+ *  scrollIntoView: it is allowed to move every scrollable ancestor, which
+ *  makes embedded/zoomed viewers sensitive to host layout. */
+function scrollWithin(scrollport: HTMLElement | null, target: HTMLElement | null, align: 'start' | 'nearest'): void {
+  if (!target) return;
+  if (!scrollport || typeof scrollport.scrollTo !== 'function') {
+    target.scrollIntoView?.({ block: align });
     return;
   }
-  scrollElementIntoView(el, { block: 'start' });
+  const portRect = scrollport.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const top = targetRect.top - (portRect.top + scrollport.clientTop);
+  const bottom = targetRect.bottom - (portRect.top + scrollport.clientTop + scrollport.clientHeight);
+  if (align === 'nearest' && top >= 0 && bottom <= 0) return;
+  scrollport.scrollTo({ top: scrollport.scrollTop + top, behavior: 'instant' });
 }
 
 /**
@@ -112,6 +93,8 @@ interface PdfAnnotationCanvasProps {
   hoverDelayMs?: number;
   /** Scale rendered PDF pages without scaling the numbered page rail. */
   zoom?: number;
+  /** Own the PDF scrollport; inline embeds leave scrolling to their host. */
+  ownsScrollport?: boolean;
   /** `paged` (default) or the virtualized `scroll` column. See `PageLayout`. */
   pageLayout?: PageLayout;
 }
@@ -130,6 +113,7 @@ export function PdfAnnotationCanvas({
   selectedAnnotationId,
   hoverDelayMs = 150,
   zoom = 1,
+  ownsScrollport = true,
   pageLayout = 'paged'
 }: PdfAnnotationCanvasProps) {
   // PDF state
@@ -149,6 +133,7 @@ export function PdfAnnotationCanvas({
   const [pageShape, setPageShape] = useState<{ aspect: number; rasterWidth: number } | null>(null);
   /** Measured inner width of the column — the other half of the reservation. */
   const [columnWidth, setColumnWidth] = useState<number | null>(null);
+  const scrollportRef = useRef<HTMLDivElement>(null);
   const columnRef = useRef<HTMLDivElement>(null);
   const [scale] = useState(1.5); // Fixed scale for better quality
 
@@ -277,7 +262,7 @@ export function PdfAnnotationCanvas({
             return next;
           });
         },
-        { root: findScrollport(columnRef.current), rootMargin: PRELOAD_MARGIN },
+        { root: ownsScrollport ? scrollportRef.current : null, rootMargin: PRELOAD_MARGIN },
       );
     } catch {
       // No IntersectionObserver: mount every page rather than none. Correct,
@@ -307,7 +292,7 @@ export function PdfAnnotationCanvas({
           }
           return next;
         });
-      }, { root: findScrollport(columnRef.current) });
+      }, { root: ownsScrollport ? scrollportRef.current : null });
       onscreenRef.current = onscreen;
       for (const el of slotRefs.current.values()) onscreen.observe(el);
     } catch {
@@ -322,7 +307,7 @@ export function PdfAnnotationCanvas({
       onscreen?.disconnect();
       onscreenRef.current = null;
     };
-  }, [pageLayout, numPages]);
+  }, [ownsScrollport, pageLayout, numPages]);
 
   // One ref callback for every slot, stable across renders: React re-runs a
   // ref whose identity changes on every commit, and re-running this one is an
@@ -345,8 +330,8 @@ export function PdfAnnotationCanvas({
   const currentTickRef = useRef<HTMLButtonElement>(null);
 
   const scrollToPage = useCallback((page: number) => {
-    scrollPageIntoView(slotRefs.current.get(page));
-  }, []);
+    scrollWithin(ownsScrollport ? scrollportRef.current : null, slotRefs.current.get(page) ?? null, 'start');
+  }, [ownsScrollport]);
 
   // In the column the reader decides which page they are on by scrolling, so
   // the indicator reports rather than controls: the topmost page actually ON
@@ -396,24 +381,12 @@ export function PdfAnnotationCanvas({
 
   const stripRef = useRef<HTMLDivElement>(null);
 
-  // The strip's CSS scrollport ceiling is 100vh — right when the nearest
-  // scroller is the window, a lie inside an inner-scrolled panel: the sticky
-  // strip then extends below the panel's clip, and `nearest` (below) considers
-  // a tick in that hidden band already in view, so the active page vanishes
-  // whenever it crosses the strip's bottom (never the top, whose edges
-  // coincide). Size the scrollport to the scroller that actually clips it;
-  // with no such scroller the CSS ceiling stands.
+  // The rail scrolls inside the PDF viewer's own scrollport. Size it to that
+  // explicit viewport rather than searching host ancestors or assuming 100vh.
   useEffect(() => {
     const strip = stripRef.current;
-    if (pageLayout !== 'scroll' || !strip) return;
-    let scroller: HTMLElement | null = strip.parentElement;
-    while (scroller) {
-      const overflowY = getComputedStyle(scroller).overflowY;
-      if (overflowY === 'auto' || overflowY === 'scroll') break;
-      scroller = scroller.parentElement;
-    }
-    if (!scroller) return;
-    const clip = scroller;
+    const clip = scrollportRef.current;
+    if (pageLayout !== 'scroll' || !ownsScrollport || !strip || !clip) return;
     const size = () => { strip.style.maxHeight = `${clip.clientHeight}px`; };
     size();
     let observer: ResizeObserver | null = null;
@@ -427,12 +400,12 @@ export function PdfAnnotationCanvas({
       if (observer) observer.disconnect();
       else window.removeEventListener('resize', size);
     };
-  }, [pageLayout, numPages, pageShape]);
+  }, [ownsScrollport, pageLayout, numPages, pageShape]);
 
   useEffect(() => {
     // `nearest` so following the reader never yanks the strip around; it
     // scrolls only when the current rectangle would otherwise leave view.
-    scrollElementIntoView(currentTickRef.current, { block: 'nearest', inline: 'nearest' });
+    scrollWithin(stripRef.current, currentTickRef.current, 'nearest');
 
     // Move focus with the current page, but ONLY when the strip already owns
     // focus. Otherwise a clicked rectangle keeps focus while the current-page
@@ -466,7 +439,13 @@ export function PdfAnnotationCanvas({
   }
 
   return (
-    <div className="semiont-pdf-annotation-canvas" data-annotate-deferred={anchoredText.status === 'held' ? 'false' : 'true'}>
+    <div
+      ref={scrollportRef}
+      className="semiont-pdf-annotation-canvas"
+      data-page-layout={pageLayout}
+      data-resource-scrollport={pageLayout === 'scroll' && ownsScrollport ? '' : undefined}
+      data-annotate-deferred={anchoredText.status === 'held' ? 'false' : 'true'}
+    >
       {isLoading && <div className="semiont-pdf-annotation-canvas__loading">{t('loading')}</div>}
       <AnchoredTextNotice status={anchoredText.status} />
 
