@@ -1,3 +1,4 @@
+using Semiont.Protocol;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Text.Json;
@@ -7,7 +8,7 @@ namespace Semiont.Http;
 
 internal static class SdkTelemetry
 {
-    private static readonly JsonDocument Table = JsonDocument.Parse(TransportTables.Telemetry);
+    private static readonly JsonDocument Table = JsonDocument.Parse(ProtocolTables.Telemetry);
     private static readonly ActivitySource Activities = new("semiont");
     private static readonly Meter Meter = new("semiont");
     private static readonly Dictionary<string, Counter<long>> Counters = Table.RootElement.GetProperty("metrics").EnumerateArray().ToDictionary(
