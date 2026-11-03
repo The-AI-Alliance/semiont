@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   getSupportedShapes,
   mediaUrl,
@@ -77,6 +77,10 @@ export function ResourceView({
   // Per-document annotate mode — the pencil in the header (controlled prop on the viewer).
   const [annotate, setAnnotate] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const zoomStyle = {
+    zoom,
+    '--resource-zoom-inverse': String(1 / zoom),
+  } as CSSProperties;
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -227,7 +231,7 @@ export function ResourceView({
         </p>
       )}
       <div className="rview__body" ref={bodyRef}>
-        <div className="rview__zoom-canvas" style={{ zoom }}>
+        <div className="rview__zoom-canvas" style={zoomStyle}>
           {error !== null ? (
             <p className="rview__status" role="alert">
               {error.message}
