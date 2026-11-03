@@ -28,10 +28,11 @@ import (
 // and TestStartCreatesTheRealmLive, against the Keycloak the launcher starts
 // (packages/go/launcher/scripts/keycloak-image.sh), and fails if any of them
 // skips. Elsewhere it is skipped unless SEMIONT_LIVE_KEYCLOAK
-// names a base URL. Run it with the admin password this root persisted:
+// names a base URL. Run it against the shared Keycloak with the admin
+// password the launcher keeps for the machine:
 //
 //	SEMIONT_LIVE_KEYCLOAK=http://localhost:8080 \
-//	KC_BOOTSTRAP_ADMIN_PASSWORD=$(cat "$HOME/Library/Application Support/semiont/roots/<root>/keycloak-admin-password") \
+//	KC_BOOTSTRAP_ADMIN_PASSWORD=$(cat "$HOME/Library/Application Support/semiont/shared/keycloak-admin-password") \
 //	go -C packages/go/launcher test . -run 'Live$' -v
 //
 // It creates its own realm and deletes it, so the KB's realm is never touched.

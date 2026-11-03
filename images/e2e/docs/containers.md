@@ -13,7 +13,7 @@ through that lifecycle.
 | `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `make local-build` |
 | `semiont-<kb>-gateway` | the gateway (Rust, `images/gateway`) on `:4000` | published image, or `:local` via `make local-build` |
 | `semiont-<kb>-archivist`, `semiont-<kb>-librarian`, `semiont-<kb>-dispatcher`, `semiont-worker`, `semiont-<kb>-smelter`, `semiont-<kb>-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `make local-build` |
-| plus: `semiont-<kb>-neo4j`, `semiont-<kb>-qdrant`, `semiont-ollama`, `semiont-<kb>-postgres`, `semiont-<kb>-nats`, `semiont-<kb>-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
+| plus: `semiont-<kb>-neo4j`, `semiont-<kb>-qdrant`, `semiont-ollama`, `semiont-postgres`, `semiont-<kb>-nats`, `semiont-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
 
 A knowledge base's containers are named `semiont-<kb>-<product>`, where
 `<kb>` is its did:web domain made safe for a name: `did:web:example.org:my-kb`

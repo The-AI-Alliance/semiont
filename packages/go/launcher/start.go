@@ -737,7 +737,7 @@ func printLANReach(u *UI, lan string, plan *launchPlan, e exposure) {
 	fmt.Printf("  %s\n", u.Wrap(AnsiBold+AnsiYellow, "Answering the network at "+lan+" (semiont settings network lan):"))
 	fmt.Printf("  Semiont KB         http://%s:%d\n", lan, plan.GatewayPort)
 	if rp := plan.Roles["identity"]; rp.Presence == presenceLauncher {
-		fmt.Printf("  Issuer             %s   %s\n", identityEndpoint(rp, e), u.Dim("(its realm alone, through the issuer proxy)"))
+		fmt.Printf("  Issuer             %s   %s\n", identityEndpoint(rp, e), u.Dim("(through the issuer proxy, which passes the realms of the knowledge bases running here alone)"))
 	}
 	fmt.Printf("  %s\n", u.Dim("Plain HTTP: passwords at sign-in and every token cross the network unencrypted."))
 	fmt.Printf("  %s\n", u.Dim("Another machine runs its own Browser and adds this knowledge base at the address above."))
