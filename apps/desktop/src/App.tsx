@@ -27,10 +27,12 @@ import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-la
 import { KbNav } from './components/KbNav';
 import { ThemePanel } from './components/ThemePanel';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
+import { TelemetryModal } from './components/TelemetryModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
+import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -87,6 +89,8 @@ export function App() {
   const [showTheme, setShowTheme] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
@@ -110,6 +114,19 @@ export function App() {
           error: error instanceof Error ? error.message : String(error),
         },
       }),
+    );
+  }, []);
+
+  const openTelemetry = useCallback(() => {
+    setShowTelemetry(true);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setTelemetryLinks(DEFAULT_TELEMETRY_LINKS);
+      return;
+    }
+    void bridge.status().then(
+      ({ output }) => setTelemetryLinks(telemetryLinksFromStatus(output)),
+      () => setTelemetryLinks(DEFAULT_TELEMETRY_LINKS),
     );
   }, []);
 
@@ -447,6 +464,7 @@ export function App() {
             onDeleteSession={handleDeleteSession}
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
+            onOpenTelemetry={openTelemetry}
           />
           <div
             className="app__resizer"
@@ -484,6 +502,7 @@ export function App() {
           onClose={() => setShowLauncherStatus(false)}
         />
       )}
+      {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
     </>
   );
 }
