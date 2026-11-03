@@ -3,7 +3,8 @@
  * Archivist world (a knowledge base, a real Archivist that records and
  * answers, a gateway, the trusted issuer), the Smelter's own service account
  * at that issuer, a real Qdrant, cleared when the world is made and when it
- * is closed, and a stand-in for its embedding provider. The anchored-text
+ * is closed, to which the Smelter presents a token minted from the Qdrant's
+ * key, and a stand-in for its embedding provider. The anchored-text
  * store is the Archivist's: the Smelter mounts none of it, and keeps it on
  * the Archivist's surface.
  *
@@ -24,7 +25,7 @@ import { kbDid, type components } from '@semiont/core';
 import { ArchivistWorld, sha256, shardOf, unstamped, type Answer, type BusClient } from './archivist-world';
 import { eventually } from './net';
 import { startOllamaEmbed, type StandInEmbedder } from './ollama-embed';
-import { QDRANT_PORT, vectorIndex, type VectorIndex } from './qdrant';
+import { claimsFor, minted, QDRANT_PORT, VECTORS_TOKEN, vectorIndex, type VectorIndex } from './qdrant';
 import { SERVICE_ROLE } from './roles';
 import {
   CURSORS,
@@ -78,7 +79,7 @@ export class SmelterWorld {
   ) {}
 
   static async create(command: readonly string[]): Promise<SmelterWorld> {
-    const { host } = inject('vectorDatabase');
+    const database = inject('vectorDatabase');
     const secret = randomBytes(24).toString('hex');
     const kb = await ArchivistWorld.create({ gitSync: false, accounts: { [SMELTER_CLIENT]: { secret, roles: [SERVICE_ROLE] } } });
     const provider = await startOllamaEmbed();
@@ -95,9 +96,10 @@ export class SmelterWorld {
       }
     });
 
+    const did = kbDid(kb.world.served.domain);
     const world = new SmelterWorld(
       kb,
-      vectorIndex(host, kbDid(kb.world.served.domain)),
+      vectorIndex(database, did),
       provider,
       command,
       {
@@ -105,12 +107,12 @@ export class SmelterWorld {
         gatewayUrl: kb.world.origin,
         issuer: kb.world.issuer.origin,
         archivist: { host: '127.0.0.1', port: kb.settings.port },
-        vectors: { type: 'qdrant', host, port: QDRANT_PORT },
+        vectors: { type: 'qdrant', host: database.host, port: QDRANT_PORT, tokenEnv: VECTORS_TOKEN },
         embedding: { type: 'ollama', model: EMBEDDING_MODEL, baseUrl: provider.origin },
         chunking: { chunkSize: 512, overlap: 64 },
         pdfsAtOnce: 1,
       },
-      { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret },
+      { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secret, [VECTORS_TOKEN]: minted(database.key, claimsFor(did).smelter) },
       mkdtempSync(join(tmpdir(), 'conformance-smelter-')),
       signals,
     );

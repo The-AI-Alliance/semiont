@@ -34,28 +34,26 @@ type flowCtx struct {
 	browser browserDocument
 }
 
-// withDaemonCredentials adds the kept passwords of the daemons this plan runs
-// to the start's resolved variables: the daemon starts with its own
+// withDaemonCredentials adds the kept credentials of the daemons this plan
+// runs to the start's resolved variables: the daemon starts with its own
 // (daemonLaunchEnv), and each service is handed the ones its document names
-// (envFor). Loaded once, before anything is torn down or started,
-// so a store the launcher holds no password for refuses first.
+// (envFor), or a token minted from one (vectorsTokenEnv). Loaded once, before
+// anything is torn down or started, so a store the launcher holds no password
+// for refuses first.
 func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
 	if fc.plan == nil {
 		return fc, true
 	}
 	env := append([]string{}, fc.userEnv...)
-	for _, role := range []string{"graph", "identity-store", "messaging"} {
-		if fc.plan.Roles[role].Presence != presenceLauncher {
-			continue
-		}
-		pw, ok := x.daemonPassword(fc.kb, role)
+	for _, role := range fc.plan.credentialedDaemons() {
+		pw, ok := x.daemonCredential(fc.kb, role, fc.plan.machineKeeps(role))
 		if !ok {
 			return fc, false
 		}
 		if role == "messaging" {
 			env = append(env, "--env", "NATS_USER="+brokerUser)
 		}
-		env = append(env, "--env", daemonPasswords[role].env+"="+pw)
+		env = append(env, "--env", daemonCredentials[role].env+"="+pw)
 	}
 	fc.userEnv = env
 	return fc, true
@@ -80,7 +78,7 @@ func userEnvVars(userEnv []string) map[string]string {
 // Issuer document names when it does not.
 func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 	kept := func(role string) string {
-		return userEnvVars(fc.userEnv)[daemonPasswords[role].env]
+		return userEnvVars(fc.userEnv)[daemonCredentials[role].env]
 	}
 	switch role {
 	case "graph":
@@ -89,6 +87,10 @@ func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
 		return []string{"POSTGRES_PASSWORD=" + kept("identity-store")}, nil
 	case "messaging":
 		return []string{"NATS_USER=" + natsConfString(brokerUser), "NATS_PASSWORD=" + natsConfString(kept("messaging"))}, nil
+	case "vectors":
+		// Qdrant's own settings: the key, and access by the tokens minted
+		// from it (vectorstokens.go).
+		return []string{"QDRANT__SERVICE__API_KEY=" + kept("vectors"), "QDRANT__SERVICE__JWT_RBAC=true"}, nil
 	case "identity":
 		if rp.ExternalDBPassword == "" {
 			return []string{"KC_DB_PASSWORD=" + kept("identity-store")}, nil
@@ -993,7 +995,12 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		if !ok {
 			return 1
 		}
-		args = smelterArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel)
+		vectorsEnv, err := vectorsTokenEnv(fc, sc.svc)
+		if err != nil {
+			x.say(sayFail, "%v", err)
+			return 1
+		}
+		args = smelterArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort(sc.svc), clientSecret, fc.plan.Images[sc.svc], fc.plan.Memory[sc.svc], fc.envFor(sc.svc), otel, vectorsEnv)
 	case "weaver":
 		clientSecret, ok := x.serviceClientSecret(fc.kb, sc.svc)
 		if !ok {
@@ -1071,7 +1078,12 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort("librarian"), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, state...)
+	vectorsEnv, err := vectorsTokenEnv(fc, "librarian")
+	if err != nil {
+		x.say(sayFail, "%v", err)
+		return 1
+	}
+	args := librarianArgs(fc.kb.key(), stage, x.exposure(addr), fc.plan.servicePort("librarian"), clientSecret, fc.plan.Images["librarian"], fc.plan.Memory["librarian"], fc.envFor("librarian"), otel, vectorsEnv, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")

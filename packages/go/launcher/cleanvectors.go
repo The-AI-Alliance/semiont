@@ -51,11 +51,13 @@ func onSharedVectors(kbDir string) (bool, error) {
 }
 
 // indexDelete: how a clean deletes a knowledge base's collections at the
-// shared Qdrant — at base, the one recorded as running, which holds held; or,
-// start, at one the clean runs for the delete, since none is recorded and its
-// store may hold them. Neither: there is nothing to delete.
+// shared Qdrant — at base, the one recorded as running, which holds held and
+// is asked with key, the machine's; or, start, at one the clean runs for the
+// delete, since none is recorded and its store may hold them. Neither: there
+// is nothing to delete.
 type indexDelete struct {
 	base  string
+	key   string
 	held  []string
 	start bool
 }
@@ -75,21 +77,33 @@ func sharedVectorsBase(ss *StackSet) string {
 // indexToDelete: how a clean deletes the collections of the knowledge base
 // whose DID is did, as the shared Qdrant recorded as running answers or, with
 // none recorded, as its store may hold them; or a refusal when the recorded
-// one does not answer as Qdrant does. A recorded Qdrant keeps every other
-// knowledge base's index, so the clean never runs one in its place.
+// one does not answer the machine's key as Qdrant does, or the launcher keeps
+// no key for it. A recorded Qdrant keeps every other knowledge base's index,
+// so the clean never runs one in its place.
 func indexToDelete(u *UI, ss *StackSet, did string) (indexDelete, bool) {
 	base := sharedVectorsBase(ss)
 	if base == "" {
 		_, kept := diskUse(machineStore("vectors").storeDir(""))
 		return indexDelete{start: kept}, true
 	}
-	held, err := collectionsHeld(base, did)
+	d := daemonCredentials["vectors"]
+	key, ok := sharedCustody().get(u, d.custody)
+	if !ok {
+		return indexDelete{}, false
+	}
+	var held []string
+	var err error
+	if key == "" {
+		err = fmt.Errorf("the launcher keeps no %s for it", d.credential)
+	} else {
+		held, err = collectionsHeld(base, key, did)
+	}
 	if err != nil {
 		u.Fail("The shared Qdrant at %s: %v", base, err)
 		fmt.Fprintln(os.Stderr, "  It is recorded as running (semiont status shows it). Once it is stopped (semiont stop --service vectors), this clean runs it for the delete.")
 		return indexDelete{}, false
 	}
-	return indexDelete{base: base, held: held}, true
+	return indexDelete{base: base, key: key, held: held}, true
 }
 
 // cleanIndex deletes the collections of the knowledge base whose DID is did
@@ -98,13 +112,13 @@ func indexToDelete(u *UI, ss *StackSet, did string) (indexDelete, bool) {
 // whatever the answer.
 func cleanIndex(u *UI, d indexDelete, did string) bool {
 	if d.start {
-		stop, ok := vectorsForClean(u)
+		stop, key, ok := vectorsForClean(u)
 		if !ok {
 			return false
 		}
 		defer stop()
-		d.base = sharedVectorsBase(LoadStackSet())
-		held, err := collectionsHeld(d.base, did)
+		d.base, d.key = sharedVectorsBase(LoadStackSet()), key
+		held, err := collectionsHeld(d.base, d.key, did)
 		if err != nil {
 			u.Fail("The shared Qdrant at %s: %v", d.base, err)
 			return false
@@ -116,7 +130,7 @@ func cleanIndex(u *UI, d indexDelete, did string) bool {
 		d.held = held
 	}
 	for _, name := range d.held {
-		if err := deleteCollection(d.base, name); err != nil {
+		if err := deleteCollection(d.base, d.key, name); err != nil {
 			u.Fail("Collection %s: %v", name, err)
 			return false
 		}
@@ -127,22 +141,27 @@ func cleanIndex(u *UI, d indexDelete, did string) bool {
 
 // vectorsForClean runs the shared Qdrant for a clean that deletes a
 // knowledge base's collections and finds none recorded as running, as a
-// start runs it from the vector store's document. No knowledge base's stack
-// is recorded. stop stops it, and so does a run that fails.
-func vectorsForClean(u *UI) (stop func(), ok bool) {
+// start runs it from the vector store's document, with the machine's key,
+// which it answers. No knowledge base's stack is recorded. stop stops it, and
+// so does a run that fails.
+func vectorsForClean(u *UI) (stop func(), key string, ok bool) {
 	doc, ok := readVectorStoreDocument(u, false)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	rt, ok := cleanRuntime(u)
 	if !ok {
-		return nil, false
+		return nil, "", false
 	}
 	plan := &launchPlan{Roles: map[string]rolePlan{"vectors": sharedVectorsRole(&doc)}}
 	x := &liveExec{u: u, rt: rt, plan: plan}
 	addr, ok := x.resolveAddr()
 	if !ok {
-		return nil, false
+		return nil, "", false
+	}
+	fc, ok := withDaemonCredentials(x, flowCtx{plan: plan})
+	if !ok {
+		return nil, "", false
 	}
 	u.Log("The shared Qdrant is not running: running it for the delete %s", u.Dim("(this clean stops it again)"))
 	name := sharedContainer("vectors")
@@ -151,11 +170,11 @@ func vectorsForClean(u *UI) (stop func(), ok bool) {
 			u.Ok("Stopped %s, which this clean ran for the delete.", name)
 		}
 	}
-	if _, code := runSharedVectors(x, flowCtx{plan: plan}, addr, false); code != 0 {
+	if _, code := runSharedVectors(x, fc, addr, false); code != 0 {
 		stop()
-		return nil, false
+		return nil, "", false
 	}
-	return stop, true
+	return stop, userEnvVars(fc.userEnv)[daemonCredentials["vectors"].env], true
 }
 
 // qdrantAnswer: what Qdrant answers a request it took, with what it answers
@@ -164,10 +183,20 @@ type qdrantAnswer[T any] struct {
 	Result T `json:"result"`
 }
 
+// qdrantRequest: a request of the Qdrant at base, with its API key.
+func qdrantRequest(method, base, key, path string) (*http.Response, error) {
+	req, err := http.NewRequest(method, base+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("api-key", key)
+	return adminHTTP.Do(req)
+}
+
 // collectionsHeld: which of the collections of the knowledge base whose DID
-// is did the Qdrant at base holds, in their words' order.
-func collectionsHeld(base, did string) ([]string, error) {
-	resp, err := adminHTTP.Get(base + "/collections")
+// is did the Qdrant at base, asked with key, holds, in their words' order.
+func collectionsHeld(base, key, did string) ([]string, error) {
+	resp, err := qdrantRequest(http.MethodGet, base, key, "/collections")
 	if err != nil {
 		return nil, fmt.Errorf("listing its collections: %w", err)
 	}
@@ -197,11 +226,11 @@ func collectionsHeld(base, did string) ([]string, error) {
 	return held, nil
 }
 
-// deleteCollection deletes a collection the Qdrant at base holds, and all
-// that is in it. Qdrant answers true for a collection it deleted.
-func deleteCollection(base, name string) error {
-	req, _ := http.NewRequest(http.MethodDelete, base+"/collections/"+name, nil)
-	resp, err := adminHTTP.Do(req)
+// deleteCollection deletes a collection the Qdrant at base, asked with key,
+// holds, and all that is in it. Qdrant answers true for a collection it
+// deleted.
+func deleteCollection(base, key, name string) error {
+	resp, err := qdrantRequest(http.MethodDelete, base, key, "/collections/"+name)
 	if err != nil {
 		return fmt.Errorf("deleting it: %w", err)
 	}

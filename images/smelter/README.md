@@ -122,7 +122,7 @@ It reads one document, the protocol's
 | `identity.issuer` | where its service account signs in |
 | `archivist` | where the Archivist listens: the host and the port it reads bytes from, and keeps the anchored-text store at |
 | `embedding` | the embedding provider ([`EmbeddingConfig`](../../protocol/specs/src/components/schemas/EmbeddingConfig.json)): its kind, its model, where it is reached, and, for a provider that takes a key, the name of the variable that holds it |
-| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind, and where it is reached |
+| `vectors` | the vector index ([`VectorsConfig`](../../protocol/specs/src/components/schemas/VectorsConfig.json)): its kind, where it is reached, and, for a Qdrant, the name of the variable that holds the token the Smelter presents to it |
 | `chunking` | the two numbers a text is cut by: a chunk's size, and how much of it the next repeats |
 | `pdfsAtOnce` | how many PDFs it works on at once |
 | `cursorsPath` | the file its cursors are kept in, on the container's own disk |
@@ -130,8 +130,9 @@ It reads one document, the protocol's
 | `logLevel`, `logFormat` | how it logs |
 
 Nothing the document leaves out is supplied. Its environment is its service account,
-**`SEMIONT_OIDC_CLIENT_ID`** and **`SEMIONT_OIDC_CLIENT_SECRET`**, and, for a provider that
-takes a key, the one variable its document names for it. It signs in as itself, and the
+**`SEMIONT_OIDC_CLIENT_ID`** and **`SEMIONT_OIDC_CLIENT_SECRET`**, and each variable its
+document names: for a provider that takes a key, the one that holds it, and for a Qdrant,
+the one that holds its token. It signs in as itself, and the
 gateway names it by its account: `did:web:<the knowledge base's domain>:agents:<its subject at
 the issuer>`. The model it embeds with is no part of who it is.
 
@@ -151,9 +152,18 @@ endpoint for a stack it runs. Without it the Smelter exports nothing, unless
 `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the
 trace and the span they were written in.
 
-Started without its document, without its account or without a key its document names, it
-refuses to start: one line on stderr that begins `[fatal] `, and status 1. An index of the
-kind `memory` is refused too: nothing else could search an index in the Smelter's own memory.
+Started without its document, without its account, or without a key or a token its document
+names, it refuses to start: one line on stderr that begins `[fatal] `, and status 1. An index
+of the kind `memory` is refused too: nothing else could search an index in the Smelter's own
+memory.
+
+**Its token may do anything in its Qdrant.** The Smelter makes its knowledge base's
+collections, and deletes and makes them again when it makes its index anew, and Qdrant allows
+that a token of global manage alone, so the Smelter's token reaches every knowledge base's
+collections on the Qdrant it is asked of. The launcher mints it from the key it keeps for a
+Qdrant it runs, and for one somebody else runs is handed it in the variable the stack's
+`KnowledgeIndex` names (`spec.vectors.external.smelterToken`).
+[The token cases](../../protocol/specs/src/vectors/token-cases.json) state what it says.
 
 ## What the image carries
 

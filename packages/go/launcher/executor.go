@@ -84,11 +84,11 @@ type recorder interface {
 // keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
 // because a regenerated one invalidates every token already issued.
 type keeper interface {
-	jwtSecret(kb kbRoot) (string, bool)                       // gateway token-signing key: env, else persisted per-root, else generated
-	identityAdminPassword() (string, bool)                    // the shared Keycloak's bootstrap admin password: same three sources
-	serviceClientSecret(kb kbRoot, svc string) (string, bool) // one service's account credential, per root
-	workerKey() (workerKey, bool)                             // the key the shared worker proves itself with, one for every knowledge base
-	daemonPassword(kb kbRoot, role string) (string, bool)     // a launcher-run daemon's password, generated and kept per root, or for the machine for a shared one
+	jwtSecret(kb kbRoot) (string, bool)                                   // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword() (string, bool)                                // the shared Keycloak's bootstrap admin password: same three sources
+	serviceClientSecret(kb kbRoot, svc string) (string, bool)             // one service's account credential, per root
+	workerKey() (workerKey, bool)                                         // the key the shared worker proves itself with, one for every knowledge base
+	daemonCredential(kb kbRoot, role string, machine bool) (string, bool) // a launcher-run daemon's password or key, generated and kept per root, or for the machine (machine)
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
@@ -668,8 +668,8 @@ func (x *liveExec) workerKey() (workerKey, bool) {
 	return loadOrCreateWorkerKey(x.u)
 }
 
-func (x *liveExec) daemonPassword(kb kbRoot, role string) (string, bool) {
-	return loadOrCreateDaemonPassword(x.u, kb.key(), role)
+func (x *liveExec) daemonCredential(kb kbRoot, role string, machine bool) (string, bool) {
+	return loadOrCreateDaemonCredential(x.u, kb.key(), role, machine)
 }
 
 func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
@@ -1423,8 +1423,8 @@ func (x *planExec) workerKey() (workerKey, bool) {
 	return workerKey{registeredKey: registeredKey{public: "<worker-public-key>", thumbprint: "<worker-key-thumbprint>"}, private: "<worker-key>"}, true
 }
 
-func (x *planExec) daemonPassword(_ kbRoot, role string) (string, bool) {
-	return "<" + daemonPasswords[role].custody + ">", true
+func (x *planExec) daemonCredential(_ kbRoot, role string, _ bool) (string, bool) {
+	return "<" + daemonCredentials[role].custody + ">", true
 }
 
 func (x *planExec) stageNatsConf(_ []byte) (string, bool) {

@@ -60,7 +60,7 @@ func graphConfig(p placement, who string) (graph api.GraphConfig, err error) {
 	} else {
 		// The Neo4j the launcher runs has the password the launcher generates
 		// and keeps; the service is handed it under the launcher's own name.
-		neo4j.PasswordEnv = daemonPasswords["graph"].env
+		neo4j.PasswordEnv = daemonCredentials["graph"].env
 	}
 	err = graph.FromNeo4jGraphConfig(neo4j)
 	return graph, err

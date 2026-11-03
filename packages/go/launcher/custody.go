@@ -24,8 +24,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -46,31 +48,47 @@ import (
 // JWT_SECRET rotation ring is handed over (loadOrCreateJWTSecret).
 func custodyOwned(name string) bool {
 	switch name {
-	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET", "SEMIONT_OIDC_CLIENT_KEY":
+	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET", "SEMIONT_OIDC_CLIENT_KEY", vectorsTokenVar:
 		return true
 	}
 	return daemonCredentialVar(name) || strings.HasPrefix(name, "SEMIONT_OIDC_CLIENT_SECRET_")
 }
 
-// daemonPasswords: the daemons the launcher runs and keeps a password for —
-// such a daemon's credential comes from custody, never from the config. Each
-// is generated once and kept, because a data directory keeps the password it
-// was initialized with: once per root, or, for a shared daemon (the issuer's
-// PostgreSQL), once for the machine (daemonCustody). The variable names are
-// the launcher's, machine-wide — `semiont settings secret` registrations are
+// daemonCredentials: the daemons the launcher runs and keeps a credential
+// for — a password, or Qdrant's API key — such a daemon's credential comes
+// from custody, never from the config. Each is generated once and kept,
+// because a data directory keeps the password it was initialized with, and
+// every token minted from Qdrant's key fails under another: once per root, or,
+// for a daemon the machine runs (the issuer's PostgreSQL, a shared Qdrant),
+// once for the machine (daemonCustody). The variable names are the
+// launcher's, machine-wide — `semiont settings secret` registrations are
 // machine-wide while a daemon's presence is per-KB config, so no config may
 // borrow one. The custody names are also the files under roots/<key>/, or
 // shared/, where KB skills that connect to a daemon directly are told to read
-// its password: keep them stable.
-var daemonPasswords = map[string]struct {
-	env, custody, display string
+// its credential: keep them stable.
+var daemonCredentials = map[string]struct {
+	env, custody, display, credential string
 	// kept: the daemon writes the password into its store at initialization,
 	// so a store with data and no kept password holds one the launcher lacks.
 	kept bool
 }{
-	"graph":          {"NEO4J_PASSWORD", "neo4j-password", "Neo4j", true},
-	"identity-store": {"POSTGRES_PASSWORD", "postgres-password", "PostgreSQL", true},
-	"messaging":      {"NATS_PASSWORD", "nats-password", "the broker", false},
+	"graph":          {"NEO4J_PASSWORD", "neo4j-password", "Neo4j", "password", true},
+	"identity-store": {"POSTGRES_PASSWORD", "postgres-password", "PostgreSQL", "password", true},
+	"messaging":      {"NATS_PASSWORD", "nats-password", "the broker", "password", false},
+	"vectors":        {"QDRANT_API_KEY", "qdrant-api-key", "Qdrant", "API key", false},
+}
+
+// credentialedDaemons: the daemons of daemonCredentials plan runs, in name
+// order: its own (presenceLauncher), and the machine's Qdrant serving a
+// knowledge base that names it shared (presenceShared).
+func (p *launchPlan) credentialedDaemons() []string {
+	var roles []string
+	for _, role := range slices.Sorted(maps.Keys(daemonCredentials)) {
+		if presence := p.Roles[role].Presence; presence == presenceLauncher || presence == presenceShared {
+			roles = append(roles, role)
+		}
+	}
+	return roles
 }
 
 // brokerUser: the user of the broker the launcher runs. Not a secret; the
@@ -82,7 +100,7 @@ func daemonCredentialVar(name string) bool {
 	if name == "NATS_USER" {
 		return true
 	}
-	for _, d := range daemonPasswords {
+	for _, d := range daemonCredentials {
 		if d.env == name {
 			return true
 		}
@@ -90,15 +108,16 @@ func daemonCredentialVar(name string) bool {
 	return false
 }
 
-// loadOrCreateDaemonPassword: the kept password of a daemon the launcher runs
-// for this root, generated and persisted on first use. A store that already
-// holds data with no kept password was initialized with one the launcher does
-// not have — a literal from a config, or custody lost with the store
-// kept — and a daemon started over it rejects every login, so that refuses,
-// naming the clean. It never wipes a store itself.
-func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
-	d := daemonPasswords[role]
-	store, ok := daemonCustody(u, key, role)
+// loadOrCreateDaemonCredential: the kept credential of a daemon the launcher
+// runs for this root, or for the machine (machine), generated and persisted on
+// first use. A store that already holds data with no kept password was
+// initialized with one the launcher does not have — a literal from a config,
+// or custody lost with the store kept — and a daemon started over it rejects
+// every login, so that refuses, naming the clean. It never wipes a store
+// itself.
+func loadOrCreateDaemonCredential(u *UI, key, role string, machine bool) (string, bool) {
+	d := daemonCredentials[role]
+	store, ok := daemonCustody(u, key, machine)
 	if !ok {
 		return "", false
 	}
@@ -108,7 +127,7 @@ func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 	if spec, ok := stateStores[role]; ok && d.kept && storeHoldsData(spec.storeDir(key)) {
 		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(key))
 		fmt.Fprintln(os.Stderr, "  It was initialized with a password the launcher does not have (a config's literal, or one whose file was lost),")
-		if sharedRole(role) {
+		if machine {
 			fmt.Fprintf(os.Stderr, "  and the daemon would reject every login. It is every knowledge base's here; to start afresh: semiont clean --shared --store %s\n", role)
 			return "", false
 		}
@@ -116,19 +135,19 @@ func loadOrCreateDaemonPassword(u *UI, key, role string) (string, bool) {
 		fmt.Fprintf(os.Stderr, "    semiont clean --store %s\n", role)
 		return "", false
 	}
-	secret, ok := generateHexSecret(u, 16, d.display+"'s password")
+	secret, ok := generateHexSecret(u, 16, d.display+"'s "+d.credential)
 	if !ok || !store.put(u, d.custody, secret) {
 		return "", false
 	}
-	u.Log("%s password: %s", d.display, u.Dim("generated and kept"))
+	u.Log("%s %s: %s", d.display, d.credential, u.Dim("generated and kept"))
 	return secret, true
 }
 
-// daemonCustody: where a daemon's password is kept — the machine's store for
-// a shared daemon, which every knowledge base's start reads alike, else the
-// root's.
-func daemonCustody(u *UI, key, role string) (custodyStore, bool) {
-	if sharedRole(role) {
+// daemonCustody: where a daemon's credential is kept — the machine's store
+// for a daemon the machine runs, which every knowledge base's start reads
+// alike, else the root's.
+func daemonCustody(u *UI, key string, machine bool) (custodyStore, bool) {
+	if machine {
 		return sharedCustody(), true
 	}
 	return custodyFor(u, key)
@@ -162,7 +181,7 @@ func custodyNames() []string {
 	for _, svc := range secretClients {
 		names = append(names, serviceClientCustody(svc))
 	}
-	for role, d := range daemonPasswords {
+	for role, d := range daemonCredentials {
 		if !sharedRole(role) {
 			names = append(names, d.custody)
 		}

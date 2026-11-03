@@ -5,7 +5,9 @@
  * model; the page it answers a search of resources by text, from the graph or,
  * where nothing matches there, from the index; the references it answers for
  * a resource they are bound to; the names it gives the persons a page
- * mentions; and the limits it reports of each actor's engine.
+ * mentions; and the limits it reports of each actor's engine. With them, that
+ * a Librarian whose token reads another knowledge base's index reads none of
+ * its own (§ What it answers).
  *
  * The scores, the prompt's text and the arithmetic of a page are the case
  * tables' (protocol/specs/src/librarian): these cases hold what crosses the bus, the
@@ -20,16 +22,21 @@
  * earlier case's: where a case states a whole page, it works the page out
  * from what the index holds.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, inject, it } from 'vitest';
 import type { components } from '@semiont/core';
 import { GATHERER_MODEL, MATCHER_MODEL, SEMANTIC_FLOOR, eachLibrarian } from '../harness/librarian-world';
 import { eventually } from '../harness/net';
 import { embeddingOf } from '../harness/ollama-embed';
+import { claimsFor, minted, VECTORS_TOKEN } from '../harness/qdrant';
+import { kbIdentity } from '../harness/spec';
 import { pdfOf } from '../smelter/support';
 import { FOX, TIDE, prompts } from './support';
 
 /** What the profiles projection holds. */
 type Profiles = components['schemas']['ProfilesProjection'];
+
+/** Another knowledge base than the one the suite's Librarian serves. */
+const OTHER_KB = kbIdentity('plain scalars, and a version, which names nothing').did;
 
 /** How near the stand-in provider puts two texts: the cosine of their vectors, each of which has length 1. */
 function nearness(a: string, b: string): number {
@@ -440,6 +447,31 @@ eachLibrarian('a Librarian, asked to find', (world) => {
       expect(page).toEqual({ resources: [], total: 0, offset: 0, limit: 50, matchKind: 'lexical' });
       expect(world().embedder.since(asked).length).toBeGreaterThan(0);
     });
+
+    it(
+      "answers the empty lexical page, and not a failure, when its token reads another knowledge base's index and none of its own",
+      async () => {
+        const text = 'Sea purslane edges the saltings';
+        const sheet = await recorded(text, 'Sheet forty');
+        const own = (await world().answered('match:resources-requested', { search: text })).response;
+        expect(own.matchKind).toBe('semantic');
+        expect(own.resources.map((hit) => hit['@id'])).toContain(sheet);
+
+        // A token signed by the Qdrant's key, which reads another knowledge base's collections alone: the index refuses it every search of this one's.
+        const { key } = inject('vectorDatabase');
+        await world().restartLibrarian({ env: { ...world().launch().env, [VECTORS_TOKEN]: minted(key, claimsFor(OTHER_KB).librarian) } });
+        try {
+          const asked = world().embedder.mark();
+          const page = (await world().answered('match:resources-requested', { search: text })).response;
+          expect(page).toEqual({ resources: [], total: 0, offset: 0, limit: 50, matchKind: 'lexical' });
+          // The text was embedded: it is the index that answered nothing.
+          expect(world().embedder.since(asked).map((request) => request.texts)).toEqual([[text]]);
+        } finally {
+          await world().restartLibrarian();
+        }
+      },
+      180_000,
+    );
 
     it('previews a PDF it finds by name as the empty string, beside a text that previews as itself', async () => {
       const text = 'It floats, and traps what swims past.\n';

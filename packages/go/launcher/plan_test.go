@@ -74,7 +74,7 @@ func asSomebodyElses(st *stack.Stack, issuer *issuerDocument, role string) {
 	case "vectors":
 		v := &st.KnowledgeIndex.Spec.Vectors
 		v.Shared, v.Image, v.Resources = nil, nil, nil
-		v.External = &stack.HostPort{Host: "vectors.example.com", Port: 6334}
+		v.External = &stack.KnowledgeIndexVectorsExternal{Host: "vectors.example.com", Port: 6334, SmelterToken: stack.SecretRef{FromEnv: "VECTORS_SMELTER_TOKEN"}, LibrarianToken: stack.SecretRef{FromEnv: "VECTORS_LIBRARIAN_TOKEN"}}
 	case "identity-store":
 		d := &issuer.spec.Database
 		d.Image, d.Resources, d.Port = nil, nil, nil

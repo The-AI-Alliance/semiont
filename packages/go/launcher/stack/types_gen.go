@@ -331,8 +331,10 @@ type KnowledgeIndexVectors struct {
 	// What a container is given, in Kubernetes' spelling.
 	Resources *Resources `json:"resources,omitempty"`
 
-	// A vector store somebody else runs.
-	External *HostPort `json:"external,omitempty"`
+	// A vector store somebody else runs, with the token each service presents to
+	// it: the Smelter's may make, write and delete this knowledge base's
+	// collections, and the Librarian's may read them.
+	External *KnowledgeIndexVectorsExternal `json:"external,omitempty"`
 }
 
 // KnowledgeIndexVectorsShared: The vector store the launcher runs for the
@@ -340,6 +342,25 @@ type KnowledgeIndexVectors struct {
 // knowledge base keeps its index in collections of its own there, so nothing
 // is said of it here.
 type KnowledgeIndexVectorsShared struct{}
+
+// KnowledgeIndexVectorsExternal: A vector store somebody else runs, with the
+// token each service presents to it: the Smelter's may make, write and delete
+// this knowledge base's collections, and the Librarian's may read them.
+type KnowledgeIndexVectorsExternal struct {
+	// A host name or address the stack's containers can reach.
+	Host string `json:"host"`
+
+	// The port its REST API listens on.
+	Port int `json:"port"`
+
+	// A secret the document names and does not hold. The launcher hands it to
+	// the service that needs it, from where the reference says it is.
+	SmelterToken SecretRef `json:"smelterToken"`
+
+	// A secret the document names and does not hold. The launcher hands it to
+	// the service that needs it, from where the reference says it is.
+	LibrarianToken SecretRef `json:"librarianToken"`
+}
 
 // KnowledgeIndexEmbedding: The model that turns text into vectors. Vectors
 // made by one model are not comparable with another's, so the model is the

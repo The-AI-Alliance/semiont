@@ -4,7 +4,8 @@ The document is the protocol's `LibrarianConfig`. It is found, read and
 refused as every Python service's is (`semiont_service.config`), and so is
 the service's account. A secret is never in the document. The document names
 the variable that holds the graph database's password, the one that holds an
-embedding provider's key and the one that holds each actor's key, and the
+embedding provider's key, the one that holds the token the Librarian presents
+to its vector index and the one that holds each actor's key, and the
 environment is read for each here. `protocol/contract/LIBRARIAN.md` § Settings
 states each refusal.
 """
@@ -19,13 +20,14 @@ from semiont.types import (
     MemoryGraphConfig,
     MemoryVectorsConfig,
     Neo4jGraphConfig,
+    QdrantVectorsConfig,
     VoyageEmbeddingConfig,
 )
 from semiont_service.config import Refused, read_config, set_in
 
 from semiont_librarian.knowledge_graph import GRAPH_WAIT_BUDGET
 
-__all__ = ["SERVICE", "Actor", "api_key_of", "embedding_key_of", "graph_password_of", "read_librarian_config"]
+__all__ = ["SERVICE", "Actor", "api_key_of", "embedding_key_of", "graph_password_of", "read_librarian_config", "vectors_token_of"]
 
 SERVICE: Final = "librarian"
 """What the service is called among a knowledge base's services, as its image and its container are named."""
@@ -87,6 +89,17 @@ def embedding_key_of(config: LibrarianConfig, environment: Mapping[str, str]) ->
     if key is None:
         raise Refused(f"embedding.apiKeyEnv names {embedding.api_key_env}, which is not set in the librarian's environment")
     return key
+
+
+def vectors_token_of(config: LibrarianConfig, environment: Mapping[str, str]) -> str | None:
+    """The token the Librarian presents to its vector index, read from the variable the document names. Nothing for one that takes none."""
+    vectors = config.vectors
+    if not isinstance(vectors, QdrantVectorsConfig):
+        return None
+    token = set_in(environment, vectors.token_env)
+    if token is None:
+        raise Refused(f"vectors.tokenEnv names {vectors.token_env}, which is not set in the librarian's environment")
+    return token
 
 
 def api_key_of(actor: Actor, entry: LibrarianEngineConfig, environment: Mapping[str, str]) -> str | None:

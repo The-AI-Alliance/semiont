@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
+	semiont "github.com/The-AI-Alliance/semiont/packages/go/sdk"
 )
 
 // namedVariables: every variable a document names — the string under each key
@@ -62,10 +63,10 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 		daemons func(st *stack.Stack)
 		planted []string
 	}{
-		{"somebody else runs every daemon", func(st *stack.Stack) { externalGraph(st); externalBroker(st) },
-			[]string{"ANTHROPIC_API_KEY", "BROKER_PASSWORD", "BROKER_USER", "GRAPH_PASSWORD", "VOYAGE_API_KEY"}},
+		{"somebody else runs every daemon", func(st *stack.Stack) { externalGraph(st); externalBroker(st); externalVectors(st) },
+			[]string{"ANTHROPIC_API_KEY", "BROKER_PASSWORD", "BROKER_USER", "GRAPH_PASSWORD", "VECTORS_LIBRARIAN_TOKEN", "VECTORS_SMELTER_TOKEN", "VOYAGE_API_KEY"}},
 		{"the launcher runs every daemon", func(*stack.Stack) {},
-			[]string{"ANTHROPIC_API_KEY", daemonPasswords["graph"].env, daemonPasswords["messaging"].env, "NATS_USER", "VOYAGE_API_KEY"}},
+			[]string{"ANTHROPIC_API_KEY", daemonCredentials["graph"].env, daemonCredentials["messaging"].env, "NATS_USER", vectorsTokenVar, "VOYAGE_API_KEY"}},
 	} {
 		st := fixtureStack(t, "anthropic")
 		secrets(st)
@@ -94,6 +95,23 @@ func TestEveryVariableADocumentNamesIsHanded(t *testing.T) {
 		}
 
 		handed := withDaemonCredentialVars(byService, p.plan, st.KnowledgeBase.Spec.Messaging.Signal.Type == "nats")
+		// And the token a start mints for each service it hands one
+		// (vectorsTokenEnv).
+		did, err := semiont.KbDid(exampleKB.Domain)
+		if err != nil {
+			t.Fatal(err)
+		}
+		minting := flowCtx{kb: kbRoot{dir: t.TempDir(), ident: &kbIdentity{did: did}}, plan: p.plan, userEnv: []string{"--env", daemonCredentials["vectors"].env + "=key"}}
+		for _, svc := range []string{"smelter", "librarian"} {
+			env, err := vectorsTokenEnv(minting, svc)
+			if err != nil {
+				t.Fatalf("%s: %s: %v", c.why, svc, err)
+			}
+			for i := 1; i < len(env); i += 2 {
+				name, _, _ := strings.Cut(env[i], "=")
+				handed[svc] = append(handed[svc], name)
+			}
+		}
 		found := map[string]bool{}
 		for _, svc := range services {
 			document, err := writers[svc](p)

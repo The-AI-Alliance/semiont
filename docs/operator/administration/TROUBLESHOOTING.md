@@ -162,6 +162,25 @@ curl -s http://localhost:7474                  # On port block 1: 7484
 curl -s http://192.168.64.1:6330/readyz        # The shared Qdrant. A knowledge base's own: 6333, on port block 1 6343. Under Docker or Podman: localhost
 ```
 
+### Qdrant refuses the smelter or the librarian
+
+Qdrant answers `401` to a request that carries neither its API key nor a token, and `403` to a token signed with another key or one whose claims do not cover the request: the librarian's reads its own knowledge base's collections and writes nothing ([Secrets](../services/SECRETS.md#values-the-launcher-keeps)). Its readiness, `/readyz`, needs neither, so a Qdrant that answers there can still refuse every service.
+
+- **A key lost while the shared Qdrant runs.** A start keeps a shared Qdrant that runs as recorded. When the machine's `qdrant-api-key` was deleted while it ran, the start generates a new key and signs the tokens with it, and Qdrant, which booted with the old one, refuses them. Qdrant keeps no key in its store, so a restart under the new key is the fix, and every knowledge base that names it restarts to be handed tokens signed with that key:
+
+  ```bash
+  semiont stop                     # In each knowledge base that names the shared Qdrant; the last stops it
+  semiont start                    # In each again
+  ```
+
+  A knowledge base's own Qdrant restarts with its stack, so a `semiont stop` and `semiont start` there is enough.
+- **Somebody else's Qdrant.** Its tokens are its operator's. A `403` means the token is not signed with that Qdrant's key, or does not claim what [`token-cases.json`](../../../protocol/specs/src/vectors/token-cases.json) states for the service.
+
+```bash
+semiont logs --service smelter | grep -iE "qdrant|401|403"
+semiont logs --service librarian | grep -iE "qdrant|401|403"
+```
+
 ### Inference failures
 
 With an Anthropic Inference document, the launcher must be able to find `ANTHROPIC_API_KEY`: exported, or registered with `semiont settings secret set ANTHROPIC_API_KEY`. With an Ollama one, the model has to be present. An Ollama the stack runs in a container under Apple `container` answers at `192.168.64.1` rather than `localhost` ([Ports](../LOCAL-SEMIONT.md#ports)):

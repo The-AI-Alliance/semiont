@@ -973,11 +973,12 @@ func archivistArgs(key string, kbRoot, stage string, e exposure, port int, clien
 // `--config`, so it is handed no *_HOST variables, no path and no copy of the
 // KB's documents: the document carries every address already, and names the
 // variables holding the graph database's password, the embedding provider's
-// key and each model provider's key (librarianSecrets, and the launcher's
-// own for a Neo4j it runs), which arrive among the user's. It keeps the
-// issuer's host entry, because it signs in at the issuer by name. No
-// JWT_SECRET: it signs nothing. Nothing dials it.
-func librarianArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string, state ...string) []string {
+// key, its token to somebody else's Qdrant and each model provider's key
+// (librarianSecrets, and the launcher's own for a Neo4j it runs), which arrive
+// among the user's; its token to a Qdrant the launcher runs is vectorsEnv
+// (vectorsTokenEnv). It keeps the issuer's host entry, because it signs in at
+// the issuer by name. No JWT_SECRET: it signs nothing. Nothing dials it.
+func librarianArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel, vectorsEnv []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", roleContainer("librarian", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "librarian", port, semiontDescriptor("librarian").ports[0].port)...)
@@ -991,6 +992,7 @@ func librarianArgs(key string, stage string, e exposure, port int, clientSecret,
 		// the gateway, whatever models its matcher and its gatherer ask.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+	a = append(a, vectorsEnv...)
 	a = append(a, superviseEnv()...)
 	return append(a, img)
 }
@@ -1052,10 +1054,11 @@ func workerArgs(document string, e exposure, clientKey, img, mem string, userEnv
 // a resolved configuration document (smelterdoc.go) at the path its image
 // passes to `--config`, so it is handed no *_HOST variables, no path and no
 // copy of the KB's documents: the document carries every address already, and
-// names the variable holding Voyage's key
-// (embeddingSecrets), which arrives among the user's. It keeps the issuer's
-// host entry, because it signs in at the issuer by name.
-func smelterArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel []string) []string {
+// names the variable holding Voyage's key and the one holding its token to
+// somebody else's Qdrant (smelterSecrets), which arrive among the user's; its
+// token to a Qdrant the launcher runs is vectorsEnv (vectorsTokenEnv). It
+// keeps the issuer's host entry, because it signs in at the issuer by name.
+func smelterArgs(key string, stage string, e exposure, port int, clientSecret, img, mem string, userEnv, otel, vectorsEnv []string) []string {
 	a := []string{"run", "-d", "--name", roleContainer("smelter", key), // no --rm: see providedRunArgs
 		"--memory", mem}
 	a = append(a, e.publish("--publish", "smelter", port, semiontDescriptor("smelter").ports[0].port)...)
@@ -1068,6 +1071,7 @@ func smelterArgs(key string, stage string, e exposure, port int, clientSecret, i
 		// the gateway.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("smelter"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+	a = append(a, vectorsEnv...)
 	a = append(a, superviseEnv()...)
 	return append(a, img)
 }
@@ -1176,7 +1180,7 @@ func runStart(u *UI, rt, lan string, kb kbRoot, opts startOptions, userEnv []str
 		// The password is the launcher's: say where it is kept, never print
 		// it.
 		store, _ := custodyFor(u, kb.key())
-		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
+		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonCredentials["graph"].custody) + ")")
 	}
 	fmt.Printf("  Neo4j Browser      http://localhost:%d   %s\n", plan.AuxPorts("graph")[0].port, neo4jLogin)
 	if store, ok := custodyFor(u, kb.key()); ok {
@@ -1409,18 +1413,27 @@ func refuseDaemonCredentialNames(p placement) error {
 			return fmt.Errorf("the knowledge base's documents name the variable %s (fromEnv), which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", name)
 		}
 	}
-	for _, role := range []string{"graph", "identity-store", "messaging"} {
-		if plan.Roles[role].Presence != presenceLauncher {
-			continue
-		}
-		d := daemonPasswords[role]
+	for _, role := range plan.credentialedDaemons() {
+		d := daemonCredentials[role]
 		names := []string{d.env}
 		if role == "messaging" {
 			names = append(names, "NATS_USER")
 		}
+		// A daemon that keeps no credential in its store takes a new one at
+		// its next start; one that keeps it needs its store cleared too.
+		where, rotate := "this root's state dir", "restart it"
+		if plan.machineKeeps(role) {
+			where = "the machine's state dir"
+		}
+		if d.kept {
+			rotate = "run semiont clean --store " + role
+			if plan.machineKeeps(role) {
+				rotate = "run semiont clean --shared --store " + role
+			}
+		}
 		for _, name := range names {
 			if _, exported := os.LookupEnv(name); exported {
-				return fmt.Errorf("%s is exported, but the launcher generates and keeps the credentials of the %s it runs. Unset it; to rotate, delete %s in this root's state dir and run semiont clean --store %s", name, d.display, d.custody, role)
+				return fmt.Errorf("%s is exported, but the launcher generates and keeps the credentials of the %s it runs. Unset it; to rotate, delete %s in %s and %s", name, d.display, d.custody, where, rotate)
 			}
 		}
 	}

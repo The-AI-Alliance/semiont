@@ -59,6 +59,14 @@ func shapeOf[T any](t *testing.T, union json.Marshaler) T {
 	return shape
 }
 
+// externalVectors: a Qdrant somebody else runs, with the variables its
+// operator names for the Smelter's token and the Librarian's.
+func externalVectors(st *stack.Stack) {
+	v := &st.KnowledgeIndex.Spec.Vectors
+	v.Shared, v.Image, v.Resources = nil, nil, nil
+	v.External = &stack.KnowledgeIndexVectorsExternal{Host: "qdrant.internal", Port: 7000, SmelterToken: stack.SecretRef{FromEnv: "VECTORS_SMELTER_TOKEN"}, LibrarianToken: stack.SecretRef{FromEnv: "VECTORS_LIBRARIAN_TOKEN"}}
+}
+
 // Every address is the placement's, each union the one shape its `type` names,
 // the numbers the KnowledgeIndex's, and the log level the KnowledgeIndex's.
 func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
@@ -82,7 +90,7 @@ func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
-	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6330}
+	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6330, TokenEnv: vectorsTokenVar}
 	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}
@@ -162,21 +170,37 @@ func TestSmelterDocumentNamesVoyagesKey(t *testing.T) {
 // KnowledgeBase places.
 func TestSmelterDocumentStatesWhatSomebodyElseRunsAsWritten(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	vectors := &st.KnowledgeIndex.Spec.Vectors
-	vectors.Image, vectors.Resources = nil, nil
-	vectors.External = &stack.HostPort{Host: "qdrant.internal", Port: 7000}
+	externalVectors(st)
 	endpoint := "http://ollama.internal:11434"
 	st.KnowledgeIndex.Spec.Embedding.Endpoint = &endpoint
 	st.KnowledgeBase.Spec.Archivist.Address = &stack.HostPort{Host: "archivist.internal", Port: 9999}
-	doc := smelterDocumentOf(t, placed(t, st))
-	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got.Host != "qdrant.internal" || got.Port != 7000 {
-		t.Errorf("vectors = %+v, want somebody else's Qdrant as its document states it", got)
+	p := placed(t, st)
+	doc := smelterDocumentOf(t, p)
+	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got.Host != "qdrant.internal" || got.Port != 7000 || got.TokenEnv != "VECTORS_SMELTER_TOKEN" {
+		t.Errorf("vectors = %+v, want somebody else's Qdrant as its document states it, with the Smelter's token in the variable it names", got)
+	}
+	if handed := serviceSecrets(p)["smelter"]; !contains(handed, "VECTORS_SMELTER_TOKEN") || contains(handed, "VECTORS_LIBRARIAN_TOKEN") {
+		t.Errorf("the Smelter is handed %v, want its own token to somebody else's Qdrant and not the Librarian's", handed)
 	}
 	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding).BaseUrl; got != endpoint {
 		t.Errorf("embedding.baseUrl = %q, want somebody else's Ollama as its document states it", got)
 	}
 	if doc.Archivist.Host != "archivist.internal" || doc.Archivist.Port != 9999 {
 		t.Errorf("archivist = %+v, want the stated address", doc.Archivist)
+	}
+}
+
+// A Qdrant the launcher runs, shared or the knowledge base's own, is asked
+// with a token the launcher mints into its own variable, which the document
+// names and no user's variable is.
+func TestSmelterDocumentNamesTheTokenTheLauncherMints(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	p := placed(t, st)
+	if got := shapeOf[api.QdrantVectorsConfig](t, smelterDocumentOf(t, p).Vectors).TokenEnv; got != vectorsTokenVar {
+		t.Errorf("vectors.tokenEnv = %q, want %q, the variable the launcher hands the Smelter its token in", got, vectorsTokenVar)
+	}
+	if handed := serviceSecrets(p)["smelter"]; contains(handed, vectorsTokenVar) {
+		t.Errorf("the Smelter is handed %v among the user's variables, and its token is the launcher's", handed)
 	}
 }
 
@@ -205,7 +229,7 @@ func TestSmelterDocumentIsWhereTheImageLooks(t *testing.T) {
 	}
 	doc := smelterDocumentOf(t, placed(t, fixtureStack(t, "ollama-gemma")))
 
-	args := strings.Join(smelterArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil), " ")
+	args := strings.Join(smelterArgs("kb", "/stage", exposure{rt: "container", addr: "1.2.3.4"}, semiontDescriptor("smelter").ports[0].port, "client-secret", "v", semiontDescriptor("smelter").mem, []string{"--env", "VOYAGE_API_KEY"}, nil, nil), " ")
 	if want := "/stage/" + smelterDocumentFile + ":" + smelterDocumentTarget + ":ro"; !strings.Contains(args, want) {
 		t.Errorf("the Smelter's document is not mounted onto %s:\n%s", smelterDocumentTarget, args)
 	}

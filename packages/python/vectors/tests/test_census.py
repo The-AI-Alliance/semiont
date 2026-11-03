@@ -165,7 +165,7 @@ def test_a_store_has_the_members_of_a_vector_index_and_no_others() -> None:
     assert len(members) == 20
     # Making a store dials nothing, and asks nobody how wide a vector is: each reaches its index when it is connected.
     assert public(MemoryVectorStore()) == members
-    assert public(QdrantVectorStore(host="127.0.0.1", port=1, kb=KB, dimensions=never_asked)) == members
+    assert public(QdrantVectorStore(host="127.0.0.1", port=1, kb=KB, token="a-token", dimensions=never_asked)) == members
 
 
 def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -> None:
@@ -176,7 +176,7 @@ def test_a_reader_has_the_searches_of_a_vector_index_and_nothing_that_writes() -
     in_memory: VectorReader = MemoryVectorStore()
     assert members < public(in_memory)
     # Making a reader dials nothing, and it is told no width.
-    assert public(QdrantVectorReader(host="127.0.0.1", port=1, kb=KB)) == members
+    assert public(QdrantVectorReader(host="127.0.0.1", port=1, kb=KB, token="a-token")) == members
 
 
 def test_a_provider_has_the_members_of_an_embedding_provider_and_no_others() -> None:

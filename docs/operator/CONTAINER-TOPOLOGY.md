@@ -152,8 +152,8 @@ graph TB
 
     WEAVE --> NEO
     LIB --> NEO
-    SMELT --> QD
-    LIB --> QD
+    SMELT -->|"token — any collection"| QD
+    LIB -->|"token — reads its KB's collections"| QD
     SMELT --> OL
     LIB --> OL
     WORKER --> OL
@@ -207,6 +207,7 @@ Reading the diagram:
 - **Purple cylinders are derived state**, rebuildable from the record.
 - **Amber cylinders are neither.** They are operational state held in JetStream on the broker's `/data`, each with one owner. The job queue is the dispatcher's: a key-value bucket of jobs, where every transition is a compare-and-set, and a work-queue stream whose deliveries are the leases. Pending jobs live only there. The event log records that a job started, completed or failed, never that it was created, so the queue is durable. The signal tables are the gateway's, and every entry in them expires. They hold only what is in flight: who may see the reply to which request, replies kept for a client that reconnects, and each principal's open streams. Sharing them is what lets any gateway replica answer as the others would.
 - **Rectangle-to-rectangle edges** are each service's infrastructure. Dotted edges are telemetry: OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus.
+- **The Qdrant edges carry tokens.** Qdrant answers only its API key or a token signed with it, and the launcher keeps the key. At each start it signs the smelter a token that may do anything, since only such a token makes a collection, and the librarian one that reads its own knowledge base's three collections and nothing else ([Secrets](services/SECRETS.md#values-the-launcher-keeps)).
 - **The gateway attaches to two things**: the broker, for the signal plane and its tables, and the issuer, whose keys it verifies tokens against. It holds no database and no queue.
 - **The worker's frame is a deployment boundary.** A worker holds no mount and no broker credential. Everything it dials (the gateway, for the bus and for bytes, and an inference provider) is a network address, so it can run on a machine the rest of the stack never shares. A worker that is not the deployment's own joins the same way: its client is granted the worker role at the issuer, and the dispatcher admits its claims by that role ([Admitting a worker someone else runs](./administration/AUTHENTICATION.md#admitting-a-worker-someone-else-runs)).
 - **The Ollama edges show the fully local case.** On an Inference document that names a remote API such as Anthropic's, inference for the workers and the librarian goes there instead. Embeddings stay on Ollama unless the KnowledgeIndex names Voyage.

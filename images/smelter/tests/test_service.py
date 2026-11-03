@@ -15,16 +15,21 @@ import pytest
 from pydantic import JsonValue
 from semiont.channels import PERSISTED_EVENT_TYPES
 from semiont.http import SecretCredential
+from semiont.types import SmelterConfig
 from semiont_service.config import Refused
 from semiont_vectors.ollama import OllamaEmbeddingProvider
 from semiont_vectors.qdrant import QdrantVectorStore
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 
+from semiont_smelter.config import vectors_token_of
 from semiont_smelter.service import CHANNELS, boot, main
 
 pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
 
 ACCOUNT: Final = {"SEMIONT_OIDC_CLIENT_ID": "semiont-smelter", "SEMIONT_OIDC_CLIENT_SECRET": "s3cret"}
+TOKEN: Final = {"QDRANT_TOKEN": "a-token"}
+STARTED: Final = {**ACCOUNT, **TOKEN}
+"""Everything the environment holds for a Smelter whose document names no provider's key: its account, and its index's token."""
 
 OLLAMA: Final[dict[str, JsonValue]] = {"type": "ollama", "model": "nomic-embed-text", "baseUrl": "http://127.0.0.1:1"}
 VOYAGE: Final[dict[str, JsonValue]] = {
@@ -33,7 +38,7 @@ VOYAGE: Final[dict[str, JsonValue]] = {
     "endpoint": "http://127.0.0.1:1/v1/embeddings",
     "apiKeyEnv": "VOYAGE_API_KEY",
 }
-QDRANT: Final[dict[str, JsonValue]] = {"type": "qdrant", "host": "127.0.0.1", "port": 1}
+QDRANT: Final[dict[str, JsonValue]] = {"type": "qdrant", "host": "127.0.0.1", "port": 1, "tokenEnv": "QDRANT_TOKEN"}
 
 DOCUMENT: Final[dict[str, JsonValue]] = {
     "kb": {"name": "example-kb", "domain": "example.github.io:example-kb"},
@@ -73,7 +78,7 @@ def lacking(part: dict[str, JsonValue], member: str) -> dict[str, JsonValue]:
 
 def test_started_with_everything_it_boots_and_dials_nothing(tmp_path: Path) -> None:
     # Nothing listens at any address the document names: a boot that dialled one would fail here.
-    started = boot(["--config", written(tmp_path)], ACCOUNT)
+    started = boot(["--config", written(tmp_path)], STARTED)
     assert started.config.gateway_url == "http://127.0.0.1:1"
     assert started.credential == SecretCredential(
         issuer="http://127.0.0.1:1/realms/semiont", client_id="semiont-smelter", client_secret="s3cret"
@@ -104,7 +109,7 @@ def test_the_document_is_named_by_a_flag_and_never_guessed(tmp_path: Path) -> No
     assert refusal(["--config", "--verbose"], ACCOUNT) == said
     assert refusal(["--config="], ACCOUNT) == said
     path = written(tmp_path)
-    assert boot([f"--config={path}"], ACCOUNT).config.port == 24101
+    assert boot([f"--config={path}"], STARTED).config.port == 24101
 
 
 def test_a_document_that_cannot_be_read_or_is_no_json_is_refused_by_its_path(tmp_path: Path) -> None:
@@ -148,13 +153,28 @@ def test_a_document_that_is_not_the_schemas_is_refused_naming_each_member_and_no
         (without("archivist"), "archivist"),
         ({**DOCUMENT, "vectors": lacking(QDRANT, "host")}, "host"),
         ({**DOCUMENT, "vectors": lacking(QDRANT, "port")}, "port"),
+        ({**DOCUMENT, "vectors": lacking(QDRANT, "tokenEnv")}, "tokenEnv"),
         ({**DOCUMENT, "embedding": lacking(OLLAMA, "model")}, "model"),
         ({**DOCUMENT, "embedding": lacking(OLLAMA, "baseUrl")}, "baseUrl"),
         ({**DOCUMENT, "chunking": {"chunkSize": 512}}, "overlap"),
         (without("chunking"), "chunking"),
         (without("cursorsPath"), "cursorsPath"),
     ],
-    ids=["kb", "domain", "gatewayUrl", "issuer", "archivist", "host", "port", "model", "baseUrl", "overlap", "chunking", "cursorsPath"],
+    ids=[
+        "kb",
+        "domain",
+        "gatewayUrl",
+        "issuer",
+        "archivist",
+        "host",
+        "port",
+        "tokenEnv",
+        "model",
+        "baseUrl",
+        "overlap",
+        "chunking",
+        "cursorsPath",
+    ],
 )
 def test_nothing_the_document_leaves_out_is_supplied_and_each_is_refused_by_name(
     tmp_path: Path, document: dict[str, JsonValue], missing: str
@@ -179,7 +199,9 @@ def test_an_index_held_in_the_smelters_own_memory_is_refused(tmp_path: Path) -> 
     )
 
 
-def test_the_document_is_settled_before_the_account_and_the_account_before_the_providers_key(tmp_path: Path) -> None:
+def test_the_document_is_settled_before_the_account_the_account_before_the_providers_key_and_that_before_the_indexs_token(
+    tmp_path: Path,
+) -> None:
     assert refusal(["--config", written(tmp_path, without("vectors"))], {}).endswith("  Missing required property: vectors")
     keyed = written(tmp_path, {**DOCUMENT, "embedding": VOYAGE})
     assert refusal(["--config", keyed], {}) == (
@@ -194,13 +216,25 @@ def test_the_document_is_settled_before_the_account_and_the_account_before_the_p
     assert refusal(["--config", keyed], {**ACCOUNT, "VOYAGE_API_KEY": ""}) == (
         "embedding.apiKeyEnv names VOYAGE_API_KEY, which is not set in the smelter's environment"
     )
-    started = boot(["--config", keyed], {**ACCOUNT, "VOYAGE_API_KEY": "a-key"})
+    assert refusal(["--config", keyed], {**ACCOUNT, "VOYAGE_API_KEY": "a-key"}) == (
+        "vectors.tokenEnv names QDRANT_TOKEN, which is not set in the smelter's environment"
+    )
+    assert refusal(["--config", keyed], {**ACCOUNT, "VOYAGE_API_KEY": "a-key", "QDRANT_TOKEN": ""}) == (
+        "vectors.tokenEnv names QDRANT_TOKEN, which is not set in the smelter's environment"
+    )
+    started = boot(["--config", keyed], {**STARTED, "VOYAGE_API_KEY": "a-key"})
     assert isinstance(started.provider, VoyageEmbeddingProvider)
 
 
 def test_a_provider_that_takes_no_key_is_asked_for_none(tmp_path: Path) -> None:
     # An Ollama's part of the document names no variable, and none is read for it.
-    assert isinstance(boot(["--config", written(tmp_path)], ACCOUNT).provider, OllamaEmbeddingProvider)
+    assert isinstance(boot(["--config", written(tmp_path)], STARTED).provider, OllamaEmbeddingProvider)
+
+
+def test_the_indexs_token_is_read_from_the_variable_the_document_names() -> None:
+    assert vectors_token_of(SmelterConfig.model_validate(DOCUMENT), TOKEN) == "a-token"
+    # An index in memory names no variable, and none is read for it. The Smelter refuses one before anything is read.
+    assert vectors_token_of(SmelterConfig.model_validate({**DOCUMENT, "vectors": {"type": "memory"}}), {}) is None
 
 
 def test_a_refusal_is_one_line_on_stderr_and_status_1_and_nothing_on_stdout(

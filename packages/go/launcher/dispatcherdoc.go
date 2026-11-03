@@ -62,7 +62,7 @@ func dispatcherDocument(p placement, served api.KbIdentity) ([]byte, error) {
 	if p.placed("messaging") {
 		// The broker the launcher runs has the pair the launcher generates
 		// and keeps; the dispatcher is handed both.
-		user, password := "NATS_USER", daemonPasswords["messaging"].env
+		user, password := "NATS_USER", daemonCredentials["messaging"].env
 		doc.Queue.UserEnv, doc.Queue.PasswordEnv = &user, &password
 	} else {
 		external := kb.Messaging.External
