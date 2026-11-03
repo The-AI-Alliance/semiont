@@ -7,7 +7,7 @@ questions that need the graph the Weaver writes, the vector index the Smelter wr
 model — what a reference could refer to, which resources a text finds, what surrounds an
 annotation or a resource, and what refers to a resource. It records nothing. Every question
 reaches it, and every answer leaves it, on the gateway's event
-[bus](../../docs/protocol/EVENT-BUS.md); its one HTTP route is `/health`, on port 24104. The
+[bus](../../protocol/contract/EVENT-BUS.md); its one HTTP route is `/health`, on port 24104. The
 launcher starts it with `semiont start`.
 
 | | |
@@ -16,8 +16,8 @@ launcher starts it with `semiont start`.
 | Port | 24104 (`/health`, and nothing else: everything it answers is on the bus) |
 | Command | `python -P -m semiont_librarian --config /etc/semiont/librarian.json` |
 | Code | Python, in this directory: [`src/semiont_librarian`](./src/semiont_librarian/) |
-| Specification | [docs/protocol/LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) |
-| Judged by | [packages/conformance/librarian](../../packages/conformance/librarian/README.md) |
+| Specification | [protocol/contract/LIBRARIAN.md](../../protocol/contract/LIBRARIAN.md) |
+| Judged by | [protocol/conformance/librarian](../../protocol/conformance/librarian/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -42,7 +42,7 @@ engines are.
 
 **It owns no store, and makes nothing in one.** It reads the graph and the vector index, and
 puts no node, no edge, no collection and no point in either. What it needs of
-[the record](../../docs/protocol/ARCHIVIST.md), and the profiles of the principals a reply
+[the record](../../protocol/contract/ARCHIVIST.md), and the profiles of the principals a reply
 names, it asks the Archivist on the bus, each read bounded by its question. A Librarian that
 is stopped and started again has lost nothing.
 
@@ -181,8 +181,8 @@ uv sync --locked
 uv run pytest
 ```
 
-The [librarian conformance suite](../../packages/conformance/librarian/README.md) holds a
-Librarian to [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md), as a process behind a real
+The [librarian conformance suite](../../protocol/conformance/librarian/README.md) holds a
+Librarian to [LIBRARIAN.md](../../protocol/contract/LIBRARIAN.md), as a process behind a real
 gateway and a real Archivist, reading a Neo4j a real Weaver writes and a Qdrant a real Smelter
 writes.
 
@@ -202,8 +202,8 @@ checks what a built one promises.
 
 ## Related
 
-- [LIBRARIAN.md](../../docs/protocol/LIBRARIAN.md) — what a Librarian does, rule by rule
-- [Gather flow](../../docs/protocol/flows/GATHER.md) · [Match flow](../../docs/protocol/flows/MATCH.md) — the client's side of what it answers
+- [LIBRARIAN.md](../../protocol/contract/LIBRARIAN.md) — what a Librarian does, rule by rule
+- [Gather flow](../../protocol/contract/flows/GATHER.md) · [Match flow](../../protocol/contract/flows/MATCH.md) — the client's side of what it answers
 - [`semiont-graph`](../../packages/python/graph/), [`semiont-vectors`](../../packages/python/vectors/)
   and [`semiont-inference`](../../packages/python/inference/) — the stores, the embedding
   providers and the drivers it reads and asks through

@@ -6,7 +6,7 @@ All of them are plain functions in the main import, which runs in a browser as w
 
 ## Text Encoding
 
-What text a resource's bytes are. The rule is protocol: [the text of a resource](../../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource) states it, as the MIME Sniffing Standard reads a content type and the Encoding Standard reads the bytes, and every reader of a resource keeps it. A TextPositionSelector's offsets are counted in that text, so a reader that made another text of the same bytes would count into the wrong place.
+What text a resource's bytes are. The rule is protocol: [the text of a resource](../../../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource) states it, as the MIME Sniffing Standard reads a content type and the Encoding Standard reads the bytes, and every reader of a resource keeps it. A TextPositionSelector's offsets are counted in that text, so a reader that made another text of the same bytes would count into the wrong place.
 
 ### Decode with Charset
 

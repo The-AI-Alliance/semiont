@@ -160,7 +160,7 @@ Opening and closing are presence: `session:joined`, `session:left`.
 ## Limits
 
 What one principal may take and what one process can hold
-([TRANSPORT-HTTP.md § Limits](../../../docs/protocol/TRANSPORT-HTTP.md#limits)).
+([TRANSPORT-HTTP.md § Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits)).
 Nothing here asks whether a principal is a person or an agent: a limit's
 coefficient comes from the principal's roles ([src/limits.rs](../src/limits.rs)
 `PrincipalLimit`) — the baseline when it holds none the limit names, and

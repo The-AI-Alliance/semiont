@@ -1,7 +1,7 @@
 package semiont
 
 // A read-through cache: what a client's live queries answer from
-// (docs/protocol/CACHE-SEMANTICS.md, B1 to B20).
+// (protocol/contract/CACHE-SEMANTICS.md, B1 to B20).
 
 import (
 	"context"

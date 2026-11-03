@@ -28,9 +28,9 @@ const SUPERVISOR = 'images/shared/supervise.sh';
 
 /** Each service the table covers: its crate, its image, and its suite. */
 const SERVICES = [
-  { name: 'gateway', crate: 'images/gateway', dockerfile: 'images/gateway/Dockerfile', cases: 'packages/conformance/gateway' },
-  { name: 'dispatcher', crate: 'images/dispatcher', dockerfile: 'images/dispatcher/Dockerfile', cases: 'packages/conformance/dispatcher' },
-  { name: 'archivist', crate: 'images/archivist', dockerfile: 'images/archivist/Dockerfile', cases: 'packages/conformance/archivist' },
+  { name: 'gateway', crate: 'images/gateway', dockerfile: 'images/gateway/Dockerfile', cases: 'protocol/conformance/gateway' },
+  { name: 'dispatcher', crate: 'images/dispatcher', dockerfile: 'images/dispatcher/Dockerfile', cases: 'protocol/conformance/dispatcher' },
+  { name: 'archivist', crate: 'images/archivist', dockerfile: 'images/archivist/Dockerfile', cases: 'protocol/conformance/archivist' },
 ];
 
 const READERS = new Set(['service', 'opentelemetry']);

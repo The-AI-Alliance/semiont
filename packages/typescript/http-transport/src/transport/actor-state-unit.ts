@@ -846,7 +846,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // A refused credential (a 401, or a 429 `refusal-rate`: both are
       // `unauthorized`) is never asked of that rule: it is renewed, never
       // retried, and never waits out a `Retry-After`
-      // (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential).
+      // (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential).
       //
       // The whole attempt — POST, status check, and the error it throws — is
       // inside the retried unit, because the refusal IS the failure being

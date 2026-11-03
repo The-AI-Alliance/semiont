@@ -2,7 +2,7 @@
 
 Both are asked for as an array of elements the provider holds to a schema
 (`semiont_inference.interface.InferenceClient.generate_structured`), and
-`docs/protocol/LIBRARIAN.md` § The model's score and § Gathering around a
+`protocol/contract/LIBRARIAN.md` § The model's score and § Gathering around a
 resource state the two readings. `specs/src/librarian/reply-cases.json` is
 the rule of what is read from the elements, and
 `specs/src/librarian/prompt-cases.json` states the two schemas.

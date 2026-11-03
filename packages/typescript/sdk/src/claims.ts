@@ -3,8 +3,8 @@
  *
  * A worker is any party that takes jobs and says how each one went. What it
  * promises the dispatcher, and everyone who follows a job, is
- * docs/protocol/WORKER-CONTRACT.md; this file is that contract for
- * TypeScript, and the worker conformance suite (packages/conformance/worker)
+ * protocol/contract/WORKER-CONTRACT.md; this file is that contract for
+ * TypeScript, and the worker conformance suite (protocol/conformance/worker)
  * holds it on the wire.
  *
  * THE MODEL. A worker asks the queue at every moment it becomes idle, and

@@ -5,7 +5,7 @@ refused as every Python service's is (`semiont_service.config`), and so is
 the service's account. A secret is never in the document. The document names
 the variable that holds the graph database's password, the one that holds an
 embedding provider's key and the one that holds each actor's key, and the
-environment is read for each here. `docs/protocol/LIBRARIAN.md` § Settings
+environment is read for each here. `protocol/contract/LIBRARIAN.md` § Settings
 states each refusal.
 """
 

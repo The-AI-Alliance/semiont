@@ -210,9 +210,9 @@ def test_nothing_in_the_fold_or_the_weaver_reads_a_clock_or_derives_who_a_thing_
 
 
 def test_the_events_its_fold_applies_are_the_ones_the_protocol_lists() -> None:
-    page = (ROOT / "docs/protocol/WEAVER.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/WEAVER.md").read_text(encoding="utf-8")
     rule = re.search(r"\*\*Its fold applies eight recorded events:\*\*(.*?)\. Every other event", page, re.DOTALL)
-    assert rule is not None, "docs/protocol/WEAVER.md no longer lists what a Weaver's fold applies"
+    assert rule is not None, "protocol/contract/WEAVER.md no longer lists what a Weaver's fold applies"
     assert sorted(re.findall(r"`([a-z]+:[a-z-]+)`", rule.group(1))) == sorted(FOLDED)
     assert len(FOLDED) == 8
 
@@ -253,9 +253,9 @@ def test_reconcile_holds_an_annotation_to_what_the_codec_says_and_to_no_list_of_
 
 
 def test_the_variables_it_reads_by_name_are_the_ones_the_protocol_lists() -> None:
-    page = (ROOT / "docs/protocol/WEAVER.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/WEAVER.md").read_text(encoding="utf-8")
     section = re.search(r"^## Environment\n(.*?)^## ", page, re.DOTALL | re.MULTILINE)
-    assert section is not None, "docs/protocol/WEAVER.md no longer has an Environment section"
+    assert section is not None, "protocol/contract/WEAVER.md no longer has an Environment section"
     listed_there = {
         name
         for row in section.group(1).splitlines()

@@ -1,7 +1,7 @@
 """The text around a selection: what an annotation's target selects of a text, and the text on either side of it.
 
 A Librarian cuts a text around an annotation in two places
-(`docs/protocol/LIBRARIAN.md` § Gathering around an annotation, § An
+(`protocol/contract/LIBRARIAN.md` § Gathering around an annotation, § An
 annotation's summary), and `specs/src/librarian/window-cases.json` states
 both. The cut is one, and so is the rule for where: a target's position
 selector, wherever among its selectors it is, and otherwise its quote

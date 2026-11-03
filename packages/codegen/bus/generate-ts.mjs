@@ -464,7 +464,7 @@ export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 /**
  * A channel's delivery class: what a subscriber is promised about a frame on
  * it when its stream drops, or is handed to another. The promise comes from
- * the frame's identity (docs/protocol/TRANSPORT-CONTRACT.md § Delivery).
+ * the frame's identity (protocol/contract/TRANSPORT-CONTRACT.md § Delivery).
  *
  *   positioned — a recorded event delivered on its resource's scope. Its id
  *                is its place in that resource's record: a subscriber that

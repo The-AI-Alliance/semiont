@@ -4,7 +4,7 @@
  * Property: every event written to a live connection's stream reaches the
  * channel's subscribers exactly once, wherever a scope-change handover lands
  * relative to the write. Retirement is by drain, never by handover abort
- * (docs/protocol/TRANSPORT-HTTP.md, Abort discipline).
+ * (protocol/contract/TRANSPORT-HTTP.md, Abort discipline).
  *
  * Teeth before trust: the property is first proven to FAIL against a
  * test-local double that aborts at handover and loses the buffered replies:

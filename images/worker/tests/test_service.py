@@ -1,6 +1,6 @@
 """The service as a process: what it is started with, the order it refuses in, how its knowledge bases are worked at apart, and how it ends.
 
-`docs/protocol/WORKER-SERVICE.md` § Configuration states each refusal, and
+`protocol/contract/WORKER-SERVICE.md` § Configuration states each refusal, and
 § Knowledge bases what happens at each knowledge base the service serves. The
 worker service's conformance suite holds a started process to their words.
 Here is the order of the refusals, which says which is settled first, and

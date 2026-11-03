@@ -2,8 +2,8 @@ package semiont
 
 // Job.Claim: a worker's claims and the jobs it comes to hold.
 //
-// The rules are docs/protocol/WORKER-CONTRACT.md's, and the worker
-// conformance suite (packages/conformance/worker) holds them on the wire. These
+// The rules are protocol/contract/WORKER-CONTRACT.md's, and the worker
+// conformance suite (protocol/conformance/worker) holds them on the wire. These
 // are the same rules over a transport the test answers by hand: the stand-in
 // dispatcher below answers each job:claim with what a test offered, refused,
 // or with nothing pending, and the stand-in record answers each commit and

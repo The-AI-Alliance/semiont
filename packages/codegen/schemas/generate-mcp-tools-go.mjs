@@ -14,7 +14,7 @@
 // `nullable` translated. What is the tool's own — `kb`, an option such as
 // `withText`, a result's wrapping — the table states as a schema of its own
 // (`own`), and nothing else is. A member whose name starts with `_` is the
-// gateway's to stamp (docs/protocol/EVENT-BUS.md) and is refused as an
+// gateway's to stamp (protocol/contract/EVENT-BUS.md) and is refused as an
 // argument. A form this generator does not render is refused by name, rather
 // than rendered as a guess.
 //

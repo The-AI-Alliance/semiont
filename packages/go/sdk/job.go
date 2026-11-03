@@ -90,7 +90,7 @@ func (n *JobNamespace) Cancel(ctx context.Context, jobID api.JobId) (bool, error
 // Claim is a worker's side: claim the jobs accepts describes, and hold one at
 // a time. Claiming begins when the claims are first ranged over, and each job
 // they hand out says its own lifecycle, commits its own annotations and
-// settles once (docs/protocol/WORKER-CONTRACT.md). The transport's stream
+// settles once (protocol/contract/WORKER-CONTRACT.md). The transport's stream
 // must name JobClaimChannels, and JobCommitChannels for a worker that
 // commits. The waits are the client's Timing: JobClaimTimeout, HeldJobStall,
 // HeldJobStallCheck and MarkCommitTimeout.

@@ -1,4 +1,4 @@
-"""The stream (`docs/protocol/TRANSPORT-HTTP.md` § The client).
+"""The stream (`protocol/contract/TRANSPORT-HTTP.md` § The client).
 
 One task owns the subscription, the connections that carry it, and the state
 they add up to.

@@ -73,7 +73,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   //
   // Each cache encapsulates the BehaviorSubject store, in-flight guard,
   // and per-key observable memoization. Behavioral contract:
-  // `docs/protocol/CACHE-SEMANTICS.md`.
+  // `protocol/contract/CACHE-SEMANTICS.md`.
   //
   // The caches are an implementation detail of this namespace; the public
   // surface is `resource()`, `annotations()`, etc.
@@ -367,7 +367,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   async resourceContent(resourceId: ResourceId): Promise<string> {
     const result = await this.content.getBinary(resourceId);
-    // The text the bytes are, as docs/protocol/W3C-SELECTORS.md states it: a byte-order mark decides, then the
+    // The text the bytes are, as protocol/contract/W3C-SELECTORS.md states it: a byte-order mark decides, then the
     // charset the response states, then UTF-8. A media type whose text is not its bytes (a PDF, an image) is
     // refused: its bytes are read with `resourceRepresentation`, and a PDF's text with `resourceAnchoredText`.
     return decodeRepresentation(result.data, result.contentType);

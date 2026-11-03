@@ -332,7 +332,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
           ...(tokenRefresher
             ? [
                 // A refused credential is renewed, never retried
-                // (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential):
+                // (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential):
                 // the refresher is asked once, and the request sent again at
                 // once with the token it gives. ky's forced retry is what sends
                 // it: it neither waits out a `Retry-After` nor asks
@@ -537,7 +537,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   /**
    * Correlated-reply retention, client side (see
-   * `docs/protocol/TRANSPORT-HTTP.md`): `Bus.request` registers its cid
+   * `protocol/contract/TRANSPORT-HTTP.md`): `Bus.request` registers its cid
    * here before emitting; the actor carries the tracked set as
    * `pendingReplies` on every subscribe body, so a reply published while
    * the connection was down replays from the server's retention buffer on
@@ -645,7 +645,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   /**
    * The token to send a request again with once the gateway has refused
    * `refused`: the refresher's, asked once, when it gives another
-   * (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). None without
+   * (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential). None without
    * a refresher. The `ky` hook renews through it, and so does
    * `HttpContentTransport`'s `XMLHttpRequest` upload, which `ky` does not send.
    */

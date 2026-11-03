@@ -15,18 +15,18 @@ other services (`semiont start`).
 | Port | 24102 (`/health`, and nothing else: everything it does is on the bus and in the graph) |
 | Command | `python -P -m semiont_weaver --config /etc/semiont/weaver.json` |
 | Code | Python, in this directory: [`src/semiont_weaver`](./src/semiont_weaver/) |
-| Specification | [docs/protocol/WEAVER.md](../../docs/protocol/WEAVER.md) |
-| Judged by | [packages/conformance/weaver](../../packages/conformance/weaver/README.md) |
+| Specification | [protocol/contract/WEAVER.md](../../protocol/contract/WEAVER.md) |
+| Judged by | [protocol/conformance/weaver](../../protocol/conformance/weaver/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
 
-[WEAVER.md](../../docs/protocol/WEAVER.md) states what a Weaver does, rule by rule; the
-[weaver conformance suite](../../packages/conformance/weaver/README.md) holds a Weaver to each rule,
+[WEAVER.md](../../protocol/contract/WEAVER.md) states what a Weaver does, rule by rule; the
+[weaver conformance suite](../../protocol/conformance/weaver/README.md) holds a Weaver to each rule,
 as a process behind a real gateway, a real Archivist and a real Neo4j.
 
 It follows the record as every follower of it does
-([TRANSPORT-CONTRACT.md § What repairs a passing frame](../../docs/protocol/TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)):
+([TRANSPORT-CONTRACT.md § What repairs a passing frame](../../protocol/contract/TRANSPORT-CONTRACT.md#what-repairs-a-passing-frame)):
 it keeps a cursor for each resource's log, the last event of it taken, moved one event at a
 time; and it sweeps the record for what it missed at its start and each time its stream opens
 again. Its fold, what each event does to the graph, applies eight events and takes every other
@@ -38,14 +38,14 @@ as nothing:
 - `mark:entity-tag-added`, `mark:entity-tag-removed`: a resource's entity types
 
 That graph is what the [Librarian](../librarian/) answers
-[`gather.referencedBy`](../../docs/protocol/flows/GATHER.md) from, and what gather's
+[`gather.referencedBy`](../../protocol/contract/flows/GATHER.md) from, and what gather's
 knowledge-graph traversal walks.
 
 **The graph says what the record says.** A resource is dated when its event was recorded, and
 attributed to whom the event records. An annotation is by the creator its event records, who
 asked for it, and never by whoever sent the event. A person is held without a name: the name is
 the directory's, which the Archivist joins onto every read
-([WEAVER.md § What the graph holds](../../docs/protocol/WEAVER.md#what-the-graph-holds)).
+([WEAVER.md § What the graph holds](../../protocol/contract/WEAVER.md#what-the-graph-holds)).
 
 **`weave:rebuild` is the one command it answers:** for one resource or for the whole graph, one
 at a time, answered with `weave:rebuild-ok` or `weave:rebuild-failed`. A rebuild that stopped at
@@ -55,7 +55,7 @@ an event it could not apply answers that it failed.
 
 It mounts no piece of the knowledge base and no state, and reaches three things:
 
-- the gateway, for the bus ([EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md))
+- the gateway, for the bus ([EVENT-BUS.md](../../protocol/contract/EVENT-BUS.md))
 - the Archivist's own HTTP surface, for the record by position and a resource's annotations
 - the graph database
 
@@ -118,7 +118,7 @@ the issuer>`.
 **Its telemetry goes where `OTEL_EXPORTER_OTLP_ENDPOINT` says**, as `semiont-weaver`, naming the
 knowledge base it serves by its DID (`semiont.kb`): what every service says of its own process,
 and a span for each frame it sends and receives on the bus
-([WEAVER.md § Telemetry](../../docs/protocol/WEAVER.md#telemetry)). The launcher sets the
+([WEAVER.md § Telemetry](../../protocol/contract/WEAVER.md#telemetry)). The launcher sets the
 endpoint for a stack it runs. Without it the Weaver exports nothing, unless
 `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the
 trace and the span they were written in.
@@ -201,7 +201,7 @@ checks what a built one promises.
 
 ## Related
 
-- [WEAVER.md](../../docs/protocol/WEAVER.md) — what a Weaver does, rule by rule
+- [WEAVER.md](../../protocol/contract/WEAVER.md) — what a Weaver does, rule by rule
 - [`semiont-graph`](../../packages/python/graph/) — the graph stores, and what the graph holds
 - [Gateway](../gateway/) — the bus it rides
 - [Librarian](../librarian/) — the reader whose barrier waits on its signals

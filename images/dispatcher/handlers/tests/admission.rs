@@ -1,4 +1,4 @@
-//! Admission below the bus (docs/protocol/JOBS.md § `job:create`,
+//! Admission below the bus (protocol/contract/JOBS.md § `job:create`,
 //! § `job:queued`): what the dispatcher itself makes of a job description,
 //! whatever a gateway refused before it. A job's parameters are its
 //! motivation's and no others; the job is held with them as they came, and

@@ -1,4 +1,4 @@
-"""The live driver: this SDK's client, its live queries and their cache, as `packages/conformance/sdk/live` drives it.
+"""The live driver: this SDK's client, its live queries and their cache, as `protocol/conformance/sdk/live` drives it.
 
 It reaches the SDK only as an application does, through what `semiont`
 exports, so what the suite observes is what a caller of the SDK gets.

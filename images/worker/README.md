@@ -14,13 +14,13 @@ serves every knowledge base on its list at once, each apart from the others.
 | Port | 24100 (`/health`, and nothing else) |
 | Command | `python -P -m semiont_worker --config /etc/semiont/worker.json` |
 | Code | Python, in this directory: [`src/semiont_worker`](./src/semiont_worker/) |
-| Specification | [docs/protocol/WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md) |
-| Judged by | [packages/conformance/worker-service](../../packages/conformance/worker-service/README.md) |
+| Specification | [protocol/contract/WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md) |
+| Judged by | [protocol/conformance/worker-service](../../protocol/conformance/worker-service/README.md) |
 | Published | to no package index: the image only |
 
 What the worker does is written rule by rule in
-[WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md), and the
-[worker-service conformance suite](../../packages/conformance/worker-service/README.md) holds an
+[WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md), and the
+[worker-service conformance suite](../../protocol/conformance/worker-service/README.md) holds an
 implementation to each rule. This page is the image, and how it is run.
 
 ## What it does
@@ -97,7 +97,7 @@ said each refusal already.
 Each call to the model is given **ten minutes**, and while one is under way the job reports
 where it stands every fifteen seconds. A held job that stalls starts its knowledge base again,
 loudly; and a running job nothing has touched for long enough is recovered by the dispatcher's
-sweep ([JOBS.md](../../docs/protocol/JOBS.md#periodic-work)).
+sweep ([JOBS.md](../../protocol/contract/JOBS.md#periodic-work)).
 
 A text is asked about in pieces sized from the model's limits. A piece whose answer cannot
 be used for its size is **asked again in halves** before it is allowed to fail the job.
@@ -242,8 +242,8 @@ checks what a built one promises.
 
 ## Related
 
-- [WORKER-SERVICE.md](../../docs/protocol/WORKER-SERVICE.md) — what the worker does, rule by rule
-- [WORKER-CONTRACT.md](../../docs/protocol/WORKER-CONTRACT.md) — the contract every worker keeps
-- [JOBS.md](../../docs/protocol/JOBS.md) — the job protocol, and the dispatcher's side of it
+- [WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md) — what the worker does, rule by rule
+- [WORKER-CONTRACT.md](../../protocol/contract/WORKER-CONTRACT.md) — the contract every worker keeps
+- [JOBS.md](../../protocol/contract/JOBS.md) — the job protocol, and the dispatcher's side of it
 - [`semiont-worker` skill](../../docs/builder/skills/semiont-worker/SKILL.md) — building your own job-claim daemon
 - [Adding a kind of job](../../docs/contributor/ADDING-A-JOB.md) — the path of a new kind of job through the spec, the SDKs, the dispatcher, this service, its suite and its rules

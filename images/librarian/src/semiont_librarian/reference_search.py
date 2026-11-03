@@ -1,7 +1,7 @@
 """A reference search: what a reference could refer to, as scored candidates.
 
 `match:search-requested` carries a reference and the context gathered around
-it (`docs/protocol/LIBRARIAN.md` § Reference search). Four sources are read
+it (`protocol/contract/LIBRARIAN.md` § Reference search). Four sources are read
 for candidates: the graph's listing by name, its listing by entity type, the
 resources the context's graph connects the reference's resource to, and the
 vector index. A resource is one candidate however many of them found it, and

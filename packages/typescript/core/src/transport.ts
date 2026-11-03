@@ -18,7 +18,7 @@
  *                         and streaming characteristics.
  *
  * The behavioral guarantees every implementation must honor are documented
- * in `docs/protocol/TRANSPORT-CONTRACT.md`.
+ * in `protocol/contract/TRANSPORT-CONTRACT.md`.
  */
 
 import type { Observable } from 'rxjs';

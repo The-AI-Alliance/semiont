@@ -25,9 +25,9 @@ upload body (`ResourceUpload`) is one schema that both documents' `POST
   gateway's: every operation says whether it is public, every response has a
   body schema, every error is an `ErrorResponse`, every 401 carries its
   challenge, every operation declares a 500.
-- The Archivist conformance suite (`packages/conformance/archivist`): every reply
+- The Archivist conformance suite (`protocol/conformance/archivist`): every reply
   it reads from the Archivist's HTTP surface must match its declaration here.
 - The gateway conformance suite's stand-in Archivist
-  (`packages/conformance/harness/archivist.ts`): every request the gateway
+  (`protocol/conformance/harness/archivist.ts`): every request the gateway
   sends it must be an operation declared here, and every reply the stand-in
   gives must match its declaration.

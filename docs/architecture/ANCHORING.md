@@ -206,7 +206,7 @@ takes PDFium, the `tesseract` program and a directory to write.
 
 ## Related
 
-- **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types an annotation may carry, and which apply to which media.
+- **[../../protocol/contract/W3C-SELECTORS.md](../../protocol/contract/W3C-SELECTORS.md)** — the selector types an annotation may carry, and which apply to which media.
 - **[KNOWLEDGE-SYSTEM.md](KNOWLEDGE-SYSTEM.md)** — the actors, and the storage the map sits in.
-- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the anchored-text store as the Archivist keeps it, and the wait for the Smelter to settle.
-- **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — `IContentTransport`, where the map crosses a process boundary.
+- **[../../protocol/contract/ARCHIVIST.md](../../protocol/contract/ARCHIVIST.md)** — the anchored-text store as the Archivist keeps it, and the wait for the Smelter to settle.
+- **[../../protocol/contract/TRANSPORT-CONTRACT.md](../../protocol/contract/TRANSPORT-CONTRACT.md)** — `IContentTransport`, where the map crosses a process boundary.

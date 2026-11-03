@@ -80,7 +80,7 @@ export function readCacheRefresh(tablePath, registryPath, apiPath, refuse) {
     if (unknown.length > 0) refuse(`${label} states ${unknown.join(', ')}, which a row does not have`);
   }
   // What a row may do follows from how its trigger is delivered
-  // (docs/protocol/TRANSPORT-CONTRACT.md § Delivery). A passing frame is lost
+  // (protocol/contract/TRANSPORT-CONTRACT.md § Delivery). A passing frame is lost
   // when the stream is down, so a row it triggers does only what is safe to
   // miss: it refetches, and `reopened` refetches the same queries, which is what
   // repairs the miss.

@@ -110,7 +110,7 @@ the five to one answer.
 
 - **`decode`** — charset-aware passthrough. The text *is* the bytes. Free.
   What text the bytes are is protocol:
-  [the text of a resource](../protocol/W3C-SELECTORS.md#the-text-of-a-resource)
+  [the text of a resource](../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource)
   states it, as a browser reads a content type and the bytes behind it, and
   two tables every reader runs hold it
   ([`decode-cases.json`](../../specs/src/text/decode-cases.json) and
@@ -464,6 +464,6 @@ decide each axis knowingly:
 ## Related
 
 - **[ANCHORING.md](ANCHORING.md)** — the anchoring pipeline in depth.
-- **[../protocol/W3C-SELECTORS.md](../protocol/W3C-SELECTORS.md)** — the selector types, and which apply to which anchoring model.
-- **[../protocol/ARCHIVIST.md](../protocol/ARCHIVIST.md)** — the wait step 8 relies on: a read of anchored text waits for the Smelter to settle.
-- **[../protocol/TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md)** — where the artifact crosses a process boundary.
+- **[../../protocol/contract/W3C-SELECTORS.md](../../protocol/contract/W3C-SELECTORS.md)** — the selector types, and which apply to which anchoring model.
+- **[../../protocol/contract/ARCHIVIST.md](../../protocol/contract/ARCHIVIST.md)** — the wait step 8 relies on: a read of anchored text waits for the Smelter to settle.
+- **[../../protocol/contract/TRANSPORT-CONTRACT.md](../../protocol/contract/TRANSPORT-CONTRACT.md)** — where the artifact crosses a process boundary.

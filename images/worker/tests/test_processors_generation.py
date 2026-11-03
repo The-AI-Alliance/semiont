@@ -1,6 +1,6 @@
 """The `yield` processor: what it asks for, what it makes of the answer, what it reports, and what it refuses.
 
-`docs/protocol/WORKER-SERVICE.md` § Generation states what a `yield` job
+`protocol/contract/WORKER-SERVICE.md` § Generation states what a `yield` job
 does, and each test here that holds one of its rules names the rule. The
 generation and the compiler are stood in for (`standing_in.py`): what a
 prompt says and how a model is asked are `test_generation_prompts.py`'s and

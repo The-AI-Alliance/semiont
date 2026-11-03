@@ -46,7 +46,7 @@ type Timing struct {
 	// every renewal after it, for as long as the process lives. An upload has no
 	// deadline: how long it takes is how large the resource is. A read of
 	// anchored text may be held by the Archivist while the Smelter reads the
-	// content, for the time docs/protocol/ARCHIVIST.md states, and this deadline
+	// content, for the time protocol/contract/ARCHIVIST.md states, and this deadline
 	// is longer than that wait.
 	HttpRequestTimeout time.Duration
 	// RequestRetryPause is requestRetryPauseMs: The wait before an HTTP request

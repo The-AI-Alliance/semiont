@@ -1244,7 +1244,7 @@ RESOURCE_SCOPED_CHANNELS: Final[tuple[ChannelName, ...]] = (
 )
 
 # The channels of the events of the record, each named for the event it carries: every event the event log
-# holds. A follower of the record receives each of them (docs/protocol/TRANSPORT-CONTRACT.md § What repairs
+# holds. A follower of the record receives each of them (protocol/contract/TRANSPORT-CONTRACT.md § What repairs
 # a passing frame).
 PERSISTED_EVENT_TYPES: Final[tuple[ChannelName, ...]] = (
     "yield:created",

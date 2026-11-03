@@ -46,7 +46,7 @@ const RECORD_SCHEMAS = [
 ];
 const CONFIG_SCHEMAS = ['ArchivistConfig', 'ArchivistEngines', 'Engine'];
 const TABLES = ['specs/src/archivist/shard-cases.json'];
-const PROTOCOL = 'docs/protocol/ARCHIVIST.md';
+const PROTOCOL = 'protocol/contract/ARCHIVIST.md';
 
 const components = read(resolve(REPO, 'specs/src/openapi.json')).components.schemas;
 const present = [];

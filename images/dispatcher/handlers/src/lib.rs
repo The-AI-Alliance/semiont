@@ -1,4 +1,4 @@
-//! The dispatcher's handlers (docs/protocol/JOBS.md) and the job queue they
+//! The dispatcher's handlers (protocol/contract/JOBS.md) and the job queue they
 //! drive, held as a contract (`queue::JobQueue`). No broker is anywhere in
 //! this crate's dependencies — CI holds that — so a handler can reach the
 //! queue only through the trait, and the queue's broker only through its

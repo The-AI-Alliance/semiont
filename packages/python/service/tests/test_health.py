@@ -1,6 +1,6 @@
 """The health endpoint: `GET /health`, and nothing else.
 
-Each service's page of `docs/protocol` states what its endpoint says. Here is
+Each service's page of `protocol/contract` states what its endpoint says. Here is
 how any of them is asked and answered. The endpoint is HTTP written out by
 hand, so each request here is written out by hand too.
 """

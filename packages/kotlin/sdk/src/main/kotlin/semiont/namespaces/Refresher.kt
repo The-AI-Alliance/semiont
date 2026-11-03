@@ -100,7 +100,7 @@ private fun named(trigger: CacheRefreshTrigger, payload: JsonObject): Subject = 
  * stream, asks again for the queries its row names, writes the ones whose new
  * value the event carries, and ends the ones whose entity is gone. An event
  * acts only on a key its cache holds, and the refetches one key is asked for
- * inside a window are one refetch (docs/protocol/CACHE-SEMANTICS.md, B12 to
+ * inside a window are one refetch (protocol/contract/CACHE-SEMANTICS.md, B12 to
  * B13b, B19, B20). A client has one, listening from when the client is made
  * until it closes.
  */

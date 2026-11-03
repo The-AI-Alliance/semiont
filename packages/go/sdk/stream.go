@@ -1,6 +1,6 @@
 package semiont
 
-// The stream (docs/protocol/TRANSPORT-HTTP.md § The client): one goroutine
+// The stream (protocol/contract/TRANSPORT-HTTP.md § The client): one goroutine
 // that owns the subscription, the connections that carry it, and the state
 // they add up to.
 //
@@ -778,7 +778,7 @@ func (s *stream) read(ctx context.Context, conn uint64, token string, body api.B
 }
 
 // refusal is a refusal as the transport reports it. A refused credential
-// (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential) is unauthorized
+// (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential) is unauthorized
 // with the status the gateway answered, whatever that was. It keeps the wait
 // the gateway stated, which nothing waits out: it is renewed, never retried.
 // Any other refusal's status decides its code.

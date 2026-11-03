@@ -188,7 +188,7 @@ def decode_representation(data: bytes, media_type: str) -> str:
     `semiont.media_types.text_source_of` says, so a `text/` type the registry
     lacks is read.
 
-    The rule is `docs/protocol/W3C-SELECTORS.md`'s ("The text of a
+    The rule is `protocol/contract/W3C-SELECTORS.md`'s ("The text of a
     resource"): the MIME Sniffing Standard's reading of the content type and
     the Encoding Standard's reading of the bytes, as a browser follows the
     two. The charset is the one the content type states, UTF-8 when it states

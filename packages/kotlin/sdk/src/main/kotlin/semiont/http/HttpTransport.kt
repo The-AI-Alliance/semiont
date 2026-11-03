@@ -71,7 +71,7 @@ public data class Timing @JvmOverloads constructor(
 
 /**
  * The bus over HTTP: emits to `POST /bus/emit`, and one stream from
- * `POST /bus/subscribe` (docs/protocol/TRANSPORT-HTTP.md). It reads its token
+ * `POST /bus/subscribe` (protocol/contract/TRANSPORT-HTTP.md). It reads its token
  * from `token`, which its owner feeds, and asks `refresher` for another when
  * the gateway refuses it. The stream opens once there is a token and
  * something to carry: a channel it names on no scope, or a resource's scope. With

@@ -84,7 +84,7 @@
  * `__init__`, a `new` that is not `pub`), Python's names that begin with an
  * underscore, Rust's trait implementations, and what a TypeScript class
  * inherits from a class the SDK does not declare. What a member does is not
- * read here either: docs/protocol/WORKER-CONTRACT.md states it, and the
+ * read here either: protocol/contract/WORKER-CONTRACT.md states it, and the
  * worker conformance suite holds each SDK to it.
  *
  * TypeScript's members are those of `interface Held` and of the class
@@ -1928,7 +1928,7 @@ for (const thing of table.worker ?? []) {
     if (members.has(row.member)) fail(`${name} is listed twice`);
     members.set(row.member, row);
     const strays = Object.keys(row).filter((key) => !['member', 'absent', 'named', 'takes', 'notYetReached'].includes(key));
-    if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is docs/protocol/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
+    if (strays.length > 0) fail(`${name} states ${strays.join(', ')}, which a member's row does not: what a member does is protocol/contract/WORKER-CONTRACT.md's and the worker conformance suite's to hold`);
     for (const [sdk, why] of Object.entries(row.absent ?? {})) {
       if (!WORKER_SDKS.includes(sdk)) fail(`${name}: \`absent\` names "${sdk}", which is no SDK whose worker's surface this lint reads`);
       if (typeof why !== 'string' || why === '') fail(`${name}: \`absent\` does not say why ${sdk} lacks it`);

@@ -91,7 +91,7 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 
 **Graph, vector store and embedding provider connects** take a deadline instead —
 one minute (`asyncio.timeout`) in the librarian's start, and the same minute in the weaver's and
-the smelter's ([SMELTER.md](../protocol/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
+the smelter's ([SMELTER.md](../../protocol/contract/SMELTER.md#boot)). These are one-shot connects with no transient class worth naming, and an
 unbounded await leaves a container hung where a restart-on-exit policy can only rescue a process
 that exits.
 

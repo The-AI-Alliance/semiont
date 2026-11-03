@@ -1,5 +1,5 @@
 //! A bus request over a transport that misbehaves on a schedule: what it
-//! sends, when, and how it settles (docs/protocol/TRANSPORT-CONTRACT.md
+//! sends, when, and how it settles (protocol/contract/TRANSPORT-CONTRACT.md
 //! § Requests).
 
 use semiont::bus::{Bus, Operation, operation};

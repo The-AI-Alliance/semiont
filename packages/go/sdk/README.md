@@ -260,7 +260,7 @@ attention. Each is a namespace of the client, a field of `*semiont.Client`.
 | Attention | `Beckon` | Direct attention across participants | `Beckon.Hover`, `Beckon.Sparkle`, `Beckon.OpenResource` |
 
 Beside the eight are `Job`, `Auth` and `System`. What each flow means is in
-[docs/protocol/flows][flows].
+[protocol/contract/flows][flows].
 
 ## A first program
 
@@ -1141,15 +1141,15 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [quick-start]: ../../../docs/builder/QUICK-START.md
 [developer-guide]: ../../../docs/builder/DEVELOPER-GUIDE.md
 [skills]: ../../../docs/builder/skills
-[flows]: ../../../docs/protocol/flows/README.md
+[flows]: ../../../protocol/contract/flows/README.md
 [reactive-model]: ../../../docs/builder/REACTIVE-MODEL.md
-[protocol]: ../../../docs/protocol/README.md
-[transport-contract]: ../../../docs/protocol/TRANSPORT-CONTRACT.md
-[transport-http]: ../../../docs/protocol/TRANSPORT-HTTP.md
-[cache-semantics]: ../../../docs/protocol/CACHE-SEMANTICS.md
-[conformance]: ../../conformance/sdk/README.md
-[worker-contract]: ../../../docs/protocol/WORKER-CONTRACT.md
-[worker-conformance]: ../../conformance/worker/README.md
+[protocol]: ../../../protocol/contract/README.md
+[transport-contract]: ../../../protocol/contract/TRANSPORT-CONTRACT.md
+[transport-http]: ../../../protocol/contract/TRANSPORT-HTTP.md
+[cache-semantics]: ../../../protocol/contract/CACHE-SEMANTICS.md
+[conformance]: ../../../protocol/conformance/sdk/README.md
+[worker-contract]: ../../../protocol/contract/WORKER-CONTRACT.md
+[worker-conformance]: ../../../protocol/conformance/worker/README.md
 [sdk-typescript]: ../../typescript/sdk/README.md
 [sdk-rust]: ../../rust/sdk/README.md
 [sdk-python]: ../../python/sdk/README.md
@@ -1159,10 +1159,10 @@ Apache-2.0. See [LICENSE](../../../LICENSE).
 [refresh]: ../../../specs/src/client/refresh.json
 [codes]: ../../../specs/src/errors/codes.json
 [session-cases]: ../../../specs/src/session/cases.json
-[resource-text]: ../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
+[resource-text]: ../../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource
 [sign-in-store]: ../../../specs/src/sign-in-store/README.md
 [telemetry]: ../../../specs/src/sdk-telemetry/telemetry.json
-[bus-log]: ../../../docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
+[bus-log]: ../../../protocol/contract/EVENT-BUS.md#wire-format-the-bus-log
 [package]: .
 [testing]: ../../../docs/contributor/TESTING.md
 [state-units]: ../../../docs/builder/STATE-UNITS.md

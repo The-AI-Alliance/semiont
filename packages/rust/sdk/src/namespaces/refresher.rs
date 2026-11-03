@@ -13,7 +13,7 @@
 //!
 //! An event acts only on a key its cache holds, and the refetches one key is
 //! asked for inside a window are one refetch
-//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
+//! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
 use super::browse::{self, BrowseNamespace, WHOLE, invalidate_engines};
 use super::gather::{GatherNamespace, ReferencedBy};

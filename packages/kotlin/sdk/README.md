@@ -133,7 +133,7 @@ A worker claims jobs from a knowledge base's queue, does each one, and says what
 - **A held job settles once.** It says its own start, progress and checkpoints, commits its annotations (`commit(resourceId, annotations)` returns once the record has them), and settles with `complete`, `fail` or `cancel`. Closing one nobody settled fails it, and `stop()` fails the job held first. `fail` says whether the queue will run the job again, by the rule `willRetryAfter` states.
 - **A refused claim is told**, on `claims.refused()`, with its code. A claim answered with nothing pending is no refusal, and the worker waits.
 
-What a worker promises is docs/protocol/WORKER-CONTRACT.md, and the worker conformance suite holds this SDK to it through a driver written in Java.
+What a worker promises is protocol/contract/WORKER-CONTRACT.md, and the worker conformance suite holds this SDK to it through a driver written in Java.
 
 ## Testing
 
@@ -157,7 +157,7 @@ Java reaches the ids as their own types, not as text, through Kotlin's `@JvmExpo
 
 ## The wire
 
-`semiont.http.HttpTransport` is the bus over HTTP: emits to `POST /bus/emit` and one event stream from `POST /bus/subscribe` (docs/protocol/TRANSPORT-HTTP.md). It reads its token from a `StateFlow` its owner feeds, and asks a `TokenRefresher` for another when the gateway refuses it. `HttpContentTransport` carries what never rides the bus: uploads, and a resource's bytes, description, annotations and anchored text.
+`semiont.http.HttpTransport` is the bus over HTTP: emits to `POST /bus/emit` and one event stream from `POST /bus/subscribe` (protocol/contract/TRANSPORT-HTTP.md). It reads its token from a `StateFlow` its owner feeds, and asks a `TokenRefresher` for another when the gateway refuses it. `HttpContentTransport` carries what never rides the bus: uploads, and a resource's bytes, description, annotations and anchored text.
 
 `semiont.bus.Bus` is the bus typed by channel. A channel is a constant of `Channels`, typed by the payload its frames carry, and an operation a constant of `Operations`, typed by what it sends and what each reply carries: `emit`, `frames` and `request` each take one, and the compiler refuses a payload that is not its channel's.
 

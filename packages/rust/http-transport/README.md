@@ -400,8 +400,8 @@ to provide is in
 
 The SDK states three contracts a client needs of the wire
 (`semiont::transport`), and this crate implements each over a gateway
-([HTTP transport](../../../docs/protocol/TRANSPORT-HTTP.md),
-[transport contract](../../../docs/protocol/TRANSPORT-CONTRACT.md)):
+([HTTP transport](../../../protocol/contract/TRANSPORT-HTTP.md),
+[transport contract](../../../protocol/contract/TRANSPORT-CONTRACT.md)):
 
 | Contract | Type here | Carries |
 |---|---|---|
@@ -488,8 +488,8 @@ stand-in gateway and issuer. The Rust block of the
 is held to the same regions. [tests/stream.rs](tests/stream.rs) holds the
 stream's behaviour against a gateway that misbehaves on cue.
 [conformance/](conformance) holds the two drivers the
-[SDK conformance suite](../../conformance/sdk/README.md) runs, and the
-one the [worker conformance suite](../../conformance/worker/README.md)
+[SDK conformance suite](../../../protocol/conformance/sdk/README.md) runs, and the
+one the [worker conformance suite](../../../protocol/conformance/worker/README.md)
 runs.
 
 ## License

@@ -49,7 +49,7 @@ refused."""
 def refusal(message: str, status: int, body: bytes | None, stated_wait_ms: int | None) -> TransportError:
     """The gateway's refusal of a request, under the code it fails with. `body` is `None` when it could not be read.
 
-    A refused credential (`docs/protocol/TRANSPORT-CONTRACT.md` § A refused
+    A refused credential (`protocol/contract/TRANSPORT-CONTRACT.md` § A refused
     credential) is `unauthorized`, which is how the stream, an emit and a
     request each know one: a `401`, or a `429` whose body is a `LimitRefusal`
     naming `refusal-rate`. Its token is renewed, never retried, so the wait it

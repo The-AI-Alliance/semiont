@@ -313,7 +313,7 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 ## See also
 
 - [REACTIVE-MODEL.md](./REACTIVE-MODEL.md) — the four return-shape categories (Promise / StreamObservable / CacheObservable / void) and the naming convention. State unit method returns follow the same convention.
-- [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
+- [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) — the `Cache<K,V>` primitive backing live queries, itself a state unit specialized for keyed multicast caches.
 - [Usage.md](./Usage.md) — per-namespace tour with concrete examples; many namespace methods return state-unit Observables or trigger state-unit reactions internally.
 - [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
 - [The Python SDK's README](../../packages/python/sdk/README.md#state-units) — the Python units, and a program that watches one.

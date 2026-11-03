@@ -1,7 +1,7 @@
 //! The job queue the handlers drive, as a contract any broker can keep.
 //!
 //! A queue holds one record per job (`semiont::types::Job`) and moves it
-//! through the states docs/protocol/JOBS.md gives it. What a queue must
+//! through the states protocol/contract/JOBS.md gives it. What a queue must
 //! provide, whatever holds it:
 //!
 //! - **An atomic claim by filter.** A claim takes a pending job that matches

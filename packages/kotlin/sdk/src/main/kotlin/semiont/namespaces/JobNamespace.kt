@@ -40,7 +40,7 @@ public class JobNamespace internal constructor(private val links: Links) {
     /**
      * A worker's claims of the jobs `accepts` takes: each job it comes to hold,
      * one at a time, and each claim it was refused
-     * (docs/protocol/WORKER-CONTRACT.md). Nothing is claimed until they are
+     * (protocol/contract/WORKER-CONTRACT.md). Nothing is claimed until they are
      * first read. A claim waits `jobClaimTimeoutMs` for its answer; a held job
      * silent for `heldJobStallMs` is stalled, looked for every
      * `heldJobStallCheckMs`; each of a commit's requests waits

@@ -107,7 +107,7 @@ export function isDraft(resource: ResourceDescriptor | undefined): boolean {
 /**
  * A representation's bytes as the text they are, for a media type whose bytes
  * are its text. The reading is `decodeWithCharset`'s, which keeps the rule
- * every reader of a resource's text keeps (docs/protocol/W3C-SELECTORS.md,
+ * every reader of a resource's text keeps (protocol/contract/W3C-SELECTORS.md,
  * "The text of a resource"). An offset counts the code points of this text,
  * so every reader makes the same text of the same bytes.
  *

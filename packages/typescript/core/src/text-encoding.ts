@@ -1,7 +1,7 @@
 /**
  * What text a resource's bytes are.
  *
- * The rule is protocol: docs/protocol/W3C-SELECTORS.md states it ("The text
+ * The rule is protocol: protocol/contract/W3C-SELECTORS.md states it ("The text
  * of a resource"), and the two tables every reader runs hold it,
  * specs/src/text/decode-cases.json and specs/src/text/encoding-cases.json. It
  * is the MIME Sniffing Standard's reading of the content type and the

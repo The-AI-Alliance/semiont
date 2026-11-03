@@ -6,7 +6,7 @@
  * Smelter's, the Librarian's, and the selectors' page, for its rules of what
  * text a resource's bytes are.
  *
- * - Every rule's `*Held by …*` in docs/protocol/TRANSPORT-CONTRACT.md,
+ * - Every rule's `*Held by …*` in protocol/contract/TRANSPORT-CONTRACT.md,
  *   TRANSPORT-HTTP.md, WORKER-CONTRACT.md, WORKER-SERVICE.md, WEAVER.md,
  *   SMELTER.md, LIBRARIAN.md and W3C-SELECTORS.md names cases
  *   that exist: `sdk/wire/<case>`, `sdk/live/<case>` (a file, or a case built
@@ -41,14 +41,14 @@ const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
  * the token a rule names one by, and what a failure calls it.
  */
 const SERVICE_SUITES = [
-  { doc: 'docs/protocol/WORKER-SERVICE.md', dir: 'packages/conformance/worker-service', token: 'worker-service', service: 'a Worker service', counted: 'worker-service' },
-  { doc: 'docs/protocol/WEAVER.md', dir: 'packages/conformance/weaver', token: 'weaver', service: 'a Weaver', counted: 'weaver' },
-  { doc: 'docs/protocol/SMELTER.md', dir: 'packages/conformance/smelter', token: 'smelter', service: 'a Smelter', counted: 'smelter' },
-  { doc: 'docs/protocol/LIBRARIAN.md', dir: 'packages/conformance/librarian', token: 'librarian', service: 'a Librarian', counted: 'librarian' },
+  { doc: 'protocol/contract/WORKER-SERVICE.md', dir: 'protocol/conformance/worker-service', token: 'worker-service', service: 'a Worker service', counted: 'worker-service' },
+  { doc: 'protocol/contract/WEAVER.md', dir: 'protocol/conformance/weaver', token: 'weaver', service: 'a Weaver', counted: 'weaver' },
+  { doc: 'protocol/contract/SMELTER.md', dir: 'protocol/conformance/smelter', token: 'smelter', service: 'a Smelter', counted: 'smelter' },
+  { doc: 'protocol/contract/LIBRARIAN.md', dir: 'protocol/conformance/librarian', token: 'librarian', service: 'a Librarian', counted: 'librarian' },
 ];
-const DOCS = ['docs/protocol/TRANSPORT-CONTRACT.md', 'docs/protocol/TRANSPORT-HTTP.md', 'docs/protocol/WORKER-CONTRACT.md', ...SERVICE_SUITES.map((suite) => suite.doc), 'docs/protocol/W3C-SELECTORS.md'];
-const SDK = 'packages/conformance/sdk';
-const WORKER = 'packages/conformance/worker/cases';
+const DOCS = ['protocol/contract/TRANSPORT-CONTRACT.md', 'protocol/contract/TRANSPORT-HTTP.md', 'protocol/contract/WORKER-CONTRACT.md', ...SERVICE_SUITES.map((suite) => suite.doc), 'protocol/contract/W3C-SELECTORS.md'];
+const SDK = 'protocol/conformance/sdk';
+const WORKER = 'protocol/conformance/worker/cases';
 const failures = [];
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
 const jsonIn = (dir) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -'.json'.length));
@@ -99,7 +99,7 @@ for (const doc of DOCS) {
         : suite === 'sdk' && layer === 'live' ? live.includes(name) || built.includes(name)
         : suite === 'worker' && name === undefined ? worker.includes(layer)
         : serviceCases.has(suite) && name === undefined ? serviceCases.get(suite).includes(layer)
-        : suite === 'gateway' || suite === 'dispatcher' ? existsSync(join(ROOT, 'packages/conformance', token))
+        : suite === 'gateway' || suite === 'dispatcher' ? existsSync(join(ROOT, 'protocol/conformance', token))
         : existsSync(join(ROOT, token));
       if (!exists) failures.push(`${doc}: a rule is held by \`${token}\`, which does not exist`);
     }

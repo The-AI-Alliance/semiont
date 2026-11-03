@@ -165,7 +165,7 @@ attention. Each is a namespace of the client.
 
 `yield` is Python's own word, so its namespace is `yield_`. Beside the eight
 are `job`, `auth` and `system`. What each flow means is in
-[docs/protocol/flows][flows].
+[protocol/contract/flows][flows].
 
 ## A first program
 
@@ -1069,15 +1069,15 @@ Apache-2.0. See [LICENSE][license].
 [quick-start]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/QUICK-START.md
 [developer-guide]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/DEVELOPER-GUIDE.md
 [skills]: https://github.com/The-AI-Alliance/semiont/tree/main/docs/builder/skills
-[flows]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/flows/README.md
+[flows]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/flows/README.md
 [reactive-model]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/REACTIVE-MODEL.md
-[protocol]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/README.md
-[transport-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-CONTRACT.md
-[transport-http]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/TRANSPORT-HTTP.md
-[cache-semantics]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/CACHE-SEMANTICS.md
-[conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/conformance/sdk/README.md
-[worker-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/WORKER-CONTRACT.md
-[worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/conformance/worker/README.md
+[protocol]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/README.md
+[transport-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/TRANSPORT-CONTRACT.md
+[transport-http]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/TRANSPORT-HTTP.md
+[cache-semantics]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/CACHE-SEMANTICS.md
+[conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/conformance/sdk/README.md
+[worker-contract]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/WORKER-CONTRACT.md
+[worker-conformance]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/conformance/worker/README.md
 [sdk-typescript]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/typescript/sdk/README.md
 [sdk-rust]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/rust/sdk/README.md
 [sdk-go]: https://github.com/The-AI-Alliance/semiont/blob/main/packages/go/sdk/README.md
@@ -1091,11 +1091,11 @@ Apache-2.0. See [LICENSE][license].
 [reconcile-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/reconcile-cases.json
 [builder-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/builder-cases.json
 [id-cases]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/annotations/id-cases.json
-[resource-text]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource
+[resource-text]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource
 [sign-in-store]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sign-in-store/README.md
 [stored-keys]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/session/stored.json
 [telemetry]: https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/sdk-telemetry/telemetry.json
-[bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/protocol/EVENT-BUS.md#wire-format-the-bus-log
+[bus-log]: https://github.com/The-AI-Alliance/semiont/blob/main/protocol/contract/EVENT-BUS.md#wire-format-the-bus-log
 [package]: https://github.com/The-AI-Alliance/semiont/tree/main/packages/python/sdk
 [testing]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/contributor/TESTING.md
 [state-units]: https://github.com/The-AI-Alliance/semiont/blob/main/docs/builder/STATE-UNITS.md

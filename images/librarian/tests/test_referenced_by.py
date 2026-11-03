@@ -1,6 +1,6 @@
 """What refers to a resource: the reply to `gather:referenced-by-requested`.
 
-The rule is `docs/protocol/LIBRARIAN.md`'s (§ What refers to a resource).
+The rule is `protocol/contract/LIBRARIAN.md`'s (§ What refers to a resource).
 The graph and the record are the rig's fakes: each answers what a test
 states and keeps what it was asked. Its reply names no person, so no one is
 asked after for it.

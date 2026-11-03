@@ -29,7 +29,7 @@ from semiont.transport import (
     ResourceHold,
 )
 
-PROTOCOL = ROOT / "docs/protocol"
+PROTOCOL = ROOT / "protocol/contract"
 RESULT, FAILURE = "browse:resource-result", "browse:resource-failed"
 
 

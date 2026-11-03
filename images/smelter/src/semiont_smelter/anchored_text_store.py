@@ -7,7 +7,7 @@ the decline that came of trying. Everything kept is derived from the bytes,
 so an entry that is not taken costs deriving it again, and nothing else.
 
 The Archivist keeps the store, and no other process mounts it
-(`docs/protocol/ARCHIVIST.md` § The anchored-text store). The Smelter reaches
+(`protocol/contract/ARCHIVIST.md` § The anchored-text store). The Smelter reaches
 it on the Archivist's own surface (`specs/src/archivist/openapi.json`), as
 its service account, at the address its document names:
 

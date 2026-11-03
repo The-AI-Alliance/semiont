@@ -15,7 +15,7 @@ import { signInSession } from '../fixtures/sdk-session';
  * operator's `curl :24100/health`) live outside the Worker service, so its
  * own tests of the body it builds can't catch a break in what a running
  * stack serves. The payload shape is deliberately re-declared here: it is
- * the consumer's reading of docs/protocol/WORKER-SERVICE.md H1, and a shape
+ * the consumer's reading of protocol/contract/WORKER-SERVICE.md H1, and a shape
  * taken from the producer would make the check tautological.
  *
  * What it pins:
@@ -66,7 +66,7 @@ const JOBS = [...MARK_MOTIVATIONS.map((motivation) => `mark.${motivation}`), 'yi
 
 /**
  * Consumer-side re-declaration of the `/health` contract
- * (docs/protocol/WORKER-SERVICE.md H1, over what a worker can say of itself,
+ * (protocol/contract/WORKER-SERVICE.md H1, over what a worker can say of itself,
  * WORKER-CONTRACT V1). Every field is runtime-asserted below; the type
  * exists so the assertions read cleanly, not as the check itself.
  */

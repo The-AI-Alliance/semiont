@@ -1,7 +1,7 @@
 """The score of one candidate of a reference search: its terms, its reason, and the one way a score is rounded.
 
 A reference search answers what a reference could refer to
-(`docs/protocol/LIBRARIAN.md` § The score, § The model's score). Each
+(`protocol/contract/LIBRARIAN.md` § The score, § The model's score). Each
 candidate has a score, which is a sum of terms, and a reason, which says in
 words what the sum was made of. Both are worked out here, from the candidate,
 what the search was made with, and a moment it is handed: nothing here reads

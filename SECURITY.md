@@ -33,6 +33,6 @@ Please allow reasonable time for a fix before any public disclosure.
 
 - [Security model & operational hardening](docs/operator/administration/SECURITY.md)
 - [Authentication architecture (OAuth + JWT)](docs/operator/administration/AUTHENTICATION.md)
-- [Roles & access control (RBAC)](docs/protocol/RBAC.md)
+- [Roles & access control (RBAC)](protocol/contract/RBAC.md)
 - [Secrets management](docs/operator/services/SECRETS.md)
 - [Container image supply-chain (scanning, SBOM, signing)](docs/operator/administration/IMAGES.md)

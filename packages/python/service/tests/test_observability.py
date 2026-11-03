@@ -1,6 +1,6 @@
 """What the process exports of itself: when it exports nothing, and the readings it takes of itself.
 
-§ Environment of each service's page of `docs/protocol` states what each
+§ Environment of each service's page of `protocol/contract` states what each
 variable does, and that service's conformance suite holds a started service
 to it, exporter by exporter. A process installs its telemetry once, so what
 is installed is those suites' to hold. Here is what is decided before

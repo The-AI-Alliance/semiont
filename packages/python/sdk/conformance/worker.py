@@ -1,4 +1,4 @@
-"""The worker driver: a worker written on this SDK, as `packages/conformance/worker` drives it.
+"""The worker driver: a worker written on this SDK, as `protocol/conformance/worker` drives it.
 
 It reaches the worker's surface only as a worker's author does: `job.claim`
 on the SDK's client, the claims it returns, and the held jobs they hand out.

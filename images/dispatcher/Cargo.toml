@@ -4,7 +4,7 @@ workspace = "../../packages/rust"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "The Semiont dispatcher: the knowledge base's job control plane, as docs/protocol/JOBS.md states it."
+description = "The Semiont dispatcher: the knowledge base's job control plane, as protocol/contract/JOBS.md states it."
 
 [[bin]]
 name = "semiont-dispatcher"

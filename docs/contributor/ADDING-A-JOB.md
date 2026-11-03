@@ -1,8 +1,8 @@
 # Adding a kind of job
 
-A **job** is one of the protocol's [eight verbs](../protocol/README.md#the-eight-verbs) handed to an agent: asked for with parameters, and done by whoever claims it. A job description is its `jobType`, which is the verb, and the params that verb takes. Two verbs can be handed over today. A `mark` job annotates a resource for one motivation (`highlighting`, `commenting`, `assessing`, `linking` or `tagging`), and a `yield` job makes a resource.
+A **job** is one of the protocol's [eight verbs](../../protocol/contract/README.md#the-eight-verbs) handed to an agent: asked for with parameters, and done by whoever claims it. A job description is its `jobType`, which is the verb, and the params that verb takes. Two verbs can be handed over today. A `mark` job annotates a resource for one motivation (`highlighting`, `commenting`, `assessing`, `linking` or `tagging`), and a `yield` job makes a resource.
 
-So adding a kind of job adds something a verb can be asked to do. It adds no verb, no channel and no service. The `job:*` channels carry every job, the dispatcher queues every job, and a worker claims by a filter over the same description ([JOBS.md](../protocol/JOBS.md)). This page is the path of that change through the repository: each step, the file it is made in, and what fails when it is left out.
+So adding a kind of job adds something a verb can be asked to do. It adds no verb, no channel and no service. The `job:*` channels carry every job, the dispatcher queues every job, and a worker claims by a filter over the same description ([JOBS.md](../../protocol/contract/JOBS.md)). This page is the path of that change through the repository: each step, the file it is made in, and what fails when it is left out.
 
 It is not how to write a worker. A worker of your own that serves a job the protocol already has changes nothing here. The [`semiont-worker` skill](../builder/skills/semiont-worker/SKILL.md) builds one in TypeScript, in Rust and in Python, and tests hold what it shows: its TypeScript is type-checked against the built packages, and its Rust and its Python are, word for word, programs that tests run.
 
@@ -12,13 +12,13 @@ The steps add a `mark` job of a new motivation, which is the usual case. Each wa
 
 | | Step | Where | What fails when it is left out |
 |---|---|---|---|
-| 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `packages/conformance/worker-service/telemetry.test.ts` |
+| 1 | [State the job](#1-state-the-job-in-the-spec) | `specs/src/components/schemas`, `specs/src/openapi.json`, `specs/src/service-telemetry/telemetry.json` | `npm run lint:spec-jobs`, `npm run lint:spec-archivist`; `protocol/conformance/worker-service/telemetry.test.ts` |
 | 2 | [Regenerate the types](#2-regenerate-the-types) | `packages/typescript/core`, `packages/go/sdk`, `packages/python/sdk` | CI's `generated-artifacts` job |
-| 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `packages/conformance/dispatcher/create.test.ts` |
+| 3 | [Admit it](#3-admit-it-the-dispatcher) | `images/dispatcher/handlers/src/admission.rs` | the dispatcher's build; `protocol/conformance/dispatcher/create.test.ts` |
 | 4 | [Do it](#4-do-it-the-worker) | `images/worker/src/semiont_worker` | `mypy`, `pyright` and `pytest` in `images/worker` |
 | 5 | [State how its reply is read](#5-state-how-its-reply-is-read) | `specs/src/worker/parser-cases.json` | `images/worker/tests/test_parser_cases.py`; `npm run lint:spec-case-tables` |
-| 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `packages/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
-| 7 | [Write the rule](#7-write-the-rule) | `docs/protocol/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
+| 6 | [Hold a Worker service to it](#6-hold-a-worker-service-to-it) | `protocol/conformance/worker-service` | `npm run lint:conformance-readmes`, `npm run lint:transport-contract`; `images/worker/tests/test_prompts.py` |
+| 7 | [Write the rule](#7-write-the-rule) | `protocol/contract/WORKER-SERVICE.md` | `npm run lint:transport-contract` |
 | 8 | [Give it an engine](#8-give-it-an-engine) | a knowledge base's Inference document; nothing in the launcher | `TestEveryEngineJobHasAFilter`, in `packages/go/launcher` |
 | 9 | [Word it in each client](#9-word-it-in-each-client) | `packages/go/launcher/verbs/mark.go`, `packages/typescript/react-ui/translations` | `TestEveryMotivationHasItsNoun`; `delegate-progress-copy.test.ts`; `npm run lint:translations` |
 
@@ -67,7 +67,7 @@ In the TypeScript, the Rust, the Python and the Kotlin SDK, `mark.delegate` take
 
 The retry budget is set there too, by the verb: one retry for a `mark` job, which reads the same text again and takes up where its checkpoint left it, and none for a `yield` job, of which a second run would be another document.
 
-[JOBS.md § `job:create`](../protocol/JOBS.md#jobcreate) states each check and its refusal, and the dispatcher's suite holds a dispatcher to them (`packages/conformance/dispatcher/create.test.ts`).
+[JOBS.md § `job:create`](../../protocol/contract/JOBS.md#jobcreate) states each check and its refusal, and the dispatcher's suite holds a dispatcher to them (`protocol/conformance/dispatcher/create.test.ts`).
 
 ## 4. Do it: the worker
 
@@ -113,7 +113,7 @@ The tables beside it hold what every kind shares, and a new kind adds to one onl
 
 ## 6. Hold a Worker service to it
 
-The [worker-service suite](../../packages/conformance/worker-service/README.md) starts the service as a process and meets it only at its boundary, so its cases judge an implementation in any language. A kind of job has a file there, as [`tagging.test.ts`](../../packages/conformance/worker-service/tagging.test.ts) is: a job queued as the dispatcher would hand it over, the stand-in provider's answers scripted, and then every request to the provider, every batch committed, every checkpoint, every progress report and the completion, each held whole.
+The [worker-service suite](../../protocol/conformance/worker-service/README.md) starts the service as a process and meets it only at its boundary, so its cases judge an implementation in any language. A kind of job has a file there, as [`tagging.test.ts`](../../protocol/conformance/worker-service/tagging.test.ts) is: a job queued as the dispatcher would hand it over, the stand-in provider's answers scripted, and then every request to the provider, every batch committed, every checkpoint, every progress report and the completion, each held whole.
 
 - Each prompt the case holds is a file of `prompts/`, the exact text sent. `images/worker/tests/test_prompts.py` fails until the worker's own tests build every such file word for word.
 - The suite's README lists the file, with the rules it holds. `npm run lint:conformance-readmes` fails on a file the README does not name.
@@ -123,16 +123,16 @@ What every kind does is held in files of its own, and a new kind joins those tha
 
 ## 7. Write the rule
 
-[WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md) is what a Worker service does, rule by rule, and a Worker service in another language is written from it. A new kind of `mark` job has there:
+[WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md) is what a Worker service does, rule by rule, and a Worker service in another language is written from it. A new kind of `mark` job has there:
 
-- its rule under [The five kinds of mark job](../protocol/WORKER-SERVICE.md#the-five-kinds-of-mark-job), whose heading counts them: what it asks its model for, what its prompt follows, and the body of what it makes;
-- its units, in what [Detection](../protocol/WORKER-SERVICE.md#detection) opens with;
-- its progress, as a rule of its own under [Progress](../protocol/WORKER-SERVICE.md#progress);
+- its rule under [The five kinds of mark job](../../protocol/contract/WORKER-SERVICE.md#the-five-kinds-of-mark-job), whose heading counts them: what it asks its model for, what its prompt follows, and the body of what it makes;
+- its units, in what [Detection](../../protocol/contract/WORKER-SERVICE.md#detection) opens with;
+- its progress, as a rule of its own under [Progress](../../protocol/contract/WORKER-SERVICE.md#progress);
 - and its part in whatever shared rule it changes: what its result adds, when it is declined, how it resumes.
 
 Each rule ends with the cases that hold it. A new rule takes the next number of its letter, wherever it stands, and no rule's number changes. `npm run lint:transport-contract` fails on a rule that names a case the suite does not have.
 
-Three other documents say something of each kind of job: [JOBS.md § `job:create`](../protocol/JOBS.md#jobcreate), what admission checks; [Mark § Delegation](../protocol/flows/MARK.md#delegation), the params a caller gives; and the operator's [Configuration § Inference](../operator/administration/CONFIGURATION.md#inference), each job's engine.
+Three other documents say something of each kind of job: [JOBS.md § `job:create`](../../protocol/contract/JOBS.md#jobcreate), what admission checks; [Mark § Delegation](../../protocol/contract/flows/MARK.md#delegation), the params a caller gives; and the operator's [Configuration § Inference](../operator/administration/CONFIGURATION.md#inference), each job's engine.
 
 ## 8. Give it an engine
 
@@ -172,8 +172,8 @@ The verb is one of the eight. A job is how a verb is done on someone's behalf, a
 
 ## Related
 
-- [JOBS.md](../protocol/JOBS.md): the job protocol, and the dispatcher's side of it
-- [WORKER-CONTRACT.md](../protocol/WORKER-CONTRACT.md): what every worker promises, whoever wrote it
-- [WORKER-SERVICE.md](../protocol/WORKER-SERVICE.md): what Semiont's Worker service does, rule by rule
+- [JOBS.md](../../protocol/contract/JOBS.md): the job protocol, and the dispatcher's side of it
+- [WORKER-CONTRACT.md](../../protocol/contract/WORKER-CONTRACT.md): what every worker promises, whoever wrote it
+- [WORKER-SERVICE.md](../../protocol/contract/WORKER-SERVICE.md): what Semiont's Worker service does, rule by rule
 - [`images/worker`](../../images/worker/README.md): the service's image, and how it is run
 - [Testing](TESTING.md): the suites, and what CI gates

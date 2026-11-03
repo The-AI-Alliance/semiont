@@ -17,7 +17,7 @@ The worker is built up below in TypeScript. [The same worker in Rust](#the-same-
 - The work is a job the knowledge base queues: a `mark` job, which annotates a resource for one motivation (`highlighting`, `commenting`, `assessing`, `linking` or `tagging`), or a `yield` job, which makes a resource. A worker of your own serves one or more of them with your own logic or your own model. Jobs are created with `job:create`, which is what `mark.delegate` and `yield.delegate` send.
 - Each job must run once, however many workers are up. A claim is atomic: of any number of simultaneous claims, exactly one wins each pending job.
 
-The dispatcher holds the queue and answers the `job:*` channels. [JOBS.md](../../../protocol/JOBS.md) is what it does, and [WORKER-CONTRACT.md](../../../protocol/WORKER-CONTRACT.md) is what a worker promises it.
+The dispatcher holds the queue and answers the `job:*` channels. [JOBS.md](../../../../protocol/contract/JOBS.md) is what it does, and [WORKER-CONTRACT.md](../../../../protocol/contract/WORKER-CONTRACT.md) is what a worker promises it.
 
 ## The lifecycle a worker reports
 
@@ -173,7 +173,7 @@ async function recordHighlights(
 
 The commit waits for the record's acknowledgement. When none comes it asks the record whether the batch landed, and fails only if that cannot be established. When the job settles, it says how its commits were established; the worker states none of that itself. The worker's stream must name `JOB_COMMIT_CHANNELS`, as the sign-in above does.
 
-Semiont's own worker is the [Worker service](../../../../images/worker/README.md), in Python. It is a service's code and exports nothing to build on. What it does with a text and with a model's reply is written rule by rule in [WORKER-SERVICE.md](../../../protocol/WORKER-SERVICE.md), and the parts a table can state exactly are case tables in [`specs/src/worker`](../../../../specs/src/worker/), which a worker in any language can run against its own code.
+Semiont's own worker is the [Worker service](../../../../images/worker/README.md), in Python. It is a service's code and exports nothing to build on. What it does with a text and with a model's reply is written rule by rule in [WORKER-SERVICE.md](../../../../protocol/contract/WORKER-SERVICE.md), and the parts a table can state exactly are case tables in [`specs/src/worker`](../../../../specs/src/worker/), which a worker in any language can run against its own code.
 
 ## Complete worker
 
@@ -307,7 +307,7 @@ main().catch((e) => {
 });
 ```
 
-Let a job in hand finish before shutting down, or stop the claims, which fails it. A job whose worker simply died stays `running` until the dispatcher's sweep finds it with no progress or checkpoint for 30 minutes, and then re-queues it if its retry budget allows ([JOBS.md](../../../protocol/JOBS.md#periodic-work)).
+Let a job in hand finish before shutting down, or stop the claims, which fails it. A job whose worker simply died stays `running` until the dispatcher's sweep finds it with no progress or checkpoint for 30 minutes, and then re-queues it if its retry budget allows ([JOBS.md](../../../../protocol/contract/JOBS.md#periodic-work)).
 
 ## The same worker in Rust
 

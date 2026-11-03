@@ -6,7 +6,7 @@ package semiont
 // names, writes the ones whose new value the event carries, and ends the ones
 // whose entity is gone. An event acts only on a key its cache holds, and the
 // refetches one key is asked for inside a window are one refetch
-// (docs/protocol/CACHE-SEMANTICS.md B12 to B13b, B19, B20).
+// (protocol/contract/CACHE-SEMANTICS.md B12 to B13b, B19, B20).
 
 import (
 	"context"

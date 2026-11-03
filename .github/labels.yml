@@ -189,7 +189,7 @@
 # tests: one for each directory under tests/.
 - name: "tests:conformance"
   color: "f9d0c4"
-  description: "The conformance suites (packages/conformance)"
+  description: "The conformance suites (protocol/conformance)"
 - name: "tests:doc-snippets"
   color: "f9d0c4"
   description: "The documentation's TypeScript examples, typechecked (docs/checks/doc-snippets)"

@@ -1,6 +1,6 @@
 """Semiont's Weaver: the service that keeps a graph database in step with a knowledge base's record.
 
-What it does is written rule by rule in `docs/protocol/WEAVER.md`. Its parts
+What it does is written rule by rule in `protocol/contract/WEAVER.md`. Its parts
 are its modules: the recorded events it follows (`recorded`), what each does
 to the graph (`fold`), what it reads of the record (`history`), the Weaver
 those make (`weaver`), its configuration (`config`), its logger (`log`), and

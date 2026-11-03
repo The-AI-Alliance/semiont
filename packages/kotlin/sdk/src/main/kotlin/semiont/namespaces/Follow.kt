@@ -97,7 +97,7 @@ private fun jobOf(said: Any): JobId? = when (said) {
 
 /**
  * Create a job and follow it to the completion its verb's jobs give
- * (docs/protocol/JOBS.md, Following a job). `completion` is that
+ * (protocol/contract/JOBS.md, Following a job). `completion` is that
  * completion's class; `resourceId` is the resource the job is about, for a
  * completion learned from the job's status; `stallMs` is how long the job
  * may say nothing before its follower gives up on it, when it gives up at all.

@@ -11,7 +11,7 @@ or a query added to the table does not pass a type checker until it is
 answered here.
 
 An event acts only on a key its cache holds, and the refetches one key is
-asked for inside a window are one refetch (`docs/protocol/CACHE-SEMANTICS.md`
+asked for inside a window are one refetch (`protocol/contract/CACHE-SEMANTICS.md`
 B12 to B13b, B19, B20).
 """
 

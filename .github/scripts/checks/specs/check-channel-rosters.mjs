@@ -102,7 +102,7 @@ const SERVICES = [
     handler: 'images/archivist/src/bus.rs',
     rosters: ['COMMANDS', 'READS'],
     sources: ['images/archivist/src', 'images/archivist/record/src', 'images/archivist/staging/src'],
-    protocol: 'docs/protocol/ARCHIVIST.md',
+    protocol: 'protocol/contract/ARCHIVIST.md',
     tables: ['Command', 'Request'],
     appends: {
       begins: 'handle',
@@ -116,7 +116,7 @@ const SERVICES = [
     handler: 'images/dispatcher/handlers/src/handlers.rs',
     rosters: ['COMMANDS'],
     sources: ['images/dispatcher/src', 'images/dispatcher/handlers/src', 'images/dispatcher/jetstream/src'],
-    protocol: 'docs/protocol/JOBS.md',
+    protocol: 'protocol/contract/JOBS.md',
     tables: ['Channel'],
   },
 ];

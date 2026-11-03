@@ -8,7 +8,7 @@
 //! here (`super::refresher`): each event on the bus, and the reopening of a
 //! dropped stream, asks again for the queries its row names, writes the ones
 //! whose new value the event carries, and ends the ones whose entity is gone
-//! (docs/protocol/CACHE-SEMANTICS.md B12–B13b, B19, B20).
+//! (protocol/contract/CACHE-SEMANTICS.md B12–B13b, B19, B20).
 
 use super::refresher::Subject;
 use crate::bus::{LIMITS_OPERATIONS, Operation, operation};

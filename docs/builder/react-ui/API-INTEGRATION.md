@@ -20,7 +20,7 @@ The shape is:
 - **Events** are observed with `useEventSubscription` / `useEventSubscriptions`, and one resource's own events with `useResourceEventSubscriptions`.
 
 The cache's freshness and invalidation contract lives in the SDK, not here —
-see [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md).
+see [`protocol/contract/CACHE-SEMANTICS.md`](../../../protocol/contract/CACHE-SEMANTICS.md).
 For the layered Service → Hook → Component pattern these pieces compose into,
 see [SERVICE-HOOK-COMPONENT.md](../../../packages/typescript/react-ui/docs/SERVICE-HOOK-COMPONENT.md). This guide stays
 focused on how a component reaches the client and reads/writes through it.
@@ -297,7 +297,7 @@ it('renders resources', async () => {
 ## See Also
 
 - [SERVICE-HOOK-COMPONENT.md](../../../packages/typescript/react-ui/docs/SERVICE-HOOK-COMPONENT.md) — the three-layer Service → Hook → Component pattern
-- [`docs/protocol/CACHE-SEMANTICS.md`](../../protocol/CACHE-SEMANTICS.md) — read-through cache freshness and invalidation contract
+- [`protocol/contract/CACHE-SEMANTICS.md`](../../../protocol/contract/CACHE-SEMANTICS.md) — read-through cache freshness and invalidation contract
 - [EVENTS.md](EVENTS.md) — event-driven architecture and channels
 - [SESSION.md](SESSION.md) — `SemiontProvider` / session lifecycle
 - [TESTING.md](TESTING.md) — testing components that read and write through the client

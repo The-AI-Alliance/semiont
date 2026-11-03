@@ -1,7 +1,7 @@
 """What a Smelter reads of the record beside its events: the catalog of what is not archived, a resource's entity types and annotations.
 
 It reads the catalog and a resource's description from the Archivist, over
-the bus (`docs/protocol/SMELTER.md` § What it follows), and a resource's
+the bus (`protocol/contract/SMELTER.md` § What it follows), and a resource's
 annotations from the Archivist's own `GET /resources/{id}/annotations`, as its
 service account: their number follows the document's, so they are no bus
 read. It opens no file of the record. A resource's bytes are another read,

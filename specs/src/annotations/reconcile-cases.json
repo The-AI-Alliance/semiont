@@ -5,7 +5,7 @@
     "rust": ["packages/rust/sdk/tests/reconcile_cases.rs"],
     "python": ["packages/python/sdk/tests/test_reconcile.py"],
     "go": ["packages/go/sdk/annotations/reconcile_test.go"],
-    "conformance": ["packages/conformance/worker-service/anchoring.test.ts"],
+    "conformance": ["protocol/conformance/worker-service/anchoring.test.ts"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/ReconcileCasesTest.kt"]
   },
   "notYetReached": {

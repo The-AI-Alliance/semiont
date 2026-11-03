@@ -33,7 +33,7 @@ const APPS = new Set(
  */
 export function pathLabel(path) {
   path = path.replace(/^\/+/, '');
-  const suites = { 'images/e2e/': 'e2e', 'images/tests/stack/': 'stack', 'docs/checks/doc-snippets/': 'doc-snippets', 'packages/conformance/': 'conformance' };
+  const suites = { 'images/e2e/': 'e2e', 'images/tests/stack/': 'stack', 'docs/checks/doc-snippets/': 'doc-snippets', 'protocol/conformance/': 'conformance' };
   for (const [prefix, suite] of Object.entries(suites)) if (path.startsWith(prefix)) return `tests:${suite}`;
   const [top, owner, ...below] = path.replace(/^\/+/, '').split('/');
   if (top === 'specs' && owner === 'src') {

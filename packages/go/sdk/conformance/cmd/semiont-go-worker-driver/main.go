@@ -1,6 +1,6 @@
 // Command semiont-go-worker-driver is the Go SDK's worker driver: a worker
 // written on the SDK, as the worker conformance suite drives it
-// (packages/conformance/worker/README.md, § The worker driver).
+// (protocol/conformance/worker/README.md, § The worker driver).
 //
 // It reaches the worker's surface only as a worker's author does: Job.Claim on
 // the SDK's client, the claims it returns, and the held jobs they hand out.

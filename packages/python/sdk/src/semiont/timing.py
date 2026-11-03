@@ -81,7 +81,7 @@ EMIT_RETRY: Final = RetryPolicy(attempts=4, initial_delay_ms=1000, max_delay_ms=
 # issuer that accepts a connection and never answers holds a session's start, and every renewal
 # after it, for as long as the process lives. An upload has no deadline: how long it takes is
 # how large the resource is. A read of anchored text may be held by the Archivist while the
-# Smelter reads the content, for the time docs/protocol/ARCHIVIST.md states, and this deadline
+# Smelter reads the content, for the time protocol/contract/ARCHIVIST.md states, and this deadline
 # is longer than that wait.
 HTTP_REQUEST_TIMEOUT_MS: Final = 30000
 

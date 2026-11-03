@@ -155,7 +155,7 @@ a position to something that indexes one converts with `textOffsets(text)`:
 Text paired with the geometry that indexes it, and the inverse pair that reads
 it in either direction. Pure arithmetic over plain data — this is what *reasons
 over* a coordinate map; producing one (text layer, OCR, tables, forms) is the
-[Smelter](../../../../docs/protocol/SMELTER.md)'s.
+[Smelter](../../../../protocol/contract/SMELTER.md)'s.
 
 ```typescript
 import { locate, textUnder, type AnchoredText } from '@semiont/core';

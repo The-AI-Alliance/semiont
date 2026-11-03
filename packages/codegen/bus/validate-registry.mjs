@@ -50,7 +50,7 @@ function fail(problems) {
   const lines = problems.map((p) => `  - ${p}`).join('\n');
   throw new Error(
     `specs/src/bus/registry.json violates ${problems.length} bus invariant(s):\n${lines}\n\n` +
-      `These are the cross-list rules the event bus depends on; see docs/protocol/EVENT-BUS.md.`,
+      `These are the cross-list rules the event bus depends on; see protocol/contract/EVENT-BUS.md.`,
   );
 }
 

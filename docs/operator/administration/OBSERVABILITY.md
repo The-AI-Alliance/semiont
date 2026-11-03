@@ -100,10 +100,10 @@ The standard OpenTelemetry variables, set in each service's environment. The lau
 The Rust services — the gateway, the dispatcher and the Archivist — read the ones their
 environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
 and configure their SDK from them. The Worker service reads the ones
-[WORKER-SERVICE.md](../../protocol/WORKER-SERVICE.md#environment) lists, the Weaver the ones
-[WEAVER.md](../../protocol/WEAVER.md#environment) lists, the Smelter the ones
-[SMELTER.md](../../protocol/SMELTER.md#environment) lists, and the Librarian the ones
-[LIBRARIAN.md](../../protocol/LIBRARIAN.md#environment) lists. Every service reads these four:
+[WORKER-SERVICE.md](../../../protocol/contract/WORKER-SERVICE.md#environment) lists, the Weaver the ones
+[WEAVER.md](../../../protocol/contract/WEAVER.md#environment) lists, the Smelter the ones
+[SMELTER.md](../../../protocol/contract/SMELTER.md#environment) lists, and the Librarian the ones
+[LIBRARIAN.md](../../../protocol/contract/LIBRARIAN.md#environment) lists. Every service reads these four:
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|

@@ -16,8 +16,8 @@ on the bus, in the index and in the anchored-text store. The launcher starts it 
 | Port | 24101 (`/health`, and nothing else: everything it does is on the bus, in the index and in the anchored-text store) |
 | Command | `python -P -m semiont_smelter --config /etc/semiont/smelter.json` |
 | Code | Python, in this directory: [`src/semiont_smelter`](./src/semiont_smelter/) |
-| Specification | [docs/protocol/SMELTER.md](../../docs/protocol/SMELTER.md) |
-| Judged by | [packages/conformance/smelter](../../packages/conformance/smelter/README.md) |
+| Specification | [protocol/contract/SMELTER.md](../../protocol/contract/SMELTER.md) |
+| Judged by | [protocol/conformance/smelter](../../protocol/conformance/smelter/README.md) |
 | Published | to no package index: the image only |
 
 ## What it does
@@ -146,7 +146,7 @@ at least one.
 the knowledge base it serves by its DID (`semiont.kb`): what every service says of its own
 process, how many points its index holds (`semiont.vector.index.size`), and a span for each
 frame it sends and receives on the bus
-([SMELTER.md § Telemetry](../../docs/protocol/SMELTER.md#telemetry)). The launcher sets the
+([SMELTER.md § Telemetry](../../protocol/contract/SMELTER.md#telemetry)). The launcher sets the
 endpoint for a stack it runs. Without it the Smelter exports nothing, unless
 `OTEL_CONSOLE_EXPORTER=true` asks for its spans and metrics on stdout. Its log lines carry the
 trace and the span they were written in.
@@ -225,8 +225,8 @@ checks what a built one promises.
 
 ## Related
 
-- [SMELTER.md](../../docs/protocol/SMELTER.md) — what a Smelter does, rule by rule
-- [smelter conformance suite](../../packages/conformance/smelter/README.md) — holds a Smelter to
+- [SMELTER.md](../../protocol/contract/SMELTER.md) — what a Smelter does, rule by rule
+- [smelter conformance suite](../../protocol/conformance/smelter/README.md) — holds a Smelter to
   each rule, as a process behind a real gateway, a real Archivist and a real Qdrant, with an
   embedding provider the suite plays
 - [`semiont-vectors`](../../packages/python/vectors/) — the vector stores and the embedding

@@ -4,7 +4,7 @@
     "typescript": ["packages/typescript/core/src/__tests__/annotation-id.test.ts", "packages/typescript/core/src/__tests__/id-cases.test.ts"],
     "rust": ["packages/rust/sdk/src/annotations/id.rs"],
     "python": ["packages/python/sdk/tests/test_annotation_ids.py", "packages/python/sdk/tests/test_readme.py"],
-    "conformance": ["packages/conformance/worker-service/yield.test.ts"],
+    "conformance": ["protocol/conformance/worker-service/yield.test.ts"],
     "go": ["packages/go/sdk/annotations/id_test.go"],
     "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/annotations/AnnotationIdsTest.kt"]
   },

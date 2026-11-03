@@ -1,7 +1,7 @@
 //! The dispatcher's job queue on NATS JetStream, behind the handlers'
 //! `JobQueue` contract. Nothing of the broker leaves this crate.
 //!
-//! Two primitives, one authority each (docs/protocol/JOBS.md § Storage):
+//! Two primitives, one authority each (protocol/contract/JOBS.md § Storage):
 //!
 //! - **The key-value bucket** holds the authoritative record of every job
 //!   (`JobRecord`: the job, and the liveness time the dead-worker sweep

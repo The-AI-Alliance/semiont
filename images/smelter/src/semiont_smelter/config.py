@@ -4,7 +4,7 @@ The document is the protocol's `SmelterConfig`. It is found, read and refused
 as every Python service's is (`semiont_service.config`), and so is the
 service's account. A secret is never in the document. The document names the
 variable that holds an embedding provider's key, and the environment is read
-for it here. `docs/protocol/SMELTER.md` § Settings states each refusal.
+for it here. `protocol/contract/SMELTER.md` § Settings states each refusal.
 """
 
 from collections.abc import Mapping

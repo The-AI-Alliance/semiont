@@ -416,9 +416,9 @@ def test_a_reconcile_s_summary_is_said_in_the_twelve_members_the_protocol_names_
     # Nothing skipped is an object with no member, and not a member left out.
     assert replace(summary, resources_skipped={}).said()["resourcesSkipped"] == {}
     # The names are the page's: its rule of what a reconcile reports gives each in brackets.
-    page = (ROOT / "docs/protocol/SMELTER.md").read_text(encoding="utf-8")
+    page = (ROOT / "protocol/contract/SMELTER.md").read_text(encoding="utf-8")
     rule = re.search(r"\*\*It reports\*\*(.*?)\*Held by", page, re.DOTALL)
-    assert rule is not None, "docs/protocol/SMELTER.md no longer says what a reconcile reports"
+    assert rule is not None, "protocol/contract/SMELTER.md no longer says what a reconcile reports"
     named = re.findall(r"\(`(\w+)`\)", rule.group(1))
     assert len(named) == 12
     assert sorted(said) == sorted(named)

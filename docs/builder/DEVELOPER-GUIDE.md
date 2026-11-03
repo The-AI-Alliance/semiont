@@ -127,7 +127,7 @@ one bounded retry) — a lost or failing load surfaces in-band, never as `pendin
 and the stream itself never errors or terminates. Recovery is built in: a NEW subscription
 to the failed key (e.g. a component remount) clears the marker and starts a fresh attempt
 chain. A query that already holds a value never fails — stale-beats-error, the prior value
-stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) (B14–B15).
+stays visible through a failed refetch. → [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) (B14–B15).
 
 **Read an annotation with the SDK's readers.** An annotation's `target` is a resource's id
 or an object, its selector is one selector or a list, and its `body` is absent, one item or
@@ -207,7 +207,7 @@ const { resourceId } = await session.client.yield.resource({
 The params state the `motivation` and what that motivation takes: `'linking'` extracts
 entity references (the connections later retrieval reads as graph context), `'tagging'` applies
 a tag schema, plus `'highlighting'`/`'assessing'`/`'commenting'`. Each motivation takes its own
-params and no others — [the Mark flow](../protocol/flows/MARK.md#delegation) has the table. It's a long-running job —
+params and no others — [the Mark flow](../../protocol/contract/flows/MARK.md#delegation) has the table. It's a long-running job —
 `.run()` for progress. Each snapshot carries a `message` CODE with typed params rather than
 a sentence — the client owns the wording, so a browser localizes it and a CLI renders English
 from the same value. `detecting-entities` names the entity type being worked on, and the last,
@@ -631,7 +631,7 @@ const client = new SemiontClient(raw, new HttpContentTransport(raw), raw, {
 });
 ```
 
-Full behavioral contract: [CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md) **B17**.
+Full behavioral contract: [CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md) **B17**.
 
 ---
 
@@ -709,5 +709,5 @@ after that.
 - **[REACTIVE-MODEL.md](./REACTIVE-MODEL.md)** — return shapes, await-vs-subscribe, the bus.
 - **[STATE-UNITS.md](./STATE-UNITS.md)** — the state-unit pattern for reactive UIs.
 - **[@semiont/react-ui](../../packages/typescript/react-ui/README.md)** — React components for browser UIs, including the embeddable `ResourceViewer` shown above.
-- **[CACHE-SEMANTICS.md](../protocol/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
-- **[`docs/protocol/`](../protocol/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.
+- **[CACHE-SEMANTICS.md](../../protocol/contract/CACHE-SEMANTICS.md)** — the read-through cache contract behind `browse.*`.
+- **[`protocol/contract/`](../../protocol/contract/README.md)** — the contract: the eight verbs, the bus, and what every SDK is held to.

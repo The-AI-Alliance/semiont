@@ -11,7 +11,7 @@
       "packages/go/sdk/identity_test.go"
     ],
     "conformance": [
-      "packages/conformance/gateway/tokens.test.ts"
+      "protocol/conformance/gateway/tokens.test.ts"
     ],
     "kotlin": [
       "packages/kotlin/sdk/src/test/kotlin/semiont/identity/IdentityTest.kt"

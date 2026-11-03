@@ -23,7 +23,7 @@ specs/
 └── archivist.openapi.json      # The Archivist's, bundled (NOT tracked in git)
 ```
 
-The OpenAPI specification source lives in this directory; the human-readable API and W3C compliance documentation lives in [docs/protocol/](../docs/protocol/).
+The OpenAPI specification source lives in this directory; the human-readable API and W3C compliance documentation lives in [protocol/contract/](../protocol/contract/).
 
 ## Spec-First Architecture
 
@@ -64,7 +64,7 @@ their own function on each case; nothing needs to be running. Beside its
 **Where a case lives.** A case a language checks by calling one of its own
 functions is a case table here. A case that needs a running process (a
 gateway, a service, or an SDK put through a driver) belongs in the conformance
-kit, [packages/conformance](../packages/conformance/README.md). The kit's JSON
+kit, [protocol/conformance](../protocol/conformance/README.md). The kit's JSON
 cases are language-neutral data too, held to the kit's own case schemas; they
 are there because checking them needs something running. A table here may also
 be run by the kit (`conformance` among its runners), which holds a running
@@ -188,11 +188,11 @@ See [src/paths/](src/paths/) for complete list.
 
 ## API Documentation
 
-High-level guides in [docs/protocol/](../docs/protocol/):
+High-level guides in [protocol/contract/](../protocol/contract/):
 
-- **[README.md](../docs/protocol/README.md)** - The protocol: the eight verbs, the bus, and what holds across them
-- **[W3C-WEB-ANNOTATION.md](../docs/protocol/W3C-WEB-ANNOTATION.md)** - W3C Annotation Model details
-- **[W3C-SELECTORS.md](../docs/protocol/W3C-SELECTORS.md)** - Selector specifications
+- **[README.md](../protocol/contract/README.md)** - The protocol: the eight verbs, the bus, and what holds across them
+- **[W3C-WEB-ANNOTATION.md](../protocol/contract/W3C-WEB-ANNOTATION.md)** - W3C Annotation Model details
+- **[W3C-SELECTORS.md](../protocol/contract/W3C-SELECTORS.md)** - Selector specifications
 
 For implementation details:
 - [Gateway Documentation](../images/gateway/README.md) - Gateway architecture
@@ -234,7 +234,7 @@ Bundling takes no configuration: a schema is kept in the bundle because `compone
 
 ---
 
-**For API usage**: Start with [docs/protocol/README.md](../docs/protocol/README.md), then [@semiont/http-transport](../packages/typescript/http-transport/docs/API-Reference.md) for the wire adapters
+**For API usage**: Start with [protocol/contract/README.md](../protocol/contract/README.md), then [@semiont/http-transport](../packages/typescript/http-transport/docs/API-Reference.md) for the wire adapters
 
 **For spec editing**: Edit files in [src/](src/), then run `npm run openapi:bundle`
 

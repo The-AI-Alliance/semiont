@@ -10,7 +10,7 @@
  *
  * Checked in `docs/builder` (the guides, the skills and `react-ui`), the root `README.md`,
  * `packages/README.md`, every npm package's `README.md` and `docs`, `apps/README.md`, `images/README.md`,
- * every app's and image's `README.md` and `docs`, `docs/protocol` and `docs/protocol/flows`:
+ * every app's and image's `README.md` and `docs`, `protocol/contract` and `protocol/contract/flows`:
  *
  *   - imports from `@semiont/*`: each name is exported by that package (a
  *     wildcard re-export of another package counts, read from its types);
@@ -244,7 +244,7 @@ const BROWSER_METHODS = members('packages/typescript/sdk/src/session/semiont-bro
 const SCRIPTS = new Set();
 // The root, every workspace, and the test suites that are npm projects of their own.
 for (const pj of [join(ROOT, 'package.json'), ...workspaceDirectories(ROOT).map((dir) => join(ROOT, dir, 'package.json')),
-  ...['images/e2e', 'packages/conformance'].map((dir) => join(ROOT, dir, 'package.json'))]) {
+  ...['images/e2e', 'protocol/conformance'].map((dir) => join(ROOT, dir, 'package.json'))]) {
   if (existsSync(pj)) for (const s of Object.keys(JSON.parse(read(pj)).scripts ?? {})) SCRIPTS.add(s);
 }
 
@@ -265,8 +265,8 @@ const DOCS = [
   'images/README.md',
   // Only shipped images have product-surface docs; independent test projects do not.
   ...[...TREE].filter((f) => /^apps\/[^/]+\/README\.md$/.test(f) || (/^images\/[^/]+\/README\.md$/.test(f) && TREE.has(`${dirname(f)}/Dockerfile`))).flatMap((f) => ownDocs(dirname(f))),
-  ...markdownIn('docs/protocol'),
-  ...markdownIn('docs/protocol/flows'),
+  ...markdownIn('protocol/contract'),
+  ...markdownIn('protocol/contract/flows'),
 ];
 
 /** Split a document into checked code, prose, and the line each piece starts on. */

@@ -223,7 +223,7 @@ ignore:
   # Independent test infrastructure, formerly under root tests/.
   - "images/e2e/**"
   - "docs/checks/doc-snippets/**"
-  - "packages/conformance/**"
+  - "protocol/conformance/**"
 
   # Build artifacts
   - "**/dist/**"

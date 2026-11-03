@@ -1,6 +1,6 @@
 """A service's configuration document, and what its environment holds beside it.
 
-§ Configuration of each service's page of `docs/protocol` states each
+§ Configuration of each service's page of `protocol/contract` states each
 refusal, and that service's conformance suite holds the words of each to a
 started process. Here is what a suite cannot reach: that the schema is held
 as it is written, and that a refusal repeats nothing the document held. The

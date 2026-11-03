@@ -86,7 +86,7 @@ func (k *kbIdentity) resource() string {
 
 // name is the name the Archivist computes for the knowledge base at root: the
 // committed project.name, else the directory basename when there is no project
-// file (docs/protocol/ARCHIVIST.md). The launcher writes it as `kb.name` into
+// file (protocol/contract/ARCHIVIST.md). The launcher writes it as `kb.name` into
 // each document that names the knowledge base (served).
 func (k *kbIdentity) name(root string) string {
 	if k == nil {

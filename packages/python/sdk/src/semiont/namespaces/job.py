@@ -98,7 +98,7 @@ class JobNamespace:
 
         Claiming begins when the claims are first read, and each job they
         hand out says its own lifecycle, commits its own annotations and
-        settles once (docs/protocol/WORKER-CONTRACT.md). The transport's
+        settles once (protocol/contract/WORKER-CONTRACT.md). The transport's
         stream must name `semiont.claims.JOB_CLAIM_CHANNELS`, and
         `semiont.claims.JOB_COMMIT_CHANNELS` for a worker that commits. The
         four waits are the values of specs/src/client/timing.json unless a

@@ -1,7 +1,7 @@
 """The work a Smelter plans when it starts: what its index and its anchored-text store hold, held to what the catalog says they should.
 
 `specs/src/smelter/reconcile-cases.json` is the rule, and
-`docs/protocol/SMELTER.md` § Reconcile says it in prose. A plan is worked out
+`protocol/contract/SMELTER.md` § Reconcile says it in prose. A plan is worked out
 from what it is handed and from nothing else: it reads nothing, waits on
 nothing and logs nothing. The reads are the Smelter's, and so is doing the
 work.
@@ -242,7 +242,7 @@ def plan_reconcile(
 @final
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ReconcileSummary:
-    """What a reconcile came to (`docs/protocol/SMELTER.md` § Reconcile).
+    """What a reconcile came to (`protocol/contract/SMELTER.md` § Reconcile).
 
     The first four are what the resources it set out to index came to. They
     add up to how many those were, less any that a later event made

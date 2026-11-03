@@ -54,7 +54,7 @@ import semiont.types.UnitCursor;
 
 /**
  * The worker driver: a worker written on this SDK in Java, as
- * packages/conformance/worker drives it (its README states the protocol). It
+ * protocol/conformance/worker drives it (its README states the protocol). It
  * reaches the worker's surface only as a Java worker's author does: `job.claim`
  * on the client, the claims it returns, and the held jobs they hand out, each
  * call through its future.

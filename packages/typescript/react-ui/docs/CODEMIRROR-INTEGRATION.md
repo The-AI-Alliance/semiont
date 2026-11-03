@@ -177,4 +177,4 @@ AnnotateView provides:
 - [RENDERING-ARCHITECTURE.md](./RENDERING-ARCHITECTURE.md) - Dual rendering pipeline overview
 - [CODEMIRROR-WIDGETS.md](./CODEMIRROR-WIDGETS.md) - Reference resolution widgets
 - [ANNOTATION-RENDERING-PRINCIPLES.md](./ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms
-- [W3C-WEB-ANNOTATION.md](../../../../docs/protocol/W3C-WEB-ANNOTATION.md) - W3C annotation model
+- [W3C-WEB-ANNOTATION.md](../../../../protocol/contract/W3C-WEB-ANNOTATION.md) - W3C annotation model

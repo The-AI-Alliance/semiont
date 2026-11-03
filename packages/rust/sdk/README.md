@@ -19,7 +19,7 @@ tell them apart.
 It has the same namespaces, methods and behaviour as the
 [TypeScript SDK](../../typescript/sdk/README.md), the [Python SDK](../../python/sdk/README.md)
 the [Go SDK](../../go/sdk/README.md) and the [Kotlin SDK](../../kotlin/sdk/README.md), and the five are held to the same
-[conformance suite](../../conformance/sdk/README.md). New to Semiont?
+[conformance suite](../../../protocol/conformance/sdk/README.md). New to Semiont?
 The [Introduction](../../../docs/builder/INTRODUCTION.md) explains the domain
 and the ideas the API falls out of. Its code is TypeScript, and the ideas
 are this crate's too.
@@ -46,7 +46,7 @@ machine.
 
 | Feature | What it adds |
 |---|---|
-| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../../docs/protocol/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
+| `charsets` | A resource's text in every encoding the Encoding Standard has, read as a browser reads it: by [the rule every Semiont reader keeps](../../../protocol/contract/W3C-SELECTORS.md#the-text-of-a-resource). Without the feature, `browse.resource_content` reads UTF-8 alone, by the same rule, and refuses by name any other charset and bytes that begin with UTF-16's mark. With it or without, a resource whose text is not its bytes is refused by its media type: a PDF, whose text is `browse.resource_anchored_text`'s, and an image, which has none. `browse.resource_representation` gives the bytes either way. |
 | `testing` | Doubles and harnesses for the tests of code built on the client. See [Testing your code](#testing-your-code). |
 
 Every type and method is documented on [docs.rs](https://docs.rs/semiont).
@@ -92,7 +92,7 @@ attention. Each is a namespace of the client.
 `yield` and `match` are Rust's own words, so those two namespaces take a
 trailing underscore. Beside the eight are `job`, and `auth` and `system`
 when the client has a gateway. What each flow means is in
-[docs/protocol/flows](../../../docs/protocol/flows/README.md).
+[protocol/contract/flows](../../../protocol/contract/flows/README.md).
 
 ## A first program
 
@@ -359,8 +359,8 @@ builders to the same answers.
   that has shown no activity for fifteen minutes.
 
 What a worker promises the dispatcher is the
-[worker contract](../../../docs/protocol/WORKER-CONTRACT.md), and
-[its conformance suite](../../conformance/worker/README.md) holds this
+[worker contract](../../../protocol/contract/WORKER-CONTRACT.md), and
+[its conformance suite](../../../protocol/conformance/worker/README.md) holds this
 crate to it.
 
 ## What a method returns
@@ -393,7 +393,7 @@ resource is watched, the client holds that resource's scope, which is what
 brings it that resource's events, and lets go of it when the watcher is
 dropped. A watcher that falls behind is given the latest state, not each one
 it missed. The rules a query keeps are
-[Cache Semantics](../../../docs/protocol/CACHE-SEMANTICS.md).
+[Cache Semantics](../../../protocol/contract/CACHE-SEMANTICS.md).
 
 A stream of events never drops frames silently. A reader that falls behind
 is given `Lagged(n)` in place of what it missed, and reads on.
@@ -569,7 +569,7 @@ Each module is documented on [docs.rs](https://docs.rs/semiont).
 | `channels` | The bus's channels, one type each, naming its payload. A channel the protocol does not have, or a payload that is not that channel's, does not compile. Each is `Scoped`, carried by a resource's scope, or `Unscoped`. |
 | `errors`, `timing`, `retry` | The failure codes, the deadlines and the retry rules every Semiont SDK shares |
 | `annotations` | The readers of an annotation: the resource it is on and the one it links to, the text it quotes, its entity types, its tag, and what kind it is. Its target is an id or an object, its selector one or a list, its body absent, one item or a list, and these read each. [`reader-cases.json`](../../../specs/src/annotations/reader-cases.json) holds every SDK's readers to the same answers. And the builders of one, which [a worker](#a-worker) uses: `reconcile`, `annotation_of_span` and `annotation_of_resource`, held by [`reconcile-cases.json`](../../../specs/src/annotations/reconcile-cases.json) and [`builder-cases.json`](../../../specs/src/annotations/builder-cases.json). |
-| `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../../docs/protocol/WORKER-CONTRACT.md) |
+| `claims`, `job_filter` | A worker's side of the job queue: its claims, the jobs it holds, whether a failed job is retried, and whether a job is one a claim takes. What a worker promises is the [worker contract](../../../protocol/contract/WORKER-CONTRACT.md) |
 | `session` | `SemiontSession`, `SemiontBrowser`, `SessionFactory`, `SessionSignals` |
 | `storage`, `sign_in_store` | Where a client keeps what must outlive it, and the sign-ins `semiont login` keeps |
 | `state`, `state_unit` | The state units, and what every unit commits to |
