@@ -42,9 +42,11 @@ The repository holds code in seven languages, and none of them depends on anothe
 
 ```text
 semiont/
-├── protocol/specs/                  # The spec every implementation is built against
-│   └── src/                #   OpenAPI paths and schemas, the bus registry, and the
-│                           #   shared case tables (principals, retry, media types, …)
+├── protocol/               # What every implementation is held to
+│   ├── contract/           #   The rules, in prose: the verbs, the bus, the record, jobs, transports
+│   ├── specs/src/          #   OpenAPI paths and schemas, the bus registry, and the
+│   │                       #   shared case tables (principals, retry, media types, …)
+│   └── conformance/        #   Independent black-box service and SDK suites
 ├── images/
 │   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
 │   ├── dispatcher/         # Rust: owns the job queue
@@ -61,7 +63,6 @@ semiont/
 │   └── launcher/           # Go: the `semiont` command, built on go/launcher
 ├── packages/
 │   ├── codegen/            # Shared bus and schema generators; protocol/specs/ holds their inputs
-│   ├── conformance/        # Independent shared black-box service and SDK suites
 │   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
 │   │   ├── core/           # Generated types, typed ids, the bus protocol
 │   │   ├── sdk/            # The TypeScript SDK
@@ -80,7 +81,7 @@ semiont/
 │   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
 │   └── python/service/     # What every Python service does to be one (package `semiont_service`)
 ├── docs/                   # By persona: analyst/, builder/, operator/, contributor/;
-│                           #   and for every reader: architecture/, protocol/
+│                           #   and for every reader: architecture/
 │   └── checks/doc-snippets/ # Typechecks documentation examples
 └── website/                # The project site
 ```

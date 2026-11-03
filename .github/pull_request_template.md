@@ -79,6 +79,6 @@ Complete this section if the change touches the gateway's routes, how any part m
 
 ## Documentation
 
-- [ ] `docs/` is updated for the readers this affects (`analyst/`, `builder/`, `operator/`, `contributor/`, `architecture/`, `protocol/`)
+- [ ] `docs/` is updated for the readers this affects (`analyst/`, `builder/`, `operator/`, `contributor/`, `architecture/`), and `protocol/contract/` for a change to what the parts agree on
 - [ ] The README and `docs/` of each app or package changed are updated
 - [ ] TypeScript examples in the docs typecheck: `npm run build:packages && ./docs/checks/doc-snippets/audit-doc-snippets.sh`
