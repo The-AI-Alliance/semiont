@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   getSupportedShapes,
+  mediaUrl,
   ResourceTagsInline,
   ResourceViewer,
   useMediaToken,
@@ -229,9 +230,7 @@ function LoadedDocument({
   );
   const { token } = useMediaToken(isBinary ? session.client : null, rid);
   const content = isBinary
-    ? token
-      ? `${session.client.baseUrl}/api/resources/${rid}?token=${token}`
-      : ''
+    ? mediaUrl(session.client, rid, token) ?? ''
     : textContent;
 
   // Detail click action → the pinned annotation card, anchored to the annotation's own
