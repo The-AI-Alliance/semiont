@@ -46,17 +46,17 @@ func TestStartCeilingsGB(t *testing.T) {
 	if got := startCeilingsGB(nil, catalogBrowserDocument, startOptions{}); got != 2 {
 		t.Fatalf("a start with no stack asks %vG, want 2G", got)
 	}
-	// The fixture's documents: seven services at 2G; the graph and the vector
-	// store at 2G, the Keycloak and its PostgreSQL at 1G, the broker at 512M;
+	// The fixture's documents: seven services at 2G; the graph at 2G; the vector
+	// store, the Keycloak and its PostgreSQL at 1G; the broker at 512M;
 	// and the Browser and the collector. Inference and embedding are the
 	// machine's Ollama, which runs on the host.
 	for _, inference := range []string{"ollama-gemma", "anthropic"} {
 		plan := mustPlan(t, fixtureStack(t, inference))
-		if got := startCeilingsGB(plan, catalogBrowserDocument, startOptions{}); got != 22.5 {
-			t.Errorf("%s: the fixture's stack asks %vG, want 22.5G", inference, got)
+		if got := startCeilingsGB(plan, catalogBrowserDocument, startOptions{}); got != 21.5 {
+			t.Errorf("%s: the fixture's stack asks %vG, want 21.5G", inference, got)
 		}
-		if got := startCeilingsGB(plan, catalogBrowserDocument, startOptions{observe: true}); got != 24.5 {
-			t.Errorf("%s: with --observe it asks %vG, want 24.5G: Jaeger's 1G and Prometheus's 1G more", inference, got)
+		if got := startCeilingsGB(plan, catalogBrowserDocument, startOptions{observe: true}); got != 23.5 {
+			t.Errorf("%s: with --observe it asks %vG, want 23.5G: Jaeger's 1G and Prometheus's 1G more", inference, got)
 		}
 	}
 }
@@ -77,8 +77,8 @@ func TestStartCeilingsCountTheBrowsersDocument(t *testing.T) {
 func TestStartCeilingsCountTheCeilingsTheDocumentsState(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.Smelter.Resources.Limits.Memory = "8G"
-	if got := startCeilingsGB(mustPlan(t, st), catalogBrowserDocument, startOptions{}); got != 28.5 {
-		t.Fatalf("ceilings with an 8G smelter = %vG, want 28.5G: the fixture's 22.5G with the smelter's 2G made 8G", got)
+	if got := startCeilingsGB(mustPlan(t, st), catalogBrowserDocument, startOptions{}); got != 27.5 {
+		t.Fatalf("ceilings with an 8G smelter = %vG, want 27.5G: the fixture's 21.5G with the smelter's 2G made 8G", got)
 	}
 }
 
