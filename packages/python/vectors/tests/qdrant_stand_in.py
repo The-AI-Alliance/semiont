@@ -14,6 +14,7 @@ key nor a token.
 """
 
 import asyncio
+import contextlib
 import re
 from dataclasses import dataclass
 from types import TracebackType
@@ -88,20 +89,19 @@ class PlayedQdrant:
     async def _connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self._connections.add(writer)
         try:
-            while request_line := await reader.readline():
-                method, target = request_line.decode().split(" ")[:2]
-                headers: dict[str, str] = {}
-                while (line := await reader.readline()).strip():
-                    name, _, value = line.decode().partition(":")
-                    headers[name.strip().lower()] = value.strip()
-                await reader.readexactly(int(headers.get("content-length", "0")))
-                asked = Asked(method, target.partition("?")[0], headers)
-                self.asked.append(asked)
-                status, body = self._answer(asked)
-                writer.write(f"HTTP/1.1 {status}\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body)
-                await writer.drain()
-        except ConnectionError:
-            pass
+            with contextlib.suppress(ConnectionError):
+                while request_line := await reader.readline():
+                    method, target = request_line.decode().split(" ")[:2]
+                    headers: dict[str, str] = {}
+                    while (line := await reader.readline()).strip():
+                        name, _, value = line.decode().partition(":")
+                        headers[name.strip().lower()] = value.strip()
+                    await reader.readexactly(int(headers.get("content-length", "0")))
+                    asked = Asked(method, target.partition("?")[0], headers)
+                    self.asked.append(asked)
+                    status, body = self._answer(asked)
+                    writer.write(f"HTTP/1.1 {status}\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body)
+                    await writer.drain()
         finally:
             self._connections.discard(writer)
             writer.close()

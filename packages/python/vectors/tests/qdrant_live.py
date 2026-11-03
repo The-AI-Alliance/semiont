@@ -789,13 +789,14 @@ def test_a_librarians_token_is_refused_every_write_and_a_store_that_presents_it_
                     response = await librarian.request(method, f"/collections/{name}{call}", json=body, params={"wait": "true"})
                     assert refusal(response) == f"Forbidden: Write access to collection {name} is required", f"{method} {call}"
                 # Making, changing and deleting a collection is allowed a token that may do anything, and no other.
-                assert refusal(await librarian.patch(f"/collections/{name}", json={"metadata": {"stamp": STAMP}})) == (
-                    "Forbidden: Global access is required"
+                changes: tuple[tuple[str, JsonObject | None], ...] = (
+                    ("PATCH", {"metadata": {"stamp": STAMP}}),
+                    ("DELETE", None),
+                    ("PUT", {"vectors": {"size": 1, "distance": "Dot"}}),
                 )
-                assert refusal(await librarian.delete(f"/collections/{name}")) == "Forbidden: Global access is required"
-                assert refusal(await librarian.put(f"/collections/{name}", json={"vectors": {"size": 1, "distance": "Dot"}})) == (
-                    "Forbidden: Global access is required"
-                )
+                for method, change in changes:
+                    response = await librarian.request(method, f"/collections/{name}", json=change)
+                    assert refusal(response) == "Forbidden: Global access is required", method
         # With the collections there, the store presenting it is refused the first payload index it asks for.
         indexing = QdrantVectorStore(host=host(), port=PORT, kb=kb, token=token("librarian", kb), dimensions=never_asked)
         refused = rf"Qdrant answered 403 to PUT /collections/{own[0]}/index: .*Forbidden: Write access to collection {own[0]} is required"

@@ -101,6 +101,22 @@ func decodeStrictly[T any](t *testing.T, b []byte) T {
 	return v
 }
 
+// No token is minted for a service that presents none, nor a Librarian's for a
+// knowledge base with no DID, whose collections it would name; and a start
+// that plans no vector index hands nobody a token to one.
+func TestVectorsTokensAreRefusedWhatNamesNoCollections(t *testing.T) {
+	if _, err := vectorsToken("the-key", "librarian", ""); err == nil {
+		t.Error("a Librarian's token was minted for a knowledge base with no DID")
+	}
+	if _, err := vectorsToken("the-key", "weaver", "did:web:example.github.io:plain-kb"); err == nil {
+		t.Error("a token was minted for the weaver, which presents none")
+	}
+	unplanned := flowCtx{kb: kbRoot{dir: t.TempDir(), ident: &kbIdentity{}}, plan: &launchPlan{Roles: map[string]rolePlan{}}}
+	if env, err := vectorsTokenEnv(unplanned, "smelter"); err == nil {
+		t.Errorf("a start that plans no vector index handed the Smelter %q", env)
+	}
+}
+
 // A start hands the Smelter and the Librarian the tokens it mints from the
 // key it loaded, each its own, for a Qdrant the launcher runs; for somebody
 // else's it mints none, and a start that loaded no key mints nothing.

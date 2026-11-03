@@ -4011,27 +4011,45 @@ func TestCleanOfAnIndexRunsTheSharedQdrantForTheDelete(t *testing.T) {
 // A shared Qdrant recorded as running that does not answer keeps, as far as
 // the launcher knows, every other knowledge base's index, so a clean of an
 // index refuses rather than run one in its place, and names the stop after
-// which it would.
+// which it would. So does one the launcher keeps no key for, which it cannot
+// ask.
 func TestCleanOfAnIndexRefusesAQdrantRecordedAsRunningThatDoesNotAnswer(t *testing.T) {
-	s := newScenario(t, "container")
-	withDomain(t, s.kb, arxivDomain)
-	ours := plantIndex(t, s, arxivDid)
-	if err := os.MkdirAll(stateHomeFor(s.home), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-qdrant":{"container":"semiont-qdrant","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/readyz"}}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	before := s.argv(t)
-	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
-	if code != 1 {
-		t.Fatalf("clean of an index at a Qdrant that does not answer: exit %d, want 1\nstdout:\n%s", code, stdout)
-	}
-	mustContain(t, "the refusal", stderr, "The shared Qdrant at http://127.0.0.1:9:",
-		"Once it is stopped (semiont stop --service vectors), this clean runs it for the delete.")
-	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant", "stop semiont-qdrant")
-	if !indexHeld(t, s, ours) {
-		t.Error("the refused clean deleted the index")
+	for _, c := range []struct {
+		why, key, says string
+	}{
+		{"one that does not answer", "the-machines-key", "/collections"},
+		{"one the launcher keeps no key for", "", "the launcher keeps no API key for it"},
+	} {
+		t.Run(c.why, func(t *testing.T) {
+			s := newScenario(t, "container")
+			withDomain(t, s.kb, arxivDomain)
+			ours := plantIndex(t, s, arxivDid)
+			if err := os.MkdirAll(stateHomeFor(s.home), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-qdrant":{"container":"semiont-qdrant","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/readyz"}}}`), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if c.key != "" {
+				if err := os.MkdirAll(sharedStateFor(s.home), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(sharedStateFor(s.home), "qdrant-api-key"), []byte(c.key+"\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before := s.argv(t)
+			stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
+			if code != 1 {
+				t.Fatalf("clean of an index at %s: exit %d, want 1\nstdout:\n%s", c.why, code, stdout)
+			}
+			mustContain(t, "the refusal", stderr, "The shared Qdrant at http://127.0.0.1:9: ", c.says,
+				"Once it is stopped (semiont stop --service vectors), this clean runs it for the delete.")
+			mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant", "stop semiont-qdrant")
+			if !indexHeld(t, s, ours) {
+				t.Error("the refused clean deleted the index")
+			}
+		})
 	}
 }
 
