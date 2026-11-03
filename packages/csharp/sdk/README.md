@@ -2,9 +2,10 @@
 
 [![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?component=csharp-sdk)](https://app.codecov.io/gh/The-AI-Alliance/semiont/components)
 
-Under construction. Models and checked identifiers are generated from the protocol schemas during compilation; the client is not yet
-implemented. Nothing is published to NuGet. Consumers will use a project reference until
-publishing is enabled separately.
+Under construction. Models and checked identifiers are generated from the protocol schemas
+during compilation. The HTTP transport and wire conformance driver are implemented; the
+session and high-level client are next. Nothing is published to NuGet. Consumers will use
+a project reference until publishing is enabled separately.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container
@@ -37,3 +38,20 @@ Use `Semiont.Types` for models and `Semiont.Identifiers` for identifier kinds. O
 nullable members use `Stated<T>` to distinguish absence from explicit null. Open objects
 retain unknown members as `JsonElement`; dates and URIs retain their wire spelling.
 Tests round-trip resolved payloads from the shared wire, live, and worker corpora.
+
+`Semiont.Http.HttpTransport` carries SSE frames, emits, and correlated requests. It
+supports resource holds, reconnects with per-resource watermarks, event deduplication,
+credential renewal, and cancellation. Each frame observer has its own queue; a view of
+several channels preserves their delivery order. `HttpContentTransport` uploads multipart
+content and reads resource bytes, descriptions, annotations, and anchored text.
+
+The transport accepts a caller-owned `HttpClient`. Its own HTTP handler uses no proxy.
+Deadlines and backoffs use the public `TimeProvider` and `Random` constructor arguments;
+the defaults are `TimeProvider.System` and `Random.Shared`. Disposing the transport ends
+its observers and requests and leaves a caller-owned HTTP client usable. Errors share
+`Semiont.Errors.SemiontError`, with distinct transport and bus-request families.
+
+Telemetry uses BCL `ActivitySource` and `Meter`; the application chooses its exporter.
+`SEMIONT_BUS_LOG` enables payload logging to stderr, with credentials withheld according
+to the shared bus-log table. See [the wire driver](conformance/README.md) for self-contained
+builds and black-box conformance.

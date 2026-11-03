@@ -4,8 +4,8 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../generators/Semiont.Generator/Semiont.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../generators/Semiont.Generator/Semiont.Generator.csproj" GlobalPropertiesToRemove="$(SemiontBuildToolGlobalPropertiesToRemove)" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <AdditionalFiles Include="../../../../../protocol/specs/src/**/*.json" />
-    <ProjectReference Include="../../tools/RefusalRunner/RefusalRunner.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../tools/RefusalRunner/RefusalRunner.csproj" GlobalPropertiesToRemove="$(SemiontBuildToolGlobalPropertiesToRemove)" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>
