@@ -50,6 +50,27 @@ specs/openapi.json              (generated - gitignored)
 gateway and Browser import from core
 ```
 
+## Case tables
+
+A case table is a file under [src/](src/) whose name ends in `cases.json`: a
+rule stated case by case, each case an input and the answer every
+implementation must give. Each language's unit tests load the table and call
+their own function on each case; nothing needs to be running. Beside its
+`$comment`, a table states who runs it (`runBy`), which SDK does not and why
+(`absent`), and which is still to (`notYetReached`).
+`npm run lint:spec-case-tables` holds each table to that
+([check-case-tables.mjs](../.github/scripts/checks/specs/check-case-tables.mjs)).
+
+**Where a case lives.** A case a language checks by calling one of its own
+functions is a case table here. A case that needs a running process (a
+gateway, a service, or an SDK put through a driver) belongs in the conformance
+kit, [packages/conformance](../packages/conformance/README.md). The kit's JSON
+cases are language-neutral data too, held to the kit's own case schemas; they
+are there because checking them needs something running. A table here may also
+be run by the kit (`conformance` among its runners), which holds a running
+service, or its own reader of a store, to the table's answers. That does not
+move the table: what puts a case here is that a function call can check it.
+
 ## Working with the Spec
 
 ### View the Specification

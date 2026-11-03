@@ -30,10 +30,16 @@ and a stand-in Anthropic, a stand-in embedding provider, a reader of the graph, 
 [vitest.config.ts](vitest.config.ts) runs each suite as a project of its own;
 `npm test` runs all nine.
 
+A case is here because checking it needs something running. A case a language
+checks by calling one of its own functions is a case table in `specs/`
+([the rule](../../specs/README.md#case-tables)).
+
 ## Running them
 
-All need a built gateway, `@semiont/core` built (the harness is typed by it)
-and `nats-server` (2.10 or later) on `PATH`. The dispatcher suite also needs a
+All need a built gateway, `@semiont/core` built, and `nats-server` (2.10 or
+later) on `PATH`. The harness runs `@semiont/core`'s code, not only its types:
+its generated OpenAPI validators, `kbDid`, the annotation helpers the graph
+reader uses, the jobs stream's subjects, and its fixture issuer. The dispatcher suite also needs a
 built dispatcher, the Archivist suite a built Archivist and `git`, the SDK
 suite and the worker suite the Rust drivers and the packages built, the
 worker-service suite the Worker service's environment, which `uv` makes, the
