@@ -121,6 +121,9 @@
       },
       "semiont.analyzers": {
         "type": "Project"
+      },
+      "semiont.generator": {
+        "type": "Project"
       }
     }
   }

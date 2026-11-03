@@ -31,7 +31,7 @@ const GENERATED = [
   'packages/go/sdk/bus/channels_gen.go',
   'packages/python/sdk/src/semiont/channels.py',
 ];
-const TEST = /(^|\/)(__tests__|tests)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$/;
+const TEST = /(^|\/)(__tests__|tests|Tests)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$/;
 
 const field = JSON.parse(readFileSync(join(ROOT, REGISTRY), 'utf8')).trace?.field;
 if (typeof field !== 'string' || field === '') {

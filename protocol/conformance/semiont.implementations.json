@@ -30,6 +30,9 @@
       "wire": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-wire-driver"],
       "live": { "command": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-live-driver"], "tier": "parity" },
       "worker": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-worker-driver"]
+    },
+    "swift": {
+      "wire": ["../../packages/swift/sdk/.build/conformance/semiont-swift-wire-driver"]
     }
   },
   "workerServices": {
