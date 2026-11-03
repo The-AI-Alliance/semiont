@@ -101,6 +101,8 @@ package struct TableGenerator {
   }
   package func generate() throws -> String {
     var out = "// Generated from protocol/specs/src tables; do not edit.\nimport Foundation\n"
+    _ = try models.inline(
+      "", "HeldSignIn", required(table("session/stored.json"), "storedSession").object)
     var received = try models.schema("BusFrame")
     var fields = try required(received, "properties").object
     let projection = fields.keys.sorted().map {

@@ -3,6 +3,8 @@
  * terminal runs it, beside an Archivist that stages into the same index.
  */
 import { execFileSync } from 'node:child_process';
+import { closeSync, openSync, unlinkSync } from 'node:fs';
+import { join } from 'node:path';
 import { eventually } from './net';
 
 /** How long one git command may hold the index: far longer than a batch of staging takes. */
@@ -33,3 +35,20 @@ export function gitByHand(root: string, ...args: string[]): Promise<string> {
 
 const foundTheIndexLocked = (refused: unknown): boolean =>
   refused instanceof Error && 'stderr' in refused && typeof refused.stderr === 'string' && refused.stderr.includes("index.lock': File exists");
+
+/** Hold the index as a writer would, after any current writer has released it. */
+export async function holdGitIndex(root: string): Promise<() => void> {
+  const lock = join(root, '.git', 'index.lock');
+  const descriptor = await eventually('the git index lock to be available', INDEX_HELD_AT_MOST_MS, () => {
+    try {
+      return openSync(lock, 'wx');
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return undefined;
+      throw error;
+    }
+  });
+  return () => {
+    closeSync(descriptor);
+    unlinkSync(lock);
+  };
+}
