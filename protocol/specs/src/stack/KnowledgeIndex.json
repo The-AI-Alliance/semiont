@@ -84,12 +84,18 @@
         },
         "vectors": {
           "type": "object",
-          "description": "The vector store the Smelter writes and the Librarian reads.",
+          "description": "The vector store the Smelter writes and the Librarian reads: the one the launcher runs for the knowledge bases on a machine, at `shared`; one of the knowledge base's own the launcher runs, from `image` with `resources`; or somebody else's, at `external`. Exactly one of the three.",
           "properties": {
             "type": {
               "type": "string",
               "minLength": 1,
               "description": "The vector store's driver: `qdrant`."
+            },
+            "shared": {
+              "type": "object",
+              "description": "The vector store the launcher runs for the knowledge bases on a machine (the state home's VectorStore document). Each knowledge base keeps its index in collections of its own there, so nothing is said of it here.",
+              "properties": {},
+              "additionalProperties": false
             },
             "image": {
               "$ref": "./Image.json"
@@ -105,9 +111,74 @@
           "required": [
             "type"
           ],
-          "allOf": [
+          "oneOf": [
             {
-              "$ref": "./Runner.json"
+              "required": [
+                "shared"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "image"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "resources"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "external"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "required": [
+                "image",
+                "resources"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "shared"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "external"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "required": [
+                "external"
+              ],
+              "not": {
+                "anyOf": [
+                  {
+                    "required": [
+                      "shared"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "image"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "resources"
+                    ]
+                  }
+                ]
+              }
             }
           ],
           "additionalProperties": false

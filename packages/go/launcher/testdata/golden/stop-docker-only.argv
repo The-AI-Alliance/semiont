@@ -41,3 +41,5 @@ docker stop semiont-ollama
 docker rm semiont-ollama
 docker stop semiont-browser
 docker rm semiont-browser
+docker stop semiont-qdrant
+docker rm semiont-qdrant

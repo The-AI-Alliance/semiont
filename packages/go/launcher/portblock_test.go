@@ -90,13 +90,15 @@ func TestAStartKeepsTheBlockItPlannedOnUnlessAnotherRootKeptIt(t *testing.T) {
 }
 
 // Block 1 places every port the launcher chooses for the stack ten above
-// block 0's — the daemons it runs, Neo4j's Browser, the services behind the
-// gateway, and the containers' side of a port a person dials too — and
-// leaves the gateway's and the shared ones' where they are: the issuer and its
-// PostgreSQL on their document's ports, and Ollama on its own.
+// block 0's — the daemons it runs, a Qdrant of the knowledge base's own among
+// them, Neo4j's Browser, the services behind the gateway, and the containers'
+// side of a port a person dials too — and leaves the gateway's and the shared
+// ones' where they are: the issuer and its PostgreSQL on their document's
+// ports, and Ollama on its own.
 func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
-	plan, err := derivePlan(st, issuerFor(t, st), fixtureKB(t).key(), 1)
+	ownVectors(st)
+	plan, err := derivePlan(st, issuerFor(t, st), nil, fixtureKB(t).key(), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,12 +144,73 @@ func TestABlockPlacesEveryPortTheLauncherChooses(t *testing.T) {
 	}
 }
 
+// Below block 101 no port a block places meets one another block places, or
+// one of the machine's containers' (portStride): the shared worker's and
+// telemetry's, the issuer's and its PostgreSQL's, the Browser's and the shared
+// Qdrant's, each as the launcher's catalog writes its document. Each block's
+// stack runs its own Qdrant and publishes its gateway where init writes it on
+// that block, so every port a block can claim is claimed.
+func TestNoBlockBelow101MeetsAnotherOrAMachineContainersPort(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	ownVectors(st)
+	qdrant := descriptorFor("vectors", "qdrant")
+	machine := map[int]string{}
+	for _, role := range sharedRoles {
+		for _, need := range stackPortNeeds(role) {
+			machine[need.port] = role
+		}
+	}
+	issuer := catalogIssuer().Spec
+	machine[issuer.Port] = "identity"
+	machine[*issuer.Database.Port] = "identity-store"
+	machine[catalogBrowser().Spec.Port] = "browser"
+	machine[catalogVectorStore().Spec.Port] = "vectors"
+	placedBy := map[int]int{}
+	for block := range 101 {
+		st.KnowledgeBase.Spec.Gateway.Port = blockPort(semiontDescriptor("gateway").ports[0].port, block)
+		plan, err := derivePlan(st, issuerFor(t, st), nil, fixtureKB(t).key(), block)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, port := range portNumbers(planPortChecks(plan, appleContainer)) {
+			if role, ok := machine[port]; ok {
+				t.Errorf("block %d places %d, the machine's %s's", block, port, role)
+			}
+			if other, ok := placedBy[port]; ok && other != block {
+				t.Errorf("block %d places %d, which block %d places too", block, port, other)
+			}
+			placedBy[port] = block
+		}
+	}
+	if _, ok := placedBy[blockPort(qdrant.defaultPort, 100)]; !ok {
+		t.Errorf("block 100 claims no Qdrant at %d: this test would prove nothing of the blocks' Qdrants", blockPort(qdrant.defaultPort, 100))
+	}
+}
+
+// The machine's Qdrant is where its document says, whatever the block of a
+// knowledge base naming it, and a start of that knowledge base claims none of
+// its ports: it keeps running past this stack.
+func TestABlockLeavesTheSharedQdrantWhereItsDocumentSays(t *testing.T) {
+	st := fixtureStack(t, "ollama-gemma")
+	vectors := fixtureVectorStore(t)
+	plan, err := derivePlan(st, issuerFor(t, st), vectors, fixtureKB(t).key(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := plan.Roles["vectors"].Port; got != vectors.spec.Port {
+		t.Errorf("the shared Qdrant is dialed at %d on block 1, want its document's %d", got, vectors.spec.Port)
+	}
+	if claimed := portNumbers(planPortChecks(plan, appleContainer)); slices.Contains(claimed, vectors.spec.Port) {
+		t.Errorf("a start on block 1 claims the shared Qdrant's %d; it claims %v", vectors.spec.Port, claimed)
+	}
+}
+
 // A daemon somebody else runs is where its document says, whatever the
 // block.
 func TestABlockLeavesAnExternalDaemonWhereItsDocumentSays(t *testing.T) {
 	st := fixtureStack(t, "ollama-gemma")
 	st.KnowledgeIndex.Spec.Graph.External = &stack.KnowledgeIndexGraphExternal{Uri: "bolt://graph.example.org:7687"}
-	plan, err := derivePlan(st, issuerFor(t, st), fixtureKB(t).key(), 1)
+	plan, err := derivePlan(st, issuerFor(t, st), vectorStoreFor(t, st), fixtureKB(t).key(), 1)
 	if err != nil {
 		t.Fatal(err)
 	}

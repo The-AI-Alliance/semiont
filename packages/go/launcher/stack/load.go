@@ -21,12 +21,14 @@ const (
 
 // The documents that belong to no knowledge base are kept in the launcher's
 // state home, in StateHomeDir: the Browser's, as BrowserFile, the worker's, as
-// WorkerPoolFile, and the issuer's, as IssuerFile.
+// WorkerPoolFile, the issuer's, as IssuerFile, and the vector store's, as
+// VectorStoreFile.
 const (
-	StateHomeDir   = "stack"
-	BrowserFile    = "browser.yaml"
-	WorkerPoolFile = "workers.yaml"
-	IssuerFile     = "issuer.yaml"
+	StateHomeDir    = "stack"
+	BrowserFile     = "browser.yaml"
+	WorkerPoolFile  = "workers.yaml"
+	IssuerFile      = "issuer.yaml"
+	VectorStoreFile = "vectors.yaml"
 )
 
 // Stack: a knowledge base's documents, each held to its schema, and the names

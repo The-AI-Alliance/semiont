@@ -159,7 +159,7 @@ Neither is optional at start: the Weaver and the Librarian each connect to the g
 ```bash
 semiont logs --service graph
 curl -s http://localhost:7474                  # On port block 1: 7484
-curl -s http://192.168.64.1:6333/readyz        # On port block 1: 6343. Under Docker or Podman: localhost
+curl -s http://192.168.64.1:6330/readyz        # The shared Qdrant. A knowledge base's own: 6333, on port block 1 6343. Under Docker or Podman: localhost
 ```
 
 ### Inference failures
@@ -216,6 +216,16 @@ semiont start
 
 The issuer's passwords stay, so its next boot reuses them. Each knowledge base's next start creates its realm afresh, with no accounts in it; add them again with `semiont useradd`.
 
+The shared Qdrant's store is the other one every knowledge base here shares: a start that names another Qdrant image than the one that wrote it is refused. Its clean is refused until no knowledge base that names it runs and it is stopped; each one's next start indexes its resources again:
+
+```bash
+semiont stop                     # In each knowledge base that names the shared Qdrant
+semiont stop --service vectors   # The shared Qdrant itself, when another knowledge base runs
+semiont clean --shared --store vectors --dry-run
+semiont clean --shared --store vectors
+semiont start
+```
+
 ## Emergency procedures
 
 ### Full restart
@@ -225,7 +235,7 @@ semiont stop
 semiont start
 ```
 
-Every store survives this by design. To discard them all, which also removes the knowledge base's realm at the issuer, with its accounts, and the secrets the launcher kept:
+Every store survives this by design. To discard them all, which also removes the knowledge base's realm at the issuer, with its accounts, its index at the shared Qdrant, and the secrets the launcher kept:
 
 ```bash
 semiont stop
@@ -233,7 +243,7 @@ semiont clean
 semiont start
 ```
 
-The realm is deleted through the shared Keycloak. While another knowledge base here runs, the clean uses that one. With none running, the clean runs Keycloak for the delete, which takes as long as its boot, and stops it again.
+The realm is deleted through the shared Keycloak, and the index, its three collections, through the shared Qdrant. While another knowledge base here runs, the clean uses those. With none running, the clean runs each for its delete, which takes as long as its boot, and stops it again. A server recorded as running that does not answer is refused, since it keeps the other knowledge bases' realms and indexes: stop it, and the clean runs one of its own.
 
 Neither touches the event log.
 

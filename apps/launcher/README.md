@@ -99,13 +99,16 @@ semiont stop
   row of `roots.json` (`portBlock`): its first successful start takes the
   lowest block no other row keeps, and `semiont forget` frees it. Block k
   publishes every port the launcher chooses for the stack at its block-0
-  port + 10k (NATS 4222, Qdrant 6333, Neo4j 7474/7687, the Smelter, Weaver,
-  Archivist, Librarian and Dispatcher 24101–24105); each container listens
-  where it always does, and every document the start stages names the
-  published ports. The gateway's port is its document's, and the shared
-  services keep theirs: the issuer's Keycloak (8080) and PostgreSQL (5432)
-  are on the ports the issuer's document in the state home gives them
-  (`semiont settings keycloak-port` writes Keycloak's). A dry run plans
+  port + 10k (NATS 4222, a Qdrant of the KB's own 6333, Neo4j 7474/7687,
+  the Smelter, Weaver, Archivist, Librarian and Dispatcher 24101–24105);
+  each container listens where it always does, and every document the start
+  stages names the published ports. The gateway's port is its document's,
+  and the shared services keep theirs: the issuer's Keycloak (8080) and
+  PostgreSQL (5432) are on the ports the issuer's document in the state home
+  gives them (`semiont settings keycloak-port` writes Keycloak's), and the
+  shared Qdrant (6330), which a KnowledgeIndex naming `spec.vectors.shared`
+  keeps its collections in, on the port the vector store's document gives
+  it. A dry run plans
   on the block a start would take and keeps none. A stop with no record
   verifies every kept block's service and broker ports released.
 - **Several KBs run side by side.** Each KB's containers are named for it,
@@ -162,6 +165,21 @@ semiont stop
   --service inference` stops it alone (`--service embedding`, where the
   stack runs it for the embeddings alone), and a stop of any other one
   service leaves it.
+- **The shared Qdrant serves every KB whose KnowledgeIndex names
+  `spec.vectors.shared`**, as `semiont init` writes, each KB's index in
+  collections of its own. It runs as `semiont-qdrant` from the vector
+  store's document in the state home (`stack/vectors.yaml`, which `semiont
+  settings vectors` shows), published on that document's port (6330) and on
+  no KB's block, with its store in `shared/qdrant` in the data home. Its
+  record lives beside the stacks, its port is never among a stack's claims,
+  and the stack records `vectors` as `provided: shared`. A start KEEPS a
+  running one when it runs the document's image and memory under this
+  start's runtime, at the address this start would probe it; it is restarted
+  otherwise. `semiont start --service vectors` always restarts it, and
+  `start --group index` keeps it. `semiont stop` stops it with the last
+  stack, as `stop --group index` does; `semiont stop --service vectors`
+  stops it alone. A KnowledgeIndex naming `image` and `resources` runs a
+  Qdrant of the KB's own instead, `semiont-<kb>-qdrant` on its block.
 - **The telemetry is shared too**: one OTel collector takes every
   KB's signals, each labelled with the KB that sent it, with Jaeger and
   Prometheus behind it. Their records live beside the stacks, as the
@@ -1028,20 +1046,22 @@ XDG directories on Linux, and each other system's own equivalent:
 
 | What | macOS | Linux | Windows |
 |---|---|---|---|
-| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the launcher's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's, the worker's and the issuer's documents (`stack/browser.yaml`, `stack/workers.yaml`, `stack/issuer.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
-| **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets, and `shared/`, holding the issuer's PostgreSQL and the machine's kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
+| **State home**: the stack record (`stack.json`), the registry of knowledge bases and the launcher's settings (`roots.json`), sign-ins (`tokens.json`), `discovery/`, and the Browser's, the worker's, the issuer's and the vector store's documents (`stack/browser.yaml`, `stack/workers.yaml`, `stack/issuer.yaml`, `stack/vectors.yaml`) | `~/Library/Application Support/semiont` | `$XDG_STATE_HOME/semiont` (default `~/.local/state/semiont`) | `%LOCALAPPDATA%\semiont` |
+| **Data home**: `roots/<key>/` for each knowledge base, holding its stores and its kept secrets, and `shared/`, holding the issuer's PostgreSQL, the shared Qdrant and the machine's kept secrets | the state home | `$XDG_DATA_HOME/semiont` (default `~/.local/share/semiont`) | the state home |
 | **Log**: `launcher.log` | `~/Library/Logs/semiont` | the state home | `logs\` in the state home |
 | **Staging**: the configs a running stack mounts | `/tmp/semiont-config.*` | `/tmp/semiont-config.*` | `%TEMP%\semiont-config.*` |
 
 A knowledge base's `roots/<key>/` holds one directory per store — `neo4j/`
-(graph), `qdrant/` (vectors), `nats/` (job queue and signals), `state/`
+(graph), `qdrant/` (vectors, when it runs its own Qdrant), `nats/` (job
+queue and signals), `state/`
 (views and projections), `anchored-text/`, `gateway/` and `librarian/` (each
 service's supervisor's events log) — and `logs/`, the container logs a start
 keeps before it removes the containers. Its kept secrets are files beside
 them, unless `semiont settings secret-store` names another store. `shared/`
 holds `postgres/`, the database of the issuer every knowledge base here signs
-in at, each in its own realm, and the values the launcher keeps for the
-machine: the worker's key and the issuer's passwords, always files.
+in at, each in its own realm; `qdrant/`, the shared Qdrant's, each knowledge
+base naming it in collections of its own; and the values the launcher keeps
+for the machine: the worker's key and the issuer's passwords, always files.
 
 This is none of the knowledge base itself, which is its root: the working tree
 you start from. `semiont status --verbose`, run from a root, prints that root,
@@ -1062,11 +1082,15 @@ refuses with a fix-it line rather than risk it (Postgres data is never
 auto-deleted). Keycloak manages its own schema on first boot; Semiont applies
 no migrations of its own, because the gateway keeps no database.
 
-Qdrant (`qdrant/`) and Neo4j (`neo4j/`) state persists the same way, with
-the opposite mismatch rule: they are *projections* of the event log, so a
-start whose KnowledgeIndex names a different image announces it is clearing the
-stale store and lets the normal rebuild repopulate it — freshness by
-rebuild, never a refusal. (The Neo4j subdirs are host-side mode 777: its
+A knowledge base's own Qdrant (`qdrant/`) and Neo4j (`neo4j/`) state
+persists the same way, with the opposite mismatch rule: they are
+*projections* of the event log, so a start whose KnowledgeIndex names a
+different image announces it is clearing the stale store and lets the normal
+rebuild repopulate it — freshness by rebuild, never a refusal. The shared
+Qdrant's (`shared/qdrant`) is every knowledge base's index naming it, so a
+start whose vector store document names another image refuses, as the
+issuer's PostgreSQL does, and `semiont clean --shared --store vectors`
+clears it. (The Neo4j subdirs are host-side mode 777: its
 entrypoint refuses to boot unless its `test -w` gate passes, and Apple
 container's virtiofs won't let it chown a mount root.)
 
@@ -1092,12 +1116,22 @@ using the state — stop first. The knowledge base's realm goes with its
 identity store: an unscoped clean, or `--store identity-store`, deletes it
 from the shared issuer through Keycloak's admin API, and keeps the
 PostgreSQL every other realm here is in. With the issuer not running, the
-clean runs it for the delete and stops it again, recording no stack.
+clean runs it for the delete and stops it again, recording no stack. The
+index of a knowledge base naming the shared Qdrant goes the same way: an
+unscoped clean, or `--store vectors`, deletes its three collections there,
+named by its DID, through Qdrant's API, and leaves every other knowledge
+base's; with the shared Qdrant not running, the clean runs it for the delete
+and stops it again. A shared Keycloak or Qdrant recorded as running that does
+not answer is refused rather than run in its place.
 `semiont clean --shared --store identity-store` removes that PostgreSQL's
 store, and every realm in it, once no recorded stack signs in at the issuer
 and its server is stopped (`semiont stop --group issuer`); the issuer's
 passwords stay, so its next boot reuses them, and each knowledge base's next
-start creates its realm afresh. `--shared` and `--root` are refused together.
+start creates its realm afresh. `semiont clean --shared --store vectors`
+removes the shared Qdrant's store, and every index in it, once no recorded
+stack keeps its index there and the shared Qdrant is stopped (`semiont stop
+--service vectors`); each knowledge base's next start indexes it afresh.
+`--shared` and `--root` are refused together.
 `stop` itself never touches state; stopping and restarting is exactly the
 round trip persistence exists for.
 

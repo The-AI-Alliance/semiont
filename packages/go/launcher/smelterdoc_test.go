@@ -82,7 +82,7 @@ func TestSmelterDocumentStatesWhatThePlacementDecides(t *testing.T) {
 	if got := shapeOf[api.OllamaEmbeddingConfig](t, doc.Embedding); got != wantEmbedding {
 		t.Errorf("embedding = %+v, want %+v", got, wantEmbedding)
 	}
-	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6333}
+	wantVectors := api.QdrantVectorsConfig{Type: api.QdrantVectorsConfigTypeQdrant, Host: "192.168.64.1", Port: 6330}
 	if got := shapeOf[api.QdrantVectorsConfig](t, doc.Vectors); got != wantVectors {
 		t.Errorf("vectors = %+v, want %+v", got, wantVectors)
 	}

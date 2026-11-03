@@ -83,7 +83,7 @@ The graph, the vector store, the broker and the issuer's PostgreSQL are each one
 - **`image` and `resources`**: the launcher runs it and places it, and generates and keeps its password. The document states no address and no password.
 - **`external`**: somebody else runs it. The document states where it is and, where it takes one, names the variable that holds its credential, and the launcher checks that it answers and starts nothing.
 
-Never both, and never neither: [`Runner.json`](../../../protocol/specs/src/stack/Runner.json) is the rule each of them is held to, and each one's schema says what its `external` holds. An external address must be one the containers can reach; `localhost` inside a container is the container itself.
+Never both, and never neither: [`Runner.json`](../../../protocol/specs/src/stack/Runner.json) is the rule each of them is held to, and each one's schema says what its `external` holds. The vector store has a third way, **`shared`**, which `semiont init` writes: the Qdrant the launcher runs for every knowledge base here ([The vector store's document](#the-vector-stores-document)). It is exactly one of the three. An external address must be one the containers can reach; `localhost` inside a container is the container itself.
 
 The issuer is chosen the same way, one level up: the KnowledgeBase names the issuer the launcher runs for every knowledge base here, or states an issuer somebody else runs ([The issuer](#the-issuer)).
 
@@ -95,7 +95,7 @@ An image of Semiont's runs only when a release built it: `semiont start` verifie
 
 An image tagged `:local` is never pulled: it is one [`make local-build`](../../../Makefile) built on this machine, and a knowledge base runs it by naming it ([Local Development](../../contributor/LOCAL-DEVELOPMENT.md)). No release built it, so it runs unverified, and every start says so.
 
-The Browser's image is named by its own document ([The Browser](#the-browser)). The images of Ollama and the telemetry containers are the launcher's own.
+The Browser's image is named by its own document ([The Browser](#the-browser)), and the issuer's and the shared Qdrant's by theirs. The images of Ollama and the telemetry containers are the launcher's own.
 
 ### Memory
 
@@ -138,6 +138,32 @@ The embedding's `type` and `model` and the two chunking numbers are what the vec
 ### Graph and vectors
 
 In a launcher-run stack the graph is Neo4j and the vector store is Qdrant. The packages have other drivers behind the same interfaces, for a stack you deploy yourself: see [Adapting a stack](DEPLOYMENT.md#adapting-a-stack). The in-memory vector store keeps its index inside one process, so no stack with separate services can use it, and the launcher refuses it.
+
+### The vector store's document
+
+The Qdrant the launcher runs for the knowledge bases whose index names `spec.vectors.shared` belongs to none of them, so its document is kept in the launcher's state home, beside the issuer's: `stack/vectors.yaml`, held to [`VectorStore`](../../../protocol/specs/src/stack/VectorStore.json) and read as strictly as the documents above. Each knowledge base keeps its index there in collections of its own, so the KnowledgeIndex says nothing more of it than `shared: {}`.
+
+```yaml
+apiVersion: semiont.the-ai-alliance.github.io/v1alpha1
+kind: VectorStore
+metadata:
+  name: vectors
+spec:
+  type: qdrant
+  image: qdrant/qdrant:<version>@sha256:<digest>
+  resources:
+    limits:
+      memory: 1G
+  port: 6330
+```
+
+The first command that needs it (a start of a knowledge base that names `shared`, `semiont settings vectors`) writes it as above, from the launcher's catalog, and says where. `semiont settings vectors` shows it, and `semiont settings vectors --path` prints its path alone. Edit it, and the next start runs what it says:
+
+- **`spec.type`**: the vector store's driver, `qdrant`, which a knowledge base naming `shared` names too, at `spec.vectors.type`.
+- **`spec.image`** and **`spec.resources.limits.memory`**: Qdrant's image and memory ceiling. Its data, under `shared/qdrant` in the launcher's data home, is every knowledge base's index here, so a start refuses to run another image on it rather than clear it; `semiont clean --shared --store vectors` removes it, and each knowledge base's next start indexes its resources afresh. One knowledge base's `semiont clean --store vectors` deletes its own collections there, and no other's.
+- **`spec.port`**: where Qdrant is published, on this machine. It is on no knowledge base's port block ([Ports](../LOCAL-SEMIONT.md#ports)): 6333 is block 0's own Qdrant, and 6334 and 6335 are Qdrant's gRPC and cluster ports.
+
+A start keeps a running Qdrant that runs what the document says, and restarts one that does not; `semiont start --service vectors` restarts it. `semiont stop --service vectors` stops it, and so does the last knowledge base's `semiont stop`.
 
 ### Job queue and signal plane
 

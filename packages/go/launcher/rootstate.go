@@ -89,6 +89,11 @@ type stateStoreSpec struct {
 	// unstamped: no image stamps this store, and no image change clears it.
 	// Its owner mounts it through stateMountsUnstamped.
 	unstamped bool
+	// machine: the machine keeps it, for every knowledge base here
+	// (sharedStateDir), not a knowledge base's root: the issuer's
+	// PostgreSQL's always, and the vector store's when a knowledge base names
+	// the machine's (storeAt).
+	machine bool
 }
 
 // stateMount: one -v within a store. sub "" mounts the store dir itself.
@@ -101,13 +106,16 @@ var stateStores = map[string]stateStoreSpec{
 	// the mount root (which virtiofs refuses). Its owner is shared, so it is
 	// the machine's: every knowledge base's realm is in it.
 	"identity-store": {
-		dir:    "postgres",
-		holds:  "Keycloak's realms and accounts, every knowledge base's",
-		mounts: []stateMount{{"", "/var/lib/postgresql/data"}},
-		env:    []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
-		owner:  "identity-store",
+		dir:     "postgres",
+		holds:   "Keycloak's realms and accounts, every knowledge base's",
+		mounts:  []stateMount{{"", "/var/lib/postgresql/data"}},
+		env:     []string{"PGDATA=/var/lib/postgresql/data/pgdata"},
+		owner:   "identity-store",
+		machine: true,
 	},
-	// Qdrant just writes files; a plain mount works.
+	// Qdrant just writes files; a plain mount works. A knowledge base's own,
+	// or, when it names the machine's, every knowledge base's index there,
+	// each in collections of its own (storeAt).
 	"vectors": {
 		dir:        "qdrant",
 		holds:      "vectors",
@@ -243,13 +251,31 @@ func storeClearArgs(sd string) []string {
 }
 
 // home: the directory the store and its stamp are kept under — the
-// machine's (sharedStateDir) for a store a shared role owns, whatever the
-// key, else the state dir of the root key names.
+// machine's (sharedStateDir) for a store the machine keeps, whatever the key,
+// else the state dir of the root key names.
 func (spec stateStoreSpec) home(key string) string {
-	if sharedRole(spec.owner) {
+	if spec.machine {
 		return sharedStateDir()
 	}
 	return stateRootDir(key)
+}
+
+// storeAt: the store named store as a start of the knowledge base planned as
+// plan mounts it — the machine's when the machine's container serves its
+// owner (presenceShared).
+func storeAt(store string, plan *launchPlan) stateStoreSpec {
+	if plan.Roles[stateStores[store].owner].Presence == presenceShared {
+		return machineStore(store)
+	}
+	return stateStores[store]
+}
+
+// machineStore: the store named store as the machine keeps it, for every
+// knowledge base here.
+func machineStore(store string) stateStoreSpec {
+	spec := stateStores[store]
+	spec.machine = true
+	return spec
 }
 
 // storeDir: the store's directory under its home.
@@ -261,14 +287,9 @@ func (spec stateStoreSpec) storeDir(key string) string {
 	return filepath.Join(dir, spec.dir)
 }
 
-// stateMountArgs renders the -v/-e run args for a role's persistent state.
-// nil for roles without a store, or when no data home resolves — the stack
-// still boots, just ephemeral.
-func stateMountArgs(role, key string) []string {
-	spec, ok := stateStores[role]
-	if !ok {
-		return nil
-	}
+// mountArgs renders the -v/-e run args for the store. nil when no data home
+// resolves — the stack still boots, just ephemeral.
+func (spec stateStoreSpec) mountArgs(key string) []string {
 	sd := spec.storeDir(key)
 	if sd == "" {
 		return nil

@@ -1,5 +1,5 @@
 {
-  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the shared ones, the Browser's (Browser), the worker's (WorkerPool) and the issuer's (Issuer), which belong to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixtures (its fixture knowledge base, and the state home's documents beside it), with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of two ways to say a thing given both or neither. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
+  "$comment": "What the launcher's documents are held to: a knowledge base's, the stack's kinds (KnowledgeBase, KnowledgeIndex, Inference) and the project file `.semiont/config.yaml` (ProjectConfig, in ../kb-identity); and the shared ones, the Browser's (Browser), the worker's (WorkerPool), the issuer's (Issuer) and the vector store's (VectorStore), which belong to no knowledge base. Each case names the schema it is read against and gives the document: `document`, YAML text, where YAML's own reading is the point or no fixture holds the kind; or `base`, a file of the launcher's fixtures (its fixture knowledge base, and the state home's documents beside it), with `patch`, a JSON merge patch (RFC 7396) applied to it. `verdict` is `accepted`, or `refused` with `at`, the JSON pointer of the value refused, and `reason`: `unknown-field`, a field the schema does not name; `missing-required`; `wrong-type`; `not-allowed`, a value of the right type the schema refuses (a constant, a list, a pattern, a bound); or `exactly-one`, one of the ways to say a thing given more than one or none. A runner reads each case against the schema it names, and fails on a verdict, `at` or `reason` other than the case's. A schema with no refused case is held to nothing.",
   "runBy": {
     "launcher": ["packages/go/launcher/stack/read_test.go"]
   },
@@ -176,10 +176,123 @@
       "patch": {
         "spec": {
           "graph": { "image": null, "resources": null, "external": { "uri": "bolt://graph.example.com:7687", "password": { "fromEnv": "NEO4J_PASSWORD" } } },
-          "vectors": { "image": null, "resources": null, "external": { "host": "vectors.example.com", "port": 6333 } }
+          "vectors": { "shared": null, "external": { "host": "vectors.example.com", "port": 6333 } }
         }
       },
       "verdict": "accepted"
+    },
+    {
+      "why": "a vector store of the knowledge base's own, which the launcher runs",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null, "image": "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", "resources": { "limits": { "memory": "1G" } } } } },
+      "verdict": "accepted"
+    },
+    {
+      "why": "the shared vector store and one of the knowledge base's own at once",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "image": "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10", "resources": { "limits": { "memory": "1G" } } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the shared vector store and somebody else's at once",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "external": { "host": "vectors.example.com", "port": 6333 } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "a vector store named neither shared, nor the knowledge base's own, nor somebody else's",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "a vector store of the knowledge base's own with no memory ceiling",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": null, "image": "qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10" } } },
+      "verdict": "refused",
+      "at": "/spec/vectors",
+      "reason": "exactly-one"
+    },
+    {
+      "why": "the shared vector store with a port, which is the machine's VectorStore document's to say",
+      "schema": "KnowledgeIndex",
+      "base": "packages/go/launcher/testdata/kb/.semiont/stack/index.yaml",
+      "patch": { "spec": { "vectors": { "shared": { "port": 6330 } } } },
+      "verdict": "refused",
+      "at": "/spec/vectors/shared/port",
+      "reason": "unknown-field"
+    },
+    {
+      "why": "the fixture's VectorStore, as it is",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": {},
+      "verdict": "accepted"
+    },
+    {
+      "why": "another version of the kinds",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "apiVersion": "semiont.the-ai-alliance.github.io/v1beta1" },
+      "verdict": "refused",
+      "at": "/apiVersion",
+      "reason": "not-allowed"
+    },
+    {
+      "why": "a VectorStore with no type",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "type": null } },
+      "verdict": "refused",
+      "at": "/spec/type",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore with no image",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "image": null } },
+      "verdict": "refused",
+      "at": "/spec/image",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore with no resources",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "resources": null } },
+      "verdict": "refused",
+      "at": "/spec/resources",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore published on no port",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "port": null } },
+      "verdict": "refused",
+      "at": "/spec/port",
+      "reason": "missing-required"
+    },
+    {
+      "why": "a VectorStore somebody else runs, which a knowledge base names at its own `external`",
+      "schema": "VectorStore",
+      "base": "packages/go/launcher/testdata/vectors.yaml",
+      "patch": { "spec": { "external": { "host": "vectors.example.com", "port": 6333 } } },
+      "verdict": "refused",
+      "at": "/spec/external",
+      "reason": "unknown-field"
     },
     {
       "why": "a similarity above one",

@@ -46,7 +46,7 @@ func TestEachKnowledgeBaseHasARealmOfItsOwn(t *testing.T) {
 	issuers := map[string]string{}
 	for _, key := range []string{fixtureKB(t).key(), rootKey("did:web:owner.github.io:other-kb", "")} {
 		st := fixtureStack(t, "anthropic")
-		plan, err := derivePlan(st, issuerFor(t, st), key, 0)
+		plan, err := derivePlan(st, issuerFor(t, st), vectorStoreFor(t, st), key, 0)
 		if err != nil {
 			t.Fatal(err)
 		}

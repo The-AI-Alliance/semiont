@@ -26,6 +26,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -705,7 +706,7 @@ func TestStartStagesEveryAddressAsALiteral(t *testing.T) {
 	}
 	mustContain(t, "staged dispatcher.json", stagedFile(t, s, "dispatcher.json"), "192.168.64.1:4222")
 	mustContain(t, "staged smelter.json", stagedFile(t, s, "smelter.json"),
-		`"gatewayUrl": "http://192.168.64.1:14000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6333`)
+		`"gatewayUrl": "http://192.168.64.1:14000"`, `"baseUrl": "http://192.168.64.1:11434"`, `"port": 6330`)
 }
 
 func TestStartDefaultBoot(t *testing.T) {
@@ -1169,7 +1170,7 @@ func TestKeycloakPortIsTheIssuerDocuments(t *testing.T) {
 			}
 		}
 		if !step.runs {
-			issuerRunsAsRecorded(t, s)
+			sharedRunsAsRecorded(t, s, "postgres", "keycloak")
 		}
 		before := len(s.argv(t))
 		stdout, stderr, code := s.run(t, "start")
@@ -2091,13 +2092,13 @@ func containerOf(product string) string {
 	return "semiont-" + testKBKey + "-" + product
 }
 
-// issuerRunsAsRecorded scripts the shared issuer's containers as running, on
-// the images their records name, as the next start finds them when nothing
-// stopped them.
-func issuerRunsAsRecorded(t *testing.T, s *scenario) {
+// sharedRunsAsRecorded scripts the machine's containers of products as
+// running, on the images their records name, as the next start finds them when
+// nothing stopped them.
+func sharedRunsAsRecorded(t *testing.T, s *scenario, products ...string) {
 	t.Helper()
 	recorded := readSharedRecords(t, s).Shared
-	for _, product := range []string{"postgres", "keycloak"} {
+	for _, product := range products {
 		rec := recorded["semiont-"+product]
 		if rec == nil {
 			t.Fatalf("no shared record of semiont-%s", product)
@@ -2176,7 +2177,7 @@ func TestTwoKnowledgeBasesShareOneIssuer(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("the first knowledge base's start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	issuerRunsAsRecorded(t, s)
+	sharedRunsAsRecorded(t, s, "postgres", "keycloak")
 	issuer := readSharedRecords(t, s).Shared["semiont-keycloak"].ID
 
 	s.kb = other
@@ -2248,6 +2249,171 @@ func TestAStartCreatesTheRealmOnceAndLeavesItThereafter(t *testing.T) {
 	}
 	if got := strings.Count(string(log), "POST /admin/realms "); got != 1 {
 		t.Fatalf("the two starts created the realm %d times, want once:\n%s", got, log)
+	}
+}
+
+// sharedVectorsBlock: the fixture KnowledgeIndex document's vector store, the
+// machine's Qdrant, as init writes it.
+const sharedVectorsBlock = "  vectors:\n    type: qdrant\n    shared: {}\n"
+
+// withOwnVectors makes root's KnowledgeIndex document run a Qdrant of the
+// knowledge base's own, at the launcher's image and memory, rather than the
+// machine's.
+func withOwnVectors(t *testing.T, root string) {
+	t.Helper()
+	path := filepath.Join(root, ".semiont", "stack", "index.yaml")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), sharedVectorsBlock) {
+		t.Fatalf("%s names no shared vector store to replace:\n%s", path, b)
+	}
+	own := "  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10\n    resources: { limits: { memory: 1G } }\n"
+	if err := os.WriteFile(path, []byte(strings.Replace(string(b), sharedVectorsBlock, own, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Two knowledge bases naming the shared vector store keep their indexes in one
+// Qdrant, on its document's port and in the machine's store: the second's
+// start keeps the one the first ran, a stop beside another stack leaves it,
+// and the last stack's stop stops it. Neither root keeps a store of it.
+func TestTwoKnowledgeBasesShareOneQdrant(t *testing.T) {
+	s := newScenario(t, "container")
+	first := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, "example.github.io:other-kb")
+	withGatewayPort(t, other, 4010)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("the first knowledge base's start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "the first start", s.argv(t), "--name semiont-qdrant", "-p 192.168.64.1:6330:6333", "-v <data-home>/shared/qdrant:")
+	qdrant := readSharedRecords(t, s).Shared["semiont-qdrant"]
+	if qdrant == nil {
+		t.Fatal("the first start recorded no shared Qdrant")
+	}
+	sharedRunsAsRecorded(t, s, "qdrant")
+
+	s.kb = other
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("the second knowledge base's start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	fresh := strings.TrimPrefix(s.argv(t), before)
+	mustNotContain(t, "the second start", fresh, "--name semiont-qdrant", "stop semiont-qdrant", "--name semiont-example.github.io-other-kb-qdrant")
+	mustContain(t, "the second start", stdout, "vectors — Qdrant already running")
+	if got := readSharedRecords(t, s).Shared["semiont-qdrant"].ID; got != qdrant.ID {
+		t.Errorf("the second start replaced the shared Qdrant's record: %s, was %s", got, qdrant.ID)
+	}
+	mustContain(t, "the second start's smelter.json", stagedFile(t, s, "smelter.json"), `"port": 6330`)
+	for _, key := range []string{testKBKey, "example.github.io-other-kb"} {
+		if _, err := os.Stat(filepath.Join(stateRootFor(s.home, key), "qdrant")); !os.IsNotExist(err) {
+			t.Errorf("%s keeps a Qdrant store of its own (%v)", key, err)
+		}
+	}
+	// Status shows the shared Qdrant once, among the machine's, and the
+	// knowledge base's index line says the machine's serves it.
+	status, _, _ := s.run(t, "status")
+	if n := strings.Count(status, "vectors (Qdrant)"); n != 1 {
+		t.Errorf("status shows the shared Qdrant's row %d times, want once:\n%s", n, status)
+	}
+	if _, machine, ok := strings.Cut(status, "VECTORS\n"); !ok || !strings.Contains(machine, "http://192.168.64.1:6330/readyz") {
+		t.Errorf("status shows no section of the shared Qdrant at its port:\n%s", status)
+	}
+	mustContain(t, "status of the second knowledge base", status, "✓ vectors shared")
+
+	stopOf := func(kb, label string) []string {
+		t.Helper()
+		s.kb = kb
+		before := s.argv(t)
+		if _, stderr, code := s.run(t, "stop"); code != 0 {
+			t.Fatalf("%s: exit %d\nstderr:\n%s", label, code, stderr)
+		}
+		return argvStops(strings.TrimPrefix(s.argv(t), before))
+	}
+	if got := stopOf(first, "the first knowledge base's stop"); slices.Contains(got, "semiont-qdrant") {
+		t.Errorf("a stop beside another stack stopped the shared Qdrant: %q", got)
+	}
+	if readSharedRecords(t, s).Shared["semiont-qdrant"] == nil {
+		t.Error("a stop beside another stack forgot the shared Qdrant")
+	}
+	if got := stopOf(other, "the last stack's stop"); !slices.Contains(got, "semiont-qdrant") {
+		t.Errorf("the last stack's stop left the shared Qdrant running: %q", got)
+	}
+}
+
+// `semiont stop --service vectors` stops the shared Qdrant alone, and
+// `semiont clean --shared --store vectors` removes its store and its stamp.
+// The clean is refused while a recorded stack keeps its index there, and
+// while a record says the shared Qdrant runs, removing nothing.
+func TestCleanSharedRemovesTheSharedQdrantsStore(t *testing.T) {
+	s := newScenario(t, "container")
+	shared := sharedStateFor(s.home)
+	store := filepath.Join(shared, "qdrant")
+	refused := func(label, want string) {
+		t.Helper()
+		stdout, stderr, code := s.run(t, "clean", "--shared", "--store", "vectors")
+		if code != 1 {
+			t.Fatalf("the shared clean %s: exit %d, want 1\nstdout:\n%s", label, code, stdout)
+		}
+		mustContain(t, "the shared clean "+label, stderr, want)
+		if _, err := os.Stat(store); err != nil {
+			t.Errorf("the shared clean %s removed the store: %v", label, err)
+		}
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	refused("beside a running stack", "A recorded stack keeps its index in the shared Qdrant")
+
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "stop", "--service", "vectors")
+	if code != 0 {
+		t.Fatalf("stop --service vectors: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "stop --service vectors", stdout+stderr, "Qdrant stopped")
+	if got := argvStops(strings.TrimPrefix(s.argv(t), before)); !slices.Equal(got, []string{"semiont-qdrant"}) {
+		t.Errorf("stop --service vectors stopped %q, want the shared Qdrant alone", got)
+	}
+	refused("beside a stack that keeps its index there", "A recorded stack keeps its index in the shared Qdrant")
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// The shared Qdrant alone, as a stop of a stack beside one with its own
+	// leaves it.
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-qdrant":{"container":"semiont-qdrant","provided":"launcher","runtime":"container"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	refused("beside the shared Qdrant's record", "Stop it first: semiont stop --service vectors")
+	if _, stderr, code := s.run(t, "stop", "--service", "vectors"); code != 0 {
+		t.Fatalf("stop --service vectors with no stack recorded: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	// What the shared Qdrant wrote.
+	if err := os.MkdirAll(filepath.Join(store, "collections"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code = s.run(t, "clean", "--shared", "--store", "vectors", "--dry-run")
+	if code != 0 {
+		t.Fatalf("the shared clean's dry run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "the dry run", stdout, "would remove "+store+" — ", "the index of every knowledge base naming the shared Qdrant", "(dry-run; nothing removed)")
+	stdout, stderr, code = s.run(t, "clean", "--shared", "--store", "vectors")
+	if code != 0 {
+		t.Fatalf("the shared clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the shared clean", stdout, "Removed "+store+" — ")
+	if _, err := os.Stat(store); !os.IsNotExist(err) {
+		t.Errorf("the shared clean left the store (%v)", err)
+	}
+	if b, err := os.ReadFile(filepath.Join(shared, "meta.json")); err != nil || strings.Contains(string(b), `"vectors"`) {
+		t.Errorf("the shared clean left the store's stamp: %s, %v", b, err)
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after the shared clean: exit %d\nstderr:\n%s", code, stderr)
 	}
 }
 
@@ -2552,8 +2718,11 @@ func TestEachKnowledgeBaseRunsOnAPortBlockOfItsOwn(t *testing.T) {
 		return "none"
 	}
 
-	if got := startOf("the first knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:4222:4222") {
-		t.Errorf("the first knowledge base's start is not on block 0:\n%s", got)
+	// The first names the machine's Qdrant, which is on no block; the second
+	// runs its own, on its block.
+	withOwnVectors(t, other)
+	if got := startOf("the first knowledge base's start"); !strings.Contains(got, "-p 192.168.64.1:4222:4222") || !strings.Contains(got, "-p 192.168.64.1:6330:6333") {
+		t.Errorf("the first knowledge base's start is not on block 0, beside the machine's Qdrant:\n%s", got)
 	}
 	run("stop", "stop")
 	if got := blockOf(first); got != "0" {
@@ -2820,7 +2989,7 @@ func TestCleanTakesTheAnchoredTextStore(t *testing.T) {
 		t.Errorf("clean --store anchored-text left the tree behind: %v", err)
 	}
 	// And the other stores are untouched — a scoped clean is scoped.
-	for _, store := range []string{filepath.Join(dir, "qdrant"), filepath.Join(sharedStateFor(s.home), "postgres")} {
+	for _, store := range []string{filepath.Join(dir, "neo4j"), filepath.Join(sharedStateFor(s.home), "qdrant"), filepath.Join(sharedStateFor(s.home), "postgres")} {
 		if _, err := os.Stat(store); err != nil {
 			t.Errorf("clean --store anchored-text took %s too: %v", store, err)
 		}
@@ -3048,7 +3217,7 @@ func TestStartRefusesKBWithoutDid(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("declared-domain start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/qdrant")
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-no-did-kb/neo4j")
 }
 
 // A knowledge base whose project file is .semiont/config.yaml starts from it;
@@ -3065,7 +3234,7 @@ func TestStartReadsTheYAMLProjectFile(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("a start from config.yaml: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-test-kb/qdrant")
+	mustContain(t, "state key", s.norm(stdout), "roots/example.github.io-test-kb/neo4j")
 
 	broken := strings.Replace(string(project), "  domain:", "  domian:", 1)
 	if broken == string(project) {
@@ -3489,11 +3658,278 @@ func TestCleanOfARealmRefusesAnIssuerRecordedAsRunningThatDoesNotAnswer(t *testi
 	realmOf(t, s, testKBKey)
 }
 
+// The knowledge bases the index cleans run, by domain: two that
+// protocol/specs/src/vectors/payload-cases.json names the collections of.
+const (
+	arxivDomain = "the-ai-alliance.github.io:semiont-arxiv-kb"
+	arxivDid    = "did:web:" + arxivDomain
+	arxivKey    = "the-ai-alliance.github.io-semiont-arxiv-kb"
+	plainDomain = "example.github.io:plain-kb"
+	plainDid    = "did:web:" + plainDomain
+)
+
+// plantIndex makes the collections of the knowledge base whose DID is did at
+// the shared Qdrant, as its Smelter would, the fakert keeping each as a file;
+// it answers their names, as the table's collectionsNamed case for did states
+// them.
+func plantIndex(t *testing.T, s *scenario, did string) []string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "protocol", "specs", "src", "vectors", "payload-cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var table struct {
+		Cases []struct {
+			CollectionsNamed *struct {
+				KB    string            `json:"kb"`
+				Names map[string]string `json:"names"`
+			} `json:"collectionsNamed"`
+		} `json:"cases"`
+	}
+	if err := json.Unmarshal(b, &table); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range table.Cases {
+		if c.CollectionsNamed == nil || c.CollectionsNamed.KB != did {
+			continue
+		}
+		names := slices.Sorted(maps.Values(c.CollectionsNamed.Names))
+		for _, name := range names {
+			if err := os.WriteFile(collectionAt(s, name), nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return names
+	}
+	t.Fatalf("the table names no collections of %s", did)
+	return nil
+}
+
+// collectionAt: the file the fakert keeps a collection of the shared Qdrant
+// in.
+func collectionAt(s *scenario, name string) string {
+	return filepath.Join(s.fakertDir, "collection-semiont-qdrant-"+name)
+}
+
+// indexHeld: whether the shared Qdrant holds each of names, as one.
+func indexHeld(t *testing.T, s *scenario, names []string) bool {
+	t.Helper()
+	held := 0
+	for _, name := range names {
+		if _, err := os.Stat(collectionAt(s, name)); err == nil {
+			held++
+		}
+	}
+	if held != 0 && held != len(names) {
+		t.Fatalf("the shared Qdrant holds %d of %d collections %v", held, len(names), names)
+	}
+	return held == len(names)
+}
+
+// A clean of a knowledge base's vector store deletes its collections at the
+// shared Qdrant, through Qdrant's API, and leaves every other knowledge base's
+// and the store they are all kept in. A dry run says so and deletes nothing;
+// an unscoped clean deletes them too, with the rest.
+func TestCleanDeletesOneKnowledgeBasesIndexAtTheSharedQdrant(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	kb := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, plainDomain)
+	withGatewayPort(t, other, 4010)
+	for _, root := range []string{kb, other} {
+		s.kb = root
+		if stdout, stderr, code := s.run(t, "start"); code != 0 {
+			t.Fatalf("start %s: exit %d\nstdout:\n%s\nstderr:\n%s", root, code, stdout, stderr)
+		}
+	}
+	s.kb = kb
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	ours, theirs := plantIndex(t, s, arxivDid), plantIndex(t, s, plainDid)
+
+	stdout, stderr, code := s.run(t, "clean", "--store", "vectors", "--dry-run")
+	if code != 0 {
+		t.Fatalf("clean --store vectors --dry-run: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	for _, name := range ours {
+		mustContain(t, "the dry run", stdout, "would delete collection "+name+" (the index of "+arxivDid+", the shared Qdrant http://")
+	}
+	if !indexHeld(t, s, ours) {
+		t.Error("the dry run deleted the index")
+	}
+
+	before := s.argv(t)
+	stdout, stderr, code = s.run(t, "clean", "--store", "vectors")
+	if code != 0 {
+		t.Fatalf("clean --store vectors: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "clean", stdout, "Deleted the index of "+arxivDid+" from the shared Qdrant (3 collections).")
+	// The Qdrant that answers keeps the other knowledge base's index: left as it is.
+	if fresh := strings.TrimPrefix(s.argv(t), before); strings.Contains(fresh, "--name semiont-qdrant") || slices.Contains(argvStops(fresh), "semiont-qdrant") {
+		t.Errorf("a clean beside a running shared Qdrant ran or stopped it:\n%s", fresh)
+	}
+	if indexHeld(t, s, ours) {
+		t.Error("the index is held after its clean")
+	}
+	if !indexHeld(t, s, theirs) {
+		t.Error("a knowledge base's clean deleted another's index")
+	}
+	if _, err := os.Stat(filepath.Join(sharedStateFor(s.home), "qdrant")); err != nil {
+		t.Errorf("a knowledge base's clean took the store every index is kept in: %v", err)
+	}
+	stdout, _, code = s.run(t, "clean", "--store", "vectors")
+	if code != 0 {
+		t.Fatalf("a second clean --store vectors: exit %d\n%s", code, stdout)
+	}
+	mustContain(t, "a second clean", stdout, "Nothing to remove: no index of "+arxivDid+" at the shared Qdrant")
+
+	plantIndex(t, s, arxivDid)
+	stdout, stderr, code = s.run(t, "clean")
+	if code != 0 {
+		t.Fatalf("clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "clean", stdout, "Deleted the index of "+arxivDid+" from the shared Qdrant (3 collections).", "Removed "+stateRootFor(s.home, arxivKey))
+	if indexHeld(t, s, ours) || !indexHeld(t, s, theirs) {
+		t.Error("an unscoped clean left its index, or took another's")
+	}
+	log, err := os.ReadFile(filepath.Join(s.fakertDir, "admin-semiont-qdrant.log"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Count(string(log), "DELETE /collections "+ours[0]); got != 2 {
+		t.Errorf("%s was deleted %d times, want once for each clean:\n%s", ours[0], got, log)
+	}
+}
+
+// With every stack stopped no Qdrant is up to take an index's delete, so a
+// clean of the index runs the shared Qdrant for it and stops what it ran,
+// recording no stack, whether the index was there or not. A dry run runs
+// nothing, and a clean of another store asks after no index.
+func TestCleanOfAnIndexRunsTheSharedQdrantForTheDelete(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	ours := plantIndex(t, s, arxivDid)
+	cleanRuns := func(args ...string) (stdout, argv string) {
+		t.Helper()
+		before := s.argv(t)
+		stdout, stderr, code := s.run(t, args...)
+		if code != 0 {
+			t.Fatalf("%v with the shared Qdrant down: exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		}
+		return stdout, strings.TrimPrefix(s.argv(t), before)
+	}
+	qdrantLeftAsFound := func(label, argv string) {
+		t.Helper()
+		mustContain(t, label+"'s runtime calls", argv, "--name semiont-qdrant")
+		if got := argvStops(argv); !slices.Contains(got, "semiont-qdrant") {
+			t.Errorf("%s left the Qdrant it ran running: %q", label, got)
+		}
+		// With nothing recorded there is no record to read.
+		if _, err := os.Stat(statePathFor(s.home)); os.IsNotExist(err) {
+			return
+		}
+		rec := readSharedRecords(t, s)
+		if rec.Shared["semiont-qdrant"] != nil {
+			t.Errorf("%s left a record of semiont-qdrant", label)
+		}
+		if len(rec.Stacks) != 0 {
+			t.Errorf("%s recorded a stack: %v", label, rec.Stacks)
+		}
+	}
+
+	stdout, argv := cleanRuns("clean", "--store", "vectors", "--dry-run")
+	mustContain(t, "the dry run", stdout, "would run the shared Qdrant, delete the index of "+arxivDid+" if it holds it, and stop it again")
+	mustNotContain(t, "the dry run's runtime calls", argv, "run -d")
+	if !indexHeld(t, s, ours) {
+		t.Error("the dry run deleted the index")
+	}
+
+	_, argv = cleanRuns("clean", "--store", "graph")
+	mustNotContain(t, "clean --store graph's runtime calls", argv, "--name semiont-qdrant")
+
+	stdout, argv = cleanRuns("clean", "--store", "vectors")
+	mustContain(t, "the clean", stdout,
+		"The shared Qdrant is not running: running it for the delete",
+		"Deleted the index of "+arxivDid+" from the shared Qdrant (3 collections).",
+		"Stopped semiont-qdrant, which this clean ran for the delete.")
+	qdrantLeftAsFound("the clean", argv)
+	if indexHeld(t, s, ours) {
+		t.Error("the index is held after its clean")
+	}
+
+	stdout, argv = cleanRuns("clean", "--store", "vectors")
+	mustContain(t, "a second clean", stdout, "No index of "+arxivDid+" at the shared Qdrant")
+	mustNotContain(t, "a second clean", stdout, "Deleted the index")
+	qdrantLeftAsFound("a second clean", argv)
+}
+
+// A shared Qdrant recorded as running that does not answer keeps, as far as
+// the launcher knows, every other knowledge base's index, so a clean of an
+// index refuses rather than run one in its place, and names the stop after
+// which it would.
+func TestCleanOfAnIndexRefusesAQdrantRecordedAsRunningThatDoesNotAnswer(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	ours := plantIndex(t, s, arxivDid)
+	if err := os.MkdirAll(stateHomeFor(s.home), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{},"shared":{"semiont-qdrant":{"container":"semiont-qdrant","provided":"launcher","runtime":"container","endpoint":"http://127.0.0.1:9/readyz"}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
+	if code != 1 {
+		t.Fatalf("clean of an index at a Qdrant that does not answer: exit %d, want 1\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "the refusal", stderr, "The shared Qdrant at http://127.0.0.1:9:",
+		"Once it is stopped (semiont stop --service vectors), this clean runs it for the delete.")
+	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant", "stop semiont-qdrant")
+	if !indexHeld(t, s, ours) {
+		t.Error("the refused clean deleted the index")
+	}
+}
+
+// A knowledge base whose Qdrant is its own keeps its index in its root's
+// store: a clean of it removes that store and asks the shared Qdrant nothing.
+func TestCleanOfAnOwnIndexLeavesTheSharedQdrant(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	withOwnVectors(t, s.kb)
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	ours := plantIndex(t, s, arxivDid)
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
+	if code != 0 {
+		t.Fatalf("clean --store vectors: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the clean", stdout, "Removed "+filepath.Join(stateRootFor(s.home, arxivKey), "qdrant"))
+	mustNotContain(t, "the clean", stdout, "the shared Qdrant")
+	mustNotContain(t, "the clean's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant")
+	if !indexHeld(t, s, ours) {
+		t.Error("a clean of a knowledge base's own index deleted collections at the shared Qdrant")
+	}
+}
+
 // `semiont clean --shared --store identity-store` removes the shared issuer's
 // PostgreSQL store, every realm in it, and its stamp, and keeps the issuer's
-// passwords for its next boot. It is refused beside --root, for any other
-// store, while a recorded stack signs in at the shared issuer, and while a
-// record says the issuer's server runs, removing nothing.
+// passwords for its next boot. It is refused beside --root, for a store the
+// machine does not keep, while a recorded stack signs in at the shared
+// issuer, and while a record says the issuer's server runs, removing
+// nothing.
 func TestCleanSharedRemovesTheIssuersStore(t *testing.T) {
 	s := newScenario(t, "container")
 	for _, tc := range []struct {
@@ -3501,8 +3937,8 @@ func TestCleanSharedRemovesTheIssuersStore(t *testing.T) {
 		want string
 	}{
 		{[]string{"clean", "--shared", "--store", "identity-store", "--root", s.kb}, "--shared names the machine's shared state, and --root one root's: name one of them."},
-		{[]string{"clean", "--shared"}, "--shared names the shared issuer's state, and its one store is identity-store."},
-		{[]string{"clean", "--shared", "--store", "vectors"}, "--shared names the shared issuer's state, and its one store is identity-store."},
+		{[]string{"clean", "--shared"}, "--shared names a store the machine keeps: identity-store or vectors."},
+		{[]string{"clean", "--shared", "--store", "graph"}, "--shared names a store the machine keeps: identity-store or vectors."},
 	} {
 		_, stderr, code := s.run(t, tc.args...)
 		if code != 1 {
@@ -4382,13 +4818,14 @@ func TestStatusReadsByConcept(t *testing.T) {
 		[]string{"ISSUER", "identity", "identity-store",
 			"KNOWLEDGE WORKERS", "browser", "worker",
 			"PROVIDERS", "inference", "embedding",
-			"TELEMETRY", "collector", "traces", "metrics"})
+			"TELEMETRY", "collector", "traces", "metrics",
+			"VECTORS", "vectors"})
 	if got := statusLayout(stdout); !slices.Equal(got, want) {
 		t.Errorf("status reads\n  %q\nwant\n  %q\n%s", got, want, stdout)
 	}
 	mustContain(t, "stdout", stdout, "did:web:example.github.io:test-kb", "did:web:example.github.io:other-kb",
 		"✓ identity realm example.github.io-test-kb", "✓ identity realm example.github.io-other-kb")
-	for _, role := range []string{"identity", "identity-store", "worker", "inference", "embedding", "collector", "traces", "metrics"} {
+	for _, role := range []string{"identity", "identity-store", "worker", "inference", "embedding", "collector", "traces", "metrics", "vectors"} {
 		mustContain(t, role+"'s row", statusLine(t, stdout, role), "test-kb", "other-kb")
 	}
 	mustNotContain(t, "browser's row", statusLine(t, stdout, "browser"), "test-kb", "other-kb")
@@ -9762,10 +10199,14 @@ func TestStopGroupStopsWhatNeedsIt(t *testing.T) {
 		kept      []string // and some it keeps
 		worker    bool     // the shared worker is still recorded
 	}{
-		{"index", false, kb("weaver", "smelter", "librarian", "qdrant", "neo4j"),
-			[]string{"index stopped: weaver, smelter, librarian, vectors, graph"}, []string{"stops too"},
+		{"index", false, slices.Concat(kb("weaver", "smelter", "librarian", "neo4j"), []string{"semiont-qdrant"}),
+			[]string{"index stopped: weaver, smelter, librarian, graph, vectors", "Qdrant stopped"}, []string{"stops too", "left running"},
 			[]string{"weaver", "smelter", "librarian", "vectors", "graph"},
 			[]string{"gateway", "archivist", "dispatcher", "messaging", "identity", "identity-store"}, true},
+		{"index", true, kb("weaver", "smelter", "librarian", "neo4j"),
+			[]string{"index stopped: weaver, smelter, librarian, graph", "The shared Qdrant left running: another knowledge base's stack is recorded."}, []string{"stops too", "Qdrant stopped"},
+			[]string{"weaver", "smelter", "librarian", "graph"},
+			[]string{"vectors", "gateway", "archivist", "dispatcher", "messaging", "identity", "identity-store"}, true},
 		{"record", false, slices.Concat([]string{"semiont-worker"}, kb("weaver", "smelter", "dispatcher", "librarian", "archivist", "gateway", "nats")),
 			[]string{"weaver stops too: it needs the gateway", "librarian stops too: it needs the gateway", "worker stops too: it needs the gateway"}, []string{"left running"},
 			[]string{"weaver", "smelter", "dispatcher", "librarian", "archivist", "gateway", "messaging"},
@@ -9947,6 +10388,7 @@ func TestStartGroupStartsWhatItNeeds(t *testing.T) {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
+	sharedRunsAsRecorded(t, s, "qdrant")
 	startGroup := func(want []string, said ...string) string {
 		t.Helper()
 		before := s.argv(t)
@@ -9960,7 +10402,7 @@ func TestStartGroupStartsWhatItNeeds(t *testing.T) {
 		mustContain(t, "start --group index", stdout+stderr, append(said, "🚀 index is up")...)
 		return stdout + stderr
 	}
-	out := startGroup(kb("neo4j", "qdrant", "librarian", "smelter", "weaver"), "Restarting Librarian")
+	out := startGroup(kb("neo4j", "librarian", "smelter", "weaver"), "Restarting Librarian", "vectors — Qdrant already running")
 	mustNotContain(t, "start --group index, the stack up", out, "starts too")
 	// Every image is verified once, before any container is touched.
 	if n := strings.Count(out, "Images verified"); n != 1 {
@@ -9970,7 +10412,8 @@ func TestStartGroupStartsWhatItNeeds(t *testing.T) {
 	if _, stderr, code := s.run(t, "stop", "--group", "record"); code != 0 {
 		t.Fatalf("stop --group record: exit %d\n%s", code, stderr)
 	}
-	startGroup(kb("nats", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"),
+	startGroup(kb("nats", "gateway", "neo4j", "archivist", "librarian", "smelter", "weaver"),
+		"vectors — Qdrant already running",
 		"messaging starts too: the gateway needs it",
 		"gateway starts too: the weaver needs it",
 		"archivist starts too: the weaver needs it")
@@ -9979,16 +10422,17 @@ func TestStartGroupStartsWhatItNeeds(t *testing.T) {
 // Beside another knowledge base's stack, a group's start in one with none
 // recorded starts every service of its own the group needs: the default
 // block's ports answer for the other one. Its realm is one of them, at the
-// shared issuer, which is kept: the other one signs in at it. So does a start
-// in one whose record a group stop left without them. And each service it
-// starts claims its ports, whichever it starts first.
+// shared issuer, which is kept: the other one signs in at it. The machine's
+// Qdrant is kept too: the other one keeps its index there. So does a start in
+// one whose record a group stop left without them. And each service it starts
+// claims its ports, whichever it starts first.
 func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
 	s := newScenario(t, "container")
 	first := s.kb
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\n%s", code, stderr)
 	}
-	issuerRunsAsRecorded(t, s)
+	sharedRunsAsRecorded(t, s, "postgres", "keycloak", "qdrant")
 	other := asTheSystemNamesIt(t, mkKB(t))
 	withDomain(t, other, "example.github.io:other-kb")
 	withGatewayPort(t, other, 4010)
@@ -10005,11 +10449,12 @@ func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
 		}
 		return out
 	}
-	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("nats", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
+	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("nats", "gateway", "neo4j", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
 		t.Errorf("start --group index in the second ran\n  %q\nwant\n  %q", got, want)
 	}
 	mustContain(t, "start --group index in the second", stdout,
-		"identity starts too: the gateway needs it", "identity — Keycloak already running", "realm example.github.io-other-kb at")
+		"identity starts too: the gateway needs it", "identity — Keycloak already running", "realm example.github.io-other-kb at",
+		"vectors — Qdrant already running")
 	realmOf(t, s, "example.github.io-other-kb")
 	realmOf(t, s, testKBKey)
 
@@ -10021,7 +10466,7 @@ func TestStartGroupBesideAnotherKnowledgeBase(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("start --group index in the second, its record stopped: exit %d\n%s%s", code, stdout, stderr)
 	}
-	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("nats", "gateway", "neo4j", "qdrant", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
+	if got, want := argvRuns(strings.TrimPrefix(s.argv(t), before)), own("nats", "gateway", "neo4j", "archivist", "librarian", "smelter", "weaver"); !slices.Equal(got, want) {
 		t.Errorf("start --group index in the second, its record stopped, ran\n  %q\nwant\n  %q", got, want)
 	}
 	mustContain(t, "start --group index in the second, its record stopped", stdout,
@@ -10571,7 +11016,7 @@ func TestStartRefusesAStackWithNoSemanticSearch(t *testing.T) {
 	}{
 		{
 			"no-vectors",
-			"  vectors:\n    type: qdrant\n    image: qdrant/qdrant:v1.19.1@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10\n    resources: { limits: { memory: 1G } }\n",
+			sharedVectorsBlock,
 			[]string{"index.yaml", "/spec/vectors", "is missing"},
 		},
 		{
@@ -10870,7 +11315,7 @@ func TestFailedGateDumpsContainerLogs(t *testing.T) {
 	// container's own logs, there for the whole wait while the launcher says
 	// only "did not become ready". So the gate failure shows the tail.
 	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_SKIP_SERVE=6333") // vectors: up but never listens
+	s.extraEnv = append(s.extraEnv, "FAKERT_SKIP_SERVE=6330") // the shared Qdrant: up but never listens
 	stdout, stderr, code := s.run(t, "start")
 	if code != 1 {
 		t.Fatalf("start with a dead vectors should fail: exit %d", code)
@@ -10878,7 +11323,7 @@ func TestFailedGateDumpsContainerLogs(t *testing.T) {
 	all := stdout + stderr
 	mustContain(t, "gate failure output", all,
 		"vectors (Qdrant) did not become ready",
-		"of semiont-example.github.io-test-kb-qdrant's logs:",
+		"of semiont-qdrant's logs:",
 		"qdrant out", // fakert's `logs` stdout — proof the tail is the container's own
 		"qdrant err",
 		"Full logs:  semiont logs --service vectors")

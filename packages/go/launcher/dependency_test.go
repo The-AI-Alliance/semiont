@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,7 +104,7 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	key := rootKey(ident.didWeb(), fixtureRoot)
-	roleOf := map[string]string{}
+	roleOf := maps.Clone(sharedRoleByContainer)
 	for _, d := range serviceDescriptors {
 		if d.name != "" {
 			roleOf[d.containerName(key)] = d.role

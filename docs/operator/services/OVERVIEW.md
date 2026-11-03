@@ -57,7 +57,7 @@ Each row is a role a stack needs, and the technology the launcher runs for it. A
 | `traces` | Jaeger | 16686 (UI), 14318 (OTLP) | The collector forwards traces to it |
 | `metrics` | Prometheus | 9090 | Scrapes the collector |
 
-The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are shared, at their own ports.
+The ports in both tables are where each container listens. The launcher publishes a knowledge base's at the same ports on its port block 0, 10 higher on block 1, and so on, and every document it stages names the published ones ([Ports](../LOCAL-SEMIONT.md#ports)). The gateway is published at the port its document commits. The worker, the Browser, Ollama and the telemetry are shared, at their own ports, and so is the Qdrant of the knowledge bases that name the shared vector store, at the port its document places it, 6330.
 
 `embedding` never has a container of its own: an Ollama embedding is served by the Ollama that `inference` runs, and Voyage is a remote API. `semiont start --no-observe` leaves out `traces` and `metrics`; the collector still runs.
 
@@ -88,7 +88,7 @@ Every service answers a health request on its own port. `semiont status` probes 
 | `identity` | the realm's own URL |
 | `identity-store`, `messaging` | a TCP connect |
 | `graph` | `GET /` on 7474 |
-| `vectors` | `GET /readyz` on 6333 |
+| `vectors` | `GET /readyz` on 6330, the shared Qdrant's, or on the knowledge base's own |
 | `inference`, `embedding` | `GET /api/version` on 11434 |
 | `collector` | `GET /metrics` on 24110 |
 | `traces` | `GET /` on 16686 |
@@ -100,7 +100,9 @@ These answer liveness: the process is up and serving. The gateway's `/api/health
 
 `--service <name>` on `semiont start`, `stop`, `logs` and `status` takes a role name from the tables above: `gateway`, `dispatcher`, `archivist`, `librarian`, `worker`, `smelter`, `weaver`, `browser`, `identity`, `identity-store`, `messaging`, `graph`, `vectors`, `inference`, `embedding`, `collector`, `traces` or `metrics`. It takes exactly one. Omitting it means the whole stack. Each of these commands acts on the knowledge base whose clone you stand in, or the one `--root <path>` names: `semiont logs --service gateway` follows that knowledge base's gateway.
 
-Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The shared services serve every knowledge base here and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-keycloak`, `semiont-postgres`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`.
+Several knowledge bases run side by side on one machine, so each one's containers are named for it: `semiont-<kb>-<product>`. `<product>` is `gateway`, `dispatcher`, `archivist`, `librarian`, `smelter`, `weaver`, `nats`, `neo4j` or `qdrant`. `<kb>` is the knowledge base's did:web domain, the `site.domain` in its [`.semiont/config.yaml`](../administration/CONFIGURATION.md#semiontconfigyaml), with each run of characters outside `A-Z a-z 0-9 . _ -` replaced by one `-`. So `did:web:example.org:my-kb` runs its gateway as `semiont-example.org-my-kb-gateway`. The shared services serve every knowledge base here and are named `semiont-<name>`: `semiont-worker`, `semiont-browser`, `semiont-keycloak`, `semiont-postgres`, `semiont-ollama`, `semiont-otel-collector`, `semiont-jaeger`, `semiont-prometheus`, `semiont-qdrant`.
+
+`semiont-qdrant` is the Qdrant of every knowledge base whose index names the shared vector store, as `semiont init` writes; one whose index runs a Qdrant of its own runs it as `semiont-<kb>-qdrant`.
 
 ## Related
 

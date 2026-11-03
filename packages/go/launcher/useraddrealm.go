@@ -70,7 +70,11 @@ func resolveRealmAdmin(u *UI, root, did string) (realmAdmin, bool) {
 	if !ok {
 		return realmAdmin{}, false
 	}
-	plan, err := derivePlan(st, issuer, rootKey(did, root), portBlockOf(root))
+	vectors, ok := vectorStoreOf(u, st, true)
+	if !ok {
+		return realmAdmin{}, false
+	}
+	plan, err := derivePlan(st, issuer, vectors, rootKey(did, root), portBlockOf(root))
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false

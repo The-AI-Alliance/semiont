@@ -66,8 +66,9 @@ const initKnowledgeBase = "knowledge-base"
 
 // generateStack: the documents `semiont init` writes, each as YAML, by its
 // path below .semiont/stack — the two the knowledge base shares, and the
-// Inference document named name. Its issuer is the machine's, whose document
-// the state home keeps (issuerdoc.go).
+// Inference document named name. Its issuer and its vector store are the
+// machine's, whose documents the state home keeps (issuerdoc.go,
+// vectorsdoc.go).
 func generateStack(p genParams, name string) (map[string][]byte, error) {
 	daemon := func(role, driver string) (*string, *stack.Resources) {
 		d := descriptorFor(role, driver)
@@ -104,7 +105,7 @@ func generateStack(p genParams, name string) (map[string][]byte, error) {
 	index.Spec.Graph.Type, index.Spec.Graph.Username, index.Spec.Graph.Database = "neo4j", "neo4j", "neo4j"
 	index.Spec.Graph.Image, index.Spec.Graph.Resources = daemon("graph", "neo4j")
 	index.Spec.Vectors.Type = "qdrant"
-	index.Spec.Vectors.Image, index.Spec.Vectors.Resources = daemon("vectors", "qdrant")
+	index.Spec.Vectors.Shared = &stack.KnowledgeIndexVectorsShared{}
 	index.Spec.Embedding.Type, index.Spec.Embedding.Model = "ollama", p.EmbeddingModel
 	index.Spec.Embedding.Chunking.ChunkSize, index.Spec.Embedding.Chunking.Overlap = initChunking.chunkSize, initChunking.overlap
 	index.Spec.Librarian.Image, index.Spec.Librarian.Resources = service("librarian")
@@ -186,13 +187,17 @@ func writeVettedStack(u *UI, root string, files map[string][]byte) bool {
 		st, err := stack.Load(vet, name)
 		if err == nil {
 			// Vetting the knowledge base's documents only: any realm and
-			// block, and the catalog's issuer in place of this machine's,
-			// prove they are planned.
+			// block, and the catalog's issuer and vector store in place of
+			// this machine's, prove they are planned.
 			var issuer *issuerDocument
 			if st.KnowledgeBase.Spec.Issuer.Shared != nil {
 				issuer = &issuerDocument{spec: catalogIssuer().Spec}
 			}
-			_, err = derivePlan(st, issuer, "vet", 0)
+			var vectors *vectorStoreDocument
+			if st.KnowledgeIndex.Spec.Vectors.Shared != nil {
+				vectors = &vectorStoreDocument{spec: catalogVectorStore().Spec}
+			}
+			_, err = derivePlan(st, issuer, vectors, "vet", 0)
 		}
 		if err != nil {
 			u.Fail("The documents did not pass the launcher's own reading — refusing to write them: %v", err)

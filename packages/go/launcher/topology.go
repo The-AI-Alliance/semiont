@@ -41,9 +41,11 @@ func placementOf(fc flowCtx, e exposure) placement {
 	return placement{st: fc.stack, plan: fc.plan, rt: e.rt, addr: e.addr, lan: e.lan}
 }
 
-// placed: whether the launcher runs role's daemon in this start.
+// placed: whether the launcher runs role's daemon in this start: the
+// knowledge base's own, or the machine's that serves it.
 func (p placement) placed(role string) bool {
-	return p.plan.Roles[role].Presence == presenceLauncher
+	presence := p.plan.Roles[role].Presence
+	return presence == presenceLauncher || presence == presenceShared
 }
 
 // gatewayURL: where a service that dials the gateway reaches it — this

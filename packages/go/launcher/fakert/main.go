@@ -716,8 +716,9 @@ func realmFile(container, realm string) string {
 	return filepath.Join(os.Getenv("FAKERT_DIR"), "realm-"+container+"-"+realm+".json")
 }
 
-// adminRecord logs one write to a Keycloak container's admin API to
-// admin-<container>.log, as the method, the collection and the realm.
+// adminRecord logs one write to a container's admin API — Keycloak's realms,
+// Qdrant's collections — to admin-<container>.log, as the method, the
+// collection and what in it was written.
 func adminRecord(container, write string) error {
 	record, err := os.OpenFile(filepath.Join(os.Getenv("FAKERT_DIR"), "admin-"+container+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -784,6 +785,48 @@ func deleteRealm(container, realm string) (int, error) {
 func realmHeld(container, realm string) bool {
 	_, err := os.Stat(realmFile(container, realm))
 	return err == nil
+}
+
+// collectionFile: where FAKERT_DIR keeps a collection a Qdrant container
+// holds, one file per collection, which outlives the container as a
+// collection outlives Qdrant in its store.
+func collectionFile(container, name string) string {
+	return filepath.Join(os.Getenv("FAKERT_DIR"), "collection-"+container+"-"+name)
+}
+
+// collectionsHeld: the collections a Qdrant container holds.
+func collectionsHeld(container string) ([]string, error) {
+	if os.Getenv("FAKERT_DIR") == "" {
+		return nil, errors.New("no FAKERT_DIR keeps the collections this Qdrant holds")
+	}
+	files, err := filepath.Glob(collectionFile(container, "*"))
+	if err != nil {
+		return nil, err
+	}
+	names := []string{}
+	for _, f := range files {
+		names = append(names, strings.TrimPrefix(filepath.Base(f), "collection-"+container+"-"))
+	}
+	return names, nil
+}
+
+// deleteCollection drops a collection a Qdrant container holds, as its API's
+// DELETE does: 200, and 404 for one it does not hold. Each delete is logged
+// (adminRecord).
+func deleteCollection(container, name string) (int, error) {
+	if os.Getenv("FAKERT_DIR") == "" {
+		return 0, errors.New("no FAKERT_DIR keeps the collections this Qdrant holds")
+	}
+	if _, err := os.Stat(collectionFile(container, name)); err != nil {
+		return http.StatusNotFound, nil
+	}
+	if err := adminRecord(container, "DELETE /collections "+name); err != nil {
+		return 0, err
+	}
+	if err := os.Remove(collectionFile(container, name)); err != nil {
+		return 0, err
+	}
+	return http.StatusOK, nil
 }
 
 // realmAudiences: the audiences realm, at the Keycloak container, gives
@@ -2492,6 +2535,39 @@ func serveOn(container string, routes func(string) bool, listeners []net.Listene
 							return
 						}
 						w.WriteHeader(status)
+						return
+					}
+				}
+				// Qdrant's collections, as far as a clean deleting a knowledge
+				// base's needs them: the listing (collectionsHeld) and the
+				// delete (deleteCollection), each answered in Qdrant's
+				// envelope.
+				if product(container) == "qdrant" {
+					name, one := strings.CutPrefix(r.URL.Path, "/collections/")
+					switch {
+					case r.URL.Path == "/collections" && r.Method == http.MethodGet:
+						names, err := collectionsHeld(container)
+						if err != nil {
+							http.Error(w, "fakert: "+err.Error(), http.StatusInternalServerError)
+							return
+						}
+						listed := []map[string]string{}
+						for _, n := range names {
+							listed = append(listed, map[string]string{"name": n})
+						}
+						jsonOut(200, map[string]any{"result": map[string]any{"collections": listed}, "status": "ok", "time": 0})
+						return
+					case one && !strings.Contains(name, "/") && r.Method == http.MethodDelete:
+						status, err := deleteCollection(container, name)
+						if err != nil {
+							http.Error(w, "fakert: "+err.Error(), http.StatusInternalServerError)
+							return
+						}
+						if status == http.StatusNotFound {
+							jsonOut(status, map[string]any{"status": map[string]any{"error": "Not found: Collection `" + name + "` doesn't exist!"}, "time": 0})
+							return
+						}
+						jsonOut(status, map[string]any{"result": true, "status": "ok", "time": 0})
 						return
 					}
 				}

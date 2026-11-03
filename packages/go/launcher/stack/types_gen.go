@@ -257,7 +257,10 @@ type KnowledgeIndexSpec struct {
 	// The graph store the Weaver writes and the Librarian reads.
 	Graph KnowledgeIndexGraph `json:"graph"`
 
-	// The vector store the Smelter writes and the Librarian reads.
+	// The vector store the Smelter writes and the Librarian reads: the one the
+	// launcher runs for the knowledge bases on a machine, at `shared`; one of
+	// the knowledge base's own the launcher runs, from `image` with `resources`;
+	// or somebody else's, at `external`. Exactly one of the three.
 	Vectors KnowledgeIndexVectors `json:"vectors"`
 
 	// The model that turns text into vectors. Vectors made by one model are not
@@ -308,10 +311,18 @@ type KnowledgeIndexGraphExternal struct {
 }
 
 // KnowledgeIndexVectors: The vector store the Smelter writes and the
-// Librarian reads.
+// Librarian reads: the one the launcher runs for the knowledge bases on a
+// machine, at `shared`; one of the knowledge base's own the launcher runs,
+// from `image` with `resources`; or somebody else's, at `external`. Exactly
+// one of the three.
 type KnowledgeIndexVectors struct {
 	// The vector store's driver: `qdrant`.
 	Type string `json:"type"`
+
+	// The vector store the launcher runs for the knowledge bases on a machine
+	// (the state home's VectorStore document). Each knowledge base keeps its
+	// index in collections of its own there, so nothing is said of it here.
+	Shared *KnowledgeIndexVectorsShared `json:"shared,omitempty"`
 
 	// The container image a service runs, as a registry names it:
 	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.
@@ -323,6 +334,12 @@ type KnowledgeIndexVectors struct {
 	// A vector store somebody else runs.
 	External *HostPort `json:"external,omitempty"`
 }
+
+// KnowledgeIndexVectorsShared: The vector store the launcher runs for the
+// knowledge bases on a machine (the state home's VectorStore document). Each
+// knowledge base keeps its index in collections of its own there, so nothing
+// is said of it here.
+type KnowledgeIndexVectorsShared struct{}
 
 // KnowledgeIndexEmbedding: The model that turns text into vectors. Vectors
 // made by one model are not comparable with another's, so the model is the
@@ -495,6 +512,45 @@ type IssuerDatabaseExternal struct {
 	// A secret the document names and does not hold. The launcher hands it to
 	// the service that needs it, from where the reference says it is.
 	Password SecretRef `json:"password"`
+}
+
+// VectorStore: The vector store the launcher runs for the knowledge bases on
+// a machine, each knowledge base's index in collections of its own. It
+// belongs to no knowledge base, so its document is kept in the launcher's
+// state home, in `stack/vectors.yaml`, not in a knowledge base's repository.
+// A knowledge base keeps its index in it by naming `shared` at
+// `spec.vectors`.
+type VectorStore struct {
+	// The group and version of Semiont's kinds. The group names who defines a
+	// kind, under the domain the knowledge bases' DIDs use; which knowledge base
+	// a document is about is said inside it.
+	ApiVersion string `json:"apiVersion"`
+
+	Kind string `json:"kind"`
+
+	// What names a document, as Kubernetes names an object. Documents refer to
+	// one another by `name`.
+	Metadata Metadata `json:"metadata"`
+
+	// The vector store, and where it is published.
+	Spec VectorStoreSpec `json:"spec"`
+}
+
+// VectorStoreSpec: The vector store, and where it is published.
+type VectorStoreSpec struct {
+	// The vector store's driver: `qdrant`.
+	Type string `json:"type"`
+
+	// The container image a service runs, as a registry names it:
+	// `ghcr.io/the-ai-alliance/semiont-gateway:latest`.
+	Image string `json:"image"`
+
+	// What a container is given, in Kubernetes' spelling.
+	Resources Resources `json:"resources"`
+
+	// The port the vector store is published on, on this machine, where every
+	// knowledge base's Smelter and Librarian reach it.
+	Port int `json:"port"`
 }
 
 // WorkerPool: The shared worker that does knowledge bases' jobs: its image,
