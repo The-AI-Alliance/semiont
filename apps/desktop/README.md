@@ -52,7 +52,7 @@ The command installs dependencies and builds the workspace packages in Apple Con
 
 ## Build installers
 
-Run these from the monorepo root on a Mac with Apple Container installed:
+Run these from the monorepo root with a container runtime. macOS packaging requires a Mac; Linux packaging supports Linux and macOS hosts:
 
 ```sh
 make desktop-macos            # unsigned macOS Apple Silicon DMG
@@ -60,7 +60,7 @@ make desktop-linux   # Linux x64 Debian package
 ```
 
 Both builds install dependencies and run npm inside the selected container runtime; Linux packaging also supports a Linux host. `make desktop` selects the caller OS. The macOS build uses a
-temporary checksum-verified Node runtime on the host for Electron Builder's DMG step; the
+native `hdiutil` on the host for the DMG step; app assembly stays in the Node container; the
 Linux build uses an amd64 Debian container (Rosetta on Apple Silicon). Installers are
 written to `apps/desktop/release/`. Linux host installation and launch have not yet been
 verified.

@@ -4,8 +4,16 @@ Local development is built around **[`make local-build`](../../Makefile)**. It b
 
 ## What you need
 
-- **Host tools**: GNU Make 3.81 or newer, Bash, Git, Python 3, curl, and Apple `container`, Docker or Podman. Language toolchains run in containers.
+- **Host tools**: GNU Make 3.81 or newer, Bash, Git, curl, and Apple `container`, Docker or Podman. Language toolchains run in containers.
 - **A knowledge base to run against.** Clone [`semiont-template-kb`](https://github.com/The-AI-Alliance/semiont-template-kb), or see [Knowledge Bases](../KNOWLEDGE-BASES.md) for others.
+
+## Container toolchains
+
+The local Make commands obtain Node, Rust, Go, Python build environments, .NET, JDK/Gradle
+and Swift from containers. Their manifests and toolchain readers own the versions; do not
+install those SDKs on the host for this workflow. Python metadata helpers run in a disposable container owned by each operation. Host Python and Node are not required.
+macOS desktop packaging also uses the operating system's `hdiutil` and `PlistBuddy`, with app
+assembly performed in the Node container.
 
 ## The loop
 
@@ -64,23 +72,21 @@ The script's own README, [images/LOCAL-BUILD.md](../../images/LOCAL-BUILD.md), c
 
 ## Working on one package, without a stack
 
-Most changes do not need a running stack. With Node on your machine:
+Most changes do not need a running stack. Build packages with Make:
 
 ```bash
-npm ci --include=optional
-npm run build:packages                  # every library, in dependency order
-npm run typecheck                       # tsc --noEmit across the workspaces
-npm test --workspace=@semiont/sdk       # one workspace's suite
+make packages PACKAGE_NAMES=typescript
+make packages PACKAGE_NAMES=rust
 ```
 
-Without it, run the same commands in a container:
+For a focused TypeScript check, run the workspace command inside its tool container:
 
 ```bash
 container run --rm -v "$PWD":/work -w /work "node:$(packages/typescript/scripts/node-version.sh)-alpine" \
-  sh -c 'npm ci --include=optional && npm run build:packages'
+  sh -c 'npm ci --include=optional && npm run build:packages && npm test --workspace=@semiont/sdk'
 ```
 
-For the Rust workspace, in `packages/rust`, `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings` and `cargo test --workspace` are what CI runs. For the launcher, `go vet ./...` and `go test ./...` in `apps/launcher`; its suite takes minutes.
+Use `docker` or `podman` in place of `container` when that is your runtime.
 
 [Testing](TESTING.md) has every suite, what each needs, and how to run it in a container.
 

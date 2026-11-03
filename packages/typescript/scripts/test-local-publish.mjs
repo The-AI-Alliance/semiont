@@ -21,7 +21,14 @@ function fixture() {
     put(`${entry.dir}/package.json`, readFileSync(join(root, entry.dir, 'package.json'), 'utf8'));
     if (entry.publish && !entry.stage) {
       const manifest = JSON.parse(readFileSync(join(root, entry.dir, 'package.json'), 'utf8'));
-      for (const path of [manifest.main, manifest.types]) put(`${entry.dir}/${path}`, 'built artifact');
+      const strings = (value) => typeof value === 'string' ? [value] : value && typeof value === 'object' ? Object.values(value).flatMap(strings) : [];
+      for (const path of [manifest.main, manifest.types, ...strings(manifest.exports), ...strings(manifest.bin)].filter(Boolean)) {
+        put(`${entry.dir}/${path.replaceAll('*', 'fixture')}`, 'built artifact');
+      }
+      for (const path of manifest.files.filter((path) => !path.startsWith('!'))) {
+        const input = path.includes('*') ? path.replaceAll('*', 'fixture') : path;
+        put(`${entry.dir}/${input}${input.includes('.') ? '' : '/fixture.txt'}`, 'packaged asset');
+      }
     }
   }
   for (const path of ['server.js', 'README.npm.md', 'package.publish.json']) {
@@ -60,5 +67,56 @@ test('publication stamping is confined to the complete isolated npm input set', 
       assert.equal(existsSync(join(f.stage, entry.dir, 'package.json')), true);
     }
     assert.equal(existsSync(join(f.source, '.npm-stage')), false);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+
+for (const [name, path] of [
+  ['exported JavaScript subpath', 'packages/typescript/core/dist/openapi.js'],
+  ['exported type declaration', 'packages/typescript/core/dist/testing/issuer.d.ts'],
+  ['exported CSS', 'packages/typescript/react-ui/src/styles/variables.css'],
+  ['required asset directory', 'packages/typescript/react-ui/public'],
+]) {
+  test(`${name} must exist before registry replacement`, () => {
+    const f = fixture();
+    try {
+      rmSync(join(f.source, path), { recursive: true });
+      const result = f.run('stage', f.stage);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /publication input is missing/);
+      assert.equal(existsSync(f.stage), false);
+      assert.equal(existsSync(join(f.source, '.npm-stage')), false);
+    } finally { rmSync(f.directory, { recursive: true, force: true }); }
+  });
+}
+
+test('an export excluded by npm packaging is rejected', () => {
+  const f = fixture();
+  try {
+    const file = join(f.source, 'packages/typescript/core/package.json');
+    const manifest = JSON.parse(readFileSync(file, 'utf8'));
+    manifest.files = ['dist/index.js', 'dist/index.d.ts', 'README.md'];
+    writeFileSync(file, JSON.stringify(manifest));
+    const result = f.run('verify');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /exported file is absent from the npm package/);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test('all nested export conditions and wildcard exports are checked', () => {
+  const f = fixture();
+  try {
+    const file = join(f.source, 'packages/typescript/core/package.json');
+    const manifest = JSON.parse(readFileSync(file, 'utf8'));
+    manifest.exports['./nested'] = { node: { types: './dist/nested.d.ts' }, default: null };
+    writeFileSync(file, JSON.stringify(manifest));
+    let result = f.run('verify');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /nested.d.ts/);
+    writeFileSync(join(f.source, 'packages/typescript/core/dist/nested.d.ts'), 'export {};');
+    rmSync(join(f.source, 'packages/typescript/react-ui/translations/fixture.json'));
+    result = f.run('verify');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /translations\/\*\.json/);
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });

@@ -2,7 +2,7 @@
 
 The root [Makefile](../Makefile) is the public build interface. Run one operation per
 invocation; `make -j packages launcher` is refused because sessions share caches and a registry.
-GNU Make 3.81 is supported. The host needs Bash, Git, Python 3, curl and a container runtime.
+GNU Make 3.81 is supported. The host needs Bash, Git, curl and a container runtime.
 Language compilers and package managers run in containers; Make does not replace them.
 
 ```sh
@@ -42,8 +42,10 @@ Other images build from source without a registry. It is not a prerequisite-awar
 Use `FORCE=1` to rebuild every selected package/image, `FANOUT=0` to leave images only in the
 building engine, and `CONTAINER_RUNTIME=container|docker|podman` to choose that engine.
 `LAYER_CACHE=directory` enables the Docker Rust layer cache used by Stack Smoke. `make plan`
-reads package signatures and selection without building, publishing or updating build state;
-image content/store decisions are made during the build, as its output states.
+reads package signatures and reports image build/skip decisions from content and the selected
+runtime’s image store without building, publishing or updating build state. npm-backed image
+decisions use the current registry snapshot; a build rechecks them after fresh publication.
+Metadata checks run in a disposable Python container, which is removed when the operation ends.
 
 ## Publish built npm packages locally
 
@@ -114,8 +116,7 @@ The explicit targets select the installer platform; macOS packaging requires mac
 Linux packaging works from Linux or macOS; macOS cross-packaging with Apple Container uses
 Rosetta on Apple Silicon. An ARM Linux host needs its runtime to support amd64 emulation.
 The desktop helper uses the selected available runtime, builds its
-workspace dependencies, and writes installers to `apps/desktop/release/`. The macOS packaging
-step uses a downloaded, checksum-verified temporary Node runtime. Unsupported host OSes fail.
+workspace dependencies, and writes installers to `apps/desktop/release/`. The macOS app is assembled in the Node container; the host uses `hdiutil` to create its DMG. No host Node runtime is used. Unsupported host OSes fail.
 Desktop is not part of `local-build`.
 
 ## Verification and implementation
@@ -128,7 +129,7 @@ Docker layer cache. Existing native CI build and release publication commands re
 The Makefile forwards arguments to [the session](scripts/build-session.sh). Owner stages under
 `scripts/local-build/` retain drift gates, seven language builds, registry lifecycle, the
 three-image batch, exclusive timed image checks, launcher build and cache maintenance.
-[Codegen](../packages/codegen/run.py) and [desktop](../apps/desktop/build.sh) retain their owners.
+[Codegen](../packages/codegen/run.sh) and [desktop](../apps/desktop/build.sh) retain their owners.
 
 Unchanged packages use content signatures, including transitive dependencies and codegen.
 Image reuse also checks the selected runtime's store. The existing build state is shared under

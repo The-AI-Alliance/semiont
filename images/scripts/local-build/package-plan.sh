@@ -14,8 +14,7 @@ BUILD_PACKAGES=""
 PACKAGE_REASONS=""
 if [[ "$IMAGES_ONLY" != true ]]; then
   if ! PACKAGE_PLAN=$(git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard \
-      | $RT run --rm -i -v "$REPO_ROOT":/workspace -w /workspace "$PYTHON_IMAGE" \
-          python3 images/scripts/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$SWIFT_IMAGE" "$DOTNET_IMAGE"); then
+      | tool_python --stdin images/scripts/package-signatures.py "$NODE_IMAGE" "rust:$RUST_TOOLCHAIN" "$PYTHON_IMAGE" "$GO_IMAGE" "$JDK_IMAGE" "$SWIFT_IMAGE" "$DOTNET_IMAGE"); then
     fail "Could not read what the packages are built from (images/scripts/package-signatures.py, above)."
     exit 1
   fi

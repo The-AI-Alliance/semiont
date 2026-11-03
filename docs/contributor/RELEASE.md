@@ -229,7 +229,7 @@ npm's trusted publishing cannot create a package, and neither can crates.io's. B
 
 Before the first release that includes a new publishable npm package:
 
-1. Add it to `version.json` ([Adding a package](README.md#adding-a-package)).
+1. Add it to `version.json` ([Adding a package](../../packages/README.md#adding-a-package)).
 2. Publish it once by hand, at the version before the one about to be released, with the repository's `LICENSE` copied into the directory it is published from, as `publish.sh` copies it. Publish that one package alone, under its published name: for an app, that is the name in its `package.publish.json`, not its key in `version.json`.
 3. Configure its trusted publisher on npm: this repository and `publish-npm-packages.yml`, with no environment.
 

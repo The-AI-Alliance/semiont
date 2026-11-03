@@ -68,46 +68,22 @@ echo "Building Semiont Desktop sources in $NODE_IMAGE..."
   -m 8g \
   -e ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
   "$NODE_IMAGE" \
-  sh -c 'npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop'
+  sh -c 'npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --mac dir --arm64'
 
-# electron-builder invokes hdiutil, so package on the Mac host. Use a temporary
-# Node runtime rather than requiring npm or Node to be installed on the host.
-HOST_ARCH="$(uname -m)"
-case "$HOST_ARCH" in
-  arm64|aarch64) NODE_ARCH=arm64 ;;
-  x86_64) NODE_ARCH=x64 ;;
-  *) echo "Unsupported macOS host architecture: $HOST_ARCH" >&2; exit 1 ;;
-esac
-
-if [[ -n "${NODE_VERSION:-}" ]]; then
-  NODE_DIST="https://nodejs.org/dist/${NODE_VERSION}"
+# App assembly runs in the Node container. The host only creates the native disk image.
+APP_DIR="$SCRIPT_DIR/release/mac-arm64"
+APP=$(find "$APP_DIR" -maxdepth 1 -name '*.app' -print -quit)
+[[ -n "$APP" ]] || { echo "No macOS app assembled under $APP_DIR" >&2; exit 1; }
+APP_NAME=$(basename "$APP" .app)
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
+DMG="$SCRIPT_DIR/release/$APP_NAME-$VERSION-arm64.dmg"
+if [[ -L "$APP_DIR/Applications" ]]; then
+  [[ "$(readlink "$APP_DIR/Applications")" == /Applications ]] || { echo "Unexpected Applications link" >&2; exit 1; }
+elif [[ -e "$APP_DIR/Applications" ]]; then
+  echo "The Applications shortcut path is already occupied" >&2; exit 1
 else
-  NODE_DIST="https://nodejs.org/dist/latest-v${NODE_MAJOR}.x"
+  ln -s /Applications "$APP_DIR/Applications"
 fi
-
-NODE_TMP="$(mktemp -d)"
-trap 'rm -rf "$NODE_TMP"' EXIT
-
-curl -fsSL "$NODE_DIST/SHASUMS256.txt" -o "$NODE_TMP/SHASUMS256.txt"
-NODE_TARBALL="$(grep -oE "node-v[0-9.]+-darwin-${NODE_ARCH}\\.tar\\.gz" "$NODE_TMP/SHASUMS256.txt" | head -n 1)"
-if [[ -z "$NODE_TARBALL" ]]; then
-  echo "No Node.js darwin-$NODE_ARCH archive found at $NODE_DIST." >&2
-  exit 1
-fi
-
-EXPECTED_SHA="$(awk -v file="$NODE_TARBALL" '$2 == file { print $1; exit }' "$NODE_TMP/SHASUMS256.txt")"
-curl -fsSL "$NODE_DIST/$NODE_TARBALL" -o "$NODE_TMP/$NODE_TARBALL"
-ACTUAL_SHA="$(shasum -a 256 "$NODE_TMP/$NODE_TARBALL" | awk '{ print $1 }')"
-if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
-  echo "Checksum verification failed for $NODE_TARBALL." >&2
-  exit 1
-fi
-
-tar xzf "$NODE_TMP/$NODE_TARBALL" -C "$NODE_TMP"
-NODE_BIN="$NODE_TMP/${NODE_TARBALL%.tar.gz}/bin/node"
-
-cd "$SCRIPT_DIR"
-"$NODE_BIN" "$REPO_ROOT/node_modules/electron-builder/cli.js" --mac dmg --arm64
-
+hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -ov -format UDZO "$DMG"
 echo "Build complete. Installer(s):"
-find "$SCRIPT_DIR/release" -maxdepth 1 -type f -name '*.dmg' -print
+printf '%s\n' "$DMG"
