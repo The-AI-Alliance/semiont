@@ -121,7 +121,7 @@ button:disabled {
   color: var(--text);
 }
 
-/* Settings — a group of options (currently just Theme). */
+/* Theme modal — Light / Dark / System. */
 .settings__group {
   margin: 0;
   padding: 0;
@@ -232,21 +232,6 @@ button:disabled {
   color: var(--danger);
 }
 
-.app__gear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--field);
-  color: var(--muted);
-}
-.app__gear:hover {
-  background: var(--surface-sidebar);
-  color: var(--accent);
-}
-
 /* ── App shell ────────────────────────────────────────────────────────── */
 .app {
   display: flex;
@@ -264,17 +249,62 @@ button:disabled {
   -webkit-app-region: drag;
 }
 
-/* "Powered by SEMIONT" credit — "Powered by" in our sans, the wordmark in
-   Orbitron with the authentic gradient fill (black → Semiont blue → black). */
-.app__powered {
-  margin: 0;
+/* Semiont menu lives at the bottom of the left navigation and opens upward. */
+.nav__footer {
+  position: relative;
+}
+.semiont-menu {
+  position: absolute;
+  left: 0.35rem;
+  bottom: calc(100% + 0.55rem);
+  z-index: 15;
   display: flex;
-  align-items: baseline;
-  gap: 0.4rem;
-  font-size: 0.78rem;
-  color: var(--faint);
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+}
+.semiont-menu button {
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.semiont-menu button:hover,
+.semiont-menu button:focus-visible {
+  background: var(--hover);
+  outline: none;
 }
 
+.semiont-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.15rem 0;
+  border: 0;
+  background: transparent;
+}
+.semiont-menu-trigger svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.semiont-menu-trigger:hover svg {
+  stroke: var(--accent);
+}
 .app__powered-mark {
   font-family: Orbitron, system-ui, sans-serif;
   font-weight: 700;
@@ -286,6 +316,9 @@ button:disabled {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
+}
+.semiont-menu-trigger:hover .app__powered-mark {
+  filter: brightness(1.25);
 }
 
 .app__body {
@@ -997,7 +1030,7 @@ body.resizing {
 
 /* ── Main-pane footer (app chrome — AppFooter.tsx) ────────────────────────
    Rendered under EVERY main-pane state (chat, open document, empty/connect):
-   KB status (left), viewer pref controls + settings gear (right). */
+   KB status (left), viewer preference controls (right). */
 .mainwrap {
   display: flex;
   flex-direction: column;

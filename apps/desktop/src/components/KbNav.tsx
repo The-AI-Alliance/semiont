@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { KbEntry } from '../lib/user-config';
 import type { KbConnection } from '../lib/session';
 import { sessionsForKb, sessionTitle, type AppChatSession } from '../lib/chat-sessions';
@@ -26,6 +26,8 @@ export interface KbNavProps {
   onSelectSession: (sessionId: string) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  onOpenTheme: () => void;
+  onOpenLauncherStatus: () => void;
 }
 
 function hostOf(uri: string): string {
@@ -67,12 +69,59 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <div className="nav__footer">
-        <p className="app__powered">
-          Powered by <span className="app__powered-mark">Semiont</span>
-        </p>
-      </div>
+      <SemiontMenu onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} />
     </nav>
+  );
+}
+
+function SemiontMenu({ onOpenTheme, onOpenLauncherStatus }: Pick<KbNavProps, 'onOpenTheme' | 'onOpenLauncherStatus'>) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: MouseEvent) => {
+      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', dismiss);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', dismiss);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const choose = (action: () => void) => {
+    setOpen(false);
+    action();
+  };
+
+  return (
+    <div className="nav__footer" ref={menuRef}>
+      {open && (
+        <div className="semiont-menu" role="menu" aria-label="Semiont menu">
+          <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}>Theme</button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenLauncherStatus)}>Launcher status</button>
+        </div>
+      )}
+      <button
+        type="button"
+        className="semiont-menu-trigger"
+        aria-label="Open Semiont menu"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+          <path d="m19.4 15 .1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5v.2a2 2 0 1 1-4 0V19a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3.8a2 2 0 1 1 0-4H4a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 8 4.5l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5v-.2a2 2 0 1 1 4 0V3a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1h.2a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.5 1 1.7 1.7 0 0 0-.1.2Z" />
+        </svg>
+        <span className="app__powered-mark">SEMIONT</span>
+      </button>
+    </div>
   );
 }
 

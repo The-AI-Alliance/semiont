@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { LauncherStatusResult } from '../lib/launcher-bridge';
 
 export type LauncherStatusState =
@@ -13,6 +14,14 @@ export function LauncherStatusModal({
   onRefresh: () => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
   const output = state.status === 'loading' ? 'Running semiont status…' : state.result.output;
 
   return (

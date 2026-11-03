@@ -25,7 +25,7 @@ import {
 import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
-import { SettingsPanel } from './components/SettingsPanel';
+import { ThemePanel } from './components/ThemePanel';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
@@ -84,7 +84,7 @@ export function App() {
   // The document shown in the main pane. It coexists with the active chat: when both are
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const [activeResource, setActiveResource] = useState<{ id: string; kbUri: string; name: string } | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showTheme, setShowTheme] = useState(false);
   const [showLauncherStatus, setShowLauncherStatus] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [theme, setTheme] = useState<Theme>('system');
@@ -406,7 +406,7 @@ export function App() {
 
   // The footer describes the active chat's KB (the composer's context); with no chat
   // selected it falls back to the open document's. Null hides the status line; the pref
-  // controls + gear always render. (In a split the doc pane's header names the doc — a
+  // controls always render. (In a split the doc pane's header names the doc — a
   // doc from ANOTHER KB is identified there, not here.)
   const footerKbUri = activeKbUri ?? activeResource?.kbUri ?? null;
   const footerConn = footerKbUri !== null ? connections[footerKbUri] : undefined;
@@ -445,6 +445,8 @@ export function App() {
             onSelectSession={selectSession}
             onRenameSession={handleRenameSession}
             onDeleteSession={handleDeleteSession}
+            onOpenTheme={() => setShowTheme(true)}
+            onOpenLauncherStatus={refreshLauncherStatus}
           />
           <div
             className="app__resizer"
@@ -468,13 +470,12 @@ export function App() {
             onOpenResource={openResource}
             setActiveEntries={setActiveEntries}
             onResourcesChanged={() => setDocsRefresh((n) => n + 1)}
-            onOpenSettings={() => setShowSettings(true)}
             onConnect={() => activeKbUri && void connectKb(activeKbUri, true)}
           />
         </div>
       </div>
-      {showSettings && (
-        <SettingsPanel theme={theme} onThemeChange={setTheme} onClose={() => setShowSettings(false)} />
+      {showTheme && (
+        <ThemePanel theme={theme} onThemeChange={setTheme} onClose={() => setShowTheme(false)} />
       )}
       {showLauncherStatus && (
         <LauncherStatusModal
@@ -488,17 +489,15 @@ export function App() {
 }
 
 /** The right pane: the current body (document / chat / split) over the app footer —
- *  the footer (KB status, viewer pref controls, Settings gear) persists across ALL of them. */
+ *  the footer (KB status and viewer preference controls) persists across ALL of them. */
 function MainPane({
   viewerPrefs,
   footerKb,
-  onOpenSettings,
   ...body
 }: {
   viewerPrefs: ViewerPrefs;
   /** The KB the pane is showing (active chat's, else open document's); null hides the line. */
   footerKb: KbDisplay | null;
-  onOpenSettings: () => void;
   activeSession: AppChatSession | null;
   conn: KbConnection | undefined;
   activeResource: { id: string; kbUri: string; name: string } | null;
@@ -515,7 +514,7 @@ function MainPane({
   return (
     <div className="mainwrap">
       <MainBody viewerPrefs={viewerPrefs} {...body} />
-      <AppFooter kb={footerKb} prefs={viewerPrefs} onOpenSettings={onOpenSettings} />
+      <AppFooter kb={footerKb} prefs={viewerPrefs} />
     </div>
   );
 }
