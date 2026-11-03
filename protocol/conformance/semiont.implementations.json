@@ -33,6 +33,9 @@
     },
     "swift": {
       "wire": ["../../packages/swift/sdk/.build/conformance/semiont-swift-wire-driver"]
+    },
+    "csharp": {
+      "wire": ["../../packages/csharp/sdk/conformance/bin/semiont-csharp-wire-driver"]
     }
   },
   "workerServices": {

@@ -38,6 +38,10 @@ export default function setup(project: TestProject): void {
   if (swift !== undefined && !existsSync(swift)) {
     throw new Error(`The Swift driver is not built: ${swift} does not exist. Run \`Scripts/install-driver.sh\` in packages/swift/sdk.`);
   }
+  const csharp = drivers['csharp']?.wire?.[0];
+  if (csharp !== undefined && !existsSync(csharp)) {
+    throw new Error(`The C# driver is not built: ${csharp} does not exist. Run \`dotnet publish conformance/WireDriver -c Release --self-contained -r linux-x64 -o conformance/bin\` in packages/csharp/sdk.`);
+  }
   if ('python' in drivers) makePythonSdkEnvironment();
   if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.
