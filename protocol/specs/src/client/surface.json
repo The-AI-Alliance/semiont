@@ -1011,8 +1011,13 @@
     {
       "module": "annotations",
       "docs": "The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables.",
-      "notYetReached": {"csharp": "C# is still to implement the annotations module.", "swift": "The Swift SDK's annotations: The readers of an annotation, its builders, and the reconciling of a quote: what a program that reads or makes annotations is given, so that none parses or builds one by hand. Held by protocol/specs/src/annotations's tables."},
+      "notYetReached": {"csharp": "C# is still to implement the annotations module."},
       "where": {
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Annotations/Readers.swift",
+          "packages/swift/sdk/Sources/Semiont/Annotations/Spans.swift",
+          "packages/swift/sdk/Sources/Semiont/Annotations/Builders.swift"
+        ],
         "typescript": [
           "packages/typescript/core/src/web-annotation-utils.ts",
           "packages/typescript/core/src/annotation-builders.ts"
@@ -1187,6 +1192,7 @@
           "member": "SpanRefusal",
           "kind": "type",
           "absent": {
+            "swift": "Swift uses SpanRefusalErrorCode, generated with the other error families.",
             "typescript": "TypeScript's is with @semiont/core's other error codes.",
             "rust": "Rust's is errors::SpanRefusal, which is itself the error a refused span is.",
             "go": "Go's is semiont.SpanRefusal, generated with the other error codes.",

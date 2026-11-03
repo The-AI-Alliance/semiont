@@ -44,3 +44,16 @@ including before the factory returns. Startup is bounded, overlapping refusals s
 network renewal keeps the stored sign-in for another attempt. Session token and
 user state are read-only, and their sequences finish on disposal. The client and
 registry surfaces arrive in later phases.
+
+Annotation readers accept every generated body, target and selector variant.
+`reconcile(text:quoted:)` finds a model's quote and returns the resource's own
+words and context; offsets count Unicode scalars. `annotationOfSpan` takes an
+`OfSpan` whose `Spanned` text is either plain text or a PDF's `AnchoredText`.
+It checks the span before building position/quote selectors or PDF rectangles.
+`annotationOfResource` builds an annotation of the whole resource. Both builders
+derive the same deterministic annotation ID as the other SDKs. Refused spans
+throw `SpanRefusedError` with a generated error code.
+
+Media-type helpers read generated registry rows, including clone formats,
+storage filenames, extension aliases, and whether a format's text is decoded
+or derived. Shared annotation, offset and media-type cases run in the unit suite.

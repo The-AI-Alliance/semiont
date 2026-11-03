@@ -161,7 +161,6 @@ package struct TableGenerator {
       ("sign-in-store/owner-only.json", "directoryMode", "ownerOnlyDirectory"),
       ("sign-in-store/owner-only.json", "fileMode", "ownerOnlyFile"),
       ("media-types/registry.json", "mediaTypes", "mediaTypes"),
-      ("media-types/registry.json", "extensionAliases", "extensionAliases"),
       ("text/encoding-cases.json", "cases", "encodings"),
       ("client/refresh.json", "queries", "cacheQueries"),
       ("client/refresh.json", "refresh", "cacheRefresh"),
@@ -174,6 +173,12 @@ package struct TableGenerator {
       let expression = try expression(value, type: shape, owner: "Spec", part: name)
       out += "internal let \(escaped(name)): \(type) = \(expression)\n"
     }
+    let aliases = try required(table("media-types/registry.json"), "extensionAliases").object
+    out += "internal let extensionAliases: [String: String] = [\n"
+    for (suffix, type) in aliases.sorted(by: { $0.key < $1.key }) {
+      out += "  \(literal(suffix)): \(literal(try type.text)),\n"
+    }
+    out += "]\n"
     let registry = try table("bus/registry.json")
     out +=
       "internal let traceField = \(literal(try required(required(registry, "trace").object, "field").text))\n"
