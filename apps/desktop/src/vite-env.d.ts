@@ -38,4 +38,6 @@ interface Window {
   /** Electron preload bridge to the knowledge bases' issuers: signing in, and the stored
    *  sessions. Absent in the browser, where no sign-in is possible. */
   authBridge?: import('./lib/auth-bridge').AuthBridge;
+  /** Electron bridge for the prototype launcher-status menu action. */
+  launcherBridge?: import('./lib/launcher-bridge').LauncherBridge;
 }

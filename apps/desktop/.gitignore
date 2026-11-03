@@ -1,4 +1,5 @@
 out/
 release/
+.build/
 config.toml
 *.local

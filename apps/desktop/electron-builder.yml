@@ -7,6 +7,9 @@ files:
   - out/**
   - package.json
   - '!node_modules/**'
+extraResources:
+  - from: .build/launcher/semiont
+    to: launcher/semiont
 npmRebuild: false
 mac:
   target:

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useLayoutEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -25,6 +26,7 @@ import { getPref, setPref } from './lib/prefs';
 import { CHAT_MIN, DOC_DEFAULT, clampDocWidth, mainLayout } from './lib/split-layout';
 import { KbNav } from './components/KbNav';
 import { SettingsPanel } from './components/SettingsPanel';
+import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
@@ -83,7 +85,35 @@ export function App() {
   // set and the pane is wide enough, the main pane splits (chat left, document right).
   const [activeResource, setActiveResource] = useState<{ id: string; kbUri: string; name: string } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLauncherStatus, setShowLauncherStatus] = useState(false);
+  const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [theme, setTheme] = useState<Theme>('system');
+
+  const refreshLauncherStatus = useCallback(() => {
+    const bridge = window.launcherBridge;
+    setShowLauncherStatus(true);
+    setLauncherStatus({ status: 'loading' });
+    if (bridge === undefined) {
+      setLauncherStatus({
+        status: 'result',
+        result: { output: 'The launcher sidecar is available in the desktop app only.', exitCode: null, error: null },
+      });
+      return;
+    }
+    void bridge.status().then(
+      (result) => setLauncherStatus({ status: 'result', result }),
+      (error: unknown) => setLauncherStatus({
+        status: 'result',
+        result: {
+          output: error instanceof Error ? error.message : String(error),
+          exitCode: null,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      }),
+    );
+  }, []);
+
+  useEffect(() => window.launcherBridge?.onStatusRequested(refreshLauncherStatus), [refreshLauncherStatus]);
 
   // App-global viewer prefs (TOOLBAR-PREFS-AS-PROPS): click action + selection motivation are
   // app settings (footer controls by the gear), passed as controlled props to every mounted
@@ -445,6 +475,13 @@ export function App() {
       </div>
       {showSettings && (
         <SettingsPanel theme={theme} onThemeChange={setTheme} onClose={() => setShowSettings(false)} />
+      )}
+      {showLauncherStatus && (
+        <LauncherStatusModal
+          state={launcherStatus}
+          onRefresh={refreshLauncherStatus}
+          onClose={() => setShowLauncherStatus(false)}
+        />
       )}
     </>
   );

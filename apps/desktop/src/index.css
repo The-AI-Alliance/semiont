@@ -195,6 +195,43 @@ button:disabled {
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
 }
 
+.config--launcher-status {
+  max-width: 72rem;
+}
+
+.launcher-status__output {
+  margin: 0;
+  max-height: calc(100vh - 15rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code);
+  color: var(--text);
+  font: 0.76rem/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre;
+}
+
+.launcher-status__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.launcher-status__success,
+.launcher-status__failure {
+  font-size: 0.82rem;
+}
+
+.launcher-status__success {
+  color: var(--success);
+}
+
+.launcher-status__failure {
+  color: var(--danger);
+}
+
 .app__gear {
   display: flex;
   align-items: center;

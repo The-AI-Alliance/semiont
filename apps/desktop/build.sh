@@ -43,6 +43,41 @@ run_logged() {
 }
 
 NODE_MAJOR="$("$REPO_ROOT/packages/typescript/scripts/node-version.sh")"
+GO_TOOLCHAIN="$("$REPO_ROOT/packages/go/scripts/go-toolchain.sh")"
+GO_IMAGE="golang:${GO_TOOLCHAIN}"
+
+if [[ "$TARGET" == linux ]]; then
+  NODE_IMAGE="node:${NODE_MAJOR}-bookworm"
+  LAUNCHER_GOOS=linux
+  LAUNCHER_GOARCH=amd64
+else
+  NODE_IMAGE="node:${NODE_MAJOR}-alpine"
+  LAUNCHER_GOOS=darwin
+  LAUNCHER_GOARCH=arm64
+fi
+
+APP_VERSION="$("$RT" run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -w /workspace \
+  "$NODE_IMAGE" \
+  node -p 'JSON.parse(require("node:fs").readFileSync("apps/desktop/package.json", "utf8")).version')"
+LAUNCHER_COMMIT="$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
+LAUNCHER_BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+LAUNCHER_LDFLAGS="-s -w -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildVersion=${APP_VERSION} -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildCommit=${LAUNCHER_COMMIT} -X github.com/The-AI-Alliance/semiont/packages/go/launcher.BuildDate=${LAUNCHER_BUILD_DATE}"
+LAUNCHER_BIN="$SCRIPT_DIR/.build/launcher/semiont"
+mkdir -p "$(dirname "$LAUNCHER_BIN")"
+
+echo "Building launcher sidecar (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in $GO_IMAGE..."
+run_logged "$RT" run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -w /workspace/apps/launcher \
+  -e GOOS="$LAUNCHER_GOOS" \
+  -e GOARCH="$LAUNCHER_GOARCH" \
+  -e CGO_ENABLED=0 \
+  "$GO_IMAGE" \
+  go build -buildvcs=false -trimpath -ldflags "$LAUNCHER_LDFLAGS" -o /workspace/apps/desktop/.build/launcher/semiont .
+chmod 755 "$LAUNCHER_BIN"
+[[ -x "$LAUNCHER_BIN" ]] || { echo "Launcher sidecar was not built at $LAUNCHER_BIN" >&2; exit 1; }
 
 # Install and build the workspace in the same Linux container so native Node
 # bindings match that build environment. The monorepo workspace supplies every
@@ -50,7 +85,6 @@ NODE_MAJOR="$("$REPO_ROOT/packages/typescript/scripts/node-version.sh")"
 if [[ "$TARGET" == "linux" ]]; then
   # Build an amd64 Debian package in a matching glibc environment. Rosetta
   # translates the container on Apple Silicon; the resulting .deb targets x64.
-  NODE_IMAGE="node:${NODE_MAJOR}-bookworm"
   if [[ "$RT" == container ]]; then
     CONTAINER_ARCH=(--arch amd64)
     if [[ "$HOST_OS" == Darwin && "$(uname -m)" == arm64 ]]; then CONTAINER_ARCH+=(--rosetta); fi
@@ -64,14 +98,13 @@ if [[ "$TARGET" == "linux" ]]; then
     -m 8g \
     -e ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     "$NODE_IMAGE" \
-    sh -lc 'apt-get update -qq && apt-get install -y -qq --no-install-recommends fakeroot && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --linux deb --x64'
+    sh -lc 'apt-get update -qq && apt-get install -y -qq --no-install-recommends fakeroot && npm ci --no-audit --no-fund && npm run build:packages -- @semiont/react-ui @semiont/sdk && npm run build --workspace=semiont-desktop && cd apps/desktop && node ../../node_modules/electron-builder/cli.js --linux deb --x64 && test -x release/linux-unpacked/resources/launcher/semiont && deb=$(find release -maxdepth 1 -name "*.deb" -print -quit) && test -n "$deb" && dpkg-deb --contents "$deb" | grep -F "resources/launcher/semiont"'
 
   echo "Build complete. Installer(s):"
   find "$SCRIPT_DIR/release" -maxdepth 1 -type f -name '*.deb' -print
   exit 0
 fi
 
-NODE_IMAGE="node:${NODE_MAJOR}-alpine"
 echo "Building Semiont Desktop sources in $NODE_IMAGE..."
 run_logged "$RT" run --rm \
   -v "$REPO_ROOT":/workspace \
@@ -85,6 +118,10 @@ run_logged "$RT" run --rm \
 APP_DIR="$SCRIPT_DIR/release/mac-arm64"
 APP=$(find "$APP_DIR" -maxdepth 1 -name '*.app' -print -quit)
 [[ -n "$APP" ]] || { echo "No macOS app assembled under $APP_DIR" >&2; exit 1; }
+[[ -x "$APP/Contents/Resources/launcher/semiont" ]] || {
+  echo "Launcher sidecar is missing from $APP/Contents/Resources/launcher/semiont" >&2
+  exit 1
+}
 APP_NAME=$(basename "$APP" .app)
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Contents/Info.plist")
 DMG="$SCRIPT_DIR/release/$APP_NAME-$VERSION-arm64.dmg"

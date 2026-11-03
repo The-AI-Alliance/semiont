@@ -1,11 +1,66 @@
-import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
+import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
 import { registerAuthHandlers } from './auth';
 import { appendLog, configDir, logPath } from './paths';
 
 registerAuthHandlers();
+
+let mainWindow: BrowserWindow | null = null;
+
+function launcherPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'launcher', 'semiont')
+    : join(process.cwd(), '.build', 'launcher', 'semiont');
+}
+
+ipcMain.handle('launcher:status', () => new Promise<LauncherStatusResult>((resolve) => {
+  execFile(
+    launcherPath(),
+    ['status'],
+    { cwd: app.getPath('home'), encoding: 'utf8', maxBuffer: 4 * 1024 * 1024, timeout: 120_000, windowsHide: true },
+    (error, stdout, stderr) => {
+      const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
+      resolve({
+        output: output || (error === null ? '(no output)' : error.message),
+        exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
+        error: error?.message ?? null,
+      });
+    },
+  );
+}));
+
+function setApplicationMenu(): void {
+  const appMenu: MenuItemConstructorOptions[] = [
+    { role: 'about' },
+    { type: 'separator' },
+    {
+      label: 'Launcher Status…',
+      click: () => mainWindow?.webContents.send('launcher:status-requested'),
+    },
+  ];
+  if (process.platform === 'darwin') {
+    appMenu.push(
+      { type: 'separator' },
+      { role: 'services', submenu: [] },
+      { type: 'separator' },
+      { role: 'hide' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+    );
+  }
+  appMenu.push({ type: 'separator' }, { role: 'quit' });
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: app.getName(), submenu: appMenu },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ]));
+}
 
 ipcMain.on('log:append', (_event, line: string) => appendLog(String(line)));
 process.on('uncaughtException', (err) => appendLog(`${new Date().toISOString()} [main uncaught] ${err.stack ?? String(err)}`));
@@ -122,6 +177,10 @@ function createWindow(): void {
       nodeIntegration: false,
     },
   });
+  mainWindow = win;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
 
   // Deep-links (sidebar docs, upload records, answer references) use target=_blank /
   // window.open. In Electron that would otherwise spawn a bare in-app window — instead
@@ -152,6 +211,7 @@ void app.whenReady().then(() => {
   } catch {
     // best-effort
   }
+  setApplicationMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
