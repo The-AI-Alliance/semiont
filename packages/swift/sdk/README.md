@@ -42,8 +42,7 @@ transport. Dispose that owner before shutting down the HTTP client. The sessionâ
 storage failures. Pass `onError` to hear diagnostics from the start of construction,
 including before the factory returns. Startup is bounded, overlapping refusals share one renewal, and a failed
 network renewal keeps the stored sign-in for another attempt. Session token and
-user state are read-only, and their sequences finish on disposal. The remaining client namespaces and
-registry surfaces arrive in later phases.
+user state are read-only, and their sequences finish on disposal. The remaining live queries and registry surfaces arrive in later phases.
 
 Annotation readers accept every generated body, target and selector variant.
 `reconcile(text:quoted:)` finds a model's quote and returns the resource's own
@@ -58,12 +57,13 @@ Media-type helpers read generated registry rows, including clone formats,
 storage filenames, extension aliases, and whether a format's text is decoded
 or derived. Shared annotation, offset and media-type cases run in the unit suite.
 
-
 `SemiontClient.fromHttp(baseUrl:httpClient:token:)` constructs the HTTP client
 surface. `SemiontClient(transport:gateway:)` takes another `Transport`, with
 `auth` and `system` present only when a `GatewayOperations` is supplied. The
-implemented namespaces are `frame`, `bind`, `beckon`, `auth` and `system`;
-cache-backed reads, streaming operations, delegation and claims follow later.
+client implements 41 of the 66 namespace methods: vocabulary writes, binding,
+attention, authentication/status, annotation writes, job events/status/cancellation,
+gather/search operations, delegation and clone-token reads. Browse, cache-backed
+queries, upload/clone wiring and worker claims follow later.
 Dispose the client before shutting down the caller-owned HTTP client.
 
 `client.wire` sends typed generated `Channels` and `Operations`. `frames` on a
@@ -81,3 +81,24 @@ every subsequent event. `dispose()` cancels the bridge, disposes the transport
 once and finishes listeners. Custom transports can supply read-only state via
 `Watched(initial, updates:)`, events via `Events`, and scoped release via
 `ResourceHold` without a concurrency escape.
+
+
+`gather.annotation` and `match.search` return a lazy `Running<T>`. Await
+`completed()` for its result, or use `for try await` for its reports and final
+value. Each operation has one consumer; constructing it or its iterator sends
+nothing. Cancellation, leaving a loop, or `dispose()` stops its owned work.
+Closing the client ends an unfinished operation with `bus.closed`.
+
+`mark.delegate` and `yield.delegate` return a `Delegation` of that verb's typed
+completion. Iteration reports creation first, then progress and retry setbacks,
+and finally completion. Awaiting `completed()` returns just the completion.
+A quiet job is checked through status polling, one request at a time; retry
+setbacks keep the follower alive. A generation's stall deadline grows with its
+requested length unless supplied explicitly. Stalling asks for job cancellation;
+cancelling the follower itself stops observing and leaves the job running.
+
+`job.queued`, `progress`, `complete` and `fail` are independent typed listeners
+that start when asked for. `pollUntilComplete` reports every status through its
+optional callback and bounds requests and sleeps by the caller's deadline.
+`sessionFromKept` now exposes this client as `OpenedSession.client`; disposing
+the owner closes the session and client together.

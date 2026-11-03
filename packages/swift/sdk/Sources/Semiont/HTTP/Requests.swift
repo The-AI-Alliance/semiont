@@ -5,6 +5,7 @@ struct WireOperation: Sendable {
   let failure: String
   let request: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
   let response: @Sendable ([String: JSONValue]) throws -> [String: JSONValue]
+  let decodeFailure: @Sendable ([String: JSONValue]) throws -> BusRequestError
 }
 func projectWire<Value: Codable>(
   _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>
@@ -14,6 +15,21 @@ func projectWire<Value: Codable>(
   let data = try JSONEncoder().encode(declared(payload, stamps: stamps))
   let decoded = try JSONDecoder().decode(type, from: data)
   return try JSONDecoder().decode([String: JSONValue].self, from: JSONEncoder().encode(decoded))
+}
+func projectFailure<Value: Codable>(
+  _ type: Value.Type, _ payload: [String: JSONValue], stamps: Set<String>, messageField: String
+) throws -> BusRequestError {
+  let value = try projectWire(type, payload, stamps: stamps)
+  guard case .string(let message) = value[messageField] else {
+    throw TransportError(.error, "An operation's failure has no message")
+  }
+  let code: BusRequestErrorCode
+  if case .string(let wireCode) = value["code"] {
+    code = busRequestCodeByWireCode[wireCode] ?? unrecognizedBusFailure
+  } else {
+    code = unrecognizedBusFailure
+  }
+  return BusRequestError(code, message)
 }
 extension HttpTransport {
   public func request(operation: String, payload: [String: JSONValue], timeoutMs: Int? = nil)
@@ -68,17 +84,11 @@ extension HttpTransport {
       Task { await self.fail(correlation, error: CancellationError()) }
     }
     if frame.channel == descriptor.failure {
-      let failure: CommandError
-      do {
-        failure = try JSONDecoder().decode(
-          CommandError.self, from: JSONEncoder().encode(frame.payload))
-      } catch {
-        throw BusRequestError(
-          unrecognizedBusFailure, "Malformed failure for \(operation): \(error)")
+      let failure: BusRequestError
+      do { failure = try descriptor.decodeFailure(frame.payload) } catch {
+        throw BusRequestError(unrecognizedBusFailure, "Malformed failure for \(operation)")
       }
-      let code =
-        failure.code.flatMap { busRequestCodeByWireCode[$0.rawValue] } ?? unrecognizedBusFailure
-      throw BusRequestError(code, failure.message)
+      throw failure
     }
     do { return try descriptor.response(frame.payload) } catch {
       let lacks = requiredPayloadMembers[descriptor.result]?.lacking(in: .object(frame.payload))

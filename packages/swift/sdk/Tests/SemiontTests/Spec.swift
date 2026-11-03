@@ -61,3 +61,12 @@ func decoded<Value: Decodable>(_ type: Value.Type, _ value: JSONValue) throws ->
 func encoded<Value: Encodable>(_ value: Value) throws -> JSONValue {
   try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(value))
 }
+func expanded(_ value: JSONValue, fixtures: [String: JSONValue]) throws -> JSONValue {
+  switch value {
+  case .object(let object):
+    if let name = object["$fixture"] { return try required(fixtures, name.text) }
+    return .object(try object.mapValues { try expanded($0, fixtures: fixtures) })
+  case .array(let values): return .array(try values.map { try expanded($0, fixtures: fixtures) })
+  default: return value
+  }
+}

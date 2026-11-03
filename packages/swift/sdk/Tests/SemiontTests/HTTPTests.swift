@@ -319,3 +319,21 @@ extension HttpTransport {
     }
   }
 }
+
+@Test func httpClientFactoryOwnsItsTransportAndRefusesCancelledConstruction() async throws {
+  try await server(.noHeaders) { base, http in
+    let client = try await SemiontClient.fromHttp(baseUrl: base, httpClient: http)
+    #expect(client.auth != nil && client.system != nil)
+    #expect(client.baseUrl == base)
+    client.dispose()
+    #expect(client.state.value == .closed)
+    let cancelled = Task {
+      withUnsafeCurrentTask { $0?.cancel() }
+      return try await SemiontClient.fromHttp(baseUrl: base, httpClient: http)
+    }
+    do {
+      _ = try await cancelled.value
+      Issue.record("Cancelled factory succeeded")
+    } catch is CancellationError {}
+  }
+}

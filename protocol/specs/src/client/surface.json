@@ -218,7 +218,7 @@
     {
       "namespace": "mark",
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
-      "notYetReached": {"csharp": "C# is still to implement the mark namespace.", "swift": "The Swift SDK's mark: Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job."},
+      "notYetReached": {"csharp": "C# is still to implement the mark namespace."},
       "methods": [
         {
           "method": "annotation",
@@ -369,7 +369,7 @@
     {
       "namespace": "gather",
       "docs": "Assembling the context a model is given, and what refers to a resource.",
-      "notYetReached": {"csharp": "C# is still to implement the gather namespace.", "swift": "The Swift SDK's gather: Assembling the context a model is given, and what refers to a resource."},
+      "notYetReached": {"csharp": "C# is still to implement the gather namespace."},
       "methods": [
         {
           "method": "annotation",
@@ -419,6 +419,7 @@
         },
         {
           "method": "referencedBy",
+          "notYetReached": {"swift": "Live referenced-by queries remain to implement."},
           "shape": "cache",
           "via": { "request": "gather:referenced-by-requested" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -428,7 +429,7 @@
     {
       "namespace": "match",
       "docs": "Searching: for what a reference could refer to, and for resources by text.",
-      "notYetReached": {"csharp": "C# is still to implement the match namespace.", "swift": "The Swift SDK's match: Searching: for what a reference could refer to, and for resources by text."},
+      "notYetReached": {"csharp": "C# is still to implement the match namespace."},
       "methods": [
         {
           "method": "search",
@@ -461,6 +462,7 @@
         },
         {
           "method": "resources",
+          "notYetReached": {"swift": "Live resource search queries remain to implement."},
           "shape": "cache",
           "via": { "request": "match:resources-requested" },
           "cases": [
@@ -481,10 +483,11 @@
     {
       "namespace": "yield",
       "docs": "Creating resources: by upload, by a generation delegated as a job, by cloning.",
-      "notYetReached": {"csharp": "C# is still to implement the yield namespace.", "swift": "The Swift SDK's yield: Creating resources: by upload, by a generation delegated as a job, by cloning."},
+      "notYetReached": {"csharp": "C# is still to implement the yield namespace."},
       "methods": [
         {
           "method": "resource",
+          "notYetReached": {"swift": "Upload client wiring remains to implement."},
           "shape": "upload",
           "via": { "content": "putBinary" },
           "cases": [
@@ -525,6 +528,7 @@
         },
         {
           "method": "createFromToken",
+          "notYetReached": {"swift": "Clone upload client wiring remains to implement."},
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [
@@ -610,7 +614,7 @@
     {
       "namespace": "job",
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
-      "notYetReached": {"csharp": "C# is still to implement the job namespace.", "swift": "The Swift SDK's job: Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them."},
+      "notYetReached": {"csharp": "C# is still to implement the job namespace."},
       "methods": [
         {
           "method": "queued",
@@ -667,6 +671,7 @@
         },
         {
           "method": "claim",
+          "notYetReached": {"swift": "Worker claims and held jobs remain to implement."},
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [
