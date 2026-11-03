@@ -28,6 +28,7 @@ export const SMELTER_HEALTH_PORT = 24101;
 export const CURSORS = 'cursors.json';
 
 type QdrantVectors = components['schemas']['QdrantVectorsConfig'];
+type OllamaEmbedding = components['schemas']['OllamaEmbeddingConfig'];
 
 /**
  * What a Smelter is told (SMELTER.md § Settings). Every member the page says
@@ -44,8 +45,8 @@ export interface SmelterSettings {
   archivist?: { host: string; port: number };
   /** The vector database: its kind, its host and port, and the variable its token is in. */
   vectors: { [Member in keyof QdrantVectors]: QdrantVectors[Member] | undefined };
-  /** The embedding provider: its kind, its model and its address. */
-  embedding: { type?: 'ollama'; model?: string; baseUrl?: string };
+  /** The embedding provider: the protocol's Ollama embedding configuration, every member of which a case may leave undefined. */
+  embedding: { [Member in keyof OllamaEmbedding]: OllamaEmbedding[Member] | undefined };
   /** The two numbers a text is cut by: a chunk's size, and how far one chunk overlaps the next. */
   chunking?: { chunkSize: number; overlap: number };
   /** How many PDFs it works on at once. */
@@ -145,7 +146,7 @@ function document(settings: SmelterSettings, home: string): string {
       gatewayUrl: settings.gatewayUrl,
       identity: stated({ issuer: settings.issuer }),
       archivist: settings.archivist,
-      embedding: stated({ type: settings.embedding.type, model: settings.embedding.model, baseUrl: settings.embedding.baseUrl }),
+      embedding: stated(settings.embedding),
       vectors: stated(settings.vectors),
       chunking: settings.chunking,
       pdfsAtOnce: settings.pdfsAtOnce,

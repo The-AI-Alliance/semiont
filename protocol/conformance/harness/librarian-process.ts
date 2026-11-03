@@ -47,7 +47,7 @@ export interface LibrarianSettings {
   /** The vector database. */
   vectors?: LibrarianDocument['vectors'];
   /** The embedding provider, which gives a query its vector. */
-  embedding?: ModelSettings;
+  embedding?: LibrarianDocument['embedding'];
   /** The model the Matcher scores candidates with. */
   matcher?: ModelSettings;
   /** The model the Gatherer writes summaries with. */
