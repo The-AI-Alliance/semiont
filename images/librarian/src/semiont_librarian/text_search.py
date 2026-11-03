@@ -1,8 +1,8 @@
 """A search of the knowledge base's resources by text: the graph's page, the index's where the graph found nothing, and the previews.
 
 `match:resources-requested` asks which resources a text finds
-(`docs/protocol/LIBRARIAN.md` § Text search).
-`specs/src/librarian/search-cases.json` states each search as what each
+(`protocol/contract/LIBRARIAN.md` § Text search).
+`protocol/specs/src/librarian/search-cases.json` states each search as what each
 store answers and the page that follows, and what a preview is, and the
 tests run every case of it.
 

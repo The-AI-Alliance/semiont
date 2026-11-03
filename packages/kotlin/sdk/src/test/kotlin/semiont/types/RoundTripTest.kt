@@ -21,7 +21,7 @@ import kotlin.io.path.readText
  * A client hands on what it was sent: every payload the three conformance
  * corpora state, decoded as the type its channel's schema is and written back,
  * is the JSON it was. What a payload states is resolved as the suite resolves
- * it (packages/conformance/sdk/README.md, Values): `$var` is a value the suite
+ * it (protocol/conformance/sdk/README.md, Values): `$var` is a value the suite
  * binds before a case begins or a `let` step binds, and `$join` the text its
  * parts make. A payload that captures what only a run tells (an unbound
  * `$var`, or `_`) states nothing to compare, and is passed over. A member that

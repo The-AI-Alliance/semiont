@@ -2,7 +2,7 @@
 //! stream and view, a storage-uri entry and an anchored-text entry are kept.
 //!
 //! The arithmetic is the one every reader and writer of those files shares,
-//! in any language; specs/src/archivist/shard-cases.json holds each to it.
+//! in any language; protocol/specs/src/archivist/shard-cases.json holds each to it.
 
 /// How many shards there are: one for each value of four hex digits.
 const SHARDS: u32 = 65536;

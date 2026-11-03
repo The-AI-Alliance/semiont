@@ -21,7 +21,7 @@ from semiont_worker.detection.parsers import (
     TAG_ELEMENT_SCHEMA,
 )
 
-SUITE: Final = ROOT / "packages/conformance/worker-service/support.ts"
+SUITE: Final = ROOT / "protocol/conformance/worker-service/support.ts"
 
 # What the suite states a detection's answer is an array of, word for word.
 SPAN: Final = """const span = (extra: Record<string, { type: 'string' }>, required: string[]) => ({

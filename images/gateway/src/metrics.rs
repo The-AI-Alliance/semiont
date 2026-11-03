@@ -1,5 +1,5 @@
 //! The gateway's own instruments, made on the service's meter: the metrics
-//! specs/src/service-telemetry/telemetry.json lists for it beside the process's and
+//! protocol/specs/src/service-telemetry/telemetry.json lists for it beside the process's and
 //! its count of the emits it accepted (`semiont.bus.emit`, observability's).
 
 use crate::http::Unauthenticated;

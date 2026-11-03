@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-oauth-clients-python.mjs — generate the Python SDK's OAuth client
-// ids and the scope a sign-in asks for from specs/src/session/oauth.json, the
+// ids and the scope a sign-in asks for from protocol/specs/src/session/oauth.json, the
 // file the TypeScript and Rust SDKs and the launcher generate theirs from.
 //
 //   packages/python/sdk/src/semiont/oauth_clients.py
@@ -18,7 +18,7 @@ import { readOAuthClients } from './oauth-clients.mjs';
 import { pyBanner, pyComment, pyString } from '../lib/python-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/session/oauth.json');
 const OUT = resolve(ROOT, 'packages/python/sdk/src/semiont/oauth_clients.py');
 const CHECK = process.argv.includes('--check');
 
@@ -28,7 +28,7 @@ const { clients, scope } = readOAuthClients(TABLE);
 const pyName = (name) => `${name.toUpperCase()}_CLIENT_ID`;
 const constant = (name, docs, value) => `${pyComment(docs)}\n${name}: Final = ${pyString(value)}\n`;
 
-const text = `${pyBanner('specs/src/session/oauth.json', 'packages/codegen/schemas/generate-oauth-clients-python.mjs')}
+const text = `${pyBanner('protocol/specs/src/session/oauth.json', 'packages/codegen/schemas/generate-oauth-clients-python.mjs')}
 """How a Semiont client presents itself to the issuer a knowledge base trusts:
 the clients its realm registers, and the scope every sign-in asks for.
 """

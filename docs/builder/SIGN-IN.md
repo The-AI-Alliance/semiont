@@ -70,7 +70,7 @@ const opened = await SemiontSession.signInDevice({
 
 ## The sign-in `semiont login` keeps
 
-[`semiont login`](../../apps/launcher/README.md#login-and-upload) signs a person in to a running stack's knowledge base and keeps the sign-in, one for each stack, in the launcher's state directory. The [sign-in store](../../specs/src/sign-in-store/README.md) is the contract for that file: where it is on each system, what an entry holds, the lock every writer takes, and what a renewal keeps.
+[`semiont login`](../../apps/launcher/README.md#login-and-upload) signs a person in to a running stack's knowledge base and keeps the sign-in, one for each stack, in the launcher's state directory. The [sign-in store](../../protocol/specs/src/sign-in-store/README.md) is the contract for that file: where it is on each system, what an entry holds, the lock every writer takes, and what a renewal keeps.
 
 A Go, Python, Rust or Kotlin program builds its session over that entry, so a person who has run `semiont login` approves nothing more, and one sign-in serves the launcher and the program. Each reads the entry, renews it, and writes it back under the lock. A renewal another program made meanwhile stands, and a stack signed out meanwhile stays signed out.
 

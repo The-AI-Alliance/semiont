@@ -1,6 +1,6 @@
 //! The media types a knowledge base admits and what the system can do with
-//! each, as specs/src/media-types/registry.json states them, and the rules
-//! read from that table, which specs/src/media-types/cases.json holds in
+//! each, as protocol/specs/src/media-types/registry.json states them, and the rules
+//! read from that table, which protocol/specs/src/media-types/cases.json holds in
 //! every SDK: the format a clone takes, the name content is stored under,
 //! and where a type's text comes from, with whether that text has places on
 //! a page and whether it is derived.

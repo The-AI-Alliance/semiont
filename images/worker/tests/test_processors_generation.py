@@ -1,6 +1,6 @@
 """The `yield` processor: what it asks for, what it makes of the answer, what it reports, and what it refuses.
 
-`docs/protocol/WORKER-SERVICE.md` § Generation states what a `yield` job
+`protocol/contract/WORKER-SERVICE.md` § Generation states what a `yield` job
 does, and each test here that holds one of its rules names the rule. The
 generation and the compiler are stood in for (`standing_in.py`): what a
 prompt says and how a model is asked are `test_generation_prompts.py`'s and
@@ -48,7 +48,8 @@ CONTEXT: Final[JsonValue] = {
 
 
 class LargestPdf(BaseModel, frozen=True, extra="ignore", strict=True):
-    """The most bytes a Smelter reads of a PDF, as `specs/src/smelter/extraction-cases.json` states it: all the worker reads there."""
+    """The most bytes a Smelter reads of a PDF, as `protocol/specs/src/smelter/extraction-cases.json` states it: all
+    the worker reads there."""
 
     largest_pdf_bytes: Annotated[int, Field(alias="largestPdfBytes")]
 

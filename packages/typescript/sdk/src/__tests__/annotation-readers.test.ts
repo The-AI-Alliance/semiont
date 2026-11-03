@@ -1,7 +1,7 @@
 /**
  * The annotation readers are the SDK's to hand out: a script that reads an
  * annotation imports them with its client, and writes none by hand. The set
- * is the one specs/src/annotations/reader-cases.json holds every SDK to, and
+ * is the one protocol/specs/src/annotations/reader-cases.json holds every SDK to, and
  * each is core's own function, whose behaviour that table's test holds.
  */
 
@@ -30,7 +30,7 @@ import {
 } from '../index';
 
 const table: { readers: string[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/reader-cases.json', import.meta.url), 'utf8'),
 );
 
 /** Each reader the SDK exports, under the name the table gives it, beside core's. */

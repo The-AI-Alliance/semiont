@@ -5,7 +5,7 @@
 // one it answers, held to the document and to the registry.
 //
 // A service names a channel by the type the Rust SDK generates for it from
-// the bus registry (specs/src/bus/registry.json): `job:create` is
+// the bus registry (protocol/specs/src/bus/registry.json): `job:create` is
 // `JobCreate`, and its name on the wire is `JobCreate::NAME`. An operation's
 // reply is named through its request: `<<JobCreate as Request>::Result as
 // Channel>::NAME` is the channel the registry gives the result of
@@ -83,7 +83,7 @@ import { fileURLToPath } from 'node:url';
 import { withoutComments } from '../source-text.mjs';
 
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const REGISTRY = 'specs/src/bus/registry.json';
+const REGISTRY = 'protocol/specs/src/bus/registry.json';
 
 /**
  * Each service: the file that holds its rosters and its dispatch; the sources
@@ -102,7 +102,7 @@ const SERVICES = [
     handler: 'images/archivist/src/bus.rs',
     rosters: ['COMMANDS', 'READS'],
     sources: ['images/archivist/src', 'images/archivist/record/src', 'images/archivist/staging/src'],
-    protocol: 'docs/protocol/ARCHIVIST.md',
+    protocol: 'protocol/contract/ARCHIVIST.md',
     tables: ['Command', 'Request'],
     appends: {
       begins: 'handle',
@@ -116,7 +116,7 @@ const SERVICES = [
     handler: 'images/dispatcher/handlers/src/handlers.rs',
     rosters: ['COMMANDS'],
     sources: ['images/dispatcher/src', 'images/dispatcher/handlers/src', 'images/dispatcher/jetstream/src'],
-    protocol: 'docs/protocol/JOBS.md',
+    protocol: 'protocol/contract/JOBS.md',
     tables: ['Channel'],
   },
 ];

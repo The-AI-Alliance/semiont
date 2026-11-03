@@ -1,6 +1,6 @@
 """Each knowledge base the service serves, apart from every other: started, confirmed, worked at, and started again or left refused.
 
-`docs/protocol/WORKER-SERVICE.md` § Knowledge bases states it. What happens at
+`protocol/contract/WORKER-SERVICE.md` § Knowledge bases states it. What happens at
 one knowledge base happens there alone. The service starts every one at once,
 and each is, at any moment, `starting` (signing in, opening its stream,
 confirming it, or waiting to start again), `working` (confirmed, its engines

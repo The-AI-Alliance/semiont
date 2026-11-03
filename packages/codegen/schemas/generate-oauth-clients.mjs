@@ -1,5 +1,5 @@
 // Generate the OAuth client ids and the scope a Semiont client signs in with
-// from specs/src/session/oauth.json.
+// from protocol/specs/src/session/oauth.json.
 //
 // The realm registers the clients, so an id is not this code's to choose: it
 // is stated once, and every SDK generates it. Output is gitignored and
@@ -12,7 +12,7 @@ import { readOAuthClients } from './oauth-clients.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
-const TABLE = resolve(ROOT, 'specs/src/session/oauth.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/session/oauth.json');
 const OUT = resolve(ROOT, 'packages/typescript/core/src/generated/oauth-clients.ts');
 
 const { clients, scope } = readOAuthClients(TABLE);
@@ -23,7 +23,7 @@ mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/src/session/oauth.json → packages/codegen/schemas/generate-oauth-clients.mjs
+// Source: protocol/specs/src/session/oauth.json → packages/codegen/schemas/generate-oauth-clients.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 
 ${clients.map(({ name, id, docs }) => `${doc(docs)}\nexport const ${name.toUpperCase()}_CLIENT_ID = ${JSON.stringify(id)};\n`).join('\n')}

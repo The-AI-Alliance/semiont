@@ -6,8 +6,8 @@ from pydantic import JsonValue, TypeAdapter
 
 PACKAGE = Path(__file__).resolve().parents[1]
 ROOT = PACKAGE.parents[2]
-SPEC = ROOT / "specs/src"
-BUNDLED = ROOT / "specs/openapi.json"
+SPEC = ROOT / "protocol/specs/src"
+BUNDLED = ROOT / "protocol/specs/openapi.json"
 
 type JsonObject = dict[str, JsonValue]
 

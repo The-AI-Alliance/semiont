@@ -50,7 +50,7 @@ export {
 } from '@semiont/http-transport';
 
 /**
- * Every live query of specs/src/client/refresh.json is answered by one of
+ * Every live query of protocol/specs/src/client/refresh.json is answered by one of
  * the namespaces that hold them, and no query by two: each namespace's
  * refresher acts only on its own, so one left out would never refresh, and
  * silently. A query added to the table and to no namespace fails to compile
@@ -155,14 +155,14 @@ export class SemiontClient {
       busTimeoutMs?: number;
       /**
        * The window bus-driven invalidations of one key coalesce in (B19),
-       * `invalidationWindowMs` of specs/src/client/timing.json. Production
+       * `invalidationWindowMs` of protocol/specs/src/client/timing.json. Production
        * omits it; a test or the conformance driver passes a small value.
        */
       invalidationWindowMs?: number;
       /**
        * How long a followed job may be silent before its status is asked for,
        * and how often after that: `jobSilenceMs` and `jobStatusPollMs` of
-       * specs/src/client/timing.json. Production omits them.
+       * protocol/specs/src/client/timing.json. Production omits them.
        */
       jobSilenceMs?: number;
       jobStatusPollMs?: number;

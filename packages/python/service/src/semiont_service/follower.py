@@ -14,8 +14,8 @@ An event the projection refuses as recorded is taken as nothing, and
 counted. A taking that fails for any other reason stops its log where it is,
 and the next sweep takes the log on from there.
 
-The rule is docs/protocol/TRANSPORT-CONTRACT.md § What repairs a passing
-frame, and what it does in each case is specs/src/follower/follow-cases.json.
+The rule is protocol/contract/TRANSPORT-CONTRACT.md § What repairs a passing
+frame, and what it does in each case is protocol/specs/src/follower/follow-cases.json.
 Cursors are kept in a file on the container's own disk, never in the knowledge
 base: losing one costs time, never correctness.
 

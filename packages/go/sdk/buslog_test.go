@@ -1,6 +1,6 @@
 package semiont
 
-// What a bus log shows of a payload, held to specs/src/bus/log-cases.json: the
+// What a bus log shows of a payload, held to protocol/specs/src/bus/log-cases.json: the
 // table every bus log runs. A runner compares values, never text.
 
 import (
@@ -28,7 +28,7 @@ type busLogTable struct {
 
 func readBusLogTable(t *testing.T) busLogTable {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "bus", "log-cases.json"))
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "bus", "log-cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

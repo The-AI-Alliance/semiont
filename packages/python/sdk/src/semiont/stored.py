@@ -1,7 +1,7 @@
-# Generated from specs/src/session/stored.json; do not edit.
+# Generated from protocol/specs/src/session/stored.json; do not edit.
 # Regenerate: node packages/codegen/schemas/generate-stored-python.mjs
 
-"""What a registry of knowledge bases keeps in a `SessionStorage` (`specs/src/session/stored.json`):
+"""What a registry of knowledge bases keeps in a `SessionStorage` (`protocol/specs/src/session/stored.json`):
 the key each thing it keeps is kept under, and the shape of a knowledge base's
 stored session.
 """

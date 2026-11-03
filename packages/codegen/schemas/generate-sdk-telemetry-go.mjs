@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Generate the Go SDK's telemetry table from
-// specs/src/sdk-telemetry/telemetry.json: every span its transports export,
+// protocol/specs/src/sdk-telemetry/telemetry.json: every span its transports export,
 // by name and kind, every metric, by name and meaning, and every attribute
 // key the rows carry.
 //
@@ -17,7 +17,7 @@ import { goComment } from '../lib/go-source.mjs';
 import { CHANNEL, readSdkTelemetry } from './sdk-telemetry-table.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/sdk-telemetry/telemetry.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/sdk-telemetry/telemetry.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/telemetry_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -53,7 +53,7 @@ const keys = [...new Set([...table.spans, ...table.metrics].flatMap((row) => row
 const identifiers = [...spans, ...metrics, ...keys].map((row) => row.identifier);
 if (new Set(identifiers).size !== identifiers.length) refuse('two of its names would be the same Go identifier');
 
-const text = `// Code generated from specs/src/sdk-telemetry/telemetry.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/sdk-telemetry/telemetry.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-sdk-telemetry-go.mjs
 // The Python table is generated from the same table.

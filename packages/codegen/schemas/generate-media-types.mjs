@@ -1,4 +1,4 @@
-// Generate the media-type registry from specs/src/media-types/registry.json:
+// Generate the media-type registry from protocol/specs/src/media-types/registry.json:
 // the types a knowledge base admits, and what the system can do with each.
 //
 // The table is the authority every SDK generates from. Restated in one
@@ -22,8 +22,8 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/media-types/registry.json'));
-const ENUM = resolve(option('--enum') ?? resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json'));
+const TABLE = resolve(option('--table') ?? resolve(ROOT, 'protocol/specs/src/media-types/registry.json'));
+const ENUM = resolve(option('--enum') ?? resolve(ROOT, 'protocol/specs/src/components/schemas/SupportedMediaType.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/typescript/core/src/generated/media-types.ts'));
 
 const { table, rows, aliases } = readMediaTypeTable(TABLE, ENUM);
@@ -44,7 +44,7 @@ writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
 //
-// Source:    specs/src/media-types/registry.json (the AUTHORITY)
+// Source:    protocol/specs/src/media-types/registry.json (the AUTHORITY)
 // Generator: packages/codegen/schemas/generate-media-types.mjs
 // Regen:     npm run generate:media-types --workspace=@semiont/core
 

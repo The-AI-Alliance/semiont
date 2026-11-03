@@ -1,4 +1,4 @@
-"""What the drivers tell OpenTelemetry, held to the table every service is held to (`specs/src/service-telemetry/telemetry.json`).
+"""What the drivers tell OpenTelemetry, held to the table every service is held to (`protocol/specs/src/service-telemetry/telemetry.json`).
 
 The three `semiont.inference.*` rows are read from the table, and compared
 with what an in-memory reader collected from real calls of the drivers whose

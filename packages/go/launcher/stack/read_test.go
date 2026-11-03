@@ -13,7 +13,7 @@ import (
 // repository: the repository's root, which the cases' paths are under.
 var repository = filepath.Join("..", "..", "..", "..")
 
-// stackCase: one case of specs/src/stack/cases.json.
+// stackCase: one case of protocol/specs/src/stack/cases.json.
 type stackCase struct {
 	Why      string         `json:"why"`
 	Schema   string         `json:"schema"`
@@ -27,7 +27,7 @@ type stackCase struct {
 
 func readCases(t *testing.T) []stackCase {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join(repository, "specs", "src", "stack", "cases.json"))
+	text, err := os.ReadFile(filepath.Join(repository, "protocol", "specs", "src", "stack", "cases.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func readCases(t *testing.T) []stackCase {
 		t.Fatal(err)
 	}
 	if len(table.Cases) == 0 {
-		t.Fatal("specs/src/stack/cases.json has no cases: this test would pass for the wrong reason")
+		t.Fatal("protocol/specs/src/stack/cases.json has no cases: this test would pass for the wrong reason")
 	}
 	return table.Cases
 }

@@ -87,7 +87,7 @@ In the examples:
 
 The [launcher](../../../apps/launcher/README.md)'s `semiont login` signs a
 person in and keeps the sign-in on disk
-([sign-in store](../../../specs/src/sign-in-store/README.md)). A script reuses
+([sign-in store](../../../protocol/specs/src/sign-in-store/README.md)). A script reuses
 it. `state_home` is the directory that holds it:
 `semiont::sign_in_store::state_dir` of what the script read of its own
 environment. The crates read none themselves.
@@ -400,8 +400,8 @@ to provide is in
 
 The SDK states three contracts a client needs of the wire
 (`semiont::transport`), and this crate implements each over a gateway
-([HTTP transport](../../../docs/protocol/TRANSPORT-HTTP.md),
-[transport contract](../../../docs/protocol/TRANSPORT-CONTRACT.md)):
+([HTTP transport](../../../protocol/contract/TRANSPORT-HTTP.md),
+[transport contract](../../../protocol/contract/TRANSPORT-CONTRACT.md)):
 
 | Contract | Type here | Carries |
 |---|---|---|
@@ -455,7 +455,7 @@ With `SEMIONT_BUS_LOG` set, each emit, each frame received and each read or
 upload of content is also a line on stderr. A line shows the payload, and
 never a credential in it: the value of a member whose name is one a
 credential goes by (`token`, `password`, `apiKey` and the rest of the list in
-`specs/src/bus/log-cases.json`) is written as `[withheld]`.
+`protocol/specs/src/bus/log-cases.json`) is written as `[withheld]`.
 
 ## What is in the crate
 
@@ -488,8 +488,8 @@ stand-in gateway and issuer. The Rust block of the
 is held to the same regions. [tests/stream.rs](tests/stream.rs) holds the
 stream's behaviour against a gateway that misbehaves on cue.
 [conformance/](conformance) holds the two drivers the
-[SDK conformance suite](../../conformance/sdk/README.md) runs, and the
-one the [worker conformance suite](../../conformance/worker/README.md)
+[SDK conformance suite](../../../protocol/conformance/sdk/README.md) runs, and the
+one the [worker conformance suite](../../../protocol/conformance/worker/README.md)
 runs.
 
 ## License

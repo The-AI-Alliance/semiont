@@ -1,5 +1,5 @@
 /**
- * The id of an annotation, held to specs/src/annotations/id-cases.json: the
+ * The id of an annotation, held to protocol/specs/src/annotations/id-cases.json: the
  * table every SDK's builders run, so that the same annotation has the same id
  * whoever makes it, and making it again writes nothing new.
  */
@@ -14,10 +14,10 @@ interface Case extends AnnotationIdentity {
 }
 
 const table: { cases: Case[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/id-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/id-cases.json', import.meta.url), 'utf8'),
 );
 
-describe('the id of an annotation (specs/src/annotations/id-cases.json)', () => {
+describe('the id of an annotation (protocol/specs/src/annotations/id-cases.json)', () => {
   it('has cases', () => {
     expect(table.cases.length).toBeGreaterThan(0);
   });

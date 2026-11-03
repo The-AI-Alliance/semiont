@@ -121,11 +121,11 @@ func refusedNaming(t *testing.T, call string, result *mcp.CallToolResult, names 
 	}
 }
 
-// surfaceMethods is every method of specs/src/client/surface.json, as
+// surfaceMethods is every method of protocol/specs/src/client/surface.json, as
 // `<namespace>.<method>`.
 func surfaceMethods(t *testing.T) map[string]bool {
 	t.Helper()
-	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "specs", "src", "client", "surface.json"))
+	text, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "protocol", "specs", "src", "client", "surface.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

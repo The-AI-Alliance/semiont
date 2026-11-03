@@ -1,4 +1,4 @@
-//! Following a job (docs/protocol/JOBS.md § Following a job), through the two
+//! Following a job (protocol/contract/JOBS.md § Following a job), through the two
 //! methods that delegate one: `mark.delegate` and `yield_.delegate`. And a
 //! client's end.
 

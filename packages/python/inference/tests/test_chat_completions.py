@@ -1152,7 +1152,7 @@ PREFIX = "semiont.inference."
 
 @each_server
 def test_a_generation_is_counted_once_by_how_it_ended_under_its_drivers_own_name_and_by_the_tables_keys(server: Server) -> None:
-    # The table every service is held to (`specs/src/service-telemetry/telemetry.json`) lists the three metrics a
+    # The table every service is held to (`protocol/specs/src/service-telemetry/telemetry.json`) lists the three metrics a
     # driver records. Neither of these providers is among the values it lists for `inference.provider`: the
     # protocol's list of providers is closed, and gains each with the service that makes its driver. So the
     # points are held to the table's keys and instruments, and counted.

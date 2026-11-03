@@ -50,13 +50,13 @@ private fun now(): Double = System.currentTimeMillis() / 1000.0
 
 /**
  * The sign-in store in the file at `path`: `FILE_NAME` in `stateDir` for the
- * launcher's (specs/src/sign-in-store/README.md). Every change is a read, a
+ * launcher's (protocol/specs/src/sign-in-store/README.md). Every change is a read, a
  * change and a write under the lock every writer takes, and the write is made
  * beside the file and renamed over it, so no reader sees half a document and
  * no credential is left in a stray file. Under the lock, the file's directory
  * is kept to its owner, as the launcher keeps its state home: the mode, and on
  * Windows the access list, which what is made in it inherits, that
- * specs/src/sign-in-store/owner-only.json states.
+ * protocol/specs/src/sign-in-store/owner-only.json states.
  */
 public class SignInStore(path: Path) {
     private val path: Path = path.toAbsolutePath().normalize()

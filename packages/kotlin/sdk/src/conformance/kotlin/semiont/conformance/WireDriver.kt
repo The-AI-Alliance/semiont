@@ -32,7 +32,7 @@ import java.util.Base64
 
 /**
  * The Kotlin SDK's wire driver: the program the SDK conformance suite talks
- * to in the Kotlin SDK's place (packages/conformance/sdk/README.md, The driver
+ * to in the Kotlin SDK's place (protocol/conformance/sdk/README.md, The driver
  * protocol). It holds a transport, and reaches it only as an application
  * does, through what the SDK makes public.
  */

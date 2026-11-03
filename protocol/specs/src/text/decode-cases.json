@@ -1,0 +1,604 @@
+{
+  "$comment": "What text a resource's bytes are, as every reader of one must read them: the cases of the rule protocol/contract/W3C-SELECTORS.md states of a resource's text, which is the MIME Sniffing Standard's reading of a content type and the Encoding Standard's reading of the bytes, as a browser follows the two. An offset counts the code points of this text (offset-cases.json), so two readers that make different texts of the same bytes put one annotation in two places. THE RULE, IN SHORT; the document has it whole. (1) The charset is the content type's `charset` parameter as the MIME Sniffing Standard parses a MIME type: the name whole and in any case, the first of several, a quoted value's content. A parameter with no value is no parameter, and a content type that is no MIME type has none. No charset, or an empty one, is UTF-8. (2) The charset is a label of the Encoding Standard, in any case and with ASCII white space around it dropped. Anything else is refused, and so is a label of the standard's `replacement` encoding: the refusal names the label, and is made whatever the bytes are. (3) Bytes that begin with the byte-order mark of UTF-8 (EF BB BF), of UTF-16BE (FE FF) or of UTF-16LE (FF FE) are in that encoding, whatever charset was stated, and the mark is not part of the text. A mark anywhere else is U+FEFF, a character like any other. (4) The bytes are decoded by the standard's decoder for the encoding: what the encoding does not have is U+FFFD, as many as that decoder emits and no more. (5) A refusal is the reader's own failure, of the kind its other failures are. (6) Only a media type whose bytes are its text is read. The media type is the content type without its parameters, in lower case. One the media-type registry lists (protocol/specs/src/media-types/registry.json) is read where its `textSource` there is `decode`, and one the registry does not list is read where it is a `text/` type. Any other is refused, before its charset is read and whatever its bytes are: a type whose text is derived from its bytes (a PDF), and a type with no text (an image). The refusal names the media type. A CASE is the `contentType` the bytes came with, the `bytes` in hexadecimal, two digits to a byte and a space between bytes, and either the `text` they are or `refused`, what the refusal names: the label of a charset that is refused, or a media type whose bytes are not its text. In this file a control character, U+FEFF, U+FFFD and a private-use character are written as escapes, so that each can be seen. THE OTHER TABLE. encoding-cases.json, beside this one, is generated: it holds every label of the standard and every byte of each of its single-byte encodings. This one holds what is said of a content type, of a label, of a mark, of malformed UTF-8 and UTF-16, and of a media type whose text is not its bytes. NOT HELD. What a reader makes of bytes in the standard's seven legacy multi-byte encodings (Big5, EUC-JP, EUC-KR, gb18030, GBK, ISO-2022-JP, Shift_JIS): each reader reads those with a decoder of its own. A reader may decode fewer encodings than the standard has, and refuses what it does not decode by name: an SDK may be built to decode UTF-8 alone. HOW IT IS RUN. Every SDK runs every case through what its client reads a resource's content with, by which a worker reads the text it counts offsets in: it keeps (6), and then reads by (1) to (5). A reader of UTF-8 alone reads each case as it is here or refuses it. A reader in another language runs them too. Add a case here before changing a reader.",
+  "runBy": {
+    "typescript": ["packages/typescript/core/src/__tests__/decode-cases.test.ts"],
+    "rust": ["packages/rust/sdk/src/resources.rs", "packages/rust/sdk/tests/decode_cases.rs"],
+    "python": ["packages/python/sdk/tests/test_decode_cases.py"],
+    "go": ["packages/go/sdk/resources_test.go"],
+    "kotlin": ["packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt"]
+  },
+  "notYetReached": {
+    "csharp": "C# is still to implement and run the shared text/decode-cases.json cases.",
+    "swift": "The Swift SDK's reading of a resource's bytes as its text."
+  },
+  "cases": [
+    {
+      "why": "no charset is stated: the bytes are UTF-8, and a character outside the basic plane is one character",
+      "contentType": "text/plain",
+      "bytes": "63 61 66 c3 a9 20 f0 9f 98 80",
+      "text": "café 😀"
+    },
+    {
+      "why": "a charset is read in any case",
+      "contentType": "text/markdown; charset=UTF-8",
+      "bytes": "6e 61 c3 af 76 65",
+      "text": "naïve"
+    },
+    {
+      "why": "the parameter needs no space before it",
+      "contentType": "text/plain;charset=latin1",
+      "bytes": "80 20 35",
+      "text": "€ 5"
+    },
+    {
+      "why": "the parameter's name is read in any case, and other parameters may follow it",
+      "contentType": "text/html; Charset=ISO-8859-1; boundary=x",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "other parameters may come before it",
+      "contentType": "text/plain; format=flowed; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "white space after the semicolon is not part of the name, and a tab and a line feed are white space",
+      "contentType": "text/plain;\t\n charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "white space around the whole content type is not part of it",
+      "contentType": "  text/plain; charset=iso-8859-1 \t",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "white space after the subtype is not part of it",
+      "contentType": "text/plain ; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "a quoted value is what is between the quotation marks",
+      "contentType": "text/plain; charset=\"iso-8859-1\"",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "in a quoted value a backslash gives the character after it",
+      "contentType": "text/plain; charset=\"iso-8859-\\1\"",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "a quoted value that is never closed runs to the end",
+      "contentType": "text/plain; charset=\"iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "what follows a quoted value, up to the next semicolon, is not read",
+      "contentType": "text/plain; charset=\"iso-8859-1\"junk; format=flowed",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "white space between the equals sign and an unquoted value, and after the value, is dropped with the label",
+      "contentType": "text/plain; charset= iso-8859-1 ; format=flowed",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "white space within the quotation marks is dropped with the label",
+      "contentType": "text/plain; charset=\" iso-8859-1\t\"",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "white space before the equals sign is part of the name, which is then not charset: none is stated",
+      "contentType": "text/plain; charset =iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "a name that only ends in charset is another parameter",
+      "contentType": "text/plain; xcharset=iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "and so is a name that only begins with it",
+      "contentType": "text/plain; charsets=iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "of two charsets the first is the one stated",
+      "contentType": "text/plain; charset=iso-8859-1; charset=utf-8",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "of two charsets the first is the one stated, the other way round",
+      "contentType": "text/plain; charset=utf-8; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "a charset with nothing after its equals sign is no parameter: none is stated",
+      "contentType": "text/plain; charset=",
+      "bytes": "c3 a9",
+      "text": "é"
+    },
+    {
+      "why": "a charset with nothing after its equals sign is no parameter: of two, the next is the one stated",
+      "contentType": "text/plain; charset=; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "a charset with no equals sign is no parameter either",
+      "contentType": "text/plain; charset; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "a value with a character a parameter's value cannot have is no parameter: the next charset is the one stated",
+      "contentType": "text/plain; charset=ūtf-8; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "é"
+    },
+    {
+      "why": "an empty quoted value is a charset that states none: UTF-8",
+      "contentType": "text/plain; charset=\"\"",
+      "bytes": "c3 a9",
+      "text": "é"
+    },
+    {
+      "why": "an empty quoted value is a parameter, and so the first of two: none is stated",
+      "contentType": "text/plain; charset=\"\"; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "a content type with no subtype is no MIME type, and states nothing",
+      "contentType": "text/; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "nor is one whose subtype has a space in it",
+      "contentType": "text/pl ain; charset=iso-8859-1",
+      "bytes": "e9",
+      "text": "\ufffd"
+    },
+    {
+      "why": "iso-8859-1 is a label of windows-1252: 93 and 94 are quotation marks, not controls",
+      "contentType": "text/plain; charset=iso-8859-1",
+      "bytes": "63 61 66 e9 20 93 71 94",
+      "text": "café “q”"
+    },
+    {
+      "why": "the five bytes windows-1252 gives no character of its own are the controls of the same number, not U+FFFD",
+      "contentType": "text/plain; charset=windows-1252",
+      "bytes": "81 8d 8f 90 9d",
+      "text": "\u0081\u008d\u008f\u0090\u009d"
+    },
+    {
+      "why": "iso-8859-9 is a label of windows-1254",
+      "contentType": "text/plain; charset=iso-8859-9",
+      "bytes": "80 d0",
+      "text": "€Ğ"
+    },
+    {
+      "why": "utf-16 is a label of UTF-16LE",
+      "contentType": "text/plain; charset=utf-16",
+      "bytes": "68 00 69 00",
+      "text": "hi"
+    },
+    {
+      "why": "unicode is a label of UTF-16LE",
+      "contentType": "text/plain; charset=unicode",
+      "bytes": "e9 00",
+      "text": "é"
+    },
+    {
+      "why": "another charset, stated in capitals: KOI8-R",
+      "contentType": "text/plain;charset=KOI8-R",
+      "bytes": "d0 d2 c9 d7 c5 d4",
+      "text": "привет"
+    },
+    {
+      "why": "x-user-defined: a byte from 80 up is the private-use character from U+F780 up",
+      "contentType": "text/plain; charset=x-user-defined",
+      "bytes": "41 80 ff",
+      "text": "A\uf780\uf7ff"
+    },
+    {
+      "why": "a charset that is no label of the standard is refused, and nothing is read as UTF-8 in its place",
+      "contentType": "text/plain; charset=x-no-such-charset",
+      "bytes": "68 69",
+      "refused": "x-no-such-charset"
+    },
+    {
+      "why": "it is refused whatever the bytes begin with: a mark does not decide for a label the standard lacks",
+      "contentType": "text/plain; charset=x-no-such-charset",
+      "bytes": "ef bb bf 68 69",
+      "refused": "x-no-such-charset"
+    },
+    {
+      "why": "a label is matched whole: an underscore for a hyphen makes another name",
+      "contentType": "text/plain; charset=utf_8",
+      "bytes": "68 69",
+      "refused": "utf_8"
+    },
+    {
+      "why": "latin1 is a label and latin-1 is not",
+      "contentType": "text/plain; charset=latin-1",
+      "bytes": "e9",
+      "refused": "latin-1"
+    },
+    {
+      "why": "utf-7 is no label of the standard",
+      "contentType": "text/plain; charset=utf-7",
+      "bytes": "2b 41 47 67 2d",
+      "refused": "utf-7"
+    },
+    {
+      "why": "utf-32 is no label of the standard, though its bytes begin as UTF-16LE's mark does",
+      "contentType": "text/plain; charset=utf-32",
+      "bytes": "ff fe 00 00 68 00 00 00",
+      "refused": "utf-32"
+    },
+    {
+      "why": "cp437 is no label of the standard",
+      "contentType": "text/plain; charset=cp437",
+      "bytes": "80",
+      "refused": "cp437"
+    },
+    {
+      "why": "utf-8-sig is no label of the standard",
+      "contentType": "text/plain; charset=utf-8-sig",
+      "bytes": "ef bb bf 68 69",
+      "refused": "utf-8-sig"
+    },
+    {
+      "why": "a name some library has a codec under, and that is no charset at all, is refused like any other: hex",
+      "contentType": "text/plain; charset=hex",
+      "bytes": "36 38",
+      "refused": "hex"
+    },
+    {
+      "why": "and base64",
+      "contentType": "text/plain; charset=base64",
+      "bytes": "61 47 6b 3d",
+      "refused": "base64"
+    },
+    {
+      "why": "and rot13",
+      "contentType": "text/plain; charset=rot13",
+      "bytes": "68 69",
+      "refused": "rot13"
+    },
+    {
+      "why": "and unicode_escape",
+      "contentType": "text/plain; charset=unicode_escape",
+      "bytes": "5c 75 30 30 34 31",
+      "refused": "unicode_escape"
+    },
+    {
+      "why": "a label of the standard's replacement encoding is refused: iso-2022-kr",
+      "contentType": "text/plain; charset=iso-2022-kr",
+      "bytes": "68 69",
+      "refused": "iso-2022-kr"
+    },
+    {
+      "why": "and hz-gb-2312",
+      "contentType": "text/plain; charset=hz-gb-2312",
+      "bytes": "68 69",
+      "refused": "hz-gb-2312"
+    },
+    {
+      "why": "and replacement itself",
+      "contentType": "text/plain; charset=replacement",
+      "bytes": "68 69",
+      "refused": "replacement"
+    },
+    {
+      "why": "UTF-8's mark under UTF-8: it is not part of the text",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "ef bb bf 68 65 6c 6c 6f",
+      "text": "hello"
+    },
+    {
+      "why": "UTF-8's mark under no charset",
+      "contentType": "text/markdown",
+      "bytes": "ef bb bf 68 69",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-8's mark under windows-1252: the bytes are UTF-8",
+      "contentType": "text/plain; charset=windows-1252",
+      "bytes": "ef bb bf c3 a9",
+      "text": "é"
+    },
+    {
+      "why": "UTF-8's mark under UTF-16LE: the bytes are UTF-8",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "ef bb bf 68 69",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16LE's mark under UTF-16LE",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "ff fe 68 00 69 00",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16LE's mark under no charset: the bytes are UTF-16LE",
+      "contentType": "text/plain",
+      "bytes": "ff fe 68 00 69 00",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16LE's mark under UTF-8: the bytes are UTF-16LE",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "ff fe 68 00 69 00",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16LE's mark under UTF-16BE: the bytes are UTF-16LE",
+      "contentType": "text/plain; charset=utf-16be",
+      "bytes": "ff fe 68 00 69 00",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16BE's mark under UTF-16BE",
+      "contentType": "text/plain; charset=utf-16be",
+      "bytes": "fe ff 00 68 00 69",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16BE's mark under no charset: the bytes are UTF-16BE",
+      "contentType": "text/plain",
+      "bytes": "fe ff 00 68 00 69",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16BE's mark under utf-16, which alone is UTF-16LE: the bytes are UTF-16BE",
+      "contentType": "text/plain; charset=utf-16",
+      "bytes": "fe ff 00 68 00 69",
+      "text": "hi"
+    },
+    {
+      "why": "UTF-16BE's mark under iso-8859-1: the bytes are UTF-16BE",
+      "contentType": "text/plain; charset=iso-8859-1",
+      "bytes": "fe ff 00 68 00 69",
+      "text": "hi"
+    },
+    {
+      "why": "a mark that is not leading is a character of the text",
+      "contentType": "text/plain",
+      "bytes": "61 ef bb bf 62",
+      "text": "a\ufeffb"
+    },
+    {
+      "why": "a mark that is not leading is a character of the text, in UTF-16LE",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "68 00 ff fe 69 00",
+      "text": "h\ufeffi"
+    },
+    {
+      "why": "two marks at the start: the first is left out, and the second is a character of the text",
+      "contentType": "text/plain",
+      "bytes": "ef bb bf ef bb bf 78",
+      "text": "\ufeffx"
+    },
+    {
+      "why": "nothing but a mark is the empty text",
+      "contentType": "text/plain",
+      "bytes": "ef bb bf",
+      "text": ""
+    },
+    {
+      "why": "nothing but UTF-16LE's mark is the empty text",
+      "contentType": "text/plain",
+      "bytes": "ff fe",
+      "text": ""
+    },
+    {
+      "why": "after one encoding's mark, another's is no mark: these two bytes are nothing UTF-8 has",
+      "contentType": "text/plain",
+      "bytes": "ef bb bf ff fe",
+      "text": "\ufffd\ufffd"
+    },
+    {
+      "why": "two of the three bytes of UTF-8's mark are no mark: a sequence cut short",
+      "contentType": "text/plain",
+      "bytes": "ef bb 68",
+      "text": "\ufffdh"
+    },
+    {
+      "why": "with no mark and no charset the bytes are UTF-8, whatever they look like",
+      "contentType": "text/plain",
+      "bytes": "68 00 69 00",
+      "text": "h\u0000i\u0000"
+    },
+    {
+      "why": "UTF-8: a byte that can begin nothing is one U+FFFD, and the reading goes on",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "61 ff 62",
+      "text": "a\ufffdb"
+    },
+    {
+      "why": "UTF-8: a sequence cut short by the next character is one U+FFFD, not one for each of its bytes",
+      "contentType": "text/plain; charset=utf-8",
+      "bytes": "61 e2 82 62",
+      "text": "a\ufffdb"
+    },
+    {
+      "why": "UTF-8: a sequence cut short by the end is one U+FFFD",
+      "contentType": "text/plain",
+      "bytes": "61 f0 9f 98",
+      "text": "a\ufffd"
+    },
+    {
+      "why": "UTF-8: what is whole after a sequence cut short is read",
+      "contentType": "text/plain",
+      "bytes": "e2 82 e2 82 ac",
+      "text": "\ufffd€"
+    },
+    {
+      "why": "UTF-8: a continuation byte with nothing to continue is one U+FFFD each",
+      "contentType": "text/plain",
+      "bytes": "61 80 bf 62",
+      "text": "a\ufffd\ufffdb"
+    },
+    {
+      "why": "UTF-8: an overlong form of two bytes is two U+FFFD, and not the character it spells",
+      "contentType": "text/plain",
+      "bytes": "c0 af",
+      "text": "\ufffd\ufffd"
+    },
+    {
+      "why": "UTF-8: an overlong form of three bytes is three",
+      "contentType": "text/plain",
+      "bytes": "e0 80 af",
+      "text": "\ufffd\ufffd\ufffd"
+    },
+    {
+      "why": "UTF-8: a surrogate is three U+FFFD",
+      "contentType": "text/plain",
+      "bytes": "ed a0 80",
+      "text": "\ufffd\ufffd\ufffd"
+    },
+    {
+      "why": "UTF-8: a code point past U+10FFFF is four",
+      "contentType": "text/plain",
+      "bytes": "f4 90 80 80",
+      "text": "\ufffd\ufffd\ufffd\ufffd"
+    },
+    {
+      "why": "UTF-8: a five-byte form is five",
+      "contentType": "text/plain",
+      "bytes": "f8 88 80 80 80",
+      "text": "\ufffd\ufffd\ufffd\ufffd\ufffd"
+    },
+    {
+      "why": "UTF-8: every kind of fault in one text",
+      "contentType": "text/plain",
+      "bytes": "61 f1 80 80 e1 80 c2 62 80 63 80 bf 64",
+      "text": "a\ufffd\ufffd\ufffdb\ufffdc\ufffd\ufffdd"
+    },
+    {
+      "why": "UTF-16LE: a character outside the basic plane is two units and one character",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "3d d8 00 de",
+      "text": "😀"
+    },
+    {
+      "why": "UTF-16LE: an odd last byte is one U+FFFD",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "68 00 69",
+      "text": "h\ufffd"
+    },
+    {
+      "why": "UTF-16LE: a leading surrogate with no trailing one is one U+FFFD, and the unit after it is read",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "3d d8 68 00",
+      "text": "\ufffdh"
+    },
+    {
+      "why": "UTF-16LE: a trailing surrogate with no leading one is one U+FFFD",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "00 dc 68 00",
+      "text": "\ufffdh"
+    },
+    {
+      "why": "UTF-16LE: a leading surrogate at the end is one U+FFFD",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "68 00 3d d8",
+      "text": "h\ufffd"
+    },
+    {
+      "why": "UTF-16LE: a leading surrogate and then an odd last byte are one U+FFFD between them",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "3d d8 41",
+      "text": "\ufffd"
+    },
+    {
+      "why": "UTF-16LE: a leading surrogate before a whole pair is one U+FFFD, and the pair is read",
+      "contentType": "text/plain; charset=utf-16le",
+      "bytes": "3d d8 3d d8 00 de",
+      "text": "\ufffd😀"
+    },
+    {
+      "why": "UTF-16BE: a leading surrogate with no trailing one is one U+FFFD, and the unit after it is read",
+      "contentType": "text/plain; charset=utf-16be",
+      "bytes": "d8 3d 00 68",
+      "text": "\ufffdh"
+    },
+    {
+      "why": "UTF-16BE: an odd last byte is one U+FFFD",
+      "contentType": "text/plain; charset=utf-16be",
+      "bytes": "00 68 00",
+      "text": "h\ufffd"
+    },
+    {
+      "why": "a media type the registry lists as decoded is read, though it is no text/ type: JSON",
+      "contentType": "application/json",
+      "bytes": "7b 22 61 22 3a 22 c3 a9 22 7d",
+      "text": "{\"a\":\"é\"}"
+    },
+    {
+      "why": "a text/ type the registry does not list is read",
+      "contentType": "text/x-unheard-of",
+      "bytes": "63 61 66 c3 a9",
+      "text": "café"
+    },
+    {
+      "why": "a PDF's text is derived from its bytes and is not them: its media type is refused, though these bytes would read as UTF-8",
+      "contentType": "application/pdf",
+      "bytes": "25 50 44 46 2d 31 2e 37",
+      "refused": "application/pdf"
+    },
+    {
+      "why": "a charset does not make a PDF's bytes its text",
+      "contentType": "application/pdf; charset=utf-8",
+      "bytes": "25 50 44 46 2d 31 2e 37",
+      "refused": "application/pdf"
+    },
+    {
+      "why": "an image has no text: its media type is refused",
+      "contentType": "image/png",
+      "bytes": "89 50 4e 47 0d 0a 1a 0a",
+      "refused": "image/png"
+    },
+    {
+      "why": "the media type is held before the charset is read: of a type with no text and a charset the standard lacks, the refusal names the type",
+      "contentType": "image/png; charset=x-no-such-charset",
+      "bytes": "89 50 4e 47 0d 0a 1a 0a",
+      "refused": "image/png"
+    },
+    {
+      "why": "a type the registry does not list, and that is no text/ type, has no text either",
+      "contentType": "application/x-unheard-of",
+      "bytes": "68 69",
+      "refused": "application/x-unheard-of"
+    },
+    {
+      "why": "nor has a content type that is no MIME type and does not begin text/: the charset it would state is never read",
+      "contentType": "te xt/plain; charset=iso-8859-1",
+      "bytes": "e9",
+      "refused": "te xt/plain"
+    },
+    {
+      "why": "an empty content type names no media type whose bytes are its text: it is refused, and there is no name for the refusal to give",
+      "contentType": "",
+      "bytes": "c3 a9",
+      "refused": ""
+    }
+  ]
+}

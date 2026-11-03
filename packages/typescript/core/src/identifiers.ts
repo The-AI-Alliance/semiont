@@ -4,7 +4,7 @@
  * Each is a type of its own, so one kind is not taken for another, and each
  * is made by one constructor that holds text to the kind's rule. Its guard
  * (`isResourceId`) asks the same of text without throwing. Types and
- * constructors are generated from the spec (specs/src/identifiers/kinds.json
+ * constructors are generated from the spec (protocol/specs/src/identifiers/kinds.json
  * and each kind's schema, by packages/codegen/schemas/generate-identifiers.mjs): the
  * rule is stated there, once, for every SDK and for the gateway.
  *

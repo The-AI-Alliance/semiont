@@ -5,7 +5,7 @@ One per flow of the protocol and three beside them: `frame`, `browse`, `mark`,
 `system`.
 
 Every method returns one of nine shapes, and its name, its shape and what
-calling it does first are a row of `specs/src/client/surface.json`, which
+calling it does first are a row of `protocol/specs/src/client/surface.json`, which
 every SDK is held to:
 
 - an `async def`: asked once, answered once;

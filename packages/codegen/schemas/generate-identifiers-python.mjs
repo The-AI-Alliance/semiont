@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Python SDK's kinds of id from specs/src/identifiers/kinds.json
+// Generate the Python SDK's kinds of id from protocol/specs/src/identifiers/kinds.json
 // and each kind's schema: a type of its own for each, made only through the
 // kind's rule.
 //
@@ -25,8 +25,8 @@ function option(name) {
   return at === -1 ? undefined : process.argv[at + 1];
 }
 
-const KINDS = resolve(option('--kinds') ?? resolve(ROOT, 'specs/src/identifiers/kinds.json'));
-const SCHEMAS = resolve(option('--schemas') ?? resolve(ROOT, 'specs/src/components/schemas'));
+const KINDS = resolve(option('--kinds') ?? resolve(ROOT, 'protocol/specs/src/identifiers/kinds.json'));
+const SCHEMAS = resolve(option('--schemas') ?? resolve(ROOT, 'protocol/specs/src/components/schemas'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/python/sdk/src/semiont/identifiers.py'));
 const CHECK = process.argv.includes('--check');
 
@@ -56,7 +56,7 @@ ${pyDocstring(description, '    ')}
 `,
 );
 
-const text = `${pyBanner("specs/src/identifiers/kinds.json and each kind's schema", 'packages/codegen/schemas/generate-identifiers-python.mjs')}
+const text = `${pyBanner("protocol/specs/src/identifiers/kinds.json and each kind's schema", 'packages/codegen/schemas/generate-identifiers-python.mjs')}
 """The kinds of id.
 
 A value of one of these types is text that passed its kind's rule, which is the

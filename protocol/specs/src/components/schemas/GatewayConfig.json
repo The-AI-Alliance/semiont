@@ -1,0 +1,130 @@
+{
+  "type": "object",
+  "description": "Everything the gateway reads at boot: nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and its stack documents — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables protocol/specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.",
+  "properties": {
+    "kb": {
+      "$ref": "./KbIdentity.json"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the gateway listens on, on every address the host has: IPv4 and IPv6."
+    },
+    "publicUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL clients reach this gateway at: the `servers` entry of the OpenAPI document it serves."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer this knowledge base trusts.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        },
+        "subjectClaim": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The claim a person's DID is built from: `did:web:<domain>:users:<its value>`."
+        }
+      },
+      "required": [
+        "issuer",
+        "subjectClaim"
+      ],
+      "additionalProperties": false
+    },
+    "archivist": {
+      "type": "object",
+      "description": "Where the Archivist listens.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "signal": {
+      "type": "object",
+      "description": "The signal plane: `in-process`, one gateway on its own fabric; or `nats`, the fabric every replica on one broker shares, which requires `servers` and a broker with JetStream.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "in-process",
+            "nats"
+          ]
+        },
+        "servers": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The broker's address (`host:port`, or several, comma-separated). Required for `nats`."
+        },
+        "userEnv": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The environment variable holding the broker user, when the broker requires one."
+        },
+        "passwordEnv": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The environment variable holding the broker password, when the broker requires one."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "logLevel": {
+      "$ref": "./LogLevel.json"
+    },
+    "logFormat": {
+      "$ref": "./LogFormat.json"
+    },
+    "capacity": {
+      "type": "object",
+      "description": "What this gateway process can hold, from the memory its deployment gives it. `queuedBytes`: the bytes queued for all its streams together; at it, a new stream is refused with 503 (`AtCapacity`, code `capacity`) until the queues drain — each stream's own bound is `x-semiont-limits.pendingWriteBytes`. `connections`: the connections it holds open at once; one past it is closed unanswered. The launcher derives both from the memory it gives the gateway's container.",
+      "properties": {
+        "queuedBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "connections": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "queuedBytes",
+        "connections"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "kb",
+    "port",
+    "publicUrl",
+    "identity",
+    "archivist",
+    "signal",
+    "logLevel",
+    "logFormat",
+    "capacity"
+  ],
+  "additionalProperties": false
+}

@@ -1,6 +1,6 @@
 """The Smelter: what follows the record, keeps the vector index and the anchored-text store in step with it, and repairs what either lost.
 
-`docs/protocol/SMELTER.md` states what it does, rule by rule. Held with
+`protocol/contract/SMELTER.md` states what it does, rule by rule. Held with
 `async with`: it follows the record from the way in to the way out, by the
 rule every follower of the record keeps (`semiont_service.follower`): it
 starts once its stream first opens, and sweeps the record each time the
@@ -413,7 +413,7 @@ class Smelter:
             self._following.delivered(event)
 
     async def _start_by_reconciling(self, resources: frozenset[str]) -> None:
-        """Start the resources that have no cursor by a reconcile (`docs/protocol/SMELTER.md` § Reconcile).
+        """Start the resources that have no cursor by a reconcile (`protocol/contract/SMELTER.md` § Reconcile).
 
         A reconcile that fails is raised, and the follower starts them again.
         """
@@ -473,7 +473,7 @@ class Smelter:
         )
 
     async def _apply(self, resource: ResourceId, together: Sequence[StoredEventResponse]) -> _Took:
-        """Do what an event does (`docs/protocol/SMELTER.md` § What each event does).
+        """Do what an event does (`protocol/contract/SMELTER.md` § What each event does).
 
         `together` is one turn of a run: one event, or the `mark:added`
         events that follow one another. Which resource or annotation changed
@@ -779,7 +779,7 @@ class Smelter:
     async def reconcile(self) -> ReconcileSummary:
         """Find where the index and the anchored-text store differ from the catalog, and mend it: how a resource with no cursor starts.
 
-        `docs/protocol/SMELTER.md` § Reconcile states the rule.
+        `protocol/contract/SMELTER.md` § Reconcile states the rule.
 
         Run once it is following, so that nothing falls between what this
         reads and what is taken. What it plans is done in the lanes, in turn
@@ -1012,7 +1012,7 @@ class Smelter:
                 self._commanded.task_done()
 
     async def _answer_rebuild(self, commanded: Frame) -> None:
-        """Derive anchored text again where the store has none, and answer (`docs/protocol/SMELTER.md` § Rebuild).
+        """Derive anchored text again where the store has none, and answer (`protocol/contract/SMELTER.md` § Rebuild).
 
         Nothing is deleted first, so a rebuild that fails part way has lost
         nothing. One that could not do every resource answers that it

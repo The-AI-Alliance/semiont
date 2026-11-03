@@ -4,7 +4,7 @@
  * written once, in the bus registry, and everything else names it by the
  * constant generated from there.
  *
- * The registry's `trace.field` (specs/src/bus/registry.json) is the field. The
+ * The registry's `trace.field` (protocol/specs/src/bus/registry.json) is the field. The
  * generators write it into the committed vocabulary of TypeScript, Go and
  * Python (`GENERATED`), and the Rust SDK's build into its `channels` module;
  * the gateway and every SDK read it from those. A second place that spells
@@ -25,13 +25,13 @@ import { fileURLToPath } from 'node:url';
 import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
-const REGISTRY = 'specs/src/bus/registry.json';
+const REGISTRY = 'protocol/specs/src/bus/registry.json';
 const GENERATED = [
   'packages/typescript/core/src/bus-protocol.ts',
   'packages/go/sdk/bus/channels_gen.go',
   'packages/python/sdk/src/semiont/channels.py',
 ];
-const TEST = /(^|\/)(__tests__|tests)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$/;
+const TEST = /(^|\/)(__tests__|tests|Tests)\/|\.(test|spec)\.[cm]?[jt]sx?$|_test\.go$|(^|\/)test_[^/]*\.py$/;
 
 const field = JSON.parse(readFileSync(join(ROOT, REGISTRY), 'utf8')).trace?.field;
 if (typeof field !== 'string' || field === '') {

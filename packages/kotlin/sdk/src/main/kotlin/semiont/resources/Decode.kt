@@ -231,7 +231,7 @@ private fun ByteArray.startsWith(mark: ByteArray): Boolean = size >= mark.size &
 
 /**
  * Bytes as the text they are, by the rule every reader of a resource's text
- * keeps (docs/protocol/W3C-SELECTORS.md, The text of a resource).
+ * keeps (protocol/contract/W3C-SELECTORS.md, The text of a resource).
  * `mediaType` is the content type the bytes came with.
  *
  * Only a type whose bytes are its text is read: one whose text is derived

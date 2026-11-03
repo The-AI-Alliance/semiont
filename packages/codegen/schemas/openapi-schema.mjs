@@ -1,6 +1,6 @@
 // openapi-schema.mjs — the spec's component schemas as standard JSON Schema.
 //
-// The components (specs/src/components/schemas) are OpenAPI 3.0 schemas, and
+// The components (protocol/specs/src/components/schemas) are OpenAPI 3.0 schemas, and
 // one of 3.0's keywords means something JSON Schema has no keyword for:
 // `nullable`. Every generator that reads a component as JSON Schema
 // translates it here, in one place:
@@ -19,7 +19,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export const COMPONENTS = 'specs/src/components/schemas';
+export const COMPONENTS = 'protocol/specs/src/components/schemas';
 
 /**
  * OpenAPI 3.0 `nullable` → JSON Schema.
@@ -59,7 +59,7 @@ export function translated(schema) {
   return copy;
 }
 
-/** A component schema by name, as it is written in specs/src/components/schemas. */
+/** A component schema by name, as it is written in protocol/specs/src/components/schemas. */
 export function component(root, name) {
   return JSON.parse(readFileSync(resolve(root, COMPONENTS, `${name}.json`), 'utf8'));
 }

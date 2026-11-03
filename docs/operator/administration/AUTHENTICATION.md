@@ -103,7 +103,7 @@ The gateway, the services behind it, and the administrator who runs them and com
 - `GET /.well-known/oauth-protected-resource` — names the issuer this deployment trusts (RFC 9728)
 - `GET /api/openapi.json` — the OpenAPI document itself
 
-That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`packages/conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
+That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`protocol/conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
 
 There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
 
@@ -261,7 +261,7 @@ Create the client yourself. It is the same client:
 - **The client-credentials grant enabled**, and nothing else: no browser flow, no password grant.
 - **A flat `roles` claim** carrying `semiont-service` and `semiont-worker`, a **`kind`** of `agent`, and an **`aud`** carrying this knowledge base's resource identifier ([At the issuer](#at-the-issuer)).
 
-The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`specs/src/session/client-assertion-cases.json`](../../../specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
+The worker's assertion names the client as its `iss` and its `sub`, and the issuer's token endpoint as its `aud`, so the issuer must accept that audience. Its whole shape is [`protocol/specs/src/session/client-assertion-cases.json`](../../../protocol/specs/src/session/client-assertion-cases.json). A worker written with any Semiont SDK (TypeScript, Python, Rust, Go or Kotlin) signs it, each SDK held to that table, so a participant's own worker is admitted the same way as Semiont's.
 
 To revoke, delete the client.
 
@@ -277,7 +277,7 @@ The machine runs one worker, serving a list of knowledge bases kept beside its k
 
 A worker started another way is given the same in its document: one `knowledgeBases` entry for each knowledge base, with its domain, its gateway, its issuer and client id, and the engines it offers it ([the worker's configuration](../../../images/worker/README.md#configuration)). Its key is `SEMIONT_OIDC_CLIENT_KEY` in its environment, the same for every knowledge base.
 
-At each knowledge base the worker asks which knowledge base it reached before it claims, and refuses one that answers another domain. A knowledge base that revokes the grant, or that cannot be reached, stops only its own work: the worker keeps working for the others ([Worker Service § Knowledge bases](../../protocol/WORKER-SERVICE.md#knowledge-bases)).
+At each knowledge base the worker asks which knowledge base it reached before it claims, and refuses one that answers another domain. A knowledge base that revokes the grant, or that cannot be reached, stops only its own work: the worker keeps working for the others ([Worker Service § Knowledge bases](../../../protocol/contract/WORKER-SERVICE.md#knowledge-bases)).
 
 The record names a worker's work by its account, `agents:<subject>`, and the engine it ran in each write's `generator`, so two people's workers running one model are two agents there. What a worker is called is what it says of itself: Semiont's worker says its client id, and readers name it from that.
 
@@ -321,8 +321,8 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 ### API
 
 - Every route requires a bearer token unless the spec declares it public (`security: []`).
-- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../protocol/TRANSPORT-HTTP.md#limits). A request whose token is refused is limited per holder the token names, and those that name none together: see the same table. Limits per address are an ingress's to apply.
-- Every JSON body is validated against its schema in `specs/`.
+- What one principal may take (the streams it holds, the emits it makes) is limited alike for people and agents, by a baseline and a coefficient per role: see [Limits](../../../protocol/contract/TRANSPORT-HTTP.md#limits). A request whose token is refused is limited per holder the token names, and those that name none together: see the same table. Limits per address are an ingress's to apply.
+- Every JSON body is validated against its schema in `protocol/specs/`.
 
 ## Troubleshooting
 

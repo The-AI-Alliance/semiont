@@ -1,7 +1,7 @@
 package semiont
 
 // The cache a client's live queries answer from, held to
-// docs/protocol/CACHE-SEMANTICS.md clause by clause. Each test names the
+// protocol/contract/CACHE-SEMANTICS.md clause by clause. Each test names the
 // clause it holds. The service is one a test answers for, so every request
 // waits until the test says how it ends.
 

@@ -25,18 +25,18 @@ This is the contract a deployment satisfies, whoever does the deploying. The lau
 
 | Service | Configuration | Mounts | Reaches | Instances |
 |---|---|---|---|---|
-| gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
-| dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
-| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-write. No other container mounts any of them | The gateway's bus | one |
-| librarian | `/etc/semiont/librarian.json`, a [`LibrarianConfig`](../../../specs/src/components/schemas/LibrarianConfig.json) document | none | The gateway, for the bus (where it reads what the record holds of a resource, and the people a reply names) and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
-| worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
-| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json) document | Its document alone | The gateway's bus; vectors; embedding; the Archivist, for bytes, for a resource's annotations and to keep the anchored-text store | one |
-| weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
+| gateway | `/etc/semiont/gateway.json`, a [`GatewayConfig`](../../../protocol/specs/src/components/schemas/GatewayConfig.json) document | none | The issuer's published keys; the Archivist; the broker, when the signal plane is `nats` | any number, once the signal plane is `nats` |
+| dispatcher | `/etc/semiont/dispatcher.json`, a [`DispatcherConfig`](../../../protocol/specs/src/components/schemas/DispatcherConfig.json) document | none | The gateway's bus; the broker's JetStream | one |
+| archivist | `/etc/semiont/archivist.json`, an [`ArchivistConfig`](../../../protocol/specs/src/components/schemas/ArchivistConfig.json) document | The working tree at `/kb`, read-write; the state directory, where it writes views; the anchored-text store, read-write. No other container mounts any of them | The gateway's bus | one |
+| librarian | `/etc/semiont/librarian.json`, a [`LibrarianConfig`](../../../protocol/specs/src/components/schemas/LibrarianConfig.json) document | none | The gateway, for the bus (where it reads what the record holds of a resource, and the people a reply names) and for anchored text; graph; vectors; embedding; inference; the Archivist, for bytes | one |
+| worker | `/etc/semiont/worker.json`, a [`WorkerConfig`](../../../protocol/specs/src/components/schemas/WorkerConfig.json) document | none | The gateway, for the bus and for bytes; inference | any number |
+| smelter | `/etc/semiont/smelter.json`, a [`SmelterConfig`](../../../protocol/specs/src/components/schemas/SmelterConfig.json) document | Its document alone | The gateway's bus; vectors; embedding; the Archivist, for bytes, for a resource's annotations and to keep the anchored-text store | one |
+| weaver | `/etc/semiont/weaver.json`, a [`WeaverConfig`](../../../protocol/specs/src/components/schemas/WeaverConfig.json) document | none | The gateway's bus; graph | one |
 | browser | none; `PORT` only | none | nothing | any number |
 
 Every service but the Browser has its own service account at the knowledge base's issuer, which it receives as `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`. The worker is the exception: it holds one key, `SEMIONT_OIDC_CLIENT_KEY`, and its document names its client at each knowledge base it serves. It signs in with that account, and the issuer's token is its bearer at the gateway, which names it by that account: the agent its work is attributed to.
 
-No service reads the knowledge base's TOML: each reads its document, which names every secret by the variable that holds it. [`service-environment/variables.json`](../../../specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
+No service reads the knowledge base's TOML: each reads its document, which names every secret by the variable that holds it. [`service-environment/variables.json`](../../../protocol/specs/src/service-environment/variables.json) lists every environment variable the gateway, the dispatcher and the Archivist read.
 
 Why each service has one instance or many is in [Scaling](../administration/SCALING.md). Which secrets reach which service is in [Secrets](SECRETS.md).
 

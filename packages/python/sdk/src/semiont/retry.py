@@ -1,9 +1,9 @@
 """Trying again: which failures are worth another attempt, and how long to keep at it.
 
 The two are separate questions. A `RetryRule` answers the first for one
-context, as `specs/src/retry/cases.json` states it. A `RetryPolicy` answers
+context, as `protocol/specs/src/retry/cases.json` states it. A `RetryPolicy` answers
 the second: a budget of attempts, and the backoff between them. The budgets a
-client keeps are `specs/src/client/timing.json`'s (`semiont.timing`).
+client keeps are `protocol/specs/src/client/timing.json`'s (`semiont.timing`).
 """
 
 import asyncio

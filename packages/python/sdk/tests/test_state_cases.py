@@ -1,9 +1,9 @@
-"""The state units against `specs/src/client/state-units.json`.
+"""The state units against `protocol/specs/src/client/state-units.json`.
 
 Each case of a unit this SDK has is run as the table states it: its units are
 built over a scripted transport, driven step by step, and held to what the case
 says they hold and said. A unit that the names table
-(`specs/src/client/surface.json`, `stateUnits`) says this SDK lacks has its
+(`protocol/specs/src/client/surface.json`, `stateUnits`) says this SDK lacks has its
 cases left unrun, as the surface test leaves a row's `absent` SDK: they run
 once the unit lands and its `absent` goes. What the table may say is held by
 `.github/scripts/checks/check-state-unit-cases.mjs`; what a case cannot say, the axioms,

@@ -16,7 +16,7 @@
 //! transport crate's: this one does no HTTP.
 //!
 //! **How a token is held** is one rule for every SDK
-//! (specs/src/session/cases.json, which this crate's tests run): when a token
+//! (protocol/specs/src/session/cases.json, which this crate's tests run): when a token
 //! expires, read from its own claims, and how long to wait before renewing
 //! it. The margin before expiry is half the token's lifetime, capped at
 //! `REFRESH_BEFORE_EXP`. A fixed margin can equal the lifetime an issuer

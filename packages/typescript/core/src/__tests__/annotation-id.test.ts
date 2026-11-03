@@ -17,7 +17,7 @@
  * make them legitimately distinct must be an input; anything about WHEN or
  * BY WHOM they were emitted must not be, or recovery stops deduplicating.
  *
- * specs/src/annotations/id-cases.json holds the rule itself, in
+ * protocol/specs/src/annotations/id-cases.json holds the rule itself, in
  * `id-cases.test.ts`.
  */
 
@@ -45,7 +45,7 @@ describe('annotationIdFor — content-addressed annotation identity', () => {
   });
 
   it('orders the names of a body by code point, not by UTF-16 code unit', () => {
-    // The case of specs/src/annotations/id-cases.json whose two names tell the
+    // The case of protocol/specs/src/annotations/id-cases.json whose two names tell the
     // orders apart: U+FF5A comes before U+1F600, whose first UTF-16 unit is
     // the lesser. Ordered by unit the id is 2VS31GK5k_0lv4Pz-ei7o.
     expect(annotationIdFor({

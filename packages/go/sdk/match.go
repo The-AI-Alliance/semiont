@@ -13,7 +13,7 @@ import (
 )
 
 // What a caller that states nothing is given. Every SDK sends the same: the
-// cases of specs/src/client/surface.json hold each to it.
+// cases of protocol/specs/src/client/surface.json hold each to it.
 const (
 	matchCandidates = 10
 	listLimit       = 100

@@ -20,7 +20,7 @@
  * (`images/browser/messages/` is generated from these and gitignored; it is
  * deliberately NOT checked — checking build output would just restate this.)
  *
- * WHICH LOCALES. specs/src/locales/registry.json names the languages Semiont
+ * WHICH LOCALES. protocol/specs/src/locales/registry.json names the languages Semiont
  * supports, and each set holds a file for exactly those: a language the
  * registry names with no file cannot be loaded when someone chooses it, and a
  * file for a language it does not name is copy nobody can reach.
@@ -36,7 +36,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '../../..');
-const REGISTRY = 'specs/src/locales/registry.json';
+const REGISTRY = 'protocol/specs/src/locales/registry.json';
 const supported = JSON.parse(fs.readFileSync(path.join(ROOT, REGISTRY), 'utf8')).locales.map((locale) => locale.code);
 const SETS = [
   { label: 'packages/typescript/react-ui/translations', dir: path.join(ROOT, 'packages/typescript/react-ui/translations') },

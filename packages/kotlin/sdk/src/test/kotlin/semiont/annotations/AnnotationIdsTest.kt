@@ -16,7 +16,7 @@ import semiont.identifiers.ResourceId
 import semiont.types.Motivation
 import semiont.types.wireJson
 
-/** The id a builder gives an annotation, held to specs/src/annotations/id-cases.json. */
+/** The id a builder gives an annotation, held to protocol/specs/src/annotations/id-cases.json. */
 class AnnotationIdsTest {
     private val cases: List<JsonObject> = Spec.read("annotations/id-cases.json").jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
 

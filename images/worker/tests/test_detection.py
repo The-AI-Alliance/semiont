@@ -1,6 +1,6 @@
 """A detection of one kind over a text: its pieces, its calls and what it hands on.
 
-`specs/src/worker/parser-cases.json` holds the reading of one reply to one
+`protocol/specs/src/worker/parser-cases.json` holds the reading of one reply to one
 piece. These hold what is around it, for every kind alike: what each piece's
 call asks for, what is handed on as each piece is done, where the job says it
 stands, and where a unit that was left partway takes up. A linking call's

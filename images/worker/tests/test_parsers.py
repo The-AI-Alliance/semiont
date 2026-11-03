@@ -1,4 +1,4 @@
-"""What reading a reply says and counts beside the items it hands on, which `specs/src/worker/parser-cases.json` does not state.
+"""What reading a reply says and counts beside the items it hands on, which `protocol/specs/src/worker/parser-cases.json` does not state.
 
 Every word of it is a log line, and every span found is counted by how it
 was found.

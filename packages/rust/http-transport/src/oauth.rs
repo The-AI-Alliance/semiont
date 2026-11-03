@@ -464,7 +464,7 @@ pub async fn refresh_at_issuer(
 /// ran out, how many attempts it took to give up.
 ///
 /// What is kept is written against what is stored then
-/// (specs/src/sign-in-store/README.md, Renewing it). A renewal another
+/// (protocol/specs/src/sign-in-store/README.md, Renewing it). A renewal another
 /// program made while the grant was in flight stands, and its access token
 /// is the one given. A session that was signed out, or ended, while it was
 /// being renewed is gone: it is not written back, and its new token is given

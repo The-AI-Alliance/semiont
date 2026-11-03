@@ -1,6 +1,6 @@
 package annotations
 
-// What a text offset counts, held to specs/src/text/offset-cases.json: run
+// What a text offset counts, held to protocol/specs/src/text/offset-cases.json: run
 // both ways, from where a search of the string found a span to its offsets,
 // and from its offsets to the text there.
 
@@ -12,7 +12,7 @@ import (
 )
 
 func TestAnOffsetCountsCodePointsBothWays(t *testing.T) {
-	text, err := os.ReadFile("../../../../specs/src/text/offset-cases.json")
+	text, err := os.ReadFile("../../../../protocol/specs/src/text/offset-cases.json")
 	if err != nil {
 		t.Fatal(err)
 	}

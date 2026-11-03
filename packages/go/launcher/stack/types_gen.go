@@ -1,4 +1,4 @@
-// Code generated from specs/src/stack and specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
+// Code generated from protocol/specs/src/stack and protocol/specs/src/kb-identity/ProjectConfig.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-stack-go.mjs
 

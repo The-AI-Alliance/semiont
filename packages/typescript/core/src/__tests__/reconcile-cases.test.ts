@@ -1,5 +1,5 @@
 /**
- * `reconcile`, held to specs/src/annotations/reconcile-cases.json: the table
+ * `reconcile`, held to protocol/specs/src/annotations/reconcile-cases.json: the table
  * every SDK's `reconcile` runs, so that what a model quoted lands on the same
  * span of the text whoever reconciles it.
  */
@@ -17,10 +17,10 @@ interface Case {
 }
 
 const table: { cases: Case[] } = JSON.parse(
-  readFileSync(new URL('../../../../../specs/src/annotations/reconcile-cases.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('../../../../../protocol/specs/src/annotations/reconcile-cases.json', import.meta.url), 'utf8'),
 );
 
-describe('reconciling a quoted span (specs/src/annotations/reconcile-cases.json)', () => {
+describe('reconciling a quoted span (protocol/specs/src/annotations/reconcile-cases.json)', () => {
   it('has cases', () => {
     expect(table.cases.length).toBeGreaterThan(0);
   });

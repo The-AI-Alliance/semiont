@@ -12,7 +12,7 @@
  * them: every count a rule states is of code points. A string's own position
  * is only ever the argument or the result of a call on the string (a slice, a
  * search, a regular expression's index), and is converted there.
- * specs/src/text/offset-cases.json holds the count, for this and for every
+ * protocol/specs/src/text/offset-cases.json holds the count, for this and for every
  * other implementation.
  */
 

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../../..');
-const SPEC = resolve(ROOT, 'specs/openapi.json');
+const SPEC = resolve(ROOT, 'protocol/specs/openapi.json');
 const OUT_DIR = resolve(ROOT, 'packages/typescript/core/src/generated');
 const OUT = resolve(OUT_DIR, 'protocol-limits.ts');
 
@@ -37,7 +37,7 @@ mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(
   OUT,
   `// ⚠ GENERATED FILE — do not edit.
-// Source: specs/openapi.json → packages/codegen/schemas/generate-limits.mjs
+// Source: protocol/specs/openapi.json → packages/codegen/schemas/generate-limits.mjs
 // Rebuilt by \`npm run prebuild\` in @semiont/core; gitignored on purpose.
 
 /** Each operation's \`x-semiont-limits\`, by \`METHOD path\`. */

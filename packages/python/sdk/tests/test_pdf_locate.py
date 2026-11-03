@@ -1,4 +1,4 @@
-"""Where a span of a PDF's text is on its pages, held to the `cases` of `specs/src/annotations/pdf-locate-cases.json`.
+"""Where a span of a PDF's text is on its pages, held to the `cases` of `protocol/specs/src/annotations/pdf-locate-cases.json`.
 
 The table's `claims` find a cited claim in a PDF a worker has generated: that
 is the first-party worker's, and no SDK's.

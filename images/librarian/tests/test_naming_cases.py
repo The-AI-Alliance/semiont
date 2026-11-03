@@ -1,4 +1,4 @@
-"""How the principals a reply mentions are named, held to `specs/src/principals/naming-cases.json`.
+"""How the principals a reply mentions are named, held to `protocol/specs/src/principals/naming-cases.json`.
 
 It is the table every implementation of the naming runs, so that one reply
 and one set of profiles give one named reply in any language. A case is run
@@ -26,7 +26,7 @@ from spec import ROOT, JsonObject, objects, only, read, why
 from semiont_librarian.naming import name, named
 from semiont_librarian.reads import ProfilesUnread
 
-TABLE = read(ROOT / "specs/src/principals/naming-cases.json")
+TABLE = read(ROOT / "protocol/specs/src/principals/naming-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 
 TABLE_MEMBERS = ("$comment", "runBy", "cases")

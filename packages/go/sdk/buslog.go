@@ -6,7 +6,7 @@ package semiont
 //	[bus EMIT] mark:create-request scope=res-1 cid=a89a670a trace=8f3ca4ed {"resourceId":"res-1"}
 //
 // Every Semiont SDK writes it, in one form, so that the lines of several
-// processes read as one timeline (docs/protocol/EVENT-BUS.md § Wire format). A
+// processes read as one timeline (protocol/contract/EVENT-BUS.md § Wire format). A
 // line is what was sent or asked for, written when it is: the frame's
 // channel, or `content` for a read or an upload; the resource's scope, the
 // first eight characters of the correlation id, and the first eight of the id
@@ -21,7 +21,7 @@ package semiont
 // No line holds a credential. The value of a member whose whole name is one a
 // credential goes by is not written, wherever in a payload it is: [withheld]
 // is written in its place, as every bus log writes it
-// (specs/src/bus/log-cases.json).
+// (protocol/specs/src/bus/log-cases.json).
 
 import (
 	"bytes"
@@ -39,7 +39,7 @@ import (
 const withheld = "[withheld]"
 
 // credentials is the names of the members whose value is one: the list
-// specs/src/bus/log-cases.json states for every bus log, which this package's
+// protocol/specs/src/bus/log-cases.json states for every bus log, which this package's
 // tests hold this one to.
 var credentials = map[string]bool{
 	"token":          true,

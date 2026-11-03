@@ -8,6 +8,6 @@
  * prefix/filename drift between the server and consumers is a failing test —
  * mirroring for the URL what the DiscoveryDocument schema does for the
  * payload. (The launcher's Go side keeps its own constant;
- * specs/src/discovery/README.md is the cross-language record.)
+ * protocol/specs/src/discovery/README.md is the cross-language record.)
  */
 export const DISCOVERY_URL_PATH = '/discovery/kbs.json';

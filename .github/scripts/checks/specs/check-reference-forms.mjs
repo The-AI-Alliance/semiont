@@ -12,7 +12,7 @@
 //   - a wrapped reference names a schema that has a `discriminator`.
 //     openapi-typescript takes the discriminator's property out of a wrapped
 //     one (`Omit<Agent, "@type">`). Such a reference stays a bare `$ref` with
-//     its description beside it, and specs/.redocly.lint-ignore.yaml names the place
+//     its description beside it, and protocol/specs/.redocly.lint-ignore.yaml names the place
 //     under `spec-ref-siblings`;
 //   - a member of a `oneOf` or an `anyOf` is a wrapped reference. oapi-codegen
 //     names a union's accessors by a wrapped member's position
@@ -31,8 +31,8 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(fileURLToPath(import.meta.url), '../../../../..');
 
 /** Where the two API documents are written: the gateway's root, and every directory of schemas, responses and paths. */
-const ROOT = 'specs/src/openapi.json';
-const DIRECTORIES = ['specs/src/components', 'specs/src/paths', 'specs/src/archivist'];
+const ROOT = 'protocol/specs/src/openapi.json';
+const DIRECTORIES = ['protocol/specs/src/components', 'protocol/specs/src/paths', 'protocol/specs/src/archivist'];
 
 function jsonFilesUnder(directory) {
   return readdirSync(directory).flatMap((name) => {
@@ -75,7 +75,7 @@ function walk(node, pointer, file) {
   if (wrapped !== undefined && namesADiscriminated(wrapped, file)) {
     failures.push(
       `${at} wraps a reference to ${wrapped}, which has a discriminator: the TypeScript type would lose the discriminator's property. ` +
-        'Write it as a bare `$ref` with its description beside it, and name the place in specs/.redocly.lint-ignore.yaml under spec-ref-siblings',
+        'Write it as a bare `$ref` with its description beside it, and name the place in protocol/specs/.redocly.lint-ignore.yaml under spec-ref-siblings',
     );
   }
   if (typeof node.$ref === 'string' && Object.keys(node).length > 1 && !namesADiscriminated(node.$ref, file)) {

@@ -58,7 +58,7 @@ semiont::bus_log::set_trace_id_provider(semiont_telemetry::active_trace_id);
 ## What is reported
 
 The spans and the count are the rows of the SDK telemetry table
-([telemetry.json](../../../specs/src/sdk-telemetry/telemetry.json)), which
+([telemetry.json](../../../protocol/specs/src/sdk-telemetry/telemetry.json)), which
 every Semiont SDK reports the same way.
 
 | Name | Kind | When |
@@ -104,7 +104,7 @@ A transport depends on this crate and on no OpenTelemetry crate.
 
 Semiont's own services state spans of their own, the rows of the service
 telemetry table
-([telemetry.json](../../../specs/src/service-telemetry/telemetry.json)), over
+([telemetry.json](../../../protocol/specs/src/service-telemetry/telemetry.json)), over
 four more functions:
 
 | Function | |

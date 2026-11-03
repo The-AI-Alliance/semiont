@@ -21,7 +21,7 @@ const REFUSAL_RATE = 'refusal-rate' satisfies components['schemas']['LimitRefusa
 /**
  * Whether a refusal refuses the request's credential: a 401, or a 429 whose
  * body is a `LimitRefusal` naming `refusal-rate`
- * (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential). Such a
+ * (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential). Such a
  * request is renewed or fails, and is never retried with the token refused.
  */
 export function refusesCredential(status: number, body: unknown): boolean {

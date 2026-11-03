@@ -14,9 +14,10 @@ Three things are for every reader:
 
 - **[architecture/](architecture/README.md)** is how Semiont works inside: the
   actor model, the knowledge system, anchoring, and the package layers.
-- **[protocol/](protocol/README.md)** is the contract: the eight verbs, the
-  event bus, and what every SDK and transport is held to. Read it to implement
-  an SDK, a transport or a service; the other docs point to it for the details.
+- **[protocol/](../protocol/README.md)** is the protocol: the contract (the
+  eight verbs, the event bus, and what every SDK and transport is held to),
+  the specs, and the conformance suites. Read it to implement an SDK, a
+  transport or a service; the other docs point to it for the details.
 - **[KNOWLEDGE-BASES.md](KNOWLEDGE-BASES.md)** is the catalog of demo and
   community knowledge bases.
 

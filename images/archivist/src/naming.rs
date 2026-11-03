@@ -1,5 +1,5 @@
 //! How the principals a reply mentions are named, as
-//! specs/src/principals/naming-cases.json states it. No stored thing carries
+//! protocol/specs/src/principals/naming-cases.json states it. No stored thing carries
 //! a principal's name: a person and an agent are each identified by a DID,
 //! and what each last said it is called is its profile.
 
@@ -42,11 +42,11 @@ mod tests {
     use super::name;
     use serde_json::Value;
 
-    /// A reply is named as specs/src/principals/naming-cases.json states it.
+    /// A reply is named as protocol/specs/src/principals/naming-cases.json states it.
     #[test]
     fn naming_cases() {
         let table: Value = serde_json::from_str(include_str!(
-            "../../../specs/src/principals/naming-cases.json"
+            "../../../protocol/specs/src/principals/naming-cases.json"
         ))
         .expect("principals/naming-cases.json is JSON");
         let cases = table["cases"]

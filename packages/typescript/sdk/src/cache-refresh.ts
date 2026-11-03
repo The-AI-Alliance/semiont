@@ -52,7 +52,7 @@ export interface RefreshSubject {
   written?: Annotation;
 }
 
-/** The channels specs/src/client/refresh.json has a row for. */
+/** The channels protocol/specs/src/client/refresh.json has a row for. */
 type RefreshChannel = Exclude<CacheRefreshTrigger, 'reopened'>;
 
 /**
@@ -95,7 +95,7 @@ export interface QueryActs {
 }
 
 /**
- * Applies specs/src/client/refresh.json to the live queries one namespace
+ * Applies protocol/specs/src/client/refresh.json to the live queries one namespace
  * holds: what each event on the bus, and the reopening of a dropped stream,
  * does to them.
  *
@@ -112,7 +112,7 @@ export class CacheRefresher<Q extends CacheQuery> {
     transport: Pick<ITransport, 'state$'>,
     private readonly bus: EventBus,
     private readonly acts: Record<Q, QueryActs>,
-    /** B19's window; absent, `invalidationWindowMs` of specs/src/client/timing.json. */
+    /** B19's window; absent, `invalidationWindowMs` of protocol/specs/src/client/timing.json. */
     windowMs: number = INVALIDATION_WINDOW_MS,
   ) {
     this.windows = new InvalidationWindows(windowMs);

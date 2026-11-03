@@ -1,4 +1,4 @@
-"""Searching resources by text, held to `specs/src/librarian/search-cases.json`.
+"""Searching resources by text, held to `protocol/specs/src/librarian/search-cases.json`.
 
 It is the table every Librarian runs, so that what a search asks of each
 store, the page it answers and what a preview is are stated once and not
@@ -50,7 +50,7 @@ from semiont_librarian.limit import LimitRefused
 from semiont_librarian.reads import Described, GraphReads, ProfilesUnread, Record
 from semiont_librarian.text_search import Page, answer, search_resources, with_previews
 
-TABLE = read(ROOT / "specs/src/librarian/search-cases.json")
+TABLE = read(ROOT / "protocol/specs/src/librarian/search-cases.json")
 CASES = objects(TABLE["cases"], "cases")
 SEARCHES = [thing(case["search"], "search") | {"why": case["why"]} for case in CASES if "search" in case]
 PREVIEWS = [thing(case["preview"], "preview") | {"why": case["why"]} for case in CASES if "preview" in case]

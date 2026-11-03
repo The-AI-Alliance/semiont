@@ -153,7 +153,7 @@ The Browser's port is its document's (`spec.port`, [The Browser](CONFIGURATION.m
 
 Neither is optional at start: the Weaver and the Librarian each connect to the graph when they start, the Smelter and the Librarian each connect to the vector store, and a service that cannot connect exits. When one becomes unavailable under a running stack, writes and Browse's reads of the record continue, and what the lost store answers does not:
 
-- **Graph.** Graph queries fail: a search of resources by text, what refers to a resource, candidate search for a reference, and the graph neighborhood of a gathered context. The Weaver logs and counts each apply that fails, and catches up at its next start. See [the Librarian's two waits](../../protocol/LIBRARIAN.md#the-two-waits).
+- **Graph.** Graph queries fail: a search of resources by text, what refers to a resource, candidate search for a reference, and the graph neighborhood of a gathered context. The Weaver logs and counts each apply that fails, and catches up at its next start. See [the Librarian's two waits](../../../protocol/contract/LIBRARIAN.md#the-two-waits).
 - **Vectors.** A search that matches nothing by text answers with nothing rather than with similar resources, Match ranks its candidates without semantic similarity, and a context gathered around an annotation comes without `semanticContext`; a context gathered around a resource fails. The Smelter logs each index write that fails, and reconciles the index against the catalog at its next start.
 
 ```bash

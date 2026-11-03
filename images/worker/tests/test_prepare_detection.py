@@ -1,6 +1,6 @@
 """What a detection reads before it asks anything: the resource's text, how a span of it is built into an annotation, or why there is none.
 
-`docs/protocol/WORKER-SERVICE.md` § What a job reads and § Declines state
+`protocol/contract/WORKER-SERVICE.md` § What a job reads and § Declines state
 it. The two reads are stood in for by what answers them in the service: a
 resource's bytes as text, and the Smelter's text of a PDF with where each
 run of it is on a page. What is built is built for real, by the SDK's

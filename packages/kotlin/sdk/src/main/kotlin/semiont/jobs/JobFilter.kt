@@ -36,6 +36,6 @@ private fun same(one: JsonElement, other: JsonElement): Boolean = when {
  * filter as a claim states it, a job's description as it is announced or
  * held, with its `jobType` and its `params`. The dispatcher asks it to choose
  * a claim's next job, and a worker asks it of an announcement before it
- * claims; specs/src/jobs/filter-cases.json is the table both answer alike.
+ * claims; protocol/specs/src/jobs/filter-cases.json is the table both answer alike.
  */
 public fun jobMatchesFilter(filter: JsonObject, job: JsonObject): Boolean = states(filter, job)

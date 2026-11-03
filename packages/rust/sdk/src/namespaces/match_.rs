@@ -17,7 +17,7 @@ use crate::types::{
 use serde_json::Value;
 
 /// How many candidates a search gives when its caller states no limit.
-/// Every SDK asks for as many: the cases of specs/src/client/surface.json
+/// Every SDK asks for as many: the cases of protocol/specs/src/client/surface.json
 /// hold each to it.
 const LIMIT: u16 = 10;
 

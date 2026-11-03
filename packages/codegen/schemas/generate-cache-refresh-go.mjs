@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Go SDK's cache-refresh table from specs/src/client/refresh.json:
+// Generate the Go SDK's cache-refresh table from protocol/specs/src/client/refresh.json:
 // which live queries each event on the bus, and the reopening of a dropped
 // stream, asks again for, writes, or removes.
 //
@@ -22,7 +22,7 @@ import { writeOrCheck } from '../lib/committed-source.mjs';
 import { goComment } from '../lib/go-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/client/refresh.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/client/refresh.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/refresh_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -31,7 +31,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const { queries, refresh, whens, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'specs/src/bus/registry.json'), resolve(ROOT, 'specs/src/openapi.json'), refuse);
+const { queries, refresh, whens, ACTS } = readCacheRefresh(TABLE, resolve(ROOT, 'protocol/specs/src/bus/registry.json'), resolve(ROOT, 'protocol/specs/src/openapi.json'), refuse);
 
 /** `mark:body-updated` → `MarkBodyUpdated`; `referencedBy` → `ReferencedBy`. */
 const pascal = (name) =>
@@ -96,7 +96,7 @@ const eventCases = triggers
   .map((on) => (on === 'reopened' ? `\tcase ${triggerConst(on)}:\n\t\treturn events.reopened(), nil` : `\tcase ${triggerConst(on)}:\n\t\treturn events.${camel(on)}(frame)`))
   .join('\n');
 
-const text = `// Code generated from specs/src/client/refresh.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/client/refresh.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-cache-refresh-go.mjs
 

@@ -4,7 +4,7 @@ Nothing is asked of a store that is not connected, and a store that cannot
 reach its Qdrant is not connected. The same holds of a reader. Everything
 else either does is done by a Qdrant, and is held against a real one by
 `qdrant_live.py`. What the store asks a
-Qdrant to make is held there to `specs/src/vectors/payload-cases.json`, by
+Qdrant to make is held there to `protocol/specs/src/vectors/payload-cases.json`, by
 what the Qdrant then says it has: the store's own constants are private to
 it, and a test that read them would hold a name and not what is made.
 """

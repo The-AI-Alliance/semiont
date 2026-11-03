@@ -193,13 +193,13 @@ jobs:
               - 'images/scripts/**'
               - 'Makefile'
               - '.github/scripts/**'
-              - 'specs/src/**'
-              - 'specs/redocly.yaml'
-              - 'specs/.redocly.lint-ignore.yaml'
+              - 'protocol/specs/src/**'
+              - 'protocol/specs/redocly.yaml'
+              - 'protocol/specs/.redocly.lint-ignore.yaml'
             # The Rust workspace: the three services, the crates they share,
             # the lockfile, the toolchain, cargo-deny's policy, and the two
             # scripts the Rust Tests job runs over the crates. lint:workflows
-            # holds every directory under apps/, images/ and packages/ that has a
+            # holds every directory under apps/, images/, packages/ and protocol/ that has a
             # manifest to a pattern of some filter, so a new package is mapped
             # or the lint says so.
             rust:
@@ -230,7 +230,7 @@ jobs:
               - 'images/browser/**'
               - 'apps/desktop/**'
             conformance:
-              - 'packages/conformance/**'
+              - 'protocol/conformance/**'
             # The Go modules, and what their tests read beyond them: every
             # workflow (imageverify_test.go), each image's Dockerfile and the
             # supervisor its entrypoint runs (imagepaths_test.go,
@@ -282,6 +282,7 @@ jobs:
               - 'packages/typescript/react-ui/scripts/audit-*.sh'
               - 'images/scripts/audit-supervision.sh'
               - 'docs/**'
+              - 'protocol/contract/**'
               - 'docs/checks/doc-snippets/**'
               - 'images/*/Dockerfile'
 
@@ -1004,7 +1005,7 @@ jobs:
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
   # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
-  # (packages/conformance/harness/paths.ts). Each suite built its own: nine
+  # (protocol/conformance/semiont.implementations.json). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
   # suites fetch them and build nothing. It runs whenever any suite does: its
@@ -1015,7 +1016,7 @@ jobs:
     name: Rust Binaries
     runs-on: ubuntu-latest
     needs: [census, changes, generated-artifacts]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true'
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.worker == 'true' || needs.changes.outputs.weaver == 'true' || needs.changes.outputs.smelter == 'true' || needs.changes.outputs.librarian == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.python-inference == 'true' || needs.changes.outputs.python-graph == 'true' || needs.changes.outputs.python-vectors == 'true' || needs.changes.outputs.python-service == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true'
     defaults:
       run:
         working-directory: packages/rust
@@ -1041,7 +1042,7 @@ jobs:
             packages/rust/target/release/semiont-wire-driver
             packages/rust/target/release/semiont-live-driver
             packages/rust/target/release/semiont-worker-driver
-          key: ${{ runner.os }}-rust-binaries-workspace-instrumented-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
+          key: ${{ runner.os }}-rust-binaries-workspace-instrumented-${{ hashFiles('version.json', 'protocol/specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
 
       - name: Install the pinned Rust toolchain
         if: steps.binaries.outputs.cache-hit != 'true'
@@ -1119,7 +1120,7 @@ jobs:
 
       - name: Write the gateway's configuration document
         run: |
-          # The gateway's configuration document (GatewayConfig in specs/),
+          # The gateway's configuration document (GatewayConfig in protocol/specs/),
           # written the way the launcher writes it: resolved, and carrying the
           # knowledge base's identity. The gateway refuses to boot without a
           # valid one.
@@ -1256,7 +1257,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer, and the job stream's
       # subjects — and bundles the spec with the root's redocly. Core is the one
@@ -1271,10 +1272,10 @@ jobs:
       - name: Install nats-server
         run: .github/scripts/install-nats-server.sh
 
-      # Black-box: it starts gateway processes and checks them against specs/.
+      # Black-box: it starts gateway processes and checks them against protocol/specs/.
       - name: Run the gateway conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:gateway
         env:
@@ -1321,7 +1322,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -1338,7 +1339,7 @@ jobs:
       # them only on the bus and their health port.
       - name: Run the dispatcher conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:dispatcher
         env:
@@ -1385,7 +1386,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -1402,7 +1403,7 @@ jobs:
       # them on the bus, at their HTTP surface and in the files they keep.
       - name: Run the Archivist conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:archivist
         env:
@@ -1418,11 +1419,34 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  build-swift-drivers:
+    name: Build Swift Drivers
+    runs-on: ubuntu-latest
+    needs: [census, changes, generated-artifacts]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+      - name: Build the instrumented Swift driver
+        working-directory: packages/swift/sdk
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp/swift-home \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace/packages/swift/sdk \
+            "swift:$(../../../packages/swift/scripts/swift-version.sh)" \
+            sh -c 'mkdir -p "$HOME" && Scripts/install-driver.sh'
+      - name: Keep the Swift driver and its runtime
+        uses: actions/upload-artifact@v7
+        with:
+          name: swift-drivers
+          path: packages/swift/sdk/.build/conformance
+          retention-days: 1
+          if-no-files-found: error
+
   sdk-conformance:
     name: SDK Conformance
-    runs-on: ubuntu-latest
-    needs: [census, changes, generated-artifacts, build-rust]
-    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true'
+    runs-on: ubuntu-26.04
+    needs: [census, changes, generated-artifacts, build-rust, build-swift-drivers]
+    if: needs.changes.outputs.rust == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.conformance == 'true' || needs.changes.outputs.python-sdk == 'true' || needs.changes.outputs.go == 'true' || needs.changes.outputs.kotlin == 'true' || needs.changes.outputs.swift == 'true'
     env:
       # Where every Rust binary this job starts writes what it ran, as it exits,
       # merged into one file per binary: kept below, for Rust Coverage.
@@ -1442,6 +1466,15 @@ jobs:
       - name: Make the binaries executable
         run: chmod +x packages/rust/target/release/semiont-*
 
+      - name: Fetch the Swift driver and its runtime
+        uses: actions/download-artifact@v8
+        with:
+          name: swift-drivers
+          path: packages/swift/sdk/.build/conformance
+
+      - name: Make the Swift driver executable
+        run: chmod +x packages/swift/sdk/.build/conformance/semiont-swift-wire-driver packages/swift/sdk/.build/conformance/bin/SemiontWireDriver
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -1449,7 +1482,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The TypeScript drivers run the built SDK, as an application would, and
       # the packages it is built on.
@@ -1502,7 +1535,7 @@ jobs:
       # agent, which their start scripts take from JAVA_OPTS.
       - name: Run the SDK conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:sdk
         env:
@@ -1527,6 +1560,23 @@ jobs:
           verbose: true
         continue-on-error: true
 
+      - name: Report what the suite ran of the Swift SDK
+        working-directory: packages/swift/sdk
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE":/workspace -w /workspace/packages/swift/sdk \
+            "swift:$(../../../packages/swift/scripts/swift-version.sh)" Scripts/conformance-coverage.sh
+
+      - name: Upload the Swift SDK's conformance coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/swift/sdk/.build/conformance/coverage.lcov
+          flags: swift-sdk
+          name: swift-sdk-conformance
+          verbose: true
+        continue-on-error: true
+
       # What the instrumented binaries ran, for Rust Coverage. A job that
       # started one and finds no profile fails: the measurement broke.
       - name: Keep the coverage profiles
@@ -1537,7 +1587,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # A worker written on an SDK, held to docs/protocol/WORKER-CONTRACT.md: a
+  # A worker written on an SDK, held to protocol/contract/WORKER-CONTRACT.md: a
   # real gateway, with the suite playing the dispatcher.
   worker-conformance:
     name: Worker Conformance
@@ -1570,7 +1620,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The TypeScript worker driver runs the built SDK over the built
       # transport, as a worker's author would.
@@ -1622,7 +1672,7 @@ jobs:
       # environment before it starts.
       - name: Run the worker conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:worker
         env:
@@ -1638,7 +1688,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # The Weaver, held to docs/protocol/WEAVER.md: the process a weaver image
+  # The Weaver, held to protocol/contract/WEAVER.md: the process a weaver image
   # runs, behind a real gateway and a real Archivist, writing a real neo4j,
   # which the suite reads back.
   weaver-conformance:
@@ -1676,7 +1726,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1705,7 +1755,7 @@ jobs:
           exit 1
 
       # The suite starts the Python Weaver by the interpreter of its project's
-      # locked environment (harness/paths.ts): the environment its image has, on
+      # locked environment (semiont.implementations.json): the environment its image has, on
       # the Python the SDK's floor names, without the development group, with
       # every database's client.
       - name: Setup Python
@@ -1723,7 +1773,7 @@ jobs:
       # Archivist, records through the Archivist, and reads the graph.
       - name: Run the Weaver conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:weaver
         env:
@@ -1739,7 +1789,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # The Smelter, held to docs/protocol/SMELTER.md: the process a smelter image
+  # The Smelter, held to protocol/contract/SMELTER.md: the process a smelter image
   # runs, behind a real gateway and a real Archivist, with the suite playing
   # its embedding provider, writing a real Qdrant, which the suite reads back.
   smelter-conformance:
@@ -1776,7 +1826,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1806,7 +1856,7 @@ jobs:
           exit 1
 
       # The suite starts the Smelter by the interpreter of its project's locked
-      # environment (harness/paths.ts): the environment its image has, on the
+      # environment (semiont.implementations.json): the environment its image has, on the
       # Python the SDK's floor names, without the development group. It reads a
       # scanned page with the `tesseract` program, as its image does.
       - name: Setup Python
@@ -1830,7 +1880,7 @@ jobs:
       # Archivist, records through the Archivist, and reads the index.
       - name: Run the Smelter conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:smelter
         env:
@@ -1846,7 +1896,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # The Librarian, held to docs/protocol/LIBRARIAN.md: the process a librarian
+  # The Librarian, held to protocol/contract/LIBRARIAN.md: the process a librarian
   # image runs, behind a real gateway, beside a real Archivist, a Weaver and a
   # Smelter, which write the neo4j and the Qdrant it reads, with the suite
   # playing its two models and its embedding provider.
@@ -1887,7 +1937,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite's harness is typed by the built @semiont/core.
       - name: Install dependencies
@@ -1934,7 +1984,7 @@ jobs:
 
       # The suite starts the Librarian, the Weaver and the Smelter by the
       # interpreters of their projects' locked environments
-      # (harness/paths.ts): the environments their images have, on the Python
+      # (semiont.implementations.json): the environments their images have, on the Python
       # the SDK's floor names, without the development group. The Librarian
       # and the Weaver have every database's client, and the Librarian every
       # provider's library. The Smelter reads a scanned page with the
@@ -1967,7 +2017,7 @@ jobs:
       # the Librarian on the bus, and receives the telemetry it exports.
       - name: Run the Librarian conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:librarian
         env:
@@ -1983,7 +2033,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # The Worker service, held to docs/protocol/WORKER-SERVICE.md: the process a
+  # The Worker service, held to protocol/contract/WORKER-SERVICE.md: the process a
   # worker image runs, behind a real gateway, with the suite playing the
   # dispatcher, the record, the Smelter and its provider.
   worker-service-conformance:
@@ -2017,7 +2067,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            packages/conformance/package-lock.json
+            protocol/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer — and bundles the
       # spec with the root's redocly. Core is the one package it builds.
@@ -2047,7 +2097,7 @@ jobs:
 
       - name: Run the worker-service conformance suite
         run: |
-          cd packages/conformance
+          cd protocol/conformance
           npm ci
           npm run test:worker-service
         env:
@@ -2303,7 +2353,7 @@ jobs:
             -v "$GITHUB_WORKSPACE":/workspace \
             -w /workspace/packages/swift/sdk \
             "swift:$(../../../packages/swift/scripts/swift-version.sh)" \
-            sh -c 'mkdir -p "$HOME" && swift test --enable-code-coverage && Scripts/coverage.sh && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
+            sh -c 'mkdir -p "$HOME" && Scripts/test.sh && Scripts/coverage.sh && swift format lint --strict --recursive . && Scripts/census.sh && Scripts/refusals.sh'
       - name: The coverage report was written
         run: test -s .build/coverage.lcov
       - name: Upload coverage to Codecov
@@ -2365,7 +2415,7 @@ jobs:
         continue-on-error: true
 
   # The sign-in store on Windows: the launcher keeps its sign-ins there too,
-  # in another directory and under another lock (specs/src/sign-in-store).
+  # in another directory and under another lock (protocol/specs/src/sign-in-store).
   # These are the tests of what differs by system.
   # The Kotlin sign-in store's lock where it is taken otherwise than on
   # Linux: flock(2) through the foreign-function API on macOS, and the JDK's
@@ -2472,7 +2522,7 @@ jobs:
 
   # The Rust SDK's sign-in store on Windows: the access list the state home
   # is kept to its owner with, and that tokens.json inherits, read back as
-  # Windows writes them out. The crate reads specs/src through a symbolic
+  # Windows writes them out. The crate reads protocol/specs/src through a symbolic
   # link, which git makes on Windows only when told to.
   test-sdk-rust-windows:
     name: Rust SDK (sign-in store, Windows)
@@ -2626,7 +2676,7 @@ jobs:
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK and the
   # inference drivers from this checkout. The tests run the case tables of
-  # specs/ that state what the worker does; they start no service and reach
+  # protocol/specs/ that state what the worker does; they start no service and reach
   # no provider.
   test-worker-python:
     name: Python Worker Service
@@ -2704,7 +2754,7 @@ jobs:
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK from this
   # checkout. These tests need no database: they run the codecs' case table of
-  # specs/, the store contract against the in-memory store, and the two
+  # protocol/specs/, the store contract against the in-memory store, and the two
   # Gremlin stores against fake clients.
   test-graph-python:
     name: Python Graph Stores
@@ -2827,7 +2877,7 @@ jobs:
   # as the Python SDK is checked: both type checkers, strict, on the oldest
   # Python supported, and the tests on every one. The locked environment takes
   # the SDK from this checkout. These tests need no server: they run the two
-  # case tables of specs/ against the in-memory store, and each provider
+  # case tables of protocol/specs/ against the in-memory store, and each provider
   # against one the test plays over HTTP.
   test-vectors-python:
     name: Python Vector Stores
@@ -2948,7 +2998,7 @@ jobs:
   # The Weaver's Python code (images/weaver), as the Python SDK is checked: both
   # type checkers, strict, on the oldest Python supported, and the tests on
   # every one. The locked environment takes the SDK and the graph stores from
-  # this checkout. The tests run the fold's case table of specs/ and the
+  # this checkout. The tests run the fold's case table of protocol/specs/ and the
   # Weaver over a scripted transport and a graph in the process; they start no
   # service and reach no database. The process is held by Weaver Conformance.
   test-weaver-python:
@@ -3085,7 +3135,7 @@ jobs:
   # checked: both type checkers, strict, on the oldest Python supported, and
   # the tests on every one. The locked environment takes the SDK, the graph
   # stores, the vector stores and the inference drivers from this checkout.
-  # The tests run the Librarian's case tables of specs/ and its code over
+  # The tests run the Librarian's case tables of protocol/specs/ and its code over
   # fakes of everything it reads by; they start no service and reach no
   # database, no index and no model.
   test-librarian-python:
@@ -3230,7 +3280,7 @@ jobs:
           go-version-file: apps/launcher/go.mod
           cache: false
 
-      # Authority: specs/src/bus/registry.json → TypeScript (packages/typescript/core),
+      # Authority: protocol/specs/src/bus/registry.json → TypeScript (packages/typescript/core),
       # the gateway's channel classification (images/gateway/src), and Go
       # (packages/go/sdk/bus). Any of them drifting means two sides can disagree
       # about channels at runtime. Each language's generators are listed once,
@@ -3239,14 +3289,14 @@ jobs:
       - name: Bus registry vs generated code
         run: npm run generate:bus:check
 
-      # Authority: specs/src → the Python SDK's committed modules
+      # Authority: protocol/specs/src → the Python SDK's committed modules
       # (packages/python/sdk/src/semiont), the bus vocabulary among them.
       # TypeScript and Rust build theirs from the same files at build time;
       # Python has no build, so its are committed, and are what can go stale.
       - name: Spec tables vs the Python SDK's generated modules
         run: npm run generate:python:check
 
-      # Authority: specs/src → the Go SDK's committed code (packages/go/sdk).
+      # Authority: protocol/specs/src → the Go SDK's committed code (packages/go/sdk).
       # The generator of the kinds of id (api/ids_gen.go) also holds
       # oapi-codegen's exclude-schemas to the kinds. TypeScript and Rust build
       # theirs from the same files at build time; a Go module has no build
@@ -3255,8 +3305,8 @@ jobs:
       - name: Spec tables vs the Go SDK's generated code
         run: npm run generate:go:check
 
-      # A knowledge base's documents (specs/src/stack, and the project file's
-      # schema in specs/src/kb-identity) → the launcher's types for them and the
+      # A knowledge base's documents (protocol/specs/src/stack, and the project file's
+      # schema in protocol/specs/src/kb-identity) → the launcher's types for them and the
       # schema text it validates them against (packages/go/launcher/stack).
       # lint:spec-stack, in the Census job, holds every property of the schemas
       # to a field of the generated types.
@@ -3271,20 +3321,20 @@ jobs:
       - name: MCP tools vs the launcher's generated Go
         run: node packages/codegen/schemas/generate-mcp-tools-go.mjs --check
 
-      # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
-      # it from specs/src/. A fresh checkout has no such file, so the client
+      # protocol/specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
+      # it from protocol/specs/src/. A fresh checkout has no such file, so the client
       # check has to produce it first. Version pinned to the repo's devDependency:
       # an unpinned bundler would make a deterministic gate nondeterministic.
       - name: Bundle the OpenAPI spec
-        run: npx --yes @redocly/cli@2.34.0 bundle specs/src/openapi.json -o specs/openapi.json
+        run: npx --yes @redocly/cli@2.34.0 bundle protocol/specs/src/openapi.json -o protocol/specs/openapi.json
 
-      # Authority: specs/openapi.json → packages/go/sdk/api/client_gen.go.
+      # Authority: protocol/specs/openapi.json → packages/go/sdk/api/client_gen.go.
       # Deterministic because the generator version is pinned.
       - name: OpenAPI spec vs generated Go client
         run: |
           go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
             -config packages/go/sdk/oapi-codegen.yaml \
-            -o /tmp/client_gen.check.go specs/openapi.json
+            -o /tmp/client_gen.check.go protocol/specs/openapi.json
           if ! diff -q /tmp/client_gen.check.go packages/go/sdk/api/client_gen.go; then
             echo "::error::packages/go/sdk/api/client_gen.go is stale — run: cd packages/go/sdk && go generate ./..."
             exit 1
@@ -3297,7 +3347,7 @@ jobs:
       - name: Generated Go client covers every schema
         run: node packages/go/sdk/scripts/check-go-schema-coverage.mjs
 
-      # Authority: specs/openapi.json → packages/python/sdk/src/semiont/types.py.
+      # Authority: protocol/specs/openapi.json → packages/python/sdk/src/semiont/types.py.
       # Deterministic because the generator and the formatter are pinned in the
       # package's lockfile, and run on the Python the package's floor names.
       # Its independent oracle is the package's own suite, which holds the
@@ -3332,7 +3382,7 @@ jobs:
           npm run generate:model-catalogue:check
 
       # Authority: the Encoding Standard, as two implementations of it have
-      # it → specs/src/text/encoding-cases.json, the table every reader of a
+      # it → protocol/specs/src/text/encoding-cases.json, the table every reader of a
       # resource's text runs: every label of the standard, and every byte of
       # each of its single-byte encodings. The labels are read from the npm
       # package @exodus/bytes at the one version the root package.json pins,
@@ -3712,6 +3762,7 @@ jobs:
       - compliance-check
       - test-rust
       - build-rust
+      - build-swift-drivers
       - gateway-security
       - gateway-conformance
       - dispatcher-conformance

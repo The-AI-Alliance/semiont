@@ -1,6 +1,6 @@
 package annotations
 
-// White space, as the case tables under specs/src count it: the characters
+// White space, as the case tables under protocol/specs/src count it: the characters
 // Unicode gives the White_Space property, the twenty-five of
 // unicode.White_Space.
 

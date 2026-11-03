@@ -56,7 +56,7 @@
  *    for a release and never on a pull request. `changes` outputs `tier`,
  *    which no filter defines.
  *
- * 5. Every directory under apps/, images/ or packages/ that holds a manifest
+ * 5. Every directory under apps/, images/, packages/ or protocol/ that holds a manifest
  *    (package.json, Cargo.toml, pyproject.toml, go.mod, build.gradle.kts,
  *    Package.swift, or a .NET solution, `<name>.slnx`), at any depth, is
  *    under a pattern `<dir>/**` of some filter of the map: the directory's
@@ -409,7 +409,7 @@ function changedAreas(jobs) {
   const isManifest = (name) => MANIFESTS.includes(name) || name.endsWith('.slnx');
   const trees = [...new Set(Object.values(filters).flat())].filter((pattern) => typeof pattern === 'string' && pattern.endsWith('/**')).map((pattern) => pattern.slice(0, -'/**'.length));
   const packages = repository
-    .filter((file) => /^(apps|images|packages)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
+    .filter((file) => /^(apps|images|packages|protocol)\//.test(file) && isManifest(basename(file)) && !file.split('/').includes('testdata'))
     .map((file) => dirname(file));
   // E2e is an independent project whose PR consumer is Stack Smoke, not ci.yml.
   const smokeWorkflow = yaml.load(readFileSync(join(ROOT, SMOKE), 'utf8'));

@@ -1,6 +1,6 @@
 package semiont_test
 
-// The client's surface against specs/src/client/surface.json.
+// The client's surface against protocol/specs/src/client/surface.json.
 //
 // Every method the table lists is called as each of its cases states, and
 // what the call did first is held to the row. A row with no call here fails,
@@ -68,7 +68,7 @@ type surfaceTable struct {
 
 func readSurface(t *testing.T) surfaceTable {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "..", "specs", "src", "client", "surface.json"))
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "protocol", "specs", "src", "client", "surface.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

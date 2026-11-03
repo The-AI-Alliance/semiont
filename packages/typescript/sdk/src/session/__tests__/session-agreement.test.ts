@@ -1,5 +1,5 @@
 /**
- * How a client holds a session is one table, specs/src/session/cases.json, run
+ * How a client holds a session is one table, protocol/specs/src/session/cases.json, run
  * here through the SDK's own schedule and token reader. Every SDK that holds a
  * session runs the same table: a mirror across implementations, gated by one
  * table rather than generated.
@@ -76,7 +76,7 @@ interface RefusalCase {
   then?: Then;
 }
 
-const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../specs/src/session/cases.json');
+const TABLE = join(dirname(fileURLToPath(import.meta.url)), '../../../../../../protocol/specs/src/session/cases.json');
 const { refreshSchedule, tokenExpiry, startup, refusal } = JSON.parse(readFileSync(TABLE, 'utf-8')) as {
   refreshSchedule: ScheduleCase[];
   tokenExpiry: ExpiryCase[];

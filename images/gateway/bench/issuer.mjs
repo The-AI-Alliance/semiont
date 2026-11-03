@@ -12,7 +12,7 @@ const issuer = `http://127.0.0.1:${port}`;
 
 // The claim and the role names, read out of the bearer scheme's own text as the
 // conformance suite reads them: each appears there, and a rename there fails here.
-const scheme = JSON.parse(readFileSync(new URL('../../../specs/src/openapi.json', import.meta.url), 'utf8'))
+const scheme = JSON.parse(readFileSync(new URL('../../../protocol/specs/src/openapi.json', import.meta.url), 'utf8'))
   .components.securitySchemes.bearerAuth.description;
 const declared = (name) => {
   if (!scheme.includes(`\`${name}\``)) throw new Error(`the bearerAuth scheme no longer declares \`${name}\``);

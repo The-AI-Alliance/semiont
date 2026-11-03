@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-media-types-go.mjs — generate the Go media-type table from
-// specs/src/media-types/registry.json, the registry the TypeScript and Rust
+// protocol/specs/src/media-types/registry.json, the registry the TypeScript and Rust
 // SDKs generate from.
 //
 //   packages/go/sdk/mediatypes/registry_gen.go   the rows, in the registry's
@@ -8,7 +8,7 @@
 //
 // Go reads the registry for the media type a file's extension names
 // (`mediatypes.ForExtension`) and for the rules every SDK reads from it
-// (specs/src/media-types/cases.json): the format a clone takes, the name
+// (protocol/specs/src/media-types/cases.json): the format a clone takes, the name
 // content is stored under, and where a type's text comes from. So a row
 // carries its media type, its extension, where its text comes from and
 // whether a person authors it, and nothing no Go code reads.
@@ -21,8 +21,8 @@ import { fileURLToPath } from 'node:url';
 import { readMediaTypeTable } from './media-type-table.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/media-types/registry.json');
-const ENUM = resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/media-types/registry.json');
+const ENUM = resolve(ROOT, 'protocol/specs/src/components/schemas/SupportedMediaType.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/mediatypes/registry_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -37,7 +37,7 @@ const sourceWidth = Math.max(...table.textSource.map((word) => textSource(word).
 const aliasEntries = Object.entries(aliases);
 const keyWidth = Math.max(...aliasEntries.map(([alias]) => go(alias).length + 1));
 
-const text = `// Code generated from specs/src/media-types/registry.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/media-types/registry.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-media-types-go.mjs
 // The TypeScript side (packages/typescript/core/src/generated/media-types.ts) and the

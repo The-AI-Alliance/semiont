@@ -1,6 +1,6 @@
 package semiont_test
 
-// Following a job (docs/protocol/JOBS.md § Following a job), through the two
+// Following a job (protocol/contract/JOBS.md § Following a job), through the two
 // methods that create one: Mark.Delegate and Yield.Delegate.
 
 import (

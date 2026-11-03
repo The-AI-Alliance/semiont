@@ -25,7 +25,7 @@ private fun under(separator: Char, base: String, vararg names: String): String =
 
 /**
  * The launcher's state home, from what the system says of the person's
- * directories (specs/src/sign-in-store/cases.json): `home` is the home
+ * directories (protocol/specs/src/sign-in-store/cases.json): `home` is the home
  * directory (`HOME`, or `USERPROFILE` on Windows), `xdgStateHome` is
  * `XDG_STATE_HOME` and `localAppData` is `LOCALAPPDATA`, each null when it is
  * not set. The SDK reads none of them: the application hands them in. Null

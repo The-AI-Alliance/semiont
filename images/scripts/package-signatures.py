@@ -40,7 +40,7 @@ MANIFESTS = {
 }
 # A .NET solution is named for what it builds.
 SOLUTION = ".slnx"
-EVERY_PACKAGE = ("version.json", "specs/src/", "packages/codegen/")
+EVERY_PACKAGE = ("version.json", "protocol/specs/src/", "packages/codegen/")
 SHARED = {
     "typescript": ("package.json", "package-lock.json"),
     "rust": (

@@ -39,14 +39,14 @@ for (const file of DECLARED) {
   }
 }
 for (const name of names) {
-  if (!aliased.has(name)) refuse(`${name} is a component of specs/src/openapi.json, and package api declares no type of its name`);
+  if (!aliased.has(name)) refuse(`${name} is a component of protocol/specs/src/openapi.json, and package api declares no type of its name`);
   if (aliased.get(name) && Object.keys(shapes.get(name)).length > 0) {
     refuse(`package api writes ${name} as an alias, whose name a decoded value does not carry, and it requires members: ${JSON.stringify(shapes.get(name))}`);
   }
 }
 
 const text = `{
-  "$comment": "GENERATED from the component schemas of specs/src/openapi.json by packages/codegen/schemas/generate-required-go.mjs — do not edit. What each requires of a value, as far as its members go, by its name: the rules are packages/codegen/schemas/required-members.mjs's.",
+  "$comment": "GENERATED from the component schemas of protocol/specs/src/openapi.json by packages/codegen/schemas/generate-required-go.mjs — do not edit. What each requires of a value, as far as its members go, by its name: the rules are packages/codegen/schemas/required-members.mjs's.",
   "schemas": {
 ${names.map((name) => `    ${JSON.stringify(name)}: ${JSON.stringify(shapes.get(name))}`).join(',\n')}
   }

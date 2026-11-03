@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate the Go SDK's failure vocabularies from specs/src/errors/codes.json:
+// Generate the Go SDK's failure vocabularies from protocol/specs/src/errors/codes.json:
 // a named type per vocabulary with a constant per code, the bus code a wire
 // code becomes, and the transport code an HTTP status becomes.
 //
@@ -17,8 +17,8 @@ import { readErrorCodes } from './error-codes-table.mjs';
 import { writeOrCheck } from '../lib/committed-source.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-const TABLE = resolve(ROOT, 'specs/src/errors/codes.json');
-const COMMAND_ERROR = resolve(ROOT, 'specs/src/components/schemas/CommandError.json');
+const TABLE = resolve(ROOT, 'protocol/specs/src/errors/codes.json');
+const COMMAND_ERROR = resolve(ROOT, 'protocol/specs/src/components/schemas/CommandError.json');
 const OUT = resolve(ROOT, 'packages/go/sdk/errorcodes_gen.go');
 const CHECK = process.argv.includes('--check');
 
@@ -70,7 +70,7 @@ const busWire = busCodes.filter((entry) => entry.wire !== undefined);
 const exact = transportCodes.filter((entry) => entry.status !== undefined);
 const from = transportCodes.filter((entry) => entry.statusFrom !== undefined).sort((a, b) => b.statusFrom - a.statusFrom);
 
-const text = `// Code generated from specs/src/errors/codes.json — DO NOT EDIT.
+const text = `// Code generated from protocol/specs/src/errors/codes.json — DO NOT EDIT.
 //
 // Regenerate: node packages/codegen/schemas/generate-error-codes-go.mjs
 // The TypeScript and Python vocabularies are generated from the same table,

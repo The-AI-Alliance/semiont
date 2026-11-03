@@ -1,5 +1,5 @@
 //! The annotation a worker commits is one table,
-//! specs/src/annotations/builder-cases.json, which every SDK runs: this
+//! protocol/specs/src/annotations/builder-cases.json, which every SDK runs: this
 //! crate's `semiont::annotations` builds, from each case, the annotation
 //! TypeScript's and Python's builders build, or refuses the span as they do.
 

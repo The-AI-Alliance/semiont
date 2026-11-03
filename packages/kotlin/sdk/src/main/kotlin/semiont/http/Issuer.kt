@@ -110,7 +110,7 @@ internal suspend fun refreshAtIssuer(tokenEndpoint: String, clientId: String, re
  * another program already replaced is spent.
  *
  * What is kept is written against what is kept then
- * (specs/src/sign-in-store/README.md, Renewing it): a renewal another program
+ * (protocol/specs/src/sign-in-store/README.md, Renewing it): a renewal another program
  * made while the grant was in flight stands, and its access token is the one
  * given; a sign-in signed out meanwhile is not written back, and its new token
  * is given to nobody. A renewal that fails throws `SignInError` in the issuer's

@@ -35,7 +35,7 @@ private val KEYS = mapOf(
 )
 
 /**
- * What a registry keeps in its storage, as specs/src/session/stored.json
+ * What a registry keeps in its storage, as protocol/specs/src/session/stored.json
  * states it: every key Kotlin writes by hand, the key of a knowledge base's
  * session, and the members of a stored session. A key or a member the table
  * gains fails here until Kotlin has it. And the registry's readers and

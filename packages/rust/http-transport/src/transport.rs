@@ -1,5 +1,5 @@
 //! A knowledge base's bus over its gateway's HTTP transport
-//! (docs/protocol/TRANSPORT-HTTP.md), as `semiont::transport::Transport`: one
+//! (protocol/contract/TRANSPORT-HTTP.md), as `semiont::transport::Transport`: one
 //! stream, `POST /bus/subscribe`, naming the client's global channels and an
 //! entry per resource scope it holds, and `POST /bus/emit` for what it sends.
 //! The gateway's own operations ride plain request and response.
@@ -65,7 +65,7 @@ pub trait TokenRefresher: Send + Sync + 'static {
     fn refresh(&self) -> BoxFuture<'_, Option<String>>;
 }
 
-/// The timing a transport keeps, from specs/src/client/timing.json unless a
+/// The timing a transport keeps, from protocol/specs/src/client/timing.json unless a
 /// caller that must not wait it out (a test, a conformance driver) says
 /// otherwise.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -519,7 +519,7 @@ impl Shared {
 }
 
 /// A refusal, as the transport reports it. A refused credential
-/// (docs/protocol/TRANSPORT-CONTRACT.md § A refused credential) is
+/// (protocol/contract/TRANSPORT-CONTRACT.md § A refused credential) is
 /// `unauthorized` with the status the gateway answered, whatever that was.
 /// It keeps the wait the gateway stated, which nothing waits out: it is
 /// renewed, never retried. Any other refusal's status decides its code.

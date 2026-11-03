@@ -14,8 +14,8 @@ import semiont.Spec
 
 /**
  * How a knowledge base and its principals are named, held to the tables every
- * implementation runs: specs/src/principals/cases.json for a person and an
- * agent, and specs/src/kb-identity/cases.json for the knowledge base,
+ * implementation runs: protocol/specs/src/principals/cases.json for a person and an
+ * agent, and protocol/specs/src/kb-identity/cases.json for the knowledge base,
  * each case of which that has a domain this SDK derives the DID and the
  * resource from. Reading the project file is its readers', not this SDK's.
  */

@@ -30,10 +30,10 @@ const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '../../..');
 
-// SPEC-FIRST: bundle OpenAPI spec from specs/src/ before any package builds.
-// specs/src/openapi.json is the source of truth; specs/openapi.json is the
+// SPEC-FIRST: bundle OpenAPI spec from protocol/specs/src/ before any package builds.
+// protocol/specs/src/openapi.json is the source of truth; protocol/specs/openapi.json is the
 // bundled artifact that @semiont/core's prebuild script copies and reads.
-console.log('📦 Bundling OpenAPI spec from specs/src/...');
+console.log('📦 Bundling OpenAPI spec from protocol/specs/src/...');
 try {
   execFileSync('npm', ['run', 'openapi:bundle'], { stdio: 'inherit', cwd: ROOT });
   console.log('✅ OpenAPI spec bundled successfully\n');

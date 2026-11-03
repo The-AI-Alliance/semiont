@@ -18,7 +18,7 @@ export type BusReply<Op extends BusOperationKey> =
 
 /**
  * What a failed `Bus.request` can tell its caller: `BusRequestErrorCode`,
- * generated from specs/src/errors/codes.json, where each member is documented.
+ * generated from protocol/specs/src/errors/codes.json, where each member is documented.
  *
  * Two kinds of member, and the split is the point. `bus.not-found`,
  * `bus.peer-unavailable`, `bus.unauthorized` and `bus.none-pending` are facts

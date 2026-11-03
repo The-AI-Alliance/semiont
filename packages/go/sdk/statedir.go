@@ -2,7 +2,7 @@ package semiont
 
 // Where the launcher's state home is: the directory that holds the sign-in
 // store's tokens.json. Every program that finds that file computes it the same
-// way (specs/src/sign-in-store/cases.json). The SDK reads no environment: a
+// way (protocol/specs/src/sign-in-store/cases.json). The SDK reads no environment: a
 // program reads its own and says what it found.
 
 import (

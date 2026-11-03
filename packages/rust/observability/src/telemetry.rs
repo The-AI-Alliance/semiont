@@ -407,10 +407,10 @@ mod tests {
     /// The services built on this crate.
     const SERVICES: [&str; 3] = ["gateway", "dispatcher", "archivist"];
 
-    /// The resource keys specs/src/service-telemetry/telemetry.json lists for `service`.
+    /// The resource keys protocol/specs/src/service-telemetry/telemetry.json lists for `service`.
     fn listed(service: &str) -> BTreeSet<String> {
         let table: Value = serde_json::from_str(include_str!(
-            "../../../../specs/src/service-telemetry/telemetry.json"
+            "../../../../protocol/specs/src/service-telemetry/telemetry.json"
         ))
         .expect("the telemetry table is JSON");
         table["resource"]

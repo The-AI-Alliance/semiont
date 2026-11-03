@@ -109,7 +109,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ${{ runner.temp }}/rust-image-layers
-          key: ${{ runner.os }}-rust-image-layers-${{ hashFiles('version.json', 'specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
+          key: ${{ runner.os }}-rust-image-layers-${{ hashFiles('version.json', 'protocol/specs/src/**', 'packages/rust/**', 'images/gateway/**', 'images/dispatcher/**', 'images/archivist/**', '.dockerignore') }}
           restore-keys: |
             ${{ runner.os }}-rust-image-layers-
 

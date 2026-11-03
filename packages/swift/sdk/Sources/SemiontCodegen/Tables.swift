@@ -100,7 +100,19 @@ package struct TableGenerator {
     }
   }
   package func generate() throws -> String {
-    var out = "// Generated from specs/src tables; do not edit.\nimport Foundation\n"
+    var out = "// Generated from protocol/specs/src tables; do not edit.\nimport Foundation\n"
+    var received = try models.schema("BusFrame")
+    var fields = try required(received, "properties").object
+    let projection = fields.keys.sorted().map {
+      "\(memberName($0)): frame.\(escaped(memberName($0)))"
+    }.joined(separator: ", ")
+    out +=
+      "extension ReceivedFrame { internal init(_ frame: BusFrame, trace: [String: String]?) { self.init(\(projection), trace: trace) } }\n"
+    fields["trace"] = .object([
+      "type": .string("object"), "additionalProperties": .object(["type": .string("string")]),
+    ])
+    received["properties"] = .object(fields)
+    _ = try models.inline("", "ReceivedFrame", received)
     let timing = try required(table("client/timing.json"), "timing").array
     out +=
       "internal struct RetryBudget: Sendable { let attempts: Int; let initialDelayMs: Int; let maxDelayMs: Int }\ninternal enum Timings {\n"
@@ -125,6 +137,12 @@ package struct TableGenerator {
       }
     }
     out += "}\n"
+    for (key, name) in [("spans", "TransportSpan"), ("metrics", "TransportMetric")] {
+      let rows = try required(table("sdk-telemetry/telemetry.json"), key).array
+      out +=
+        try models.enumeration(
+          name, rows.map { try required($0.object, "name") }, ["type": .string("string")]) + "\n"
+    }
     let errors = try table("errors/codes.json")
     for (family, raw) in errors.sorted(by: { $0.key < $1.key }) where !family.hasPrefix("$") {
       let codes = try required(raw.object, "codes").array.map { try required($0.object, "code") }
@@ -303,11 +321,21 @@ package struct TableGenerator {
       out +=
         "  static let \(escaped(memberName(names[0]))): Operation<\(channels.map(\.type).joined(separator: ", "))> = .init(request: Channels.\(escaped(memberName(names[0]))), result: Channels.\(escaped(memberName(names[1]))), failure: Channels.\(escaped(memberName(names[2]))), replyNames: [\(replyNames.map(literal).joined(separator: ", "))])\n"
     }
+    out += "}\ninternal let wireOperations: [String: WireOperation] = [\n"
+    for raw in try required(registry, "operations").array {
+      let row = try raw.object
+      let names = try ["request", "result", "failure"].map { try required(row, $0).text }
+      guard let request = rows[names[0]], let response = rows[names[1]] else {
+        throw GenerationRefused(description: "missing operation channels")
+      }
+      out +=
+        "  \(literal(names[0])): WireOperation(result: \(literal(names[1])), failure: \(literal(names[2])), request: { try projectWire(\(request.type).self, $0) }, response: { try projectWire(\(response.type).self, $0) }),\n"
+    }
     guard scoped.isDisjoint(with: everyone.union(replies)) else {
       throw GenerationRefused(description: "channel delivered both scoped and everywhere")
     }
     out +=
-      "}\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
+      "]\ninternal let bridgedChannels = [\(everyone.union(replies).sorted().map(literal).joined(separator: ", "))]\n"
     let refresh = try table("client/refresh.json")
     let queries = try required(refresh, "queries").array.map { try $0.object }
     let queryNames = try queries.map { try required($0, "name").text }

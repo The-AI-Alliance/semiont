@@ -40,7 +40,7 @@ export class JobCancelledError extends SemiontError {
   }
 }
 
-/** `jobSilenceMs` and `jobStatusPollMs` of specs/src/client/timing.json, for a caller that must not wait them out. */
+/** `jobSilenceMs` and `jobStatusPollMs` of protocol/specs/src/client/timing.json, for a caller that must not wait them out. */
 export interface JobFollowTiming {
   jobSilenceMs?: number;
   jobStatusPollMs?: number;

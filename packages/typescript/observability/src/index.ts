@@ -169,7 +169,7 @@ function busSentCounter(): Counter {
 
 /**
  * Count an emit a client sent (`semiont.bus.sent`,
- * specs/src/sdk-telemetry/telemetry.json). Called at every transport `emit`
+ * protocol/specs/src/sdk-telemetry/telemetry.json). Called at every transport `emit`
  * site. Its own name, apart from `semiont.bus.emit`, the gateway's count of
  * the emits it accepted.
  */

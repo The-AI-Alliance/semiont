@@ -1,6 +1,6 @@
 """The Librarian, over a transport a test delivers frames through and fakes of what it reads by.
 
-`docs/protocol/LIBRARIAN.md` § What it answers, § Order, § Limits and §
+`protocol/contract/LIBRARIAN.md` § What it answers, § Order, § Limits and §
 Stopping state the rules. What each request is answered with is its own
 module's, and has its own tests. Here is what the Librarian adds: each
 request is answered once, under its correlation id, on its result channel

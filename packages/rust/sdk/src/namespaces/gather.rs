@@ -21,7 +21,7 @@ pub(super) type ReferencedBy = GetReferencedByResponseReferencedByItem;
 
 /// How much of the source an annotation's context takes, in characters,
 /// when its caller states no window. Every SDK sends the same: the cases of
-/// specs/src/client/surface.json hold each to it.
+/// protocol/specs/src/client/surface.json hold each to it.
 const CONTEXT_WINDOW: u16 = 2000;
 
 /// What a resource's context takes when its caller states nothing: two hops

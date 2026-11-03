@@ -1,4 +1,4 @@
-# Generated from specs/src/bus/registry.json; do not edit.
+# Generated from protocol/specs/src/bus/registry.json; do not edit.
 # Regenerate: node packages/codegen/bus/generate-python.mjs
 
 """Every request of the bus, with the two channels it is answered on.

@@ -2,12 +2,12 @@
 
 The SDK's claiming is the worker's side of the queue: a held job says its own
 lifecycle, commits its own annotations and settles once
-(`docs/protocol/WORKER-CONTRACT.md`). This module is the work. It reads what
+(`protocol/contract/WORKER-CONTRACT.md`). This module is the work. It reads what
 the job needs, runs the job through its processor
 (`semiont_worker.processors`), commits what the processor hands over, and
 says how the job went: completed, with its result; cancelled, with the units
 it finished; or failed, with the failure's class and where the job stood.
-`docs/protocol/WORKER-SERVICE.md` states each step.
+`protocol/contract/WORKER-SERVICE.md` states each step.
 
 A job's progress reports are sent without the job waiting for the gateway to
 take each one, and all of them are sent before the job is settled: a held job
