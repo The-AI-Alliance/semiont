@@ -29,6 +29,7 @@ export interface KbNavProps {
   onOpenTheme: () => void;
   onOpenLauncherStatus: () => void;
   onOpenTelemetry: () => void;
+  onOpenRuntime: () => void;
 }
 
 function hostOf(uri: string): string {
@@ -70,12 +71,12 @@ export function KbNav(props: KbNavProps) {
         )}
       </div>
 
-      <SemiontMenu onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} />
+      <SemiontMenu onOpenTheme={props.onOpenTheme} onOpenLauncherStatus={props.onOpenLauncherStatus} onOpenTelemetry={props.onOpenTelemetry} onOpenRuntime={props.onOpenRuntime} />
     </nav>
   );
 }
 
-function SemiontMenu({ onOpenTheme, onOpenLauncherStatus, onOpenTelemetry }: Pick<KbNavProps, 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry'>) {
+function SemiontMenu({ onOpenTheme, onOpenLauncherStatus, onOpenTelemetry, onOpenRuntime }: Pick<KbNavProps, 'onOpenTheme' | 'onOpenLauncherStatus' | 'onOpenTelemetry' | 'onOpenRuntime'>) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -106,6 +107,7 @@ function SemiontMenu({ onOpenTheme, onOpenLauncherStatus, onOpenTelemetry }: Pic
         <div className="semiont-menu" role="menu" aria-label="Semiont menu">
           <button type="button" role="menuitem" onClick={() => choose(onOpenTheme)}>Theme</button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenTelemetry)}>Telemetry</button>
+          <button type="button" role="menuitem" onClick={() => choose(onOpenRuntime)}>Container runtime</button>
           <button type="button" role="menuitem" onClick={() => choose(onOpenLauncherStatus)}>Launcher status</button>
         </div>
       )}

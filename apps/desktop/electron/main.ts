@@ -37,28 +37,33 @@ function launcherEnvironment(): NodeJS.ProcessEnv {
   return { ...process.env, PATH: pathEntries.join(delimiter) };
 }
 
-ipcMain.handle('launcher:status', () => new Promise<LauncherStatusResult>((resolve) => {
-  execFile(
-    launcherPath(),
-    ['status'],
-    {
-      cwd: app.getPath('home'),
-      encoding: 'utf8',
-      env: launcherEnvironment(),
-      maxBuffer: 4 * 1024 * 1024,
-      timeout: 120_000,
-      windowsHide: true,
-    },
-    (error, stdout, stderr) => {
-      const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
-      resolve({
-        output: output || (error === null ? '(no output)' : error.message),
-        exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
-        error: error?.message ?? null,
-      });
-    },
-  );
-}));
+function runLauncher(args: string[]): Promise<LauncherStatusResult> {
+  return new Promise((resolve) => {
+    execFile(
+      launcherPath(),
+      args,
+      {
+        cwd: app.getPath('home'),
+        encoding: 'utf8',
+        env: launcherEnvironment(),
+        maxBuffer: 4 * 1024 * 1024,
+        timeout: 120_000,
+        windowsHide: true,
+      },
+      (error, stdout, stderr) => {
+        const output = [stdout.trimEnd(), stderr.trimEnd()].filter((part) => part.length > 0).join('\n\n');
+        resolve({
+          output: output || (error === null ? '(no output)' : error.message),
+          exitCode: error === null ? 0 : (typeof error.code === 'number' ? error.code : null),
+          error: error?.message ?? null,
+        });
+      },
+    );
+  });
+}
+
+ipcMain.handle('launcher:status', () => runLauncher(['status']));
+ipcMain.handle('launcher:about', () => runLauncher(['about']));
 
 function setApplicationMenu(): void {
   const appMenu: MenuItemConstructorOptions[] = [

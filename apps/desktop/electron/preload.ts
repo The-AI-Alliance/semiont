@@ -62,5 +62,6 @@ const launcherBridge: LauncherBridge = {
     return () => ipcRenderer.removeListener('launcher:status-requested', handler);
   },
   status: () => ipcRenderer.invoke('launcher:status'),
+  about: () => ipcRenderer.invoke('launcher:about'),
 };
 contextBridge.exposeInMainWorld('launcherBridge', launcherBridge);

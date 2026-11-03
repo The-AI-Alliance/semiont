@@ -28,11 +28,13 @@ import { KbNav } from './components/KbNav';
 import { ThemePanel } from './components/ThemePanel';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { TelemetryModal } from './components/TelemetryModal';
+import { RuntimeModal } from './components/RuntimeModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
 import type { ViewerPrefs } from './components/ViewerPrefControls';
 import { DEFAULT_TELEMETRY_LINKS, telemetryLinksFromStatus, type TelemetryLinks } from './lib/telemetry-links';
+import { runtimeInfoFromLauncher, type RuntimeInfo } from './lib/runtime-info';
 
 // In Electron the preload exposes window.configBridge; the web build has no such bridge.
 const isElectron = typeof window !== 'undefined' && window.configBridge !== undefined;
@@ -91,6 +93,8 @@ export function App() {
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatusState>({ status: 'loading' });
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
+  const [showRuntime, setShowRuntime] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
@@ -127,6 +131,20 @@ export function App() {
     void bridge.status().then(
       ({ output }) => setTelemetryLinks(telemetryLinksFromStatus(output)),
       () => setTelemetryLinks(DEFAULT_TELEMETRY_LINKS),
+    );
+  }, []);
+
+  const openRuntime = useCallback(() => {
+    setShowRuntime(true);
+    setRuntimeInfo(null);
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setRuntimeInfo({ active: [], detected: [], statusAvailable: false });
+      return;
+    }
+    void Promise.all([bridge.status(), bridge.about()]).then(
+      ([status, about]) => setRuntimeInfo(runtimeInfoFromLauncher(status, about)),
+      () => setRuntimeInfo({ active: [], detected: [], statusAvailable: false }),
     );
   }, []);
 
@@ -465,6 +483,7 @@ export function App() {
             onOpenTheme={() => setShowTheme(true)}
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
+            onOpenRuntime={openRuntime}
           />
           <div
             className="app__resizer"
@@ -503,6 +522,7 @@ export function App() {
         />
       )}
       {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
+      {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
     </>
   );
 }

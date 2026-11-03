@@ -7,4 +7,5 @@ export interface LauncherStatusResult {
 export interface LauncherBridge {
   onStatusRequested(listener: () => void): () => void;
   status(): Promise<LauncherStatusResult>;
+  about(): Promise<LauncherStatusResult>;
 }
