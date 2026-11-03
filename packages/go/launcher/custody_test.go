@@ -3,6 +3,7 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -62,10 +63,46 @@ func TestCustodySurvivesARestart(t *testing.T) {
 	if b1, _ := loadOrCreateServiceClientSecret(u, key, "smelter"); b1 == a1 {
 		t.Error("two services share one credential; separate accounts are the point of minting them separately")
 	}
-	p1, _ := loadOrCreateKeycloakAdminPassword(u, key)
-	p2, _ := loadOrCreateKeycloakAdminPassword(u, key)
+	p1, _ := loadOrCreateKeycloakAdminPassword(u)
+	p2, _ := loadOrCreateKeycloakAdminPassword(u)
 	if p1 == "" || p1 != p2 {
 		t.Errorf("the bootstrap admin password changed across a restart (%q → %q) — the realm already exists and would refuse the new one", p1, p2)
+	}
+}
+
+// The shared issuer's two passwords are the machine's, as the issuer is: kept
+// in the machine's store, whichever knowledge base's start minted them, and
+// in no root's, so every knowledge base's start reads the same ones.
+func TestTheSharedIssuersPasswordsAreTheMachines(t *testing.T) {
+	key := custodyKey(t)
+	t.Setenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "")
+	u := NewUI(false)
+	admin, ok := loadOrCreateKeycloakAdminPassword(u)
+	if !ok {
+		t.Fatal("no admin password")
+	}
+	postgres, ok := loadOrCreateDaemonPassword(u, key, "identity-store")
+	if !ok {
+		t.Fatal("no PostgreSQL password")
+	}
+	other := rootKey("did:web:owner.github.io:other-kb", "")
+	if again, _ := loadOrCreateDaemonPassword(u, other, "identity-store"); again != postgres {
+		t.Errorf("another knowledge base's start reads PostgreSQL's password as %q, want the machine's %q", again, postgres)
+	}
+	for name, want := range map[string]string{custodyKeycloakAdmin: admin, daemonPasswords["identity-store"].custody: postgres} {
+		if got, _ := sharedCustody().get(u, name); got != want {
+			t.Errorf("the machine's store holds %s as %q, want %q", name, got, want)
+		}
+		root, ok := custodyFor(u, key)
+		if !ok {
+			t.Fatal("no root store")
+		}
+		if got, _ := root.get(u, name); got != "" {
+			t.Errorf("the root's store holds %s too", name)
+		}
+		if slices.Contains(custodyNames(), name) {
+			t.Errorf("%s is among the values a root keeps, which a clean of the root clears and a store change moves", name)
+		}
 	}
 }
 

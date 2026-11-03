@@ -303,7 +303,7 @@ var descriptorIndex = func() map[string]map[string]serviceDescriptor {
 // in this order only so `--service browser` and the role census can find it.
 var startOrder = []string{
 	"traces", "metrics", "collector",
-	"identity-store", "messaging", "identity",
+	"identity-store", "identity", "messaging",
 	"gateway",
 	"graph", "vectors", "inference", "embedding",
 	"archivist", "librarian", "dispatcher",
@@ -638,10 +638,11 @@ var telemetryRoles = []string{"collector", "metrics", "traces"}
 
 // sharedRoles: the roles whose container the launcher runs for every knowledge base here
 // rather than for one stack, in the order a bare stop stops them after the
-// stack: the worker, before the collector it exports to; the telemetry; the
-// machine's Ollama; the Browser. Neither sweep names them; each is kept,
-// replaced and stopped from its own record.
-var sharedRoles = slices.Concat([]string{"worker"}, telemetryRoles, []string{"inference", "browser"})
+// stack: the worker, before the issuer it signs in at and the collector it
+// exports to; the issuer, Keycloak before the PostgreSQL it keeps its realms
+// in; the telemetry; the machine's Ollama; the Browser. Neither sweep names
+// them; each is kept, replaced and stopped from its own record.
+var sharedRoles = slices.Concat([]string{"worker", "identity", "identity-store"}, telemetryRoles, []string{"inference", "browser"})
 
 // stackContainers: every container of the knowledge base keyed key's stack,
 // in teardown order — what a start's preflight and a stop sweep. The

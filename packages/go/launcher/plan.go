@@ -417,19 +417,9 @@ func (p *launchPlan) workerRuns() bool {
 // order the checks run in, and the start goldens pin it.
 func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 	var checks []portNeed
-	addRole := func(role string) {
-		rp := plan.Roles[role]
-		if rp.Presence != presenceLauncher {
-			return
-		}
-		spec := descriptorFor(role, rp.Driver)
-		checks = append(checks, plan.AuxPorts(role)...)
-		need := portNeed{rp.Port, spec.portLabel}
-		checks = append(append(checks, need), e.containersSideNeed(role, need, spec.defaultPort)...)
+	for _, role := range []string{"graph", "vectors", "messaging"} {
+		checks = append(checks, rolePortNeeds(plan, role, e)...)
 	}
-	addRole("graph")
-	addRole("vectors")
-	addRole("messaging")
 	// The gateway's port is config-owned; every other Semiont port is
 	// launcher fiat, on the knowledge base's port block. No browser here: the
 	// Browser is not a stack member — its port is checked inside flowBrowser,
@@ -442,6 +432,19 @@ func planPortChecks(plan *launchPlan, e exposure) []portNeed {
 		}
 	}
 	return checks
+}
+
+// rolePortNeeds: the host ports a start publishes the daemon of role on when
+// the launcher runs it — its aux ports, its own, and the containers' side of
+// one a person dials too — none when it does not run it or publishes no port.
+func rolePortNeeds(plan *launchPlan, role string, e exposure) []portNeed {
+	rp := plan.Roles[role]
+	if rp.Presence != presenceLauncher || rp.Port == 0 {
+		return nil
+	}
+	spec := descriptorFor(role, rp.Driver)
+	need := portNeed{rp.Port, spec.portLabel}
+	return slices.Concat(plan.AuxPorts(role), []portNeed{need}, e.containersSideNeed(role, need, spec.defaultPort))
 }
 
 // fiatRoles: the stack's roles whose ports are the launcher's fiat, whatever

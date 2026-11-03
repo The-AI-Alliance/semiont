@@ -41,8 +41,8 @@ func TestEachGroupStopsWhatNeedsIt(t *testing.T) {
 		{"record", false, "weaver<gateway smelter<gateway dispatcher librarian<gateway archivist gateway messaging"},
 		{"record", true, "weaver<gateway smelter<gateway worker<gateway dispatcher librarian<gateway archivist gateway messaging"},
 		{"index", true, "weaver smelter librarian vectors graph"},
-		{"issuer", false, "weaver<gateway smelter<gateway dispatcher<gateway librarian<gateway archivist<gateway gateway<identity identity identity-store"},
-		{"issuer", true, "weaver<gateway smelter<gateway worker<gateway dispatcher<gateway librarian<gateway archivist<gateway gateway<identity identity identity-store"},
+		{"issuer", false, "identity identity-store"},
+		{"issuer", true, "identity identity-store"},
 		{"knowledge-workers", true, "browser worker"},
 		{"providers", true, "embedding inference"},
 		{"telemetry", true, "collector metrics traces"},
@@ -63,12 +63,12 @@ func TestEachGroupStartsWhatItNeeds(t *testing.T) {
 		want  string
 	}{
 		{"index", true, "graph vectors librarian smelter weaver"},
-		{"index", false, "traces<collector collector<gateway identity-store<identity messaging<gateway identity<gateway gateway<weaver graph vectors inference<librarian embedding<librarian archivist<weaver librarian smelter weaver"},
+		{"index", false, "traces<collector collector<gateway identity-store<identity identity<gateway messaging<gateway gateway<weaver graph vectors inference<librarian embedding<librarian archivist<weaver librarian smelter weaver"},
 		{"record", true, "messaging gateway archivist dispatcher"},
-		{"record", false, "traces<collector collector<gateway identity-store<identity messaging identity<gateway gateway archivist dispatcher"},
+		{"record", false, "traces<collector collector<gateway identity-store<identity identity<gateway messaging gateway archivist dispatcher"},
 		{"issuer", false, "identity-store identity"},
 		{"knowledge-workers", true, "worker browser"},
-		{"knowledge-workers", false, "traces<collector collector<gateway identity-store<identity messaging<gateway identity<gateway gateway<worker archivist<worker worker browser"},
+		{"knowledge-workers", false, "traces<collector collector<gateway identity-store<identity identity<gateway messaging<gateway gateway<worker archivist<worker worker browser"},
 		{"providers", false, "inference embedding"},
 		{"telemetry", false, "traces metrics collector"},
 	} {

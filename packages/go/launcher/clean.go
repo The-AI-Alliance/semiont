@@ -1,16 +1,17 @@
 package launcher
 
 // clean.go — `semiont clean`: remove one root's persistent local-stack
-// state. start persists postgres/qdrant/neo4j under <dataDir>/roots/<key>;
-// this command is the only way that data dies — stop deliberately leaves it,
-// and start's identity-store image-mismatch refusal names this command as the way
-// out.
+// state. start persists qdrant/neo4j and the rest under
+// <dataDir>/roots/<key>; this command is the only way that data dies — stop
+// deliberately leaves it, and start's image-mismatch refusal names this
+// command as the way out. The root's realm at the shared issuer goes with it,
+// through Keycloak's admin API: the PostgreSQL that keeps every realm here is
+// the machine's, and one root's clean leaves it.
 //
 // An UNSCOPED clean also deletes every secret the launcher keeps for the root
 // (custody.go), through the store that keeps them: the accounts the
-// token-signing key's tokens name are in the postgres data going away, so
-// keeping it would preserve nothing. A --store clean targets one subdir and
-// leaves them.
+// token-signing key's tokens name are in the realm going away, so keeping it
+// would preserve nothing. A --store clean targets one store and leaves them.
 
 import (
 	"fmt"
@@ -19,24 +20,31 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
 
 const cleanUsage = `Usage: semiont clean [options]
 
-Remove the persistent local-stack state (PostgreSQL, Qdrant, Neo4j data,
-the job queue, the Archivist's views and anchored text, and the
-supervisors' logs) for one local semiont root. The stack must be stopped first — state is
-never removed while a recorded stack may be mounting it.
+Remove the persistent local-stack state (Qdrant, Neo4j data, the job
+queue, the Archivist's views and anchored text, and the supervisors' logs)
+for one local semiont root, and the knowledge base's realm at the shared
+issuer, its accounts and clients with it. The stack must be stopped first —
+state is never removed while a recorded stack may be mounting it. The realm
+is deleted through the shared Keycloak, which must be running when it may
+hold one: another knowledge base's start runs it.
 
 An unscoped clean also deletes every secret the launcher keeps for this
 root, from whichever store keeps them (semiont settings secret-store): the token-
 signing key, so every token issued against it stops verifying — which is
-consistent, since the user accounts those tokens name lived in the
-PostgreSQL data just removed — and the passwords of the stores going with
-it. The store setting itself stays. A --store clean keeps the secrets.
+consistent, since the user accounts those tokens name lived in the realm
+just deleted — and the passwords of the stores going with it. The store
+setting itself stays. A --store clean keeps the secrets.
 
 Options:
-  --store <role>   Remove one store only: identity-store, vectors, graph,
+  --store <role>   Remove one store only: identity-store (the knowledge
+                   base's realm at the shared issuer; the PostgreSQL that
+                   keeps every realm here stays), vectors, graph,
                    anchored-text, messaging (the NATS daemon's JetStream
                    store: the job queue and the gateway's ledger claims —
                    pending work is dropped; jobs are re-submittable), state
@@ -87,7 +95,7 @@ func Clean(args []string) int {
 		}
 	}
 
-	key, dir, code := cleanTarget(u, rootArg)
+	key, dir, kbDir, code := cleanTarget(u, rootArg)
 	if code != 0 {
 		return code
 	}
@@ -107,14 +115,41 @@ func Clean(args []string) int {
 		return 1
 	}
 
+	// The knowledge base's realm at the shared issuer goes with its identity
+	// store and with an unscoped clean, and before its secrets: a realm left
+	// behind keeps the clients those secrets were for, and the next start,
+	// finding it held, would not create it afresh. The realm is the root's key
+	// (derivePlan names it so).
+	realmBase := ""
+	if store == "" || store == "identity-store" {
+		shared, err := onSharedIssuer(kbDir)
+		if err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
+		if shared {
+			var ok bool
+			if realmBase, ok = realmToDelete(u, ss, key); !ok {
+				return 1
+			}
+		}
+		if realmBase != "" && dryRun {
+			u.Log("would delete realm %s %s", key, u.Dim("(the shared issuer, "+realmBase+")"))
+		}
+	}
+
 	type target struct {
 		label, path string
 		size        int64
 	}
+	// A store the machine keeps for every knowledge base is not this root's to
+	// remove.
+	scopedHere := store != "" && !sharedRole(stateStores[store].owner)
 	var targets []target
-	if store != "" {
+	switch {
+	case scopedHere:
 		targets = append(targets, target{store, filepath.Join(dir, stateStores[store].dir), 0})
-	} else {
+	case store == "":
 		targets = append(targets, target{"all stores (" + key + ")", dir, 0})
 	}
 
@@ -148,10 +183,13 @@ func Clean(args []string) int {
 			u.Log("would remove %s — %s (%s)", tg.path, humanBytes(sz), tg.label)
 		}
 	}
-	if len(kept) == 0 && len(secrets) == 0 {
-		if store != "" {
+	if len(kept) == 0 && len(secrets) == 0 && realmBase == "" {
+		switch {
+		case scopedHere:
 			u.Log("Nothing to remove: no %s state under %s", store, dir)
-		} else {
+		case store != "":
+			u.Log("Nothing to remove: no realm %s at the shared issuer", key)
+		default:
 			u.Log("Nothing to remove: no state at %s", dir)
 		}
 		return 0
@@ -163,6 +201,17 @@ func Clean(args []string) int {
 		}
 		u.Log("Total: %s %s", humanBytes(total), u.Dim("(dry-run; nothing removed)"))
 		return 0
+	}
+	if realmBase != "" {
+		_, password, _, ok := sharedKeycloakAdmin(u, ss)
+		if !ok {
+			return 1
+		}
+		if err := deleteRealm(realmBase, key, password); err != nil {
+			u.Fail("Realm %s: %v", key, err)
+			return 1
+		}
+		u.Ok("Deleted realm %s from the shared issuer.", key)
 	}
 	for _, name := range secrets {
 		if !custody.remove(u, name) {
@@ -200,12 +249,62 @@ func Clean(args []string) int {
 	// A scoped clean drops that store's stamp too, so the next start sees
 	// first-use, not a mismatch against thin air. A full clean removed
 	// meta.json with the dir.
-	if store != "" {
+	if scopedHere && len(kept) > 0 {
 		meta := loadRootMeta(dir)
 		delete(meta.Stores, store)
 		saveRootMeta(dir, meta)
 	}
 	return 0
+}
+
+// onSharedIssuer: whether the knowledge base at kbDir names the shared issuer,
+// as its document says. State whose knowledge base is gone (kbDir "") is
+// taken to: the document is the one thing that could say otherwise.
+func onSharedIssuer(kbDir string) (bool, error) {
+	if kbDir == "" {
+		return true, nil
+	}
+	kb, err := stack.Read[stack.KnowledgeBase](filepath.Join(kbDir, stack.Dir, stack.KnowledgeBaseFile), "KnowledgeBase")
+	if err != nil {
+		return false, err
+	}
+	return kb.Spec.Issuer.Shared != nil, nil
+}
+
+// realmToDelete: the shared Keycloak's origin when it holds realm, "" when it
+// holds none, or a refusal when that cannot be known: the server is not
+// running to ask while it may hold realms, or it does not answer as Keycloak
+// does.
+func realmToDelete(u *UI, ss *StackSet, realm string) (string, bool) {
+	base := sharedKeycloakBase(ss)
+	if base == "" {
+		if noRealmIsKept(realm) {
+			return "", true
+		}
+		u.Fail("The shared issuer is not running, so realm %s can be neither asked for nor deleted.", realm)
+		fmt.Fprintln(os.Stderr, "  Start another knowledge base that names it (spec.issuer.shared), then clean this one again.")
+		return "", false
+	}
+	held, err := realmHeld(base, realm)
+	if err != nil {
+		u.Fail("The shared issuer at %s: %v", base, err)
+		return "", false
+	}
+	if !held {
+		return "", true
+	}
+	return base, true
+}
+
+// noRealmIsKept: whether the shared issuer can hold no realm at all, with its
+// server down: its database is the launcher's, and its store holds nothing.
+func noRealmIsKept(key string) bool {
+	doc, err := loadIssuerDocument(true)
+	if err != nil || doc.spec.Database.External != nil {
+		return false
+	}
+	_, exists := diskUse(stateStores["identity-store"].storeDir(key))
+	return !exists
 }
 
 // storeDirsUnder: the existing store dirs a clean target holds — the one
@@ -236,15 +335,16 @@ func cleanRuntime(u *UI) (string, bool) {
 	return SelectRuntime(u, requested)
 }
 
-// cleanTarget resolves which root's state to clean. No --root: the same
-// cwd ladder start uses. --root: a path or registered basename first
+// cleanTarget resolves which root's state to clean, and the knowledge base
+// it is, "" for state whose knowledge base is gone. No --root: the same cwd
+// ladder start uses. --root: a path or registered basename first
 // (resolveRootArg), else a literal key with a dir under roots/ — the form
 // status prints for orphans, whose KB resolves no other way.
-func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
+func cleanTarget(u *UI, rootArg string) (key, dir, kbDir string, code int) {
 	d := dataDir()
 	if d == "" {
 		u.Fail("No home directory resolvable; nowhere for state to live.")
-		return "", "", 1
+		return "", "", "", 1
 	}
 	switch {
 	case rootArg == "":
@@ -254,18 +354,18 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 			if !projectFileRefused(err) {
 				fmt.Fprintln(os.Stderr, "  Run inside a KB, or name one: semiont clean --root <path|name|key>")
 			}
-			return "", "", 1
+			return "", "", "", 1
 		}
-		key = kbRoot{dir: root, ident: ident}.key()
+		key, kbDir = kbRoot{dir: root, ident: ident}.key(), root
 	default:
 		root, ident, err := resolveRootArg(rootArg)
 		if err == nil {
-			key = kbRoot{dir: root, ident: ident}.key()
+			key, kbDir = kbRoot{dir: root, ident: ident}.key(), root
 			break
 		}
 		if projectFileRefused(err) {
 			u.Fail("%v", err)
-			return "", "", 1
+			return "", "", "", 1
 		}
 		// A literal key must be a plain basename — anything else (".."; a
 		// path) would let RemoveAll reach outside roots/.
@@ -277,7 +377,7 @@ func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 		}
 		u.Fail("%v", err)
 		fmt.Fprintf(os.Stderr, "  (and no state key %q under %s)\n", rootArg, filepath.Join(d, "roots"))
-		return "", "", 1
+		return "", "", "", 1
 	}
-	return key, stateRootDir(key), 0
+	return key, stateRootDir(key), kbDir, 0
 }

@@ -193,13 +193,8 @@ func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminReal
 		return adminRealm{}, false
 	}
 
-	adminPass, source, ok := keycloakAdminPassword(u, kb.key())
+	base, adminPass, source, ok := sharedKeycloakAdmin(u, LoadStackSet())
 	if !ok {
-		return adminRealm{}, false
-	}
-	if adminPass == "" {
-		u.Fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
-		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")
 		return adminRealm{}, false
 	}
 	u.Log("Keycloak admin password: %s", u.Dim(source))
@@ -209,7 +204,7 @@ func openAdminRealm(u *UI, flags map[string]string, elsewhere string) (adminReal
 		st:        st,
 		rp:        rp,
 		realm:     keycloakRealm(issuerPath(rp.Issuer)),
-		base:      keycloakBase(recordedExposure(kb.key()), rp.Port),
+		base:      base,
 		adminPass: adminPass,
 	}, true
 }

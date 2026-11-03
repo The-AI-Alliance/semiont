@@ -20,11 +20,12 @@ import (
 )
 
 // syncFixture readies `identity sync` against admin for the fixture knowledge
-// base, and returns its root. The issuer's port is in its document; the
-// bootstrap admin password and every service client's secret come from the
-// environment the launcher reads, so the verb reaches no custody store. The test is left in a
-// directory of its own: the verb enters the root, and the package's other
-// tests read the fixture by a relative path.
+// base, and returns its root. The issuer's port is in its document, and the
+// shared Keycloak's record says it answers at admin, as a start that ran it
+// would; the bootstrap admin password and every service client's secret come
+// from the environment the launcher reads, so the verb reaches no custody
+// store. The test is left in a directory of its own: the verb enters the
+// root, and the package's other tests read the fixture by a relative path.
 func syncFixture(t *testing.T, admin *stubAdmin) string {
 	t.Helper()
 	root, err := filepath.Abs(fixtureRoot)
@@ -43,6 +44,8 @@ func syncFixture(t *testing.T, admin *stubAdmin) string {
 	if err := writeIssuerPort(port); err != nil {
 		t.Fatal(err)
 	}
+	saveShared(&ServiceState{Container: sharedContainer("identity"), Provided: providedLauncher, Runtime: "container",
+		Endpoint: admin.srv.URL + keycloakHealthPath})
 	t.Setenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "pw")
 	for _, svc := range secretClients {
 		t.Setenv(serviceClientSecretEnv(svc), secretForTest(svc))
@@ -110,6 +113,24 @@ func TestIdentitySyncReportsARefusedAdminLogin(t *testing.T) {
 	harness.MustContainAll(t, "stderr", stderr, "admin")
 	if len(admin.created) != 0 {
 		t.Errorf("clients created after a refused login: %v", admin.created)
+	}
+}
+
+// The admin API is the shared Keycloak's, reached where the start that ran
+// it recorded it. With no record of it running, sync says so and reaches
+// nothing.
+func TestIdentitySyncNeedsTheSharedKeycloakRunning(t *testing.T) {
+	admin := newStubAdmin(t, fixtureKB(t).key(), nil)
+	root := syncFixture(t, admin)
+	forgetShared(sharedContainer("identity"))
+
+	code, _, stderr := identityOutput(t, "sync", "--root", root, "--config", "anthropic")
+	if code != 1 {
+		t.Fatalf("exit %d, want 1\nstderr:\n%s", code, stderr)
+	}
+	harness.MustContainAll(t, "stderr", stderr, "The shared Keycloak is not running", "semiont start")
+	if len(admin.paths) != 0 {
+		t.Errorf("the realm was reached with no Keycloak recorded: %v", admin.paths)
 	}
 }
 

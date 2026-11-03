@@ -35,12 +35,12 @@ For a new one, `semiont init` creates a knowledge base in the current directory 
 |---|---|---|
 | `record` | `gateway`, `archivist`, `dispatcher` and `messaging` (NATS) | each knowledge base's own |
 | `index` | `librarian`, `smelter`, `weaver`, `graph` (Neo4j) and `vectors` (Qdrant) | each knowledge base's own |
-| `issuer` | `identity` (Keycloak) and `identity-store` (its PostgreSQL), where people sign in | each knowledge base's own |
+| `issuer` | `identity` (Keycloak) and `identity-store` (its PostgreSQL), where people sign in, each knowledge base in a realm of its own | shared |
 | `knowledge-workers` | `browser`, where people work, and `worker`, which runs agents' jobs | shared |
 | `providers` | `inference` and `embedding`: Ollama, or a hosted provider's API | shared |
 | `telemetry` | `collector` (OpenTelemetry), `traces` (Jaeger) and `metrics` (Prometheus) | shared |
 
-A knowledge base is everything behind its gateway: its record, its index and its issuer, which it runs for itself. `status` shows each knowledge base with those three, then each shared group once. A shared service serves every knowledge base here, whichever start ran it: a start keeps a running one that is current, and `semiont stop` stops the shared services with the last knowledge base. Where a service runs (a container runtime, a codespace, a host process, somebody else's address) is a column of its row, not a section.
+A knowledge base is everything behind its gateway: its record and its index, which it runs for itself, and its realm at the issuer. `status` shows each knowledge base with its record, its index and its realm, then each shared group once. A shared service serves every knowledge base here, whichever start ran it: a start keeps a running one that is current, and `semiont stop` stops the shared services with the last knowledge base. Where a service runs (a container runtime, a codespace, a host process, somebody else's address) is a column of its row, not a section.
 
 ## Choose a config
 

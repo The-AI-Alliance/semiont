@@ -34,12 +34,18 @@ const kbRemotePort = 4000
 
 // allocatePort picks one of this stack's local ports — its KB (from 4000)
 // or its issuer (from 8080): base when free, else the lowest free port above
-// it. It skips every port a local stack claims, every forward other
-// codespace stacks hold, and live holders.
+// it. It skips every port a local stack claims, every port a shared container
+// claims (the shared Keycloak's among them), every forward other codespace
+// stacks hold, and live holders.
 func allocatePort(ss *StackSet, repo string, base int) int {
 	used := map[int]bool{}
 	for _, local := range localStacks(ss) {
 		for _, p := range local.Ports {
+			used[p] = true
+		}
+	}
+	for _, rec := range ss.Shared {
+		for _, p := range rec.Ports {
 			used[p] = true
 		}
 	}

@@ -8,17 +8,13 @@ container logs semiont-example.github.io-test-kb-archivist
 container logs semiont-example.github.io-test-kb-qdrant
 container logs semiont-example.github.io-test-kb-neo4j
 container logs semiont-example.github.io-test-kb-gateway
-container logs semiont-example.github.io-test-kb-keycloak
 container logs semiont-example.github.io-test-kb-nats
-container logs semiont-example.github.io-test-kb-postgres
 container list -a
 lsof -nP -iTCP:7474 -sTCP:LISTEN
 lsof -nP -iTCP:7687 -sTCP:LISTEN
 lsof -nP -iTCP:17687 -sTCP:LISTEN
 lsof -nP -iTCP:6333 -sTCP:LISTEN
-lsof -nP -iTCP:5432 -sTCP:LISTEN
 lsof -nP -iTCP:4222 -sTCP:LISTEN
-lsof -nP -iTCP:8080 -sTCP:LISTEN
 lsof -nP -iTCP:4000 -sTCP:LISTEN
 lsof -nP -iTCP:14000 -sTCP:LISTEN
 lsof -nP -iTCP:24101 -sTCP:LISTEN
@@ -35,14 +31,16 @@ container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest@sha256:<verif
 lsof -nP -iTCP:4318 -sTCP:LISTEN
 lsof -nP -iTCP:24110 -sTCP:LISTEN
 container run -d --name semiont-otel-collector --memory 1G -p 192.168.64.1:4318:4318 -p 192.168.64.1:24110:24110 --volume <state-home>/shared/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0@sha256:089a8b3c81d328a190f6f0740b30c15b0c7f1f2cfeadeb810355574d5158b31c
-container run -d --name semiont-example.github.io-test-kb-postgres --memory 1G -p 192.168.64.1:5432:5432 -v <data-home>/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
+lsof -nP -iTCP:5432 -sTCP:LISTEN
+container run -d --name semiont-postgres --memory 1G -p 192.168.64.1:5432:5432 -v <data-home>/shared/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_DB=keycloak -e POSTGRES_PASSWORD postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
 container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 192.168.64.1 5432
-container exec semiont-example.github.io-test-kb-postgres pg_isready -h 127.0.0.1 -q
+container exec semiont-postgres pg_isready -h 127.0.0.1 -q
+lsof -nP -iTCP:8080 -sTCP:LISTEN
+container exec -i semiont-postgres psql -U postgres -v ON_ERROR_STOP=1 -q
+container run -d --name semiont-keycloak --memory 1G -p 192.168.64.1:8080:8080 -e KC_DB_URL=jdbc:postgresql://192.168.64.1:5432/keycloak -e KC_HOSTNAME=http://192.168.64.1:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
+container exec --env KC_CLI_PASSWORD semiont-keycloak /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE --no-config --server http://localhost:8080 --realm master --user admin
 container run -d --name semiont-example.github.io-test-kb-nats --memory 512M -p 192.168.64.1:4222:4222 -v <data-home>/roots/example.github.io-test-kb/nats:/data -v <config-stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.15.2-alpine@sha256:823e7f1d6d8ffe3b30dbd73d4a06bbb939acf94929f7fdf224404da7a05bafb5 -js -sd /data -c /etc/nats/semiont.conf
 container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e nc -z -w 2 192.168.64.1 4222
-container exec -i semiont-example.github.io-test-kb-postgres psql -U postgres -v ON_ERROR_STOP=1 -q
-container run -d --name semiont-example.github.io-test-kb-keycloak --memory 1G -p 192.168.64.1:8080:8080 -e KC_DB_URL=jdbc:postgresql://192.168.64.1:5432/keycloak -e KC_HOSTNAME=http://192.168.64.1:8080 --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c start --http-enabled=true --hostname-backchannel-dynamic=true --cache=local
-container exec --env KC_CLI_PASSWORD semiont-example.github.io-test-kb-keycloak /opt/keycloak/bin/kcadm.sh update realms/master -s sslRequired=NONE --no-config --server http://localhost:8080 --realm master --user admin
 container run -d --name semiont-example.github.io-test-kb-gateway --publish 127.0.0.1:4000:4000 --publish 192.168.64.1:14000:4000 --memory 2G --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro -v <data-home>/roots/example.github.io-test-kb/gateway:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET --env JWT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest@sha256:<verified>
 container run --rm busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e sh -c wget -q -O- http://192.168.64.1:14000/api/health
 container run -d --name semiont-example.github.io-test-kb-neo4j --memory 2G -p 127.0.0.1:7474:7474 -p 127.0.0.1:7687:7687 -p 192.168.64.1:17687:7687 -v <data-home>/roots/example.github.io-test-kb/neo4j/data:/data -v <data-home>/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes -e NEO4J_AUTH neo4j:5.26.28-community@sha256:ff32db30b2baff97971e441b46bfd9c832c1b62c970398ef579244c06b21d357

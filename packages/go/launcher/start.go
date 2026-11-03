@@ -585,7 +585,10 @@ func Start(args []string) int {
 			needs = append(needs, servicePortNeeds(m.role, plan, browser, exposure{rt: rt, lan: lan})...) // nil-plan-safe (browser, traces)
 		}
 	} else {
-		needs = planPortChecks(plan, exposure{rt: rt, lan: lan}) // full start always has a plan
+		// The stack's, and the shared issuer's, which a full start (it always
+		// has a plan) claims when it runs the server rather than keeping it.
+		e := exposure{rt: rt, lan: lan}
+		needs = slices.Concat(planPortChecks(plan, e), rolePortNeeds(plan, "identity-store", e), rolePortNeeds(plan, "identity", e))
 	}
 	if refuseOtherStacks(u, LoadStackSet(), kb, st, plan, needs) {
 		return 1
@@ -673,10 +676,15 @@ func runningFor(u *UI, kb kbRoot, rt string, plan *launchPlan) (func(role string
 		return nil, false
 	}
 	return func(role string) bool {
-		if _, nothing := nothingToLaunch(plan, role); nothing {
+		rp, nothing := nothingToLaunch(plan, role)
+		switch {
+		case nothing:
 			return true
-		}
-		if v.st == nil && !sharedRole(role) && runsContainer(role) {
+		case role == "identity":
+			// The knowledge base's realm: the shared server answering for
+			// another knowledge base is not it.
+			return roleHealthy(role, healthEndpoint(role, rp.Driver, plan, v.at))
+		case v.st == nil && !sharedRole(role) && runsContainer(role):
 			return false
 		}
 		return readRow(v, role, ss.Shared).healthy
