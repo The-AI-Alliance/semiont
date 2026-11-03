@@ -217,24 +217,13 @@ button:disabled {
   height: 100vh;
 }
 
-/* The app's title bar: title left, "Powered by SEMIONT" right. In Electron the native
-   title bar is hidden, so this bar IS the draggable window handle — and it's padded left
-   to clear the macOS traffic-light buttons that float over its top-left. */
-.app__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.7rem 1.5rem;
-  border-bottom: 1px solid var(--border-soft);
+/* Keep only a narrow drag target for Electron's hidden native title bar. */
+.app__dragbar {
+  display: none;
 }
-.app__header h1 {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 500;
-  color: var(--text);
-}
-.app--electron .app__header {
-  padding-left: 5rem;
+.app--electron .app__dragbar {
+  display: block;
+  flex: 0 0 1.5rem;
   -webkit-app-region: drag;
 }
 
@@ -318,11 +307,27 @@ body.resizing {
 .nav {
   background: var(--surface-sidebar);
   padding: 0.9rem 0.75rem;
-  overflow-y: auto;
+  overflow: hidden;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+
+.nav__content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.nav__footer {
+  flex: 0 0 auto;
+  padding: 0.65rem 0.35rem 0.1rem;
+  border-top: 1px solid var(--border-soft);
 }
 
 .nav__head {
@@ -2252,7 +2257,7 @@ body.resizing {
 
 /* ── Dark-theme touch-ups for a few decorative hard-coded colours ─────────── */
 [data-theme='dark'] .app__powered-mark {
-  /* the light gradient (black → blue → black) is invisible on a dark header */
+  /* the light gradient (black → blue → black) is invisible on a dark sidebar */
   background: linear-gradient(to right, #cbd5e1, #60a5fa, #cbd5e1);
   background-clip: text;
   -webkit-background-clip: text;

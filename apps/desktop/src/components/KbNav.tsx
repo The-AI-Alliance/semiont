@@ -49,21 +49,29 @@ export function KbNav(props: KbNavProps) {
         </button>
       </div>
 
-      {adding && (
-        <AddKbForm
-          onAdd={(kb) => {
-            onAddKb(kb);
-            setAdding(false);
-          }}
-          onCancel={() => setAdding(false)}
-        />
-      )}
+      <div className="nav__content">
+        {adding && (
+          <AddKbForm
+            onAdd={(kb) => {
+              onAddKb(kb);
+              setAdding(false);
+            }}
+            onCancel={() => setAdding(false)}
+          />
+        )}
 
-      {kbs.length === 0 && !adding ? (
-        <p className="nav__empty">Add a knowledge base to get started.</p>
-      ) : (
-        kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)
-      )}
+        {kbs.length === 0 && !adding ? (
+          <p className="nav__empty">Add a knowledge base to get started.</p>
+        ) : (
+          kbs.map((kb) => <KbNavItem key={kb.uri} kb={kb} {...props} />)
+        )}
+      </div>
+
+      <div className="nav__footer">
+        <p className="app__powered">
+          Powered by <span className="app__powered-mark">Semiont</span>
+        </p>
+      </div>
     </nav>
   );
 }

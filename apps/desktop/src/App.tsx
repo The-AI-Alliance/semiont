@@ -395,12 +395,7 @@ export function App() {
   return (
     <>
       <div className={isElectron ? 'app app--electron' : 'app'}>
-        <header className="app__header">
-          <h1>{appTitle}</h1>
-          <p className="app__powered">
-            Powered by <span className="app__powered-mark">Semiont</span>
-          </p>
-        </header>
+        {isElectron && <div className="app__dragbar" aria-hidden="true" />}
         <div className="app__body" style={{ gridTemplateColumns: `${sidebarWidth}px 1px 1fr` }}>
           <KbNav
             kbs={config.kbs}
