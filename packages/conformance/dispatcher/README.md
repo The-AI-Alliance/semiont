@@ -5,8 +5,8 @@ them only as the rest of Semiont does: on the bus, through a real gateway, and
 at the health port. It checks what they do against the job protocol as
 [docs/protocol/JOBS.md](../../../docs/protocol/JOBS.md) states it, and against
 the schemas `specs/` gives every channel. It imports nothing from the
-dispatcher: the one line that names an implementation is `DISPATCHER_COMMAND`
-in [harness/paths.ts](../harness/paths.ts): the Rust binary
+dispatcher: what names an implementation is `dispatcher` in the run's
+[implementations file](../README.md#the-implementations-file): in Semiont's, the Rust binary
 `target/release/semiont-dispatcher`.
 
 ## The world around a dispatcher

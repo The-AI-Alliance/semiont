@@ -1004,7 +1004,7 @@ jobs:
   # ── The Rust binaries, built once ─────────────────────────────────────
   # The nine conformance suites start a gateway, and some a dispatcher, an
   # Archivist or the Rust SDK's three drivers, all from packages/rust/target/release
-  # (packages/conformance/harness/paths.ts). Each suite built its own: nine
+  # (packages/conformance/semiont.implementations.json). Each suite built its own: nine
   # release builds a run, twenty minutes of a pool of twenty against thirteen
   # of suites. This job builds the six binaries once and publishes them; the
   # suites fetch them and build nothing. It runs whenever any suite does: its
@@ -1705,7 +1705,7 @@ jobs:
           exit 1
 
       # The suite starts the Python Weaver by the interpreter of its project's
-      # locked environment (harness/paths.ts): the environment its image has, on
+      # locked environment (semiont.implementations.json): the environment its image has, on
       # the Python the SDK's floor names, without the development group, with
       # every database's client.
       - name: Setup Python
@@ -1806,7 +1806,7 @@ jobs:
           exit 1
 
       # The suite starts the Smelter by the interpreter of its project's locked
-      # environment (harness/paths.ts): the environment its image has, on the
+      # environment (semiont.implementations.json): the environment its image has, on the
       # Python the SDK's floor names, without the development group. It reads a
       # scanned page with the `tesseract` program, as its image does.
       - name: Setup Python
@@ -1934,7 +1934,7 @@ jobs:
 
       # The suite starts the Librarian, the Weaver and the Smelter by the
       # interpreters of their projects' locked environments
-      # (harness/paths.ts): the environments their images have, on the Python
+      # (semiont.implementations.json): the environments their images have, on the Python
       # the SDK's floor names, without the development group. The Librarian
       # and the Weaver have every database's client, and the Librarian every
       # provider's library. The Smelter reads a scanned page with the

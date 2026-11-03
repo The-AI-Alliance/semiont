@@ -7,8 +7,8 @@ processes read. It checks what they do against
 [docs/protocol/ARCHIVIST.md](../../../docs/protocol/ARCHIVIST.md), the schemas
 `specs/` gives every channel and every file, and the Archivist's
 [API](../../../specs/src/archivist/openapi.json). It imports nothing from the
-Archivist: the one line that names an implementation is `ARCHIVIST_COMMAND` in
-[harness/paths.ts](../harness/paths.ts): the Rust binary
+Archivist: what names an implementation is `archivist` in the run's
+[implementations file](../README.md#the-implementations-file): in Semiont's, the Rust binary
 `target/release/semiont-archivist`.
 
 ## The world around an Archivist

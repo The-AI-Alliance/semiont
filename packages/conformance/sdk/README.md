@@ -7,9 +7,9 @@ same file for every language. What differs per language is a **driver**, a
 small program that turns the suite's operations into calls on that SDK's
 public API and writes back what happened.
 
-The suite imports nothing from an SDK. The lines that name one are
-`SDK_DRIVERS` in [harness/paths.ts](../harness/paths.ts): how each of an SDK's
-drivers is started.
+The suite imports nothing from an SDK. What names one is its entry in `sdks`
+in the run's [implementations file](../README.md#the-implementations-file):
+how each of the SDK's drivers is started.
 
 | Layer | Holds an SDK to | Cases | Entry |
 |---|---|---|---|
@@ -342,7 +342,7 @@ A clause of CACHE-SEMANTICS that no case holds, and why:
 ## What an SDK cannot be put through
 
 An SDK's line may name wire cases its driver cannot run, each with why
-(`exempt` in `SDK_DRIVERS`). An exemption is held as a case is:
+(`exempt` in its entry in `sdks`). An exemption is held as a case is:
 `wire.test.ts` runs the case and requires the driver to answer `unsupported`
 to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
@@ -363,8 +363,8 @@ remembers.
 
 ## Adding an SDK
 
-Write a driver for each layer over the SDK's public API, add them to its line
-of `SDK_DRIVERS`, and run the suite. TypeScript's are
+Write a driver for each layer over the SDK's public API, name them in its
+entry in `sdks`, and run the suite. TypeScript's are
 [packages/typescript/http-transport/conformance/driver.ts](../../typescript/http-transport/conformance/driver.ts)
 for the wire and
 [packages/typescript/sdk/conformance/driver.ts](../../typescript/sdk/conformance/driver.ts)

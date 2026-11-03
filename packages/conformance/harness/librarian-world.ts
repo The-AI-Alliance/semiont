@@ -151,7 +151,7 @@ type Change = Partial<Pick<LibrarianLaunch, 'settings' | 'env'>>;
 
 interface Parts {
   kb: ArchivistWorld;
-  /** How the Librarian is started: its line of `LIBRARIAN_SERVICES`. */
+  /** How the Librarian is started: its entry in `librarianServices`. */
   command: readonly string[];
   settings: LibrarianSettings;
   env: LibrarianEnvironment;
@@ -209,7 +209,7 @@ export class LibrarianWorld {
     const vectorDatabase = inject('vectorDatabase');
     const weaverService = inject('weaverServices')['python'];
     const smelterCommand = inject('smelterServices')['python'];
-    if (!weaverService || !smelterCommand) throw new Error('the librarian suite starts the Python Weaver and the Python Smelter, and harness/paths.ts does not name both');
+    if (!weaverService || !smelterCommand) throw new Error('the librarian suite starts the Python Weaver and the Python Smelter, and the implementations file does not name both');
 
     const secrets = { librarian: randomBytes(24).toString('hex'), weaver: randomBytes(24).toString('hex'), smelter: randomBytes(24).toString('hex') };
     const kb = await ArchivistWorld.create({

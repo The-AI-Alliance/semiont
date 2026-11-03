@@ -7,8 +7,8 @@ anything from the implementation it checks (the weaver suite reads the graph
 by its own Cypher and its own reading of a row, and says why; the smelter
 suite reads the vector index by its own calls to Qdrant, and the librarian
 suite fills the graph and the index through a real Weaver and a real
-Smelter): [harness/paths.ts](harness/paths.ts)
-holds the one line per service, and per SDK, that names it, so the same cases
+Smelter). A run names what it tests in a file of its own
+([The implementations file](#the-implementations-file)), so the same cases
 judge any implementation of the same spec.
 
 | Suite | Checks | Run |
@@ -33,6 +33,27 @@ and a stand-in Anthropic, a stand-in embedding provider, a reader of the graph, 
 A case is here because checking it needs something running. A case a language
 checks by calling one of its own functions is a case table in `specs/`
 ([the rule](../../specs/README.md#case-tables)).
+
+## The implementations file
+
+A run names the implementations it tests in a JSON file, given after vitest's
+own arguments:
+
+```bash
+npx vitest run --project gateway -- --implementations mine.implementations.json
+```
+
+The npm scripts name [semiont.implementations.json](semiont.implementations.json),
+Semiont's own builds. There is no default: a run that names no file, or names
+one twice, refuses to start, and so does a file that is not of the shape
+[harness/implementations.ts](harness/implementations.ts) gives. The file names
+how a gateway, a dispatcher and an Archivist are started, each SDK's drivers,
+and each Worker service, Weaver, Smelter and Librarian. Each is the argument
+list the suite starts the process with; an argument that starts with `./` or
+`../` is a path, resolved against the file's own directory. An implementation
+built elsewhere writes a file beside its build and names that.
+`harness/implementations.test.ts`, which the gateway project runs, holds the
+reader to this, and Semiont's own file to the shape.
 
 ## Running them
 

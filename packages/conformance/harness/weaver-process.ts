@@ -1,7 +1,7 @@
 /**
  * Starting and stopping Weaver processes.
  *
- * A Weaver is one of `WEAVER_SERVICES`, its settings and an environment. Its
+ * A Weaver is one of the implementations file's `weaverServices`, its settings and an environment. Its
  * settings reach it as the protocol's configuration document (`WeaverConfig`),
  * at the path `--config` names, as every other service's do: the harness
  * writes that. The environment holds its service account, the graph
@@ -19,14 +19,8 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { collectLines } from './gateway';
 import { call } from './http';
+import type { WeaverService } from './implementations';
 import { runEnvironment } from './paths';
-
-/** How one implementation of the Weaver is started and reached. */
-export interface WeaverService {
-  command: readonly string[];
-  /** The port its health answers on, which the harness writes into its document. */
-  healthPort: number;
-}
 
 type WeaverDocument = components['schemas']['WeaverConfig'];
 

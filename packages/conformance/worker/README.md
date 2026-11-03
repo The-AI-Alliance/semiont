@@ -9,8 +9,8 @@ What differs per language is a **worker driver**, a small program that turns
 the suite's operations into calls on that SDK's worker surface and writes
 back what happened.
 
-The suite imports nothing from an SDK. The lines that name one are the
-`worker` entries of `SDK_DRIVERS` in [harness/paths.ts](../harness/paths.ts).
+The suite imports nothing from an SDK. What names one is the `worker` of its
+entry in `sdks`, in the run's [implementations file](../README.md#the-implementations-file).
 An SDK with no worker surface has no entry, and the suite does not run it.
 
 Its one entry is `worker.test.ts`: every case in [cases/](cases/), for every
@@ -183,8 +183,8 @@ report a handover.
 
 ## Adding an SDK
 
-Write a worker driver over the SDK's worker surface, add it as `worker` to
-the SDK's line of `SDK_DRIVERS`, and run the suite. TypeScript's is
+Write a worker driver over the SDK's worker surface, name it as `worker` in
+the SDK's entry in `sdks`, and run the suite. TypeScript's is
 [packages/typescript/sdk/conformance/worker-driver.ts](../../typescript/sdk/conformance/worker-driver.ts),
 Rust's is
 [semiont-worker-driver.rs](../../rust/http-transport/conformance/src/bin/semiont-worker-driver.rs),

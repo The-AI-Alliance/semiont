@@ -7,11 +7,12 @@ embedding provider and at its health port. It checks what the Smelter does
 against [docs/protocol/SMELTER.md](../../../docs/protocol/SMELTER.md).
 
 The suite imports nothing from a Smelter, and nothing a Smelter is built on.
-The lines that name one are `SMELTER_SERVICES` in
-[harness/paths.ts](../harness/paths.ts): today the Smelter in Python
-([`images/smelter`](../../../images/smelter/README.md)), run by the interpreter
-of its project's locked environment. Another implementation joins by adding
-its line, and every case runs against every entry.
+What names one is its entry in `smelterServices` in the run's
+[implementations file](../README.md#the-implementations-file). Semiont's names
+the Smelter in Python ([`images/smelter`](../../../images/smelter/README.md)),
+run by the interpreter of its project's locked environment. Another
+implementation joins by adding its entry, and every case runs against every
+entry.
 
 A Smelter is given its settings as the protocol's configuration document,
 [`SmelterConfig`](../../../specs/src/components/schemas/SmelterConfig.json),

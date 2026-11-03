@@ -1,7 +1,7 @@
 /**
  * Starting and stopping dispatcher processes.
  *
- * A dispatcher is `DISPATCHER_COMMAND`, `--config <document>` and an
+ * A dispatcher is the implementations file's `dispatcher`, `--config <document>` and an
  * environment. The document is the spec's `DispatcherConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
  * hand-edited rendering. The environment holds what

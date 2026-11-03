@@ -12,9 +12,9 @@ The [worker suite](../worker/README.md) beside it holds an SDK's claiming to
 driver. This one holds the service: how it boots, what it claims, what it asks
 a model, what it commits, how it ends a job, how it stops.
 
-The suite imports nothing from a Worker service. The lines that name one are
-`WORKER_SERVICES` in [harness/paths.ts](../harness/paths.ts): today Semiont's
-own, the Python service of `images/worker`, `python -P -m semiont_worker` by the
+The suite imports nothing from a Worker service. What names one is its entry
+in `workerServices` in the run's [implementations file](../README.md#the-implementations-file).
+Semiont's names its own, the Python service of `images/worker`, `python -P -m semiont_worker` by the
 interpreter of its project's environment (`images/worker/.venv`). Every case
 runs against every entry.
 
@@ -196,8 +196,9 @@ rule names exists, and every case is named by a rule.
 
 ## Adding an implementation
 
-Add its command to `WORKER_SERVICES` in
-[harness/paths.ts](../harness/paths.ts), and what builds it to
+Name its command in `workerServices` in an implementations file. One of
+Semiont's own goes in [semiont.implementations.json](../semiont.implementations.json),
+and what builds it in
 [harness/worker-service-setup.ts](../harness/worker-service-setup.ts). It is
 started as the one there is: `<command> --config <document>`, with the
 variables [WORKER-SERVICE.md § Environment](../../../docs/protocol/WORKER-SERVICE.md#environment)

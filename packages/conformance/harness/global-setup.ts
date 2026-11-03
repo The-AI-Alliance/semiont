@@ -13,12 +13,13 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
+import type { Implementations } from './implementations';
 import { REPO_ROOT } from './paths';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How a gateway is started: the configuration provides it. */
-    gatewayCommand: readonly string[];
+    gatewayCommand: Implementations['gateway'];
     specPath: string;
     archivistSpecPath: string;
   }

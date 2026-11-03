@@ -6,9 +6,9 @@ the graph it writes, on the bus, and at its health port. It checks what the
 Weaver does against
 [docs/protocol/WEAVER.md](../../../docs/protocol/WEAVER.md).
 
-The suite imports nothing from a Weaver. The lines that name one are
-`WEAVER_SERVICES` in [harness/paths.ts](../harness/paths.ts): today Semiont's
-own, the Python service of [`images/weaver`](../../../images/weaver/README.md),
+The suite imports nothing from a Weaver. What names one is its entry in
+`weaverServices` in the run's [implementations file](../README.md#the-implementations-file).
+Semiont's names its own, the Python service of [`images/weaver`](../../../images/weaver/README.md),
 started by the interpreter of its locked environment. Every case runs against
 every entry.
 

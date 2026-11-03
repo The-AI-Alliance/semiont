@@ -12,12 +12,13 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
+import type { Implementations } from './implementations';
 import { QDRANT_PORT, vectorIndex } from './qdrant';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How each implementation of the Smelter is started: the configuration provides them. */
-    smelterServices: Readonly<Record<string, readonly string[]>>;
+    smelterServices: Implementations['smelterServices'];
     /** Where the run's vector database is. */
     vectorDatabase: { host: string };
   }
@@ -30,7 +31,7 @@ const BUILDS: Readonly<Record<string, string>> = {
 
 export default async function setup(project: TestProject): Promise<void> {
   const services = project.getProvidedContext().smelterServices;
-  if (Object.keys(services).length === 0) throw new Error('harness/paths.ts names no Smelter: SMELTER_SERVICES is empty.');
+  if (Object.keys(services).length === 0) throw new Error('The implementations file names no Smelter: its `smelterServices` is empty.');
   for (const [implementation, command] of Object.entries(services)) {
     // Every file a command names by its path is what a build makes: the interpreter of an environment, for one.
     for (const built of command.filter((part) => isAbsolute(part))) {

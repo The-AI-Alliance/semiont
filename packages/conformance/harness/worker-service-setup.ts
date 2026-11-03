@@ -5,11 +5,12 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
+import type { Implementations } from './implementations';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How each implementation of the Worker service is started: the configuration provides them. */
-    workerServices: Readonly<Record<string, readonly string[]>>;
+    workerServices: Implementations['workerServices'];
   }
 }
 
@@ -20,7 +21,7 @@ const BUILDS: Readonly<Record<string, string>> = {
 
 export default function setup(project: TestProject): void {
   const services = project.getProvidedContext().workerServices;
-  if (Object.keys(services).length === 0) throw new Error('harness/paths.ts names no Worker service: WORKER_SERVICES is empty.');
+  if (Object.keys(services).length === 0) throw new Error('The implementations file names no Worker service: its `workerServices` is empty.');
   for (const [implementation, command] of Object.entries(services)) {
     // Every file a command names by its path is what a build makes: the interpreter of an environment, for one.
     for (const built of command.filter((part) => isAbsolute(part))) {

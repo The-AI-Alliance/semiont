@@ -1,7 +1,7 @@
 /**
  * Starting and stopping Worker service processes.
  *
- * A Worker service is one of `WORKER_SERVICES`, `--config <document>` and an
+ * A Worker service is one of the implementations file's `workerServices`, `--config <document>` and an
  * environment. The document is the spec's `WorkerConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
  * hand-edited rendering. The environment holds what
@@ -46,7 +46,7 @@ export const READ_FROM_THE_ENVIRONMENT = [
 ] as const;
 
 export interface WorkerLaunch {
-  /** How this implementation is started: one of `WORKER_SERVICES`. */
+  /** How this implementation is started: one of the implementations file's `workerServices`. */
   command: readonly string[];
   settings: WorkerSettings;
   env: WorkerEnvironment;

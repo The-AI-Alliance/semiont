@@ -28,7 +28,8 @@ import { isRow, isStrings, readAnnotation, readResource, type Row } from './grap
 import { eventually } from './net';
 import { SERVICE_ROLE } from './roles';
 import type { BusStream } from './stream';
-import { refusedWeaverBoot, startWeaver, type WeaverEnvironment, type WeaverLaunch, type WeaverProcess, type WeaverService, type WeaverSettings } from './weaver-process';
+import { refusedWeaverBoot, startWeaver, type WeaverEnvironment, type WeaverLaunch, type WeaverProcess, type WeaverSettings } from './weaver-process';
+import type { WeaverService } from './implementations';
 import { endCase } from './world';
 
 /** The Weaver's service account at the issuer. */

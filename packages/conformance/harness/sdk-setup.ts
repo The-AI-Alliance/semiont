@@ -8,13 +8,14 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
-import { REPO_ROOT, type SdkDrivers } from './paths';
+import type { Implementations } from './implementations';
+import { REPO_ROOT } from './paths';
 import { makePythonSdkEnvironment } from './python-sdk';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** Each SDK's drivers: the configuration provides them. */
-    sdkDrivers: Readonly<Record<string, SdkDrivers>>;
+    sdkDrivers: Implementations['sdks'];
   }
 }
 

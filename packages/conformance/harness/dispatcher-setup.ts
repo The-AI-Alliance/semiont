@@ -4,11 +4,12 @@
  */
 import { existsSync } from 'node:fs';
 import type { TestProject } from 'vitest/node';
+import type { Implementations } from './implementations';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How a dispatcher is started: the configuration provides it. */
-    dispatcherCommand: readonly string[];
+    dispatcherCommand: Implementations['dispatcher'];
   }
 }
 

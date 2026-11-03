@@ -5,9 +5,9 @@ over HTTP, and checks what they answer against the protocol as `specs/`
 states it — the OpenAPI document, the bus registry — and as
 [docs/protocol/TRANSPORT-HTTP.md](../../../docs/protocol/TRANSPORT-HTTP.md)
 states the semantics a schema cannot hold. It imports nothing from the
-gateway: the one line that names an implementation is `GATEWAY_COMMAND` in
-[harness/paths.ts](../harness/paths.ts), which [vitest.config.ts](../vitest.config.ts)
-provides to the cases: the Rust gateway's binary, built in `images/gateway`.
+gateway: what names an implementation is `gateway` in the run's
+[implementations file](../README.md#the-implementations-file), which [vitest.config.ts](../vitest.config.ts)
+provides to the cases: in Semiont's, the Rust gateway's binary, built in `images/gateway`.
 
 Every case runs against a gateway on each signal plane — in-process, and NATS
 with a real `nats-server` — except the ones that need a broker (replicas, a

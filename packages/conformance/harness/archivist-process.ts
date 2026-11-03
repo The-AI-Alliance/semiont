@@ -1,7 +1,7 @@
 /**
  * Starting and stopping Archivist processes.
  *
- * An Archivist is `ARCHIVIST_COMMAND`, `--config <document>` and an
+ * An Archivist is the implementations file's `archivist`, `--config <document>` and an
  * environment. The document is the spec's `ArchivistConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
  * hand-edited rendering. The environment holds what

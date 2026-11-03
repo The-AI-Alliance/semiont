@@ -1,7 +1,7 @@
 /**
  * Starting and stopping gateway processes.
  *
- * A gateway is `GATEWAY_COMMAND`, `--config <document>` and an environment. The document is `GatewaySettings`, the spec's own type with the
+ * A gateway is the implementations file's `gateway`, `--config <document>` and an environment. The document is `GatewaySettings`, the spec's own type with the
  * fields a case may delete made optional; `writeConfiguration` renders it into
  * the file the gateway reads, and a case that needs a broken configuration
  * edits the settings, never the rendering. The environment holds only what

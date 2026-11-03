@@ -583,7 +583,7 @@ export class WorkerServiceWorld extends StandInKnowledgeBase {
 
   static async create(implementation: string): Promise<WorkerServiceWorld> {
     const command = inject('workerServices')[implementation];
-    if (!command) throw new Error(`harness/paths.ts names no Worker service ${implementation}`);
+    if (!command) throw new Error(`The implementations file names no Worker service ${implementation}`);
     // The worker proves itself with a key: each issuer holds the public half, the worker's environment the private.
     const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
     const key = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();

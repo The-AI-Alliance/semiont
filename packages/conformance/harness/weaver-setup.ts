@@ -12,12 +12,12 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
-import type { WeaverService } from './weaver-process';
+import type { Implementations } from './implementations';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How each implementation of the Weaver is started: the configuration provides them. */
-    weaverServices: Readonly<Record<string, WeaverService>>;
+    weaverServices: Implementations['weaverServices'];
     /** Where the run's graph database is. */
     graphDatabase: { host: string; password: string };
   }
@@ -30,7 +30,7 @@ const BUILDS: Readonly<Record<string, string>> = {
 
 export default function setup(project: TestProject): void {
   const services = project.getProvidedContext().weaverServices;
-  if (Object.keys(services).length === 0) throw new Error('harness/paths.ts names no Weaver: WEAVER_SERVICES is empty.');
+  if (Object.keys(services).length === 0) throw new Error('The implementations file names no Weaver: its `weaverServices` is empty.');
   for (const [implementation, service] of Object.entries(services)) {
     for (const built of service.command.filter((part) => isAbsolute(part))) {
       if (!existsSync(built)) {

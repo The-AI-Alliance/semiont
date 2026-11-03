@@ -1,7 +1,7 @@
 /**
  * Starting and stopping Smelter processes.
  *
- * A Smelter is one of `SMELTER_SERVICES`, its settings and an environment.
+ * A Smelter is one of the implementations file's `smelterServices`, its settings and an environment.
  * The settings are what SMELTER.md § Settings says a Smelter is told. The
  * harness writes them as the protocol's configuration document
  * (`SmelterConfig`), into a home directory of the process's own, and starts
@@ -99,7 +99,7 @@ export interface SmelterHealth {
 }
 
 export interface SmelterLaunch {
-  /** How the Smelter is started: its line of `SMELTER_SERVICES`. */
+  /** How the Smelter is started: its entry in `smelterServices`. */
   command: readonly string[];
   settings: SmelterSettings;
   env: SmelterEnvironment;

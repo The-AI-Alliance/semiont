@@ -6,12 +6,14 @@ Semiont does: on the bus, at its providers, and at its health port. It checks
 what the Librarian does against
 [docs/protocol/LIBRARIAN.md](../../../docs/protocol/LIBRARIAN.md).
 
-The suite imports nothing from a Librarian. The lines that name one are
-`LIBRARIAN_SERVICES` in [harness/paths.ts](../harness/paths.ts): today the
-Librarian in Python ([`images/librarian`](../../../images/librarian/README.md)),
+The suite imports nothing from a Librarian. What names one is its entry in
+`librarianServices` in the run's
+[implementations file](../README.md#the-implementations-file). Semiont's names
+the Librarian in Python ([`images/librarian`](../../../images/librarian/README.md)),
 run by the interpreter of its project's locked environment. Another
-implementation joins by adding its line, and every case runs against every
-entry.
+implementation joins by adding its entry, and every case runs against every
+entry. The Weaver and the Smelter it starts are the file's `python` entries in
+`weaverServices` and `smelterServices`.
 
 A Librarian writes nothing, so the suite reads no store to judge it. What a
 Librarian reads, the graph and the vector index, is written here by the two

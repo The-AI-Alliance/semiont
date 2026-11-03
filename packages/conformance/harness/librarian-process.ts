@@ -1,7 +1,7 @@
 /**
  * Starting and stopping Librarian processes.
  *
- * A Librarian is one of `LIBRARIAN_SERVICES`, its settings and an
+ * A Librarian is one of the implementations file's `librarianServices`, its settings and an
  * environment. The settings are what LIBRARIAN.md § Settings says a Librarian
  * is told. The harness writes them as the protocol's configuration document
  * (`LibrarianConfig`), into a home directory of the process's own, and starts
@@ -70,7 +70,7 @@ export interface LibrarianHealth {
 }
 
 export interface LibrarianLaunch {
-  /** How the Librarian is started: its line of `LIBRARIAN_SERVICES`. */
+  /** How the Librarian is started: its entry in `librarianServices`. */
   command: readonly string[];
   settings: LibrarianSettings;
   env: LibrarianEnvironment;

@@ -14,12 +14,13 @@
 import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
+import type { Implementations } from './implementations';
 import { QDRANT_PORT, vectorIndex } from './qdrant';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How each implementation of the Librarian is started: the configuration provides them. */
-    librarianServices: Readonly<Record<string, readonly string[]>>;
+    librarianServices: Implementations['librarianServices'];
   }
 }
 
@@ -37,7 +38,7 @@ function built(what: string, command: readonly string[], build: string | undefin
 
 export default async function setup(project: TestProject): Promise<void> {
   const provided = project.getProvidedContext();
-  if (Object.keys(provided.librarianServices).length === 0) throw new Error('harness/paths.ts names no Librarian: LIBRARIAN_SERVICES is empty.');
+  if (Object.keys(provided.librarianServices).length === 0) throw new Error('The implementations file names no Librarian: its `librarianServices` is empty.');
   for (const [implementation, command] of Object.entries(provided.librarianServices)) built(`${implementation} Librarian`, command, LIBRARIAN_BUILDS[implementation]);
   for (const [implementation, service] of Object.entries(provided.weaverServices)) built(`${implementation} Weaver`, service.command, WEAVER_BUILDS[implementation]);
   for (const [implementation, command] of Object.entries(provided.smelterServices)) built(`${implementation} Smelter`, command, SMELTER_BUILDS[implementation]);

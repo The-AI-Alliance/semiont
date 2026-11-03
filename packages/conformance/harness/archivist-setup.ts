@@ -5,11 +5,12 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import type { TestProject } from 'vitest/node';
+import type { Implementations } from './implementations';
 
 declare module 'vitest' {
   export interface ProvidedContext {
     /** How an Archivist is started: the configuration provides it. */
-    archivistCommand: readonly string[];
+    archivistCommand: Implementations['archivist'];
   }
 }
 

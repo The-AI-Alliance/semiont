@@ -1,0 +1,47 @@
+{
+  "gateway": ["../../packages/rust/target/release/semiont-gateway"],
+  "dispatcher": ["../../packages/rust/target/release/semiont-dispatcher"],
+  "archivist": ["../../packages/rust/target/release/semiont-archivist"],
+  "sdks": {
+    "typescript": {
+      "wire": ["node", "../../packages/typescript/http-transport/conformance/driver.ts"],
+      "live": { "command": ["node", "../../packages/typescript/sdk/conformance/driver.ts"], "tier": "parity" },
+      "worker": ["node", "../../packages/typescript/sdk/conformance/worker-driver.ts"]
+    },
+    "rust": {
+      "wire": ["../../packages/rust/target/release/semiont-wire-driver"],
+      "live": { "command": ["../../packages/rust/target/release/semiont-live-driver"], "tier": "parity" },
+      "worker": ["../../packages/rust/target/release/semiont-worker-driver"]
+    },
+    "python": {
+      "wire": ["../../packages/python/sdk/.venv/bin/python", "../../packages/python/sdk/conformance/wire.py"],
+      "live": {
+        "command": ["../../packages/python/sdk/.venv/bin/python", "../../packages/python/sdk/conformance/live.py"],
+        "tier": "parity"
+      },
+      "worker": ["../../packages/python/sdk/.venv/bin/python", "../../packages/python/sdk/conformance/worker.py"]
+    },
+    "go": {
+      "wire": ["../../packages/go/sdk/conformance/bin/semiont-go-wire-driver"],
+      "live": { "command": ["../../packages/go/sdk/conformance/bin/semiont-go-live-driver"], "tier": "parity" },
+      "worker": ["../../packages/go/sdk/conformance/bin/semiont-go-worker-driver"]
+    },
+    "kotlin": {
+      "wire": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-wire-driver"],
+      "live": { "command": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-live-driver"], "tier": "parity" },
+      "worker": ["../../packages/kotlin/sdk/build/conformance/bin/semiont-kotlin-worker-driver"]
+    }
+  },
+  "workerServices": {
+    "python": ["../../images/worker/.venv/bin/python", "-P", "-m", "semiont_worker"]
+  },
+  "weaverServices": {
+    "python": { "command": ["../../images/weaver/.venv/bin/python", "-P", "-m", "semiont_weaver"], "healthPort": 24102 }
+  },
+  "smelterServices": {
+    "python": ["../../images/smelter/.venv/bin/python", "-P", "-m", "semiont_smelter"]
+  },
+  "librarianServices": {
+    "python": ["../../images/librarian/.venv/bin/python", "-P", "-m", "semiont_librarian"]
+  }
+}
