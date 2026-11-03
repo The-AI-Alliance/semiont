@@ -3433,6 +3433,37 @@ func TestCleanOfARealmRunsTheSharedIssuerForTheDelete(t *testing.T) {
 	}
 }
 
+// An issuer whose PostgreSQL somebody else runs may hold realms the launcher
+// cannot see, so a realm's clean runs its Keycloak alone for the delete,
+// handed the password the issuer's document names, and refuses, running
+// nothing, while that variable is unset.
+func TestCleanOfARealmRunsKeycloakAloneOnAnExternalDatabase(t *testing.T) {
+	s := newScenario(t, "container")
+	externalDatabase(t, s)
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "clean", "--store", "identity-store")
+	if code != 1 {
+		t.Fatalf("clean with the database's password unset: exit %d, want 1\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "the refusal", stderr, "name the variable EXT_PG (fromEnv), and it is not set in the environment.")
+	mustNotContain(t, "the refusal's runtime calls", strings.TrimPrefix(s.argv(t), before), "run -d")
+
+	s.extraEnv = append(s.extraEnv, "EXT_PG=pgsecret")
+	before = s.argv(t)
+	stdout, stderr, code = s.run(t, "clean", "--store", "identity-store")
+	if code != 0 {
+		t.Fatalf("clean: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the clean", stdout, "No realm "+testKBKey+" at the shared issuer", "Stopped semiont-keycloak, which this clean ran for the delete.")
+	argv := strings.TrimPrefix(s.argv(t), before)
+	// The password is handed by name, never on the command line.
+	mustContain(t, "the clean's runtime calls", argv, "--name semiont-keycloak", "KC_DB_URL=jdbc:postgresql://db.example.com:5432/keycloak", "-e KC_DB_PASSWORD ")
+	mustNotContain(t, "the clean's runtime calls", argv, "--name semiont-postgres", "pgsecret")
+	if got := argvStops(argv); !slices.Contains(got, "semiont-keycloak") || slices.Contains(got, "semiont-postgres") {
+		t.Errorf("the clean stopped %q, want the Keycloak it ran alone", got)
+	}
+}
+
 // A shared Keycloak recorded as running that does not answer may be another
 // knowledge base's issuer, so a clean of a realm refuses rather than run one in
 // its place, and names the stop after which it would.
