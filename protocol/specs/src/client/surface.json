@@ -1324,7 +1324,9 @@
     {
       "module": "hostName",
       "docs": "Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json.",
-      "notYetReached": {"csharp": "C# is still to implement the hostName module.", "swift": "The Swift SDK's hostName: Whether a host is one a knowledge base's HTTP endpoint may name. Held by protocol/specs/src/session/gateway-url-cases.json."},
+      "notYetReached": {
+        "csharp": "C# is still to implement the hostName module."
+      },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1340,6 +1342,9 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/http"
+        ],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Session/Identity.swift"
         ]
       },
       "members": [
@@ -1352,7 +1357,9 @@
     {
       "module": "tokens",
       "docs": "What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json.",
-      "notYetReached": {"csharp": "C# is still to implement the tokens module.", "swift": "The Swift SDK's tokens: What a session reads of an access token: a claim it names as text, when it expires, whether it has, and when to renew it. Held by protocol/specs/src/session/cases.json."},
+      "notYetReached": {
+        "csharp": "C# is still to implement the tokens module."
+      },
       "where": {
         "typescript": [
           "packages/typescript/sdk/src/session/storage.ts"
@@ -1369,6 +1376,9 @@
         ],
         "kotlin": [
           "packages/kotlin/sdk/src/main/kotlin/semiont/session"
+        ],
+        "swift": [
+          "packages/swift/sdk/Sources/Semiont/Session/Tokens.swift"
         ]
       },
       "members": [
