@@ -93,8 +93,11 @@ if args and args[0]=='exec' and 'python3' in args:
         return [
             args
             for args in calls
-            if not any("semiont-python-tools-" in arg for arg in args)
-            or any(arg.endswith("package-signatures.py") for arg in args)
+            if args != ["info"]
+            and (
+                not any("semiont-python-tools-" in arg for arg in args)
+                or any(arg.endswith("package-signatures.py") for arg in args)
+            )
         ]
 
     def test_help_and_dry_run_are_side_effect_free(self):
@@ -151,6 +154,19 @@ if args and args[0]=='exec' and 'python3' in args:
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("one public operation", result.stderr)
         self.assertFalse(self.log.exists())
+
+    def test_stopped_explicit_runtime_fails_before_preparing_build_state(self):
+        self.engine.write_text(
+            self.engine.read_text() + "\nif args == ['info']: sys.exit(7)\n"
+        )
+        for operation in ("plan", "packages", "desktop", "generate-bus"):
+            result = self.run_make(operation)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Selected runtime", result.stderr)
+            self.assertIn("not responding", result.stderr)
+        self.assertFalse(self.cache.exists())
+        calls = [json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertTrue(all(call == ["info"] for call in calls), calls)
 
     def test_failed_package_does_not_record_success(self):
         self.engine.write_text(
