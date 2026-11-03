@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { constants, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { access } from 'node:fs/promises';
 import { delimiter, dirname, join } from 'node:path';
 import { parseAppManifest } from '../src/lib/app-manifest';
 import type { LauncherStatusResult } from '../src/lib/launcher-bridge';
@@ -64,6 +65,23 @@ function runLauncher(args: string[]): Promise<LauncherStatusResult> {
 
 ipcMain.handle('launcher:status', () => runLauncher(['status']));
 ipcMain.handle('launcher:about', () => runLauncher(['about']));
+
+ipcMain.handle('system:git-path', async () => {
+  const pathValue = launcherEnvironment().PATH ?? '';
+  const executableNames = process.platform === 'win32' ? ['git.exe', 'git.cmd', 'git.bat'] : ['git'];
+  for (const directory of pathValue.split(delimiter).filter(Boolean)) {
+    for (const executableName of executableNames) {
+      const candidate = join(directory, executableName);
+      try {
+        await access(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // Keep looking through the same PATH Desktop gives the launcher.
+      }
+    }
+  }
+  return null;
+});
 
 function setApplicationMenu(): void {
   const appMenu: MenuItemConstructorOptions[] = [

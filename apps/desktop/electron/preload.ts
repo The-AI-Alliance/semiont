@@ -63,5 +63,6 @@ const launcherBridge: LauncherBridge = {
   },
   status: () => ipcRenderer.invoke('launcher:status'),
   about: () => ipcRenderer.invoke('launcher:about'),
+  gitPath: () => ipcRenderer.invoke('system:git-path'),
 };
 contextBridge.exposeInMainWorld('launcherBridge', launcherBridge);

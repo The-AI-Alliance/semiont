@@ -29,6 +29,7 @@ import { ThemePanel } from './components/ThemePanel';
 import { LauncherStatusModal, type LauncherStatusState } from './components/LauncherStatusModal';
 import { TelemetryModal } from './components/TelemetryModal';
 import { RuntimeModal } from './components/RuntimeModal';
+import { GitModal, type GitCheck } from './components/GitModal';
 import { AppFooter, type KbDisplay } from './components/AppFooter';
 import { ChatPane, type LogEntry } from './components/ChatPane';
 import { ResourceView } from './components/ResourceView';
@@ -95,6 +96,8 @@ export function App() {
   const [telemetryLinks, setTelemetryLinks] = useState<TelemetryLinks>(DEFAULT_TELEMETRY_LINKS);
   const [showRuntime, setShowRuntime] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<RuntimeInfo | null>(null);
+  const [showGit, setShowGit] = useState(false);
+  const [gitCheck, setGitCheck] = useState<GitCheck>({ status: 'checking' });
   const [theme, setTheme] = useState<Theme>('system');
 
   const refreshLauncherStatus = useCallback(() => {
@@ -145,6 +148,20 @@ export function App() {
     void Promise.all([bridge.status(), bridge.about()]).then(
       ([status, about]) => setRuntimeInfo(runtimeInfoFromLauncher(status, about)),
       () => setRuntimeInfo({ active: [], detected: [], statusAvailable: false }),
+    );
+  }, []);
+
+  const openGit = useCallback(() => {
+    setShowGit(true);
+    setGitCheck({ status: 'checking' });
+    const bridge = window.launcherBridge;
+    if (bridge === undefined) {
+      setGitCheck({ status: 'unavailable' });
+      return;
+    }
+    void bridge.gitPath().then(
+      (path) => setGitCheck(path === null ? { status: 'missing' } : { status: 'found', path }),
+      () => setGitCheck({ status: 'unavailable' }),
     );
   }, []);
 
@@ -484,6 +501,7 @@ export function App() {
             onOpenLauncherStatus={refreshLauncherStatus}
             onOpenTelemetry={openTelemetry}
             onOpenRuntime={openRuntime}
+            onOpenGit={openGit}
           />
           <div
             className="app__resizer"
@@ -523,6 +541,7 @@ export function App() {
       )}
       {showTelemetry && <TelemetryModal links={telemetryLinks} onClose={() => setShowTelemetry(false)} />}
       {showRuntime && <RuntimeModal info={runtimeInfo} onClose={() => setShowRuntime(false)} />}
+      {showGit && <GitModal check={gitCheck} onClose={() => setShowGit(false)} />}
     </>
   );
 }

@@ -387,6 +387,35 @@ button:disabled {
   font-size: 0.68rem;
   font-weight: 400;
 }
+.git-modal {
+  max-width: 38rem;
+}
+.git-modal__check {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sidebar);
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.git-modal__check p {
+  margin: 0;
+}
+.git-modal__check code {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.git-modal__available {
+  color: var(--success);
+}
+.git-modal__missing {
+  color: var(--danger);
+}
 @media (max-width: 560px) {
   .telemetry-service,
   .telemetry-modal__collector {

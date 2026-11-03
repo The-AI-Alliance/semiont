@@ -8,4 +8,5 @@ export interface LauncherBridge {
   onStatusRequested(listener: () => void): () => void;
   status(): Promise<LauncherStatusResult>;
   about(): Promise<LauncherStatusResult>;
+  gitPath(): Promise<string | null>;
 }
