@@ -32,13 +32,13 @@ help:
 	  'make desktop                  Build the installer for the caller OS' \
 	  'make desktop-macos            Build the macOS arm64 DMG (macOS host)' \
 	  'make desktop-linux            Build the Linux x64 Debian package' \
-	  'make generate[-GROUP]         Regenerate output (bus, typescript, python, go,' \
-	  '                              stack-go, mcp-tools-go, discovery-go, encoding-cases, model-catalogue)' \
+	  'make generate[-GROUP]         Regenerate output; groups are listed below' \
 	  'make check-generated[-GROUP]  Check generated output without repairing committed files' \
 	  'make smoke                    Boot/check a real stack and run e2e (SMOKE_TAG=local)' \
 	  'Selectors: PACKAGE_NAMES=language/name,... IMAGE_NAMES=browser,... FORCE=1 FANOUT=0' \
 	  'Runtime: CONTAINER_RUNTIME=container|docker|podman; LAYER_CACHE=directory (Docker)' \
-	  'Host: GNU Make >=3.81, Bash, Git, Python 3, container runtime and platform utilities.'
+	  'Host: GNU Make >=3.81, Bash, Git, curl, container runtime and platform utilities.'
+	@printf 'Codegen groups: '; tr '\n' ' ' < $(call quote,$(BUILD_ROOT)/packages/codegen/groups.txt); printf '\n'
 
 local-build packages images-only launcher plan npm-publish-local:
 	@bash $(call quote,$(BUILD_ROOT)/images/scripts/build-session.sh) $@ $(build_arguments)
@@ -51,11 +51,11 @@ smoke:
 
 .PHONY: generate check-generated
 generate check-generated:
-	@python3 $(call quote,$(BUILD_ROOT)/packages/codegen/run.py) $@
+	@bash $(call quote,$(BUILD_ROOT)/packages/codegen/run.sh) $@
 
 # The owner helper validates group names; this avoids a second roster in Make.
 generate-% check-generated-%: codegen-force
-	@python3 $(call quote,$(BUILD_ROOT)/packages/codegen/run.py) $@
+	@bash $(call quote,$(BUILD_ROOT)/packages/codegen/run.sh) $@
 
 .PHONY: codegen-force
 codegen-force:

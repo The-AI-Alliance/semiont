@@ -1,125 +1,41 @@
-# Contributing to Semiont: orientation
+# Contributing to Semiont
 
 [![CI](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/The-AI-Alliance/semiont/actions/workflows/ci.yml?query=branch%3Amain)
 
-A contributor changes Semiont itself: fixes a bug, adds a feature, writes a driver, improves a doc. These pages say where the code lives, how to build and run a change, how it is tested, and how it is released.
+Start with [CONTRIBUTING.md](../../CONTRIBUTING.md) for branches, pull requests and review.
+The [architecture](../architecture/README.md) explains the system; the
+[protocol](../protocol/README.md) defines what its implementations agree on.
 
-The process around a change (forks, branches, pull requests, review) is in **[CONTRIBUTING.md](../../CONTRIBUTING.md)**. How Semiont works inside is in **[../architecture/](../architecture/README.md)**, and what its parts agree on is in **[../protocol/](../protocol/README.md)**. Read those before changing behavior.
+## Build with Make
 
-## What you need
+The root [Makefile](../../Makefile) is the public command menu for this monorepo:
 
-GNU Make 3.81 or newer, Bash, Git, Python 3, curl and a container runtime (Apple `container`, Docker or Podman). Language toolchains run in containers: [`make local-build`](../../Makefile) builds every package, every image and the launcher inside containers. See [Local Development](LOCAL-DEVELOPMENT.md).
-
-To run tools directly on your machine instead, the versions are:
-
-| Toolchain | Version | Stated in |
-|---|---|---|
-| Node.js | the floor `engines` states; CI and the scripts run the version [`.node-version`](../../.node-version) names | [`package.json`](../../package.json) |
-| Python | the floor, `requires-python` | [`pyproject.toml`](../../packages/python/sdk/pyproject.toml) of the Python SDK |
-| Rust | the pinned channel | [`rust-toolchain.toml`](../../packages/rust/rust-toolchain.toml) |
-| Go | the `toolchain` line | `go.mod` in [`apps/launcher`](../../apps/launcher/go.mod), [`packages/go/launcher`](../../packages/go/launcher/go.mod) and [`packages/go/sdk`](../../packages/go/sdk/go.mod) |
-| .NET SDK | the exact SDK version | [global.json](../../packages/csharp/sdk/global.json) of the C# SDK |
-| JDK | the major version | [`.java-version`](../../packages/kotlin/sdk/.java-version) of the Kotlin SDK |
-| Swift | the Swift toolchain | [`.swift-version`](../../packages/swift/sdk/.swift-version) of the Swift SDK |
-| Gradle | the distribution its wrapper names; `./gradlew` fetches it | [`gradle-wrapper.properties`](../../packages/kotlin/sdk/gradle/wrapper/gradle-wrapper.properties) of the Kotlin SDK |
-| Kotlin | `kotlin` in its version catalog | [`libs.versions.toml`](../../packages/kotlin/sdk/gradle/libs.versions.toml) of the Kotlin SDK |
-
-## Toolchains, one spec
-
-The repository holds code in seven languages, and none of them depends on another. What they agree on is in `specs/`, and each generates its types from it.
-
-- **npm workspaces** (`apps/*`, `images/*`, `packages/*`, `docs/checks/doc-snippets`): the TypeScript packages, which are the client side, and the Browser.
-- **A Cargo workspace**: the gateway, the dispatcher, the Archivist, and the Rust SDK's crates.
-- **Two Go modules**: the launcher (`apps/launcher`) and the Go SDK (`packages/go/sdk`).
-- **A .NET solution**: the C# SDK (`packages/csharp/sdk`), with compiler and analyzer gates.
-- **A SwiftPM package**: the Swift SDK (`packages/swift/sdk`).
-- **A Gradle build**: the Kotlin SDK (`packages/kotlin/sdk`).
-- **Nine Python projects**: the Python SDK (`packages/python/sdk`), the four packages the Python services are built on, and the Worker, the Weaver, the Smelter and the Librarian (`images/worker`, `images/weaver`, `images/smelter`, `images/librarian`). Each has an environment of its own, which is `uv`'s.
-
-[Package Architecture](../architecture/PACKAGE-ARCHITECTURE.md) draws both dependency graphs and says what each service image runs.
-
-## Repository layout
-
-```text
-semiont/
-├── specs/                  # The spec every implementation is built against
-│   └── src/                #   OpenAPI paths and schemas, the bus registry, and the
-│                           #   shared case tables (principals, retry, media types, …)
-├── images/
-│   ├── gateway/            # Rust: verifies tokens, relays the bus, proxies content
-│   ├── dispatcher/         # Rust: owns the job queue
-│   ├── archivist/          # Rust: keeps the record — event log, content, views
-│   ├── librarian/          # Python: answers what needs the graph, the vector index or a model
-│   ├── worker/             # Python: claims jobs and runs them against a model
-│   ├── weaver/             # Python: keeps the graph in step with the record
-│   ├── smelter/            # Python: keeps the vector index in step with the record, and derives a PDF's text
-│   ├── browser/            # The Semiont Browser: a Vite + React single-page app
-│   ├── e2e/                # Independent Playwright suite, against a live stack
-│   └── tests/stack/        # Real-stack smoke tests
-├── apps/
-│   ├── desktop/            # Native chat client (Electron)
-│   └── launcher/           # Go: the `semiont` command, built on go/launcher
-├── packages/
-│   ├── codegen/            # Shared bus and schema generators; specs/ holds their inputs
-│   ├── conformance/        # Independent shared black-box service and SDK suites
-│   ├── typescript/         # The npm packages: tsconfig.base.json, vitest.shared.config.ts
-│   │   ├── core/           # Generated types, typed ids, the bus protocol
-│   │   ├── sdk/            # The TypeScript SDK
-│   │   ├── http-transport/ # The SDK's transport over a gateway
-│   │   ├── react-ui/       # React components and hooks
-│   │   └── observability/  # Tracing and metrics for the TypeScript transport
-│   ├── rust/               # The Rust workspace: Cargo.toml, Cargo.lock, rust-toolchain.toml, deny.toml
-│   │   ├── sdk/            # The Rust SDK (crate `semiont`), with
-│   │   ├── http-transport/ telemetry/ codegen/
-│   │   └── core/ observability/ http-service/    # what the Rust services share
-│   ├── go/sdk/             # The Go SDK
-│   ├── go/launcher/        # The launcher's libraries: its engine, the verbs, the fake runtime its tests drive
-│   ├── python/sdk/         # The Python SDK (package `semiont`)
-│   ├── python/inference/   # The model providers a Python service asks (package `semiont_inference`)
-│   ├── python/graph/       # The graph databases a Python service writes and reads (package `semiont_graph`)
-│   ├── python/vectors/     # The vector index a Python service writes, and its embedding providers (package `semiont_vectors`)
-│   └── python/service/     # What every Python service does to be one (package `semiont_service`)
-├── docs/                   # By persona: analyst/, builder/, operator/, contributor/;
-│                           #   and for every reader: architecture/, protocol/
-│   └── checks/doc-snippets/ # Typechecks documentation examples
-└── website/                # The project site
+```sh
+make help
+make local-build
+make packages PACKAGE_NAMES=typescript
+make check-generated
 ```
 
-Each app, image and package has a README, and most have a `docs/` directory about how that part is built. [packages/README.md](../../packages/README.md), [images/README.md](../../images/README.md) and [apps/README.md](../../apps/README.md) list them.
+Make calls owner helpers that select work from manifests and content signatures and run
+language tools in containers. The helpers own build ordering, caching and cleanup. Run one
+operation per invocation; Make's parallel scheduler does not orchestrate the build.
 
-## The docs for contributors
+The host needs GNU Make 3.81 or newer, Bash, Git, curl and a container runtime
+(Apple `container`, Docker or Podman). `make local-build` builds local images and the host
+launcher; [Local Development](LOCAL-DEVELOPMENT.md) explains how to run a stack on them.
+Use `make generate` to update generated code intentionally, and `make check-generated` to
+check committed output without repairing it.
 
-| Doc | What it covers |
+## Find the details
+
+| Guide | What it covers |
 |---|---|
-| [LOCAL-DEVELOPMENT.md](LOCAL-DEVELOPMENT.md) | Building your working tree into images and running a stack on them; working on one package without a stack |
-| [TESTING.md](TESTING.md) | The suites, how each is configured and run, the test doubles, and what CI gates |
-| [ADDING-A-JOB.md](ADDING-A-JOB.md) | Adding a kind of job: the path of the change through the spec, the SDKs, the dispatcher, the Worker service, its suite and its rules, and what fails at each step |
-| [DEPENDENCIES.md](DEPENDENCIES.md) | Dependabot, fixing a CVE, the lockfile rule, and how packages in this repository depend on each other |
-| [RELEASE.md](RELEASE.md) | Releasing: one dispatch, what it publishes, and how to verify it |
-
-## Adding a package
-
-1. Create `packages/<language>/<name>/` with its manifest, following a neighbor. A TypeScript package is named `@semiont/<name>`, and depends on other `@semiont/*` packages as `"*"`, never a version ([why](DEPENDENCIES.md#how-packages-here-depend-on-each-other)).
-2. A TypeScript package goes in [`version.json`](../../version.json) too, after the packages it depends on. The order there is the build order, and `publish` says whether it ships to npm. A package missing from `version.json` is not built by `make local-build`, and anything that installs it gets a 404. Its `vitest.config.ts` merges the [shared config](../../packages/typescript/vitest.shared.config.ts), and it has a `test:coverage` script; `npm run lint:vitest-coverage` says what else that needs.
-3. Its coverage is named five times: a flag and a component `<language>-<name>` in [`codecov.yml`](../../.github/codecov.yml), an upload under that flag in `ci.yml`, a badge in its README, and a row in its language's README. `npm run lint:coverage-roster` names each one missing, and `npm run lint:workflows` a directory that no area of `ci.yml` runs on.
-4. A package that will be published needs seeding before its first release ([Release](RELEASE.md#a-new-package)).
-
-## Changing the builder docs and the SDK
-
-[`docs/builder`](../builder/README.md) is what someone building on the SDK reads. Three rules keep it one coherent set:
-
-- **Each kind of content has one home.** A concept a newcomer needs before any code goes in the [Introduction](../builder/INTRODUCTION.md) and nowhere else, so the mental model is taught in one place. A new recipe goes in the [Developer Guide](../builder/DEVELOPER-GUIDE.md), a new method in [Usage](../builder/Usage.md), a new design rationale in [Reactive model](../builder/REACTIVE-MODEL.md) or [State units](../builder/STATE-UNITS.md). A new cache behavior gets a B-number in [Cache semantics](../protocol/CACHE-SEMANTICS.md) and a test that cites it. A change that fits no one home is probably two changes.
-- **Code fences are compile-checked.** Every `ts`, `tsx` and `typescript` fence in the builder docs, the skills included, is extracted and type-checked against the built packages by `docs/checks/doc-snippets/audit-doc-snippets.sh`, with a pass that catches an `await` on something that is not awaitable. Names a snippet does not define come from the prelude at [`docs/checks/doc-snippets/prelude.ts`](../checks/doc-snippets/prelude.ts) (the skills have their own, `prelude-skills.ts`): extend the prelude rather than adding boilerplate to a snippet. Mark a fence `ts sketch` only for pseudocode or a display-only shape. Exemptions are counted, and the count should hold or shrink.
-- **Wire-level truth lives in [`docs/protocol/`](../protocol/README.md).** [TRANSPORT-CONTRACT.md](../protocol/TRANSPORT-CONTRACT.md) is what every transport honors, [TRANSPORT-HTTP.md](../protocol/TRANSPORT-HTTP.md) the wire over a gateway, and [EVENT-BUS.md](../protocol/EVENT-BUS.md) and [CHANNELS.md](../protocol/CHANNELS.md) the bus and its channels. The builder docs link there and do not restate wire format.
-
-Before changing an SDK itself, read [Reactive model](../builder/REACTIVE-MODEL.md) and [State units](../builder/STATE-UNITS.md) for the constraints a change has to fit, [Cache semantics](../protocol/CACHE-SEMANTICS.md) before touching anything the cache backs, and the protocol docs before touching anything on the wire. The axiom and liveness harnesses in `@semiont/core/testing/axioms` are the executable half of those docs. The test doubles are at `@semiont/core/testing`, which needs no `fast-check`.
-
-## Where to go for the rest
-
-- [CONTRIBUTING.md](../../CONTRIBUTING.md): the pull-request process
-- [Architecture](../architecture/README.md): the actors, the stores, and why the pieces are shaped as they are
-- [Browser development](../../images/browser/docs/DEVELOPMENT.md): running the Browser from source against a stack
-- [Adding a media type](../architecture/MEDIA-TYPES.md#adding-a-media-type): what a media type declares, and what each declaration costs
-- [Protocol](../protocol/README.md): the flows, the bus, the transport contract
-- [Builder docs](../builder/README.md): the SDKs, as someone building on them sees them
-- [Operator docs](../operator/README.md): running what you built
+| [Local Development](LOCAL-DEVELOPMENT.md) | Host setup, container toolchains and the edit/build/run loop |
+| [Local build commands](../../images/LOCAL-BUILD.md) | Selection, local npm publication, codegen, launcher and desktop targets |
+| [Testing](TESTING.md) | Suites, test doubles and CI gates |
+| [Packages](../../packages/README.md), [images](../../images/README.md), [apps](../../apps/README.md) | Code locations and owner documentation; adding a package |
+| [Adding a job](ADDING-A-JOB.md) | Spec, SDK, service and test changes for a new job kind |
+| [Dependencies](DEPENDENCIES.md) | Lockfiles, dependency updates and vulnerability fixes |
+| [Documentation](DOCUMENTATION.md) | Editing builder docs and SDK examples |
+| [Release](RELEASE.md) | Publishing and release verification |

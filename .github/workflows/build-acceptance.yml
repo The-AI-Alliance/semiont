@@ -1,0 +1,54 @@
+name: Build Acceptance
+
+on:
+  pull_request:
+    paths:
+      - Makefile
+      - .github/workflows/build-acceptance.yml
+      - apps/desktop/**
+      - packages/codegen/**
+      - packages/python/scripts/**
+      - packages/typescript/scripts/**
+      - images/scripts/**
+  workflow_dispatch:
+
+concurrency:
+  group: build-acceptance-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-linux:
+    name: Desktop installer (native Linux host)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Build the caller OS installer
+        env:
+          CONTAINER_RUNTIME: docker
+        run: make desktop
+      - name: Verify the Debian installer
+        run: |
+          find apps/desktop/release -maxdepth 1 -name '*.deb' -print -quit | grep .
+          find apps/desktop/release -maxdepth 1 -name '*.deb' -exec dpkg-deb --info '{}' \;
+      - uses: actions/upload-artifact@v7
+        with:
+          name: desktop-native-linux-x64
+          path: apps/desktop/release/*.deb
+          if-no-files-found: error
+
+  codegen-drift:
+    name: Codegen drift and regeneration (all groups)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Exercise every generation group against deliberately stale output
+        env:
+          CONTAINER_RUNTIME: docker
+        run: python3 packages/codegen/verify_groups.py
+      - name: Check the checkout was preserved
+        run: git diff --exit-code

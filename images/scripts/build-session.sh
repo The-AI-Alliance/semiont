@@ -30,6 +30,7 @@ cleanup() {
       "$RT" rm "$VERDACCIO_NAME" >/dev/null 2>&1 || true
     fi
   fi
+  stop_python_tools
   exit "$result"
 }
 trap cleanup EXIT
@@ -37,14 +38,16 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 if [[ "$OPERATION" == plan ]]; then
+  start_python_tools
   source "$BUILD_DIR/package-plan.sh"
   print_summary
   printf "%s" "$PACKAGE_REASONS"
+  source "$BUILD_DIR/image-plan.sh"
   for image in $IMAGES; do
-    if [[ "$FORCE" == true || "$IMAGES_NAMED" == true ]]; then
-      echo "  images/$image: build (forced or explicitly selected)"
-    else
-      echo "  images/$image: inspect content signature and runtime store during build"
+    decide_image "$image"
+    echo "  images/$image: $IMAGE_ACTION ($IMAGE_REASON)"
+    if [[ " $REGISTRY_IMAGES " == *" $image "* && "$FORCE" != true && "$IMAGES_NAMED" != true ]]; then
+      echo "    npm integrity is the current registry snapshot; fresh publication is rechecked before building."
     fi
   done
   [[ -n "$REGISTRY_IMAGES" ]] && echo "  registry: fresh local npm publication required for $REGISTRY_IMAGES"
@@ -58,6 +61,7 @@ if [[ "$OPERATION" == launcher ]]; then
   SESSION_SUCCEEDED=true
   exit 0
 fi
+start_python_tools
 source "$BUILD_DIR/publication.sh"
 if [[ "$OPERATION" == npm-publish-local ]]; then
   verify_local_npm
