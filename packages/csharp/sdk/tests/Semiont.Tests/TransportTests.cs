@@ -1,3 +1,4 @@
+using Semiont.Protocol;
 using Semiont.Errors;
 using System.Net;
 using System.Text;
@@ -353,7 +354,7 @@ public sealed class TransportTests
     public void RetryBudgetShapeIsHeldToItsOwner()
     {
         var actual = typeof(RetryPolicy).GetProperties().Select(property => char.ToLowerInvariant(property.Name[0]) + property.Name[1..]).Order();
-        Assert.Equal(TransportFacts.Timing("emitRetry").EnumerateObject().Select(property => property.Name).Order(), actual);
+        Assert.Equal(ProtocolFacts.Timing("emitRetry").EnumerateObject().Select(property => property.Name).Order(), actual);
     }
 
     private static async Task OpenAsync(HttpTransport transport)

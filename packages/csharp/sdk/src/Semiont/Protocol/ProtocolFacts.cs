@@ -1,13 +1,13 @@
 using System.Text.Json;
 
-namespace Semiont.Http;
+namespace Semiont.Protocol;
 
-internal static class TransportFacts
+internal static class ProtocolFacts
 {
-    private static readonly JsonDocument Registry = JsonDocument.Parse(TransportTables.Registry);
-    private static readonly JsonDocument Timings = JsonDocument.Parse(TransportTables.Timing);
-    private static readonly JsonDocument Errors = JsonDocument.Parse(TransportTables.Errors);
-    private static readonly JsonDocument Retry = JsonDocument.Parse(TransportTables.Retry);
+    private static readonly JsonDocument Registry = JsonDocument.Parse(ProtocolTables.Registry);
+    private static readonly JsonDocument Timings = JsonDocument.Parse(ProtocolTables.Timing);
+    private static readonly JsonDocument Errors = JsonDocument.Parse(ProtocolTables.Errors);
+    private static readonly JsonDocument Retry = JsonDocument.Parse(ProtocolTables.Retry);
 
     internal static JsonElement Timing(string name) => Timings.RootElement.GetProperty("timing").EnumerateArray()
         .Single(row => row.GetProperty("name").GetString() == name).GetProperty("value");
@@ -58,4 +58,12 @@ internal static class TransportFacts
 
     internal static bool RetryEmit(int status) => Retry.RootElement.GetProperty("rules").EnumerateArray().Any(row =>
         row.GetProperty("rule").GetString() == "boot" && row.TryGetProperty("status", out var stated) && stated.GetInt32() == status && row.GetProperty("retries").GetBoolean());
+
+    internal static string SignInError(string name) => Errors.RootElement.GetProperty("signIn").GetProperty("codes").EnumerateArray()
+        .Select(row => row.GetProperty("code").GetString() ?? throw new InvalidOperationException("Null error code"))
+        .Single(code => code == name);
+
+    internal static bool RetryRefresh(int? status) => Retry.RootElement.GetProperty("rules").EnumerateArray().Any(row =>
+        row.GetProperty("rule").GetString() == "refresh" &&
+        (row.TryGetProperty("status", out var stated) ? stated.GetInt32() == (status >= 500 ? 500 : status) : status is null) && row.GetProperty("retries").GetBoolean());
 }

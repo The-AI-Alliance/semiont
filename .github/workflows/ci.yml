@@ -2335,9 +2335,23 @@ jobs:
       - name: Build
         run: dotnet build -p:RestoreLockedMode=true
       - name: Test
-        run: dotnet test --no-build --settings test.runsettings
+        run: dotnet test --no-build --settings test.runsettings --collect:"XPlat Code Coverage"
       - name: Format
         run: dotnet format --no-restore --verify-no-changes
+      - name: The coverage report was written
+        shell: pwsh
+        run: |
+          $reports = Get-ChildItem tests -Filter coverage.cobertura.xml -Recurse | Where-Object Length -gt 0
+          if (-not $reports) { throw "No C# coverage report was written" }
+      - name: Upload Windows coverage to Codecov
+        uses: codecov/codecov-action@v7.1.1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./packages/csharp/sdk/tests/Semiont.Tests/TestResults/**/coverage.cobertura.xml
+          flags: csharp-sdk
+          name: csharp-sdk-windows
+          verbose: true
+        continue-on-error: true
 
   # The Kotlin SDK: its build, its Kotlin tests and the Java tests that call
   # it as a Java program does, its ABI against the committed dump, its census
