@@ -27,7 +27,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import neo4j, { type Driver } from 'neo4j-driver';
 import { afterAll, afterEach, beforeAll, describe, inject } from 'vitest';
-import type { Annotation, components, EventMap, ResourceDescriptor } from '@semiont/core';
+import { kbDid, type Annotation, type components, type EventMap, type ResourceDescriptor } from '@semiont/core';
 import { ArchivistWorld, sha256, unstamped, type BusClient } from './archivist-world';
 import {
   refusedLibrarianBoot,
@@ -285,7 +285,7 @@ export class LibrarianWorld {
         env: { SEMIONT_OIDC_CLIENT_ID: SMELTER_CLIENT, SEMIONT_OIDC_CLIENT_SECRET: secrets.smelter },
         home: mkdtempSync(join(tmpdir(), 'conformance-librarian-smelter-')),
       },
-      index: vectorIndex(vectorDatabase.host),
+      index: vectorIndex(vectorDatabase.host, kbDid(served.domain)),
       signals,
       hand: neo4j.driver(graph.uri, neo4j.auth.basic(graph.username, graphDatabase.password)),
       database: graph.database,

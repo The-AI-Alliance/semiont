@@ -15,7 +15,7 @@ import { existsSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import type { TestProject } from 'vitest/node';
 import type { Implementations } from './implementations';
-import { QDRANT_PORT, vectorIndex } from './qdrant';
+import { collectionsAt, QDRANT_PORT } from './qdrant';
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -55,7 +55,7 @@ export default async function setup(project: TestProject): Promise<void> {
     );
   }
   // Asked once here, so a vector database that is not there reads as that.
-  await vectorIndex(vectorHost).collections();
+  await collectionsAt(vectorHost);
   project.provide('graphDatabase', { host: graphHost, password: graphPassword });
   project.provide('vectorDatabase', { host: vectorHost });
 }

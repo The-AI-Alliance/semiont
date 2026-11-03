@@ -29,8 +29,9 @@ The index is read and changed by the suite's own calls to Qdrant's REST
 interface ([harness/qdrant.ts](../harness/qdrant.ts)), and never through the
 store a Smelter writes with. What a point holds is stated by
 [`protocol/specs/src/vectors/payload-cases.json`](../../specs/src/vectors/payload-cases.json);
-the collections' names, and the payload members a point is found by, are read
-from that table. The other suites' type check leaves this suite's cases and
+the collections' words, and the payload members a point is found by, are read
+from that table, and a knowledge base's collections are named from its DID as
+the table states. The other suites' type check leaves this suite's cases and
 its world out (`tsconfig.json`), so an error in one of them is this suite's
 alone; `npm run test:smelter` checks them with `tsconfig.smelter.json`. Its
 setup stays in every suite's check: it declares what `vitest.config.ts`
@@ -45,8 +46,8 @@ Each file runs its cases in a world of its own
   a knowledge base, a real Archivist that records and answers and serves a
   resource's bytes, a real gateway, and the trusted issuer, which grants the
   Smelter's service account;
-- a real Qdrant, whose index is cleared when the world is made and again when
-  it is closed;
+- a real Qdrant, every collection of which is cleared when the world is made
+  and again when it is closed;
 - a stand-in for its embedding provider
   ([harness/ollama-embed.ts](../harness/ollama-embed.ts)): an Ollama's
   `POST /api/embed`. A vector is worked out from its text alone, so the same
@@ -69,8 +70,8 @@ Smelter is, and every decision it carries is held to its schema.
 
 **The run is told where its Qdrant is,** in `QDRANT_HOST` (its REST port,
 6333), and starts none. Without it the run fails, and says so; it is not
-skipped. **It clears the index of the database it is given,** so it is given
-one of its own. `packages/go/launcher/scripts/qdrant-image.sh` prints the image the launcher
+skipped. **It clears every collection of the database it is given,** so it is
+given one of its own. `packages/go/launcher/scripts/qdrant-image.sh` prints the image the launcher
 starts for an operator, which is the one to run:
 
 ```bash
@@ -132,6 +133,10 @@ A case about what happens while the reconcile runs starts the Smelter to
   stopped; what its reconcile then mends, what it asks of its provider, and
   what it reports. A text it remembers skipping is not read again, and an
   index a Smelter of another cut made is made again and filled whole.
+- **Beside another knowledge base** (`kb-index.test.ts`): that the suite names
+  a knowledge base's collections as the payload table states; and that a
+  Smelter whose Qdrant holds another knowledge base's index neither reads nor
+  purges nor writes it, makes its own anew beside it, and fills its own.
 - **Asking its provider** (`provider.test.ts`): a batch cut into slices of
   128, each text given the vector that came back for it; one request at a
   time; a provider that says it is busy, which is asked again; and a request
