@@ -38,8 +38,9 @@ public sealed class IssuerTests
         var kept = new MemorySignIn(Held());
         using (var issuer = new Issuer(client)) Assert.Equal("new", await issuer.RenewAsync(kept, "old"));
         Assert.Equal("refresh &+=", (await kept.HeldAsync())?.Refresh);
-        using var stillUsable = await client.PostAsync("https://issuer.example/token", new FormUrlEncodedContent(new Dictionary<string, string>
-        { ["refresh_token"] = "refresh &+=", ["client_id"] = SignInPolicy.ScriptClientId }));
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        { ["refresh_token"] = "refresh &+=", ["client_id"] = SignInPolicy.ScriptClientId });
+        using var stillUsable = await client.PostAsync("https://issuer.example/token", form);
         Assert.Equal(HttpStatusCode.OK, stillUsable.StatusCode);
     }
 
@@ -155,8 +156,9 @@ public sealed class IssuerTests
     {
         var clock = new Clock();
         var calls = 0;
+        using var unanswered = new HttpResponseMessage(HttpStatusCode.OK) { Content = new UnansweredContent() };
         using var handler = new Handler((_, _) => Task.FromResult(++calls == 1
-            ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new UnansweredContent() }
+            ? unanswered
             : Answer(200, "{\"access_token\":\"new\"}")));
         using var client = new HttpClient(handler);
         using var issuer = new Issuer(client, clock, new ZeroRandom());
