@@ -8,10 +8,13 @@ public sealed class MarkNamespace
     private readonly Bus wire;
     private readonly EventBus bus;
 
-    internal MarkNamespace(Bus wire, EventBus bus)
+    private readonly JobFollower follower;
+
+    internal MarkNamespace(Bus wire, EventBus bus, JobFollower follower)
     {
         this.wire = wire;
         this.bus = bus;
+        this.follower = follower;
     }
 
     public async Task<MarkCreateOkResponse> AnnotationAsync(CreateAnnotationRequest input, CancellationToken cancellation = default) =>
@@ -42,6 +45,14 @@ public sealed class MarkNamespace
             CurrentEntityTypes = current,
             UpdatedEntityTypes = updated,
         }, cancellation: cancellation);
+
+    /// <summary>Follows the job that annotates a resource.</summary>
+    public Delegation<MarkJobCompleteCommand> Delegate(ResourceId resourceId, MarkJobParams parameters) =>
+        follower.Follow(new JobCreateCommand.MarkJobCreateCommandCase(new MarkJobCreateCommand
+        {
+            ResourceId = resourceId,
+            Params = parameters,
+        }), resourceId, JobCompletion.Mark);
 
     public void Request(ResourceId source, AnnotationSelector selector, Motivation motivation) =>
         bus.Emit(BusChannels.MarkRequested, new MarkRequestedEvent { Source = source, Selector = selector, Motivation = motivation });

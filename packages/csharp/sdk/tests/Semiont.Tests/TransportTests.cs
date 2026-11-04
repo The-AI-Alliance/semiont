@@ -759,6 +759,7 @@ public sealed partial class TransportTests
         private int subscriptions;
         internal Channel<(JsonElement Body, string? Token)> Emits { get; } = Channel.CreateUnbounded<(JsonElement, string?)>();
         internal Action<JsonElement>? Answer { get; set; }
+        internal Func<JsonElement, CancellationToken, Task>? BeforeEmitReply { get; init; }
         internal Func<string?, HttpStatusCode>? EmitStatus { get; init; }
         internal string EmitReply { get; init; } = "{}";
         internal Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Other { get; set; }
@@ -781,6 +782,7 @@ public sealed partial class TransportTests
                 var body = parsed.RootElement.Clone();
                 Emits.Writer.TryWrite((body, request.Headers.Authorization?.Parameter));
                 Answer?.Invoke(body);
+                if (BeforeEmitReply is { } wait) await wait(body, cancellationToken);
                 return new HttpResponseMessage(EmitStatus?.Invoke(request.Headers.Authorization?.Parameter) ?? HttpStatusCode.Accepted) { Content = new StringContent(EmitReply) };
             }
             return Other is not null ? await Other(request, cancellationToken) : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };

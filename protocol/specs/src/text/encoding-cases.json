@@ -19,10 +19,10 @@
     ],
     "swift": [
       "packages/swift/sdk/Tests/SemiontTests/DecodeRepresentationTests.swift"
+    ],
+    "csharp": [
+      "packages/csharp/sdk/tests/Semiont.Tests/RepresentationTests.cs"
     ]
-  },
-  "notYetReached": {
-    "csharp": "C# is still to implement and run the shared text/encoding-cases.json cases."
   },
   "cases": [
     {

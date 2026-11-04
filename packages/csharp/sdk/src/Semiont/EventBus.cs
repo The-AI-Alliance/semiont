@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using Semiont.Errors;
-using Semiont.Http;
 using Semiont.Identifiers;
 using Semiont.Protocol;
 using Semiont.Types;
@@ -12,7 +13,7 @@ namespace Semiont;
 public sealed class EventBus : IDisposable
 {
     private readonly object gate = new();
-    private readonly Dictionary<string, Broadcast<ReceivedBusFrame>> channels = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<ChannelWriter<ReceivedBusFrame>>> channels = new(StringComparer.Ordinal);
     private bool closed;
 
     public void Emit<T>(BusChannel<T> channel, T payload, ResourceId? scope = null,
@@ -40,16 +41,51 @@ public sealed class EventBus : IDisposable
     {
         if (channel.IsScoped != resource.HasValue)
             throw new ArgumentException("A resource is required exactly for a scoped channel.", nameof(resource));
+        return Bus.DecodeFrames<T>(ReadFrames(channel.Name, cancellation), resource, cancellation);
+    }
+
+    private async IAsyncEnumerable<ReceivedBusFrame> ReadFrames(string channel, [EnumeratorCancellation] CancellationToken cancellation)
+    {
+        using var subscription = Listen([channel]);
+        await foreach (var frame in subscription.Reader.ReadAllAsync(cancellation).ConfigureAwait(false))
+            yield return frame;
+    }
+
+    internal Subscription Listen(string[] selected)
+    {
+        var source = Channel.CreateUnbounded<ReceivedBusFrame>(new UnboundedChannelOptions { SingleReader = true });
         lock (gate)
         {
-            if (!channels.TryGetValue(channel.Name, out var source))
+            if (closed) source.Writer.TryComplete();
+            else
             {
-                source = new Broadcast<ReceivedBusFrame>();
-                if (closed) source.Close();
-                else channels.Add(channel.Name, source);
+                foreach (var name in selected)
+                {
+                    if (!channels.TryGetValue(name, out var listeners))
+                        channels.Add(name, listeners = []);
+                    listeners.Add(source.Writer);
+                }
             }
-            return Bus.DecodeFrames<T>(source.Observe(cancellation), resource, cancellation);
         }
+        return new Subscription(source.Reader, () =>
+        {
+            lock (gate)
+            {
+                foreach (var name in selected)
+                {
+                    if (channels.TryGetValue(name, out var listeners) && listeners.Remove(source.Writer) && listeners.Count == 0)
+                        channels.Remove(name);
+                }
+                source.Writer.TryComplete();
+            }
+        });
+    }
+
+    internal sealed class Subscription(ChannelReader<ReceivedBusFrame> reader, Action close) : IDisposable
+    {
+        private Action? release = close;
+        internal ChannelReader<ReceivedBusFrame> Reader { get; } = reader;
+        public void Dispose() => Interlocked.Exchange(ref release, null)?.Invoke();
     }
 
     internal void Receive(ReceivedBusFrame frame)
@@ -59,7 +95,8 @@ public sealed class EventBus : IDisposable
 
     private void Publish(ReceivedBusFrame frame)
     {
-        if (channels.TryGetValue(frame.Frame.Channel, out var source)) source.Publish(frame);
+        if (channels.TryGetValue(frame.Frame.Channel, out var listeners))
+            foreach (var listener in listeners) listener.TryWrite(frame);
     }
 
     public void Dispose()
@@ -68,7 +105,8 @@ public sealed class EventBus : IDisposable
         {
             if (closed) return;
             closed = true;
-            foreach (var source in channels.Values) source.Close();
+            foreach (var listeners in channels.Values)
+                foreach (var listener in listeners) listener.TryComplete();
             channels.Clear();
         }
     }

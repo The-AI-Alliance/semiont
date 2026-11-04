@@ -167,9 +167,7 @@ const table = {
     go: ['packages/go/sdk/resources_test.go'],
     kotlin: ['packages/kotlin/sdk/src/test/kotlin/semiont/resources/DecodeCasesTest.kt'],
     swift: ['packages/swift/sdk/Tests/SemiontTests/DecodeRepresentationTests.swift'],
-  },
-  notYetReached: {
-    csharp: 'C# is still to implement and run the shared text/encoding-cases.json cases.',
+    csharp: ['packages/csharp/sdk/tests/Semiont.Tests/RepresentationTests.cs'],
   },
   cases,
 };
