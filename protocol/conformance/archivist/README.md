@@ -38,7 +38,8 @@ what its schema says; and a case fails otherwise, whatever it was about.
 - **Boot** (`boot.test.ts`): the health answer, every refusal to start — the
   document unnamed, unreadable, not JSON, or refused by its schema; no service
   account; no project file, so no `site.domain`; a knowledge base that syncs git and is not a
-  checkout — and a clean stop.
+  checkout; a gateway that serves another knowledge base than the tree, refused naming both, with
+  nothing of the tree touched — and a clean stop.
 - **Resources** (`resources.test.ts`): an upload stored, recorded and
   published; the line in the log, the view, the index entry, where each is
   filed; the descriptor `browse:resource` answers, with the sequence number of

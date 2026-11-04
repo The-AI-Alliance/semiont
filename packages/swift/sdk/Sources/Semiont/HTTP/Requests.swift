@@ -46,7 +46,7 @@ extension HttpTransport {
       throw BusRequestError(.busRejected, "Unknown operation \(operation)")
     }
     for channel in [descriptor.result, descriptor.failure] where !channels.contains(channel) {
-      throw BusRequestError(.busUnsubscribed, "Transport is not subscribed to \(channel)")
+      throw unsubscribed(channel)
     }
     try Task.checkCancellation()
     if lifetime.ended { throw BusRequestError(.busClosed, "The transport closed") }

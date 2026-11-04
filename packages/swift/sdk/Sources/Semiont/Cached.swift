@@ -60,6 +60,9 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
     await entry.editIfKnown(change)
   }
   func removeIfKnown(_ error: BusRequestError) async { await entry.removeIfKnown(error) }
+  func snapshot() async -> Value? { await entry.snapshot() }
+  func isKnown() async -> Bool { await entry.isKnown }
+  func replace(_ state: CacheState<Value>) async { await entry.replace(state) }
 }
 
 private actor CacheEntry<Value: Sendable> {
@@ -77,7 +80,6 @@ private actor CacheEntry<Value: Sendable> {
   private var flightEdits: [UUID: [@Sendable (Value) -> Value]] = [:]
   private var current: UUID?
   private var validation: UUID?
-  private var known = false
   private var mutation: UInt64 = 0
   private var windowOpen = false
   private var refreshOwed = false
@@ -95,11 +97,21 @@ private actor CacheEntry<Value: Sendable> {
     if let value = kept?.load() {
       state = .ready(value)
       rehydrated = true
-      known = true
     }
   }
 
   nonisolated var ended: Bool { lifetime.ended }
+
+  var isKnown: Bool {
+    guard !lifetime.ended else { return false }
+    if case .pending = state { return current != nil || validation != nil }
+    return true
+  }
+
+  func snapshot() -> Value? {
+    guard !lifetime.ended, case .ready(let value) = state else { return nil }
+    return value
+  }
 
   func observe() async -> (AsyncStream<State>, ResourceHold)? {
     guard !lifetime.ended, !Task.isCancelled else { return nil }
@@ -142,7 +154,6 @@ private actor CacheEntry<Value: Sendable> {
 
   private func fetching() -> Task<Value, any Error> {
     if let current, let flight = flights[current] { return flight }
-    known = true
     rehydrated = false
     kept?.book.begin()
     let id = UUID()
@@ -219,7 +230,7 @@ private actor CacheEntry<Value: Sendable> {
   }
 
   func refreshIfKnown(coalescing: Bool) {
-    guard known, !lifetime.ended else { return }
+    guard isKnown else { return }
     if !coalescing {
       invalidate()
     } else if windowOpen {
@@ -231,23 +242,24 @@ private actor CacheEntry<Value: Sendable> {
   }
 
   func writeIfKnown(_ value: Value) {
-    guard known, !lifetime.ended else { return }
+    guard isKnown else { return }
     replace(.ready(value))
   }
 
   func editIfKnown(_ change: @escaping @Sendable (Value) -> Value) {
-    guard known, !lifetime.ended else { return }
+    guard isKnown else { return }
     // Keep unrelated changes from reads already underway, applying the edit to their answers too.
     for id in flights.keys { flightEdits[id, default: []].append(change) }
     if case .ready(let value) = state { publish(.ready(change(value))) }
   }
 
   func removeIfKnown(_ error: BusRequestError) {
-    guard known, !lifetime.ended else { return }
+    guard isKnown else { return }
     replace(.failed(error))
   }
 
-  private func replace(_ state: State) {
+  func replace(_ state: State) {
+    guard !lifetime.ended else { return }
     // Earlier reads can finish for their callers but cannot undo a bus mutation.
     mutation &+= 1
     rehydrated = false

@@ -64,7 +64,9 @@ func encoded<Value: Encodable>(_ value: Value) throws -> JSONValue {
 func expanded(_ value: JSONValue, fixtures: [String: JSONValue]) throws -> JSONValue {
   switch value {
   case .object(let object):
-    if let name = object["$fixture"] { return try required(fixtures, name.text) }
+    if let name = object["$fixture"] {
+      return try expanded(required(fixtures, name.text), fixtures: fixtures)
+    }
     return .object(try object.mapValues { try expanded($0, fixtures: fixtures) })
   case .array(let values): return .array(try values.map { try expanded($0, fixtures: fixtures) })
   default: return value

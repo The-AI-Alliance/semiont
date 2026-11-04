@@ -21,11 +21,12 @@ Only the Archivist mounts the working tree. Every other service reaches content 
 └── projections/                         # KB-wide projections and the storage-URI index
 ```
 
-The state dir is `<stateHome>/semiont/<the knowledge base's name>/`. `stateHome` is a member of the
-Archivist's configuration document, and has no default: a path nothing mounted would be written to
-and lost. The launcher writes it as the mount it gives the Archivist, the one service that reaches
-the state tree; every other service reads what it holds of the Archivist, on the bus or over its
-HTTP surface.
+The state dir is `stateHome` itself, the views and projections at its top: an Archivist serves one
+knowledge base, so the volume is that knowledge base's alone, and the supervisor keeps the
+Archivist's log beside them, in `archivist-supervisor/`. `stateHome` is a member of the Archivist's
+configuration document, and has no default: a path nothing mounted would be written to and lost.
+The launcher writes it as the mount it gives the Archivist, the one service that reaches the state
+tree; every other service reads what it holds of the Archivist, on the bus or over its HTTP surface.
 
 On the machine that runs the stack, that mount and every other store (the database, the graph, the
 vectors, the job queue, the anchored text, and the supervisor's log of the gateway and of the
@@ -89,8 +90,8 @@ layout [protocol/specs/src/jobs/storage.json](../../protocol/specs/src/jobs/stor
 ## Who reaches these paths
 
 The Archivist mounts the working tree and the state dir, and writes both: the event log in the
-tree, the views and the projections in the state dir. The Librarian mounts the state dir to read,
-and no piece of the working tree. No other service mounts either.
+tree, the views and the projections in the state dir. No other service mounts either: the
+Librarian reads what it needs of the views over the bus.
 
 ## Rebuilding what is derived
 

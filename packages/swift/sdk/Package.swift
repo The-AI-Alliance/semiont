@@ -4,7 +4,10 @@ import PackageDescription
 let package = Package(
   name: "Semiont",
   platforms: [.macOS(.v15), .iOS(.v18)],
-  products: [.library(name: "Semiont", targets: ["Semiont"])],
+  products: [
+    .library(name: "Semiont", targets: ["Semiont"]),
+    .library(name: "SemiontTesting", targets: ["SemiontTesting"]),
+  ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.3"),
     .package(url: "https://github.com/apple/swift-nio.git", from: "2.104.0"),
@@ -38,12 +41,16 @@ let package = Package(
       swiftSettings: [.treatAllWarnings(as: .error)]),
     .plugin(
       name: "GenerateSemiontPlugin", capability: .buildTool(), dependencies: ["GenerateSemiont"]),
+    .target(
+      name: "SemiontTesting", dependencies: ["Semiont"],
+      swiftSettings: [.treatAllWarnings(as: .error)]),
     .target(name: "SemiontCodegen", swiftSettings: [.treatAllWarnings(as: .error)]),
     .testTarget(
       name: "SemiontTests",
       dependencies: [
         .product(name: "CryptoExtras", package: "swift-crypto"),
         "Semiont",
+        "SemiontTesting",
         .product(name: "AsyncHTTPClient", package: "async-http-client"),
         .product(name: "NIOPosix", package: "swift-nio"),
         .product(name: "NIOHTTP1", package: "swift-nio"),

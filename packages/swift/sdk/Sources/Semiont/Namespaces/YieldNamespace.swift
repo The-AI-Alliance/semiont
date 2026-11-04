@@ -42,7 +42,7 @@ public struct YieldNamespace: Sendable {
     return follow(
       create: .yieldJobCreateCommand(YieldJobCreateCommand(params: params)), resource: resource,
       wire: wire, bus: bus, lifetime: lifetime, timing: timing, stallMs: stall,
-      completion: YieldJobCompleteCommand.self)
+      clock: timing.clock, completion: YieldJobCompleteCommand.self)
   }
   public func cloneToken(_ resourceId: ResourceId) async throws -> CloneResourceWithTokenResponse {
     try await wire.request(
