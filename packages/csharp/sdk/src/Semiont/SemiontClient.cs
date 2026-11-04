@@ -19,12 +19,19 @@ public sealed class SemiontClient : IDisposable
         ArgumentNullException.ThrowIfNull(transport);
         Transport = transport;
         Wire = new Bus(transport);
+        Bus = new EventBus();
+        Bind = new BindNamespace(Wire, Bus);
+        Beckon = new BeckonNamespace(Wire, Bus);
         Frame = new FrameNamespace(Wire);
         Auth = new AuthNamespace(transport);
         System = new SystemNamespace(transport);
+        _ = BridgeAsync();
     }
 
     public Bus Wire { get; }
+    public EventBus Bus { get; }
+    public BindNamespace Bind { get; }
+    public BeckonNamespace Beckon { get; }
     public HttpTransport Transport { get; }
     public string BaseUrl => Transport.BaseUrl;
     public ConnectionState State => Transport.State;
@@ -32,5 +39,18 @@ public sealed class SemiontClient : IDisposable
     public AuthNamespace Auth { get; }
     public SystemNamespace System { get; }
 
-    public void Dispose() => Transport.Dispose();
+    private async Task BridgeAsync()
+    {
+        try
+        {
+            await foreach (var frame in Transport.BridgeFrames().ConfigureAwait(false)) Bus.Receive(frame);
+        }
+        finally { Bus.Dispose(); }
+    }
+
+    public void Dispose()
+    {
+        Bus.Dispose();
+        Transport.Dispose();
+    }
 }

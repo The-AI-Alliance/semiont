@@ -78,7 +78,7 @@ public sealed class Bus
         }
     }
 
-    private static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<ReceivedBusFrame> frames,
+    internal static async IAsyncEnumerable<Heard<T>> DecodeFrames<T>(IAsyncEnumerable<ReceivedBusFrame> frames,
         ResourceId? resource, [EnumeratorCancellation] CancellationToken cancellation) where T : class
     {
         await foreach (var received in frames.WithCancellation(cancellation).ConfigureAwait(false))

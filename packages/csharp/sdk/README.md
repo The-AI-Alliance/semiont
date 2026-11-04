@@ -8,7 +8,7 @@ sign-in store, issuer renewal, and kept-session lifecycle are implemented.
 Use a project reference until the NuGet package is published.
 
 Construct `SemiontClient` with a gateway URL and token to use the typed
-`Frame`, `Auth`, and `System` namespaces. Frame mutations await their replies.
+`Frame`, `Auth`, `System`, `Bind`, and `Beckon` namespaces. Frame mutations await their replies.
 A batch of entity types sends each mutation after the preceding one settles.
 The client disposes its transport, and a supplied HTTP client stays caller-owned.
 
@@ -17,6 +17,12 @@ A typed request returns the channel's declared reply model. A typed read
 gives a `Heard<T>` value for each frame, with its envelope and trace context.
 Malformed payloads yield a refusal and the read continues. A scoped read
 keeps its resource subscribed until the enumerator ends.
+
+`client.Bus` carries local signals and receives frames from the wire.
+Read an existing resource scope through the local bus, or use
+`client.Wire.Frames` to hold the scope during the read. Bind initiation and
+Beckon hover and sparkle stay local. Beckon attention and its other remote
+signals return the gateway's subscriber count when it can count observers.
 
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container
