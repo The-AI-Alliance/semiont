@@ -61,7 +61,7 @@ A Librarian reads its settings from a configuration document, the protocol's
 at the path its `--config` flag names. The document is resolved: every address
 in it is literal, every credential is named by the variable that holds it, and
 the Librarian defaults nothing it leaves out. It states
-the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by); the gateway's URL; the issuer the Librarian's service account signs in at;
+the knowledge base it serves ([`KbIdentity`](../specs/src/components/schemas/KbIdentity.json): its name and domain, which its telemetry names it by, and which the knowledge base at its gateway must say it is before the Librarian reaches its stores: [Boot](#boot)); the gateway's URL; the issuer the Librarian's service account signs in at;
 the Archivist's host and port, for a resource's bytes; the graph database
 ([`GraphConfig`](../specs/src/components/schemas/GraphConfig.json): its
 kind, and what that kind needs to be reached, with the name of the
@@ -962,9 +962,10 @@ of delivery, and hands each request to a lane or begins it at once.
 ## Boot
 
 A Librarian starts in this order: it reads its document, its service account
-and each secret its document names; signs in; reaches the graph database,
-then the vector index; opens its stream on the bus and begins to take
-requests; opens its health port.
+and each secret its document names; signs in; asks the knowledge base which
+it is, on a stream that names no request; reaches the graph database, then
+the vector index; opens its stream on the bus and begins to take requests;
+opens its health port.
 
 - **Everything it is started with is read before anything is dialled:** the
   document first, then the service account, then the graph database's
@@ -976,6 +977,22 @@ requests; opens its health port.
   exits with a status other than 0, having said which address did not
   answer. Starting it again is left to whatever supervises it.
   *Held by `librarian/boot`.*
+- **It serves the knowledge base its document names, and no other.** Before
+  it reaches the graph database it asks the knowledge base which it is
+  (`browse:kb-requested`, which the Archivist answers from the committed
+  `.semiont/config.yaml`), and asks again while nothing answers there
+  (`bus.peer-unavailable`). It asks on a stream of its own, which names that
+  request's replies and no request it answers, and closes it before it
+  reaches the graph database. A request reaches every stream that names its
+  channel, and fails at once only where it reaches none
+  ([TRANSPORT-HTTP.md § POST /bus/emit](./TRANSPORT-HTTP.md#post-busemit)):
+  no request reaches a Librarian before it can answer one. Where the answer
+  names another domain than its document does, it refuses to start, naming
+  both knowledge bases by their DIDs; where it is a failure, it refuses to
+  start saying what failed. Either way it exits with a status other than 0
+  having reached neither the graph database nor the vector index. Told to
+  stop while it asks, it exits with status 0.
+  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/librarian/tests/test_service.py`, for the stream it asks on, and `librarian/boot`.*
 - **It gives up when the graph database or the vector index does not answer
   within sixty seconds,** says which, and exits with a status other than 0.
   *Held by `packages/python/service/tests/test_connect.py`.*
@@ -992,9 +1009,13 @@ requests; opens its health port.
 ## Health
 
 - **`GET /health`, on the port its document states, answers `200` with a
-  JSON object:** `status`; and `actors`, the two it runs, `matcher` and
-  `gatherer`. Any other path answers `404`.
+  JSON object:** `status`; `kb`; and `actors`, the two it runs, `matcher`
+  and `gatherer`. Any other path answers `404`.
   *Held by `images/librarian/tests/test_service.py`, `packages/python/service/tests/test_health.py` and `librarian/boot`.*
+- **`kb` is the DID of the knowledge base it serves:** the one its document
+  names, which that knowledge base said it is before the Librarian reached
+  its stores ([Boot](#boot)).
+  *Held by `images/librarian/tests/test_service.py` and `librarian/boot`.*
 - **The health port opens last,** after the Librarian has begun to take
   requests from the bus. So a Librarian whose health answers is answering. A
   port it cannot take ends it as a refusal to start does.

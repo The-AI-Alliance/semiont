@@ -2,15 +2,19 @@
  * How a Librarian starts, answers for itself and stops (LIBRARIAN.md §
  * Settings, § Boot, § Health, § Stopping): what its health reports, that it
  * stops cleanly, every setting it refuses to start without or refuses the
- * value of, and that it gives up when the gateway does not answer.
+ * value of, that it refuses to start where its settings name another
+ * knowledge base than the one at its gateway, and that it gives up when the
+ * gateway does not answer.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { kbDid } from '@semiont/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { LibrarianSettings } from '../harness/librarian-process';
 import { eachLibrarian } from '../harness/librarian-world';
 import { SPEC_SOURCE } from '../harness/paths';
 import { VECTORS_TOKEN } from '../harness/qdrant';
+import { kbIdentity } from '../harness/spec';
 
 /** How long a held job may show no activity before its holder calls it stalled: the bound a gather's waits must end under. */
 function heldJobStallMs(): number {
@@ -19,6 +23,9 @@ function heldJobStallMs(): number {
   if (row === undefined) throw new Error('protocol/specs/src/client/timing.json has no heldJobStallMs');
   return row.value;
 }
+
+/** A knowledge base the gateway does not serve, which a Librarian's settings are made to name. */
+const ELSEWHERE = kbIdentity('a comment is not part of the value');
 
 /** What a Librarian says of a member its configuration document lacks: the words every service that reads a document refuses one with. */
 const missing = (member: string): RegExp => new RegExp(`Missing required property: ${member}\\b`);
@@ -48,8 +55,8 @@ const REFUSED: ReadonlyArray<[how: string, changed: (settings: LibrarianSettings
 ];
 
 eachLibrarian('a Librarian, as a process', (world) => {
-  it('answers at its health port for itself and for the two actors it runs', async () => {
-    expect(await world().librarian.health()).toEqual({ status: 'ok', actors: ['matcher', 'gatherer'] });
+  it('answers at its health port for itself, for the knowledge base it serves and for the two actors it runs', async () => {
+    expect(await world().librarian.health()).toEqual({ status: 'ok', kb: kbDid(world().kb.world.served.domain), actors: ['matcher', 'gatherer'] });
   });
 
   it('stops when it is told to, and says nothing is wrong by its exit', async () => {
@@ -88,6 +95,13 @@ eachLibrarian('a Librarian, as a process', (world) => {
       const { code, output } = await world().refused({ env: { ...world().launch().env, [VECTORS_TOKEN]: undefined } });
       expect(code).not.toBe(0);
       expect(output).toContain(VECTORS_TOKEN);
+    });
+
+    it('refuses to start on settings that name another knowledge base than the one at its gateway, and names both', async () => {
+      const { code, output } = await world().refused({ settings: { ...world().settings, kb: { name: ELSEWHERE.name, domain: ELSEWHERE.domain } } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(kbDid(world().kb.world.served.domain));
+      expect(output).toContain(ELSEWHERE.did);
     });
 
     it('gives up, and exits saying where it was told the gateway is, when the gateway does not answer', async () => {
