@@ -18,6 +18,16 @@ internal static class ProtocolFacts
     internal static string TraceField => Registry.RootElement.GetProperty("trace").GetProperty("field").GetString()
         ?? throw new InvalidOperationException("No trace field");
 
+    internal static string RequestChannel(string schema)
+    {
+        var requests = Registry.RootElement.GetProperty("operations").EnumerateArray()
+            .Select(row => row.GetProperty("request").GetString()).ToHashSet(StringComparer.Ordinal);
+        return Registry.RootElement.GetProperty("channels").EnumerateArray()
+            .Where(row => row.TryGetProperty("schema", out var model) && model.GetString() == schema)
+            .Select(row => row.GetProperty("channel").GetString())
+            .Single(requests.Contains) ?? throw new InvalidOperationException("Missing request channel for " + schema);
+    }
+
     internal static (string Result, string Failure) Operation(string channel)
     {
         var row = Registry.RootElement.GetProperty("operations").EnumerateArray().Single(operation => operation.GetProperty("request").GetString() == channel);

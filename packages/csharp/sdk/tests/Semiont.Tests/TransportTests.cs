@@ -14,6 +14,116 @@ namespace Semiont.Tests;
 
 public sealed class TransportTests
 {
+    [Theory]
+    [InlineData("addEntityType")]
+    [InlineData("addEntityTypes")]
+    [InlineData("addTagSchema")]
+    public async Task ClientFrameMethodsFollowTheirSurfaceCases(string method)
+    {
+        var row = SurfaceMethod("frame", method);
+        var example = Assert.Single(row.GetProperty("cases").EnumerateArray());
+        var args = example.GetProperty("args");
+        var channel = row.GetProperty("via").GetProperty("request").GetString() ?? throw new InvalidOperationException("Missing request channel");
+
+        using var server = new Handler();
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient("http://unit.test", "credential", http);
+        await OpenAsync(client.Transport);
+
+        var call = method switch
+        {
+            "addEntityType" => client.Frame.AddEntityTypeAsync(args.GetProperty("type").Deserialize<string>() ?? throw new InvalidOperationException("Missing type")),
+            "addEntityTypes" => client.Frame.AddEntityTypesAsync(args.GetProperty("types").Deserialize<string[]>() ?? throw new InvalidOperationException("Missing types")),
+            "addTagSchema" => client.Frame.AddTagSchemaAsync(args.GetProperty("schema").Deserialize<TagSchema>() ?? throw new InvalidOperationException("Missing schema")),
+            _ => throw new InvalidOperationException("Unknown frame method: " + method),
+        };
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+        async Task ObserveAndAnswerAsync(string expectedChannel, JsonElement expectedPayload)
+        {
+            var sent = await server.Emits.Reader.ReadAsync(deadline.Token);
+            Assert.Equal("credential", sent.Token);
+            Assert.Equal(expectedChannel, sent.Body.GetProperty("channel").GetString());
+            Assert.True(JsonElement.DeepEquals(expectedPayload, sent.Body.GetProperty("payload")));
+            Assert.False(call.IsCompleted);
+            Assert.False(server.Emits.Reader.TryPeek(out _));
+            var result = ProtocolFacts.Operation(expectedChannel).Result;
+            var frame = JsonSerializer.Serialize(new
+            {
+                channel = result,
+                correlationId = sent.Body.GetProperty("correlationId").GetString(),
+                payload = new { },
+            });
+            server.Stream.Push("event: bus-event\ndata: " + frame + "\n\n");
+        }
+
+        await ObserveAndAnswerAsync(channel, example.GetProperty("sends"));
+        if (example.TryGetProperty("then", out var then))
+            foreach (var next in then.EnumerateArray())
+                await ObserveAndAnswerAsync(next.GetProperty("request").GetString() ?? throw new InvalidOperationException("Missing follow-up channel"), next.GetProperty("sends"));
+
+        await call.WaitAsync(deadline.Token);
+        Assert.False(server.Emits.Reader.TryPeek(out _));
+        client.Dispose();
+        Assert.Equal(ConnectionState.Closed, client.State);
+        using var response = await http.GetAsync("http://unit.test/caller-owned");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("auth", "me", "current-user", """{"did":"did:web:kb.example:users:ada","domain":"kb.example","email":null,"name":null,"image":null}""")]
+    [InlineData("auth", "mediaToken", "media-token", """{"token":"media"}""")]
+    [InlineData("auth", "protectedResourceMetadata", "protected-resource-metadata", """{"resource":"https://kb.example","authorization_servers":["https://issuer.example"],"bearer_methods_supported":["header"]}""")]
+    [InlineData("system", "healthCheck", "health", """{"status":"healthy","message":"up","version":"1","timestamp":"2026-11-03T00:00:00Z"}""")]
+    [InlineData("system", "status", "status", """{"status":"ready","version":"1","features":{"semanticContent":"up","collaboration":"up"},"message":"ready"}""")]
+    public async Task ClientGatewayMethodsFollowTheirSurfaceCases(string space, string method, string driver, string reply)
+    {
+        var row = SurfaceMethod(space, method);
+        var example = Assert.Single(row.GetProperty("cases").EnumerateArray());
+        using var corpus = JsonDocument.Parse(File.ReadAllText(Path.Join(AppContext.BaseDirectory, "corpus/sdk/wire/gateway-operations.json")));
+        var steps = corpus.RootElement.GetProperty("steps").EnumerateArray().ToArray();
+        var at = Array.FindIndex(steps, step => step.TryGetProperty("driver", out var name) && name.GetString() == driver);
+        Assert.True(at >= 0);
+        var wire = steps[at + 1];
+        var requests = 0;
+        using var server = new Handler
+        {
+            Other = async (request, cancellation) =>
+            {
+                requests++;
+                Assert.Equal(wire.GetProperty("wire").GetString(), request.Method.Method + " " + request.RequestUri?.AbsolutePath);
+                if (wire.TryGetProperty("token", out _)) Assert.Equal("credential", request.Headers.Authorization?.Parameter);
+                if (method == "protectedResourceMetadata") Assert.Null(request.Headers.Authorization);
+                using var body = JsonDocument.Parse(request.Content is null ? "{}" : await request.Content.ReadAsStringAsync(cancellation));
+                Assert.True(JsonElement.DeepEquals(example.GetProperty("sends"), body.RootElement));
+                return new HttpResponseMessage((HttpStatusCode)wire.GetProperty("status").GetInt32()) { Content = new StringContent(reply) };
+            },
+        };
+        using var http = new HttpClient(server);
+        using var client = new SemiontClient(new HttpTransport("http://unit.test", "credential", [], httpClient: http));
+        var actual = method switch
+        {
+            "me" => JsonSerializer.SerializeToElement(await client.Auth.MeAsync()),
+            "mediaToken" => JsonSerializer.SerializeToElement(await client.Auth.MediaTokenAsync(
+                example.GetProperty("args").GetProperty("resourceId").Deserialize<ResourceId>())),
+            "protectedResourceMetadata" => JsonSerializer.SerializeToElement(await client.Auth.ProtectedResourceMetadataAsync()),
+            "healthCheck" => JsonSerializer.SerializeToElement(await client.System.HealthCheckAsync()),
+            "status" => JsonSerializer.SerializeToElement(await client.System.StatusAsync()),
+            _ => throw new InvalidOperationException("Unknown gateway method: " + method),
+        };
+        using var expected = JsonDocument.Parse(reply);
+        Assert.True(JsonElement.DeepEquals(expected.RootElement, actual));
+        Assert.Equal(1, requests);
+    }
+
+    private static JsonElement SurfaceMethod(string space, string method)
+    {
+        using var table = JsonDocument.Parse(File.ReadAllText(Path.Join(AppContext.BaseDirectory, "specs/client/surface.json")));
+        return table.RootElement.GetProperty("namespaces").EnumerateArray()
+            .Single(row => row.GetProperty("namespace").GetString() == space).GetProperty("methods").EnumerateArray()
+            .Single(row => row.GetProperty("method").GetString() == method).Clone();
+    }
+
     [Fact]
     public async Task AReplyCanArriveBeforeTheEmitReturns()
     {
