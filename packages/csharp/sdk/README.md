@@ -112,3 +112,11 @@ usable for the service token's lifetime.
 its DID. It renews the token when due or after a credential refusal.
 `RefreshAsync` can serve as a transport refresher, and `TokensChanged` exposes
 updates to consumers. Dispose the agent before disposing its service token.
+
+`Semiont.Session.Identity` derives a knowledge base's DID and token audience
+from its domain. It also derives person and agent DIDs from issuer subjects,
+encoding each subject as one DID segment.
+
+HTTP response retries follow the shared boot, transport, and refresh rules.
+The transport honors a whole-seconds `Retry-After` header. The separate job
+retry rule belongs to the worker.

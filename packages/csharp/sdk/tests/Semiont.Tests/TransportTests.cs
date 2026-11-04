@@ -271,6 +271,47 @@ public sealed class TransportTests
         Assert.Same(error, errors.Current);
     }
 
+    [Theory]
+    [InlineData(408, true)]
+    [InlineData(501, false)]
+    public async Task GatewayRequestsApplyTheSharedStatusAndRetryAfterRules(int status, bool retries)
+    {
+        var clock = new TestClock();
+        var calls = 0;
+        using var server = new Handler();
+        server.Other = (_, _) =>
+        {
+            if (++calls > 1)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"did":"did:web:example.org:users:ada","domain":"example.org","email":null,"name":null,"image":null}"""),
+                });
+
+            var response = new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent("{}") };
+            response.Headers.TryAddWithoutValidation("Retry-After", "2");
+            return Task.FromResult(response);
+        };
+        using var client = new HttpClient(server);
+        using var transport = new HttpTransport("http://unit.test", "token", [], httpClient: client, timeProvider: clock);
+        var request = transport.GetCurrentUserAsync();
+        if (retries)
+        {
+            var delay = TimeSpan.FromSeconds(2);
+            await clock.WaitForAsync(delay);
+            Assert.Equal(1, calls);
+            clock.Advance(delay);
+            var user = await request.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("did:web:example.org:users:ada", user.Did.ToString());
+            Assert.Equal(2, calls);
+        }
+        else
+        {
+            var error = await Assert.ThrowsAsync<TransportError>(() => request.WaitAsync(TimeSpan.FromSeconds(10)));
+            Assert.Equal(status, error.Status);
+            Assert.Equal(1, calls);
+        }
+    }
+
     [Fact]
     public async Task ContentUsesTheGivenClientAndKeepsBinaryBytesAndUploadFields()
     {
