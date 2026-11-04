@@ -70,26 +70,21 @@ func retryRenewal<Value: Sendable>(_ grant: @escaping @Sendable () async throws 
   async throws -> Value
 {
   let budget = Timings.refreshRetry
-  var cap = budget.initialDelayMs
-  for attempt in 1...budget.attempts {
-    do { return try await grant() } catch {
-      if Task.isCancelled || error is CancellationError { throw CancellationError() }
-      let failure = error as? SignInError
-      guard RetryContext.refresh.retryable(status: failure?.status, method: "POST"),
-        attempt < budget.attempts
-      else {
-        if let failure, attempt > 1 {
-          throw SignInError(
-            failure.reason, "Renewal failed after \(attempt) attempts: \(failure.description)",
-            status: failure.status)
-        }
-        throw error
+  return try await retryWithBackoff(
+    attempts: budget.attempts, initialDelayMs: budget.initialDelayMs,
+    maxDelayMs: budget.maxDelayMs,
+    retryable: {
+      RetryContext.refresh.retryable(status: ($0 as? SignInError)?.status, method: "POST")
+    },
+    operation: { attempt in
+      do {
+        return try await grant()
+      } catch let failure as SignInError where attempt > 1 {
+        throw SignInError(
+          failure.reason, "Renewal failed after \(attempt) attempts: \(failure.description)",
+          status: failure.status)
       }
-      try await sleepMilliseconds(equalJitter(cap))
-      cap = min(cap * 2, budget.maxDelayMs)
-    }
-  }
-  preconditionFailure("Empty renewal budget")
+    })
 }
 func renewKept(
   _ kept: any SignInKept, holding: String?,

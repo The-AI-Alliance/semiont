@@ -66,3 +66,18 @@ public struct Bus: Sendable {
     }
   }
 }
+
+/// Reply subscriptions for the given requests, in request order with duplicates removed.
+public func replyChannelsFor(_ requests: [String]) -> [String] {
+  var seen: Set<String> = []
+  return requests.flatMap { request -> [String] in
+    guard let operation = wireOperations[request] else { return [] }
+    return [operation.result, operation.failure].filter { seen.insert($0).inserted }
+  }
+}
+
+public func unsubscribed(_ channel: String) -> BusRequestError {
+  BusRequestError(.busUnsubscribed, "Transport is not subscribed to \(channel)")
+}
+
+public let persistedEventTypes = storedEventChannels

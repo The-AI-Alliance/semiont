@@ -318,3 +318,4 @@ The MVVM "view-model" name presumes a View — a ViewModel is a Model adapted in
 - [The Rust SDK's README](../../packages/rust/sdk/README.md) — the Rust units, and the table that maps each TypeScript shape to its Rust form.
 - [The Python SDK's README](../../packages/python/sdk/README.md#state-units) — the Python units, and a program that watches one.
 - [The Go SDK's README](../../packages/go/sdk/README.md#state-units) — the Go units, and a program that watches one.
+- [The Swift SDK’s README](../../packages/swift/sdk/README.md#registry-and-state-units) — Swift state units and disposal.

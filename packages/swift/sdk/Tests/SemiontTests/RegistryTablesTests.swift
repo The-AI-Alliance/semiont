@@ -84,3 +84,47 @@ import Testing
     codeChallenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
       == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
 }
+
+private actor DiscoveryScript: DiscoveryTransport {
+  private var answers: [DiscoveryRead]
+
+  init(_ answers: [DiscoveryRead]) { self.answers = answers }
+
+  func read() -> DiscoveryRead {
+    answers.isEmpty ? .unchanged(Unchanged()) : answers.removeFirst()
+  }
+}
+
+@Test func launcherDiscoveryReportsChangesAndSkipsUnchangedReads() async throws {
+  let first = DiscoveredKB(
+    did: "did:web:one.test", host: "localhost", managedBy: "launcher",
+    placement: .local, port: 4001, siteName: "First")
+  var renamed = first
+  renamed.siteName = "Renamed"
+  let second = DiscoveredKB(
+    did: "did:web:two.test", host: "localhost", managedBy: "launcher",
+    placement: .local, port: 4002, siteName: "Second")
+  let script = DiscoveryScript([
+    .state(.managed(Managed(kbs: [first]))), .unchanged(Unchanged()),
+    .state(.managed(Managed(kbs: [first]))),
+    .state(.managed(Managed(kbs: [renamed, second, second]))),
+    .state(.absent(Absent(reason: .notFound))),
+  ])
+  try await within(1000) {
+    let updates = subscribeDiscovery(script, interval: .milliseconds(1))
+    var iterator = updates.makeAsyncIterator()
+    let initial = try #require(await iterator.next())
+    #expect(initial.added.map(\.port) == [4001])
+    let change = try #require(await iterator.next())
+    #expect(change.added.map(\.port) == [4002, 4002])
+    #expect(change.updated.map(\.siteName) == ["Renamed"])
+    #expect(change.duplicated == ["localhost:4002"])
+    let removed = try #require(await iterator.next())
+    #expect(removed.removed.map(\.port) == [4001, 4002, 4002])
+    guard case .absent(let absent) = removed.state else {
+      Issue.record("Expected an absent launcher")
+      return
+    }
+    #expect(absent.reason == .notFound)
+  }
+}

@@ -3,7 +3,7 @@ public struct SignInError: Error, Sendable, CustomStringConvertible {
   public let description: String
   public let status: Int?
   public var code: String { reason.rawValue }
-  init(_ reason: SignInErrorCode, _ description: String, status: Int? = nil) {
+  package init(_ reason: SignInErrorCode, _ description: String, status: Int? = nil) {
     self.reason = reason
     self.description = description
     self.status = status

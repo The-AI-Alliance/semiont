@@ -2,13 +2,14 @@ import Foundation
 import Synchronization
 
 /// Each call creates an independent unbounded queue, beginning at the call.
-final class Broadcast<Value: Sendable>: Sendable {
+package final class Broadcast<Value: Sendable>: Sendable {
+  package init() {}
   private struct State: Sendable {
     var listeners: [UUID: AsyncThrowingStream<Value, any Error>.Continuation] = [:]
     var closed = false
   }
   private let state = Mutex(State())
-  func listen(onTermination: @escaping @Sendable () -> Void = {}) -> Events<Value> {
+  package func listen(onTermination: @escaping @Sendable () -> Void = {}) -> Events<Value> {
     let (stream, continuation) = AsyncThrowingStream<Value, any Error>.makeStream(
       bufferingPolicy: .unbounded)
     let id = UUID()
@@ -25,11 +26,11 @@ final class Broadcast<Value: Sendable>: Sendable {
     return Events(stream, stop: { continuation.finish() })
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
-  func yield(_ value: Value) {
+  package func yield(_ value: Value) {
     let listeners = state.withLock { Array($0.listeners.values) }
     for listener in listeners { listener.yield(value) }
   }
-  func finish() {
+  package func finish() {
     let listeners = state.withLock { state in
       state.closed = true
       let listeners = Array(state.listeners.values)
@@ -51,7 +52,7 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
   }
   private let updatesLifetime = Lifetime()
   private let state: Mutex<State>
-  init(_ value: Value) { state = Mutex(State(value: value)) }
+  package init(_ value: Value) { state = Mutex(State(value: value)) }
   public convenience init(_ initial: Value, updates: AsyncStream<Value>) {
     self.init(initial)
     let id = UUID()
@@ -70,7 +71,7 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
     updatesLifetime.end()
     finish()
   }
-  func finish() {
+  package func finish() {
     let listeners = state.withLock { state in
       state.ended = true
       let listeners = Array(state.listeners.values)
@@ -94,7 +95,7 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
     return stream
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
-  func set(_ value: Value) {
+  package func set(_ value: Value) {
     let listeners = state.withLock { state in
       guard !state.ended else { return [AsyncStream<Value>.Continuation]() }
       state.value = value
@@ -126,6 +127,11 @@ final class Lifetime: Sendable {
   }
   private let state = Mutex(State())
   var ended: Bool { state.withLock { $0.ended } }
+  func whileOpen(_ action: () -> Void) {
+    state.withLock { state in
+      if !state.ended { action() }
+    }
+  }
   func keep<Value: Sendable, Failure: Error>(_ task: Task<Value, Failure>, id: UUID) {
     let ended = state.withLock { state in
       if state.ended { return true }
@@ -232,13 +238,14 @@ public final class Events<Value: Sendable>: AsyncSequence, Sendable {
 }
 
 /// Cancellation settles this waiter without cancelling the shared operation.
-final class SharedWait<Value: Sendable>: Sendable {
+package final class SharedWait<Value: Sendable>: Sendable {
+  package init() {}
   private struct State: Sendable {
     var result: Result<Value, any Error>?
     var continuation: CheckedContinuation<Value, any Error>?
   }
   private let state = Mutex(State())
-  func install(_ continuation: CheckedContinuation<Value, any Error>) {
+  package func install(_ continuation: CheckedContinuation<Value, any Error>) {
     let result: Result<Value, any Error>? = state.withLock { state in
       if let result = state.result { return result }
       state.continuation = continuation
@@ -246,7 +253,7 @@ final class SharedWait<Value: Sendable>: Sendable {
     }
     if let result { continuation.resume(with: result) }
   }
-  func resolve(_ result: Result<Value, any Error>) {
+  package func resolve(_ result: Result<Value, any Error>) {
     let continuation: CheckedContinuation<Value, any Error>? = state.withLock { state in
       guard state.result == nil else { return nil }
       state.result = result

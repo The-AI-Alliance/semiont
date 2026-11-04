@@ -137,6 +137,14 @@ Four crates are published to crates.io: `semiont`, `semiont-http-transport`, `se
 
 Its `conformance` source set is the three programs the conformance suite drives the Kotlin SDK through (wire, live and worker), and the only Kotlin that takes an OpenTelemetry exporter.
 
+`packages/swift/sdk` is the Swift SDK for Apple apps and Linux services.
+The `Semiont` library includes the client and its HTTP transport, live queries,
+sign-in and the registry, state units, and worker claims. The SwiftPM build
+plugin generates its wire models and tables from `protocol/specs/src`.
+`SemiontTesting` is a separate product with scripted transports and sessions,
+shared storage, and fault and delivery assertions. The instrumented Linux
+driver serves the wire, live, and worker conformance suites.
+
 ## What each service image runs
 
 | Image | Runs | From |

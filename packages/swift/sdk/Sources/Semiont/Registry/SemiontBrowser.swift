@@ -84,7 +84,7 @@ public actor SemiontBrowser {
   private nonisolated let failures = Broadcast<any Error>()
   private let factory: any SessionFactory
   private var tasks: [UUID: Task<Void, Never>] = [:]
-  private var constructing: Set<UUID> = []
+  private var abandonable: Set<UUID> = []
   private var activation: UUID?
   private var sessionWatch: UUID?
   private var firstFailure: (any Error)?
@@ -127,8 +127,11 @@ public actor SemiontBrowser {
     }
   }
 
-  private func spawn(_ work: @escaping @Sendable () async -> Void) -> UUID {
+  private func spawn(
+    abandonOnClose: Bool = false, _ work: @escaping @Sendable () async -> Void
+  ) -> UUID {
     let id = UUID()
+    if abandonOnClose { abandonable.insert(id) }
     tasks[id] = Task { [weak self] in
       await RegistryTask.$id.withValue(id) { await work() }
       await self?.forget(id)
@@ -137,7 +140,7 @@ public actor SemiontBrowser {
   }
 
   private func forget(_ id: UUID) {
-    constructing.remove(id)
+    abandonable.remove(id)
     tasks.removeValue(forKey: id)
   }
 
@@ -159,12 +162,14 @@ public actor SemiontBrowser {
       case knowledgeBasesKey:
         knowledgeBases.set(try loadKnowledgeBases(storage))
         if let id = activeKbId.value, !knowledgeBases.value.contains(where: { $0.id == id }) {
-          try setActiveKb(knowledgeBases.value.first?.id)
+          try chooseActiveKb(knowledgeBases.value.first?.id)
         }
       case activeKey:
         let id = try storage.get(activeKey)
         if id != activeKbId.value {
-          let valid = knowledgeBases.value.first { $0.id == id }?.id
+          let bases = try loadKnowledgeBases(storage)
+          knowledgeBases.set(bases)
+          let valid = bases.first { $0.id == id }?.id
           activeKbId.set(valid)
           try projectResources()
           activate()
@@ -202,22 +207,28 @@ public actor SemiontBrowser {
     knowledgeBases.set(try loadKnowledgeBases(storage))
   }
 
-  public func addKb(_ input: NewKnowledgeBase, session: HeldSignIn) throws -> KnowledgeBase {
+  public func addKb(_ input: NewKnowledgeBase, session: HeldSignIn) async throws -> KnowledgeBase {
     try requireOpen()
     let kb = KnowledgeBase(
       did: input.did, endpoint: input.endpoint, id: UUID().uuidString, label: input.label,
       lastRead: input.lastRead)
-    try changeKnowledgeBases { $0.append(kb) }
-    try signIn(kb.id, session: session)
+    try storeSession(storage, kbId: kb.id, session: session)
+    do {
+      try changeKnowledgeBases { $0.append(kb) }
+    } catch {
+      try? clearStoredSession(storage, kbId: kb.id)
+      throw error
+    }
+    try await setActiveKb(kb.id)
     return kb
   }
 
-  public func removeKb(_ id: String) throws {
+  public func removeKb(_ id: String) async throws {
     try requireOpen()
-    try signOut(id)
-    try changeKnowledgeBases { $0.removeAll { $0.id == id } }
+    try clearStoredSession(storage, kbId: id)
     try forgetResources(id)
-    if activeKbId.value == id { try setActiveKb(knowledgeBases.value.first?.id) }
+    try changeKnowledgeBases { $0.removeAll { $0.id == id } }
+    if activeKbId.value == id { try await setActiveKb(knowledgeBases.value.first?.id) }
   }
 
   public func updateKb(_ id: String, label: String? = nil, lastRead: KbRead? = nil) throws {
@@ -235,19 +246,24 @@ public actor SemiontBrowser {
       ? .expired : .authenticated
   }
 
-  public func setActiveKb(_ id: String?) throws {
+  public func setActiveKb(_ id: String?) async throws {
+    try chooseActiveKb(id)
+    try await waitForActivation()
+  }
+
+  private func chooseActiveKb(_ id: String?) throws {
     try requireOpen()
     guard id == nil || knowledgeBases.value.contains(where: { $0.id == id }) else {
       throw BusRequestError(.busNotFound, "The knowledge base is not registered")
     }
-    if activeKbId.value == id, activeSession.value != nil { return }
+    if activeKbId.value == id, activeSession.value != nil || sessionActivating.value { return }
     try writeActive(id)
     activeKbId.set(id)
     try projectResources()
     activate()
   }
 
-  public func signIn(_ id: String, session: HeldSignIn) throws {
+  public func signIn(_ id: String, session: HeldSignIn) async throws {
     try requireOpen()
     guard knowledgeBases.value.contains(where: { $0.id == id }) else {
       throw BusRequestError(.busNotFound, "The knowledge base is not registered")
@@ -256,22 +272,33 @@ public actor SemiontBrowser {
     if activeKbId.value == id {
       activate()
     } else {
-      try setActiveKb(id)
+      try chooseActiveKb(id)
     }
+    try await waitForActivation()
+  }
+
+  private func waitForActivation() async throws {
+    let starting = activation
+    guard starting != nil, starting != RegistryTask.id else { return }
+    for await running in sessionActivating {
+      if !running || activation != starting { break }
+    }
+    try Task.checkCancellation()
   }
 
   public func signOut(_ id: String) throws {
     try requireOpen()
     let old = try storedSession(storage, kbId: id)
     try clearStoredSession(storage, kbId: id)
+    knowledgeBases.set(knowledgeBases.value)
     if activeKbId.value == id { activate() }
     if let old {
       let factory = factory
-      _ = spawn { await factory.revoke(old) }
+      _ = spawn(abandonOnClose: true) { await factory.revoke(old) }
     }
   }
 
-  public func signedIn(_ signed: SignedIn) throws -> SignInOutcome {
+  public func signedIn(_ signed: SignedIn) async throws -> SignInOutcome {
     try requireOpen()
     let did = try kbDid(signed.description.domain).value
     let result = Mutex<SignInOutcome?>(nil)
@@ -303,7 +330,7 @@ public actor SemiontBrowser {
     guard let outcome = result.withLock({ $0 }) else {
       throw BusRequestError(.busRejected, "Storage did not register the signed-in knowledge base")
     }
-    try signIn(outcome.kb.id, session: signed.session)
+    try await signIn(outcome.kb.id, session: signed.session)
     return outcome
   }
 
@@ -339,7 +366,7 @@ public actor SemiontBrowser {
         Task { await self?.sessionFailed(error) }
       })
     let factory = factory
-    let idOfTask = spawn { [weak self] in
+    let idOfTask = spawn(abandonOnClose: true) { [weak self] in
       do {
         let opened = try await factory.session(options)
         if !Task.isCancelled { _ = try? await opened.session.ready() }
@@ -354,7 +381,6 @@ public actor SemiontBrowser {
         await self?.activationFailed(error, id: id)
       }
     }
-    constructing.insert(idOfTask)
     activation = idOfTask
   }
 
@@ -375,7 +401,7 @@ public actor SemiontBrowser {
       signals.dispose()
       return
     }
-    if let task = RegistryTask.id { constructing.remove(task) }
+    if let task = RegistryTask.id { abandonable.remove(task) }
     activeSession.set(opened)
     activeSignals.set(signals)
     sessionActivating.set(false)
@@ -548,7 +574,7 @@ public actor SemiontBrowser {
       finish()
     }
     if RegistryTask.id == nil {
-      for (id, task) in tasks where !constructing.contains(id) { await task.value }
+      for (id, task) in tasks where !abandonable.contains(id) { await task.value }
     }
     if let firstFailure { throw firstFailure }
   }

@@ -21,13 +21,13 @@ public final class SemiontClient: Sendable {
   public var baseUrl: String { transport.baseUrl }
   private let lifetime = Lifetime()
   private let disposed = Mutex(false)
-  private let book: CacheBook?
+  private let book: StoragePersister<KeptQuery>?
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
     content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming(),
     persistence: CachePersistence? = nil, invalidationWindowMs: Int? = nil
   ) async throws {
-    let book = persistence.map(CacheBook.init)
+    let book = persistence.map(StoragePersister<KeptQuery>.init)
     self.book = book
     if let http = transport as? HttpTransport, let book {
       await http.restoreBookmarks(book.bookmarks)

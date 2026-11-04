@@ -7,7 +7,7 @@ public struct MatchNamespace: Sendable {
   public func resources(
     _ search: String, filters: ResourceFilters = ResourceFilters()
   ) -> Cached<MatchResourcesResponse> {
-    live.matchedResources.query(LiveQueries.SearchKey(text: search, filters: filters))
+    live.matchedResources.observe(LiveQueries.SearchKey(text: search, filters: filters))
   }
   public func search(
     resourceId: ResourceId, referenceId: AnnotationId, context: GatheredContext, limit: Int = 10,
@@ -16,7 +16,14 @@ public struct MatchNamespace: Sendable {
     let request = MatchSearchRequest(
       context: context, limit: limit, referenceId: referenceId, resourceId: resourceId,
       useSemanticScoring: useSemanticScoring)
-    return Running(lifetime: lifetime) { _ in
+    return search(request)
+  }
+
+  func search(_ request: MatchSearchRequest) -> Running<MatchSearchResult> {
+    var request = request
+    if request.limit == nil { request.limit = 10 }
+    if request.useSemanticScoring == nil { request.useSemanticScoring = true }
+    return Running(lifetime: lifetime) { [request] _ in
       try await wire.request(Operations.matchSearchRequested, request)
     }
   }

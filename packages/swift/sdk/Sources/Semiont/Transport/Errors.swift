@@ -19,7 +19,7 @@ public struct BusRequestError: Error, Sendable, CustomStringConvertible {
   public let reason: BusRequestErrorCode
   public let description: String
   public var code: String { reason.rawValue }
-  init(_ reason: BusRequestErrorCode, _ message: String) {
+  package init(_ reason: BusRequestErrorCode, _ message: String) {
     self.reason = reason
     self.description = message
   }
