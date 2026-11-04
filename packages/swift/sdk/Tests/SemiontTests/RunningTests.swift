@@ -3,6 +3,49 @@ import Testing
 
 @testable import Semiont
 
+private struct OperationRefused: Error, Equatable {}
+@Test func iteratingAFailedOperationPreservesItsError() async throws {
+  let running = Running<Int>(lifetime: Lifetime()) { report in
+    report(1)
+    throw OperationRefused()
+  }
+  var reader = running.makeAsyncIterator()
+  #expect(try await reader.next() == 1)
+  await #expect(throws: OperationRefused.self) { try await reader.next() }
+}
+@Test func delegationRejectsAMissingCompletionAndDisposesItsWork() async throws {
+  let invalid = Delegation<Int>(
+    Running(lifetime: Lifetime()) { _ in
+      .created(JobCreatedResultResponse(jobId: try JobId("job-1")))
+    })
+  do {
+    _ = try await invalid.completed()
+    Issue.record("A delegation without a completion succeeded")
+  } catch let error as TransportError {
+    #expect(error.reason == .error)
+    #expect(error.description.contains("without its completion"))
+  }
+  let started = Watched(false)
+  let waiting = Delegation<Int>(
+    Running(lifetime: Lifetime()) { _ in
+      started.set(true)
+      return .complete(7)
+    })
+  waiting.dispose()
+  await #expect(throws: CancellationError.self) { try await waiting.completed() }
+  #expect(!started.value)
+}
+@Test func nativeFailureProjectionPreservesDeclaredCodesAndRejectsAnAbsentMessage() throws {
+  let descriptor = try #require(wireOperations[Operations.frameAddEntityType.request.name])
+  let error = try descriptor.decodeFailure(
+    wirePayload(CommandError(code: .peerUnavailable, message: "still starting")))
+  #expect(error.reason == .busPeerUnavailable)
+  #expect(error.description == "still starting")
+  #expect(throws: TransportError.self) {
+    try projectFailure(BusEmptyPayload.self, [:], stamps: [], messageField: "message")
+  }
+}
+
 @Test func runningStartsOnDemandAndReportsTheFinalValueOnce() async throws {
   let lifetime = Lifetime()
   let started = Watched(0)
