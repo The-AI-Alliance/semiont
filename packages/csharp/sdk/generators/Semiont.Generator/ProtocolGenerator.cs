@@ -101,6 +101,8 @@ public sealed class ProtocolGenerator : IIncrementalGenerator
             }
             facts.Append("}\n");
             context.AddSource("ProtocolTables.g.cs", SourceText.From(facts.ToString(), Encoding.UTF8));
+            if (files.TryGetValue("bus/registry.json", out var registry))
+                context.AddSource("BusDescriptors.g.cs", SourceText.From(BusDescriptors.Emit(registry, definitions), Encoding.UTF8));
             var models = new Models(definitions, identifiers);
             foreach (var model in models.Emit())
             {

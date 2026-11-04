@@ -12,6 +12,12 @@ Construct `SemiontClient` with a gateway URL and token to use the typed
 A batch of entity types sends each mutation after the preceding one settles.
 The client disposes its transport, and a supplied HTTP client stays caller-owned.
 
+`client.Wire` accepts generated `BusChannels` and `BusOperations` values.
+A typed request returns the channel's declared reply model. A typed read
+gives a `Heard<T>` value for each frame, with its envelope and trace context.
+Malformed payloads yield a refusal and the read continues. A scoped read
+keeps its resource subscribed until the enumerator ends.
+
 The SDK targets .NET 11. [global.json](global.json) pins the SDK exactly, with roll-forward
 disabled. [dotnet-version.sh](../scripts/dotnet-version.sh) derives the container
 tag from that version. No .NET installation on the host is required.
