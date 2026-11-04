@@ -22,7 +22,7 @@ from semiont_vectors.qdrant import QdrantVectorStore
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 
 from semiont_smelter.config import vectors_token_of
-from semiont_smelter.service import CHANNELS, boot, main
+from semiont_smelter.service import CHANNELS, CONFIRMING_CHANNELS, boot, main
 
 pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
 
@@ -93,8 +93,6 @@ def test_its_stream_names_every_event_of_the_record_the_command_it_answers_and_t
     named = (
         *PERSISTED_EVENT_TYPES,
         "smelt:rebuild-anchors",
-        "browse:kb-result",
-        "browse:kb-failed",
         "browse:resources-result",
         "browse:resources-failed",
         "browse:resource-result",
@@ -102,6 +100,11 @@ def test_its_stream_names_every_event_of_the_record_the_command_it_answers_and_t
     )
     assert named == CHANNELS
     assert len(CHANNELS) == len(set(CHANNELS))
+
+
+def test_the_stream_it_asks_the_knowledge_base_on_names_the_answer_and_not_the_command_it_answers() -> None:
+    # A command reaches every stream that names its channel: one named here would reach a Smelter that answers nothing yet.
+    assert CONFIRMING_CHANNELS == ("browse:kb-result", "browse:kb-failed")
 
 
 def test_the_document_is_named_by_a_flag_and_never_guessed(tmp_path: Path) -> None:

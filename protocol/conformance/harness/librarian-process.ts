@@ -67,6 +67,8 @@ export interface LibrarianEnvironment {
 /** What a Librarian's health answers: its status, and whatever else its implementation reports. */
 export interface LibrarianHealth {
   status: string;
+  /** The DID of the knowledge base it serves, which that knowledge base said it is before the Librarian reached its stores. */
+  kb: string;
   [member: string]: unknown;
 }
 

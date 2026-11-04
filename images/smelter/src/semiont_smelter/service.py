@@ -14,8 +14,8 @@ line on stderr that begins `[fatal] `, and status 1. Once it has started,
 everything it writes is its log, on stdout.
 
 It starts in the order `protocol/contract/SMELTER.md` § Boot states: it signs in
-as its account, opens its stream of the record and asks the knowledge base
-which it is, refusing to start where it is not the one its document names,
+as its account, asks the knowledge base which it is on a stream that names
+no command, refusing to start where it is not the one its document names,
 reaches its vector index, which asks its provider how wide a vector is where
 the index has to be made, makes the index again where it was made by another
 model or cut another way, and forgets its cursors where it did, follows the
@@ -69,11 +69,15 @@ from semiont_smelter.stamp import current_stamp
 from semiont_smelter.telemetry import points_held
 from semiont_smelter.tesseract import TesseractEngine
 
-__all__ = ["CHANNELS", "boot", "main"]
+__all__ = ["CHANNELS", "CONFIRMING_CHANNELS", "boot", "main"]
 
-CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*CONFIRMING, *READ))
+CHANNELS: Final[tuple[str, ...]] = (*PERSISTED_EVENT_TYPES, SMELT_REBUILD_ANCHORS.name, *reply_channels_for(*READ))
 """What the Smelter's stream names: every event of the record, as every follower of it receives them, the command it answers, and
-the replies of what it asks: which knowledge base it is, and what the record holds."""
+the replies of what it asks while it follows: what the record holds."""
+
+CONFIRMING_CHANNELS: Final[tuple[str, ...]] = reply_channels_for(*CONFIRMING)
+"""What the stream it asks the knowledge base on names: the answer's replies, and not the command it answers, which would reach
+a Smelter that answers nothing yet."""
 
 
 @final
@@ -146,16 +150,14 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
     # The stamp is read from what is installed. A Smelter with no OCR engine to ask says so here, before it follows anything.
     anchored_stamp = await current_stamp(reader, engine)
 
-    async with (
-        AgentToken(config.gateway_url, service=account) as agent,
-        HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
-    ):
+    async with AgentToken(config.gateway_url, service=account) as agent:
         LOG.info("Agent ready", extra={"did": agent.did})
         # Nothing kept for the knowledge base is touched before it says it is the one the document names.
         kb = kb_did(config.kb.domain)
-        if not await confirmed(Bus(transport), config.kb, told_to_stop):
-            LOG.info("Shutting down")
-            return
+        async with HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CONFIRMING_CHANNELS) as asking:
+            if not await confirmed(Bus(asking), config.kb, told_to_stop):
+                LOG.info("Shutting down")
+                return
         LOG.info("Knowledge base confirmed", extra={"kb": kb})
         stamp = stamp_of(config)
         made_anew = await connected("vector index and the embedding provider", _reached(started.index, stamp))
@@ -171,6 +173,7 @@ async def _serve(started: _Started, exporting: Exporting | None) -> None:
                 AnchoredTextStore(
                     SERVICE, host=config.archivist.host, port=config.archivist.port, account=account, stamp=anchored_stamp
                 ) as anchored,
+                HttpTransport(config.gateway_url, token=agent.token, refresher=agent.refresh, channels=CHANNELS) as transport,
                 Smelter(
                     index=started.index,
                     provider=started.provider,

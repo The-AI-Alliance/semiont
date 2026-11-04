@@ -72,10 +72,18 @@ It follows no recorded event.
 
 ## When it starts
 
-It reads its document, signs in, reaches the graph database and the vector index, begins to
-take requests from the bus, and opens its health port last. So a Librarian whose health
-answers is answering. It loads nothing at start: no view, no graph and no index is read into
-it.
+It reads its document, signs in, asks the knowledge base which it is, reaches the graph
+database and the vector index, begins to take requests from the bus, and opens its health port
+last. So a Librarian whose health answers is answering, and its health names the knowledge
+base it serves by its DID. It loads nothing at start: no view, no graph and no index is read
+into it.
+
+**It serves the knowledge base its document names, and no other.** Before it reaches the graph
+database it asks the knowledge base which it is (`browse:kb-requested`), and asks again while
+the Archivist is not there to answer. It asks on a stream that names no request, so no request
+reaches it before it can answer one. Where the knowledge base says it is another, the Librarian
+refuses to start naming both by their DIDs, and where it cannot say, the Librarian refuses
+saying why. Either way it has reached neither store.
 
 A graph database or a vector index that does not answer within a minute ends the start, with
 a status other than 0.
