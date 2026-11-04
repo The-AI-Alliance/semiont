@@ -80,7 +80,8 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
     for listener in listeners { listener.finish() }
   }
   public var value: Value { state.withLock { $0.value } }
-  public func makeAsyncIterator() -> AsyncIterator {
+  public func makeAsyncIterator() -> AsyncIterator { observations().makeAsyncIterator() }
+  func observations() -> AsyncStream<Value> {
     let (stream, continuation) = AsyncStream<Value>.makeStream(bufferingPolicy: .unbounded)
     let id = UUID()
     continuation.onTermination = { [weak self] _ in self?.remove(id) }
@@ -90,7 +91,7 @@ public final class Watched<Value: Sendable>: AsyncSequence, Sendable {
       return state.ended
     }
     if ended { continuation.finish() }
-    return stream.makeAsyncIterator()
+    return stream
   }
   private func remove(_ id: UUID) { _ = state.withLock { $0.listeners.removeValue(forKey: id) } }
   func set(_ value: Value) {
