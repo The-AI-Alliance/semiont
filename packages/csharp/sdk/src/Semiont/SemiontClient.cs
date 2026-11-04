@@ -22,6 +22,8 @@ public sealed class SemiontClient : IDisposable
         Bus = new EventBus();
         Bind = new BindNamespace(Wire, Bus);
         Beckon = new BeckonNamespace(Wire, Bus);
+        Gather = new GatherNamespace(Wire);
+        Match = new MatchNamespace(Wire, Bus);
         Frame = new FrameNamespace(Wire);
         Auth = new AuthNamespace(transport);
         System = new SystemNamespace(transport);
@@ -32,6 +34,8 @@ public sealed class SemiontClient : IDisposable
     public EventBus Bus { get; }
     public BindNamespace Bind { get; }
     public BeckonNamespace Beckon { get; }
+    public GatherNamespace Gather { get; }
+    public MatchNamespace Match { get; }
     public HttpTransport Transport { get; }
     public string BaseUrl => Transport.BaseUrl;
     public ConnectionState State => Transport.State;
