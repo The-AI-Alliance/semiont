@@ -30,7 +30,7 @@ public sealed class SemiontClient : IDisposable
         Beckon = new BeckonNamespace(Wire, Bus);
         Gather = new GatherNamespace(Wire, live);
         Match = new MatchNamespace(Wire, Bus, live);
-        Job = new JobNamespace(Wire, Bus, transport.Clock, transport.Closed);
+        Job = new JobNamespace(Wire, Bus, transport);
         var follower = new JobFollower(Wire, Bus, Job, transport.Clock, transport.Closed, transport.Settings);
         Mark = new MarkNamespace(Wire, Bus, follower);
         Yield = new YieldNamespace(follower, Wire, Bus, content);

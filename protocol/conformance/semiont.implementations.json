@@ -36,7 +36,8 @@
     },
     "csharp": {
       "wire": ["../../packages/csharp/sdk/conformance/bin/semiont-csharp-wire-driver"],
-      "live": { "command": ["../../packages/csharp/sdk/conformance/bin/semiont-csharp-wire-driver", "--live"], "tier": "parity" }
+      "live": { "command": ["../../packages/csharp/sdk/conformance/bin/semiont-csharp-wire-driver", "--live"], "tier": "parity" },
+      "worker": ["../../packages/csharp/sdk/conformance/bin/semiont-csharp-wire-driver", "--worker"]
     }
   },
   "workerServices": {

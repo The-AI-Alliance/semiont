@@ -33,6 +33,16 @@ stall deadline applies to the follower, which asks the queue to cancel the job
 if it stops reporting. A `JobError` carries the shared error code, job ID when
 known, and failure class when the worker supplied one.
 
+Workers sign in as agents and open an `HttpTransport` with
+`WorkerRules.JobClaimChannels` from `Semiont.Jobs`. Add
+`WorkerRules.JobCommitChannels` if the worker will commit annotations.
+`client.Job.Claim(filters)` takes generated `JobFilter` values. Await
+`NextAsync` for an `IHeldJob`, then use the `HeldMarkJob` or `HeldYieldJob`
+completion that matches its verb. A held job exposes its attempt, saved
+checkpoint, and cancellation token. When exporting telemetry, use its
+`Trace` as the parent of the job's activity. Await `StopAsync` before
+disposing the client so the worker can report any job it still holds.
+
 Browse reads resource text, bytes, streams, graphs, anchored text, history, and
 knowledge base metadata. Dispose a representation stream when finished with it.
 `Yield.Resource` starts an upload immediately. Read its progress once and await

@@ -36,6 +36,7 @@ public sealed class BusOperation<TRequest, TResult, TFailure>
 public sealed record ReceivedBusFrame(BusFrame Frame, ActivityContext Trace)
 {
     internal string? EventId { get; init; }
+    internal long Sequence { get; init; }
 
     public UserId? UserId =>
         Frame.Payload.TryGetProperty("_userId", out var value) && value.ValueKind == JsonValueKind.String &&
@@ -73,10 +74,10 @@ public sealed class Bus
     {
         var response = await transport.RequestFrameAsync(operation.Request.Name, JsonSerializer.SerializeToElement(payload),
             timeoutMs, cancellation).ConfigureAwait(false);
-        try { return Decode<TResult>(response.Payload); }
+        try { return Decode<TResult>(response.Frame.Payload); }
         catch (JsonException error)
         {
-            throw new TransportError(ProtocolFacts.Error(0), "Invalid reply on " + response.Channel, inner: error);
+            throw new TransportError(ProtocolFacts.Error(0), "Invalid reply on " + response.Frame.Channel, inner: error);
         }
     }
 

@@ -42,6 +42,7 @@ public sealed partial class HttpTransport : IDisposable
     private string? token;
     private string? refusedToken;
     private bool closed;
+    private long receivedSequence;
     private ConnectionState state;
     private DateTimeOffset? outage;
 
@@ -259,10 +260,10 @@ public sealed partial class HttpTransport : IDisposable
     public async Task<JsonElement?> RequestAsync(string operation, JsonElement payload, int? timeoutMs = null, CancellationToken cancellation = default)
     {
         var frame = await RequestFrameAsync(operation, payload, timeoutMs, cancellation).ConfigureAwait(false);
-        return frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
+        return frame.Frame.Payload.TryGetProperty("response", out var value) ? value.Clone() : null;
     }
 
-    internal async Task<BusFrame> RequestFrameAsync(string operation, JsonElement payload, int? timeoutMs, CancellationToken cancellation)
+    internal async Task<ReceivedBusFrame> RequestFrameAsync(string operation, JsonElement payload, int? timeoutMs, CancellationToken cancellation)
     {
         var replies = ProtocolFacts.Operation(operation);
         if (!IsSubscribed(replies.Result) || !IsSubscribed(replies.Failure)) throw BusError("unsubscribed", operation);
@@ -287,10 +288,10 @@ public sealed partial class HttpTransport : IDisposable
             sendOrder.Release();
             ownsTurn = false;
             var frame = await reply.Completion.Task.WaitAsync(linked.Token).ConfigureAwait(false);
-            if (frame.Channel == replies.Failure)
+            if (frame.Frame.Channel == replies.Failure)
             {
-                string? code = frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
-                throw new BusRequestError(ProtocolFacts.Failure(code), frame.Payload.ToString());
+                string? code = frame.Frame.Payload.TryGetProperty("code", out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
+                throw new BusRequestError(ProtocolFacts.Failure(code), frame.Frame.Payload.ToString());
             }
             return frame;
         }
@@ -455,13 +456,10 @@ public sealed partial class HttpTransport : IDisposable
                             }
                             using var activity = SdkTelemetry.Start("bus.recv:{channel}", SdkTelemetry.BusTags(frame.Channel, frame.Scope), frame.Channel, parent);
                             BusLog.Line("RECV", frame.Channel, frame.Payload);
-                            if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) && (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(frame);
-                            if (listeners.Count > 0)
-                            {
-                                var received = new ReceivedBusFrame(frame, parent) { EventId = message.Id };
-                                foreach (var listener in listeners)
-                                    if (listener.Channels?.Contains(frame.Channel) != false) listener.Stream.Publish(received);
-                            }
+                            var received = new ReceivedBusFrame(frame, parent) { EventId = message.Id, Sequence = ++receivedSequence };
+                            if (frame.CorrelationId is string correlation && pending.TryGetValue(correlation, out var reply) && (frame.Channel == reply.Result || frame.Channel == reply.Failure)) reply.Completion.TrySetResult(received);
+                            foreach (var listener in listeners)
+                                if (listener.Channels?.Contains(frame.Channel) != false) listener.Stream.Publish(received);
                         }
                     }
                 }
@@ -598,7 +596,7 @@ public sealed partial class HttpTransport : IDisposable
 
     private sealed record Pending(string Result, string Failure)
     {
-        internal TaskCompletionSource<BusFrame> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<ReceivedBusFrame> Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
     private sealed class Hold(Action release) : IDisposable
     {

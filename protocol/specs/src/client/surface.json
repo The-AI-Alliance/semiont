@@ -661,7 +661,7 @@
         },
         {
           "method": "claim",
-          "notYetReached": {"swift": "Worker claims and held jobs remain to implement.", "csharp": "C# still needs worker claims and held jobs."},
+          "notYetReached": {"swift": "Worker claims and held jobs remain to implement."},
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [
@@ -721,7 +721,7 @@
     {
       "handed": "claims",
       "docs": "What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go.",
-      "notYetReached": {"csharp": "C# is still to implement the claims worker surface.", "swift": "The Swift SDK's claims: What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go."},
+      "notYetReached": {"swift": "The Swift SDK's claims: What `job.claim` returns: each job the worker comes to hold, one at a time, and what the worker can say of itself meanwhile. How the jobs are read is the language's: subscribed to in TypeScript, iterated in Python, asked for one at a time in Rust and Kotlin (`next`), ranged over in Go."},
       "members": [
         {
           "member": "next",
@@ -755,7 +755,7 @@
     {
       "handed": "heldJob",
       "docs": "A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked.",
-      "notYetReached": {"csharp": "C# is still to implement the heldJob worker surface.", "swift": "The Swift SDK's heldJob: A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked."},
+      "notYetReached": {"swift": "The Swift SDK's heldJob: A job a worker holds, from its claim until it settles it. A held job is its verb's, `mark` or `yield`. A member with `takes` is one a held job has as its verb's, and it takes what that verb's entry names; every other member is the same for both verbs, and a job held as either verb's has it without its verb being asked."},
       "members": [
         { "member": "jobId" },
         { "member": "jobType" },
@@ -1237,8 +1237,11 @@
     {
       "module": "jobFilter",
       "docs": "Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json.",
-      "notYetReached": {"csharp": "C# is still to implement the jobFilter module.", "swift": "The Swift SDK's jobFilter: Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json."},
+      "notYetReached": {"swift": "The Swift SDK's jobFilter: Whether a job matches a filter: asked by the dispatcher choosing a claim's next job, and by a worker checking an announcement against its claim. Held by protocol/specs/src/jobs/filter-cases.json."},
       "where": {
+        "csharp": [
+          "packages/csharp/sdk/src/Semiont/Jobs"
+        ],
         "typescript": [
           "packages/typescript/core/src/job-filter.ts"
         ],
@@ -1269,8 +1272,11 @@
     {
       "module": "claims",
       "docs": "What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json.",
-      "notYetReached": {"csharp": "C# is still to implement the claims module.", "swift": "The Swift SDK's claims: What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json."},
+      "notYetReached": {"swift": "The Swift SDK's claims: What a worker's stream names, and whether a failed job is run again: the channels claiming reads (the replies of `job:claim`, and the announcements and cancellations a worker hears), the channels committing reads (the replies of `mark:commit`, and of the question whether a batch is recorded), and whether a failed attempt is retried, which a held job reports on `job:fail`. Held by protocol/specs/src/jobs/retry-cases.json."},
       "where": {
+        "csharp": [
+          "packages/csharp/sdk/src/Semiont/Jobs"
+        ],
         "typescript": [
           "packages/typescript/sdk/src/claims.ts"
         ],

@@ -1,5 +1,6 @@
 using Semiont.Errors;
 using Semiont.Identifiers;
+using Semiont.Http;
 using Semiont.Protocol;
 using Semiont.Types;
 
@@ -9,16 +10,20 @@ public sealed class JobNamespace
 {
     private readonly Bus wire;
     private readonly EventBus bus;
+    private readonly HttpTransport transport;
     private readonly TimeProvider clock;
     private readonly CancellationToken closed;
 
-    internal JobNamespace(Bus wire, EventBus bus, TimeProvider clock, CancellationToken closed)
+    internal JobNamespace(Bus wire, EventBus bus, HttpTransport transport)
     {
         this.wire = wire;
         this.bus = bus;
-        this.clock = clock;
-        this.closed = closed;
+        this.transport = transport;
+        clock = transport.Clock;
+        closed = transport.Closed;
     }
+
+    public Claims Claim(IReadOnlyList<JobFilter> accepts) => new(transport, wire, accepts);
 
     /// <summary>Observes queued jobs. Wire announcements require a transport subscribed to this channel.</summary>
     public IAsyncEnumerable<Heard<JobQueuedEvent>> Queued(CancellationToken cancellation = default) =>
