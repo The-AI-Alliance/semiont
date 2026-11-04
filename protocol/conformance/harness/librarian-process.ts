@@ -23,13 +23,6 @@ import { collectLines } from './gateway';
 import { call } from './http';
 import { MODEL_CATALOGUE, runEnvironment } from './paths';
 
-/** A model and where its provider is reached: the provider's kind, the model and the provider's address. */
-export interface ModelSettings {
-  type: 'ollama';
-  model: string;
-  baseUrl: string;
-}
-
 /**
  * What a Librarian is told. Every member may be left out, for the case that
  * holds what a Librarian does without it.
@@ -48,10 +41,10 @@ export interface LibrarianSettings {
   vectors?: LibrarianDocument['vectors'];
   /** The embedding provider, which gives a query its vector. */
   embedding?: LibrarianDocument['embedding'];
-  /** The model the Matcher scores candidates with. */
-  matcher?: ModelSettings;
-  /** The model the Gatherer writes summaries with. */
-  gatherer?: ModelSettings;
+  /** The engine the Matcher scores candidates with, and where its provider is reached. */
+  matcher?: LibrarianDocument['matcher'];
+  /** The engine the Gatherer writes summaries with, and where its provider is reached. */
+  gatherer?: LibrarianDocument['gatherer'];
   /** How long a gather waits for a resource's vectors to settle, in milliseconds. */
   settleTimeoutMs?: number;
   /** The least score a hit of the semantic fallback is answered with. */
@@ -104,10 +97,6 @@ type WrittenDocument = {
   [Member in keyof LibrarianDocument]: (Member extends 'identity' ? { issuer: string | undefined } : LibrarianDocument[Member]) | undefined;
 };
 
-/** An actor's engine as the document states it: which it is, and where its provider is reached. */
-const actor = (settings: ModelSettings | undefined): LibrarianDocument['matcher'] | undefined =>
-  settings === undefined ? undefined : { engine: { provider: settings.type, model: settings.model }, baseUrl: settings.baseUrl };
-
 /**
  * The settings as the protocol's configuration document states them
  * (`LibrarianConfig`). A setting a case left out is a member left out, which
@@ -124,8 +113,8 @@ function document(settings: LibrarianSettings, port: number): string {
     graph: settings.graph,
     vectors: settings.vectors,
     embedding: settings.embedding,
-    matcher: actor(settings.matcher),
-    gatherer: actor(settings.gatherer),
+    matcher: settings.matcher,
+    gatherer: settings.gatherer,
     modelCatalogue: MODEL_CATALOGUE,
     gather: settings.settleTimeoutMs === undefined ? undefined : { settleTimeoutMs: settings.settleTimeoutMs },
     search: settings.semanticFloor === undefined ? undefined : { semanticFloor: settings.semanticFloor },
