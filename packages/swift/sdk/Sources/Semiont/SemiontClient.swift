@@ -23,7 +23,7 @@ public final class SemiontClient: Sendable {
   private let disposed = Mutex(false)
   public init(
     transport: any Transport, gateway: (any GatewayOperations)? = nil,
-    followTiming: FollowTiming = FollowTiming()
+    content: (any ContentTransport)? = nil, followTiming: FollowTiming = FollowTiming()
   ) async throws {
     let source = try await transport.frames([])
     do { try Task.checkCancellation() } catch {
@@ -35,10 +35,12 @@ public final class SemiontClient: Sendable {
     self.bus = bus
     let wire = Bus(transport)
     self.wire = wire
-    browse = BrowseNamespace(wire: wire, bus: bus, lifetime: lifetime)
+    let content = content ?? (transport as? any ContentTransport)
+    browse = BrowseNamespace(wire: wire, bus: bus, lifetime: lifetime, content: content)
     gather = GatherNamespace(wire: wire, lifetime: lifetime)
     match = MatchNamespace(wire: wire, bus: bus, lifetime: lifetime)
-    yield = YieldNamespace(wire: wire, bus: bus, lifetime: lifetime, timing: followTiming)
+    yield = YieldNamespace(
+      wire: wire, bus: bus, lifetime: lifetime, timing: followTiming, content: content)
     mark = MarkNamespace(wire: wire, bus: bus, lifetime: lifetime, timing: followTiming)
     job = JobNamespace(wire: wire, bus: bus)
     frame = FrameNamespace(wire: wire)

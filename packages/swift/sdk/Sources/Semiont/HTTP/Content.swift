@@ -47,13 +47,18 @@ public struct PutBinaryRequest: Sendable {
 public struct UploadProgress: Sendable {
   public let bytesUploaded: Int
   public let totalBytes: Int
+
+  public init(bytesUploaded: Int, totalBytes: Int) {
+    self.bytesUploaded = bytesUploaded
+    self.totalBytes = totalBytes
+  }
 }
 public final class Upload: AsyncSequence, Sendable {
   public typealias Element = UploadProgress
   public typealias AsyncIterator = Events<UploadProgress>.AsyncIterator
   private let progress: Events<UploadProgress>
   private let task: Task<CreateResourceResponse, any Error>
-  init(task: Task<CreateResourceResponse, any Error>, progress: Events<UploadProgress>) {
+  public init(task: Task<CreateResourceResponse, any Error>, progress: Events<UploadProgress>) {
     self.task = task
     self.progress = progress
   }
@@ -73,21 +78,28 @@ public final class Upload: AsyncSequence, Sendable {
 public struct Content: Sendable {
   public let contentType: String
   public let bytes: Data
+
+  public init(contentType: String, bytes: Data) {
+    self.contentType = contentType
+    self.bytes = bytes
+  }
 }
 public final class ContentStream: AsyncSequence, Sendable {
   public typealias Element = Data
   public typealias AsyncIterator = Events<Data>.AsyncIterator
   public let contentType: String
   private let bytes: Events<Data>
-  private let task: Task<Void, Never>
-  init(
+  public init(contentType: String, bytes: Events<Data>) {
+    self.contentType = contentType
+    self.bytes = bytes
+  }
+  convenience init(
     response: HTTPClientResponse, lifetime: Lifetime,
     onEnd: @escaping @Sendable () async -> Void = {}
   ) throws {
     guard let contentType = response.headers.first(name: "Content-Type") else {
       throw TransportError(.error, "Content response has no Content-Type")
     }
-    self.contentType = contentType
     let (demands, demand) = AsyncStream<Void>.makeStream(bufferingPolicy: .unbounded)
     let (stream, continuation) = AsyncThrowingStream<Data, any Error>.makeStream(
       bufferingPolicy: .unbounded)
@@ -108,21 +120,20 @@ public final class ContentStream: AsyncSequence, Sendable {
       await onEnd()
       continuation.finish(throwing: failure)
     }
-    self.task = task
     lifetime.keep(task, id: id)
-    bytes = Events(
-      stream, demand: { demand.yield(()) },
-      stop: {
-        demand.finish()
-        task.cancel()
-        continuation.finish()
-      })
+    self.init(
+      contentType: contentType,
+      bytes: Events(
+        stream, demand: { demand.yield(()) },
+        stop: {
+          demand.finish()
+          task.cancel()
+          continuation.finish()
+        }))
+
   }
   public func makeAsyncIterator() -> AsyncIterator { bytes.makeAsyncIterator() }
-  public func dispose() {
-    task.cancel()
-    bytes.dispose()
-  }
+  public func dispose() { bytes.dispose() }
 }
 
 private struct Multipart: Sendable {
@@ -190,7 +201,7 @@ private struct UploadBytes: AsyncSequence, Sendable {
   }
   func makeAsyncIterator() -> AsyncIterator { AsyncIterator(data: data, report: report) }
 }
-extension HttpTransport {
+extension HttpTransport: ContentTransport {
   public nonisolated func putBinary(_ request: PutBinaryRequest) -> Upload {
     let (stream, continuation) = AsyncThrowingStream<UploadProgress, any Error>.makeStream(
       bufferingPolicy: .unbounded)

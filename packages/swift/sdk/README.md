@@ -58,13 +58,15 @@ storage filenames, extension aliases, and whether a format's text is decoded
 or derived. Shared annotation, offset and media-type cases run in the unit suite.
 
 `SemiontClient.fromHttp(baseUrl:httpClient:token:)` constructs the HTTP client
-surface. `SemiontClient(transport:gateway:)` takes another `Transport`, with
-`auth` and `system` present only when a `GatewayOperations` is supplied. The
-client implements 48 of the 66 namespace methods: vocabulary writes, binding,
+surface. `SemiontClient(transport:gateway:content:)` takes another `Transport`, with
+`auth` and `system` present only when a `GatewayOperations` is supplied. Browse
+content reads and Yield uploads use the supplied `ContentTransport` or the
+client transport itself when it conforms. The client implements 54 of the 66
+namespace methods: vocabulary writes, binding,
 attention, authentication/status, annotation writes, job events/status/cancellation,
-gather/search operations, delegation, clone-token reads, and Browse history,
-directory, knowledge-base and navigation methods. Content reads, cache-backed
-queries, upload/clone wiring and worker claims follow later.
+gather/search operations, delegation, uploads and cloning, and Browse history,
+directory, knowledge-base, navigation, graph, anchored text and binary reads.
+Decoded text, cache-backed queries and worker claims follow later.
 Dispose the client before shutting down the caller-owned HTTP client.
 
 `client.wire` sends typed generated `Channels` and `Operations`. `frames` on a

@@ -155,28 +155,24 @@
         },
         {
           "method": "resourceGraph",
-          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getResourceGraph" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resourceAnchoredText",
-          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getAnchoredText" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resourceRepresentation",
-          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getBinary" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
         },
         {
           "method": "resourceRepresentationStream",
-          "notYetReached": {"swift": "Content namespace wiring remains to implement."},
           "shape": "promise",
           "via": { "content": "getBinaryStream" },
           "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
@@ -500,7 +496,6 @@
       "methods": [
         {
           "method": "resource",
-          "notYetReached": {"swift": "Upload client wiring remains to implement."},
           "shape": "upload",
           "via": { "content": "putBinary" },
           "cases": [
@@ -541,7 +536,6 @@
         },
         {
           "method": "createFromToken",
-          "notYetReached": {"swift": "Clone upload client wiring remains to implement."},
           "shape": "promise",
           "via": { "request": "yield:clone-resource-requested" },
           "cases": [

@@ -35,7 +35,7 @@ func completionFixture(_ create: JobCreateCommand, job: String = "job-1") throws
     return .yieldJobCompleteCommand(YieldJobCompleteCommand(jobId: job, resourceId: resource))
   }
 }
-func surfaceReplies(_ probe: ProbeTransport) {
+func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
   probe.handle { [weak probe] name, payload in
     switch name {
     case Operations.browseEventsRequested.request.name:
@@ -97,6 +97,10 @@ func surfaceReplies(_ probe: ProbeTransport) {
           ResponseEnvelope(
             response: CloneResourceWithTokenResponse(
               expiresAt: "2030-01-01T00:00:00Z", resource: focus.resource, token: "token")))
+      }
+      if let cloneAnswer {
+        return try wirePayload(
+          ResponseEnvelope(response: decoded(GetResourceByTokenResponse.self, cloneAnswer)))
       }
       return try wirePayload(
         ResponseEnvelope(
