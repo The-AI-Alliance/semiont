@@ -34,20 +34,35 @@ final class StateCaseWire: Sendable {
   }
 
   func reply(
-    to channel: String, nth: Int, on reply: String, payload: [String: JSONValue]
-  ) throws {
+    to channel: String, nth: Int, on reply: String, payload: [String: JSONValue], bus: EventBus
+  ) async throws {
     let descriptor = try requiredOperation(channel)
-    let request = script.withLock { $0.waiting[channel]?.dropFirst(nth).first }
-    guard let request else { throw SpecFailure.shape("No request \(channel) #\(nth)") }
-    let correlation = stateCaseCorrelation(channel, nth)
-    transport.deliver(ReceivedFrame(channel: reply, correlationId: correlation, payload: payload))
+    let result: Result<[String: JSONValue], any Error>
     if reply == descriptor.failure {
-      request.resolve(.failure(try descriptor.decodeFailure(payload)))
+      result = .failure(try descriptor.decodeFailure(payload))
     } else if reply == descriptor.result {
-      request.resolve(.success(payload))
+      result = .success(payload)
     } else {
       throw SpecFailure.shape("Invalid reply \(reply) to \(channel)")
     }
+    let request = try await within(5000) {
+      while true {
+        if let request = self.script.withLock({ $0.waiting[channel]?.dropFirst(nth).first }) {
+          return request
+        }
+        try await Task.sleep(for: .milliseconds(2))
+      }
+    }
+    let correlation = stateCaseCorrelation(channel, nth)
+    let frames = bus.listen([reply])
+    defer { frames.dispose() }
+    transport.deliver(ReceivedFrame(channel: reply, correlationId: correlation, payload: payload))
+    // Model a wire that delivers the frame before resuming the request waiter.
+    try await within(5000) {
+      for try await frame in frames where frame.correlationId == correlation { return }
+      throw CancellationError()
+    }
+    request.resolve(result)
   }
 
   private func request(_ channel: String, payload: [String: JSONValue]) async throws

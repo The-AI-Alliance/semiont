@@ -50,7 +50,24 @@ import Testing
 }
 
 private final class StateCaseHeard: Sendable {
-  let frames = Mutex<[ReceivedFrame]>([])
+  private let frames = Mutex<[ReceivedFrame]>([])
+  let count = Watched(0)
+
+  func append(_ frame: ReceivedFrame) {
+    frames.withLock {
+      $0.append(frame)
+      count.set($0.count)
+    }
+  }
+
+  func take() -> [ReceivedFrame] {
+    frames.withLock { frames in
+      let taken = frames
+      frames.removeAll()
+      count.set(0)
+      return taken
+    }
+  }
 }
 
 private final class StateCase {
@@ -77,7 +94,7 @@ private final class StateCase {
     let frames = client.bus.listen(channels)
     listening = Task {
       do {
-        for try await frame in frames { heard.frames.withLock { $0.append(frame) } }
+        for try await frame in frames { heard.append(frame) }
       } catch {}
     }
     units = try required(row, "made").object.mapValues {
@@ -115,11 +132,10 @@ private final class StateCase {
         wire.transport.deliver(frame)
       }
     } else if let request = row["answer"] {
-      try await settle()
-      try wire.reply(
+      try await wire.reply(
         to: request.text, nth: stateCaseInteger(required(row, "nth")),
         on: required(row, "reply").text,
-        payload: required(row, "payload").object)
+        payload: required(row, "payload").object, bus: client.bus)
     } else if let queue = row["queueReply"] {
       try wire.queue(queue.text, required(row, "response").object)
     } else if let method = row["invoke"] {
@@ -141,7 +157,7 @@ private final class StateCase {
       let expected = row["payloads"]
       let count = try row["count"].map(stateCaseInteger) ?? expected?.array.count ?? 0
       let transport = wire.transport
-      let requests = try await within(1500) {
+      let requests = try await within(5000) {
         func sentRequests() -> [Call] {
           transport.calls.filter { $0.via == "request" && $0.name == channel }
         }
@@ -160,8 +176,14 @@ private final class StateCase {
     } else if row["nothingSent"] != nil {
       #expect(wire.transport.calls.isEmpty, "\(name) — nothing sent")
     } else if let expected = row["heard"] {
+      let frames = try expected.array
+      let heard = heard
+      try await within(5000) {
+        for await count in heard.count where count >= frames.count { return }
+        throw CancellationError()
+      }
       try await settle()
-      try checkHeard(expected.array)
+      try checkHeard(frames)
     } else if let destroyed = row["busDestroyed"] {
       let open = (try? client.bus.emit(Channels.yieldClone, BusEmptyPayload())) != nil
       #expect(.bool(!open) == destroyed, "\(name) — client bus")
@@ -191,10 +213,7 @@ private final class StateCase {
   }
 
   private func checkHeard(_ expected: [JSONValue]) throws {
-    let actual = heard.frames.withLock { heard in
-      defer { heard.removeAll() }
-      return heard
-    }
+    let actual = heard.take()
     #expect(actual.count == expected.count, "\(name) — heard \(actual.map(\.channel))")
     for (frame, value) in zip(actual, expected) {
       let fields = try value.object
