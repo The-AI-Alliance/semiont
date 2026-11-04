@@ -223,7 +223,6 @@
     {
       "namespace": "mark",
       "docs": "Annotations: their creation and removal, a resource's own metadata, and the annotating of a resource delegated as a job.",
-      "notYetReached": {"csharp": "C# is still to implement the mark namespace."},
       "methods": [
         {
           "method": "annotation",
@@ -268,6 +267,7 @@
         },
         {
           "method": "delegate",
+          "notYetReached": {"csharp": "C# still needs the delegation shape."},
           "shape": "delegation",
           "via": { "request": "job:create" },
           "cases": [
@@ -613,7 +613,6 @@
     {
       "namespace": "job",
       "docs": "Jobs: their lifecycle as it is announced, their status, their cancellation, and, for a worker, the claiming of them.",
-      "notYetReached": {"csharp": "C# is still to implement the job namespace."},
       "methods": [
         {
           "method": "queued",
@@ -670,7 +669,7 @@
         },
         {
           "method": "claim",
-          "notYetReached": {"swift": "Worker claims and held jobs remain to implement."},
+          "notYetReached": {"swift": "Worker claims and held jobs remain to implement.", "csharp": "C# still needs worker claims and held jobs."},
           "shape": "claims",
           "via": { "request": "job:claim" },
           "cases": [

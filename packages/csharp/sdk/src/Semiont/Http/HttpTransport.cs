@@ -66,6 +66,9 @@ public sealed partial class HttpTransport : IDisposable
         _ = RunAsync();
     }
 
+    internal TimeProvider Clock => clock;
+    internal CancellationToken Closed => lifetime.Token;
+
     public string BaseUrl { get; }
     public ConnectionState State { get { lock (gate) { return state; } } }
     public IAsyncEnumerable<ConnectionState> States(CancellationToken cancellation = default) => states.Observe(cancellation);
