@@ -27,8 +27,10 @@ export const SMELTER_HEALTH_PORT = 24101;
 /** The file, in a Smelter's home, it is told to keep its cursors in (SMELTER.md § Settings). */
 export const CURSORS = 'cursors.json';
 
-type QdrantVectors = components['schemas']['QdrantVectorsConfig'];
-type OllamaEmbedding = components['schemas']['OllamaEmbeddingConfig'];
+type SmelterDocument = components['schemas']['SmelterConfig'];
+
+/** An object as a case may leave it: any of its members undefined. A union is left as each of its kinds is. */
+type Leavable<T> = T extends unknown ? { [Member in keyof T]: T[Member] | undefined } : never;
 
 /**
  * What a Smelter is told (SMELTER.md § Settings). Every member the page says
@@ -37,20 +39,20 @@ type OllamaEmbedding = components['schemas']['OllamaEmbeddingConfig'];
  */
 export interface SmelterSettings {
   /** The knowledge base it serves, which its telemetry names. */
-  kb?: components['schemas']['KbIdentity'];
-  gatewayUrl?: string;
+  kb?: SmelterDocument['kb'];
+  gatewayUrl?: SmelterDocument['gatewayUrl'];
   /** The issuer its service account signs in at. */
-  issuer?: string;
+  issuer?: SmelterDocument['identity']['issuer'];
   /** Where the Archivist is, for a resource's bytes. */
-  archivist?: { host: string; port: number };
+  archivist?: SmelterDocument['archivist'];
   /** The vector database: its kind, its host and port, and the variable its token is in. */
-  vectors: { [Member in keyof QdrantVectors]: QdrantVectors[Member] | undefined };
-  /** The embedding provider: the protocol's Ollama embedding configuration, every member of which a case may leave undefined. */
-  embedding: { [Member in keyof OllamaEmbedding]: OllamaEmbedding[Member] | undefined };
+  vectors: Leavable<components['schemas']['QdrantVectorsConfig']>;
+  /** The embedding provider: its kind, its model and its address. */
+  embedding: Leavable<components['schemas']['OllamaEmbeddingConfig']>;
   /** The two numbers a text is cut by: a chunk's size, and how far one chunk overlaps the next. */
-  chunking?: { chunkSize: number; overlap: number };
+  chunking?: SmelterDocument['chunking'];
   /** How many PDFs it works on at once. */
-  pdfsAtOnce?: number;
+  pdfsAtOnce?: SmelterDocument['pdfsAtOnce'];
 }
 
 export interface SmelterEnvironment {
@@ -127,9 +129,10 @@ export interface SmelterProcess {
 
 // ── The settings, as the document a Smelter reads ──────────────────────────
 
-/** What is left of an object when the members that state nothing are taken out. */
-const stated = (members: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(members).filter(([, value]) => value !== undefined));
+/** The document as a case may leave it: any member left out, and any member of `identity`, `embedding` or `vectors`. */
+type WrittenDocument = {
+  [Member in keyof SmelterDocument]: (Member extends 'identity' | 'embedding' | 'vectors' ? Leavable<SmelterDocument[Member]> : SmelterDocument[Member]) | undefined;
+};
 
 /**
  * The settings as the protocol's configuration document states them
@@ -140,22 +143,22 @@ const stated = (members: Record<string, unknown>): Record<string, unknown> =>
  * the process's own home (`CURSORS`).
  */
 function document(settings: SmelterSettings, home: string): string {
-  return JSON.stringify(
-    stated({
-      kb: settings.kb,
-      gatewayUrl: settings.gatewayUrl,
-      identity: stated({ issuer: settings.issuer }),
-      archivist: settings.archivist,
-      embedding: stated(settings.embedding),
-      vectors: stated(settings.vectors),
-      chunking: settings.chunking,
-      pdfsAtOnce: settings.pdfsAtOnce,
-      cursorsPath: join(home, CURSORS),
-      port: SMELTER_HEALTH_PORT,
-      logLevel: 'info',
-      logFormat: 'simple',
-    }),
-  );
+  const written: WrittenDocument = {
+    kb: settings.kb,
+    gatewayUrl: settings.gatewayUrl,
+    identity: { issuer: settings.issuer },
+    archivist: settings.archivist,
+    embedding: settings.embedding,
+    vectors: settings.vectors,
+    chunking: settings.chunking,
+    pdfsAtOnce: settings.pdfsAtOnce,
+    cursorsPath: join(home, CURSORS),
+    port: SMELTER_HEALTH_PORT,
+    logLevel: 'info',
+    logFormat: 'simple',
+  };
+  // A member that states nothing, at any depth, is not written.
+  return JSON.stringify(written);
 }
 
 // ── The process ────────────────────────────────────────────────────────────
