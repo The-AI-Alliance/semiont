@@ -2481,6 +2481,113 @@ func TestAnOwnQdrantIsKeyedFromItsRoot(t *testing.T) {
 	}
 }
 
+// A start that would keep the shared Qdrant first asks it with the key the
+// machine keeps, which it signs the services' tokens with. One running under
+// a key the machine no longer keeps is run afresh under the machine's when it
+// keeps no other knowledge base's index.
+func TestALoneStartRunsASharedQdrantUnderALostKeyAfresh(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	lost := loseTheMachinesQdrantKey(t, s)
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("a lone start beside a shared Qdrant under a lost key: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the start", stdout, "did not answer the machine's API key (listing its collections: 401 Unauthorized: Invalid API key or JWT)",
+		"it keeps no other knowledge base's index, so it runs afresh under the machine's")
+	mustContain(t, "the start's runtime calls", strings.TrimPrefix(s.argv(t), before), "--name semiont-qdrant")
+	if key := qdrantRunsUnderTheMachinesKey(t, s); key == lost {
+		t.Error("the machine kept the lost key")
+	}
+}
+
+// One that keeps another knowledge base's index is refused and left running,
+// since that knowledge base's services hold tokens signed with the key it runs
+// under; the order the refusal names runs it under the machine's key and
+// hands every service a token signed with it.
+func TestAStartRefusesASharedQdrantUnderALostKeyThatAnotherKnowledgeBaseUses(t *testing.T) {
+	s := newScenario(t, "container")
+	withDomain(t, s.kb, arxivDomain)
+	first := s.kb
+	other := asTheSystemNamesIt(t, mkKB(t))
+	withDomain(t, other, plainDomain)
+	withGatewayPort(t, other, 4010)
+	start := func(kb, label string) {
+		t.Helper()
+		s.kb = kb
+		if _, stderr, code := s.run(t, "start"); code != 0 {
+			t.Fatalf("%s: exit %d\nstderr:\n%s", label, code, stderr)
+		}
+	}
+	start(first, "the first knowledge base's start")
+	start(other, "the other's start")
+	lost := loseTheMachinesQdrantKey(t, s)
+	before := s.argv(t)
+	stdout, stderr, code := s.run(t, "start")
+	if code != 1 {
+		t.Fatalf("a start beside another knowledge base on a shared Qdrant under a lost key: exit %d, want 1\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the refusal", stderr, "did not answer the machine's API key", "it keeps the index of "+first+":",
+		"listing its collections: 401 Unauthorized: Invalid API key or JWT")
+	mustContain(t, "the refusal", stdout, "Stop them first (semiont stop --root <its path>), then start each again after this one.")
+	if got := argvStops(strings.TrimPrefix(s.argv(t), before)); slices.Contains(got, "semiont-qdrant") {
+		t.Errorf("the refused start stopped the shared Qdrant: %q", got)
+	}
+	if got, _ := s.containerEnv(t, "semiont-qdrant", "QDRANT__SERVICE__API_KEY"); got != lost {
+		t.Error("the refused start ran the shared Qdrant afresh")
+	}
+
+	s.kb = first
+	if _, stderr, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("the first knowledge base's stop: exit %d\nstderr:\n%s", code, stderr)
+	}
+	start(other, "the other's start after the first's stop")
+	start(first, "the first's start again")
+	key := qdrantRunsUnderTheMachinesKey(t, s)
+	if key == lost {
+		t.Error("the machine kept the lost key")
+	}
+	for _, kb := range []string{arxivKey, "example.github.io-plain-kb"} {
+		for _, svc := range []string{"smelter", "librarian"} {
+			token, _ := s.containerEnv(t, "semiont-"+kb+"-"+svc, "QDRANT_TOKEN")
+			qdrantTokenClaims(t, key, token)
+		}
+	}
+}
+
+// loseTheMachinesQdrantKey deletes the key the machine keeps for the shared
+// Qdrant while it runs as recorded, and answers the key it runs under.
+func loseTheMachinesQdrantKey(t *testing.T, s *scenario) string {
+	t.Helper()
+	sharedRunsAsRecorded(t, s, "qdrant")
+	lost, ok := s.containerEnv(t, "semiont-qdrant", "QDRANT__SERVICE__API_KEY")
+	if !ok || lost == "" {
+		t.Fatal("the shared Qdrant runs under no key")
+	}
+	if err := os.Remove(filepath.Join(sharedStateFor(s.home), "qdrant-api-key")); err != nil {
+		t.Fatal(err)
+	}
+	return lost
+}
+
+// qdrantRunsUnderTheMachinesKey: the key the machine keeps for the shared
+// Qdrant, which it must run under.
+func qdrantRunsUnderTheMachinesKey(t *testing.T, s *scenario) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(sharedStateFor(s.home), "qdrant-api-key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := strings.TrimSpace(string(b))
+	if got, _ := s.containerEnv(t, "semiont-qdrant", "QDRANT__SERVICE__API_KEY"); key == "" || got != key {
+		t.Fatal("the shared Qdrant runs under another key than the machine keeps")
+	}
+	return key
+}
+
 // `semiont stop --service vectors` stops the shared Qdrant alone, and
 // `semiont clean --shared --store vectors` removes its store and its stamp.
 // The clean is refused while a recorded stack keeps its index there, and

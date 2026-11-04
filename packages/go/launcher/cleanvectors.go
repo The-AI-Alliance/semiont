@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/The-AI-Alliance/semiont/packages/go/launcher/stack"
 )
@@ -71,7 +70,7 @@ func sharedVectorsBase(ss *StackSet) string {
 	if rec == nil {
 		return ""
 	}
-	return strings.TrimSuffix(rec.Endpoint, descriptorFor("vectors", probeDriver("vectors")).health.path)
+	return qdrantBase(rec.Endpoint)
 }
 
 // indexToDelete: how a clean deletes the collections of the knowledge base
@@ -177,44 +176,12 @@ func vectorsForClean(u *UI) (stop func(), key string, ok bool) {
 	return stop, userEnvVars(fc.userEnv)[daemonCredentials["vectors"].env], true
 }
 
-// qdrantAnswer: what Qdrant answers a request it took, with what it answers
-// in result.
-type qdrantAnswer[T any] struct {
-	Result T `json:"result"`
-}
-
-// qdrantRequest: a request of the Qdrant at base, with its API key.
-func qdrantRequest(method, base, key, path string) (*http.Response, error) {
-	req, err := http.NewRequest(method, base+path, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("api-key", key)
-	return adminHTTP.Do(req)
-}
-
 // collectionsHeld: which of the collections of the knowledge base whose DID
 // is did the Qdrant at base, asked with key, holds, in their words' order.
 func collectionsHeld(base, key, did string) ([]string, error) {
-	resp, err := qdrantRequest(http.MethodGet, base, key, "/collections")
+	names, err := qdrantCollections(base, key)
 	if err != nil {
-		return nil, fmt.Errorf("listing its collections: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("listing its collections: %s", qdrantRefusal(resp))
-	}
-	var listed qdrantAnswer[struct {
-		Collections []struct {
-			Name string `json:"name"`
-		} `json:"collections"`
-	}]
-	if err := json.NewDecoder(resp.Body).Decode(&listed); err != nil {
-		return nil, fmt.Errorf("listing its collections: it answered no list of collections: %w", err)
-	}
-	var names []string
-	for _, c := range listed.Result.Collections {
-		names = append(names, c.Name)
+		return nil, err
 	}
 	ours := indexCollections(did)
 	var held []string
@@ -243,18 +210,4 @@ func deleteCollection(base, key, name string) error {
 		return fmt.Errorf("Qdrant did not say it deleted it")
 	}
 	return nil
-}
-
-// qdrantRefusal: what a Qdrant that refused a request said, as its status
-// and the error its body states.
-func qdrantRefusal(resp *http.Response) string {
-	var refused struct {
-		Status struct {
-			Error string `json:"error"`
-		} `json:"status"`
-	}
-	if json.NewDecoder(resp.Body).Decode(&refused) == nil && refused.Status.Error != "" {
-		return fmt.Sprintf("%s: %s", resp.Status, refused.Status.Error)
-	}
-	return resp.Status
 }

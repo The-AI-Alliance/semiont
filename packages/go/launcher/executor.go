@@ -60,9 +60,10 @@ type prober interface {
 	waitPGAccepting(seconds int) bool                                              // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
 	probeTCP(role string, rp rolePlan) bool                                        // external-role reachability
 	gatewayReachable(addr string, port int) bool
-	resolveAddr() (string, bool)     // container→host address ("<host-addr>" in plan mode)
-	otelDetect(addr string) []string // --service: OTel iff the collector is up
-	tracesUp(url string) bool        // whether Jaeger answers at url: where the collector sends traces
+	resolveAddr() (string, bool)        // container→host address ("<host-addr>" in plan mode)
+	otelDetect(addr string) []string    // --service: OTel iff the collector is up
+	tracesUp(url string) bool           // whether Jaeger answers at url: where the collector sends traces
+	qdrantTakes(base, key string) error // whether the Qdrant at base answers a request made with key; why not, when it does not
 }
 
 // recorder: the belief record: what this machine thinks is running, and how each role was
@@ -76,6 +77,7 @@ type recorder interface {
 	containerCurrent(name, desired string) bool              // running under this runtime AND image identity matches
 	sharedRecord(name string) *ServiceState                  // a shared container's record, by name
 	sharedIssuerRealms() []string                            // the realms the shared issuer serves for the recorded stacks other than this one, sorted
+	sharedVectorsRoots() []string                            // the roots of the recorded stacks other than this one that keep their index in the shared Qdrant, sorted
 	recordShared(rec ServiceState)                           // a shared container this start ran, under this runtime
 	forgetShared(name string)                                // no shared container of the launcher's runs by this name
 	keepWorkerList(list workerList) bool                     // the knowledge bases the shared worker serves, as this start leaves them
@@ -645,6 +647,11 @@ func (x *liveExec) otelDetect(addr string) []string {
 
 func (x *liveExec) tracesUp(url string) bool { return httpOK(url) }
 
+func (x *liveExec) qdrantTakes(base, key string) error {
+	_, err := qdrantCollections(base, key)
+	return err
+}
+
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
 // the SAME value a full start did. Every credential the launcher hands out
 // works this way.
@@ -784,6 +791,16 @@ func (x *liveExec) sharedIssuerRealms() []string {
 	}
 	slices.Sort(realms)
 	return realms
+}
+
+func (x *liveExec) sharedVectorsRoots() []string {
+	var roots []string
+	for _, st := range localStacks(LoadStackSet()) {
+		if rootKey(st.KBDid, st.KBRoot) != x.kb.key() && machineServes(st, "vectors") {
+			roots = append(roots, st.KBRoot)
+		}
+	}
+	return roots
 }
 
 // recorded reads back how an earlier step in THIS run resolved a role.
@@ -1407,6 +1424,11 @@ func (x *planExec) tracesUp(url string) bool {
 	return false
 }
 
+func (x *planExec) qdrantTakes(base, _ string) error {
+	x.c("probe: GET %s/collections with the machine's API key — keep it if Qdrant answers; else refuse while another knowledge base keeps its index there, and run it afresh while none does", base)
+	return nil
+}
+
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
 // never has the side effect of creating a root's signing key.
 func (x *planExec) jwtSecret(kbRoot) (string, bool) { return "<jwt-secret>", true }
@@ -1469,6 +1491,7 @@ func (x *planExec) retireIssuerProxy() {
 func (x *planExec) containerCurrent(string, string) bool { return false }
 func (x *planExec) sharedRecord(string) *ServiceState    { return nil }
 func (x *planExec) sharedIssuerRealms() []string         { return nil }
+func (x *planExec) sharedVectorsRoots() []string         { return nil }
 func (x *planExec) recordShared(ServiceState)            {}
 func (x *planExec) forgetShared(string)                  {}
 
