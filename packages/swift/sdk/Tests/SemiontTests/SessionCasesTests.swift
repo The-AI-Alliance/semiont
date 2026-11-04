@@ -168,7 +168,7 @@ private func status(_ session: SemiontSession) -> String {
   try await sleepMilliseconds(10)
   waiting.cancel()
   await #expect(throws: CancellationError.self) {
-    try await within(200) { try await waiting.value }
+    try await within(testDeadlineMs) { try await waiting.value }
   }
 }
 @Test func disposingASessionCancelsRenewalAndFinishesItsReaders() async throws {
@@ -191,11 +191,11 @@ private func status(_ session: SemiontSession) -> String {
   await session.start()
   try await session.ready()
   let renewing = Task { try await session.refresh() }
-  try await within(500) { for await value in entered where value { return } }
+  try await within(testDeadlineMs) { for await value in entered where value { return } }
   session.dispose()
   session.dispose()
   await #expect(throws: CancellationError.self) {
-    try await within(500) { try await renewing.value }
+    try await within(testDeadlineMs) { try await renewing.value }
   }
   #expect(session.token.value == access)
   var reader = session.token.makeAsyncIterator()
@@ -242,7 +242,7 @@ private struct UnwritableSignIn: SignInKept {
   let waiting = Task { try await gate.refresh(access) }
   try await sleepMilliseconds(10)
   await gate.set(session)
-  #expect(try await within(500) { try await waiting.value } == "renewed")
+  #expect(try await within(testDeadlineMs) { try await waiting.value } == "renewed")
 }
 @Test func startupDoesNotPublishTheIdentityOfATokenReplacedWhileItWasAskedAbout() async throws {
   let old = try jwt(.object(["exp": .number(Date().timeIntervalSince1970 + 3600)]))
@@ -265,7 +265,7 @@ private struct UnwritableSignIn: SignInKept {
     release.finish(with: true)
   }
   await session.start()
-  try await within(500) { for await value in asked where value { return } }
+  try await within(testDeadlineMs) { for await value in asked where value { return } }
   #expect(try await session.refreshOf(old) == "new-token")
   release.set(true)
   try await session.ready()
@@ -307,7 +307,7 @@ private struct UnwritableSignIn: SignInKept {
   defer { session.dispose() }
   await gate.set(session)
   await session.start()
-  try await within(2000) { try await session.ready() }
+  try await within(testDeadlineMs) { try await session.ready() }
   #expect(asks.withLock { $0 } == 2)
   #expect(session.user.value == nil)
   #expect(errors.withLock { $0 } == ["session.auth-failed"])

@@ -55,7 +55,7 @@ private func server<Value: Sendable>(
       baseUrl: base, httpClient: http, token: "token", channels: ["beckon:focus"],
       timing: TransportTiming(reconnectMs: 500, streamOpenMs: 20))
     defer { transport.dispose() }
-    let state = try await within(1000) {
+    let state = try await within(testDeadlineMs) {
       for await state in transport.state where state == .reconnecting { return state }
       throw CancellationError()
     }
@@ -66,7 +66,7 @@ private func server<Value: Sendable>(
       baseUrl: base, httpClient: http, token: "token", channels: ["beckon:focus"],
       timing: TransportTiming(streamOpenMs: 20))
     defer { transport.dispose() }
-    try await within(1000) { try await transport.waitUntilOpen() }
+    try await within(testDeadlineMs) { try await transport.waitUntilOpen() }
     try await sleepMilliseconds(80)
     #expect(transport.state.value == .open)
   }
@@ -78,7 +78,7 @@ private func server<Value: Sendable>(
       timing: TransportTiming(httpRequestMs: 100))
     defer { transport.dispose() }
     do {
-      _ = try await within(1000) { try await transport.getCurrentUser() }
+      _ = try await within(testDeadlineMs) { try await transport.getCurrentUser() }
       Issue.record("A 401 succeeded")
     } catch let failure as TransportError {
       #expect(failure.status == 401)
@@ -93,7 +93,7 @@ private func server<Value: Sendable>(
       timing: TransportTiming(httpRequestMs: 20))
     defer { transport.dispose() }
     do {
-      _ = try await within(1000) { try await transport.getBinary(ResourceId("resource")) }
+      _ = try await within(testDeadlineMs) { try await transport.getBinary(ResourceId("resource")) }
       Issue.record("An unfinished read succeeded")
     } catch let failure as TransportError { #expect(failure.reason == .unavailable) }
   }
@@ -107,7 +107,7 @@ private func server<Value: Sendable>(
     try await sleepMilliseconds(20)
     transport.dispose()
     do {
-      _ = try await within(1000) { try await request.value }
+      _ = try await within(testDeadlineMs) { try await request.value }
       Issue.record("A disposed request succeeded")
     } catch is CancellationError {}
   }
@@ -138,11 +138,11 @@ private actor RenewalGate {
         completed.set(.failure(error))
       }
     }
-    try await within(1000) { for await count in gate.started where count == 1 { return } }
+    try await within(testDeadlineMs) { for await count in gate.started where count == 1 { return } }
     let second = Task { try await transport.renew(refused: "old-token") }
     first.cancel()
     do {
-      let result = try await within(1000) {
+      let result = try await within(testDeadlineMs) {
         for await result in completed { if let result { return result } }
         throw CancellationError()
       }
@@ -227,7 +227,7 @@ private final class RecordedSpans: SpanExporter {
     traces.forceFlush()
     #expect(!exported.ended(resource))
     read.dispose()
-    try await within(1000) {
+    try await within(testDeadlineMs) {
       while !exported.ended(resource) { try await sleepMilliseconds(1) }
     }
   }
@@ -247,11 +247,11 @@ private final class RecordedSpans: SpanExporter {
     try await transport.deliverForTest(
       BusFrame(channel: "beckon:sparkle", payload: ["annotationId": .string("annotation")]),
       id: "e-sparkle")
-    let heardFocus = try await within(1000) {
+    let heardFocus = try await within(testDeadlineMs) {
       var iterator = focus.makeAsyncIterator()
       return try await iterator.next()
     }
-    let heardSparkle = try await within(1000) {
+    let heardSparkle = try await within(testDeadlineMs) {
       var iterator = sparkle.makeAsyncIterator()
       return try await iterator.next()
     }
@@ -285,7 +285,7 @@ extension HttpTransport {
       try await Bus(transport).request(
         Operations.frameAddEntityType, FrameAddEntityTypeCommand(tag: "Person"))
     }
-    let correlation = try await within(1000) {
+    let correlation = try await within(testDeadlineMs) {
       while true {
         if let id = await transport.pendingIDForTest() { return id }
         try await sleepMilliseconds(5)
@@ -295,13 +295,13 @@ extension HttpTransport {
       BusFrame(
         channel: Channels.frameEntityTypeAddOk.name, correlationId: correlation,
         payload: ["_userId": .string("did:web:kb.test:users:person")]), id: "e-write")
-    _ = try await within(1000) { try await write.value }
+    _ = try await within(testDeadlineMs) { try await write.value }
     let read = Task {
       try await Bus(transport).request(
         Operations.browseResourceRequested,
         BrowseResourceRequest(resourceId: ResourceId("resource")))
     }
-    let next = try await within(1000) {
+    let next = try await within(testDeadlineMs) {
       while true {
         if let id = await transport.pendingIDForTest() { return id }
         try await sleepMilliseconds(5)
@@ -312,7 +312,7 @@ extension HttpTransport {
         channel: Channels.browseResourceResult.name, correlationId: next,
         payload: ["response": .object(["lastSequence": .number(1)])]), id: "e-read")
     do {
-      _ = try await within(1000) { try await read.value }
+      _ = try await within(testDeadlineMs) { try await read.value }
       Issue.record("Malformed native reply succeeded")
     } catch let error as TransportError {
       #expect(error.reason == .error)
@@ -353,7 +353,7 @@ func nativeRequestsPreserveFailureCodesAndRefuseMalformedFailures(malformed: Boo
         operation: operation.request.name,
         payload: wirePayload(FrameAddEntityTypeCommand(tag: "Person")), timeoutMs: 10000)
     }
-    let correlation = try await within(5000) {
+    let correlation = try await within(testDeadlineMs) {
       while true {
         if let id = await transport.pendingIDForTest() { return id }
         try await sleepMilliseconds(5)
@@ -368,7 +368,7 @@ func nativeRequestsPreserveFailureCodesAndRefuseMalformedFailures(malformed: Boo
       BusFrame(channel: operation.failure.name, correlationId: correlation, payload: payload),
       id: "e-failure")
     do {
-      _ = try await within(5000) { try await request.value }
+      _ = try await within(testDeadlineMs) { try await request.value }
       Issue.record("A failed native request succeeded")
     } catch let error as BusRequestError {
       #expect(error.reason == (malformed ? unrecognizedBusFailure : .busPeerUnavailable))

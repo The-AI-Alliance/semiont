@@ -161,7 +161,7 @@ import Testing
     try await sleepMilliseconds(30)
     #expect(!completed.withLock { $0 })
     try input.fileHandleForWriting.write(contentsOf: Data("release\n".utf8))
-    try await within(1000) { try await writing.value }
+    try await within(testDeadlineMs) { try await writing.value }
     #expect(completed.withLock { $0 })
   }
 #endif

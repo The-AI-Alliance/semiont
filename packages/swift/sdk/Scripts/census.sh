@@ -7,6 +7,9 @@ while IFS= read -r file; do
   case "$file" in ./Sources/*)
     if sed -E 's/ProcessInfo\.processInfo\.environment\["SEMIONT_BUS_LOG"\]//g; s/getenv\("SEMIONT_BUS_LOG"\)//g' "$file" | grep -nE '\.environment|getenv[[:space:]]*\('; then exit 1; fi
     if grep -nE '\b(setenv|unsetenv|putenv|environ)\b' "$file"; then exit 1; fi;;
+  # A test's wait is bounded by testDeadlineMs alone (Tests/SemiontTests/TestDeadline.swift).
+  ./Tests/*)
+    if grep -nE 'within\([0-9]' "$file"; then exit 1; fi;;
   esac
 done < .build/census-files
 if grep -nE 'unsafeFlags|swiftLanguageMode[[:space:]]*\(|treatWarning[[:space:]]*\(' Package.swift; then exit 1; fi
@@ -18,4 +21,4 @@ diff -u .build/default-rules .build/our-rules
 for rule in NeverForceUnwrap NeverUseForceTry NeverUseImplicitlyUnwrappedOptionals; do
   grep -E "\"$rule\" : true" .swift-format > /dev/null
 done
-echo "census: concurrency, environment, compiler settings and format rules checked"
+echo "census: concurrency, environment, test deadlines, compiler settings and format rules checked"

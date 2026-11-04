@@ -523,13 +523,13 @@ private let callsByName:
           let read = make(client)
           probe.deliver(
             ReceivedFrame(channel: try observed.text, payload: try required(item, "sends").object))
-          let result = try await within(1000) { try await read() }
+          let result = try await within(testDeadlineMs) { try await read() }
           #expect(result == (try required(item, "sends")))
           #expect(probe.calls.isEmpty)
           continue
         }
         let invoke = try #require(invoke)
-        let result = try await within(1000) {
+        let result = try await within(testDeadlineMs) {
           try await invoke(client, required(item, "args").object)
         }
         var expected: [Call] = []
@@ -546,7 +546,7 @@ private let callsByName:
               payload: try required(next, "sends").object))
         }
         if let local {
-          let frame = try await within(1000) {
+          let frame = try await within(testDeadlineMs) {
             var iterator = local.makeAsyncIterator()
             return try await iterator.next()
           }
@@ -557,7 +557,7 @@ private let callsByName:
           }
         } else {
           if via["emit"] != nil, try required(row, "shape").text == "signal" {
-            try await within(5000) {
+            try await within(testDeadlineMs) {
               for await sent in probe.emitted where sent { return }
             }
           }
@@ -655,7 +655,7 @@ private let callsByName:
   // Emission itself cannot loop back. Only the received copy is bridged.
   probe.deliver(
     ReceivedFrame(channel: "beckon:sparkle", payload: ["annotationId": .string("ann-2")]))
-  let first = try await within(1000) {
+  let first = try await within(testDeadlineMs) {
     var iterator = local.makeAsyncIterator()
     return try await iterator.next()
   }
