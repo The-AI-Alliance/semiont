@@ -173,6 +173,18 @@ extension ProbeTransport: ContentTransport {
 }
 private let callsByName:
   [String: @Sendable (SemiontClient, [String: JSONValue]) async throws -> JSONValue?] = [
+    "browse.resource": { client, args in
+      try await encoded(
+        client.browse.resource(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
+    "browse.events": { client, args in
+      try await encoded(
+        client.browse.events(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
+    "gather.referencedBy": { client, args in
+      try await encoded(
+        client.gather.referencedBy(decoded(ResourceId.self, required(args, "resourceId"))).fresh())
+    },
     "browse.entityTypes": { client, _ in
       try await encoded(client.browse.entityTypes().fresh())
     },

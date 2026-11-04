@@ -72,7 +72,12 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     #expect(transport.calls.count == 1)
 
     transport.handle { _, _ in try entityTypesReply(["New"]) }
-    transport.deliver(ReceivedFrame(channel: Channels.frameEntityTypeAdded.name, payload: [:]))
+    let channel = Channels.frameEntityTypeAdded.name
+    let event = try StoredEventResponse(
+      id: "e-frame", metadata: EventMetadata(sequenceNumber: 0), payload: [:],
+      timestamp: "2026-11-03T00:00:00Z", type: channel,
+      userId: UserId("did:web:kb.test:users:person"), version: 1)
+    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(event)))
     guard case .ready(let updated)? = await observer.next() else {
       Issue.record("Invalidation should replace the ready value without emitting pending")
       return
@@ -135,5 +140,67 @@ private func entityTypesReply(_ types: [String]) throws -> [String: JSONValue] {
     }
     #expect(late == ["Late"])
     #expect(transport.calls.count == 2)
+  }
+}
+
+@Test func scopedEventsRefreshOnlyTheirResourceAndScopesEndWithObservation() async throws {
+  let transport = ProbeTransport()
+  surfaceReplies(transport, cloneAnswer: nil)
+  let client = try await SemiontClient(transport: transport)
+  defer { client.dispose() }
+
+  try await within(5000) {
+    let first = try ResourceId("first")
+    let second = try ResourceId("second")
+    let firstQuery = client.browse.events(first)
+    let secondQuery = client.browse.events(second)
+    _ = client.browse.events(try ResourceId("cold"))
+    #expect(client.browse.events(first) === firstQuery)
+    #expect(transport.holds == 0)
+
+    var firstReader = firstQuery.makeAsyncIterator()
+    var secondReader = secondQuery.makeAsyncIterator()
+    guard case .pending? = await firstReader.next(), case .ready? = await firstReader.next(),
+      case .pending? = await secondReader.next(), case .ready? = await secondReader.next()
+    else {
+      Issue.record("Each scoped query should load independently")
+      return
+    }
+    #expect(transport.holds == 2)
+    for await state in firstQuery {
+      guard case .ready = state else {
+        Issue.record("The second reader should reuse the ready value")
+        break
+      }
+      #expect(transport.holds == 3)
+      break
+    }
+    #expect(transport.holds == 2)
+
+    let gap = BusResumeGap(lastSeenId: "p-first-1", reason: .retentionExceeded, scope: first)
+    transport.deliver(
+      ReceivedFrame(channel: Channels.busResumeGap.name, payload: try wirePayload(gap)))
+    guard case .ready? = await firstReader.next() else {
+      Issue.record("A replay gap should refresh the affected query")
+      return
+    }
+    let channel = Channels.markBodyUpdated.name
+    let edit = try EnrichedResourceEvent(
+      id: "e-edit", metadata: EventMetadata(sequenceNumber: 2), payload: [:], resourceId: second,
+      timestamp: "2026-11-03T00:00:00Z", type: channel,
+      userId: UserId("did:web:kb.test:users:person"), version: 1)
+    transport.deliver(ReceivedFrame(channel: channel, payload: try wirePayload(edit)))
+    guard case .ready? = await secondReader.next() else {
+      Issue.record("An annotation edit should refresh the history of its resource")
+      return
+    }
+    #expect(
+      transport.calls.map { $0.payload["resourceId"] } == [
+        .string(first.value), .string(second.value), .string(first.value), .string(second.value),
+      ])
+    client.dispose()
+    #expect(await firstReader.next() == nil)
+    #expect(await secondReader.next() == nil)
+    #expect(transport.holds == 0)
   }
 }

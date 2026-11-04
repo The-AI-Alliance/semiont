@@ -45,6 +45,17 @@ func surfaceReplies(_ probe: ProbeTransport, cloneAnswer: JSONValue?) {
     case Operations.browseTagSchemasRequested.request.name:
       return try wirePayload(
         BrowseTagSchemasResult(response: GetTagSchemasResponse(tagSchemas: [])))
+    case Operations.browseResourceRequested.request.name:
+      guard case .resource(let focus) = try contextFixture().focus else {
+        throw SpecFailure.shape("resource focus")
+      }
+      return try wirePayload(
+        BrowseResourceResult(
+          response: BrowseResourceResultResponse(lastSequence: 0, resource: focus.resource)))
+    case Operations.gatherReferencedByRequested.request.name:
+      return try wirePayload(
+        GatherReferencedByResult(
+          response: GetReferencedByResponse(referencedBy: [])))
     case Operations.browseEventsRequested.request.name:
       let request = try decoded(BrowseEventsRequest.self, .object(payload))
       return try wirePayload(

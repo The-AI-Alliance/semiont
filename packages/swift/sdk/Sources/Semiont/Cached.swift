@@ -11,8 +11,11 @@ public final class Cached<Value: Sendable>: AsyncSequence, Sendable {
   public typealias Element = CacheState<Value>
   private let entry: CacheEntry<Value>
 
-  init(lifetime: Lifetime, fetch: @escaping @Sendable () async throws -> Value) {
-    let entry = CacheEntry(lifetime: lifetime, fetch: fetch)
+  init(
+    lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)? = nil,
+    fetch: @escaping @Sendable () async throws -> Value
+  ) {
+    let entry = CacheEntry(lifetime: lifetime, hold: hold, fetch: fetch)
     self.entry = entry
     lifetime.onEnd { [weak entry] in
       Task { await entry?.close() }
@@ -55,8 +58,10 @@ private actor CacheEntry<Value: Sendable> {
   typealias State = CacheState<Value>
   private let lifetime: Lifetime
   private let fetch: @Sendable () async throws -> Value
+  private let hold: (@Sendable () async -> ResourceHold)?
   private var state: State = .pending
-  private var listeners: [UUID: AsyncStream<State>.Continuation] = [:]
+  private var listeners: [UUID: (stream: AsyncStream<State>.Continuation, scope: ResourceHold?)] =
+    [:]
   private var flights: [UUID: Task<Value, any Error>] = [:]
   private var current: UUID?
   private var validation: UUID?
@@ -64,15 +69,24 @@ private actor CacheEntry<Value: Sendable> {
   private var windowOpen = false
   private var refreshOwed = false
 
-  init(lifetime: Lifetime, fetch: @escaping @Sendable () async throws -> Value) {
+  init(
+    lifetime: Lifetime, hold: (@Sendable () async -> ResourceHold)?,
+    fetch: @escaping @Sendable () async throws -> Value
+  ) {
     self.lifetime = lifetime
+    self.hold = hold
     self.fetch = fetch
   }
 
   nonisolated var ended: Bool { lifetime.ended }
 
-  func observe() -> (AsyncStream<State>, ResourceHold)? {
-    guard !lifetime.ended else { return nil }
+  func observe() async -> (AsyncStream<State>, ResourceHold)? {
+    guard !lifetime.ended, !Task.isCancelled else { return nil }
+    let scope = await hold?()
+    guard !lifetime.ended, !Task.isCancelled else {
+      scope?.dispose()
+      return nil
+    }
     switch state {
     case .ready: break
     case .failed:
@@ -82,21 +96,22 @@ private actor CacheEntry<Value: Sendable> {
     }
     let id = UUID()
     let (stream, continuation) = AsyncStream<State>.makeStream(bufferingPolicy: .unbounded)
-    listeners[id] = continuation
+    listeners[id] = (continuation, scope)
     continuation.yield(state)
     return (
       stream,
       ResourceHold { [weak self] in
+        scope?.dispose()
         Task { await self?.remove(id) }
       }
     )
   }
 
-  private func remove(_ id: UUID) { listeners.removeValue(forKey: id)?.finish() }
+  private func remove(_ id: UUID) { listeners.removeValue(forKey: id)?.stream.finish() }
 
   private func publish(_ state: State) {
     self.state = state
-    for listener in listeners.values { listener.yield(state) }
+    for listener in listeners.values { listener.stream.yield(state) }
   }
 
   private func fetching() -> Task<Value, any Error> {
@@ -195,7 +210,10 @@ private actor CacheEntry<Value: Sendable> {
 
   func close() {
     for flight in flights.values { flight.cancel() }
-    for listener in listeners.values { listener.finish() }
+    for listener in listeners.values {
+      listener.scope?.dispose()
+      listener.stream.finish()
+    }
     flights.removeAll()
     listeners.removeAll()
     refreshOwed = false

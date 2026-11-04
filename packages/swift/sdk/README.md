@@ -61,17 +61,20 @@ or derived. Shared annotation, offset and media-type cases run in the unit suite
 surface. `SemiontClient(transport:gateway:content:)` takes another `Transport`, with
 `auth` and `system` present only when a `GatewayOperations` is supplied. Browse
 content reads and Yield uploads use the supplied `ContentTransport` or the
-client transport itself when it conforms. The client implements 57 of the 66
+client transport itself when it conforms. The client implements 60 of the 66
 namespace methods: vocabulary writes, binding,
 attention, authentication/status, annotation writes, job events/status/cancellation,
 gather/search operations, delegation, uploads and cloning, and Browse history,
 directory, knowledge-base, navigation, graph, decoded and anchored text, and
-binary reads. Browse also offers live entity types and tag schemas. Other
+binary reads. Browse also offers live resource details, event history, entity
+types and tag schemas. Gather offers live incoming references. Other
 cache-backed queries and worker claims follow later.
-Iterate a vocabulary query's `Cached` sequence for `CacheState.pending`,
-`.ready(value)`, and `.failed(error)`. Call `fresh()` to ask the service
-directly and share its answer with observers. Disposing the client ends
-the sequences.
+
+Iterate a live query's `Cached` sequence for `CacheState.pending`,
+`.ready(value)`, and `.failed(error)`. Iterating a resource-scoped query holds
+the resource's event subscription until iteration ends. Call `fresh()` to ask
+the service directly and share its answer with observers. Disposing the client
+ends the sequences.
 
 Dispose the client before shutting down the caller-owned HTTP client.
 
