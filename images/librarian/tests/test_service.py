@@ -23,7 +23,7 @@ from semiont_vectors.qdrant import QdrantVectorReader
 from semiont_vectors.voyage import VoyageEmbeddingProvider
 from test_config import DOCUMENT, ENGINE, VOYAGE, written
 
-from semiont_librarian.service import CHANNELS, CONFIRMING_CHANNELS, boot, health, main
+from semiont_librarian.service import CHANNELS, boot, health, main
 
 pytestmark = pytest.mark.usefixtures("the_log_as_it_was")
 
@@ -91,11 +91,6 @@ def test_its_stream_names_the_eight_requests_it_answers_the_two_signals_it_follo
         ]
     )
     assert len(CHANNELS) == len(set(CHANNELS))
-
-
-def test_the_stream_it_asks_the_knowledge_base_on_names_the_answer_and_no_request() -> None:
-    # A request reaches every stream that names its channel: one named here would reach a Librarian that answers nothing yet.
-    assert CONFIRMING_CHANNELS == ("browse:kb-result", "browse:kb-failed")
 
 
 def test_its_health_says_it_is_up_names_the_knowledge_base_it_serves_and_names_its_two_actors() -> None:

@@ -1,14 +1,21 @@
 /**
  * How a Weaver starts, answers for itself and stops (WEAVER.md § Boot, §
  * Health, § Stopping): what its health reports, what it refuses to start
- * without, and that a reconcile it cannot finish does not end it.
+ * without, that it refuses to start where its settings name another
+ * knowledge base than the one at its gateway, and that a reconcile it cannot
+ * finish does not end it.
  */
+import { kbDid } from '@semiont/core';
 import { expect, it } from 'vitest';
+import { kbIdentity } from '../harness/spec';
 import { eachWeaver } from '../harness/weaver-world';
 import { uploaded } from './support';
 
+/** A knowledge base the gateway does not serve, which a Weaver's settings are made to name. */
+const ELSEWHERE = kbIdentity('a comment is not part of the value');
+
 eachWeaver('a Weaver, as a process', (world) => {
-  it('reports at its health port how it follows the record and how its reconcile ended', async () => {
+  it('reports at its health port the knowledge base it serves, how it follows the record and how its reconcile ended', async () => {
     const id = await uploaded(world(), 'Counted');
     await world().caughtUp(id);
     await world().restart();
@@ -16,6 +23,7 @@ eachWeaver('a Weaver, as a process', (world) => {
     const health = await world().weaver.health();
 
     expect(health.status).toBe('ok');
+    expect(health.kb).toBe(kbDid(world().kb.world.served.domain));
     expect(health.following).toEqual({ sweep: 'done', stopped: 0, refused: 0, streamDrops: 0 });
     expect(health.reconcile.phase).toBe('done');
     expect(Object.keys(health.reconcile.summary!).sort()).toEqual(['divergent', 'healFailures', 'healed', 'orphaned', 'resourcesChecked']);
@@ -55,6 +63,18 @@ eachWeaver('a Weaver, as a process', (world) => {
       const { code, output } = await world().refused({ settings: { ...world().settings, graph: { type: 'memory' } } });
       expect(code).not.toBe(0);
       expect(output).toMatch(/memory/);
+    } finally {
+      await world().start();
+    }
+  });
+
+  it('refuses to start on settings that name another knowledge base than the one at its gateway, and names both', async () => {
+    await world().stop();
+    try {
+      const { code, output } = await world().refused({ settings: { ...world().settings, kb: { name: ELSEWHERE.name, domain: ELSEWHERE.domain } } });
+      expect(code).not.toBe(0);
+      expect(output).toContain(kbDid(world().kb.world.served.domain));
+      expect(output).toContain(ELSEWHERE.did);
     } finally {
       await world().start();
     }

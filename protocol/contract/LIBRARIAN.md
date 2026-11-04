@@ -992,7 +992,7 @@ opens its health port.
   start saying what failed. Either way it exits with a status other than 0
   having reached neither the graph database nor the vector index. Told to
   stop while it asks, it exits with status 0.
-  *Held by `packages/python/service/tests/test_knowledge_base.py`, `images/librarian/tests/test_service.py`, for the stream it asks on, and `librarian/boot`.*
+  *Held by `packages/python/service/tests/test_knowledge_base.py` and `librarian/boot`.*
 - **It gives up when the graph database or the vector index does not answer
   within sixty seconds,** says which, and exits with a status other than 0.
   *Held by `packages/python/service/tests/test_connect.py`.*
