@@ -97,3 +97,14 @@ disposal. Only a successful grant with both access and refresh tokens is kept.
 `Issuer.SignOutAsync(kept)` attempts revocation and forgets the local credentials even
 when the issuer cannot be reached. Discovery rejects an issuer document that describes
 a different issuer or provides invalid endpoint addresses.
+
+`ServiceToken` gives a service account's bearer header through
+`AuthorizationAsync`. Supply its issuer, client ID, and either a client secret
+or an RSA private key. The service discovers the endpoint once and shares an
+in-flight grant among callers. The caller keeps any supplied key and HTTP client
+usable for the service token's lifetime.
+
+`AgentToken` uses a service token to sign in to a knowledge base and confirm
+its DID. It renews the token when due or after a credential refusal.
+`RefreshAsync` can serve as a transport refresher, and `TokensChanged` exposes
+updates to consumers. Dispose the agent before disposing its service token.

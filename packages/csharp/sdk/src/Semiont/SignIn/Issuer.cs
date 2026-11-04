@@ -27,7 +27,10 @@ public sealed partial class Issuer : IDisposable
         return KeptRenewal.RenewAsync(kept, holding, RefreshAsync, clock, cancellation);
     }
 
-    private async Task<(string Access, string? Refresh)> RefreshAsync(StoredSession held, CancellationToken cancellation)
+    private Task<(string Access, string? Refresh)> RefreshAsync(StoredSession held, CancellationToken cancellation) =>
+        RetryAsync(token => GrantAsync(held, token), cancellation);
+
+    internal async Task<T> RetryAsync<T>(Func<CancellationToken, Task<T>> grant, CancellationToken cancellation)
     {
         var budget = ProtocolFacts.Timing("refreshRetry");
         var attempts = budget.GetProperty("attempts").GetInt32();
@@ -35,7 +38,7 @@ public sealed partial class Issuer : IDisposable
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, lifetime.Token);
         for (var attempt = 1; ; attempt++)
         {
-            try { return await GrantAsync(held, linked.Token).ConfigureAwait(false); }
+            try { return await grant(linked.Token).ConfigureAwait(false); }
             catch (SignInError error) when (attempt < attempts && ProtocolFacts.RetryRefresh(error.Status))
             {
                 await Task.Delay(TimeSpan.FromMilliseconds(delay / 2 + random.NextDouble() * delay / 2), clock, linked.Token).ConfigureAwait(false);
